@@ -2,6 +2,14 @@
 
 {#head}
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+<style>
+  /* Compact FullCalendar for the panel layout */
+  .fc .fc-toolbar-title { font-size: 1rem; font-weight: 600; }
+  .fc .fc-button { font-size: 0.75rem; padding: 0.25rem 0.6rem; }
+  .fc .fc-daygrid-day-number { font-size: 0.75rem; }
+  .fc .fc-event { font-size: 0.7rem; }
+  .fc-daygrid-day.fc-day-today { background-color: #eef2ff !important; }
+</style>
 {/head}
 
 {#body}
@@ -25,42 +33,57 @@
     </header>
 
     <!-- Main content -->
-    <main class="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
-        <h2 class="text-2xl font-semibold mb-1">Welcome, {displayName}</h2>
-        <p class="text-sm text-gray-500 mb-8">Track your daily actions below.</p>
+    <main class="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
+        <div class="mb-6">
+            <h2 class="text-2xl font-semibold">Welcome, {displayName}</h2>
+        </div>
 
-        <div class="grid gap-6 md:grid-cols-3">
+        <!-- Calendar + day panel -->
+        <div class="grid gap-4 lg:grid-cols-3 mb-6">
 
-            <!-- Calendar placeholder -->
-            <div class="md:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
-                <h3 class="text-base font-medium mb-4">Calendar</h3>
-                <div id="calendar" class="text-sm text-gray-400 italic">
-                    Calendar coming in Phase 3.
-                </div>
+            <div class="lg:col-span-2 bg-white rounded-2xl border border-gray-200 p-4">
+                <div id="calendar"></div>
             </div>
 
-            <!-- Actions quick-link -->
-            <div class="bg-white rounded-2xl border border-gray-200 p-6">
-                <h3 class="text-base font-medium mb-4">Actions</h3>
-                <p class="text-sm text-gray-500 mb-4">
-                    Manage the habits and activities you track each day.
+            <div id="day-panel"
+                 class="bg-white rounded-2xl border border-gray-200 p-5 lg:sticky lg:top-4 self-start">
+                <p class="text-sm text-gray-400 italic text-center py-4">
+                    Click a day to log actions.
                 </p>
-                <a href="/actions"
-                   class="inline-block bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium
-                          hover:bg-indigo-700 transition-colors">
-                    Manage actions
-                </a>
             </div>
 
         </div>
 
         <!-- Stats placeholder -->
-        <div class="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
-            <h3 class="text-base font-medium mb-4">Stats</h3>
+        <div class="bg-white rounded-2xl border border-gray-200 p-6">
+            <h3 class="text-base font-medium mb-2">Stats</h3>
             <p class="text-sm text-gray-400 italic">Stats coming in Phase 4.</p>
         </div>
     </main>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    var cal = new FullCalendar.Calendar(document.getElementById('calendar'), {
+        initialView: 'dayGridMonth',
+        height: 'auto',
+        headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+        events: '/api/logs',
+        eventDisplay: 'list-item',
+        dateClick: function (info) {
+            htmx.ajax('GET', '/logs/day/' + info.dateStr, { target: '#day-panel', swap: 'innerHTML' });
+        }
+    });
+    cal.render();
+
+    // Refresh calendar dots after every log toggle inside the day panel.
+    document.body.addEventListener('htmx:afterRequest', function (e) {
+        if (e.target && e.target.closest && e.target.closest('#day-panel')) {
+            cal.refetchEvents();
+        }
+    });
+});
+</script>
 {/body}
 
 {/include}

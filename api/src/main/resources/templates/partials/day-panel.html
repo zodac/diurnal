@@ -1,0 +1,16 @@
+<div class="flex items-center justify-between mb-4">
+    <h3 class="text-base font-medium text-gray-900">{dateLabel}</h3>
+</div>
+
+{#if statuses.isEmpty()}
+<p class="text-sm text-gray-400 italic text-center py-4">
+    No actions defined yet.
+    <a href="/actions" class="text-indigo-500 hover:underline">Add one</a>
+</p>
+{#else}
+<div class="flex flex-col gap-1">
+    {#for status in statuses}
+    {#include partials/day-action-item date=date action=status.action count=status.count /}
+    {/for}
+</div>
+{/if}
