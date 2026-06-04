@@ -1,0 +1,48 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-lifetracker}
+      POSTGRES_USER: ${DB_USER:-lifetracker}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-lifetracker} -d ${DB_NAME:-lifetracker}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: ${DB_NAME:-lifetracker}
+      DB_USER: ${DB_USER:-lifetracker}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+      # JWT keys are mounted from ./secrets/ — run scripts/generate-jwt-keys.sh --prod first
+      # Session cookie encryption — must be at least 16 chars, keep secret
+      SESSION_ENCRYPTION_KEY: ${SESSION_ENCRYPTION_KEY:?SESSION_ENCRYPTION_KEY must be set}
+      JWT_PUBLIC_KEY_LOCATION: /run/secrets/jwt-public.pem
+      JWT_PRIVATE_KEY_LOCATION: /run/secrets/jwt-private.pem
+      # OIDC (Phase 5) — set OIDC_ENABLED=true and configure the values below
+      OIDC_ENABLED: ${OIDC_ENABLED:-false}
+      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-life-tracker}
+      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+    volumes:
+      - ./secrets/jwt-private.pem:/run/secrets/jwt-private.pem:ro
+      - ./secrets/jwt-public.pem:/run/secrets/jwt-public.pem:ro
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres_data:

@@ -1,0 +1,22 @@
+# Environment
+.env
+
+# JWT keys — regenerate with scripts/generate-jwt-keys.sh
+secrets/
+api/src/main/resources/jwt-keys/
+
+# Maven
+api/target/
+api/.mvn/wrapper/maven-wrapper.jar
+
+# Node
+ui/node_modules/
+ui/dist/
+
+# IDE
+.idea/
+*.imlO
+.vscode/
+
+# OS
+.DS_Store

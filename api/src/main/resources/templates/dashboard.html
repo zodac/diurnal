@@ -1,0 +1,56 @@
+{#include layout.html}
+
+{#head}
+<script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+{/head}
+
+{#body}
+<div class="min-h-screen flex flex-col">
+
+    <!-- Navigation -->
+    <header class="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
+        <span class="text-lg font-semibold">Life Tracker</span>
+        <div class="flex items-center gap-4">
+            <span class="text-sm text-gray-500 hidden sm:block">{email}</span>
+            <form method="post" action="/logout">
+                <button type="submit"
+                        class="text-sm text-gray-500 hover:text-gray-900 transition-colors">
+                    Sign out
+                </button>
+            </form>
+        </div>
+    </header>
+
+    <!-- Main content -->
+    <main class="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
+        <h2 class="text-2xl font-semibold mb-1">Welcome, {displayName}</h2>
+        <p class="text-sm text-gray-500 mb-8">Track your daily actions below.</p>
+
+        <div class="grid gap-6 md:grid-cols-3">
+
+            <!-- Calendar placeholder -->
+            <div class="md:col-span-2 bg-white rounded-2xl border border-gray-200 p-6">
+                <h3 class="text-base font-medium mb-4">Calendar</h3>
+                <div id="calendar" class="text-sm text-gray-400 italic">
+                    Calendar coming in Phase 3.
+                </div>
+            </div>
+
+            <!-- Actions placeholder -->
+            <div class="bg-white rounded-2xl border border-gray-200 p-6">
+                <h3 class="text-base font-medium mb-4">Actions</h3>
+                <p class="text-sm text-gray-400 italic">Action management coming in Phase 2.</p>
+            </div>
+
+        </div>
+
+        <!-- Stats placeholder -->
+        <div class="mt-6 bg-white rounded-2xl border border-gray-200 p-6">
+            <h3 class="text-base font-medium mb-4">Stats</h3>
+            <p class="text-sm text-gray-400 italic">Stats coming in Phase 4.</p>
+        </div>
+    </main>
+</div>
+{/body}
+
+{/include}
