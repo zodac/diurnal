@@ -12,6 +12,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
@@ -21,6 +22,9 @@ import java.util.Arrays;
 public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswordAuthenticationRequest> {
 
     private static final Logger log = Logger.getLogger(PasswordIdentityProvider.class);
+
+    @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
+    boolean passwordAuthEnabled;
 
     // Self-injection gives us the CDI proxy, so @Transactional on verifyCredentials is honoured.
     @Inject
@@ -41,6 +45,10 @@ public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswo
         String password = new String(raw);
         Arrays.fill(raw, '\0');
 
+        if (!passwordAuthEnabled) {
+            return Uni.createFrom().failure(new AuthenticationFailedException("Password authentication is disabled."));
+        }
+
         // runBlocking moves execution to a worker thread — JTA and BCrypt are both safe there.
         return context.runBlocking(() -> self.verifyCredentials(email, password));
     }
@@ -50,12 +58,15 @@ public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswo
         return User.findByEmail(email)
                 .filter(u -> u.passwordHash != null)
                 .filter(u -> BCrypt.checkpw(password, u.passwordHash))
-                .map(u -> (SecurityIdentity) QuarkusSecurityIdentity.builder()
-                        .setPrincipal(new QuarkusPrincipal(u.email))
-                        .addAttribute("userId", u.id.toString())
-                        .addAttribute("displayName", u.displayName)
-                        .addRole("user")
-                        .build())
+                .map(u -> {
+                    log.debugf("Login successful: %s", u.email);
+                    return (SecurityIdentity) QuarkusSecurityIdentity.builder()
+                            .setPrincipal(new QuarkusPrincipal(u.email))
+                            .addAttribute("userId", u.id.toString())
+                            .addAttribute("displayName", u.displayName)
+                            .addRole("user")
+                            .build();
+                })
                 .orElseThrow(() -> {
                     log.debugf("Failed login attempt for: %s", email);
                     return new AuthenticationFailedException();

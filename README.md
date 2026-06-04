@@ -2,6 +2,8 @@
 
 A personal habit-tracking web app. Log actions against a calendar, then query stats like streaks and frequency.
 
+Trying to use AI to build this application, with guidance as needed. Expect several iterations.
+
 ## Stack
 
 | Layer     | Technology                                                              |
@@ -9,7 +11,7 @@ A personal habit-tracking web app. Log actions against a calendar, then query st
 | Backend   | Quarkus 3 (Java 21), RESTEasy Reactive, Hibernate ORM Panache, Flyway   |
 | UI        | Qute (server-side templates), HTMX, FullCalendar.js, Tailwind CSS (CDN) |
 | Auth      | Form-based sessions (web UI); JWT Bearer (REST API / future OIDC)       |
-| Database  | PostgreSQL 16                                                           |
+| Database  | PostgreSQL                                                              |
 | Packaging | Single Docker image — everything in one Quarkus JAR                     |
 
 > **Note on templating:** Quarkus uses **Qute
@@ -19,20 +21,23 @@ A personal habit-tracking web app. Log actions against a calendar, then query st
 
 ## Development setup
 
-Prerequisites: Java 21, Maven 3.9+, Docker (for the automatic dev database).
+Prerequisites: Java 21, Maven 3.9+, Docker.
 
 ```bash
 # 1. Generate JWT signing keys (required before first start)
 ./scripts/generate-jwt-keys.sh
 
-# 2. Start the API — Quarkus DevServices auto-starts PostgreSQL
+# 2. Start the dev database
+docker compose -f docker-compose.dev.yml up -d
+
+# 3. Start the API with hot reload
 cd api && mvn quarkus:dev
 
 # App:     http://localhost:8080
 # Swagger: http://localhost:8080/q/swagger-ui
 ```
 
-That's it. No separate frontend build step — templates are rendered server-side by Quarkus, and CSS/JS are loaded from CDN.
+No separate frontend build step — templates are rendered server-side by Quarkus, CSS/JS loaded from CDN. Quarkus hot-reloads both Java classes and Qute templates on save.
 
 ## Production (Docker Compose)
 

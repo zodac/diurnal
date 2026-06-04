@@ -1,0 +1,29 @@
+<form id="action-{action.id}"
+      hx-post="/actions/{action.id}"
+      hx-target="#action-{action.id}"
+      hx-swap="outerHTML"
+      class="flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-indigo-300 ring-1 ring-indigo-200">
+    <input type="color"
+           name="colour"
+           value="{action.colour}"
+           class="w-6 h-6 rounded-full border-0 cursor-pointer p-0 bg-transparent flex-shrink-0"
+           title="Pick a colour">
+    <input type="text"
+           name="name"
+           value="{action.name}"
+           required
+           maxlength="100"
+           class="flex-1 text-sm border border-gray-200 rounded-lg px-2 py-1
+                  focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+    <button type="submit"
+            class="text-xs font-medium text-indigo-600 hover:text-indigo-800 transition-colors">
+        Save
+    </button>
+    <button type="button"
+            hx-get="/actions/{action.id}"
+            hx-target="#action-{action.id}"
+            hx-swap="outerHTML"
+            class="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+        Cancel
+    </button>
+</form>

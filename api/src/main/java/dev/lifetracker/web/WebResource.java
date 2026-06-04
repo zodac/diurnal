@@ -9,6 +9,7 @@ import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
@@ -28,6 +29,9 @@ public class WebResource {
 
     @Inject SecurityIdentity identity;
 
+    @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
+    boolean passwordAuthEnabled;
+
     // ── Login ──────────────────────────────────────────────────────────────
 
     @GET
@@ -36,7 +40,8 @@ public class WebResource {
     public TemplateInstance loginPage(
             @QueryParam("error")      @DefaultValue("false") boolean error,
             @QueryParam("registered") @DefaultValue("false") boolean registered) {
-        return loginTemplate.data("error", error, "registered", registered);
+        return loginTemplate.data("error", error, "registered", registered,
+                "passwordAuthEnabled", passwordAuthEnabled);
     }
 
     // ── Register ───────────────────────────────────────────────────────────
@@ -44,8 +49,11 @@ public class WebResource {
     @GET
     @Path("register")
     @Produces(MediaType.TEXT_HTML)
-    public TemplateInstance registerPage(@QueryParam("error") @DefaultValue("") String error) {
-        return registerTemplate.data("error", error);
+    public Response registerPage(@QueryParam("error") @DefaultValue("") String error) {
+        if (!passwordAuthEnabled) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        return Response.ok(registerTemplate.data("error", error)).build();
     }
 
     @POST
@@ -56,6 +64,10 @@ public class WebResource {
             @FormParam("email")       String email,
             @FormParam("displayName") String displayName,
             @FormParam("password")    String password) {
+
+        if (!passwordAuthEnabled) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
 
         if (email == null || displayName == null || password == null
                 || email.isBlank() || displayName.isBlank() || password.length() < 8) {

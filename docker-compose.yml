@@ -28,6 +28,8 @@ services:
       DB_USER: ${DB_USER:-lifetracker}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
       # JWT keys are mounted from ./secrets/ — run scripts/generate-jwt-keys.sh --prod first
+      LOG_LEVEL: "DEBUG"
+      PASSWORD_AUTH_ENABLED: "true"
       # Session cookie encryption — must be at least 16 chars, keep secret
       SESSION_ENCRYPTION_KEY: ${SESSION_ENCRYPTION_KEY:?SESSION_ENCRYPTION_KEY must be set}
       JWT_PUBLIC_KEY_LOCATION: /run/secrets/jwt-public.pem

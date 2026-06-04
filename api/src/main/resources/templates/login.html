@@ -7,6 +7,8 @@
         <h1 class="text-2xl font-semibold mb-1">Life Tracker</h1>
         <p class="text-sm text-gray-500 mb-6">Sign in to your account</p>
 
+        {#if passwordAuthEnabled}
+
         {#if registered}
         <div class="mb-4 rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-700">
             Account created — you can now sign in.
@@ -44,6 +46,12 @@
             Don't have an account?
             <a href="/register" class="text-indigo-600 hover:underline font-medium">Register</a>
         </p>
+
+        {#else}
+        <div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-800">
+            Password authentication is disabled. Please sign in using your configured identity provider.
+        </div>
+        {/if}
     </div>
 </div>
 {/body}
