@@ -12,8 +12,10 @@ import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -33,6 +35,9 @@ public class LogWebResource {
 
     @Inject SecurityIdentity identity;
 
+    @ConfigProperty(name = "app.timezone", defaultValue = "UTC")
+    String timezoneId;
+
     // ── Day panel ──────────────────────────────────────────────────────────
 
     @GET
@@ -41,12 +46,14 @@ public class LogWebResource {
     @Transactional
     public TemplateInstance dayPanel(@PathParam("date") LocalDate date) {
         User user = currentUser();
-        var page = getActions(user.id, date, 1, "");
+        boolean future = isFuture(date);
+        var page = future ? null : getActions(user.id, date, 1, "");
 
         return dayPanelTemplate.data(
                 "date", date,
                 "dateLabel", date.format(DAY_LABEL),
                 "darkMode", user.darkMode,
+                "future", future,
                 "page", page);
     }
 
@@ -106,6 +113,8 @@ public class LogWebResource {
             @PathParam("actionId") UUID actionId) {
 
         User user = currentUser();
+        if (isFuture(date)) return Response.status(Response.Status.BAD_REQUEST).build();
+
         Action action = ownedAction(user, actionId);
         if (action == null) return Response.status(Response.Status.NOT_FOUND).build();
 
@@ -136,6 +145,8 @@ public class LogWebResource {
             @PathParam("actionId") UUID actionId) {
 
         User user = currentUser();
+        if (isFuture(date)) return Response.status(Response.Status.BAD_REQUEST).build();
+
         Action action = ownedAction(user, actionId);
         if (action == null) return Response.status(Response.Status.NOT_FOUND).build();
 
@@ -156,6 +167,11 @@ public class LogWebResource {
 
     private TemplateInstance item(LocalDate date, Action action, int count) {
         return dayActionItemTemplate.data("date", date, "action", action, "count", count);
+    }
+
+    // Actions can only be logged for today or earlier, in the user's configured timezone.
+    private boolean isFuture(LocalDate date) {
+        return date.isAfter(LocalDate.now(ZoneId.of(timezoneId)));
     }
 
     private User currentUser() {
