@@ -9,10 +9,9 @@
                 class="text-xs text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
             Edit
         </button>
-        <button hx-post="/actions/{action.id}/delete"
+        <button hx-get="/actions/{action.id}/confirm-delete"
                 hx-target="#action-{action.id}"
                 hx-swap="outerHTML"
-                hx-confirm="Delete '{action.name}'?"
                 class="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors">
             Delete
         </button>

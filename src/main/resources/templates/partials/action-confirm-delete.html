@@ -1,0 +1,24 @@
+<div id="action-{action.id}"
+     class="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-700 rounded-xl border border-red-300 dark:border-red-700 ring-1 ring-red-200 dark:ring-red-800">
+    <span class="w-4 h-4 rounded-full flex-shrink-0 border border-black/10"
+          style="background-color: {action.colour}"></span>
+    <span class="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200 truncate">{action.name}</span>
+    <span class="text-xs text-gray-500 dark:text-gray-400">Delete this action?</span>
+    <!-- Destructive action sits to the left, away from where the "Delete" trigger was clicked. -->
+    <button type="button"
+            hx-post="/actions/{action.id}/delete"
+            hx-target="#action-{action.id}"
+            hx-swap="outerHTML"
+            class="text-xs font-medium text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-300 transition-colors">
+        Delete
+    </button>
+    <!-- Cancel sits furthest right, where the original "Delete" button was, so a repeat
+         click lands here and safely dismisses instead of confirming. -->
+    <button type="button"
+            hx-get="/actions/{action.id}"
+            hx-target="#action-{action.id}"
+            hx-swap="outerHTML"
+            class="ml-4 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
+        Cancel
+    </button>
+</div>

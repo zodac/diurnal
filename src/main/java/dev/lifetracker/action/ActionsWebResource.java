@@ -23,6 +23,7 @@ public class ActionsWebResource {
     @Inject @Location("actions")       Template actionsTemplate;
     @Inject @Location("partials/action-item") Template actionItemTemplate;
     @Inject @Location("partials/action-edit") Template actionEditTemplate;
+    @Inject @Location("partials/action-confirm-delete") Template actionConfirmDeleteTemplate;
 
     @Inject SecurityIdentity identity;
 
@@ -84,7 +85,7 @@ public class ActionsWebResource {
             sb.append("    <span class=\"flex-1 text-sm font-medium text-gray-800 dark:text-gray-200\">").append(escapeHtml(action.name)).append("</span>\n");
             sb.append("    <div class=\"flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity\">\n");
             sb.append("        <button hx-get=\"/actions/").append(action.id).append("/edit\" hx-target=\"#action-").append(action.id).append("\" hx-swap=\"outerHTML\" class=\"text-xs text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors\">Edit</button>\n");
-            sb.append("        <button hx-post=\"/actions/").append(action.id).append("/delete\" hx-target=\"#action-").append(action.id).append("\" hx-swap=\"outerHTML swap:1s\" class=\"text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors\">Delete</button>\n");
+            sb.append("        <button hx-get=\"/actions/").append(action.id).append("/confirm-delete\" hx-target=\"#action-").append(action.id).append("\" hx-swap=\"outerHTML\" class=\"text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors\">Delete</button>\n");
             sb.append("    </div>\n");
             sb.append("</div>\n");
         }
@@ -143,6 +144,16 @@ public class ActionsWebResource {
         Action action = findOwnedAction(id);
         if (action == null) return Response.status(404).build();
         return Response.ok(actionEditTemplate.data("action", action)).build();
+    }
+
+    @GET
+    @Path("{id}/confirm-delete")
+    @Produces(MediaType.TEXT_HTML)
+    @Transactional
+    public Response confirmDelete(@PathParam("id") UUID id) {
+        Action action = findOwnedAction(id);
+        if (action == null) return Response.status(404).build();
+        return Response.ok(actionConfirmDeleteTemplate.data("action", action)).build();
     }
 
     // ── Mutations ─────────────────────────────────────────────────────────
