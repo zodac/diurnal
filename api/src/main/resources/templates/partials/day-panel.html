@@ -19,42 +19,5 @@
 
 <!-- Actions list -->
 <div id="day-actions-list" class="flex flex-col gap-1">
-    {#if page.items.isEmpty()}
-    <p class="text-sm text-gray-500 dark:text-gray-400 italic text-center py-4">
-        No actions defined yet.
-        <a href="/actions" class="text-indigo-600 dark:text-indigo-400 hover:underline">Add one</a>
-    </p>
-    {#else}
-    {#for status in page.items}
-    {#include partials/day-action-item date=date action=status.action count=status.count /}
-    {/for}
-
-    <!-- Pagination -->
-    {#if page.totalPages > 1}
-    <div class="mt-4 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-        <p>Showing {page.items.size} of {page.totalCount}</p>
-        <div class="flex gap-2">
-            {#if page.currentPage > 1}
-            <a href="#"
-               hx-get="/logs/day/{date}/list?page={page.currentPage - 1}"
-               hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('day-search-input').value"
-               hx-target="#day-actions-list"
-               class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
-                ← Previous
-            </a>
-            {/if}
-            <span>Page {page.currentPage} of {page.totalPages}</span>
-            {#if page.currentPage < page.totalPages}
-            <a href="#"
-               hx-get="/logs/day/{date}/list?page={page.currentPage + 1}"
-               hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('day-search-input').value"
-               hx-target="#day-actions-list"
-               class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
-                Next →
-            </a>
-            {/if}
-        </div>
-    </div>
-    {/if}
-    {/if}
+    {#include partials/day-actions-list date=date page=page /}
 </div>
