@@ -4,7 +4,11 @@
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 <style>
   /* Compact FullCalendar for the panel layout */
-  .fc .fc-toolbar-title { font-size: 1rem; font-weight: 600; }
+  .fc .fc-toolbar-title { font-size: 1rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem; }
+  /* Minimalist, monochrome "jump to month" icon, inline after the title */
+  .lt-jump-btn { display: inline-flex; align-items: center; color: rgb(156, 163, 175); cursor: pointer; background: none; border: none; padding: 0; line-height: 0; transition: color 0.15s; }
+  .lt-jump-btn:hover { color: rgb(55, 65, 81); }
+  .dark .lt-jump-btn:hover { color: rgb(229, 231, 235); }
   .fc .fc-button { font-size: 0.75rem; padding: 0.25rem 0.6rem; }
   .fc .fc-daygrid-day-number { font-size: 0.75rem; }
   .fc .fc-event { font-size: 0.7rem; }
@@ -148,14 +152,105 @@ document.addEventListener('DOMContentLoaded', function () {
         initialView: 'dayGridMonth',
         initialDate: today,
         height: 'auto',
-        headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
+        headerToolbar: { left: 'prevYear,prev,next,nextYear today', center: 'title', right: '' },
         events: '/logs/events',
         eventDisplay: 'list-item',
+        datesSet: function () { mountJumpIcon(); },
         dateClick: function (info) {
             htmx.ajax('GET', '/logs/day/' + info.dateStr, { target: '#day-panel', swap: 'innerHTML' });
         }
     });
     cal.render();
+
+    // ── Custom month/year picker ────────────────────────────────────────────
+    var calEl = document.getElementById('calendar');
+    calEl.style.position = 'relative';
+
+    var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var CAL_ICON =
+        '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"' +
+        ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+        '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>' +
+        '<line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
+
+    // Popup
+    var pop = document.createElement('div');
+    pop.className = 'hidden absolute z-50 mt-1 p-3 rounded-lg shadow-lg border ' +
+                    'bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700';
+    pop.style.width = '220px';
+    pop.innerHTML =
+        '<div class="flex items-center justify-between mb-2">' +
+          '<button type="button" data-y="-1" class="px-2 py-1 rounded text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">‹</button>' +
+          '<span class="lt-year text-sm font-semibold text-gray-900 dark:text-gray-50"></span>' +
+          '<button type="button" data-y="1" class="px-2 py-1 rounded text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">›</button>' +
+        '</div>' +
+        '<div class="lt-months grid grid-cols-3 gap-1"></div>';
+    calEl.appendChild(pop);
+
+    var pickerYear = cal.getDate().getFullYear();
+    var yearLabel = pop.querySelector('.lt-year');
+    var monthsGrid = pop.querySelector('.lt-months');
+
+    function renderMonths() {
+        yearLabel.textContent = pickerYear;
+        var shown = cal.getDate();
+        monthsGrid.innerHTML = '';
+        MONTHS.forEach(function (name, i) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = name;
+            var current = (pickerYear === shown.getFullYear() && i === shown.getMonth());
+            b.className = 'text-sm rounded px-2 py-1.5 transition-colors ' + (current
+                ? 'bg-indigo-600 text-white'
+                : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700');
+            b.addEventListener('click', function () {
+                cal.gotoDate(pickerYear + '-' + String(i + 1).padStart(2, '0') + '-01');
+                closePop();
+            });
+            monthsGrid.appendChild(b);
+        });
+    }
+
+    pop.querySelectorAll('button[data-y]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            pickerYear += parseInt(btn.dataset.y, 10);
+            renderMonths();
+        });
+    });
+
+    function openPop(anchor) {
+        pickerYear = cal.getDate().getFullYear();
+        renderMonths();
+        var a = anchor.getBoundingClientRect();
+        var c = calEl.getBoundingClientRect();
+        pop.style.left = Math.min(a.left - c.left, calEl.clientWidth - 230) + 'px';
+        pop.style.top = (a.bottom - c.top) + 'px';
+        pop.classList.remove('hidden');
+    }
+    function closePop() { pop.classList.add('hidden'); }
+
+    document.addEventListener('click', function (e) {
+        if (!pop.contains(e.target) && !e.target.closest('.lt-jump-btn')) closePop();
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePop(); });
+
+    // Inject the icon inline after the title; re-run after navigation re-renders the toolbar.
+    function mountJumpIcon() {
+        if (!calEl) return; // datesSet can fire during initial render, before setup completes
+        var title = calEl.querySelector('.fc-toolbar-title');
+        if (!title || title.querySelector('.lt-jump-btn')) return;
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'lt-jump-btn';
+        btn.title = 'Jump to month';
+        btn.innerHTML = CAL_ICON;
+        btn.addEventListener('click', function (e) {
+            e.stopPropagation();
+            if (pop.classList.contains('hidden')) openPop(btn); else closePop();
+        });
+        title.appendChild(btn);
+    }
+    mountJumpIcon();
 
     // Pre-select today so the user can log actions immediately, without clicking the calendar.
     htmx.ajax('GET', '/logs/day/' + today, { target: '#day-panel', swap: 'innerHTML' });
