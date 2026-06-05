@@ -32,8 +32,94 @@ public class ActionsWebResource {
     @Transactional
     public TemplateInstance actionsPage() {
         User user = currentUser();
-        List<Action> actions = Action.findActiveByUser(user.id);
-        return actionsTemplate.data("displayName", user.displayName, "email", user.email, "actions", actions);
+        var page = getActions(user.id, 1, "");
+        return actionsTemplate.data("displayName", user.displayName, "email", user.email, "page", page);
+    }
+
+    @GET
+    @Path("list")
+    @Produces(MediaType.TEXT_HTML)
+    @Transactional
+    public Response actionsList(
+            @QueryParam("page") @DefaultValue("1") int pageNum,
+            @QueryParam("q") @DefaultValue("") String searchTerm) {
+        User user = currentUser();
+        var page = getActions(user.id, pageNum, searchTerm);
+        String html = renderActionsList(page, searchTerm);
+        return Response.ok(html).build();
+    }
+
+    private record PaginatedActions(List<Action> items, int totalCount, int totalPages, int currentPage) {}
+
+    private PaginatedActions getActions(UUID userId, int pageNum, String searchTerm) {
+        List<Action> all = Action.findActiveByUser(userId);
+
+        var filtered = all.stream()
+                .filter(a -> searchTerm == null || searchTerm.isBlank() ||
+                        a.name.toLowerCase().contains(searchTerm.toLowerCase()))
+                .toList();
+
+        int totalCount = filtered.size();
+        int pageSize = 10;
+        int totalPages = (totalCount + pageSize - 1) / pageSize;
+        int actualPage = Math.max(1, Math.min(pageNum, totalPages == 0 ? 1 : totalPages));
+        int skip = (actualPage - 1) * pageSize;
+
+        var items = filtered.stream()
+                .skip(skip)
+                .limit(pageSize)
+                .toList();
+
+        return new PaginatedActions(items, totalCount, totalPages, actualPage);
+    }
+
+    private String renderActionsList(PaginatedActions page, String searchTerm) {
+        StringBuilder sb = new StringBuilder();
+
+        // Actions list items
+        for (Action action : page.items) {
+            sb.append("<div id=\"action-").append(action.id).append("\" class=\"flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-gray-200 group\">\n");
+            sb.append("    <span class=\"w-4 h-4 rounded-full flex-shrink-0 border border-black/10\" style=\"background-color: ").append(action.colour).append("\"></span>\n");
+            sb.append("    <span class=\"flex-1 text-sm font-medium text-gray-800\">").append(escapeHtml(action.name)).append("</span>\n");
+            sb.append("    <div class=\"flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity\">\n");
+            sb.append("        <button hx-get=\"/actions/").append(action.id).append("/edit\" hx-target=\"#action-").append(action.id).append("\" hx-swap=\"outerHTML\" class=\"text-xs text-gray-400 hover:text-indigo-600 transition-colors\">Edit</button>\n");
+            sb.append("        <button hx-post=\"/actions/").append(action.id).append("/delete\" hx-target=\"#action-").append(action.id).append("\" hx-swap=\"outerHTML swap:1s\" class=\"text-xs text-gray-400 hover:text-red-600 transition-colors\">Delete</button>\n");
+            sb.append("    </div>\n");
+            sb.append("</div>\n");
+        }
+
+        // Pagination controls
+        if (page.totalPages > 1) {
+            sb.append("<div class=\"mt-4 flex items-center justify-between text-xs text-gray-500\">\n");
+            sb.append("    <p>Showing ").append(page.items.size()).append(" of ").append(page.totalCount).append("</p>\n");
+            sb.append("    <div class=\"flex gap-2\">\n");
+
+            if (page.currentPage > 1) {
+                String qParam = searchTerm.isEmpty() ? "" : "&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8);
+                sb.append("        <a href=\"/actions?page=").append(page.currentPage - 1).append(qParam).append("\" hx-get=\"/actions/list?page=").append(page.currentPage - 1).append(qParam).append("\" hx-target=\"#action-list\" class=\"text-indigo-600 hover:text-indigo-800 transition-colors\">← Previous</a>\n");
+            }
+
+            sb.append("        <span>Page ").append(page.currentPage).append(" of ").append(page.totalPages).append("</span>\n");
+
+            if (page.currentPage < page.totalPages) {
+                String qParam = searchTerm.isEmpty() ? "" : "&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8);
+                sb.append("        <a href=\"/actions?page=").append(page.currentPage + 1).append(qParam).append("\" hx-get=\"/actions/list?page=").append(page.currentPage + 1).append(qParam).append("\" hx-target=\"#action-list\" class=\"text-indigo-600 hover:text-indigo-800 transition-colors\">Next →</a>\n");
+            }
+
+            sb.append("    </div>\n");
+            sb.append("</div>\n");
+        }
+
+        return sb.toString();
+    }
+
+    private String escapeHtml(String text) {
+        return text == null ? "" : text
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace("\"", "&quot;")
+                .replace("'", "&#39;");
     }
 
     // ── Partials for HTMX ─────────────────────────────────────────────────

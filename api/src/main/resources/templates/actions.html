@@ -58,15 +58,57 @@
             <div id="action-error" class="mt-2"></div>
         </div>
 
+        <!-- Search bar -->
+        <div class="mb-4">
+            <input type="text"
+                   id="search-input"
+                   name="q"
+                   placeholder="Search actions…"
+                   hx-get="/actions/list?page=1"
+                   hx-target="#action-list"
+                   hx-trigger="input changed delay:300ms"
+                   hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('search-input').value"
+                   class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm
+                          focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+        </div>
+
         <!-- Action list -->
         <div id="action-list" class="flex flex-col gap-2">
-            {#for action in actions}
+            {#for action in page.items}
             {#include partials/action-item action=action /}
             {/for}
-            {#if actions.isEmpty()}
+            {#if page.items.isEmpty()}
             <p class="text-sm text-gray-400 italic text-center py-6">
                 No actions yet — add one above.
             </p>
+            {/if}
+
+            <!-- Pagination -->
+            {#if page.totalPages > 1}
+            <div class="mt-4 flex items-center justify-between text-xs text-gray-500">
+                <p>Showing {page.items.size} of {page.totalCount}</p>
+                <div class="flex gap-2">
+                    {#if page.currentPage > 1}
+                    <a href="/actions?page={page.currentPage - 1}"
+                       hx-get="/actions/list?page={page.currentPage - 1}"
+                       hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('search-input').value"
+                       hx-target="#action-list"
+                       class="text-indigo-600 hover:text-indigo-800 transition-colors">
+                        ← Previous
+                    </a>
+                    {/if}
+                    <span>Page {page.currentPage} of {page.totalPages}</span>
+                    {#if page.currentPage < page.totalPages}
+                    <a href="/actions?page={page.currentPage + 1}"
+                       hx-get="/actions/list?page={page.currentPage + 1}"
+                       hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('search-input').value"
+                       hx-target="#action-list"
+                       class="text-indigo-600 hover:text-indigo-800 transition-colors">
+                        Next →
+                    </a>
+                    {/if}
+                </div>
+            </div>
             {/if}
         </div>
     </main>
