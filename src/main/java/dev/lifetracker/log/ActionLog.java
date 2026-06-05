@@ -35,6 +35,14 @@ public class ActionLog extends PanacheEntityBase {
     @Column(name = "created_at", nullable = false, updatable = false)
     public Instant createdAt = Instant.now();
 
+    @Column(name = "updated_at", nullable = false)
+    public Instant updatedAt = Instant.now();
+
+    @PreUpdate
+    void onUpdate() {
+        this.updatedAt = Instant.now();
+    }
+
     // ── Queries ───────────────────────────────────────────────────────────
 
     /**
