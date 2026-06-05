@@ -24,7 +24,9 @@ public class StatsService {
 
     @Transactional
     public List<ActionStats> forAllActiveActions(UUID userId) {
-        return computeAll(userId);
+        return computeAll(userId).stream()
+                .filter(ActionStats::hasData)
+                .toList();
     }
 
     @Transactional

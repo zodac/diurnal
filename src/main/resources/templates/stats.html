@@ -27,12 +27,16 @@
 
         {#if stats.isEmpty()}
         <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-10 text-center">
+            {#if hasActions}
+            <p class="text-gray-500 dark:text-gray-400">No logs for any actions yet.</p>
+            {#else}
             <p class="text-gray-500 dark:text-gray-400 mb-3">No actions defined yet.</p>
             <a href="/actions"
                class="inline-block bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium
                       hover:bg-indigo-700 transition-colors">
                 Add actions
             </a>
+            {/if}
         </div>
         {#else}
         <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
@@ -46,7 +50,6 @@
                     <h3 class="font-semibold text-gray-900 dark:text-gray-50 truncate">{s.action.name}</h3>
                 </div>
 
-                {#if s.hasData}
                 <!-- Streaks & totals -->
                 <dl class="grid grid-cols-2 gap-2">
 
@@ -118,10 +121,6 @@
 
                     </dl>
                 </div>
-
-                {#else}
-                <p class="text-sm text-gray-400 italic">No logs yet.</p>
-                {/if}
 
             </div>
             {/for}

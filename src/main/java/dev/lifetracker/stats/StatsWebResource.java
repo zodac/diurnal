@@ -1,5 +1,6 @@
 package dev.lifetracker.stats;
 
+import dev.lifetracker.action.Action;
 import dev.lifetracker.user.User;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
@@ -30,6 +31,7 @@ public class StatsWebResource {
                 "email", user.email,
                 "displayName", user.displayName,
                 "darkMode", user.darkMode,
+                "hasActions", !Action.findActiveByUser(user.id).isEmpty(),
                 "stats", statsService.forAllActiveActions(user.id));
     }
 }

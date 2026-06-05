@@ -1,17 +1,11 @@
 #!/usr/bin/env bash
 # Generates an RSA-2048 keypair for JWT signing.
 # Usage:
-#   ./scripts/generate-jwt-keys.sh          # writes to api/src/main/resources/jwt-keys/ (dev)
-#   ./scripts/generate-jwt-keys.sh --prod   # writes to secrets/ (Docker mount)
+#   ./scripts/generate-jwt-keys.sh          # writes to secrets/ (Docker mount)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-
-if [[ "${1:-}" == "--prod" ]]; then
-    DEST="$ROOT/secrets"
-else
-    DEST="$ROOT/api/src/main/resources/jwt-keys"
-fi
+DEST="$ROOT/secrets"
 
 mkdir -p "$DEST"
 
