@@ -3,19 +3,15 @@
 
 # JWT keys — regenerate with scripts/generate-jwt-keys.sh
 secrets/
-api/src/main/resources/jwt-keys/
+src/main/resources/jwt-keys/
 
 # Maven
-api/target/
-api/.mvn/wrapper/maven-wrapper.jar
+target/
 
-# Node
-ui/node_modules/
-ui/dist/
 
 # IDE
 .idea/
-*.imlO
+*.iml
 .vscode/
 
 # OS

@@ -14,32 +14,11 @@ Trying to use AI to build this application, with guidance as needed. Expect seve
 | Database  | PostgreSQL                                                              |
 | Packaging | Single Docker image — everything in one Quarkus JAR                     |
 
-> **Note on templating:** Quarkus uses **Qute
-** as its native template engine. It is conceptually identical to Thymeleaf (server-side HTML rendering with Java variables), with a slightly different syntax (
-`{variable}` instead of
-`th:text`). HTMX handles dynamic partial updates so there is no need for a JavaScript framework. FullCalendar.js is loaded from CDN for the calendar widget (Phase 3).
+> **Note on templating:** Quarkus uses **Qute** as its native template engine. It is conceptually identical to Thymeleaf (server-side HTML rendering
+> with Java variables), with a slightly different syntax (`{variable}` instead of`th:text`).
+> HTMX handles dynamic partial updates so there is no need for a JavaScript framework. FullCalendar.js is loaded from CDN for the calendar widget.
 
-## Development setup
-
-Prerequisites: Java 21, Maven 3.9+, Docker.
-
-```bash
-# 1. Generate JWT signing keys (required before first start)
-./scripts/generate-jwt-keys.sh
-
-# 2. Start the dev database
-docker compose -f docker-compose.dev.yml up -d
-
-# 3. Start the API with hot reload
-cd api && mvn quarkus:dev
-
-# App:     http://localhost:8080
-# Swagger: http://localhost:8080/q/swagger-ui
-```
-
-No separate frontend build step — templates are rendered server-side by Quarkus, CSS/JS loaded from CDN. Quarkus hot-reloads both Java classes and Qute templates on save.
-
-## Production (Docker Compose)
+## Deployment
 
 ```bash
 # 1. Create and edit the environment file
@@ -128,11 +107,3 @@ identity_providers:
         response_types: [ code ]
         grant_types: [ authorization_code ]
 ```
-
-## Project phases
-
-- **Phase 1** ✅ — Scaffold, DB schema, form auth (password), Qute UI, Docker/Compose
-- **Phase 2** — Actions CRUD (user-definable actions with name and colour)
-- **Phase 3** — Calendar view with per-day action logging (FullCalendar + HTMX)
-- **Phase 4** — Stats page (streaks, frequency, last performed)
-- **Phase 5** — OIDC login via Authelia

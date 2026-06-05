@@ -18,9 +18,7 @@ import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
 import java.net.URI;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Path("/")
 public class WebResource {
