@@ -29,6 +29,7 @@ public class StatsWebResource {
         return statsTemplate.data(
                 "email", user.email,
                 "displayName", user.displayName,
+                "darkMode", user.darkMode,
                 "stats", statsService.forAllActiveActions(user.id));
     }
 }

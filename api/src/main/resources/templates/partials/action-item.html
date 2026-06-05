@@ -1,19 +1,19 @@
-<div id="action-{action.id}" class="flex items-center gap-3 px-4 py-3 bg-white rounded-xl border border-gray-200 group">
+<div id="action-{action.id}" class="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 group">
     <span class="w-4 h-4 rounded-full flex-shrink-0 border border-black/10"
           style="background-color: {action.colour}"></span>
-    <span class="flex-1 text-sm font-medium text-gray-800">{action.name}</span>
+    <span class="flex-1 text-sm font-medium text-gray-800 dark:text-gray-200">{action.name}</span>
     <div class="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
         <button hx-get="/actions/{action.id}/edit"
                 hx-target="#action-{action.id}"
                 hx-swap="outerHTML"
-                class="text-xs text-gray-400 hover:text-indigo-600 transition-colors">
+                class="text-xs text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
             Edit
         </button>
         <button hx-post="/actions/{action.id}/delete"
                 hx-target="#action-{action.id}"
                 hx-swap="outerHTML"
                 hx-confirm="Delete '{action.name}'?"
-                class="text-xs text-gray-400 hover:text-red-600 transition-colors">
+                class="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors">
             Delete
         </button>
     </div>

@@ -45,6 +45,7 @@ public class LogWebResource {
         return dayPanelTemplate.data(
                 "date", date,
                 "dateLabel", date.format(DAY_LABEL),
+                "darkMode", user.darkMode,
                 "page", page);
     }
 
@@ -93,35 +94,35 @@ public class LogWebResource {
 
         // Action items
         for (DayActionStatus status : page.items) {
-            sb.append("<div id=\"day-action-").append(status.action.id).append("\" class=\"flex items-center justify-between px-3 py-3 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors\">\n");
+            sb.append("<div id=\"day-action-").append(status.action.id).append("\" class=\"flex items-center justify-between px-3 py-3 bg-gray-50 dark:bg-gray-700 rounded-lg group hover:bg-gray-100 dark:hover:bg-gray-600 transition-colors\">\n");
             sb.append("    <div class=\"flex items-center gap-2 flex-1 min-w-0\">\n");
             sb.append("        <span class=\"w-3 h-3 rounded-full flex-shrink-0\" style=\"background-color: ").append(status.action.colour).append("\"></span>\n");
-            sb.append("        <span class=\"text-sm text-gray-700 truncate\">").append(escapeHtml(status.action.name)).append("</span>\n");
+            sb.append("        <span class=\"text-sm text-gray-700 dark:text-gray-300 truncate\">").append(escapeHtml(status.action.name)).append("</span>\n");
             sb.append("    </div>\n");
             sb.append("    <div class=\"flex items-center gap-2 flex-shrink-0 ml-2\">\n");
-            sb.append("        <button hx-post=\"/logs/").append(date).append("/").append(status.action.id).append("/decrement\" hx-target=\"#day-action-").append(status.action.id).append("\" hx-swap=\"outerHTML\" class=\"bg-gray-300 text-gray-700 rounded px-2 py-1 text-xs font-medium hover:bg-gray-400 transition-colors").append(status.count == 0 ? " opacity-50 cursor-not-allowed\" disabled" : "\"").append(">−</button>\n");
-            sb.append("        <span class=\"w-6 text-center text-sm font-medium").append(status.count == 0 ? " text-gray-400" : " text-gray-900").append("\">").append(status.count).append("</span>\n");
-            sb.append("        <button hx-post=\"/logs/").append(date).append("/").append(status.action.id).append("/increment\" hx-target=\"#day-action-").append(status.action.id).append("\" hx-swap=\"outerHTML\" class=\"bg-indigo-600 text-white rounded px-2 py-1 text-xs font-medium hover:bg-indigo-700 transition-colors").append(status.count >= 255 ? " opacity-50 cursor-not-allowed\" disabled" : "\"").append(">+</button>\n");
+            sb.append("        <button hx-post=\"/logs/").append(date).append("/").append(status.action.id).append("/decrement\" hx-target=\"#day-action-").append(status.action.id).append("\" hx-swap=\"outerHTML\" class=\"bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-200 rounded px-2 py-1 text-xs font-medium hover:bg-gray-400 dark:hover:bg-gray-500 transition-colors").append(status.count == 0 ? " opacity-50 cursor-not-allowed\" disabled" : "\"").append(">−</button>\n");
+            sb.append("        <span class=\"w-6 text-center text-sm font-medium").append(status.count == 0 ? " text-gray-400 dark:text-gray-500" : " text-gray-900 dark:text-gray-200").append("\">").append(status.count).append("</span>\n");
+            sb.append("        <button hx-post=\"/logs/").append(date).append("/").append(status.action.id).append("/increment\" hx-target=\"#day-action-").append(status.action.id).append("\" hx-swap=\"outerHTML\" class=\"bg-indigo-600 dark:bg-indigo-700 text-white rounded px-2 py-1 text-xs font-medium hover:bg-indigo-700 dark:hover:bg-indigo-600 transition-colors").append(status.count >= 255 ? " opacity-50 cursor-not-allowed\" disabled" : "\"").append(">+</button>\n");
             sb.append("    </div>\n");
             sb.append("</div>\n");
         }
 
         // Pagination controls
         if (page.totalPages > 1) {
-            sb.append("<div class=\"mt-4 flex items-center justify-between text-xs text-gray-500\">\n");
+            sb.append("<div class=\"mt-4 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400\">\n");
             sb.append("    <p>Showing ").append(page.items.size()).append(" of ").append(page.totalCount).append("</p>\n");
             sb.append("    <div class=\"flex gap-2\">\n");
 
             if (page.currentPage > 1) {
                 String qParam = searchTerm.isEmpty() ? "" : "&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8);
-                sb.append("        <a href=\"#\" hx-get=\"/logs/day/").append(date).append("/list?page=").append(page.currentPage - 1).append(qParam).append("\" hx-target=\"#day-actions-list\" class=\"text-indigo-600 hover:text-indigo-800 transition-colors\">← Previous</a>\n");
+                sb.append("        <a href=\"#\" hx-get=\"/logs/day/").append(date).append("/list?page=").append(page.currentPage - 1).append(qParam).append("\" hx-target=\"#day-actions-list\" class=\"text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors\">← Previous</a>\n");
             }
 
             sb.append("        <span>Page ").append(page.currentPage).append(" of ").append(page.totalPages).append("</span>\n");
 
             if (page.currentPage < page.totalPages) {
                 String qParam = searchTerm.isEmpty() ? "" : "&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8);
-                sb.append("        <a href=\"#\" hx-get=\"/logs/day/").append(date).append("/list?page=").append(page.currentPage + 1).append(qParam).append("\" hx-target=\"#day-actions-list\" class=\"text-indigo-600 hover:text-indigo-800 transition-colors\">Next →</a>\n");
+                sb.append("        <a href=\"#\" hx-get=\"/logs/day/").append(date).append("/list?page=").append(page.currentPage + 1).append(qParam).append("\" hx-target=\"#day-actions-list\" class=\"text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors\">Next →</a>\n");
             }
 
             sb.append("    </div>\n");

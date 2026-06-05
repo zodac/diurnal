@@ -36,6 +36,9 @@ public class User extends PanacheEntityBase {
     @Column(name = "updated_at", nullable = false)
     public Instant updatedAt = Instant.now();
 
+    @Column(name = "dark_mode", nullable = false)
+    public boolean darkMode = false;
+
     public static Optional<User> findByEmail(String email) {
         return find("email", email.toLowerCase()).firstResultOptional();
     }

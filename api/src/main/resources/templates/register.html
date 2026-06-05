@@ -2,52 +2,55 @@
 
 {#body}
 <div class="min-h-screen flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 w-full max-w-sm p-8">
+    <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 w-full max-w-sm p-8">
 
-        <h1 class="text-2xl font-semibold mb-1">Life Tracker</h1>
-        <p class="text-sm text-gray-500 mb-6">Create a new account</p>
+        <h1 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-gray-50">Life Tracker</h1>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Create a new account</p>
 
         {#if error.equals("email_taken")}
-        <div class="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+        <div class="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 px-3 py-2 text-sm text-red-700 dark:text-red-200">
             That email is already registered.
         </div>
         {#else if error.equals("invalid")}
-        <div class="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">
+        <div class="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 px-3 py-2 text-sm text-red-700 dark:text-red-200">
             Please fill in all fields. Password must be at least 8 characters.
         </div>
         {/if}
 
         <form method="post" action="/register" class="space-y-4">
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1" for="email">Email</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" for="email">Email</label>
                 <input id="email" type="email" name="email" required autocomplete="email"
-                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm
+                       class="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm
+                              bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50
                               focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1" for="displayName">Display name</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" for="displayName">Display name</label>
                 <input id="displayName" type="text" name="displayName" required autocomplete="name"
-                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm
+                       class="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm
+                              bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50
                               focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
             </div>
             <div>
-                <label class="block text-sm font-medium text-gray-700 mb-1" for="password">Password</label>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1" for="password">Password</label>
                 <input id="password" type="password" name="password" required autocomplete="new-password"
                        minlength="8"
-                       class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm
+                       class="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm
+                              bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50
                               focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
             </div>
             <button type="submit"
                     class="w-full bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium
                            hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                           focus:ring-offset-2 transition-colors">
+                           focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors">
                 Create account
             </button>
         </form>
 
-        <p class="mt-4 text-center text-sm text-gray-500">
+        <p class="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
             Already have an account?
-            <a href="/login" class="text-indigo-600 hover:underline font-medium">Sign in</a>
+            <a href="/login" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">Sign in</a>
         </p>
     </div>
 </div>

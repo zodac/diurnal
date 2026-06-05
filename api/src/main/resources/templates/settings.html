@@ -1,0 +1,90 @@
+{#include layout.html}
+
+{#body}
+<div class="min-h-screen flex flex-col">
+
+    <!-- Navigation -->
+    <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-6">
+        <span class="text-lg font-semibold text-gray-900 dark:text-gray-50">Life Tracker</span>
+        <nav class="flex gap-4 text-sm">
+            <a href="/" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Dashboard</a>
+            <a href="/actions" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Actions</a>
+            <a href="/stats" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Stats</a>
+            <a href="/settings" class="text-indigo-600 dark:text-indigo-400 font-medium">Settings</a>
+        </nav>
+        <div class="ml-auto flex items-center gap-4">
+            <span class="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">{email}</span>
+            <form method="post" action="/logout">
+                <button type="submit" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">
+                    Sign out
+                </button>
+            </form>
+        </div>
+    </header>
+
+    <!-- Content -->
+    <main class="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
+        <h2 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-gray-50">Settings</h2>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+            Manage your account preferences and application settings.
+        </p>
+
+        {#if saved}
+        <div class="mb-6 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900 px-4 py-3 text-sm text-green-700 dark:text-green-200">
+            Settings saved successfully.
+        </div>
+        {/if}
+
+        <!-- Preferences -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 mb-6">
+            <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-50">Preferences</h3>
+
+            <form method="post" action="/settings" class="space-y-6">
+                <!-- Dark mode toggle -->
+                <div class="flex items-center justify-between py-4 border-b border-gray-200 dark:border-gray-700">
+                    <div class="flex-1">
+                        <label for="darkMode" class="block text-sm font-medium text-gray-900 dark:text-gray-50">Dark mode</label>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Use dark theme across the application</p>
+                    </div>
+                    <div class="ml-4 flex items-center">
+                        <input type="hidden" name="darkMode" value="false">
+                        <input type="checkbox"
+                               id="darkMode"
+                               name="darkMode"
+                               value="true"
+                               {#if darkMode}checked{/if}
+                               class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-5 h-5 cursor-pointer">
+                    </div>
+                </div>
+
+                <!-- Save button -->
+                <button type="submit"
+                        class="inline-block bg-indigo-600 text-white rounded-lg px-6 py-2 text-sm font-medium
+                               hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                               focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors">
+                    Save preferences
+                </button>
+            </form>
+        </div>
+
+        <!-- Account section -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
+            <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-50">Account</h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Display Name</label>
+                    <p class="text-sm text-gray-900 dark:text-gray-50">{displayName}</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Email</label>
+                    <p class="text-sm text-gray-900 dark:text-gray-50">{email}</p>
+                </div>
+            </div>
+        </div>
+    </main>
+</div>
+
+{/body}
+
+{/include}

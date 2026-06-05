@@ -4,17 +4,18 @@
 <div class="min-h-screen flex flex-col">
 
     <!-- Navigation -->
-    <header class="bg-white border-b border-gray-200 px-4 py-3 flex items-center gap-6">
-        <span class="text-lg font-semibold">Life Tracker</span>
+    <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-6">
+        <span class="text-lg font-semibold text-gray-900 dark:text-gray-50">Life Tracker</span>
         <nav class="flex gap-4 text-sm">
-            <a href="/" class="text-gray-500 hover:text-gray-900 transition-colors">Dashboard</a>
-            <a href="/actions" class="text-gray-500 hover:text-gray-900 transition-colors">Actions</a>
-            <a href="/stats" class="text-indigo-600 font-medium">Stats</a>
+            <a href="/" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Dashboard</a>
+            <a href="/actions" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Actions</a>
+            <a href="/stats" class="text-indigo-600 dark:text-indigo-400 font-medium">Stats</a>
+            <a href="/settings" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Settings</a>
         </nav>
         <div class="ml-auto flex items-center gap-4">
-            <span class="text-sm text-gray-500 hidden sm:block">{email}</span>
+            <span class="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">{email}</span>
             <form method="post" action="/logout">
-                <button type="submit" class="text-sm text-gray-500 hover:text-gray-900 transition-colors">
+                <button type="submit" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">
                     Sign out
                 </button>
             </form>
@@ -22,11 +23,11 @@
     </header>
 
     <main class="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
-        <h2 class="text-2xl font-semibold mb-6">Stats</h2>
+        <h2 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-50">Stats</h2>
 
         {#if stats.isEmpty()}
-        <div class="bg-white rounded-2xl border border-gray-200 p-10 text-center">
-            <p class="text-gray-500 mb-3">No actions defined yet.</p>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-10 text-center">
+            <p class="text-gray-500 dark:text-gray-400 mb-3">No actions defined yet.</p>
             <a href="/actions"
                class="inline-block bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium
                       hover:bg-indigo-700 transition-colors">
@@ -36,83 +37,83 @@
         {#else}
         <div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
             {#for s in stats}
-            <div class="bg-white rounded-2xl border border-gray-200 p-5 flex flex-col gap-4">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 flex flex-col gap-4">
 
                 <!-- Action header -->
                 <div class="flex items-center gap-2">
                     <span class="w-4 h-4 rounded-full flex-shrink-0 border border-black/10"
                           style="background-color: {s.action.colour}"></span>
-                    <h3 class="font-semibold text-gray-900 truncate">{s.action.name}</h3>
+                    <h3 class="font-semibold text-gray-900 dark:text-gray-50 truncate">{s.action.name}</h3>
                 </div>
 
                 {#if s.hasData}
                 <!-- Streaks & totals -->
                 <dl class="grid grid-cols-2 gap-2">
 
-                    <div class="bg-gray-50 rounded-xl p-3">
-                        <dt class="text-xs text-gray-400 mb-1">Current streak</dt>
-                        <dd class="text-2xl font-bold text-gray-900 leading-none">{s.currentStreak}</dd>
-                        <dd class="text-xs text-gray-400 mt-0.5">days</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                        <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Current streak</dt>
+                        <dd class="text-2xl font-bold text-gray-900 dark:text-gray-50 leading-none">{s.currentStreak}</dd>
+                        <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">days</dd>
                     </div>
 
-                    <div class="bg-gray-50 rounded-xl p-3">
-                        <dt class="text-xs text-gray-400 mb-1">Longest streak</dt>
-                        <dd class="text-2xl font-bold text-gray-900 leading-none">{s.longestStreak}</dd>
-                        <dd class="text-xs text-gray-400 mt-0.5">days</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                        <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Longest streak</dt>
+                        <dd class="text-2xl font-bold text-gray-900 dark:text-gray-50 leading-none">{s.longestStreak}</dd>
+                        <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">days</dd>
                     </div>
 
-                    <div class="bg-gray-50 rounded-xl p-3">
-                        <dt class="text-xs text-gray-400 mb-1">Total days</dt>
-                        <dd class="text-2xl font-bold text-gray-900 leading-none">{s.totalDays}</dd>
-                        <dd class="text-xs text-gray-400 mt-0.5">distinct days</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                        <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Total days</dt>
+                        <dd class="text-2xl font-bold text-gray-900 dark:text-gray-50 leading-none">{s.totalDays}</dd>
+                        <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">distinct days</dd>
                     </div>
 
-                    <div class="bg-gray-50 rounded-xl p-3">
-                        <dt class="text-xs text-gray-400 mb-1">Total count</dt>
-                        <dd class="text-2xl font-bold text-gray-900 leading-none">{s.totalCount}</dd>
-                        <dd class="text-xs text-gray-400 mt-0.5">all time</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                        <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Total count</dt>
+                        <dd class="text-2xl font-bold text-gray-900 dark:text-gray-50 leading-none">{s.totalCount}</dd>
+                        <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">all time</dd>
                     </div>
 
-                    <div class="bg-gray-50 rounded-xl p-3">
-                        <dt class="text-xs text-gray-400 mb-1">Weekly average</dt>
-                        <dd class="text-2xl font-bold text-gray-900 leading-none">{s.weeklyAverage}</dd>
-                        <dd class="text-xs text-gray-400 mt-0.5">days / week</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                        <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Weekly average</dt>
+                        <dd class="text-2xl font-bold text-gray-900 dark:text-gray-50 leading-none">{s.weeklyAverage}</dd>
+                        <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">days / week</dd>
                     </div>
 
-                    <div class="bg-gray-50 rounded-xl p-3">
-                        <dt class="text-xs text-gray-400 mb-1">Last performed</dt>
-                        <dd class="text-sm font-semibold text-gray-900 leading-snug mt-0.5">{s.lastLabel}</dd>
-                        <dd class="text-xs text-gray-400 mt-0.5">{s.sinceLabel}</dd>
+                    <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                        <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Last performed</dt>
+                        <dd class="text-sm font-semibold text-gray-900 dark:text-gray-50 leading-snug mt-0.5">{s.lastLabel}</dd>
+                        <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.sinceLabel}</dd>
                     </div>
 
                 </dl>
 
                 <!-- Comparative & high scores -->
-                <div class="border-t border-gray-100 pt-3">
+                <div class="border-t border-gray-100 dark:border-gray-700 pt-3">
                     <dl class="grid grid-cols-2 gap-2">
 
-                        <div class="bg-gray-50 rounded-xl p-3">
-                            <dt class="text-xs text-gray-400 mb-1">vs last month</dt>
+                        <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                            <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">vs last month</dt>
                             <dd class="text-2xl font-bold leading-none {s.monthTrendClass}">{s.monthTrend}</dd>
-                            <dd class="text-xs text-gray-400 mt-0.5">{s.monthContext}</dd>
+                            <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.monthContext}</dd>
                         </div>
 
-                        <div class="bg-gray-50 rounded-xl p-3">
-                            <dt class="text-xs text-gray-400 mb-1">vs last year</dt>
+                        <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                            <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">vs last year</dt>
                             <dd class="text-2xl font-bold leading-none {s.yearTrendClass}">{s.yearTrend}</dd>
-                            <dd class="text-xs text-gray-400 mt-0.5">{s.yearContext}</dd>
+                            <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.yearContext}</dd>
                         </div>
 
-                        <div class="bg-gray-50 rounded-xl p-3">
-                            <dt class="text-xs text-gray-400 mb-1">Best month</dt>
-                            <dd class="text-2xl font-bold text-gray-900 leading-none">{s.bestMonthCount}</dd>
-                            <dd class="text-xs text-gray-400 mt-0.5">{s.bestMonthLabel}</dd>
+                        <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                            <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Best month</dt>
+                            <dd class="text-2xl font-bold text-gray-900 dark:text-gray-50 leading-none">{s.bestMonthCount}</dd>
+                            <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.bestMonthLabel}</dd>
                         </div>
 
-                        <div class="bg-gray-50 rounded-xl p-3">
-                            <dt class="text-xs text-gray-400 mb-1">Best year</dt>
-                            <dd class="text-2xl font-bold text-gray-900 leading-none">{s.bestYearCount}</dd>
-                            <dd class="text-xs text-gray-400 mt-0.5">{s.bestYearLabel}</dd>
+                        <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                            <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Best year</dt>
+                            <dd class="text-2xl font-bold text-gray-900 dark:text-gray-50 leading-none">{s.bestYearCount}</dd>
+                            <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.bestYearLabel}</dd>
                         </div>
 
                     </dl>
@@ -128,6 +129,7 @@
         {/if}
     </main>
 </div>
+
 {/body}
 
 {/include}

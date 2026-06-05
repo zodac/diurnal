@@ -1,5 +1,5 @@
 <div class="flex items-center justify-between mb-4">
-    <h3 class="text-base font-medium text-gray-900">{dateLabel}</h3>
+    <h3 class="text-base font-medium text-gray-900 dark:text-gray-50">{dateLabel}</h3>
 </div>
 
 <!-- Search bar -->
@@ -12,16 +12,17 @@
            hx-target="#day-actions-list"
            hx-trigger="input changed delay:300ms"
            hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('day-search-input').value"
-           class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm
+           class="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm
+                  bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50
                   focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
 </div>
 
 <!-- Actions list -->
 <div id="day-actions-list" class="flex flex-col gap-1">
     {#if page.items.isEmpty()}
-    <p class="text-sm text-gray-400 italic text-center py-4">
+    <p class="text-sm text-gray-500 dark:text-gray-400 italic text-center py-4">
         No actions defined yet.
-        <a href="/actions" class="text-indigo-500 hover:underline">Add one</a>
+        <a href="/actions" class="text-indigo-600 dark:text-indigo-400 hover:underline">Add one</a>
     </p>
     {#else}
     {#for status in page.items}
@@ -30,7 +31,7 @@
 
     <!-- Pagination -->
     {#if page.totalPages > 1}
-    <div class="mt-4 flex items-center justify-between text-xs text-gray-500">
+    <div class="mt-4 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
         <p>Showing {page.items.size} of {page.totalCount}</p>
         <div class="flex gap-2">
             {#if page.currentPage > 1}
@@ -38,7 +39,7 @@
                hx-get="/logs/day/{date}/list?page={page.currentPage - 1}"
                hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('day-search-input').value"
                hx-target="#day-actions-list"
-               class="text-indigo-600 hover:text-indigo-800 transition-colors">
+               class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
                 ← Previous
             </a>
             {/if}
@@ -48,7 +49,7 @@
                hx-get="/logs/day/{date}/list?page={page.currentPage + 1}"
                hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('day-search-input').value"
                hx-target="#day-actions-list"
-               class="text-indigo-600 hover:text-indigo-800 transition-colors">
+               class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
                 Next →
             </a>
             {/if}

@@ -1,14 +1,33 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" {#if darkMode}class="dark"{/if} style="{#if darkMode}color-scheme: dark{#else}color-scheme: light{/if}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="{#if darkMode}dark{#else}light{/if}">
     <title>Life Tracker</title>
+    <!--
+        Tailwind is loaded from the Play CDN. The config MUST be assigned after the
+        CDN script so the `tailwind` global exists; otherwise the assignment throws
+        and Tailwind silently falls back to its default `darkMode: 'media'` strategy,
+        which keys dark styling off the OS theme instead of the server-controlled
+        `.dark` class on <html>.
+    -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        }
+    </script>
     <script src="https://unpkg.com/htmx.org@2.0.3"></script>
     {#insert head /}
 </head>
-<body class="min-h-screen bg-gray-50 text-gray-900">
+<!--
+    The base background/text colours are also set inline from the server-known theme.
+    Inline styles win over the CDN-compiled stylesheet, so the dominant page colour is
+    correct from the first paint and never flashes while the CDN finishes compiling.
+-->
+<body class="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-50"
+      style="{#if darkMode}background-color:#111827;color:#f9fafb{#else}background-color:#f9fafb;color:#111827{/if}">
     {#insert body}Page content{/insert}
 </body>
 </html>

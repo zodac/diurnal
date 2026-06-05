@@ -18,7 +18,9 @@ import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
 import java.net.URI;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Path("/")
 public class WebResource {
@@ -28,6 +30,7 @@ public class WebResource {
     @Inject @Location("login")    Template loginTemplate;
     @Inject @Location("register") Template registerTemplate;
     @Inject @Location("dashboard") Template dashboardTemplate;
+    @Inject @Location("settings") Template settingsTemplate;
 
     @Inject SecurityIdentity identity;
     @Inject StatsService statsService;
@@ -44,7 +47,7 @@ public class WebResource {
             @QueryParam("error")      @DefaultValue("false") boolean error,
             @QueryParam("registered") @DefaultValue("false") boolean registered) {
         return loginTemplate.data("error", error, "registered", registered,
-                "passwordAuthEnabled", passwordAuthEnabled);
+                "passwordAuthEnabled", passwordAuthEnabled, "darkMode", false);
     }
 
     // ── Register ───────────────────────────────────────────────────────────
@@ -56,7 +59,7 @@ public class WebResource {
         if (!passwordAuthEnabled) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        return Response.ok(registerTemplate.data("error", error)).build();
+        return Response.ok(registerTemplate.data("error", error, "darkMode", false)).build();
     }
 
     @POST
@@ -108,6 +111,55 @@ public class WebResource {
         return Response.seeOther(URI.create("/login")).cookie(clear).build();
     }
 
+    // ── Theme toggle ──────────────────────────────────────────────────────
+
+    @POST
+    @Path("toggle-theme")
+    @RolesAllowed("user")
+    @Transactional
+    public Response toggleTheme() {
+        User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        user.darkMode = !user.darkMode;
+        user.persist();
+        return Response.ok("{\"darkMode\":" + user.darkMode + "}").type(MediaType.APPLICATION_JSON).build();
+    }
+
+    // ── Settings ───────────────────────────────────────────────────────────
+
+    @GET
+    @Path("settings")
+    @RolesAllowed("user")
+    @Produces(MediaType.TEXT_HTML)
+    @Transactional
+    public TemplateInstance settingsPage() {
+        User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        return settingsTemplate.data(
+                "email", user.email,
+                "displayName", user.displayName,
+                "darkMode", user.darkMode,
+                "saved", false);
+    }
+
+    @POST
+    @Path("settings")
+    @RolesAllowed("user")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.TEXT_HTML)
+    @Transactional
+    public TemplateInstance updateSettings(
+            @FormParam("darkMode") List<String> darkModeValues) {
+        User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        // When checkbox is checked, we get ["false", "true"], when unchecked we get ["false"]
+        // We want to use "true" if present (checked) or "false" otherwise (unchecked)
+        user.darkMode = darkModeValues != null && darkModeValues.contains("true");
+        user.persist();
+        return settingsTemplate.data(
+                "email", user.email,
+                "displayName", user.displayName,
+                "darkMode", user.darkMode,
+                "saved", true);
+    }
+
     // ── Dashboard (protected) ──────────────────────────────────────────────
 
     @GET
@@ -121,6 +173,7 @@ public class WebResource {
         return dashboardTemplate.data(
                 "email", user.email,
                 "displayName", user.displayName,
+                "darkMode", user.darkMode,
                 "recentStats", recentStats);
     }
 }

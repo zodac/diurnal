@@ -1,0 +1,1 @@
+ALTER TABLE users ADD COLUMN dark_mode BOOLEAN DEFAULT false;
