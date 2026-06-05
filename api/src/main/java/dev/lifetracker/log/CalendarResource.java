@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-@Path("/api/logs")
+@Path("/logs/events")
 @RolesAllowed("user")
 @Produces(MediaType.APPLICATION_JSON)
 public class CalendarResource {

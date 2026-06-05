@@ -146,7 +146,7 @@ document.addEventListener('DOMContentLoaded', function () {
         initialView: 'dayGridMonth',
         height: 'auto',
         headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
-        events: '/api/logs',
+        events: '/logs/events',
         eventDisplay: 'list-item',
         dateClick: function (info) {
             htmx.ajax('GET', '/logs/day/' + info.dateStr, { target: '#day-panel', swap: 'innerHTML' });
