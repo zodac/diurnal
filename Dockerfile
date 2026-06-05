@@ -6,6 +6,7 @@ COPY api/src ./src
 RUN mvn package -DskipTests -q
 
 FROM eclipse-temurin:21-jre-alpine
+RUN apk add --no-cache tzdata
 WORKDIR /app
 RUN addgroup -S app && adduser -S app -G app
 USER app

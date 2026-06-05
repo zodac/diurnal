@@ -144,7 +144,8 @@ public class ActionsWebResource {
 
     private Response errorResponse(String message) {
         String html = "<p class=\"text-sm text-red-600\">" + message + "</p>";
-        return Response.ok(html)
+        return Response.status(Response.Status.CONFLICT)
+                .entity(html)
                 .header("HX-Retarget", "#action-error")
                 .header("HX-Reswap", "innerHTML")
                 .build();

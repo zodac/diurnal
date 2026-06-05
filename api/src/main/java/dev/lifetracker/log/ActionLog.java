@@ -37,6 +37,28 @@ public class ActionLog extends PanacheEntityBase {
 
     // ── Queries ───────────────────────────────────────────────────────────
 
+    /**
+     * Returns the single most-recent log entry per action for a user,
+     * ordered by log_date descending, limited to {@code limit} distinct actions.
+     */
+    public static List<ActionLog> mostRecentPerAction(UUID userId, int limit) {
+        return ActionLog.<ActionLog>list("userId = ?1 order by logDate desc", userId)
+                .stream()
+                .collect(Collectors.toMap(
+                        l -> l.actionId,
+                        l -> l,
+                        (a, b) -> a,          // keep the first (most recent)
+                        java.util.LinkedHashMap::new
+                ))
+                .values().stream()
+                .limit(limit)
+                .toList();
+    }
+
+    public static List<ActionLog> findAllByUser(UUID userId) {
+        return ActionLog.<ActionLog>list("userId = ?1 order by logDate asc", userId);
+    }
+
     public static List<ActionLog> findByUserAndRange(UUID userId, LocalDate start, LocalDate end) {
         return list("userId = ?1 and logDate >= ?2 and logDate <= ?3", userId, start, end);
     }

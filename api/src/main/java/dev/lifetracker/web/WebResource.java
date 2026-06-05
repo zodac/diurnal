@@ -1,5 +1,6 @@
 package dev.lifetracker.web;
 
+import dev.lifetracker.stats.StatsService;
 import dev.lifetracker.user.User;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
@@ -17,6 +18,7 @@ import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
 import java.net.URI;
+import java.util.List;
 
 @Path("/")
 public class WebResource {
@@ -28,6 +30,7 @@ public class WebResource {
     @Inject @Location("dashboard") Template dashboardTemplate;
 
     @Inject SecurityIdentity identity;
+    @Inject StatsService statsService;
 
     @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
     boolean passwordAuthEnabled;
@@ -113,10 +116,11 @@ public class WebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance dashboard() {
-        String email = identity.getPrincipal().getName();
-        String displayName = User.findByEmail(email)
-                .map(u -> u.displayName)
-                .orElse(email);
-        return dashboardTemplate.data("email", email, "displayName", displayName);
+        User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        List<?> recentStats = statsService.forMostRecent(user.id, 3);
+        return dashboardTemplate.data(
+                "email", user.email,
+                "displayName", user.displayName,
+                "recentStats", recentStats);
     }
 }
