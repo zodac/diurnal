@@ -34,8 +34,8 @@
             <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">New action</h3>
             <form hx-post="/actions"
                   hx-target="#action-list"
-                  hx-swap="beforeend"
-                  hx-on::after-request="if(event.detail.xhr.status===200) { document.getElementById('action-error').innerHTML=''; this.reset(); } else if(event.detail.xhr.status===409) { document.getElementById('action-error').innerHTML=event.detail.xhr.responseText; }"
+                  hx-swap="afterbegin"
+                  hx-on::after-request="if(event.detail.xhr.status===200) { document.getElementById('action-error').innerHTML=''; this.reset(); var sh=document.getElementById('showing-shown'); var tot=document.getElementById('showing-total'); if(sh) sh.textContent=parseInt(sh.textContent,10)+1; if(tot) tot.textContent=parseInt(tot.textContent,10)+1; } else if(event.detail.xhr.status===409) { document.getElementById('action-error').innerHTML=event.detail.xhr.responseText; }"
                   class="flex items-center gap-3">
                 <input type="color"
                        name="colour"
@@ -89,7 +89,7 @@
             <!-- Pagination -->
             {#if page.totalPages > 1}
             <div class="mt-4 flex items-center justify-between text-xs text-gray-500">
-                <p>Showing {page.items.size} of {page.totalCount}</p>
+                <p>Showing <span id="showing-shown">{page.items.size}</span> of <span id="showing-total">{page.totalCount}</span></p>
                 <div class="flex gap-2">
                     {#if page.currentPage > 1}
                     <a href="/actions?page={page.currentPage - 1}"
@@ -116,6 +116,24 @@
         </div>
     </main>
 </div>
+
+<script>
+// The delete endpoint returns 204 with an empty body. Two things to handle here,
+// rather than on the button itself (its outerHTML swap removes the button — and its
+// own after-request listener — before that listener would fire):
+//   1. htmx skips the swap on a 204 by default, but we rely on the outerHTML swap to
+//      remove the deleted row, so force the swap.
+//   2. Decrement the "Showing X of Y" counter to match the removed row.
+document.body.addEventListener('htmx:beforeSwap', function (e) {
+    if (e.detail.xhr.status === 204) {
+        e.detail.shouldSwap = true;
+        var sh = document.getElementById('showing-shown');
+        var tot = document.getElementById('showing-total');
+        if (sh) sh.textContent = parseInt(sh.textContent, 10) - 1;
+        if (tot) tot.textContent = parseInt(tot.textContent, 10) - 1;
+    }
+});
+</script>
 
 {/body}
 

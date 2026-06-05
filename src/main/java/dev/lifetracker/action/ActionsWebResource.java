@@ -216,7 +216,7 @@ public class ActionsWebResource {
         ActionLog.deleteByAction(action.userId, action.id);
         action.archived = true;
         action.persist();
-        return Response.ok("").build();
+        return Response.noContent().build();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
