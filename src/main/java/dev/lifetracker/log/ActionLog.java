@@ -74,4 +74,9 @@ public class ActionLog extends PanacheEntityBase {
                 "userId = ?1 and actionId = ?2 and logDate = ?3", userId, actionId, date)
                 .firstResult();
     }
+
+    /** Removes all log entries for an action (used when the action is deleted). */
+    public static long deleteByAction(UUID userId, UUID actionId) {
+        return delete("userId = ?1 and actionId = ?2", userId, actionId);
+    }
 }

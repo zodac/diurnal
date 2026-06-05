@@ -1,5 +1,6 @@
 package dev.lifetracker.action;
 
+import dev.lifetracker.log.ActionLog;
 import dev.lifetracker.user.User;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
@@ -211,6 +212,8 @@ public class ActionsWebResource {
     public Response deleteAction(@PathParam("id") UUID id) {
         Action action = findOwnedAction(id);
         if (action == null) return Response.status(404).build();
+        // Remove the action's logged entries too, so they no longer appear on the calendar.
+        ActionLog.deleteByAction(action.userId, action.id);
         action.archived = true;
         action.persist();
         return Response.ok("").build();
