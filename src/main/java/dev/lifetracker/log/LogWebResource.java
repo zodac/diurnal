@@ -63,7 +63,10 @@ public class LogWebResource {
         return dayActionsListTemplate.data("date", date, "page", page);
     }
 
-    private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages, int currentPage) {}
+    // fillerRows: blank rows that keep every paginated page the height of a full page.
+    // Only populated when there is more than one page; a single short page keeps its natural height.
+    private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages,
+                                       int currentPage, List<Integer> fillerRows) {}
 
     private PaginatedDayActions getActions(UUID userId, LocalDate date, int pageNum, String searchTerm) {
         List<Action> all = Action.findActiveByUser(userId);
@@ -86,7 +89,10 @@ public class LogWebResource {
                 .limit(pageSize)
                 .toList();
 
-        return new PaginatedDayActions(items, totalCount, totalPages, actualPage);
+        int fillers = totalPages > 1 ? Math.max(0, pageSize - items.size()) : 0;
+        List<Integer> fillerRows = java.util.stream.IntStream.range(0, fillers).boxed().toList();
+
+        return new PaginatedDayActions(items, totalCount, totalPages, actualPage, fillerRows);
     }
 
     // ── Increment ─────────────────────────────────────────────────────────

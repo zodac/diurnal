@@ -8,6 +8,11 @@
 {#include partials/day-action-item date=date action=status.action count=status.count /}
 {/for}
 
+<!-- Filler rows: keep every page the same height when paginated -->
+{#for i in page.fillerRows}
+<div class="px-2 py-2" aria-hidden="true"><div class="h-7"></div></div>
+{/for}
+
 <!-- Pagination -->
 {#if page.totalPages > 1}
 <div class="mt-4 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">

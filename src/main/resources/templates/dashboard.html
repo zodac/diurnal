@@ -142,8 +142,11 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+    var today = '{today}';
+
     var cal = new FullCalendar.Calendar(document.getElementById('calendar'), {
         initialView: 'dayGridMonth',
+        initialDate: today,
         height: 'auto',
         headerToolbar: { left: 'prev,next today', center: 'title', right: '' },
         events: '/logs/events',
@@ -153,6 +156,9 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
     cal.render();
+
+    // Pre-select today so the user can log actions immediately, without clicking the calendar.
+    htmx.ajax('GET', '/logs/day/' + today, { target: '#day-panel', swap: 'innerHTML' });
 
     // Refresh calendar dots after every log toggle inside the day panel.
     document.body.addEventListener('htmx:afterRequest', function (e) {

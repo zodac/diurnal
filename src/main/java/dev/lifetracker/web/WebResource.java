@@ -18,6 +18,8 @@ import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
 import java.net.URI;
+import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 @Path("/")
@@ -35,6 +37,9 @@ public class WebResource {
 
     @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
     boolean passwordAuthEnabled;
+
+    @ConfigProperty(name = "app.timezone", defaultValue = "UTC")
+    String timezoneId;
 
     // ── Login ──────────────────────────────────────────────────────────────
 
@@ -172,6 +177,7 @@ public class WebResource {
                 "email", user.email,
                 "displayName", user.displayName,
                 "darkMode", user.darkMode,
+                "today", LocalDate.now(ZoneId.of(timezoneId)).toString(),
                 "recentStats", recentStats);
     }
 }
