@@ -1,7 +1,7 @@
 # Environment
 .env
 
-# JWT keys — regenerate with scripts/generate-jwt-keys.sh
+# JWT keys — auto-generated on first start (see JwtKeyProvisioner)
 secrets/
 src/main/resources/jwt-keys/
 

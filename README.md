@@ -25,10 +25,8 @@ Trying to use AI to build this application, with guidance as needed. Expect seve
 cp .env.example .env
 $EDITOR .env          # set DB_PASSWORD and SESSION_ENCRYPTION_KEY at minimum
 
-# 2. Generate production JWT keys (stored in secrets/, git ignored)
-./scripts/generate-jwt-keys.sh --prod
-
-# 3. Build and start
+# 2. Build and start. JWT signing keys are generated into secrets/ on first
+#    start if absent — no manual step required.
 docker-compose up -d --build
 
 # View logs
@@ -64,15 +62,16 @@ The application is served at `http://localhost:${APP_PORT}` (default 8080).
 
 ### JWT signing keys (REST API / future OIDC)
 
-Keys are RSA-2048 PEM files. In dev, they are loaded from classpath (`api/src/main/resources/jwt-keys/`). In production, they are mounted from
-`secrets/` as read-only volumes.
+Keys are RSA-2048 PEM files. In production they live in `secrets/` (mounted at `/run/secrets/`) and are **generated automatically on first start**
+if absent, then reused on every subsequent start. In dev they are loaded from the classpath (`src/main/resources/jwt-keys/`).
 
 | Variable                   | Default (dev)          | Description                                      |
 |----------------------------|------------------------|--------------------------------------------------|
 | `JWT_PUBLIC_KEY_LOCATION`  | `jwt-keys/public.pem`  | Path to PEM public key for token verification.   |
 | `JWT_PRIVATE_KEY_LOCATION` | `jwt-keys/private.pem` | Path to PKCS8 PEM private key for token signing. |
 
-Generate with `./scripts/generate-jwt-keys.sh` (dev) or `./scripts/generate-jwt-keys.sh --prod` (production).
+No manual step is required — the app provisions the keypair on first start (see `JwtKeyProvisioner`) and reuses it thereafter. To use a specific
+key (e.g. to share one across multiple replicas), drop your own `private.pem` / `public.pem` into `secrets/` before starting.
 
 ### Application
 
