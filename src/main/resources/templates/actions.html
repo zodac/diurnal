@@ -80,6 +80,7 @@
                        hx-get="/actions/list?page={page.currentPage - 1}"
                        hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('search-input').value"
                        hx-target="#action-list"
+                       hx-swap="innerHTML show:window:top"
                        class="text-indigo-600 hover:text-indigo-800 transition-colors">
                         ← Previous
                     </a>
@@ -90,6 +91,7 @@
                        hx-get="/actions/list?page={page.currentPage + 1}"
                        hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('search-input').value"
                        hx-target="#action-list"
+                       hx-swap="innerHTML show:window:top"
                        class="text-indigo-600 hover:text-indigo-800 transition-colors">
                         Next →
                     </a>

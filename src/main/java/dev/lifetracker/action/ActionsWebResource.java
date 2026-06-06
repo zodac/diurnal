@@ -98,14 +98,14 @@ public class ActionsWebResource {
 
             if (page.currentPage > 1) {
                 String qParam = searchTerm.isEmpty() ? "" : "&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8);
-                sb.append("        <a href=\"/actions?page=").append(page.currentPage - 1).append(qParam).append("\" hx-get=\"/actions/list?page=").append(page.currentPage - 1).append(qParam).append("\" hx-target=\"#action-list\" class=\"text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors\">← Previous</a>\n");
+                sb.append("        <a href=\"/actions?page=").append(page.currentPage - 1).append(qParam).append("\" hx-get=\"/actions/list?page=").append(page.currentPage - 1).append(qParam).append("\" hx-target=\"#action-list\" hx-swap=\"innerHTML show:window:top\" class=\"text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors\">← Previous</a>\n");
             }
 
             sb.append("        <span>Page ").append(page.currentPage).append(" of ").append(page.totalPages).append("</span>\n");
 
             if (page.currentPage < page.totalPages) {
                 String qParam = searchTerm.isEmpty() ? "" : "&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8);
-                sb.append("        <a href=\"/actions?page=").append(page.currentPage + 1).append(qParam).append("\" hx-get=\"/actions/list?page=").append(page.currentPage + 1).append(qParam).append("\" hx-target=\"#action-list\" class=\"text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors\">Next →</a>\n");
+                sb.append("        <a href=\"/actions?page=").append(page.currentPage + 1).append(qParam).append("\" hx-get=\"/actions/list?page=").append(page.currentPage + 1).append(qParam).append("\" hx-target=\"#action-list\" hx-swap=\"innerHTML show:window:top\" class=\"text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors\">Next →</a>\n");
             }
 
             sb.append("    </div>\n");

@@ -1,0 +1,114 @@
+<div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+    {#for s in page.items}
+    <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 flex flex-col gap-4">
+
+        <!-- Action header -->
+        <div class="flex items-center gap-2">
+            <span class="w-4 h-4 rounded-full flex-shrink-0 border border-black/10"
+                  style="background-color: {s.action.colour}"></span>
+            <h3 class="font-semibold text-gray-900 dark:text-gray-50 truncate">{s.action.name}</h3>
+        </div>
+
+        <!-- Streaks & totals -->
+        <dl class="grid grid-cols-2 gap-2">
+
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Current streak</dt>
+                <dd class="text-2xl font-bold text-gray-900 dark:text-gray-50 leading-none">{s.currentStreak}</dd>
+                <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">days</dd>
+            </div>
+
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Longest streak</dt>
+                <dd class="text-2xl font-bold text-gray-900 dark:text-gray-50 leading-none">{s.longestStreak}</dd>
+                <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">days</dd>
+            </div>
+
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Total days</dt>
+                <dd class="text-2xl font-bold text-gray-900 dark:text-gray-50 leading-none">{s.totalDays}</dd>
+                <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">distinct days</dd>
+            </div>
+
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Total count</dt>
+                <dd class="text-2xl font-bold text-gray-900 dark:text-gray-50 leading-none">{s.totalCount}</dd>
+                <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">all time</dd>
+            </div>
+
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Weekly average</dt>
+                <dd class="text-2xl font-bold text-gray-900 dark:text-gray-50 leading-none">{s.weeklyAverage}</dd>
+                <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">days / week</dd>
+            </div>
+
+            <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Last performed</dt>
+                <dd class="text-sm font-semibold text-gray-900 dark:text-gray-50 leading-snug mt-0.5">{s.lastLabel}</dd>
+                <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.sinceLabel}</dd>
+            </div>
+
+        </dl>
+
+        <!-- Comparative & high scores -->
+        <div class="border-t border-gray-100 dark:border-gray-700 pt-3">
+            <dl class="grid grid-cols-2 gap-2">
+
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                    <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">vs last month</dt>
+                    <dd class="text-2xl font-bold leading-none {s.monthTrendClass}">{s.monthTrend}</dd>
+                    <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.monthContext}</dd>
+                </div>
+
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                    <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">vs last year</dt>
+                    <dd class="text-2xl font-bold leading-none {s.yearTrendClass}">{s.yearTrend}</dd>
+                    <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.yearContext}</dd>
+                </div>
+
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                    <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Best month</dt>
+                    <dd class="text-2xl font-bold text-gray-900 dark:text-gray-50 leading-none">{s.bestMonthCount}</dd>
+                    <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.bestMonthLabel}</dd>
+                </div>
+
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-xl p-3">
+                    <dt class="text-xs text-gray-500 dark:text-gray-400 mb-1">Best year</dt>
+                    <dd class="text-2xl font-bold text-gray-900 dark:text-gray-50 leading-none">{s.bestYearCount}</dd>
+                    <dd class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{s.bestYearLabel}</dd>
+                </div>
+
+            </dl>
+        </div>
+
+    </div>
+    {/for}
+</div>
+
+<!-- Pagination -->
+{#if page.totalPages > 1}
+<div class="mt-6 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+    <p>Showing {page.items.size} of {page.totalCount}</p>
+    <div class="flex gap-2">
+        {#if page.currentPage > 1}
+        <a href="/stats?page={page.currentPage - 1}"
+           hx-get="/stats/list?page={page.currentPage - 1}"
+           hx-target="#stats-list"
+           hx-swap="innerHTML show:window:top"
+           class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
+            ← Previous
+        </a>
+        {/if}
+        <span>Page {page.currentPage} of {page.totalPages}</span>
+        {#if page.currentPage < page.totalPages}
+        <a href="/stats?page={page.currentPage + 1}"
+           hx-get="/stats/list?page={page.currentPage + 1}"
+           hx-target="#stats-list"
+           hx-swap="innerHTML show:window:top"
+           class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
+            Next →
+        </a>
+        {/if}
+    </div>
+</div>
+{/if}
