@@ -4,22 +4,7 @@
 <div class="min-h-screen flex flex-col">
 
     <!-- Navigation -->
-    <header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center gap-6">
-        <span class="text-lg font-semibold text-gray-900 dark:text-gray-50">Life Tracker</span>
-        <nav class="flex gap-4 text-sm">
-            <a href="/" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Dashboard</a>
-            <a href="/actions" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Actions</a>
-            <a href="/stats" class="text-indigo-600 dark:text-indigo-400 font-medium">Stats</a>
-        </nav>
-        <div class="ml-auto flex items-center gap-4">
-            <a href="/settings" title="Account settings" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors hidden sm:block">{displayName}</a>
-            <form method="post" action="/logout">
-                <button type="submit" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">
-                    Sign out
-                </button>
-            </form>
-        </div>
-    </header>
+    {#include partials/navbar active='stats' /}
 
     <main class="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
         <h2 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-50">Stats</h2>
