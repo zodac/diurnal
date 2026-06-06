@@ -28,15 +28,14 @@ services:
       DB_NAME: ${DB_NAME:-lifetracker}
       DB_USER: ${DB_USER:-lifetracker}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
-      # JWT keys are stored in ./secrets/ — auto-generated on first start if absent (see JwtKeyProvisioner)
       TZ: ${TZ:-UTC}
       LOG_LEVEL: "DEBUG"
       PASSWORD_AUTH_ENABLED: "true"
       # Session cookie encryption — must be at least 16 chars, keep secret
       SESSION_ENCRYPTION_KEY: ${SESSION_ENCRYPTION_KEY:?SESSION_ENCRYPTION_KEY must be set}
-      # file: scheme is required — SmallRye JWT resolves these locations as URLs
-      JWT_PUBLIC_KEY_LOCATION: file:///run/secrets/jwt-public.pem
-      JWT_PRIVATE_KEY_LOCATION: file:///run/secrets/jwt-private.pem
+      # JWT keys are stored in ./secrets/ — auto-generated on first start if absent (see JwtKeyProvisioner)
+      JWT_PUBLIC_KEY_LOCATION: /run/secrets/jwt-public.pem
+      JWT_PRIVATE_KEY_LOCATION: /run/secrets/jwt-private.pem
       # OIDC (Phase 5) — set OIDC_ENABLED=true and configure the values below
       OIDC_ENABLED: ${OIDC_ENABLED:-false}
       OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
