@@ -48,7 +48,7 @@ public class LogWebResource {
     public TemplateInstance dayPanel(@PathParam("date") LocalDate date) {
         User user = currentUser();
         boolean future = isFuture(date);
-        var page = future ? null : getActions(user.id, date, 1, "");
+        var page = future ? null : getActions(user.id, date, 1, "", user.pageSize);
 
         return dayPanelTemplate.data(
                 "date", date,
@@ -67,7 +67,7 @@ public class LogWebResource {
             @QueryParam("page") @DefaultValue("1") int pageNum,
             @QueryParam("q") @DefaultValue("") String searchTerm) {
         User user = currentUser();
-        var page = getActions(user.id, date, pageNum, searchTerm);
+        var page = getActions(user.id, date, pageNum, searchTerm, user.pageSize);
         return dayActionsListTemplate.data("date", date, "page", page);
     }
 
@@ -76,7 +76,7 @@ public class LogWebResource {
     private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages,
                                        int currentPage, List<Integer> fillerRows) {}
 
-    private PaginatedDayActions getActions(UUID userId, LocalDate date, int pageNum, String searchTerm) {
+    private PaginatedDayActions getActions(UUID userId, LocalDate date, int pageNum, String searchTerm, int pageSize) {
         List<Action> all = Action.findActiveByUser(userId);
         Map<UUID, Integer> counts = ActionLog.countsByAction(userId, date);
 
@@ -90,7 +90,6 @@ public class LogWebResource {
                 .toList();
 
         int totalCount = filtered.size();
-        int pageSize = 10;
         int totalPages = (totalCount + pageSize - 1) / pageSize;
         int actualPage = Math.max(1, Math.min(pageNum, totalPages == 0 ? 1 : totalPages));
         int skip = (actualPage - 1) * pageSize;

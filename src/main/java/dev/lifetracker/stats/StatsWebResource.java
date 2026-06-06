@@ -23,8 +23,6 @@ import java.util.UUID;
 @RolesAllowed("user")
 public class StatsWebResource {
 
-    private static final int PAGE_SIZE = 10;
-
     @Inject @Location("stats") Template statsTemplate;
     @Inject @Location("partials/stats-cards") Template statsCardsTemplate;
     @Inject SecurityIdentity identity;
@@ -40,7 +38,7 @@ public class StatsWebResource {
                 "displayName", user.displayName,
                 "darkMode", user.darkMode,
                 "hasActions", !Action.findActiveByUser(user.id).isEmpty(),
-                "page", getStatsPage(user.id, pageNum));
+                "page", getStatsPage(user.id, pageNum, user.pageSize));
     }
 
     @GET
@@ -49,24 +47,24 @@ public class StatsWebResource {
     @Transactional
     public TemplateInstance statsList(@QueryParam("page") @DefaultValue("1") int pageNum) {
         User user = currentUser();
-        return statsCardsTemplate.data("page", getStatsPage(user.id, pageNum));
+        return statsCardsTemplate.data("page", getStatsPage(user.id, pageNum, user.pageSize));
     }
 
     // Only actions with at least one logged entry are returned by forAllActiveActions;
     // pagination slices that filtered list into pages of PAGE_SIZE.
     private record PaginatedStats(List<ActionStats> items, int totalCount, int totalPages, int currentPage) {}
 
-    private PaginatedStats getStatsPage(UUID userId, int pageNum) {
+    private PaginatedStats getStatsPage(UUID userId, int pageNum, int pageSize) {
         List<ActionStats> all = statsService.forAllActiveActions(userId);
 
         int totalCount = all.size();
-        int totalPages = (totalCount + PAGE_SIZE - 1) / PAGE_SIZE;
+        int totalPages = (totalCount + pageSize - 1) / pageSize;
         int actualPage = Math.max(1, Math.min(pageNum, totalPages == 0 ? 1 : totalPages));
-        int skip = (actualPage - 1) * PAGE_SIZE;
+        int skip = (actualPage - 1) * pageSize;
 
         List<ActionStats> items = all.stream()
                 .skip(skip)
-                .limit(PAGE_SIZE)
+                .limit(pageSize)
                 .toList();
 
         return new PaginatedStats(items, totalCount, totalPages, actualPage);

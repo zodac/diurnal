@@ -2,6 +2,7 @@ package dev.lifetracker.web;
 
 import dev.lifetracker.stats.StatsService;
 import dev.lifetracker.user.User;
+import dev.lifetracker.user.UserSettings;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
@@ -136,11 +137,7 @@ public class WebResource {
     @Transactional
     public TemplateInstance settingsPage() {
         User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
-        return settingsTemplate.data(
-                "email", user.email,
-                "displayName", user.displayName,
-                "darkMode", user.darkMode,
-                "saved", false);
+        return settingsView(user, false);
     }
 
     @POST
@@ -150,17 +147,25 @@ public class WebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance updateSettings(
-            @FormParam("darkMode") List<String> darkModeValues) {
+            @FormParam("darkMode") List<String> darkModeValues,
+            @FormParam("pageSize") @DefaultValue("10") int pageSize) {
         User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
         // When checkbox is checked, we get ["false", "true"], when unchecked we get ["false"]
         // We want to use "true" if present (checked) or "false" otherwise (unchecked)
         user.darkMode = darkModeValues != null && darkModeValues.contains("true");
+        user.pageSize = UserSettings.sanitisePageSize(pageSize);
         user.persist();
-        return settingsTemplate.data(
-                "email", user.email,
-                "displayName", user.displayName,
-                "darkMode", user.darkMode,
-                "saved", true);
+        return settingsView(user, true);
+    }
+
+    private TemplateInstance settingsView(User user, boolean saved) {
+        return settingsTemplate
+                .data("email", user.email)
+                .data("displayName", user.displayName)
+                .data("darkMode", user.darkMode)
+                .data("pageSize", user.pageSize)
+                .data("pageSizeOptions", UserSettings.PAGE_SIZE_OPTIONS)
+                .data("saved", saved);
     }
 
     // ── Dashboard (protected) ──────────────────────────────────────────────

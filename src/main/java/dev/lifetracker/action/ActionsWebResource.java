@@ -34,7 +34,7 @@ public class ActionsWebResource {
     @Transactional
     public TemplateInstance actionsPage() {
         User user = currentUser();
-        var page = getActions(user.id, 1, "");
+        var page = getActions(user.id, 1, "", user.pageSize);
         return actionsTemplate.data("displayName", user.displayName, "email", user.email, "page", page, "darkMode", user.darkMode);
     }
 
@@ -46,14 +46,14 @@ public class ActionsWebResource {
             @QueryParam("page") @DefaultValue("1") int pageNum,
             @QueryParam("q") @DefaultValue("") String searchTerm) {
         User user = currentUser();
-        var page = getActions(user.id, pageNum, searchTerm);
+        var page = getActions(user.id, pageNum, searchTerm, user.pageSize);
         String html = renderActionsList(page, searchTerm);
         return Response.ok(html).build();
     }
 
     private record PaginatedActions(List<Action> items, int totalCount, int totalPages, int currentPage) {}
 
-    private PaginatedActions getActions(UUID userId, int pageNum, String searchTerm) {
+    private PaginatedActions getActions(UUID userId, int pageNum, String searchTerm, int pageSize) {
         List<Action> all = Action.findActiveByUser(userId);
 
         var filtered = all.stream()
@@ -62,7 +62,6 @@ public class ActionsWebResource {
                 .toList();
 
         int totalCount = filtered.size();
-        int pageSize = 10;
         int totalPages = (totalCount + pageSize - 1) / pageSize;
         int actualPage = Math.max(1, Math.min(pageNum, totalPages == 0 ? 1 : totalPages));
         int skip = (actualPage - 1) * pageSize;

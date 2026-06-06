@@ -41,6 +41,23 @@
                     </div>
                 </div>
 
+                <!-- Items per page -->
+                <div class="flex items-center justify-between py-4 border-b border-gray-200 dark:border-gray-700">
+                    <div class="flex-1">
+                        <label for="pageSize" class="block text-sm font-medium text-gray-900 dark:text-gray-50">Items per page</label>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">How many entries to show per page in the dashboard, actions and stats lists</p>
+                    </div>
+                    <div class="ml-4 flex items-center">
+                        <select id="pageSize"
+                                name="pageSize"
+                                class="rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-50 focus:ring-indigo-500 focus:border-indigo-500 py-1.5 pl-3 pr-8 cursor-pointer">
+                            {#for option in pageSizeOptions}
+                            <option value="{option}" {#if option == pageSize}selected{/if}>{option}</option>
+                            {/for}
+                        </select>
+                    </div>
+                </div>
+
                 <!-- Save button -->
                 <button type="submit"
                         class="inline-block bg-indigo-600 text-white rounded-lg px-6 py-2 text-sm font-medium

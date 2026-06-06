@@ -39,6 +39,9 @@ public class User extends PanacheEntityBase {
     @Column(name = "dark_mode", nullable = false)
     public boolean darkMode = false;
 
+    @Column(name = "page_size", nullable = false)
+    public int pageSize = UserSettings.DEFAULT_PAGE_SIZE;
+
     public static Optional<User> findByEmail(String email) {
         return find("email", email.toLowerCase()).firstResultOptional();
     }
