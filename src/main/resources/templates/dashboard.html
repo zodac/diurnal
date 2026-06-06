@@ -159,12 +159,13 @@ document.addEventListener('DOMContentLoaded', function () {
         eventDisplay: 'list-item',
         datesSet: function () { mountJumpIcon(); highlightSelected(selectedDate); },
         dateClick: function (info) {
-            highlightSelected(info.dateStr);
-            // Clicking a day shown from an adjacent month jumps the calendar to that month.
-            if (info.dayEl.classList.contains('fc-day-other')) {
-                cal.gotoDate(info.date);
-            }
-            htmx.ajax('GET', '/logs/day/' + info.dateStr, { target: '#day-panel', swap: 'innerHTML' });
+            selectDay(info.dateStr, info.dayEl);
+        },
+        // Clicking a logged action's event element should select its day too (dateClick
+        // does not fire when the click lands on an event rather than the empty cell).
+        eventClick: function (info) {
+            info.jsEvent.preventDefault();
+            selectDay(info.event.startStr, info.el.closest('.fc-daygrid-day'));
         }
     });
     cal.render();
@@ -183,6 +184,15 @@ document.addEventListener('DOMContentLoaded', function () {
         if (!dateStr) return;
         var cell = calEl.querySelector('.fc-daygrid-day[data-date="' + dateStr + '"]');
         if (cell) cell.classList.add('lt-day-selected');
+    }
+
+    // Select a day: highlight it, jump to its month if it belongs to an adjacent one, and load its panel.
+    function selectDay(dateStr, dayEl) {
+        highlightSelected(dateStr);
+        if (dayEl && dayEl.classList.contains('fc-day-other')) {
+            cal.gotoDate(dateStr);
+        }
+        htmx.ajax('GET', '/logs/day/' + dateStr, { target: '#day-panel', swap: 'innerHTML' });
     }
 
     var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
