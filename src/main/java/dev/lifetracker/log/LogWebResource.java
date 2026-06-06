@@ -17,6 +17,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -83,6 +84,9 @@ public class LogWebResource {
                 .filter(a -> searchTerm == null || searchTerm.isBlank() ||
                         a.name.toLowerCase().contains(searchTerm.toLowerCase()))
                 .map(a -> new DayActionStatus(a, counts.getOrDefault(a.id, 0)))
+                // Highest count first; equal counts (including 0) keep the DB's alphabetical
+                // order, since `all` arrives sorted by name and sorted() is stable.
+                .sorted(Comparator.comparingInt(DayActionStatus::count).reversed())
                 .toList();
 
         int totalCount = filtered.size();
