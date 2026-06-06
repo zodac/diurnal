@@ -13,6 +13,9 @@
   .fc .fc-daygrid-day-number { font-size: 0.75rem; }
   .fc .fc-event { font-size: 0.7rem; }
   .fc-daygrid-day.fc-day-today { background-color: #eef2ff !important; }
+  /* Selected day — an indigo ring, distinct from the 'today' background fill so both can show together */
+  .fc-daygrid-day.lt-day-selected { box-shadow: inset 0 0 0 2px rgb(79, 70, 229); }
+  .dark .fc-daygrid-day.lt-day-selected { box-shadow: inset 0 0 0 2px rgb(129, 140, 248); }
 
   /* Dark mode overrides for FullCalendar */
   .dark .fc {
@@ -154,8 +157,9 @@ document.addEventListener('DOMContentLoaded', function () {
         headerToolbar: { left: 'prevYear,prev,next,nextYear today', center: 'title', right: '' },
         events: '/logs/events',
         eventDisplay: 'list-item',
-        datesSet: function () { mountJumpIcon(); },
+        datesSet: function () { mountJumpIcon(); highlightSelected(selectedDate); },
         dateClick: function (info) {
+            highlightSelected(info.dateStr);
             htmx.ajax('GET', '/logs/day/' + info.dateStr, { target: '#day-panel', swap: 'innerHTML' });
         }
     });
@@ -164,6 +168,18 @@ document.addEventListener('DOMContentLoaded', function () {
     // ── Custom month/year picker ────────────────────────────────────────────
     var calEl = document.getElementById('calendar');
     calEl.style.position = 'relative';
+
+    // Track and visually mark the currently selected day.
+    var selectedDate = null;
+    function highlightSelected(dateStr) {
+        if (!calEl) return; // datesSet can fire during initial render, before setup completes
+        selectedDate = dateStr;
+        calEl.querySelectorAll('.fc-daygrid-day.lt-day-selected')
+             .forEach(function (el) { el.classList.remove('lt-day-selected'); });
+        if (!dateStr) return;
+        var cell = calEl.querySelector('.fc-daygrid-day[data-date="' + dateStr + '"]');
+        if (cell) cell.classList.add('lt-day-selected');
+    }
 
     var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
     var CAL_ICON =
@@ -252,6 +268,7 @@ document.addEventListener('DOMContentLoaded', function () {
     mountJumpIcon();
 
     // Pre-select today so the user can log actions immediately, without clicking the calendar.
+    highlightSelected(today);
     htmx.ajax('GET', '/logs/day/' + today, { target: '#day-panel', swap: 'innerHTML' });
 
     // Refresh calendar dots after every log toggle inside the day panel.
