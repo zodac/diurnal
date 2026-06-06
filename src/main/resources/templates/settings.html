@@ -10,10 +10,9 @@
             <a href="/" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Dashboard</a>
             <a href="/actions" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Actions</a>
             <a href="/stats" class="text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">Stats</a>
-            <a href="/settings" class="text-indigo-600 dark:text-indigo-400 font-medium">Settings</a>
         </nav>
         <div class="ml-auto flex items-center gap-4">
-            <span class="text-sm text-gray-500 dark:text-gray-400 hidden sm:block">{email}</span>
+            <a href="/settings" title="Account settings" class="text-sm text-indigo-600 dark:text-indigo-400 font-medium hidden sm:block">{displayName}</a>
             <form method="post" action="/logout">
                 <button type="submit" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200 transition-colors">
                     Sign out
