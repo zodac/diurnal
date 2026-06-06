@@ -160,6 +160,10 @@ document.addEventListener('DOMContentLoaded', function () {
         datesSet: function () { mountJumpIcon(); highlightSelected(selectedDate); },
         dateClick: function (info) {
             highlightSelected(info.dateStr);
+            // Clicking a day shown from an adjacent month jumps the calendar to that month.
+            if (info.dayEl.classList.contains('fc-day-other')) {
+                cal.gotoDate(info.date);
+            }
             htmx.ajax('GET', '/logs/day/' + info.dateStr, { target: '#day-panel', swap: 'innerHTML' });
         }
     });
