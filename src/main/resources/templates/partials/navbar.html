@@ -19,7 +19,7 @@
 
         <!-- Mobile hamburger: shown only when the desktop nav is hidden -->
         <button type="button" aria-label="Toggle menu" aria-controls="mobile-menu" aria-expanded="false"
-                onclick="const m = document.getElementById('mobile-menu'); const open = m.classList.toggle('hidden'); this.setAttribute('aria-expanded', String(!open));"
+                onclick="const m = document.getElementById('mobile-menu'); const open = m.getAttribute('data-open') !== 'true'; m.setAttribute('data-open', String(open)); this.setAttribute('aria-expanded', String(open));"
                 class="group sm:hidden ml-auto p-1 -mr-1 text-gray-500 dark:text-gray-400 aria-expanded:text-indigo-600 dark:aria-expanded:text-indigo-400 aria-[expanded=false]:hover:text-gray-900 dark:aria-[expanded=false]:hover:text-white focus:outline-none transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 transition-transform duration-200 group-aria-expanded:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -27,18 +27,21 @@
         </button>
     </div>
 
-    <!-- Mobile dropdown menu: toggled by the hamburger, always hidden from sm up -->
-    <nav id="mobile-menu" class="flex flex-col gap-3 mt-3 text-sm hidden sm:hidden">
-        <a href="/" class="{#if active == 'dashboard'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Dashboard</a>
-        <a href="/actions" class="{#if active == 'actions'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Actions</a>
-        <a href="/stats" class="{#if active == 'stats'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Stats</a>
-        <!-- Separator: mirrors the left/right split of the desktop nav -->
-        <hr class="border-gray-200 dark:border-gray-700">
-        <a href="/settings" class="{#if active == 'settings'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">{displayName}</a>
-        <form method="post" action="/logout">
-            <button type="submit" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
-                Log out
-            </button>
-        </form>
-    </nav>
+    <!-- Mobile dropdown menu: animated open/closed via a grid-rows transition, always hidden from sm up -->
+    <div id="mobile-menu" data-open="false"
+         class="grid grid-rows-[0fr] data-[open=true]:grid-rows-[1fr] transition-[grid-template-rows] duration-200 ease-out sm:hidden">
+        <nav class="flex flex-col gap-3 pt-3 text-sm overflow-hidden min-h-0">
+            <a href="/" class="{#if active == 'dashboard'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Dashboard</a>
+            <a href="/actions" class="{#if active == 'actions'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Actions</a>
+            <a href="/stats" class="{#if active == 'stats'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Stats</a>
+            <!-- Separator: mirrors the left/right split of the desktop nav -->
+            <hr class="border-gray-200 dark:border-gray-700">
+            <a href="/settings" class="{#if active == 'settings'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">{displayName}</a>
+            <form method="post" action="/logout">
+                <button type="submit" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                    Log out
+                </button>
+            </form>
+        </nav>
+    </div>
 </header>
