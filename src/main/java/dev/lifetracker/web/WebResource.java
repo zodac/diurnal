@@ -53,7 +53,7 @@ public class WebResource {
         // error is null when absent, "" when present with no value (?error), or a string value.
         // Quarkus form auth redirects to /login?error (no value) on failure — treat key presence as truthy.
         return loginTemplate.data("error", error != null && !"false".equals(error), "registered", registered,
-                "passwordAuthEnabled", passwordAuthEnabled, "darkMode", false);
+                "passwordAuthEnabled", passwordAuthEnabled, "theme", "system");
     }
 
     // ── Register ───────────────────────────────────────────────────────────
@@ -65,7 +65,7 @@ public class WebResource {
         if (!passwordAuthEnabled) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        return Response.ok(registerTemplate.data("error", error, "darkMode", false)).build();
+        return Response.ok(registerTemplate.data("error", error, "theme", "system")).build();
     }
 
     @POST
@@ -117,19 +117,6 @@ public class WebResource {
         return Response.seeOther(URI.create("/login")).cookie(clear).build();
     }
 
-    // ── Theme toggle ──────────────────────────────────────────────────────
-
-    @POST
-    @Path("toggle-theme")
-    @RolesAllowed("user")
-    @Transactional
-    public Response toggleTheme() {
-        User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
-        user.darkMode = !user.darkMode;
-        user.persist();
-        return Response.ok("{\"darkMode\":" + user.darkMode + "}").type(MediaType.APPLICATION_JSON).build();
-    }
-
     // ── Settings ───────────────────────────────────────────────────────────
 
     @GET
@@ -149,12 +136,10 @@ public class WebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance updateSettings(
-            @FormParam("darkMode") List<String> darkModeValues,
+            @FormParam("theme") @DefaultValue("system") String theme,
             @FormParam("pageSize") @DefaultValue("10") int pageSize) {
         User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
-        // When checkbox is checked, we get ["false", "true"], when unchecked we get ["false"]
-        // We want to use "true" if present (checked) or "false" otherwise (unchecked)
-        user.darkMode = darkModeValues != null && darkModeValues.contains("true");
+        user.theme = UserSettings.sanitiseTheme(theme);
         user.pageSize = UserSettings.sanitisePageSize(pageSize);
         user.persist();
         return settingsView(user, true);
@@ -164,9 +149,10 @@ public class WebResource {
         return settingsTemplate
                 .data("email", user.email)
                 .data("displayName", user.displayName)
-                .data("darkMode", user.darkMode)
+                .data("theme", user.theme)
                 .data("pageSize", user.pageSize)
                 .data("pageSizeOptions", UserSettings.PAGE_SIZE_OPTIONS)
+                .data("themeOptions", UserSettings.THEME_OPTIONS)
                 .data("saved", saved);
     }
 
@@ -183,7 +169,7 @@ public class WebResource {
         return dashboardTemplate.data(
                 "email", user.email,
                 "displayName", user.displayName,
-                "darkMode", user.darkMode,
+                "theme", user.theme,
                 "today", LocalDate.now(ZoneId.of(timezoneId)).toString(),
                 "recentStats", recentStats);
     }

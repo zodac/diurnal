@@ -53,7 +53,7 @@ public class LogWebResource {
         return dayPanelTemplate.data(
                 "date", date,
                 "dateLabel", date.format(DAY_LABEL),
-                "darkMode", user.darkMode,
+                "theme", user.theme,
                 "future", future,
                 "page", page);
     }

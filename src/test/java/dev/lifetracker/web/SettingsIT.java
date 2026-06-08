@@ -28,38 +28,50 @@ class SettingsIT extends IntegrationTestBase {
     // ── POST /settings ────────────────────────────────────────────────────────
 
     @Test
-    void updateSettings_darkModeChecked_persistsTrue() {
-        // Checked state: form sends both the hidden "false" and the checkbox "true"
-        given().formParam("darkMode", "false")
-                .formParam("darkMode", "true")
-                .formParam("pageSize", "10")
-                .post("/settings")
-                .then().statusCode(200)
-                .body(containsString("Settings saved successfully"));
-
-        User user = User.findByEmail(PRIMARY).orElseThrow();
-        assertTrue(user.darkMode);
-    }
-
-    @Test
-    void updateSettings_darkModeUnchecked_persistsFalse() {
-        // First enable dark mode
-        given().formParam("darkMode", "false").formParam("darkMode", "true")
-                .formParam("pageSize", "10").post("/settings");
-
-        // Now uncheck — form only sends the hidden "false"
-        given().formParam("darkMode", "false")
+    void updateSettings_themeDark_persists() {
+        given().formParam("theme", "dark")
                 .formParam("pageSize", "10")
                 .post("/settings")
                 .then().statusCode(200);
 
-        User user = User.findByEmail(PRIMARY).orElseThrow();
-        assertFalse(user.darkMode);
+        runInTx(() -> assertEquals("dark", User.findByEmail(PRIMARY).orElseThrow().theme));
+    }
+
+    @Test
+    void updateSettings_themeLight_persists() {
+        given().formParam("theme", "light")
+                .formParam("pageSize", "10")
+                .post("/settings")
+                .then().statusCode(200);
+
+        runInTx(() -> assertEquals("light", User.findByEmail(PRIMARY).orElseThrow().theme));
+    }
+
+    @Test
+    void updateSettings_themeSystem_persists() {
+        given().formParam("theme", "dark").formParam("pageSize", "10").post("/settings");
+
+        given().formParam("theme", "system")
+                .formParam("pageSize", "10")
+                .post("/settings")
+                .then().statusCode(200);
+
+        runInTx(() -> assertEquals("system", User.findByEmail(PRIMARY).orElseThrow().theme));
+    }
+
+    @Test
+    void updateSettings_invalidTheme_fallsBackToSystem() {
+        given().formParam("theme", "midnight")
+                .formParam("pageSize", "10")
+                .post("/settings")
+                .then().statusCode(200);
+
+        runInTx(() -> assertEquals("system", User.findByEmail(PRIMARY).orElseThrow().theme));
     }
 
     @Test
     void updateSettings_validPageSize_persists() {
-        given().formParam("darkMode", "false")
+        given().formParam("theme", "system")
                 .formParam("pageSize", "25")
                 .post("/settings")
                 .then().statusCode(200);
@@ -71,7 +83,7 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updateSettings_invalidPageSize_fallsBackToDefault() {
         // 7 is not in the allow-list {10,25,50,100}
-        given().formParam("darkMode", "false")
+        given().formParam("theme", "system")
                 .formParam("pageSize", "7")
                 .post("/settings")
                 .then().statusCode(200);
@@ -82,7 +94,7 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updateSettings_tamperedPageSize_fallsBackToDefault() {
-        given().formParam("darkMode", "false")
+        given().formParam("theme", "system")
                 .formParam("pageSize", "999")
                 .post("/settings")
                 .then().statusCode(200);
@@ -93,53 +105,14 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updateSettings_pageSizeOptions_includes50And100() {
-        given().formParam("darkMode", "false")
+        given().formParam("theme", "system")
                 .formParam("pageSize", "50")
                 .post("/settings").then().statusCode(200);
         runInTx(() -> assertEquals(50, User.findByEmail(PRIMARY).orElseThrow().pageSize));
 
-        given().formParam("darkMode", "false")
+        given().formParam("theme", "system")
                 .formParam("pageSize", "100")
                 .post("/settings").then().statusCode(200);
         runInTx(() -> assertEquals(100, User.findByEmail(PRIMARY).orElseThrow().pageSize));
-    }
-
-    @Test
-    void updateSettings_responseSavedBannerPresent() {
-        given().formParam("darkMode", "false")
-                .formParam("pageSize", "10")
-                .post("/settings")
-                .then().statusCode(200)
-                .body(containsString("Settings saved successfully"));
-    }
-
-    // ── POST /toggle-theme ────────────────────────────────────────────────────
-
-    @Test
-    void toggleTheme_fromFalse_returnsTrue() {
-        // Default darkMode=false
-        given().post("/toggle-theme")
-                .then().statusCode(200)
-                .body("darkMode", equalTo(true));
-    }
-
-    @Test
-    void toggleTheme_fromTrue_returnsFalse() {
-        // Enable dark mode first via settings
-        given().formParam("darkMode", "false").formParam("darkMode", "true")
-                .formParam("pageSize", "10").post("/settings");
-
-        given().post("/toggle-theme")
-                .then().statusCode(200)
-                .body("darkMode", equalTo(false));
-    }
-
-    @Test
-    void toggleTheme_persistsInDatabase() {
-        given().post("/toggle-theme");
-        runInTx(() -> assertTrue(User.findByEmail(PRIMARY).orElseThrow().darkMode));
-
-        given().post("/toggle-theme");
-        runInTx(() -> assertFalse(User.findByEmail(PRIMARY).orElseThrow().darkMode));
     }
 }

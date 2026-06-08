@@ -1,45 +1,51 @@
 import { test, expect } from '../helpers/fixtures';
 
 test.describe('Settings page', () => {
-  test('toggle dark mode on persists across reload', async ({ authenticatedPage: page }) => {
+  test('select dark theme persists across reload', async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
-    // Ensure dark mode is off first
-    const checkbox = page.locator('input[name="darkMode"][value="true"]');
-    if (await checkbox.isChecked()) {
-      await checkbox.uncheck();
-      await page.getByRole('button', { name: 'Save preferences' }).click();
-    }
-
-    await checkbox.check();
-    await page.getByRole('button', { name: 'Save preferences' }).click();
-    await expect(page.locator('body')).toContainText('Settings saved');
+    await page.selectOption('select[name="theme"]', 'dark');
 
     await page.reload();
     await expect(page.locator('html')).toHaveClass(/dark/);
+    await expect(page.locator('select[name="theme"]')).toHaveValue('dark');
   });
 
-  test('toggle dark mode off persists across reload', async ({ authenticatedPage: page }) => {
-    // First turn it on
+  test('select light theme persists across reload and removes dark class', async ({ authenticatedPage: page }) => {
+    // Set to dark first
     await page.goto('/settings');
-    const checkbox = page.locator('input[name="darkMode"][value="true"]');
-    await checkbox.check();
-    await page.getByRole('button', { name: 'Save preferences' }).click();
+    await page.selectOption('select[name="theme"]', 'dark');
+    await page.reload();
 
-    // Now turn it off
+    // Now switch to light
     await page.goto('/settings');
-    await page.locator('input[name="darkMode"][value="true"]').uncheck();
-    await page.getByRole('button', { name: 'Save preferences' }).click();
-    await expect(page.locator('body')).toContainText('Settings saved');
+    await page.selectOption('select[name="theme"]', 'light');
 
     await page.reload();
     await expect(page.locator('html')).not.toHaveClass(/dark/);
+    await expect(page.locator('select[name="theme"]')).toHaveValue('light');
+  });
+
+  test('select system theme persists across reload', async ({ authenticatedPage: page }) => {
+    await page.goto('/settings');
+    await page.selectOption('select[name="theme"]', 'dark');
+    await page.reload();
+
+    await page.goto('/settings');
+    await page.selectOption('select[name="theme"]', 'system');
+
+    await page.reload();
+    await expect(page.locator('select[name="theme"]')).toHaveValue('system');
+  });
+
+  test('theme select offers exactly system, light, and dark options', async ({ authenticatedPage: page }) => {
+    await page.goto('/settings');
+    const options = await page.locator('select[name="theme"] option').allInnerTexts();
+    expect(options).toEqual(['System Theme', 'Light', 'Dark']);
   });
 
   test('change page size to 25 persists and affects action list', async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
     await page.selectOption('select[name="pageSize"]', '25');
-    await page.getByRole('button', { name: 'Save preferences' }).click();
-    await expect(page.locator('body')).toContainText('Settings saved');
 
     await page.goto('/settings');
     await expect(page.locator('select[name="pageSize"]')).toHaveValue('25');

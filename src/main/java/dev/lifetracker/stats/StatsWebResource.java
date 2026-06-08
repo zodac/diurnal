@@ -36,7 +36,7 @@ public class StatsWebResource {
         return statsTemplate.data(
                 "email", user.email,
                 "displayName", user.displayName,
-                "darkMode", user.darkMode,
+                "theme", user.theme,
                 "hasActions", !Action.findActiveByUser(user.id).isEmpty(),
                 "page", getStatsPage(user.id, pageNum, user.pageSize));
     }

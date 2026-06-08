@@ -36,8 +36,8 @@ public class User extends PanacheEntityBase {
     @Column(name = "updated_at", nullable = false)
     public Instant updatedAt = Instant.now();
 
-    @Column(name = "dark_mode", nullable = false)
-    public boolean darkMode = false;
+    @Column(name = "theme", nullable = false)
+    public String theme = "system";
 
     @Column(name = "page_size", nullable = false)
     public int pageSize = UserSettings.DEFAULT_PAGE_SIZE;

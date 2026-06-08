@@ -2,27 +2,23 @@ package dev.lifetracker.user;
 
 import java.util.List;
 
-/**
- * User-configurable application preferences.
- * <p>
- * Each preference is persisted as a column on the {@link User} entity (mirroring the
- * dark-mode convention). This record centralises the settings shape, defaults and
- * validation so new preferences can be added in a single place as the app grows.
- */
-public record UserSettings(boolean darkMode, int pageSize) {
+public record UserSettings(String theme, int pageSize) {
 
-    /** Default number of items shown per page across every paginated list. */
     public static final int DEFAULT_PAGE_SIZE = 10;
+    public static final String DEFAULT_THEME = "system";
 
-    /** Selectable page-size values offered on the settings page. */
     public static final List<Integer> PAGE_SIZE_OPTIONS = List.of(10, 25, 50, 100);
+    public static final List<String> THEME_OPTIONS = List.of("system", "light", "dark");
 
     public static UserSettings from(User user) {
-        return new UserSettings(user.darkMode, user.pageSize);
+        return new UserSettings(user.theme, user.pageSize);
     }
 
-    /** Returns the requested page size if it is an allowed option, otherwise the default. */
     public static int sanitisePageSize(int requested) {
         return PAGE_SIZE_OPTIONS.contains(requested) ? requested : DEFAULT_PAGE_SIZE;
+    }
+
+    public static String sanitiseTheme(String requested) {
+        return THEME_OPTIONS.contains(requested) ? requested : DEFAULT_THEME;
     }
 }

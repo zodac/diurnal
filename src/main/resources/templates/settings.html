@@ -13,31 +13,52 @@
             Manage your account preferences and application settings.
         </p>
 
-        {#if saved}
-        <div class="mb-6 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900 px-4 py-3 text-sm text-green-700 dark:text-green-200">
-            Settings saved successfully.
+        <!-- Account section -->
+        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 mb-6">
+            <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-50">Account</h3>
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Display Name</label>
+                    <p class="text-sm text-gray-900 dark:text-gray-50">{displayName}</p>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Email</label>
+                    <p class="text-sm text-gray-900 dark:text-gray-50">{email}</p>
+                </div>
+            </div>
         </div>
-        {/if}
 
         <!-- Preferences -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 mb-6">
-            <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-50">Preferences</h3>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-50">Preferences</h3>
+                <span id="prefs-saved"
+                      class="text-xs text-green-600 dark:text-green-400 opacity-0 transition-opacity duration-300">
+                    Saved
+                </span>
+            </div>
 
-            <form method="post" action="/settings" class="space-y-6">
-                <!-- Dark mode toggle -->
+            <form id="prefs-form"
+                  method="post" action="/settings"
+                  hx-post="/settings"
+                  hx-trigger="change"
+                  hx-swap="none"
+                  class="space-y-6">
+                <!-- Theme -->
                 <div class="flex items-center justify-between py-4 border-b border-gray-200 dark:border-gray-700">
                     <div class="flex-1">
-                        <label for="darkMode" class="block text-sm font-medium text-gray-900 dark:text-gray-50">Dark mode</label>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Use dark theme across the application</p>
+                        <label for="theme" class="block text-sm font-medium text-gray-900 dark:text-gray-50">Theme</label>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Choose a colour theme for the application</p>
                     </div>
                     <div class="ml-4 flex items-center">
-                        <input type="hidden" name="darkMode" value="false">
-                        <input type="checkbox"
-                               id="darkMode"
-                               name="darkMode"
-                               value="true"
-                               {#if darkMode}checked{/if}
-                               class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 w-5 h-5 cursor-pointer">
+                        <select id="theme"
+                                name="theme"
+                                class="rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-50 focus:ring-indigo-500 focus:border-indigo-500 py-1.5 pl-3 pr-8 cursor-pointer">
+                            <option value="system" {#if theme == 'system'}selected{/if}>System Theme</option>
+                            <option value="light"  {#if theme == 'light'}selected{/if}>Light</option>
+                            <option value="dark"   {#if theme == 'dark'}selected{/if}>Dark</option>
+                        </select>
                     </div>
                 </div>
 
@@ -57,32 +78,35 @@
                         </select>
                     </div>
                 </div>
-
-                <!-- Save button -->
-                <button type="submit"
-                        class="inline-block bg-indigo-600 text-white rounded-lg px-6 py-2 text-sm font-medium
-                               hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                               focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors">
-                    Save preferences
-                </button>
             </form>
         </div>
 
-        <!-- Account section -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
-            <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-50">Account</h3>
+        <script>
+            document.getElementById('prefs-form').addEventListener('htmx:afterRequest', function () {
+                var indicator = document.getElementById('prefs-saved');
+                indicator.classList.add('opacity-100');
+                setTimeout(function () { indicator.classList.remove('opacity-100'); }, 2000);
+            });
 
-            <div class="space-y-4">
-                <div>
-                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Display Name</label>
-                    <p class="text-sm text-gray-900 dark:text-gray-50">{displayName}</p>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Email</label>
-                    <p class="text-sm text-gray-900 dark:text-gray-50">{email}</p>
-                </div>
-            </div>
-        </div>
+            document.getElementById('theme').addEventListener('change', function () {
+                var val = this.value;
+                var dark = val === 'dark' ||
+                    (val === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                document.documentElement.classList.toggle('dark', dark);
+                document.documentElement.style.colorScheme = dark ? 'dark' : (val === 'system' ? 'light dark' : 'light');
+                var override = document.getElementById('theme-bg');
+                if (dark) {
+                    if (!override) {
+                        document.head.insertAdjacentHTML('beforeend',
+                            '<style id="theme-bg">body\{background-color:#111827!important;color:#f9fafb!important}</style>');
+                    }
+                } else {
+                    if (override) override.remove();
+                    document.body.style.backgroundColor = '#f9fafb';
+                    document.body.style.color = '#111827';
+                }
+            });
+        </script>
     </main>
 </div>
 
