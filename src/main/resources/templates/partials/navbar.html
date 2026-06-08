@@ -9,7 +9,7 @@
             <a href="/stats" class="{#if active == 'stats'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Stats</a>
         </nav>
         <div class="hidden sm:flex ml-auto items-center gap-4">
-            <a href="/settings" title="Account settings" class="text-sm {#if active == 'settings'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">{displayName}</a>
+            <a id="nav-display-name" href="/settings" title="Account settings" class="text-sm {#if active == 'settings'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">{displayName}</a>
             <form method="post" action="/logout">
                 <button type="submit" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                     Log out
@@ -36,7 +36,7 @@
             <a href="/stats" class="{#if active == 'stats'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Stats</a>
             <!-- Separator: mirrors the left/right split of the desktop nav -->
             <hr class="border-gray-200 dark:border-gray-700">
-            <a href="/settings" class="{#if active == 'settings'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">{displayName}</a>
+            <a id="nav-display-name-mobile" href="/settings" class="{#if active == 'settings'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">{displayName}</a>
             <form method="post" action="/logout">
                 <button type="submit" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
                     Log out

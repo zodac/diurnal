@@ -60,7 +60,51 @@ test.describe('Settings page', () => {
 
   test('settings page shows account display name and email', async ({ authenticatedPage: page, testUser }) => {
     await page.goto('/settings');
+    await expect(page.locator('#display-name-text')).toHaveText(testUser.displayName);
     await expect(page.locator('body')).toContainText(testUser.email);
-    await expect(page.locator('body')).toContainText(testUser.displayName);
+  });
+
+  test('display name is read-only by default with an Edit button', async ({ authenticatedPage: page }) => {
+    await page.goto('/settings');
+    await expect(page.locator('#account-form')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Edit' })).toBeVisible();
+  });
+
+  test('clicking Edit shows the input with Save and Cancel buttons', async ({ authenticatedPage: page }) => {
+    await page.goto('/settings');
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await expect(page.locator('#account-form')).toBeVisible();
+    await expect(page.locator('#display-name-view')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Save' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Cancel' })).toBeVisible();
+  });
+
+  test('Cancel restores read mode without saving', async ({ authenticatedPage: page, testUser }) => {
+    await page.goto('/settings');
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.fill('input[name="displayName"]', 'Should Not Save');
+    await page.getByRole('button', { name: 'Cancel' }).click();
+    await expect(page.locator('#account-form')).toBeHidden();
+    await expect(page.locator('#display-name-text')).toHaveText(testUser.displayName);
+  });
+
+  test('update display name persists across reload', async ({ authenticatedPage: page }) => {
+    await page.goto('/settings');
+    await page.getByRole('button', { name: 'Edit' }).click();
+    await page.fill('input[name="displayName"]', 'Updated Name');
+    await Promise.all([
+      page.waitForResponse(r => r.url().includes('/settings/display-name') && r.request().method() === 'POST'),
+      page.getByRole('button', { name: 'Save' }).click(),
+    ]);
+    await expect(page.locator('#display-name-text')).toHaveText('Updated Name');
+
+    await page.reload();
+    await expect(page.locator('#display-name-text')).toHaveText('Updated Name');
+  });
+
+  test('email is displayed read-only and not in a form input', async ({ authenticatedPage: page, testUser }) => {
+    await page.goto('/settings');
+    await expect(page.locator('input[name="email"]')).toHaveCount(0);
+    await expect(page.locator('body')).toContainText(testUser.email);
   });
 });

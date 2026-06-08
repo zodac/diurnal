@@ -25,6 +25,32 @@ class SettingsIT extends IntegrationTestBase {
         primaryId = newUser(PRIMARY, "Settings User").id;
     }
 
+    // ── POST /settings/display-name ──────────────────────────────────────────
+
+    @Test
+    void updateDisplayName_validName_persists() {
+        given().formParam("displayName", "New Name")
+                .post("/settings/display-name")
+                .then().statusCode(200);
+
+        runInTx(() -> assertEquals("New Name", User.findByEmail(PRIMARY).orElseThrow().displayName));
+    }
+
+    @Test
+    void updateDisplayName_blankName_returns422() {
+        given().formParam("displayName", "   ")
+                .post("/settings/display-name")
+                .then().statusCode(422);
+
+        runInTx(() -> assertEquals("Settings User", User.findByEmail(PRIMARY).orElseThrow().displayName));
+    }
+
+    @Test
+    void updateDisplayName_missingParam_returns422() {
+        given().post("/settings/display-name")
+                .then().statusCode(422);
+    }
+
     // ── POST /settings ────────────────────────────────────────────────────────
 
     @Test

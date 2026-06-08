@@ -15,13 +15,58 @@
 
         <!-- Account section -->
         <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 mb-6">
-            <h3 class="text-lg font-semibold mb-4 text-gray-900 dark:text-gray-50">Account</h3>
+            <div class="flex items-center justify-between mb-4">
+                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-50">Account</h3>
+                <span id="account-saved"
+                      class="text-xs text-green-600 dark:text-green-400 opacity-0 transition-opacity duration-300">
+                    Saved
+                </span>
+            </div>
 
             <div class="space-y-4">
+                <!-- Display Name -->
                 <div>
                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Display Name</label>
-                    <p class="text-sm text-gray-900 dark:text-gray-50">{displayName}</p>
+
+                    <!-- Read mode -->
+                    <div id="display-name-view" class="flex items-center justify-between">
+                        <p id="display-name-text" class="text-sm text-gray-900 dark:text-gray-50">{displayName}</p>
+                        <button type="button"
+                                onclick="startEditDisplayName()"
+                                class="text-xs text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                            Edit
+                        </button>
+                    </div>
+
+                    <!-- Edit mode (hidden by default) -->
+                    <form id="account-form"
+                          class="hidden"
+                          hx-post="/settings/display-name"
+                          hx-swap="none">
+                        <div class="flex items-center gap-2">
+                            <input type="text"
+                                   id="displayName"
+                                   name="displayName"
+                                   value="{displayName}"
+                                   required
+                                   maxlength="255"
+                                   class="flex-1 min-w-0 text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1
+                                          bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-50
+                                          focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                            <button type="submit"
+                                    class="flex-shrink-0 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
+                                Save
+                            </button>
+                            <button type="button"
+                                    onclick="cancelEditDisplayName()"
+                                    class="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 transition-colors">
+                                Cancel
+                            </button>
+                        </div>
+                    </form>
                 </div>
+
+                <!-- Email (read-only) -->
                 <div>
                     <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Email</label>
                     <p class="text-sm text-gray-900 dark:text-gray-50">{email}</p>
@@ -82,10 +127,43 @@
         </div>
 
         <script>
-            document.getElementById('prefs-form').addEventListener('htmx:afterRequest', function () {
-                var indicator = document.getElementById('prefs-saved');
-                indicator.classList.add('opacity-100');
-                setTimeout(function () { indicator.classList.remove('opacity-100'); }, 2000);
+            function showSaved(indicatorId) {
+                var el = document.getElementById(indicatorId);
+                el.classList.add('opacity-100');
+                setTimeout(function () { el.classList.remove('opacity-100'); }, 2000);
+            }
+
+            function startEditDisplayName() {
+                document.getElementById('display-name-view').classList.add('hidden');
+                var form = document.getElementById('account-form');
+                form.classList.remove('hidden');
+                var input = document.getElementById('displayName');
+                input.focus();
+                input.select();
+            }
+
+            function cancelEditDisplayName() {
+                document.getElementById('account-form').classList.add('hidden');
+                document.getElementById('display-name-view').classList.remove('hidden');
+                document.getElementById('displayName').value =
+                    document.getElementById('display-name-text').textContent;
+            }
+
+            document.getElementById('account-form').addEventListener('htmx:afterRequest', function (e) {
+                if (e.detail.successful) {
+                    var newName = document.getElementById('displayName').value.trim();
+                    document.getElementById('display-name-text').textContent = newName;
+                    var navDesktop = document.getElementById('nav-display-name');
+                    if (navDesktop) navDesktop.textContent = newName;
+                    var navMobile = document.getElementById('nav-display-name-mobile');
+                    if (navMobile) navMobile.textContent = newName;
+                    cancelEditDisplayName();
+                    showSaved('account-saved');
+                }
+            });
+
+            document.getElementById('prefs-form').addEventListener('htmx:afterRequest', function (e) {
+                if (e.detail.successful) showSaved('prefs-saved');
             });
 
             document.getElementById('theme').addEventListener('change', function () {

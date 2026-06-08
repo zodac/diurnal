@@ -145,6 +145,21 @@ public class WebResource {
         return settingsView(user, true);
     }
 
+    @POST
+    @Path("settings/display-name")
+    @RolesAllowed("user")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Transactional
+    public Response updateDisplayName(@FormParam("displayName") String displayName) {
+        if (displayName == null || displayName.isBlank()) {
+            return Response.status(422).build();
+        }
+        User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        user.displayName = displayName.strip();
+        user.persist();
+        return Response.ok().build();
+    }
+
     private TemplateInstance settingsView(User user, boolean saved) {
         return settingsTemplate
                 .data("email", user.email)
