@@ -5,6 +5,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UserSettingsTest {
 
@@ -55,5 +56,34 @@ class UserSettingsTest {
         if (!list.contains(value)) {
             throw new AssertionError("Expected list to contain " + value + " but was: " + list);
         }
+    }
+
+    // ── Calendar view sanitisation ─────────────────────────────────────────────
+
+    @ParameterizedTest
+    @ValueSource(strings = {"full", "minimal"})
+    void sanitiseCalendarView_validValues_passedThrough(String view) {
+        assertEquals(view, UserSettings.sanitiseCalendarView(view));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"grid", "compact", "", "FULL", "Minimal", "none", "list"})
+    void sanitiseCalendarView_invalidValues_returnsDefault(String view) {
+        assertEquals(UserSettings.DEFAULT_CALENDAR_VIEW, UserSettings.sanitiseCalendarView(view));
+    }
+
+    @Test
+    void defaultCalendarView_isFull() {
+        assertEquals("full", UserSettings.DEFAULT_CALENDAR_VIEW);
+    }
+
+    @Test
+    void calendarViewOptions_containsExactlyTwoValues() {
+        assertEquals(2, UserSettings.CALENDAR_VIEW_OPTIONS.size());
+    }
+
+    @Test
+    void calendarViewOptions_defaultIsIncluded() {
+        assertTrue(UserSettings.CALENDAR_VIEW_OPTIONS.contains(UserSettings.DEFAULT_CALENDAR_VIEW));
     }
 }

@@ -141,4 +141,42 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings").then().statusCode(200);
         runInTx(() -> assertEquals(100, User.findByEmail(PRIMARY).orElseThrow().pageSize));
     }
+
+    // ── calendarView ──────────────────────────────────────────────────────────
+
+    @Test
+    void updateSettings_calendarViewMinimal_persists() {
+        given().formParam("theme", "system")
+                .formParam("pageSize", "10")
+                .formParam("calendarView", "minimal")
+                .post("/settings")
+                .then().statusCode(200);
+
+        runInTx(() -> assertEquals("minimal", User.findByEmail(PRIMARY).orElseThrow().calendarView));
+    }
+
+    @Test
+    void updateSettings_calendarViewFull_persists() {
+        given().formParam("theme", "system").formParam("pageSize", "10")
+                .formParam("calendarView", "minimal").post("/settings");
+
+        given().formParam("theme", "system")
+                .formParam("pageSize", "10")
+                .formParam("calendarView", "full")
+                .post("/settings")
+                .then().statusCode(200);
+
+        runInTx(() -> assertEquals("full", User.findByEmail(PRIMARY).orElseThrow().calendarView));
+    }
+
+    @Test
+    void updateSettings_invalidCalendarView_fallsBackToDefault() {
+        given().formParam("theme", "system")
+                .formParam("pageSize", "10")
+                .formParam("calendarView", "grid")
+                .post("/settings")
+                .then().statusCode(200);
+
+        runInTx(() -> assertEquals("full", User.findByEmail(PRIMARY).orElseThrow().calendarView));
+    }
 }

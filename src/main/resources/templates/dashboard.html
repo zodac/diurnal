@@ -1,7 +1,9 @@
 {#include layout.html}
 
 {#head}
+{#if calendarView == 'full'}
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
+{/if}
 <style>
   /* Compact FullCalendar for the panel layout */
   .fc .fc-toolbar-title { font-size: 1rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem; }
@@ -56,6 +58,79 @@
   .dark .fc-button-primary:not(:disabled).fc-button-active {
     background-color: rgb(99, 102, 241);
   }
+
+  /* ── Minimal calendar ──────────────────────────────────────────────────── */
+  .lt-min-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 0.5rem; gap: 0.5rem;
+  }
+  @media (max-width: 640px) {
+    .lt-min-toolbar { flex-direction: column; align-items: flex-start; }
+  }
+  .lt-min-toolbar-left { display: flex; gap: 0.25rem; align-items: center; }
+  .lt-min-toolbar-center { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 1rem; font-weight: 600; color: rgb(17,24,39); }
+  .dark .lt-min-toolbar-center { color: rgb(249,250,251); }
+  .lt-min-btn {
+    font-size: 0.75rem; padding: 0.25rem 0.6rem;
+    border-radius: 0.25rem; border: 1px solid rgb(209,213,219);
+    background: rgb(255,255,255); color: rgb(55,65,81);
+    cursor: pointer; transition: background 0.15s;
+  }
+  .lt-min-btn:hover { background: rgb(243,244,246); }
+  .dark .lt-min-btn { background: rgb(55,65,81); border-color: rgb(75,85,99); color: rgb(209,213,219); }
+  .dark .lt-min-btn:hover { background: rgb(75,85,99); }
+  .lt-min-dow-header {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    margin-bottom: 2px;
+  }
+  .lt-min-dow-header span {
+    text-align: center; font-size: 0.65rem; font-weight: 600;
+    color: rgb(107,114,128); padding: 0.25rem 0;
+  }
+  .lt-min-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+    height: 318px;
+  }
+  .lt-min-cell {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: flex-start; padding: 2px 0;
+    cursor: pointer;
+  }
+  /* Date number rendered as a circle — hover/today/selected all target this */
+  .lt-min-date {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.72rem; font-weight: 400; line-height: 1;
+    color: rgb(31,41,55); transition: background 0.15s; flex-shrink: 0;
+  }
+  .dark .lt-min-date { color: rgb(229,231,235); }
+  .lt-min-cell:hover .lt-min-date { background: rgb(243,244,246); }
+  .dark .lt-min-cell:hover .lt-min-date { background: rgb(55,65,81); }
+  .lt-min-cell.lt-min-today .lt-min-date {
+    background: rgb(99,102,241); color: white; font-weight: 700;
+  }
+  .lt-min-cell.lt-min-selected .lt-min-date {
+    background: rgb(224,231,255); color: rgb(79,70,229); font-weight: 600;
+  }
+  .dark .lt-min-cell.lt-min-selected .lt-min-date {
+    background: rgb(55,48,163); color: rgb(199,210,254);
+  }
+  /* Today + selected: keep today's filled circle */
+  .lt-min-cell.lt-min-today.lt-min-selected .lt-min-date {
+    background: rgb(99,102,241); color: white;
+  }
+  .lt-min-cell.lt-min-other .lt-min-date { color: rgb(156,163,175); }
+  .dark .lt-min-cell.lt-min-other .lt-min-date { color: rgb(75,85,99); }
+  /* Fixed-height dot strip — always reserves the same space whether 0 or 4 dots */
+  .lt-min-dots {
+    display: flex; gap: 2px; align-items: center; justify-content: center;
+    height: 6px; min-height: 6px; margin-top: 2px; flex-shrink: 0;
+  }
+  .lt-min-dot {
+    width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+  }
 </style>
 {/head}
 
@@ -75,7 +150,44 @@
         <div class="grid gap-4 lg:grid-cols-3 mb-6">
 
             <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
+                {#if calendarView == 'minimal'}
+                <div id="calendar-minimal" style="position:relative">
+                    <div class="lt-min-toolbar">
+                        <div class="lt-min-toolbar-left">
+                            <button id="lt-min-prev-year" type="button" class="lt-min-btn" title="Previous year">«</button>
+                            <button id="lt-min-prev"      type="button" class="lt-min-btn" title="Previous month">‹</button>
+                            <button id="lt-min-next"      type="button" class="lt-min-btn" title="Next month">›</button>
+                            <button id="lt-min-next-year" type="button" class="lt-min-btn" title="Next year">»</button>
+                            <button id="lt-min-today"     type="button" class="lt-min-btn">today</button>
+                        </div>
+                        <div class="lt-min-toolbar-center">
+                            <span id="lt-min-title"></span>
+                            <button id="lt-min-jump" type="button" class="lt-jump-btn" title="Jump to month">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+                                    <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="lt-min-dow-header">
+                        <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+                    </div>
+                    <div id="lt-min-grid" class="lt-min-grid"></div>
+                    <div id="lt-min-pop"
+                         class="hidden absolute z-50 mt-1 p-3 rounded-lg shadow-lg border bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700"
+                         style="width:220px">
+                        <div class="flex items-center justify-between mb-2">
+                            <button type="button" data-y="-1" class="px-2 py-1 rounded text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">‹</button>
+                            <span class="lt-year text-sm font-semibold text-gray-900 dark:text-gray-50"></span>
+                            <button type="button" data-y="1" class="px-2 py-1 rounded text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">›</button>
+                        </div>
+                        <div class="lt-months grid grid-cols-3 gap-1"></div>
+                    </div>
+                </div>
+                {#else}
                 <div id="calendar"></div>
+                {/if}
             </div>
 
             <div id="day-panel"
@@ -140,7 +252,9 @@
 <script>
 document.addEventListener('DOMContentLoaded', function () {
     var today = '{today}';
+    var calendarView = '{calendarView}';
 
+    if (calendarView === 'full') {
     var cal = new FullCalendar.Calendar(document.getElementById('calendar'), {
         initialView: 'dayGridMonth',
         initialDate: today,
@@ -276,12 +390,180 @@ document.addEventListener('DOMContentLoaded', function () {
     highlightSelected(today);
     htmx.ajax('GET', '/logs/day/' + today, { target: '#day-panel', swap: 'innerHTML' });
 
-    // Refresh calendar dots after every log toggle inside the day panel.
+    // Refresh calendar events after every log toggle inside the day panel.
     document.body.addEventListener('htmx:afterRequest', function (e) {
         if (e.target && e.target.closest && e.target.closest('#day-panel')) {
             cal.refetchEvents();
         }
     });
+
+    } else {
+    // ── Minimal calendar ────────────────────────────────────────────────────
+    var MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    var MONTHS_LONG  = ['January','February','March','April','May','June',
+                        'July','August','September','October','November','December'];
+
+    var viewYear  = parseInt(today.substring(0, 4), 10);
+    var viewMonth = parseInt(today.substring(5, 7), 10) - 1; // 0-indexed
+    var selectedDate = null;
+    var dayData = {}; // date string -> array of action dot objects
+
+    var calEl   = document.getElementById('calendar-minimal');
+    var grid    = document.getElementById('lt-min-grid');
+    var titleEl = document.getElementById('lt-min-title');
+    var pop     = document.getElementById('lt-min-pop');
+
+    function pad2(n) { return String(n).padStart(2, '0'); }
+
+    function fetchAndRender() {
+        var start = viewYear + '-' + pad2(viewMonth + 1) + '-01';
+        var nm = viewMonth === 11 ? 0 : viewMonth + 1;
+        var ny = viewMonth === 11 ? viewYear + 1 : viewYear;
+        var end = ny + '-' + pad2(nm + 1) + '-01';
+        fetch('/logs/minimal-events?start=' + start + '&end=' + end)
+            .then(function (r) { return r.json(); })
+            .then(function (data) {
+                dayData = {};
+                data.forEach(function (day) { dayData[day.date] = day.actions; });
+                renderGrid();
+            });
+    }
+
+    function renderGrid() {
+        titleEl.textContent = MONTHS_LONG[viewMonth] + ' ' + viewYear;
+        grid.innerHTML = '';
+        var firstDow = new Date(viewYear, viewMonth, 1).getDay(); // 0 = Sunday
+
+        for (var i = 0; i < 42; i++) {
+            // JS Date constructor handles month overflow correctly for cells outside the current month.
+            var d  = new Date(viewYear, viewMonth, i - firstDow + 1);
+            var yr = d.getFullYear(), mo = d.getMonth(), dy = d.getDate();
+            var dateStr = yr + '-' + pad2(mo + 1) + '-' + pad2(dy);
+
+            var isCurrentMonth = (mo === viewMonth && yr === viewYear);
+            var isToday        = (dateStr === today);
+            var isSelected     = (dateStr === selectedDate);
+
+            var cell = document.createElement('div');
+            cell.className = 'lt-min-cell' +
+                (isCurrentMonth ? '' : ' lt-min-other') +
+                (isToday    ? ' lt-min-today'    : '') +
+                (isSelected ? ' lt-min-selected' : '');
+            cell.dataset.date = dateStr;
+
+            var dateNum = document.createElement('span');
+            dateNum.className = 'lt-min-date';
+            dateNum.textContent = dy;
+            cell.appendChild(dateNum);
+
+            // Dot strip — always present so cell height never changes.
+            var dotRow = document.createElement('div');
+            dotRow.className = 'lt-min-dots';
+            (dayData[dateStr] || []).forEach(function (a) {
+                var dot = document.createElement('span');
+                dot.className = 'lt-min-dot';
+                dot.style.backgroundColor = a.colour;
+                dotRow.appendChild(dot);
+            });
+            cell.appendChild(dotRow);
+
+            cell.addEventListener('click', (function (ds) {
+                return function () { selectDay(ds); };
+            })(dateStr));
+            grid.appendChild(cell);
+        }
+    }
+
+    function selectDay(dateStr) {
+        selectedDate = dateStr;
+        renderGrid();
+        htmx.ajax('GET', '/logs/day/' + dateStr, { target: '#day-panel', swap: 'innerHTML' });
+    }
+
+    function navigate(deltaYears, deltaMonths) {
+        viewMonth += deltaMonths;
+        viewYear  += deltaYears;
+        while (viewMonth > 11) { viewMonth -= 12; viewYear++; }
+        while (viewMonth < 0)  { viewMonth += 12; viewYear--; }
+        fetchAndRender();
+    }
+
+    document.getElementById('lt-min-prev-year').addEventListener('click', function () { navigate(-1,  0); });
+    document.getElementById('lt-min-prev').addEventListener('click',      function () { navigate( 0, -1); });
+    document.getElementById('lt-min-next').addEventListener('click',      function () { navigate( 0,  1); });
+    document.getElementById('lt-min-next-year').addEventListener('click', function () { navigate( 1,  0); });
+    document.getElementById('lt-min-today').addEventListener('click', function () {
+        viewYear  = parseInt(today.substring(0, 4), 10);
+        viewMonth = parseInt(today.substring(5, 7), 10) - 1;
+        fetchAndRender();
+        selectDay(today);
+    });
+
+    // ── Month/year picker popup ─────────────────────────────────────────────
+    var pickerYear = viewYear;
+    var yearLabel  = pop.querySelector('.lt-year');
+    var monthsGrid = pop.querySelector('.lt-months');
+
+    function renderMonthPicker() {
+        yearLabel.textContent = pickerYear;
+        monthsGrid.innerHTML  = '';
+        MONTHS_SHORT.forEach(function (name, i) {
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = name;
+            var current = (pickerYear === viewYear && i === viewMonth);
+            b.className = 'text-sm rounded px-2 py-1.5 transition-colors ' + (current
+                ? 'bg-indigo-600 text-white'
+                : 'text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700');
+            b.addEventListener('click', function () {
+                viewYear  = pickerYear;
+                viewMonth = i;
+                fetchAndRender();
+                closePop();
+            });
+            monthsGrid.appendChild(b);
+        });
+    }
+
+    pop.querySelectorAll('button[data-y]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            pickerYear += parseInt(btn.dataset.y, 10);
+            renderMonthPicker();
+        });
+    });
+
+    function openPop(anchor) {
+        pickerYear = viewYear;
+        renderMonthPicker();
+        var a = anchor.getBoundingClientRect();
+        var c = calEl.getBoundingClientRect();
+        pop.style.left = Math.min(a.left - c.left, calEl.clientWidth - 230) + 'px';
+        pop.style.top  = (a.bottom - c.top) + 'px';
+        pop.classList.remove('hidden');
+    }
+    function closePop() { pop.classList.add('hidden'); }
+
+    document.getElementById('lt-min-jump').addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (pop.classList.contains('hidden')) openPop(this); else closePop();
+    });
+    document.addEventListener('click', function (e) {
+        if (!pop.contains(e.target) && !e.target.closest('#lt-min-jump')) closePop();
+    });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePop(); });
+
+    // Initial load — pre-select today so the day panel opens immediately.
+    fetchAndRender();
+    selectDay(today);
+
+    // Re-fetch dots after every log toggle inside the day panel.
+    document.body.addEventListener('htmx:afterRequest', function (e) {
+        if (e.target && e.target.closest && e.target.closest('#day-panel')) {
+            fetchAndRender();
+        }
+    });
+
+    } // end else (minimal calendar)
 });
 </script>
 {/body}

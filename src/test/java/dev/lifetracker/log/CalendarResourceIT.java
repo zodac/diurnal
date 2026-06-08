@@ -128,6 +128,145 @@ class CalendarResourceIT extends IntegrationTestBase {
                 .body("$.size()", equalTo(1));
     }
 
+    // ── Minimal Events ────────────────────────────────────────────────────────
+
+    @Test
+    void minimalEvents_emptyRange_returnsEmptyArray() {
+        given().queryParam("start", TODAY.minusYears(1).toString())
+                .queryParam("end",   TODAY.minusYears(1).toString())
+                .get("/logs/minimal-events")
+                .then().statusCode(200)
+                .body("$.size()", equalTo(0));
+    }
+
+    @Test
+    void minimalEvents_singleLog_returnsOneDotWithCorrectFields() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 2));
+
+        given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
+                .get("/logs/minimal-events")
+                .then().statusCode(200)
+                .body("$.size()", equalTo(1))
+                .body("[0].date", equalTo(TODAY.toString()))
+                .body("[0].actions.size()", equalTo(1))
+                .body("[0].actions[0].name", equalTo("Running"))
+                .body("[0].actions[0].count", equalTo(2));
+    }
+
+    @Test
+    void minimalEvents_multipleActionsOnSameDay_sortedByCountDescThenNameAsc() {
+        Action[] extras = new Action[2];
+        runInTx(() -> {
+            extras[0] = newAction(primaryId, "Alpha");  // count 1
+            extras[1] = newAction(primaryId, "Bravo");  // count 3
+            newLog(primaryId, primaryAction.id, TODAY, 2); // Running, count 2
+            newLog(primaryId, extras[0].id,     TODAY, 1); // Alpha,   count 1
+            newLog(primaryId, extras[1].id,     TODAY, 3); // Bravo,   count 3
+        });
+
+        given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
+                .get("/logs/minimal-events")
+                .then().statusCode(200)
+                .body("[0].actions.size()", equalTo(3))
+                .body("[0].actions[0].name", equalTo("Bravo"))   // highest count first
+                .body("[0].actions[1].name", equalTo("Running"))
+                .body("[0].actions[2].name", equalTo("Alpha"));
+    }
+
+    @Test
+    void minimalEvents_tieInCount_sortedAlphabetically() {
+        Action[] extras = new Action[1];
+        runInTx(() -> {
+            extras[0] = newAction(primaryId, "Aerobics");
+            newLog(primaryId, primaryAction.id, TODAY, 1); // Running,  count 1
+            newLog(primaryId, extras[0].id,     TODAY, 1); // Aerobics, count 1
+        });
+
+        given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
+                .get("/logs/minimal-events")
+                .then().statusCode(200)
+                .body("[0].actions[0].name", equalTo("Aerobics")) // A before R
+                .body("[0].actions[1].name", equalTo("Running"));
+    }
+
+    @Test
+    void minimalEvents_moreThanFourActions_cappedAtFourHighestCount() {
+        Action[] extras = new Action[4];
+        runInTx(() -> {
+            extras[0] = newAction(primaryId, "Action1");
+            extras[1] = newAction(primaryId, "Action2");
+            extras[2] = newAction(primaryId, "Action3");
+            extras[3] = newAction(primaryId, "Action4");
+            newLog(primaryId, primaryAction.id, TODAY, 5); // Running, highest
+            newLog(primaryId, extras[0].id,     TODAY, 4);
+            newLog(primaryId, extras[1].id,     TODAY, 3);
+            newLog(primaryId, extras[2].id,     TODAY, 2);
+            newLog(primaryId, extras[3].id,     TODAY, 1); // lowest — should be excluded
+        });
+
+        given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
+                .get("/logs/minimal-events")
+                .then().statusCode(200)
+                .body("[0].actions.size()", equalTo(4))
+                .body("[0].actions[0].name", equalTo("Running"))   // count 5
+                .body("[0].actions[3].name", equalTo("Action3"));  // count 2 — Action4 (count 1) excluded
+    }
+
+    @Test
+    void minimalEvents_multipleDays_allDaysReturned() {
+        LocalDate yesterday = TODAY.minusDays(1);
+        runInTx(() -> {
+            newLog(primaryId, primaryAction.id, TODAY,     1);
+            newLog(primaryId, primaryAction.id, yesterday, 1);
+        });
+
+        given().queryParam("start", yesterday.toString()).queryParam("end", TODAY.toString())
+                .get("/logs/minimal-events")
+                .then().statusCode(200)
+                .body("$.size()", equalTo(2));
+    }
+
+    @Test
+    void minimalEvents_onlyCurrentUsersLogs() {
+        runInTx(() -> {
+            Action otherAction = newAction(otherId, "Yoga");
+            newLog(primaryId, primaryAction.id, TODAY, 1);
+            newLog(otherId,   otherAction.id,   TODAY, 1);
+        });
+
+        given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
+                .get("/logs/minimal-events")
+                .then().statusCode(200)
+                .body("$.size()", equalTo(1))
+                .body("[0].actions[0].name", equalTo("Running"));
+    }
+
+    @Test
+    void minimalEvents_archivedActionLogsStillAppear() {
+        runInTx(() -> newLog(primaryId, archivedAction.id, TODAY, 1));
+
+        given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
+                .get("/logs/minimal-events")
+                .then().statusCode(200)
+                .body("$.size()", equalTo(1))
+                .body("[0].actions[0].name", equalTo("OldHabit"));
+    }
+
+    @Test
+    void minimalEvents_isoDatetimeStringWithTime_onlyDatePartUsed() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 1));
+
+        String startWithTime = TODAY + "T00:00:00";
+        String endWithTime   = TODAY.plusDays(1) + "T00:00:00";
+
+        given().queryParam("start", startWithTime).queryParam("end", endWithTime)
+                .get("/logs/minimal-events")
+                .then().statusCode(200)
+                .body("$.size()", equalTo(1));
+    }
+
+    // ── Events (colour) ───────────────────────────────────────────────────────
+
     @Test
     void events_colourSetOnEvent() {
         // Create via API to persist the coloured action

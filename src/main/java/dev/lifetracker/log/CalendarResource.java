@@ -13,12 +13,15 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-@Path("/logs/events")
+@Path("/logs")
 @RolesAllowed("user")
 @Produces(MediaType.APPLICATION_JSON)
 public class CalendarResource {
@@ -26,6 +29,7 @@ public class CalendarResource {
     @Inject SecurityIdentity identity;
 
     @GET
+    @Path("/events")
     @Transactional
     public List<CalendarEventDto> events(
             @QueryParam("start") String start,
@@ -51,6 +55,43 @@ public class CalendarResource {
                 .toList();
     }
 
+    @GET
+    @Path("/minimal-events")
+    @Transactional
+    public List<MinimalCalendarDayDto> minimalEvents(
+            @QueryParam("start") String start,
+            @QueryParam("end") String end) {
+
+        UUID userId = currentUserId();
+
+        LocalDate startDate = LocalDate.parse(start.length() > 10 ? start.substring(0, 10) : start);
+        LocalDate endDate   = LocalDate.parse(end.length()   > 10 ? end.substring(0, 10)   : end);
+
+        Map<UUID, Action> actionMap = Action.<Action>list("userId = ?1", userId)
+                .stream().collect(Collectors.toMap(a -> a.id, a -> a));
+
+        // Group logs by date (TreeMap keeps dates sorted), collect one dot per action per day.
+        Map<String, List<ActionDotDto>> byDate = new TreeMap<>();
+        ActionLog.findByUserAndRange(userId, startDate, endDate).stream()
+                .filter(log -> actionMap.containsKey(log.actionId))
+                .forEach(log -> {
+                    Action a = actionMap.get(log.actionId);
+                    byDate.computeIfAbsent(log.logDate.toString(), k -> new ArrayList<>())
+                          .add(new ActionDotDto(a.colour, a.name, log.count));
+                });
+
+        return byDate.entrySet().stream()
+                .map(e -> {
+                    List<ActionDotDto> sorted = e.getValue().stream()
+                            .sorted(Comparator.comparingInt(ActionDotDto::count).reversed()
+                                    .thenComparing(ActionDotDto::name))
+                            .limit(4)
+                            .toList();
+                    return new MinimalCalendarDayDto(e.getKey(), sorted);
+                })
+                .toList();
+    }
+
     private UUID currentUserId() {
         return User.findByEmail(identity.getPrincipal().getName())
                 .map(u -> u.id)
@@ -62,4 +103,8 @@ public class CalendarResource {
             String start,
             String backgroundColor,
             String borderColor) {}
+
+    public record MinimalCalendarDayDto(String date, List<ActionDotDto> actions) {}
+
+    public record ActionDotDto(String colour, String name, int count) {}
 }

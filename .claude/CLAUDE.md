@@ -25,6 +25,9 @@ mvn test
 # Run a single test class
 mvn test -Dtest=MyTestClass
 
+# Run only *IT.java integration tests
+mvn test -Dit
+
 # Run Playwright E2E tests only (app must be running on :8080, test DB on :5433)
 cd e2e && npm test
 
@@ -58,6 +61,8 @@ Code is organised by feature under `src/main/java/dev/lifetracker/`:
 
 The split is configured in `application.properties` with two `quarkus.http.auth.permission.*` blocks. `quarkus.http.auth.proactive=false` is required so Bearer doesn't intercept web requests before form auth can redirect.
 
+`PasswordIdentityProvider` handles form/API password auth. `TrustedIdentityProvider` handles OIDC users (who have no password). OIDC users are stored with `oidcSubject` + `oidcIssuer` instead of a password hash; the composite unique index `(oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL` enforces uniqueness. OIDC is disabled by default (`quarkus.oidc.enabled=false`).
+
 ### HTMX partial responses
 
 Most resources return **HTML fragments** rather than full pages. Qute templates in `src/main/resources/templates/` are either full-page layouts (e.g. `actions.html`) or partials in `templates/partials/`. Resources inject both and choose which to return:
@@ -66,22 +71,34 @@ Most resources return **HTML fragments** rather than full pages. Qute templates 
 
 Error responses for HTMX mutations use `HX-Retarget` / `HX-Reswap` headers to redirect the swap into the error element rather than the default target.
 
+Some HTMX partials are rendered as raw HTML strings via `StringBuilder` inside Java (e.g. `ActionsWebResource.renderActionsList()`), rather than Qute templates, for fine-grained control over pagination links.
+
 ### CalendarResource
 
-`GET /logs/events` returns JSON (`CalendarEventDto` records) consumed directly by FullCalendar.js on the dashboard. It intentionally includes archived actions so historical entries still render on the calendar.
+`GET /logs/events` returns JSON (`CalendarEventDto` records) consumed directly by FullCalendar.js on the dashboard. It intentionally includes archived actions so historical entries still render on the calendar. The dashboard uses a custom month/year picker overlay (not FullCalendar's built-in navigation); `eventClick` mirrors `dateClick` to open the day panel.
 
 ### Pagination
 
 All three list views (actions, day-panel actions, stats) share the same in-memory pagination pattern: fetch all, filter, slice. The pagination controls are rendered server-side as HTML. Page size is a per-user setting validated by `UserSettings.sanitisePageSize()` against a fixed allow-list `{10, 25, 50, 100}`.
+
+`PaginatedDayActions` adds blank filler rows to keep every page the same height, preventing layout shift when fewer items are on the last page.
 
 ### Notable invariants
 
 - `ActionLog.MAX_DAILY_COUNT = 255` — the count column is a `SMALLINT`; increment is silently capped.
 - Actions are soft-deleted (`archived = true`); logs are hard-deleted when an action is deleted.
 - `app.timezone` (defaults to `UTC`) is injected everywhere a "today" comparison is needed (streaks, future-date guard, dashboard). It must match `TZ` in `docker-compose.yml`.
+- `LogWebResource.isFuture()` blocks logging for dates beyond today in the user's configured timezone.
+- Action colour defaults to `#6366f1` (indigo); invalid hex colours are silently corrected to the default.
 - The dark-mode checkbox in settings uses a hidden `<input value="false">` followed by the real checkbox `<input value="true">`. When checked, the form posts `["false", "true"]`; when unchecked, just `["false"]`. `WebResource.updateSettings` checks for `"true"` in the list rather than treating the param as a boolean.
 - `password.auth.enabled=false` disables the register page (returns 404) and skips the `PasswordIdentityProvider`. `AppLifecycle` enforces that at least one of password-auth or OIDC is enabled at startup.
+- Login page uses query params for state: `?error` signals a failed login; `?registered=true` shows a success message after registration.
+- `ActionStats` exposes `sinceLabel()`, `monthTrend()`, `monthTrendClass()` helpers used directly in Qute templates for display formatting.
 
 ### Database migrations
 
 Flyway scripts live in `src/main/resources/db/migration/`. Schema versioning is sequential (`V1__` through `V8__`). Never edit an already-applied migration; always add a new `V{n+1}__` file.
+
+### Testing conventions
+
+Integration tests extend `IntegrationTestBase`, which truncates tables in FK-safe order (`action_logs → actions → users`) before each test. Helper methods `newUser()`, `newAction()`, `newLog()`, and `runInTx()` are provided. Tests use `@TestSecurity` to set the principal email and roles. The `%test` profile forces `app.timezone=UTC` and uses the test DB on port 5433. BCrypt cost is set to 4 in tests for speed. E2E Playwright tests run sequentially (1 worker) against a live app instance; Chromium desktop and Galaxy S24 mobile viewports are both covered.

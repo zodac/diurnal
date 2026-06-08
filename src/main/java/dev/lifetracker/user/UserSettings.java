@@ -10,6 +10,9 @@ public record UserSettings(String theme, int pageSize) {
     public static final List<Integer> PAGE_SIZE_OPTIONS = List.of(10, 25, 50, 100);
     public static final List<String> THEME_OPTIONS = List.of("system", "light", "dark");
 
+    public static final String DEFAULT_CALENDAR_VIEW = "full";
+    public static final List<String> CALENDAR_VIEW_OPTIONS = List.of("full", "minimal");
+
     public static UserSettings from(User user) {
         return new UserSettings(user.theme, user.pageSize);
     }
@@ -20,5 +23,9 @@ public record UserSettings(String theme, int pageSize) {
 
     public static String sanitiseTheme(String requested) {
         return THEME_OPTIONS.contains(requested) ? requested : DEFAULT_THEME;
+    }
+
+    public static String sanitiseCalendarView(String requested) {
+        return CALENDAR_VIEW_OPTIONS.contains(requested) ? requested : DEFAULT_CALENDAR_VIEW;
     }
 }

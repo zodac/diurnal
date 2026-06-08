@@ -137,10 +137,12 @@ public class WebResource {
     @Transactional
     public TemplateInstance updateSettings(
             @FormParam("theme") @DefaultValue("system") String theme,
-            @FormParam("pageSize") @DefaultValue("10") int pageSize) {
+            @FormParam("pageSize") @DefaultValue("10") int pageSize,
+            @FormParam("calendarView") @DefaultValue("full") String calendarView) {
         User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
         user.theme = UserSettings.sanitiseTheme(theme);
         user.pageSize = UserSettings.sanitisePageSize(pageSize);
+        user.calendarView = UserSettings.sanitiseCalendarView(calendarView);
         user.persist();
         return settingsView(user, true);
     }
@@ -168,6 +170,8 @@ public class WebResource {
                 .data("pageSize", user.pageSize)
                 .data("pageSizeOptions", UserSettings.PAGE_SIZE_OPTIONS)
                 .data("themeOptions", UserSettings.THEME_OPTIONS)
+                .data("calendarView", user.calendarView)
+                .data("calendarViewOptions", UserSettings.CALENDAR_VIEW_OPTIONS)
                 .data("saved", saved);
     }
 
@@ -181,11 +185,12 @@ public class WebResource {
     public TemplateInstance dashboard() {
         User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
         List<?> recentStats = statsService.forMostRecent(user.id, 3);
-        return dashboardTemplate.data(
-                "email", user.email,
-                "displayName", user.displayName,
-                "theme", user.theme,
-                "today", LocalDate.now(ZoneId.of(timezoneId)).toString(),
-                "recentStats", recentStats);
+        return dashboardTemplate
+                .data("email", user.email)
+                .data("displayName", user.displayName)
+                .data("theme", user.theme)
+                .data("calendarView", user.calendarView)
+                .data("today", LocalDate.now(ZoneId.of(timezoneId)).toString())
+                .data("recentStats", recentStats);
     }
 }

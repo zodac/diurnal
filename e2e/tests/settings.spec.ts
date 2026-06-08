@@ -107,4 +107,38 @@ test.describe('Settings page', () => {
     await expect(page.locator('input[name="email"]')).toHaveCount(0);
     await expect(page.locator('body')).toContainText(testUser.email);
   });
+
+  test('calendar style select offers exactly Full and Minimal options', async ({ authenticatedPage: page }) => {
+    await page.goto('/settings');
+    const options = await page.locator('select[name="calendarView"] option').allInnerTexts();
+    expect(options).toEqual(['Full', 'Minimal']);
+  });
+
+  test('select minimal calendar style persists across reload', async ({ authenticatedPage: page }) => {
+    await page.goto('/settings');
+    await Promise.all([
+      page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
+      page.selectOption('select[name="calendarView"]', 'minimal'),
+    ]);
+
+    await page.reload();
+    await expect(page.locator('select[name="calendarView"]')).toHaveValue('minimal');
+  });
+
+  test('select full calendar style persists across reload', async ({ authenticatedPage: page }) => {
+    await page.goto('/settings');
+    await Promise.all([
+      page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
+      page.selectOption('select[name="calendarView"]', 'minimal'),
+    ]);
+
+    await page.goto('/settings');
+    await Promise.all([
+      page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
+      page.selectOption('select[name="calendarView"]', 'full'),
+    ]);
+
+    await page.reload();
+    await expect(page.locator('select[name="calendarView"]')).toHaveValue('full');
+  });
 });

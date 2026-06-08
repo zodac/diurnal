@@ -123,6 +123,22 @@
                         </select>
                     </div>
                 </div>
+
+                <!-- Calendar style -->
+                <div class="flex items-center justify-between py-4">
+                    <div class="flex-1">
+                        <label for="calendarView" class="block text-sm font-medium text-gray-900 dark:text-gray-50">Calendar style</label>
+                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Full shows events as text; Minimal shows compact dots per action</p>
+                    </div>
+                    <div class="ml-4 flex items-center">
+                        <select id="calendarView"
+                                name="calendarView"
+                                class="rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-50 focus:ring-indigo-500 focus:border-indigo-500 py-1.5 pl-3 pr-8 cursor-pointer">
+                            <option value="full"    {#if calendarView == 'full'}selected{/if}>Full</option>
+                            <option value="minimal" {#if calendarView == 'minimal'}selected{/if}>Minimal</option>
+                        </select>
+                    </div>
+                </div>
             </form>
         </div>
 

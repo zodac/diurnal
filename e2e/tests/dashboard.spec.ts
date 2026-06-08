@@ -169,3 +169,109 @@ test.describe('Dashboard', () => {
     await expect(page.locator('text=No actions logged yet')).toBeVisible();
   });
 });
+
+test.describe('Dashboard – Minimal calendar', () => {
+  // Switch to minimal view before each test; reset after so the outer describe is unaffected.
+  test.beforeEach(async ({ authenticatedPage: page }) => {
+    await page.goto('/settings');
+    await Promise.all([
+      page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
+      page.selectOption('select[name="calendarView"]', 'minimal'),
+    ]);
+  });
+
+  test.afterEach(async ({ authenticatedPage: page }) => {
+    await page.goto('/settings');
+    await Promise.all([
+      page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
+      page.selectOption('select[name="calendarView"]', 'full'),
+    ]);
+  });
+
+  test('minimal calendar is rendered instead of FullCalendar', async ({ authenticatedPage: page }) => {
+    await page.goto('/');
+    await expect(page.locator('#calendar-minimal')).toBeVisible();
+    await expect(page.locator('#calendar')).toHaveCount(0);
+  });
+
+  test('today cell carries the today highlight class', async ({ authenticatedPage: page }) => {
+    await page.goto('/');
+    await expect(page.locator(`.lt-min-cell[data-date="${todayStr()}"]`)).toHaveClass(/lt-min-today/);
+  });
+
+  test('today is pre-selected and day panel loads automatically', async ({ authenticatedPage: page }) => {
+    await page.goto('/');
+    await expect(page.locator('#day-panel')).not.toContainText('Click a day to log actions');
+  });
+
+  test('clicking a past date loads that day in the day panel', async ({ authenticatedPage: page }) => {
+    await page.goto('/');
+    const past = pastDateStr(3);
+    await page.locator(`.lt-min-cell[data-date="${past}"]`).click();
+    await expect(page.locator('#day-panel')).not.toContainText('Click a day to log actions');
+  });
+
+  test('clicked date receives the selected class', async ({ authenticatedPage: page }) => {
+    await page.goto('/');
+    const past = pastDateStr(2);
+    await page.locator(`.lt-min-cell[data-date="${past}"]`).click();
+    await expect(page.locator(`.lt-min-cell[data-date="${past}"]`)).toHaveClass(/lt-min-selected/);
+  });
+
+  test('dot appears under today after logging an action', async ({ authenticatedPage: page }) => {
+    await page.goto('/');
+    // Ensure today's log is at 0 first
+    await page.locator('#day-panel [id^="log-"]').first().waitFor({ timeout: 5000 }).catch(() => {});
+    for (let i = 0; i < 10; i++) {
+      const decBtn = page.locator('#day-panel').getByTitle('Decrease').first();
+      if (await decBtn.isDisabled().catch(() => true)) break;
+      await Promise.all([
+        page.waitForResponse(r => r.url().includes('/logs/') && r.request().method() === 'POST'),
+        decBtn.click(),
+      ]);
+    }
+
+    const today = todayStr();
+    await expect(page.locator(`.lt-min-cell[data-date="${today}"] .lt-min-dot`)).toHaveCount(0);
+
+    await Promise.all([
+      page.waitForResponse(r => r.url().includes('/logs/') && r.request().method() === 'POST'),
+      page.locator('#day-panel').getByTitle('Increase').first().click(),
+    ]);
+
+    await expect(page.locator(`.lt-min-cell[data-date="${today}"] .lt-min-dot`)).toHaveCount(1, { timeout: 5000 });
+  });
+
+  test('jump picker opens and closes with Escape', async ({ authenticatedPage: page }) => {
+    await page.goto('/');
+    await page.locator('#lt-min-jump').click();
+    await expect(page.locator('#lt-min-pop')).not.toHaveClass(/hidden/);
+
+    await page.keyboard.press('Escape');
+    await expect(page.locator('#lt-min-pop')).toHaveClass(/hidden/);
+  });
+
+  test('jump picker closes on click outside', async ({ authenticatedPage: page }) => {
+    await page.goto('/');
+    await page.locator('#lt-min-jump').click();
+    await expect(page.locator('#lt-min-pop')).not.toHaveClass(/hidden/);
+
+    await page.locator('h2').first().click();
+    await expect(page.locator('#lt-min-pop')).toHaveClass(/hidden/);
+  });
+
+  test('prev/next month navigation changes the title', async ({ authenticatedPage: page }) => {
+    await page.goto('/');
+    const originalTitle = await page.locator('#lt-min-title').textContent();
+    await page.locator('#lt-min-next').click();
+    await expect(page.locator('#lt-min-title')).not.toHaveText(originalTitle!);
+  });
+
+  test('today button returns to current month', async ({ authenticatedPage: page }) => {
+    await page.goto('/');
+    const originalTitle = await page.locator('#lt-min-title').textContent();
+    await page.locator('#lt-min-next').click();
+    await page.locator('#lt-min-today').click();
+    await expect(page.locator('#lt-min-title')).toHaveText(originalTitle!);
+  });
+});

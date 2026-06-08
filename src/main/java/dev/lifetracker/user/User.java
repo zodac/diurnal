@@ -42,6 +42,9 @@ public class User extends PanacheEntityBase {
     @Column(name = "page_size", nullable = false)
     public int pageSize = UserSettings.DEFAULT_PAGE_SIZE;
 
+    @Column(name = "calendar_view", nullable = false)
+    public String calendarView = UserSettings.DEFAULT_CALENDAR_VIEW;
+
     public static Optional<User> findByEmail(String email) {
         return find("email", email.toLowerCase()).firstResultOptional();
     }
