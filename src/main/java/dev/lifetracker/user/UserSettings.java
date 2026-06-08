@@ -7,7 +7,7 @@ public record UserSettings(String theme, int pageSize) {
     public static final int DEFAULT_PAGE_SIZE = 10;
     public static final String DEFAULT_THEME = "system";
 
-    public static final List<Integer> PAGE_SIZE_OPTIONS = List.of(10, 25, 50, 100);
+    public static final List<Integer> PAGE_SIZE_OPTIONS = List.of(5, 10, 25, 50, 100);
     public static final List<String> THEME_OPTIONS = List.of("system", "light", "dark");
 
     public static final String DEFAULT_CALENDAR_VIEW = "full";

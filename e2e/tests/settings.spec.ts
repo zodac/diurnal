@@ -54,8 +54,8 @@ test.describe('Settings page', () => {
   test('page size select only offers valid options', async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
     const options = await page.locator('select[name="pageSize"] option').allTextContents();
-    expect(options.map(Number)).toEqual(expect.arrayContaining([10, 25, 50, 100]));
-    expect(options).toHaveLength(4);
+    expect(options.map(Number)).toEqual(expect.arrayContaining([5, 10, 25, 50, 100]));
+    expect(options).toHaveLength(5);
   });
 
   test('settings page shows account display name and email', async ({ authenticatedPage: page, testUser }) => {

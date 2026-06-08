@@ -12,7 +12,7 @@ class UserSettingsTest {
     // ── Valid page sizes (allowed through unchanged) ───────────────────────────
 
     @ParameterizedTest
-    @ValueSource(ints = {10, 25, 50, 100})
+    @ValueSource(ints = {5, 10, 25, 50, 100})
     void sanitisePageSize_validValues_passedThrough(int size) {
         assertEquals(size, UserSettings.sanitisePageSize(size));
     }
@@ -43,8 +43,8 @@ class UserSettingsTest {
     }
 
     @Test
-    void pageSizeOptions_containsExactlyFourValues() {
-        assertEquals(4, UserSettings.PAGE_SIZE_OPTIONS.size());
+    void pageSizeOptions_containsExactlyFiveValues() {
+        assertEquals(5, UserSettings.PAGE_SIZE_OPTIONS.size());
     }
 
     @Test
