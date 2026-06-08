@@ -95,7 +95,7 @@ public class StatsService {
                 today);
     }
 
-    private static int currentStreak(List<LocalDate> sortedDates, LocalDate today) {
+    static int currentStreak(List<LocalDate> sortedDates, LocalDate today) {
         Set<LocalDate> set = new HashSet<>(sortedDates);
         LocalDate cursor = set.contains(today) ? today : today.minusDays(1);
         int streak = 0;
@@ -103,7 +103,7 @@ public class StatsService {
         return streak;
     }
 
-    private static int longestStreak(List<LocalDate> sortedDates) {
+    static int longestStreak(List<LocalDate> sortedDates) {
         if (sortedDates.isEmpty()) return 0;
         int longest = 1, run = 1;
         for (int i = 1; i < sortedDates.size(); i++) {

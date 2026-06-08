@@ -48,9 +48,11 @@ public class WebResource {
     @Path("login")
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance loginPage(
-            @QueryParam("error")      @DefaultValue("false") boolean error,
+            @QueryParam("error")      String error,
             @QueryParam("registered") @DefaultValue("false") boolean registered) {
-        return loginTemplate.data("error", error, "registered", registered,
+        // error is null when absent, "" when present with no value (?error), or a string value.
+        // Quarkus form auth redirects to /login?error (no value) on failure — treat key presence as truthy.
+        return loginTemplate.data("error", error != null && !"false".equals(error), "registered", registered,
                 "passwordAuthEnabled", passwordAuthEnabled, "darkMode", false);
     }
 

@@ -99,6 +99,11 @@
             <artifactId>rest-assured</artifactId>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-test-security</artifactId>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <build>
@@ -131,12 +136,187 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>${surefire-plugin.version}</version>
                 <configuration>
+                    <!-- Default: unit tests only. Activate -Dit or -Dall to include *IT tests. -->
+                    <includes>
+                        <include>**/*Test.java</include>
+                    </includes>
                     <systemPropertyVariables>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
+                        <!-- Byte Buddy bundled with Quarkus 3.15.1 supports up to Java 23;
+                             experimental mode allows it to run on Java 24+. -->
+                        <net.bytebuddy.experimental>true</net.bytebuddy.experimental>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!--
+            Run integration tests only (requires test DB already running on :5433):
+                docker-compose -f docker-compose.test.yml up -d
+                mvn test -Dit
+        -->
+        <profile>
+            <id>it</id>
+            <activation>
+                <property>
+                    <name>it</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <plugin>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <includes combine.children="override">
+                                <include>**/*IT.java</include>
+                            </includes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
+        <!--
+            Run ALL test tiers in one command:
+                mvn clean install -Dall
+
+            Phase sequence:
+              initialise          – docker compose up -\-wait  (test DB healthy before any test)
+              test                – surefire: unit (*Test) + integration (*IT)
+              package             – Quarkus builds the fast-jar
+              pre-integration-test – java -jar (test profile) in background, poll /login until ready
+              integration-test    – Playwright (exit code captured; clean-up always runs)
+              post-integration-test – kill app by PID + docker compose down
+              verify              – fail the build if Playwright reported failures
+        -->
+        <profile>
+            <id>all</id>
+            <activation>
+                <property>
+                    <name>all</name>
+                </property>
+            </activation>
+            <build>
+                <plugins>
+                    <!-- Run both unit (*Test) and integration (*IT) tests -->
+                    <plugin>
+                        <artifactId>maven-surefire-plugin</artifactId>
+                        <configuration>
+                            <includes combine.children="override">
+                                <include>**/*Test.java</include>
+                                <include>**/*IT.java</include>
+                            </includes>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.3.0</version>
+                        <executions>
+
+                            <!-- 1. Start the test DB and block until its healthcheck passes -->
+                            <execution>
+                                <id>docker-db-start</id>
+                                <phase>initialize</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <executable>docker</executable>
+                                    <arguments>
+                                        <argument>compose</argument>
+                                        <argument>-f</argument>
+                                        <argument>${project.basedir}/docker-compose.test.yml</argument>
+                                        <argument>up</argument>
+                                        <argument>-d</argument>
+                                        <argument>--wait</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+
+                            <!--
+                                2. Run Playwright E2E tests.
+                                Exits 0 regardless of test outcome so post-integration-test
+                                clean-up always runs; the real result is checked in verify.
+                            -->
+                            <execution>
+                                <id>playwright-run</id>
+                                <phase>integration-test</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <executable>bash</executable>
+                                    <arguments>
+                                        <argument>-c</argument>
+                                        <argument>cd "${project.basedir}/e2e" &amp;&amp; npm test; rc=$?; echo $rc &gt; "${project.build.directory}/playwright-result.txt"; exit 0</argument>
+                                    </arguments>
+                                    <environmentVariables>
+                                        <BASE_URL>http://localhost:8080</BASE_URL>
+                                    </environmentVariables>
+                                </configuration>
+                            </execution>
+
+                            <!-- 3. Start Quarkus in test profile; poll /login until ready (max 120s) -->
+                            <execution>
+                                <id>quarkus-start-e2e</id>
+                                <phase>pre-integration-test</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <executable>bash</executable>
+                                    <arguments>
+                                        <argument>-c</argument>
+                                        <argument>java -Dquarkus.profile=test -jar "${project.build.directory}/quarkus-app/quarkus-run.jar" &gt;"${project.build.directory}/app.log" 2&gt;&amp;1 &amp; echo $! &gt;"${project.build.directory}/app.pid"; for i in $(seq 1 60); do curl -sf http://localhost:8080/login &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "App ready" &amp;&amp; exit 0; sleep 2; done; echo "App failed to start — see target/app.log"; exit 1</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+
+                            <!-- 4. Stop Quarkus (runs even when Playwright failed) -->
+                            <execution>
+                                <id>quarkus-stop-e2e</id>
+                                <phase>post-integration-test</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <executable>bash</executable>
+                                    <arguments>
+                                        <argument>-c</argument>
+                                        <argument>kill -9 $(cat "${project.build.directory}/app.pid" 2&gt;/dev/null) 2&gt;/dev/null || true</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+
+                            <!-- 5. Tear down the test DB (runs even when Playwright failed) -->
+                            <execution>
+                                <id>docker-db-stop</id>
+                                <phase>post-integration-test</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <executable>docker</executable>
+                                    <arguments>
+                                        <argument>compose</argument>
+                                        <argument>-f</argument>
+                                        <argument>${project.basedir}/docker-compose.test.yml</argument>
+                                        <argument>down</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+
+                            <!-- 6. Fail the build if Playwright reported a non-zero exit code -->
+                            <execution>
+                                <id>playwright-check</id>
+                                <phase>verify</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <executable>bash</executable>
+                                    <arguments>
+                                        <argument>-c</argument>
+                                        <argument>rc=$(cat "${project.build.directory}/playwright-result.txt" 2>/dev/null || echo 1); [ "$rc" = "0" ] || { echo "Playwright E2E tests FAILED (exit $rc) — see e2e/playwright-report/"; exit 1; }</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
