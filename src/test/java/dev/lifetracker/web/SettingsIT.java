@@ -170,6 +170,17 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
+    void updateSettings_calendarViewStacked_persists() {
+        given().formParam("theme", "system")
+                .formParam("pageSize", "10")
+                .formParam("calendarView", "stacked")
+                .post("/settings")
+                .then().statusCode(200);
+
+        runInTx(() -> assertEquals("stacked", User.findByEmail(PRIMARY).orElseThrow().calendarView));
+    }
+
+    @Test
     void updateSettings_invalidCalendarView_fallsBackToDefault() {
         given().formParam("theme", "system")
                 .formParam("pageSize", "10")

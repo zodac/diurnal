@@ -61,7 +61,7 @@ class UserSettingsTest {
     // ── Calendar view sanitisation ─────────────────────────────────────────────
 
     @ParameterizedTest
-    @ValueSource(strings = {"full", "minimal"})
+    @ValueSource(strings = {"full", "minimal", "stacked"})
     void sanitiseCalendarView_validValues_passedThrough(String view) {
         assertEquals(view, UserSettings.sanitiseCalendarView(view));
     }
@@ -78,8 +78,8 @@ class UserSettingsTest {
     }
 
     @Test
-    void calendarViewOptions_containsExactlyTwoValues() {
-        assertEquals(2, UserSettings.CALENDAR_VIEW_OPTIONS.size());
+    void calendarViewOptions_containsExactlyThreeValues() {
+        assertEquals(3, UserSettings.CALENDAR_VIEW_OPTIONS.size());
     }
 
     @Test

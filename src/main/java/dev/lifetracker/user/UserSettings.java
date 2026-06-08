@@ -11,7 +11,7 @@ public record UserSettings(String theme, int pageSize) {
     public static final List<String> THEME_OPTIONS = List.of("system", "light", "dark");
 
     public static final String DEFAULT_CALENDAR_VIEW = "full";
-    public static final List<String> CALENDAR_VIEW_OPTIONS = List.of("full", "minimal");
+    public static final List<String> CALENDAR_VIEW_OPTIONS = List.of("full", "minimal", "stacked");
 
     public static UserSettings from(User user) {
         return new UserSettings(user.theme, user.pageSize);

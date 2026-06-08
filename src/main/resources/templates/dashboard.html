@@ -131,6 +131,18 @@
   .lt-min-dot {
     width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
   }
+
+  /* ── Stacked calendar (horizontal bars instead of dots) ─────────────── */
+  /* Fixed-height bar column — always reserves the same vertical space (4 bars × 3px + 3 gaps × 2px = 18px) */
+  .lt-stk-bars {
+    display: flex; flex-direction: column; gap: 2px;
+    width: 100%; padding: 0 3px; box-sizing: border-box;
+    height: 18px; min-height: 18px; margin-top: 2px; flex-shrink: 0;
+    overflow: hidden;
+  }
+  .lt-stk-bar {
+    height: 3px; border-radius: 999px; flex-shrink: 0;
+  }
 </style>
 {/head}
 
@@ -150,7 +162,7 @@
         <div class="grid gap-4 lg:grid-cols-3 mb-6">
 
             <div class="lg:col-span-2 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
-                {#if calendarView == 'minimal'}
+                {#if calendarView == 'minimal' || calendarView == 'stacked'}
                 <div id="calendar-minimal" style="position:relative">
                     <div class="lt-min-toolbar">
                         <div class="lt-min-toolbar-left">
@@ -456,16 +468,28 @@ document.addEventListener('DOMContentLoaded', function () {
             dateNum.textContent = dy;
             cell.appendChild(dateNum);
 
-            // Dot strip — always present so cell height never changes.
-            var dotRow = document.createElement('div');
-            dotRow.className = 'lt-min-dots';
-            (dayData[dateStr] || []).forEach(function (a) {
-                var dot = document.createElement('span');
-                dot.className = 'lt-min-dot';
-                dot.style.backgroundColor = a.colour;
-                dotRow.appendChild(dot);
-            });
-            cell.appendChild(dotRow);
+            // Activity indicator — always appended so cell height never changes.
+            if (calendarView === 'stacked') {
+                var barsEl = document.createElement('div');
+                barsEl.className = 'lt-stk-bars';
+                (dayData[dateStr] || []).forEach(function (a) {
+                    var bar = document.createElement('span');
+                    bar.className = 'lt-stk-bar';
+                    bar.style.backgroundColor = a.colour;
+                    barsEl.appendChild(bar);
+                });
+                cell.appendChild(barsEl);
+            } else {
+                var dotRow = document.createElement('div');
+                dotRow.className = 'lt-min-dots';
+                (dayData[dateStr] || []).forEach(function (a) {
+                    var dot = document.createElement('span');
+                    dot.className = 'lt-min-dot';
+                    dot.style.backgroundColor = a.colour;
+                    dotRow.appendChild(dot);
+                });
+                cell.appendChild(dotRow);
+            }
 
             cell.addEventListener('click', (function (ds) {
                 return function () { selectDay(ds); };
@@ -476,7 +500,15 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function selectDay(dateStr) {
         selectedDate = dateStr;
-        renderGrid();
+        var clickedYear  = parseInt(dateStr.substring(0, 4), 10);
+        var clickedMonth = parseInt(dateStr.substring(5, 7), 10) - 1;
+        if (clickedYear !== viewYear || clickedMonth !== viewMonth) {
+            viewYear  = clickedYear;
+            viewMonth = clickedMonth;
+            fetchAndRender();
+        } else {
+            renderGrid();
+        }
         htmx.ajax('GET', '/logs/day/' + dateStr, { target: '#day-panel', swap: 'innerHTML' });
     }
 
