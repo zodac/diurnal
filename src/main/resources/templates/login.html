@@ -44,14 +44,39 @@
             </button>
         </form>
 
+        {#if registrationEnabled}
         <p class="mt-4 text-center text-sm text-gray-500 dark:text-gray-400">
             Don't have an account?
             <a href="/register" class="text-indigo-600 dark:text-indigo-400 hover:underline font-medium">Register</a>
         </p>
+        {/if}
 
-        {#else}
+        {/if}
+
+        {#if oidcEnabled}
+        {#if passwordAuthEnabled}
+        <div class="relative my-6">
+            <div class="absolute inset-0 flex items-center">
+                <div class="w-full border-t border-gray-200 dark:border-gray-700"></div>
+            </div>
+            <div class="relative flex justify-center text-xs uppercase">
+                <span class="bg-white dark:bg-gray-800 px-2 text-gray-400 dark:text-gray-500">or</span>
+            </div>
+        </div>
+        {/if}
+
+        <a href="/oidc-login"
+           class="flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600
+                  px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300
+                  hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500
+                  focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors">
+            Log in with {oidcProviderName}
+        </a>
+        {/if}
+
+        {#if !passwordAuthEnabled && !oidcEnabled}
         <div class="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-            Password authentication is disabled. Please sign in using your configured identity provider.
+            No authentication method is configured. Please contact your administrator.
         </div>
         {/if}
     </div>

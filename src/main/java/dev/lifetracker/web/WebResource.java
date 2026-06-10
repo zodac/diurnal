@@ -7,6 +7,7 @@ import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
 import io.quarkus.security.identity.SecurityIdentity;
+import jakarta.annotation.security.PermitAll;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -39,6 +40,18 @@ public class WebResource {
     @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
     boolean passwordAuthEnabled;
 
+    @ConfigProperty(name = "registration.enabled", defaultValue = "true")
+    boolean registrationEnabled;
+
+    @ConfigProperty(name = "quarkus.oidc.tenant-enabled", defaultValue = "false")
+    boolean oidcEnabled;
+
+    @ConfigProperty(name = "oidc.provider.name", defaultValue = "your identity provider")
+    String oidcProviderName;
+
+    @ConfigProperty(name = "oidc.auto.redirect", defaultValue = "false")
+    boolean oidcAutoRedirect;
+
     @ConfigProperty(name = "app.timezone", defaultValue = "UTC")
     String timezoneId;
 
@@ -47,13 +60,46 @@ public class WebResource {
     @GET
     @Path("login")
     @Produces(MediaType.TEXT_HTML)
-    public TemplateInstance loginPage(
+    public Response loginPage(
             @QueryParam("error")      String error,
             @QueryParam("registered") @DefaultValue("false") boolean registered) {
+        // Auto-redirect to OIDC flow when configured, but not when there is an error or
+        // success message to show (e.g. after registration or a failed OIDC attempt).
+        if (oidcEnabled && oidcAutoRedirect && error == null && !registered) {
+            return Response.seeOther(URI.create("/oidc-login")).build();
+        }
         // error is null when absent, "" when present with no value (?error), or a string value.
         // Quarkus form auth redirects to /login?error (no value) on failure — treat key presence as truthy.
-        return loginTemplate.data("error", error != null && !"false".equals(error), "registered", registered,
-                "passwordAuthEnabled", passwordAuthEnabled, "theme", "system");
+        boolean showError = error != null && !"false".equals(error);
+        return Response.ok(loginTemplate
+                .data("error", showError, "registered", registered, "theme", "system")
+                .data("passwordAuthEnabled", passwordAuthEnabled)
+                .data("registrationEnabled", passwordAuthEnabled && registrationEnabled)
+                .data("oidcEnabled", oidcEnabled)
+                .data("oidcProviderName", oidcProviderName))
+                .type(MediaType.TEXT_HTML_TYPE)
+                .build();
+    }
+
+    @GET
+    @Path("oidc-login")
+    @RolesAllowed("user")
+    public Response oidcLogin() {
+        // Unauthenticated requests never reach here — the oidc-trigger permission policy
+        // intercepts them first and issues the OIDC Authorization Code challenge.
+        // Authenticated users (e.g. navigating from browser history) are forwarded home.
+        return Response.seeOther(URI.create("/")).build();
+    }
+
+    @GET
+    @Path("oauth2/callback/oidc")
+    @PermitAll
+    public Response oidcCallback() {
+        // The oidc-trigger permission pins this path to the code mechanism, so when the IdP
+        // redirects back here CodeAuthenticationMechanism exchanges the code, validates the
+        // tokens and creates the OIDC session cookie. The request then reaches JAX-RS — this
+        // endpoint receives it and forwards the now-authenticated user to the dashboard.
+        return Response.seeOther(URI.create("/")).build();
     }
 
     // ── Register ───────────────────────────────────────────────────────────
@@ -62,7 +108,7 @@ public class WebResource {
     @Path("register")
     @Produces(MediaType.TEXT_HTML)
     public Response registerPage(@QueryParam("error") @DefaultValue("") String error) {
-        if (!passwordAuthEnabled) {
+        if (!passwordAuthEnabled || !registrationEnabled) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         return Response.ok(registerTemplate.data("error", error, "theme", "system")).build();
@@ -77,7 +123,7 @@ public class WebResource {
             @FormParam("displayName") String displayName,
             @FormParam("password")    String password) {
 
-        if (!passwordAuthEnabled) {
+        if (!passwordAuthEnabled || !registrationEnabled) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
@@ -106,15 +152,23 @@ public class WebResource {
     @POST
     @Path("logout")
     public Response logout() {
-        // The session is stateless (stored entirely in the encrypted cookie).
-        // Clearing the cookie is sufficient to end the session.
-        NewCookie clear = new NewCookie.Builder("lt_session")
+        // Both session types are stateless (stored entirely in their encrypted cookie), so clearing
+        // the cookies ends the session. We clear BOTH the form session (lt_session) and the OIDC
+        // session (q_session, the Quarkus default name); otherwise an OIDC user would be silently
+        // re-authenticated by the surviving q_session on the next request.
+        NewCookie clearForm = new NewCookie.Builder("lt_session")
                 .value("")
                 .path("/")
                 .maxAge(0)
                 .httpOnly(true)
                 .build();
-        return Response.seeOther(URI.create("/login")).cookie(clear).build();
+        NewCookie clearOidc = new NewCookie.Builder("q_session")
+                .value("")
+                .path("/")
+                .maxAge(0)
+                .httpOnly(true)
+                .build();
+        return Response.seeOther(URI.create("/login")).cookie(clearForm, clearOidc).build();
     }
 
     // ── Settings ───────────────────────────────────────────────────────────

@@ -14,11 +14,17 @@ public class AppLifecycle {
     @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
     boolean passwordAuthEnabled;
 
-    @ConfigProperty(name = "quarkus.oidc.enabled", defaultValue = "false")
+    @ConfigProperty(name = "quarkus.oidc.tenant-enabled", defaultValue = "false")
     boolean oidcEnabled;
 
     @ConfigProperty(name = "quarkus.oidc.auth-server-url", defaultValue = "")
     String oidcIssuerUrl;
+
+    @ConfigProperty(name = "oidc.provider.name", defaultValue = "your identity provider")
+    String oidcProviderName;
+
+    @ConfigProperty(name = "oidc.auto.redirect", defaultValue = "false")
+    boolean oidcAutoRedirect;
 
     void onStart(@Observes StartupEvent ev) {
         if (!passwordAuthEnabled && !oidcEnabled) {
@@ -27,13 +33,22 @@ public class AppLifecycle {
                 "at least one authentication method must be enabled.");
         }
 
+        if (oidcEnabled && oidcIssuerUrl.isBlank()) {
+            throw new IllegalStateException(
+                "OIDC_ENABLED=true but OIDC_ISSUER_URL is not set.");
+        }
+
         log.info("=================================================");
         log.info("  Life Tracker started");
         log.infof("  Password auth : %s", passwordAuthEnabled ? "enabled" : "disabled");
         if (oidcEnabled) {
-            log.infof("  OIDC          : enabled  (issuer: %s)", oidcIssuerUrl);
+            log.infof("  OIDC          : enabled  (issuer: %s, provider: %s, auto-redirect: %s)",
+                    oidcIssuerUrl, oidcProviderName, oidcAutoRedirect);
         } else {
             log.info("  OIDC          : disabled");
+            if (oidcAutoRedirect) {
+                log.warn("  OIDC_AUTO_REDIRECT=true has no effect because OIDC_ENABLED=false");
+            }
         }
         log.info("=================================================");
     }
