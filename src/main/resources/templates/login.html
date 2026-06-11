@@ -7,6 +7,12 @@
         <h1 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-gray-50">Life Tracker</h1>
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Sign in to your account</p>
 
+        {#if oidcError}
+        <div class="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 px-3 py-2 text-sm text-red-700 dark:text-red-200">
+            You are not authorized to access this application. Contact your administrator.
+        </div>
+        {/if}
+
         {#if passwordAuthEnabled}
 
         {#if registered}

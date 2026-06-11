@@ -88,4 +88,18 @@ test.describe('Authentication', () => {
 
     await expect(page).toHaveURL(/\/register\?error=invalid/);
   });
+
+  test('login page with ?error=oidc shows unauthorized OIDC error banner', async ({ page }) => {
+    // Simulates the redirect from quarkus.oidc.authentication.error-path after IdP denies access
+    await page.goto('/login?error=oidc');
+    await expect(page.locator('body')).toContainText(/not authorized/i);
+  });
+
+  test('messy OIDC error URL is cleaned up to standard error=oidc', async ({ page }) => {
+    // When Authelia denies access it appends its own ?error=... to the error-path,
+    // producing a double-? URL. The server detects this and redirects to the clean form.
+    await page.goto('/login?error=oidc%3Ferror%3Daccess_denied%26error_description%3DFoo');
+    await expect(page).toHaveURL(/\/login\?error=oidc$/);
+    await expect(page.locator('body')).toContainText(/not authorized/i);
+  });
 });

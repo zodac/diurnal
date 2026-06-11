@@ -20,6 +20,9 @@ public class AuthResource {
     @Inject
     TokenService tokenService;
 
+    @Inject
+    RoleAssigner roleAssigner;
+
     @POST
     @Path("/register")
     @Transactional
@@ -36,9 +39,10 @@ public class AuthResource {
         user.email = email;
         user.displayName = request.displayName().strip();
         user.passwordHash = BCrypt.hashpw(request.password(), BCrypt.gensalt(12));
+        user.role = roleAssigner.roleForNewUser();
         user.persist();
 
-        log.infof("New user registered: %s", email);
+        log.infof("New user registered: %s (role=%s)", email, user.role);
         String token = tokenService.generateToken(user);
         return Response.status(Response.Status.CREATED)
                 .entity(new TokenResponse(token, user.email, user.displayName))

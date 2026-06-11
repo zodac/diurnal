@@ -1,8 +1,10 @@
 package dev.lifetracker.web;
 
+import dev.lifetracker.auth.RoleAssigner;
 import dev.lifetracker.stats.StatsService;
 import dev.lifetracker.user.User;
 import dev.lifetracker.user.UserSettings;
+import io.quarkus.oidc.IdToken;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
@@ -11,18 +13,28 @@ import jakarta.annotation.security.PermitAll;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import jakarta.ws.rs.*;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.CookieParam;
+import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.FormParam;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
-import org.jboss.logging.Logger;
-import org.mindrot.jbcrypt.BCrypt;
-
 import java.net.URI;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Optional;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.jwt.JsonWebToken;
+import org.jboss.logging.Logger;
+import org.mindrot.jbcrypt.BCrypt;
 
 @Path("/")
 public class WebResource {
@@ -36,6 +48,7 @@ public class WebResource {
 
     @Inject SecurityIdentity identity;
     @Inject StatsService statsService;
+    @Inject RoleAssigner roleAssigner;
 
     @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
     boolean passwordAuthEnabled;
@@ -51,6 +64,11 @@ public class WebResource {
 
     @ConfigProperty(name = "oidc.auto.redirect", defaultValue = "false")
     boolean oidcAutoRedirect;
+
+    @Inject @IdToken JsonWebToken idToken;
+
+    @ConfigProperty(name = "oidc.logout.url")
+    Optional<String> oidcLogoutUrl;
 
     @ConfigProperty(name = "app.timezone", defaultValue = "UTC")
     String timezoneId;
@@ -70,15 +88,30 @@ public class WebResource {
         }
         // error is null when absent, "" when present with no value (?error), or a string value.
         // Quarkus form auth redirects to /login?error (no value) on failure — treat key presence as truthy.
-        boolean showError = error != null && !"false".equals(error);
-        return Response.ok(loginTemplate
+        // ?error=oidc is set by quarkus.oidc.authentication.error-path and shown separately.
+        //
+        // When the IdP itself denies access (e.g. Authelia access-control rule), it appends its own
+        // query params to the redirect_uri. Quarkus then forwards everything to the error-path,
+        // producing a double-? URL like /login?error=oidc?error=access_denied&... — redirect to clean.
+        if (error != null && error.startsWith("oidc") && !error.equals("oidc")) {
+            return Response.seeOther(URI.create("/login?error=oidc")).build();
+        }
+        boolean showOidcError = "oidc".equals(error);
+        boolean showError = error != null && !"false".equals(error) && !showOidcError;
+        Response.ResponseBuilder builder = Response.ok(loginTemplate
                 .data("error", showError, "registered", registered, "theme", "system")
+                .data("oidcError", showOidcError)
                 .data("passwordAuthEnabled", passwordAuthEnabled)
                 .data("registrationEnabled", passwordAuthEnabled && registrationEnabled)
                 .data("oidcEnabled", oidcEnabled)
                 .data("oidcProviderName", oidcProviderName))
-                .type(MediaType.TEXT_HTML_TYPE)
-                .build();
+                .type(MediaType.TEXT_HTML_TYPE);
+        if (showOidcError) {
+            // Clear the stale OIDC session cookie so the next "Log in with Authelia" click
+            // starts a fresh code flow instead of retrying the same failed session.
+            builder.cookie(new NewCookie.Builder("q_session").value("").path("/").maxAge(0).httpOnly(true).build());
+        }
+        return builder.build();
     }
 
     @GET
@@ -94,11 +127,23 @@ public class WebResource {
     @GET
     @Path("oauth2/callback/oidc")
     @PermitAll
+    @Transactional
     public Response oidcCallback() {
         // The oidc-trigger permission pins this path to the code mechanism, so when the IdP
         // redirects back here CodeAuthenticationMechanism exchanges the code, validates the
         // tokens and creates the OIDC session cookie. The request then reaches JAX-RS — this
         // endpoint receives it and forwards the now-authenticated user to the dashboard.
+        //
+        // This is called exactly once per OIDC login, so it is the right place to update
+        // lastLoginAt and emit the login log (the augmentor runs on every subsequent request).
+        if (!identity.isAnonymous()) {
+            User.findByEmail(identity.getPrincipal().getName()).ifPresent(user -> {
+                user.lastLoginAt = Instant.now();
+                user.persist();
+                log.debugf("OIDC login: name=%s email=%s role=%s", user.displayName, user.email, user.role);
+            });
+        }
+
         return Response.seeOther(URI.create("/")).build();
     }
 
@@ -141,9 +186,10 @@ public class WebResource {
         user.email = normalised;
         user.displayName = displayName.strip();
         user.passwordHash = BCrypt.hashpw(password, BCrypt.gensalt(12));
+        user.role = roleAssigner.roleForNewUser();
         user.persist();
 
-        log.infof("New user registered: %s", normalised);
+        log.infof("New user registered: %s (role=%s)", normalised, user.role);
         return Response.seeOther(URI.create("/login?registered=true")).build();
     }
 
@@ -151,24 +197,19 @@ public class WebResource {
 
     @POST
     @Path("logout")
-    public Response logout() {
-        // Both session types are stateless (stored entirely in their encrypted cookie), so clearing
-        // the cookies ends the session. We clear BOTH the form session (lt_session) and the OIDC
-        // session (q_session, the Quarkus default name); otherwise an OIDC user would be silently
-        // re-authenticated by the surviving q_session on the next request.
-        NewCookie clearForm = new NewCookie.Builder("lt_session")
-                .value("")
-                .path("/")
-                .maxAge(0)
-                .httpOnly(true)
-                .build();
-        NewCookie clearOidc = new NewCookie.Builder("q_session")
-                .value("")
-                .path("/")
-                .maxAge(0)
-                .httpOnly(true)
-                .build();
-        return Response.seeOther(URI.create("/login")).cookie(clearForm, clearOidc).build();
+    public Response logout(@CookieParam("q_session") String qSession) {
+        NewCookie clearForm    = new NewCookie.Builder("lt_session").value("").path("/").maxAge(0).httpOnly(true).build();
+        NewCookie clearOidc    = new NewCookie.Builder("q_session").value("").path("/").maxAge(0).httpOnly(true).build();
+        // RP-initiated logout: only redirect to the IdP if the user authenticated via OIDC
+        // (has a q_session cookie). Password users go straight to /login.
+        // We send id_token_hint so Authelia can identify and properly terminate the IdP session.
+        // Without it, Authelia accepts the end_session request but does nothing.
+        boolean hasOidcSession = qSession != null && !qSession.isBlank();
+        URI target = (hasOidcSession ? oidcLogoutUrl.filter(url -> !url.isBlank()) : Optional.<String>empty())
+                .map(URI::create)
+                .orElse(URI.create("/login"));
+        log.debugf("Logout: redirecting to %s", target);
+        return Response.seeOther(target).cookie(clearForm, clearOidc).build();
     }
 
     // ── Settings ───────────────────────────────────────────────────────────
@@ -221,6 +262,7 @@ public class WebResource {
                 .data("email", user.email)
                 .data("displayName", user.displayName)
                 .data("theme", user.theme)
+                .data("isAdmin", user.isAdmin())
                 .data("pageSize", user.pageSize)
                 .data("pageSizeOptions", UserSettings.PAGE_SIZE_OPTIONS)
                 .data("themeOptions", UserSettings.THEME_OPTIONS)
@@ -243,6 +285,7 @@ public class WebResource {
                 .data("email", user.email)
                 .data("displayName", user.displayName)
                 .data("theme", user.theme)
+                .data("isAdmin", user.isAdmin())
                 .data("calendarView", user.calendarView)
                 .data("today", LocalDate.now(ZoneId.of(timezoneId)).toString())
                 .data("recentStats", recentStats);

@@ -80,10 +80,15 @@ public abstract class IntegrationTestBase {
     }
 
     protected static User newUser(String email, String displayName) {
+        return newUser(email, displayName, User.ROLE_USER);
+    }
+
+    protected static User newUser(String email, String displayName, String role) {
         User u = new User();
         u.email = email;
         u.displayName = displayName;
         u.passwordHash = BCrypt.hashpw(TEST_PASSWORD, BCrypt.gensalt(BCRYPT_COST));
+        u.role = role;
         u.persist();
         return u;
     }

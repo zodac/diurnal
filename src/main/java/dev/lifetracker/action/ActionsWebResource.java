@@ -35,7 +35,7 @@ public class ActionsWebResource {
     public TemplateInstance actionsPage() {
         User user = currentUser();
         var page = getActions(user.id, 1, "", user.pageSize);
-        return actionsTemplate.data("displayName", user.displayName, "email", user.email, "page", page, "theme", user.theme);
+        return actionsTemplate.data("displayName", user.displayName, "email", user.email, "isAdmin", user.isAdmin(), "page", page, "theme", user.theme);
     }
 
     @GET

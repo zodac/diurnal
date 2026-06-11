@@ -3,7 +3,6 @@ package dev.lifetracker.auth;
 import dev.lifetracker.user.User;
 import io.quarkus.oidc.IdTokenCredential;
 import io.quarkus.security.AuthenticationFailedException;
-import io.quarkus.security.credential.TokenCredential;
 import io.quarkus.security.identity.AuthenticationRequestContext;
 import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.security.identity.SecurityIdentityAugmentor;
@@ -17,7 +16,9 @@ import jakarta.transaction.Transactional;
 import org.jboss.logging.Logger;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 
 /**
  * Runs after every successful authentication. It only acts on OIDC web-app (authorization code
@@ -39,18 +40,21 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
     @Inject
     OidcUserProvisioner self;
 
+    @Inject
+    RoleAssigner roleAssigner;
+
     @Override
     public Uni<SecurityIdentity> augment(SecurityIdentity identity, AuthenticationRequestContext context) {
-        TokenCredential idToken = identity.getCredential(IdTokenCredential.class);
-        if (idToken == null || idToken.getToken() == null) {
+        IdTokenCredential idTokenCred = identity.getCredential(IdTokenCredential.class);
+        if (idTokenCred == null || idTokenCred.getToken() == null) {
             return Uni.createFrom().item(identity);
         }
-        JsonObject claims = decodeClaims(idToken.getToken());
-        return context.runBlocking(() -> self.linkOrCreate(identity, claims));
+        JsonObject claims = decodeClaims(idTokenCred.getToken());
+        return context.runBlocking(() -> self.linkOrCreate(identity, claims, idTokenCred));
     }
 
     @Transactional
-    SecurityIdentity linkOrCreate(SecurityIdentity identity, JsonObject claims) {
+    SecurityIdentity linkOrCreate(SecurityIdentity identity, JsonObject claims, IdTokenCredential idTokenCred) {
         String sub = claims.getString("sub");
         String iss = claims.getString("iss");
         String email = resolveEmail(claims);
@@ -61,7 +65,16 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         }
 
         final String normalised = email.toLowerCase().strip();
+        List<String> groups = resolveGroups(claims);
+        var idpRole = roleAssigner.roleFromOidcGroups(groups);
 
+        if (roleAssigner.isGroupCheckEnabled() && idpRole.isEmpty()) {
+            log.warnf("Denying OIDC login for %s: not in any configured group", normalised);
+            throw new AuthenticationFailedException(
+                "Not authorised to access this service — contact your administrator.");
+        }
+
+        boolean[] isNew = {false};
         User user = User.findByOidc(iss, sub)
                 .or(() -> User.findByEmail(normalised))
                 .orElseGet(() -> {
@@ -72,21 +85,50 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
                     User u = new User();
                     u.email = normalised;
                     u.displayName = name;
+                    u.role = idpRole.orElseGet(roleAssigner::roleForNewUser);
                     u.persist();
-                    log.infof("Provisioned new OIDC user: %s", normalised);
+                    isNew[0] = true;
+                    log.infof("Provisioned new OIDC user: %s (role=%s)", normalised, u.role);
                     return u;
                 });
 
         if (user.oidcSubject == null) {
             user.oidcSubject = sub;
             user.oidcIssuer = iss;
-            user.persist();
         }
+        // IdP groups always win on every login for existing users (unless IdP has no group config)
+        if (!isNew[0] && idpRole.isPresent() && !idpRole.get().equals(user.role)) {
+            log.infof("Updating role for %s: %s -> %s (from IdP groups)", normalised, user.role, idpRole.get());
+            user.role = idpRole.get();
+        }
+        // lastLoginAt and the login log are written in WebResource.oidcCallback(), which runs exactly
+        // once per login. This augmentor runs on every authenticated request with a q_session cookie,
+        // so doing it here would produce one log line and one DB write per page load.
+        user.persist();
 
-        return QuarkusSecurityIdentity.builder(identity)
+        // Build a fresh identity — never copy from the OIDC base identity. Quarkus automatically
+        // maps the token's groups claim to roles, so builder(identity) would copy any LDAP group
+        // named "admin" as the admin role, bypassing our DB-backed role check.
+        var builder = QuarkusSecurityIdentity.builder()
                 .setPrincipal(new QuarkusPrincipal(user.email))
-                .addRole("user")
-                .build();
+                .addAttribute("userId", user.id.toString())
+                .addAttribute("displayName", user.displayName)
+                .addRole(User.ROLE_USER)
+                // Re-attach the ID token credential so @IdToken injection works in oidcCallback().
+                // The fresh identity intentionally excludes all other OIDC credentials to prevent
+                // LDAP group names from mapping to roles, but the raw token is needed for logout.
+                .addCredential(idTokenCred);
+        if (user.isAdmin()) builder.addRole(User.ROLE_ADMIN);
+        return builder.build();
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> resolveGroups(JsonObject claims) {
+        var arr = claims.getJsonArray("groups");
+        if (arr == null) {
+            return List.of();
+        }
+        return (List<String>) arr.getList();
     }
 
     private static String resolveEmail(JsonObject claims) {

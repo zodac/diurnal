@@ -1,6 +1,7 @@
 package dev.lifetracker.auth;
 
 import dev.lifetracker.IntegrationTestBase;
+import dev.lifetracker.user.User;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Test;
@@ -175,6 +176,41 @@ class AuthResourceIT extends IntegrationTestBase {
         assertTrue(payloadJson.contains("\"iss\":\"life-tracker\""), "issuer claim missing");
         assertTrue(payloadJson.contains("\"upn\":\"jwt@example.com\""), "upn claim missing");
         assertTrue(payloadJson.contains("\"exp\""), "expiry claim missing");
+    }
+
+    // ── First-user-admin ──────────────────────────────────────────────────────
+
+    @Test
+    void register_firstUser_getsAdminRole() {
+        // Table is empty at the start of every test (setUp truncates)
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"email":"first@example.com","displayName":"First","password":"password1"}
+                        """)
+                .post("/api/auth/register")
+                .then().statusCode(201);
+
+        runInTx(() -> {
+            User u = User.findByEmail("first@example.com").orElseThrow();
+            assertEquals(User.ROLE_ADMIN, u.role, "First registered user should be admin");
+        });
+    }
+
+    @Test
+    void register_secondUser_getsUserRole() {
+        registerUser("first@example.com", "First", "password1");
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"email":"second@example.com","displayName":"Second","password":"password1"}
+                        """)
+                .post("/api/auth/register")
+                .then().statusCode(201);
+
+        runInTx(() -> {
+            User u = User.findByEmail("second@example.com").orElseThrow();
+            assertEquals(User.ROLE_USER, u.role, "Subsequent users should be user role");
+        });
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

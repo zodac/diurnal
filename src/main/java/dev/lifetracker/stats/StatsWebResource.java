@@ -33,12 +33,13 @@ public class StatsWebResource {
     @Transactional
     public TemplateInstance statsPage(@QueryParam("page") @DefaultValue("1") int pageNum) {
         User user = currentUser();
-        return statsTemplate.data(
-                "email", user.email,
-                "displayName", user.displayName,
-                "theme", user.theme,
-                "hasActions", !Action.findActiveByUser(user.id).isEmpty(),
-                "page", getStatsPage(user.id, pageNum, user.pageSize));
+        return statsTemplate
+                .data("email", user.email)
+                .data("displayName", user.displayName)
+                .data("theme", user.theme)
+                .data("isAdmin", user.isAdmin())
+                .data("hasActions", !Action.findActiveByUser(user.id).isEmpty())
+                .data("page", getStatsPage(user.id, pageNum, user.pageSize));
     }
 
     @GET

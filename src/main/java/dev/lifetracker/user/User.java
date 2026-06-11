@@ -11,6 +11,9 @@ import java.util.UUID;
 @Table(name = "users")
 public class User extends PanacheEntityBase {
 
+    public static final String ROLE_ADMIN = "admin";
+    public static final String ROLE_USER = "user";
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     public UUID id;
@@ -44,6 +47,16 @@ public class User extends PanacheEntityBase {
 
     @Column(name = "calendar_view", nullable = false)
     public String calendarView = UserSettings.DEFAULT_CALENDAR_VIEW;
+
+    @Column(name = "role", nullable = false)
+    public String role = ROLE_USER;
+
+    @Column(name = "last_login_at")
+    public Instant lastLoginAt;
+
+    public boolean isAdmin() {
+        return ROLE_ADMIN.equals(role);
+    }
 
     public static Optional<User> findByEmail(String email) {
         return find("email", email.toLowerCase()).firstResultOptional();

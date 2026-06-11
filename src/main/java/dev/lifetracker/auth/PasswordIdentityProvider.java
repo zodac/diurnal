@@ -16,6 +16,7 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
+import java.time.Instant;
 import java.util.Arrays;
 
 @ApplicationScoped
@@ -60,12 +61,15 @@ public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswo
                 .filter(u -> BCrypt.checkpw(password, u.passwordHash))
                 .map(u -> {
                     log.debugf("Login successful: %s", u.email);
-                    return (SecurityIdentity) QuarkusSecurityIdentity.builder()
+                    u.lastLoginAt = Instant.now();
+                    u.persist();
+                    var builder = QuarkusSecurityIdentity.builder()
                             .setPrincipal(new QuarkusPrincipal(u.email))
                             .addAttribute("userId", u.id.toString())
                             .addAttribute("displayName", u.displayName)
-                            .addRole("user")
-                            .build();
+                            .addRole(User.ROLE_USER);
+                    if (u.isAdmin()) builder.addRole(User.ROLE_ADMIN);
+                    return (SecurityIdentity) builder.build();
                 })
                 .orElseThrow(() -> {
                     log.debugf("Failed login attempt for: %s", email);

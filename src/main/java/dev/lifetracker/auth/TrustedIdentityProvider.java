@@ -41,12 +41,15 @@ public class TrustedIdentityProvider implements IdentityProvider<TrustedAuthenti
     @Transactional
     SecurityIdentity loadIdentity(String email) {
         return User.findByEmail(email)
-                .map(u -> (SecurityIdentity) QuarkusSecurityIdentity.builder()
-                        .setPrincipal(new QuarkusPrincipal(u.email))
-                        .addAttribute("userId", u.id.toString())
-                        .addAttribute("displayName", u.displayName)
-                        .addRole("user")
-                        .build())
+                .map(u -> {
+                    var builder = QuarkusSecurityIdentity.builder()
+                            .setPrincipal(new QuarkusPrincipal(u.email))
+                            .addAttribute("userId", u.id.toString())
+                            .addAttribute("displayName", u.displayName)
+                            .addRole(User.ROLE_USER);
+                    if (u.isAdmin()) builder.addRole(User.ROLE_ADMIN);
+                    return (SecurityIdentity) builder.build();
+                })
                 .orElseThrow(AuthenticationFailedException::new);
     }
 }

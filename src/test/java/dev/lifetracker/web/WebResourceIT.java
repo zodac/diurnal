@@ -1,16 +1,17 @@
 package dev.lifetracker.web;
 
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+
 import dev.lifetracker.IntegrationTestBase;
-import dev.lifetracker.user.User;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
-import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Test;
-
-import java.util.UUID;
-
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
 
 @QuarkusTest
 class WebResourceIT extends IntegrationTestBase {
@@ -70,6 +71,26 @@ class WebResourceIT extends IntegrationTestBase {
         given().queryParam("registered", "true").get("/login")
                 .then().statusCode(200)
                 .body(containsString("Account created"));
+    }
+
+    @Test
+    void loginPage_withOidcErrorParam_showsOidcErrorBanner() {
+        given().queryParam("error", "oidc").get("/login")
+                .then().statusCode(200)
+                .body(containsString("not authorized"));
+    }
+
+    @Test
+    void loginPage_withMessyOidcErrorParam_redirectsToCleanUrl() {
+        // Authelia appends its own ?error=... to the error-path, creating a double-? URL.
+        // The handler detects error starting with "oidc" (but not exactly "oidc") and redirects.
+        given().redirects().follow(false)
+                .get("/login?error=oidc%3Ferror%3Daccess_denied%26error_description%3DSomething")
+                .then()
+                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .header("Location", allOf(
+                        containsString("error=oidc"),
+                        not(containsString("access_denied"))));
     }
 
     // ── Register ──────────────────────────────────────────────────────────────
@@ -133,14 +154,28 @@ class WebResourceIT extends IntegrationTestBase {
     // ── Logout ────────────────────────────────────────────────────────────────
 
     @Test
-    void logout_clearsCookieAndRedirectsToLogin() {
+    void logout_withoutOidcSession_redirectsToLogin() {
+        // No q_session cookie → password-auth user, no IdP session to terminate.
+        // Must always redirect to /login regardless of OIDC_LOGOUT_URL env var.
         given().redirects().follow(false)
                 .post("/logout")
                 .then()
                 .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
                 .header("Location", containsString("/login"))
-                // lt_session cookie should be cleared (maxAge=0 or empty value)
                 .cookie("lt_session", anyOf(emptyOrNullString(), equalTo("")));
+    }
+
+    @Test
+    void logout_withOidcSession_clearsSessionCookieAndRedirects() {
+        // With a q_session cookie, logout redirects to OIDC_LOGOUT_URL (if configured) or /login.
+        // The redirect target is environment-specific, so we assert only that the redirect happens
+        // and the OIDC session cookie is cleared.
+        given().redirects().follow(false)
+                .cookie("q_session", "fake-oidc-session-token")
+                .post("/logout")
+                .then()
+                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .cookie("q_session", anyOf(emptyOrNullString(), equalTo("")));
     }
 
     // ── Dashboard (authenticated) ──────────────────────────────────────────────

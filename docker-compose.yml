@@ -1,3 +1,8 @@
+networks:
+  app:
+    name: app
+    driver: bridge
+
 services:
   db:
     image: postgres:16-alpine
@@ -14,6 +19,8 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+    networks:
+      - app
 
   app:
     build:
@@ -29,7 +36,7 @@ services:
       DB_USER: ${DB_USER:-lifetracker}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
       TZ: ${TZ:-UTC}
-      LOG_LEVEL: "DEBUG"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
       PASSWORD_AUTH_ENABLED: "true"
       ENABLE_REGISTRATION: ${ENABLE_REGISTRATION:-true}
       # Session cookie encryption — must be at least 16 chars, keep secret
@@ -44,6 +51,11 @@ services:
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
       OIDC_PROVIDER_NAME: ${OIDC_PROVIDER_NAME:-your identity provider}
       OIDC_AUTO_REDIRECT: ${OIDC_AUTO_REDIRECT:-false}
+      OIDC_ADMIN_GROUP: ${OIDC_ADMIN_GROUP:-life-tracker-admins}
+      OIDC_USER_GROUP: ${OIDC_USER_GROUP:-life-tracker-users}
+      OIDC_LOGOUT_URL: ${OIDC_LOGOUT_URL}
+    networks:
+      - app
     volumes:
       # Writable so the app can generate the keypair on first start; reused on later starts.
       - ./secrets:/run/secrets

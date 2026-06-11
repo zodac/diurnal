@@ -7,6 +7,7 @@
             <a href="/" class="{#if active == 'dashboard'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Dashboard</a>
             <a href="/actions" class="{#if active == 'actions'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Actions</a>
             <a href="/stats" class="{#if active == 'stats'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Stats</a>
+            {#if isAdmin}<a href="/admin/users" class="{#if active == 'admin'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Admin</a>{/if}
         </nav>
         <div class="hidden sm:flex ml-auto items-center gap-4">
             <a id="nav-display-name" href="/settings" title="Account settings" class="text-sm {#if active == 'settings'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">{displayName}</a>
@@ -34,6 +35,7 @@
             <a href="/" class="{#if active == 'dashboard'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Dashboard</a>
             <a href="/actions" class="{#if active == 'actions'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Actions</a>
             <a href="/stats" class="{#if active == 'stats'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Stats</a>
+            {#if isAdmin}<a href="/admin/users" class="{#if active == 'admin'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Admin</a>{/if}
             <!-- Separator: mirrors the left/right split of the desktop nav -->
             <hr class="border-gray-200 dark:border-gray-700">
             <a id="nav-display-name-mobile" href="/settings" class="{#if active == 'settings'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">{displayName}</a>
