@@ -11,7 +11,7 @@ import java.util.Set;
 @ApplicationScoped
 public class TokenService {
 
-    private static final Duration TOKEN_LIFESPAN = Duration.ofHours(24);
+    private static final Duration TOKEN_LIFESPAN = Duration.ofDays(1L);
 
     public String generateToken(User user) {
         Set<String> groups = new HashSet<>();

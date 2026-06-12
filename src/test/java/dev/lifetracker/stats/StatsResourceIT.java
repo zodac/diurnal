@@ -1,17 +1,17 @@
 package dev.lifetracker.stats;
 
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
+
 import dev.lifetracker.IntegrationTestBase;
 import dev.lifetracker.action.Action;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
-import org.junit.jupiter.api.Test;
-
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.UUID;
-
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 @TestSecurity(user = "stats-it@lt.test", roles = "user")
@@ -97,7 +97,7 @@ class StatsResourceIT extends IntegrationTestBase {
     void statsList_pagination_page2ShowsPrevious() {
         runInTx(() -> {
             for (int i = 1; i <= 11; i++) {
-                Action a = newAction(primaryId, String.format("PagAction%02d", i));
+                Action a = newAction(primaryId, String.format("PageAction%02d", i));
                 newLog(primaryId, a.id, TODAY, 1);
             }
         });

@@ -60,7 +60,7 @@ public class StatsWebResource {
 
         int totalCount = all.size();
         int totalPages = (totalCount + pageSize - 1) / pageSize;
-        int actualPage = Math.max(1, Math.min(pageNum, totalPages == 0 ? 1 : totalPages));
+        int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
         int skip = (actualPage - 1) * pageSize;
 
         List<ActionStats> items = all.stream()

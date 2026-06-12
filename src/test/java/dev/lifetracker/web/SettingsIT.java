@@ -1,16 +1,14 @@
 package dev.lifetracker.web;
 
+import static io.restassured.RestAssured.given;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 import dev.lifetracker.IntegrationTestBase;
 import dev.lifetracker.user.User;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
-import org.junit.jupiter.api.Test;
-
 import java.util.UUID;
-
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 @TestSecurity(user = "settings-it@lt.test", roles = "user")

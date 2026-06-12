@@ -1,17 +1,16 @@
 package dev.lifetracker.log;
 
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.equalTo;
+
 import dev.lifetracker.IntegrationTestBase;
 import dev.lifetracker.action.Action;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
-import org.junit.jupiter.api.Test;
-
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.UUID;
-
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
+import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 @TestSecurity(user = "calendar-it@lt.test", roles = "user")

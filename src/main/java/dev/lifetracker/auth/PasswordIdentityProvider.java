@@ -12,12 +12,11 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import java.time.Instant;
+import java.util.Arrays;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
-
-import java.time.Instant;
-import java.util.Arrays;
 
 @ApplicationScoped
 public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswordAuthenticationRequest> {

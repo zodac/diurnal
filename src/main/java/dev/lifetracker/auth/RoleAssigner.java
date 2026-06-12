@@ -2,10 +2,9 @@ package dev.lifetracker.auth;
 
 import dev.lifetracker.user.User;
 import jakarta.enterprise.context.ApplicationScoped;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-
 import java.util.List;
 import java.util.Optional;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 /**
  * Centralises role-assignment logic so all three user-creation paths
@@ -40,7 +39,7 @@ public class RoleAssigner {
 
     /**
      * Maps IdP group membership to a local role.
-     * Returns an empty Optional when neither group env var is configured or the
+     * Returns an empty Optional when neither group env var is configured nor the
      * user is not in either group (caller should fall back to another rule).
      */
     public Optional<String> roleFromOidcGroups(List<String> groups) {

@@ -76,7 +76,7 @@ public class CalendarResource {
                 .filter(log -> actionMap.containsKey(log.actionId))
                 .forEach(log -> {
                     Action a = actionMap.get(log.actionId);
-                    byDate.computeIfAbsent(log.logDate.toString(), k -> new ArrayList<>())
+                    byDate.computeIfAbsent(log.logDate.toString(), _ -> new ArrayList<>())
                           .add(new ActionDotDto(a.colour, a.name, log.count));
                 });
 

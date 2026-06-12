@@ -9,10 +9,17 @@ import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import jakarta.ws.rs.*;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.FormParam;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-
 import java.util.List;
 import java.util.UUID;
 
@@ -63,7 +70,7 @@ public class ActionsWebResource {
 
         int totalCount = filtered.size();
         int totalPages = (totalCount + pageSize - 1) / pageSize;
-        int actualPage = Math.max(1, Math.min(pageNum, totalPages == 0 ? 1 : totalPages));
+        int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
         int skip = (actualPage - 1) * pageSize;
 
         var items = filtered.stream()

@@ -4,14 +4,19 @@ import dev.lifetracker.action.Action;
 import dev.lifetracker.log.ActionLog;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.transaction.Transactional;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
-import java.util.*;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @ApplicationScoped
 public class StatsService {
@@ -80,8 +85,8 @@ public class StatsService {
                 action,
                 dates.size(),
                 totalCount,
-                dates.get(0),
-                dates.get(dates.size() - 1),
+                dates.getFirst(),
+                dates.getLast(),
                 currentStreak(dates, today),
                 longestStreak(dates),
                 byMonth.getOrDefault(thisMonth, 0L),

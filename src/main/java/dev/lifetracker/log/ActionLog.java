@@ -1,10 +1,16 @@
 package dev.lifetracker.log;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import jakarta.persistence.*;
-
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -55,8 +61,8 @@ public class ActionLog extends PanacheEntityBase {
                 .collect(Collectors.toMap(
                         l -> l.actionId,
                         l -> l,
-                        (a, b) -> a,          // keep the first (most recent)
-                        java.util.LinkedHashMap::new
+                        (a, _) -> a,          // keep the first (most recent)
+                        LinkedHashMap::new
                 ))
                 .values().stream()
                 .limit(limit)
@@ -83,8 +89,10 @@ public class ActionLog extends PanacheEntityBase {
                 .firstResult();
     }
 
-    /** Removes all log entries for an action (used when the action is deleted). */
-    public static long deleteByAction(UUID userId, UUID actionId) {
-        return delete("userId = ?1 and actionId = ?2", userId, actionId);
+    /**
+     * Removes all log entries for an action (used when the action is deleted).
+     */
+    public static void deleteByAction(UUID userId, UUID actionId) {
+        delete("userId = ?1 and actionId = ?2", userId, actionId);
     }
 }

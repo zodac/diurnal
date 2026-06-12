@@ -1,16 +1,18 @@
 package dev.lifetracker.web;
 
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+
 import dev.lifetracker.IntegrationTestBase;
 import dev.lifetracker.user.User;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
-import org.junit.jupiter.api.Test;
-
 import java.util.UUID;
-
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 class AdminWebResourceIT extends IntegrationTestBase {
@@ -119,7 +121,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
     void changeRole_demoteAdminWhenAnotherExists_succeeds() {
         // Promote user@lt.test to admin first, then demote admin@lt.test
-        UUID userId = runInTxReturning(() -> {
+        UUID _ = runInTxReturning(() -> {
             User u = User.findByEmail("user@lt.test").orElseThrow();
             u.role = User.ROLE_ADMIN;
             u.persist();
@@ -127,14 +129,10 @@ class AdminWebResourceIT extends IntegrationTestBase {
         });
 
         UUID adminId = runInTxReturning(() -> User.findByEmail("admin@lt.test").orElseThrow().id);
-
         given().formParam("role", "user")
                 .post("/admin/users/" + adminId + "/role")
                 .then().statusCode(200);
-
-        runInTx(() -> {
-            assertEquals(User.ROLE_USER, User.findByEmail("admin@lt.test").orElseThrow().role);
-        });
+        runInTx(() -> assertEquals(User.ROLE_USER, User.findByEmail("admin@lt.test").orElseThrow().role));
     }
 
     // ── Delete ────────────────────────────────────────────────────────────

@@ -13,15 +13,13 @@ import io.vertx.core.json.JsonObject;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import org.jboss.logging.Logger;
-
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
+import org.jboss.logging.Logger;
 
 /**
- * Runs after every successful authentication. It only acts on OIDC web-app (authorization code
+ * Runs after every successful authentication. It only acts on OIDC web-app (authorisation code
  * flow) identities — those are the ones that carry an {@link IdTokenCredential}; form-auth and API
  * Bearer identities have none and pass straight through. For an OIDC identity it finds or creates
  * the local {@link User}, grants the {@code user} role and normalises the principal to the user's
@@ -50,11 +48,11 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
             return Uni.createFrom().item(identity);
         }
         JsonObject claims = decodeClaims(idTokenCred.getToken());
-        return context.runBlocking(() -> self.linkOrCreate(identity, claims, idTokenCred));
+        return context.runBlocking(() -> self.linkOrCreate(claims, idTokenCred));
     }
 
     @Transactional
-    SecurityIdentity linkOrCreate(SecurityIdentity identity, JsonObject claims, IdTokenCredential idTokenCred) {
+    SecurityIdentity linkOrCreate(JsonObject claims, IdTokenCredential idTokenCred) {
         String sub = claims.getString("sub");
         String iss = claims.getString("iss");
         String email = resolveEmail(claims);
@@ -102,7 +100,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
             user.role = idpRole.get();
         }
         // lastLoginAt and the login log are written in WebResource.oidcCallback(), which runs exactly
-        // once per login. This augmentor runs on every authenticated request with a q_session cookie,
+        // once per login. This augmenter runs on every authenticated request with a q_session cookie,
         // so doing it here would produce one log line and one DB write per page load.
         user.persist();
 
@@ -146,7 +144,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
 
     /**
      * Decodes the claims from the ID token payload. Quarkus has already verified the token's
-     * signature, issuer and expiry before this augmentor runs, so we only base64url-decode the
+     * signature, issuer and expiry before this augmenter runs, so we only base64url-decode the
      * payload segment — no re-validation is required or attempted here.
      */
     private static JsonObject decodeClaims(String jwt) {

@@ -1,11 +1,11 @@
 package dev.lifetracker.user;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class UserSettingsTest {
 
@@ -49,12 +49,12 @@ class UserSettingsTest {
 
     @Test
     void pageSizeOptions_defaultIsIncluded() {
-        assertTrue_contains(UserSettings.PAGE_SIZE_OPTIONS, UserSettings.DEFAULT_PAGE_SIZE);
+        assertTrue_contains();
     }
 
-    private static void assertTrue_contains(java.util.List<Integer> list, int value) {
-        if (!list.contains(value)) {
-            throw new AssertionError("Expected list to contain " + value + " but was: " + list);
+    private static void assertTrue_contains() {
+        if (!UserSettings.PAGE_SIZE_OPTIONS.contains(UserSettings.DEFAULT_PAGE_SIZE)) {
+            throw new AssertionError("Expected list to contain " + UserSettings.DEFAULT_PAGE_SIZE + " but was: " + UserSettings.PAGE_SIZE_OPTIONS);
         }
     }
 

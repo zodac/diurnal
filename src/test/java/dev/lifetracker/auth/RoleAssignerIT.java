@@ -1,17 +1,17 @@
 package dev.lifetracker.auth;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import dev.lifetracker.IntegrationTestBase;
 import dev.lifetracker.user.User;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.junit.jupiter.api.Test;
-
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-
-import static org.junit.jupiter.api.Assertions.*;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 class RoleAssignerIT extends IntegrationTestBase {

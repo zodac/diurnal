@@ -12,17 +12,23 @@ import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
-import jakarta.ws.rs.*;
+import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.FormParam;
+import jakarta.ws.rs.GET;
+import jakarta.ws.rs.POST;
+import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
+import jakarta.ws.rs.Produces;
+import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import org.jboss.logging.Logger;
-
-import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
 
 @Path("/admin")
 @RolesAllowed("admin")
@@ -137,7 +143,7 @@ public class AdminWebResource {
                 .withZone(ZoneId.of(timezoneId));
         long totalCount = User.count();
         int totalPages = (int) ((totalCount + pageSize - 1) / pageSize);
-        int actualPage = Math.max(1, Math.min(pageNum, totalPages == 0 ? 1 : totalPages));
+        int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
 
         List<UserRow> items = User.<User>findAll(Sort.by("createdAt"))
                 .page(Page.of(actualPage - 1, pageSize))

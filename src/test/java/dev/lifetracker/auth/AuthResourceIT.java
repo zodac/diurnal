@@ -1,17 +1,19 @@
 package dev.lifetracker.auth;
 
+import static io.restassured.RestAssured.given;
+import static org.hamcrest.Matchers.containsStringIgnoringCase;
+import static org.hamcrest.Matchers.emptyOrNullString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import dev.lifetracker.IntegrationTestBase;
 import dev.lifetracker.user.User;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
-import org.junit.jupiter.api.Test;
-import org.mindrot.jbcrypt.BCrypt;
-
 import java.util.Base64;
-
-import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.*;
-import static org.junit.jupiter.api.Assertions.*;
+import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 class AuthResourceIT extends IntegrationTestBase {
@@ -124,11 +126,11 @@ class AuthResourceIT extends IntegrationTestBase {
 
     @Test
     void login_wrongPassword_returns401() {
-        registerUser("wrongpw@example.com", "WrongPW", "correctpassword");
+        registerUser("wrongpw@example.com", "WrongPW", "correct_password");
 
         given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"wrongpw@example.com","password":"wrongpassword"}
+                        {"email":"wrongpw@example.com","password":"wrong_password"}
                         """)
                 .post("/api/auth/login")
                 .then().statusCode(401);

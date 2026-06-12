@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 @Path("/logs")
 @RolesAllowed("user")
@@ -91,7 +92,7 @@ public class LogWebResource {
 
         int totalCount = filtered.size();
         int totalPages = (totalCount + pageSize - 1) / pageSize;
-        int actualPage = Math.max(1, Math.min(pageNum, totalPages == 0 ? 1 : totalPages));
+        int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
         int skip = (actualPage - 1) * pageSize;
 
         var items = filtered.stream()
@@ -100,7 +101,7 @@ public class LogWebResource {
                 .toList();
 
         int fillers = totalPages > 1 ? Math.max(0, pageSize - items.size()) : 0;
-        List<Integer> fillerRows = java.util.stream.IntStream.range(0, fillers).boxed().toList();
+        List<Integer> fillerRows = IntStream.range(0, fillers).boxed().toList();
 
         return new PaginatedDayActions(items, totalCount, totalPages, actualPage, fillerRows);
     }
