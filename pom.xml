@@ -152,9 +152,8 @@
 
     <profiles>
         <!--
-            Run integration tests only (requires test DB already running on :5433):
-                docker-compose -f docker-compose.test.yml up -d
-                mvn test -Dit
+            Run integration tests only — starts and stops the test DB automatically:
+                mvn clean install -Dit
         -->
         <profile>
             <id>it</id>
@@ -166,29 +165,83 @@
             <build>
                 <plugins>
                     <plugin>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <configuration>
-                            <includes combine.children="override">
-                                <include>**/*IT.java</include>
-                            </includes>
-                        </configuration>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>3.3.0</version>
+                        <executions>
+                            <execution>
+                                <id>docker-db-start</id>
+                                <phase>pre-integration-test</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <executable>docker</executable>
+                                    <arguments>
+                                        <argument>compose</argument>
+                                        <argument>-f</argument>
+                                        <argument>${project.basedir}/docker-compose.test.yml</argument>
+                                        <argument>up</argument>
+                                        <argument>-d</argument>
+                                        <argument>--wait</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                            <execution>
+                                <id>docker-db-stop</id>
+                                <phase>post-integration-test</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <executable>docker</executable>
+                                    <arguments>
+                                        <argument>compose</argument>
+                                        <argument>-f</argument>
+                                        <argument>${project.basedir}/docker-compose.test.yml</argument>
+                                        <argument>down</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <!--
+                        Failsafe (not surefire) defers build failure to the verify phase,
+                        so post-integration-test teardown always runs even when tests fail.
+                    -->
+                    <plugin>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <version>${surefire-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                                <configuration>
+                                    <includes>
+                                        <include>**/*IT.java</include>
+                                    </includes>
+                                    <systemPropertyVariables>
+                                        <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+                                        <maven.home>${maven.home}</maven.home>
+                                        <net.bytebuddy.experimental>true</net.bytebuddy.experimental>
+                                    </systemPropertyVariables>
+                                </configuration>
+                            </execution>
+                        </executions>
                     </plugin>
                 </plugins>
             </build>
         </profile>
 
         <!--
-            Run ALL test tiers in one command:
+            Run ALL test tiers in one command — starts and stops the test DB automatically:
                 mvn clean install -Dall
 
             Phase sequence:
-              initialise          – docker compose up -\-wait  (test DB healthy before any test)
-              test                – surefire: unit (*Test) + integration (*IT)
+              test                – surefire: unit tests (*Test) only
               package             – Quarkus builds the fast-jar
-              pre-integration-test – java -jar (test profile) in background, poll /login until ready
-              integration-test    – Playwright (exit code captured; clean-up always runs)
-              post-integration-test – kill app by PID + docker compose down
-              verify              – fail the build if Playwright reported failures
+              pre-integration-test – docker compose up (DB) + java -jar (app) in background
+              integration-test    – failsafe: *IT tests + Playwright E2E (results captured; clean-up always runs)
+              post-integration-test – kill app by PID + docker compose down (always runs; failsafe defers failure)
+              verify              – failsafe reports IT failures + playwright-check reports E2E failures
         -->
         <profile>
             <id>all</id>
@@ -199,15 +252,40 @@
             </activation>
             <build>
                 <plugins>
-                    <!-- Run both unit (*Test) and integration (*IT) tests -->
+                    <!-- Unit tests only; IT tests run via failsafe in integration-test phase -->
                     <plugin>
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
                             <includes combine.children="override">
                                 <include>**/*Test.java</include>
-                                <include>**/*IT.java</include>
                             </includes>
                         </configuration>
+                    </plugin>
+                    <!--
+                        Failsafe defers build failure to verify, so post-integration-test
+                        teardown always runs even when IT tests fail.
+                    -->
+                    <plugin>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <version>${surefire-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                                <configuration>
+                                    <includes>
+                                        <include>**/*IT.java</include>
+                                    </includes>
+                                    <systemPropertyVariables>
+                                        <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+                                        <maven.home>${maven.home}</maven.home>
+                                        <net.bytebuddy.experimental>true</net.bytebuddy.experimental>
+                                    </systemPropertyVariables>
+                                </configuration>
+                            </execution>
+                        </executions>
                     </plugin>
                     <plugin>
                         <groupId>org.codehaus.mojo</groupId>
@@ -218,7 +296,7 @@
                             <!-- 1. Start the test DB and block until its healthcheck passes -->
                             <execution>
                                 <id>docker-db-start</id>
-                                <phase>initialize</phase>
+                                <phase>pre-integration-test</phase>
                                 <goals><goal>exec</goal></goals>
                                 <configuration>
                                     <executable>docker</executable>
@@ -233,8 +311,22 @@
                                 </configuration>
                             </execution>
 
+                            <!-- 2. Start Quarkus in test profile; poll /login until ready (max 120s) -->
+                            <execution>
+                                <id>quarkus-start-e2e</id>
+                                <phase>pre-integration-test</phase>
+                                <goals><goal>exec</goal></goals>
+                                <configuration>
+                                    <executable>bash</executable>
+                                    <arguments>
+                                        <argument>-c</argument>
+                                        <argument>java -Dquarkus.profile=test -jar "${project.build.directory}/quarkus-app/quarkus-run.jar" &gt;"${project.build.directory}/app.log" 2&gt;&amp;1 &amp; echo $! &gt;"${project.build.directory}/app.pid"; for i in $(seq 1 60); do curl -sf http://localhost:8080/login &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "App ready" &amp;&amp; exit 0; sleep 2; done; echo "App failed to start — see target/app.log"; exit 1</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+
                             <!--
-                                2. Run Playwright E2E tests.
+                                3. Run Playwright E2E tests.
                                 Exits 0 regardless of test outcome so post-integration-test
                                 clean-up always runs; the real result is checked in verify.
                             -->
@@ -254,21 +346,7 @@
                                 </configuration>
                             </execution>
 
-                            <!-- 3. Start Quarkus in test profile; poll /login until ready (max 120s) -->
-                            <execution>
-                                <id>quarkus-start-e2e</id>
-                                <phase>pre-integration-test</phase>
-                                <goals><goal>exec</goal></goals>
-                                <configuration>
-                                    <executable>bash</executable>
-                                    <arguments>
-                                        <argument>-c</argument>
-                                        <argument>java -Dquarkus.profile=test -jar "${project.build.directory}/quarkus-app/quarkus-run.jar" &gt;"${project.build.directory}/app.log" 2&gt;&amp;1 &amp; echo $! &gt;"${project.build.directory}/app.pid"; for i in $(seq 1 60); do curl -sf http://localhost:8080/login &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "App ready" &amp;&amp; exit 0; sleep 2; done; echo "App failed to start — see target/app.log"; exit 1</argument>
-                                    </arguments>
-                                </configuration>
-                            </execution>
-
-                            <!-- 4. Stop Quarkus (runs even when Playwright failed) -->
+                            <!-- 4. Stop Quarkus (runs even when tests failed) -->
                             <execution>
                                 <id>quarkus-stop-e2e</id>
                                 <phase>post-integration-test</phase>
@@ -282,7 +360,7 @@
                                 </configuration>
                             </execution>
 
-                            <!-- 5. Tear down the test DB (runs even when Playwright failed) -->
+                            <!-- 5. Tear down the test DB (runs even when tests failed) -->
                             <execution>
                                 <id>docker-db-stop</id>
                                 <phase>post-integration-test</phase>

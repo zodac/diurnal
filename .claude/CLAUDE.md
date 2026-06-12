@@ -25,8 +25,8 @@ mvn test
 # Run a single test class
 mvn test -Dtest=MyTestClass
 
-# Run only *IT.java integration tests
-mvn test -Dit
+# Run only *IT.java integration tests (starts and stops the test DB automatically)
+mvn clean install -Dit
 
 # Run Playwright E2E tests only (app must be running on :8080, test DB on :5433)
 cd e2e && npm test
