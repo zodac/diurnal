@@ -1,0 +1,34 @@
+{!
+  Shared in-place confirm-delete row for editable data tables (see CLAUDE.md "Editable tables").
+  Red-*accent* ring via the shared `.dt-row-highlight` element (.dt-row-confirm passes the red
+  colour); destructive button on the left, Cancel on the right (where the original Delete sat, so a
+  double-click safely dismisses). Every value is supplied by the resource so any table can reuse it:
+    rowId        — id of the row being replaced (also the Cancel restore target)
+    cols         — number of columns to span
+    swatchColour — optional colour swatch (omit/blank for none)
+    label        — the entity's display label (bold)
+    prompt       — muted confirmation / warning text
+    deleteUrl / deleteTarget / deleteSwap — the destructive hx-post
+    restoreUrl   — Cancel hx-get that re-renders the plain row back into #{rowId}
+!}
+<tr id="{rowId}" class="dt-row-highlight dt-row-confirm">
+    <td colspan="{cols}" class="dt-confirm-cell">
+        <div class="flex items-center gap-3">
+            {#if swatchColour}<span class="dt-swatch" style="background-color: {swatchColour}"></span>{/if}
+            <span class="flex-1 text-sm font-medium truncate">{label}</span>
+            <span class="dt-confirm-prompt">{prompt}</span>
+            <!-- Same .dt-actions slots as the row's options cell, so Cancel lands exactly where the
+                 original Delete was (and the destructive Delete sits one slot to its left). -->
+            <div class="dt-actions">
+                <button hx-post="{deleteUrl}"
+                        hx-target="{deleteTarget}"
+                        hx-swap="{deleteSwap}"
+                        class="dt-btn dt-btn-danger">Delete</button>
+                <button hx-get="{restoreUrl}"
+                        hx-target="#{rowId}"
+                        hx-swap="outerHTML"
+                        class="dt-btn dt-btn-cancel">Cancel</button>
+            </div>
+        </div>
+    </td>
+</tr>

@@ -30,8 +30,7 @@ public class ActionsWebResource {
     @Inject @Location("actions")       Template actionsTemplate;
     @Inject @Location("partials/actions-list") Template actionsListTemplate;
     @Inject @Location("partials/action-row") Template actionRowTemplate;
-    @Inject @Location("partials/action-edit") Template actionEditTemplate;
-    @Inject @Location("partials/action-confirm-delete") Template actionConfirmDeleteTemplate;
+    @Inject @Location("partials/dt-confirm-delete-row") Template confirmDeleteRowTemplate;
 
     @Inject SecurityIdentity identity;
 
@@ -97,23 +96,24 @@ public class ActionsWebResource {
     }
 
     @GET
-    @Path("{id}/edit")
-    @Produces(MediaType.TEXT_HTML)
-    @Transactional
-    public Response editForm(@PathParam("id") UUID id) {
-        Action action = findOwnedAction(id);
-        if (action == null) return Response.status(404).build();
-        return Response.ok(actionEditTemplate.data("action", action)).build();
-    }
-
-    @GET
     @Path("{id}/confirm-delete")
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response confirmDelete(@PathParam("id") UUID id) {
         Action action = findOwnedAction(id);
         if (action == null) return Response.status(404).build();
-        return Response.ok(actionConfirmDeleteTemplate.data("action", action)).build();
+        // Surgical delete: the destructive POST returns 204 and the row is removed in place
+        // (see actions.html beforeSwap), so the confirm row targets its own row with outerHTML.
+        return Response.ok(confirmDeleteRowTemplate
+                .data("rowId", "action-" + id)
+                .data("cols", 3)
+                .data("swatchColour", action.colour)
+                .data("label", action.name)
+                .data("prompt", "Delete this action?")
+                .data("deleteUrl", "/actions/" + id + "/delete")
+                .data("deleteTarget", "#action-" + id)
+                .data("deleteSwap", "outerHTML")
+                .data("restoreUrl", "/actions/" + id)).build();
     }
 
     // ── Mutations ─────────────────────────────────────────────────────────

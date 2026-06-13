@@ -111,6 +111,72 @@ test.describe('Actions page', () => {
     await expect(page.locator('#action-list')).not.toContainText('ToDelete');
   });
 
+  test('arming delete on a second action clears the pending confirm on the first', async ({ authenticatedPage: page }) => {
+    const first = unique('FirstArmed');
+    const second = unique('SecondArmed');
+    await page.goto('/actions');
+    await page.evaluate(async (names: string[]) => {
+      for (const name of names) {
+        const params = new URLSearchParams({ name, colour: '#6366f1' });
+        await fetch('/actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString(),
+        });
+      }
+    }, [first, second]);
+    await page.reload();
+
+    const firstItem = page.locator('#action-list [id^="action-"]').filter({ hasText: first });
+    const secondItem = page.locator('#action-list [id^="action-"]').filter({ hasText: second });
+
+    // Arm delete on the first row → its confirm prompt shows.
+    await firstItem.hover();
+    await firstItem.getByRole('button', { name: 'Delete' }).click();
+    await expect(firstItem).toContainText(/Delete this action\?/i);
+
+    // Now arm delete on the second row → the first must revert to its normal (un-armed) state.
+    await secondItem.hover();
+    await secondItem.getByRole('button', { name: 'Delete' }).click();
+    await expect(secondItem).toContainText(/Delete this action\?/i);
+    await expect(firstItem).not.toContainText(/Delete this action\?/i);
+    // Both actions still exist — nothing was actually deleted.
+    await expect(firstItem).toBeVisible();
+    await expect(secondItem).toBeVisible();
+  });
+
+  test('editing a row clears a pending edit/delete on the previously-selected row', async ({ authenticatedPage: page }) => {
+    const first = unique('FirstSel');
+    const second = unique('SecondSel');
+    await page.goto('/actions');
+    await page.evaluate(async (names: string[]) => {
+      for (const name of names) {
+        const params = new URLSearchParams({ name, colour: '#6366f1' });
+        await fetch('/actions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: params.toString(),
+        });
+      }
+    }, [first, second]);
+    await page.reload();
+
+    const firstItem = page.locator('#action-list [id^="action-"]').filter({ hasText: first });
+    const secondItem = page.locator('#action-list [id^="action-"]').filter({ hasText: second });
+
+    // Open the inline edit form on the first row.
+    await firstItem.hover();
+    await firstItem.getByRole('button', { name: 'Edit' }).click();
+    await expect(firstItem.locator('input[name="name"]')).toBeVisible();
+
+    // Open edit on the second row → the first row's edit form must revert to its view state.
+    await secondItem.hover();
+    await secondItem.getByRole('button', { name: 'Edit' }).click();
+    await expect(secondItem.locator('input[name="name"]')).toBeVisible();
+    await expect(firstItem.locator('input[name="name"]')).toBeHidden();
+    await expect(firstItem).toContainText(first);
+  });
+
   test('pagination: Next and Previous navigate between pages', async ({ authenticatedPage: page }) => {
     // Create 11 actions to exceed the default page size of 10
     const prefix = unique('PagAction');

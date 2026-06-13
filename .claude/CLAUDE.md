@@ -76,19 +76,46 @@ Error responses for HTMX mutations use `HX-Retarget` / `HX-Reswap` headers to re
 All data tables — Actions (`/actions`), Users (`/admin/users`), and any future ones — share a single
 styling layer so they look and behave identically. The source of truth is a `<style>` block of
 semantic `.dt-*` classes in `layout.html` (plain CSS, because Tailwind is CDN-loaded and can't `@apply`
-at runtime; dark variants key off the `.dark` class). Structure is shared via Qute partials:
-`partials/pagination.html` (parameterised footer with `pageUrl`/`listUrl`/`target`/`extraQuery`),
-plus per-table row / edit-row / confirm-delete-row partials. To add a new table: wrap it in
-`.dt-table`, use `.dt-row`/`.dt-cell`, put Edit+Delete together in a trailing `.dt-actions` cell using
-`.dt-btn-edit`/`.dt-btn-delete`, and `{#include partials/pagination …}`.
+at runtime; dark variants key off the `.dark` class). Wrap a table in `.dt-table` and use
+`.dt-row`/`.dt-cell`; `{#include partials/pagination …}` for the footer.
 
-Conventions enforced across every table:
-- **Explicit confirm-to-save.** Edits (action name/colour, user role, account display name) require an
-  explicit Save tick. The **only** auto-save-on-change surface is Settings → *User Preferences*, which
-  is deliberately rendered as a non-table panel so the differing behaviour reads visually.
-- **Red-accent confirm-delete.** Deleting replaces the row in place with a red-*accent* row
-  (`.dt-confirm-cell` ring — never a red background fill); the destructive button sits left and Cancel
-  sits right (where the original Delete was) to avoid mis-clicks.
+**Two table variants:**
+- **Non-editable** — just `.dt-row`/`.dt-cell`, no trailing actions cell.
+- **Editable** — adds the shared edit/delete chrome. The mechanism (canonical: the Users table) is an
+  **in-place client-side toggle**, *not* a server round-trip: each row renders both a view state
+  (`[data-dt-view]`) and a hidden edit state (`[data-dt-edit]`), toggled by `dtStartEdit`/`dtCancelEdit`
+  in `layout.html`. Save submits the row's `<form>`; Cancel just restores the view (and `form.reset()`s).
+
+**Shared editable-row chrome (change once, every table updates):**
+- `partials/dt-row-actions.html` — the trailing options cell: Edit + Delete in view, Save + Cancel in
+  edit. Parameterised by primitives only (`id`, `rowPrefix`, `formPrefix`, `confirmBase`) so it never
+  leaks entity specifics; it builds the composite ids/URLs in its own attribute text. Save uses the
+  HTML5 `form="{formPrefix}-{id}"` association so it can live in a different cell from the form.
+  Buttons sit in fixed-width centred `.dt-actions` slots (right-aligned), so Edit↔Save / Delete↔Cancel
+  swap without shifting — and the confirm row reuses `.dt-actions` so its Cancel lands exactly where
+  the original Delete was. View-mode actions reveal only when the row is highlighted (`:hover` /
+  `:focus-within` — on touch a tap applies `:hover`, so they reveal on tap, same as desktop); edit +
+  confirm actions are always visible.
+- `partials/dt-confirm-delete-row.html` — the in-place confirm-delete row, **rendered from the resource**
+  via `.data(rowId, cols, swatchColour, label, prompt, deleteUrl/deleteTarget/deleteSwap, restoreUrl)`.
+- `.dt-row-highlight` (on the row) draws the accent ring — one definition shared by edit and
+  confirm rows, drawn with an inset `box-shadow` so it never changes the row's size. Only the
+  colour is passed in via `--dt-highlight` (set by `.dt-row-edit` indigo / `.dt-row-confirm` red).
+  Edit rows additionally trim cell padding + size inputs to the row line-height so the row keeps
+  the same height as its view state (the ring never appears to enlarge the row).
+
+To add an editable table: render each row with `[data-dt-view]`/`[data-dt-edit]` pairs for the editable
+cells plus an `id="{formPrefix}-{id}"` edit `<form>`, end the row with
+`{#include partials/dt-row-actions id=… rowPrefix=… formPrefix=… confirmBase=… /}`, and return
+`partials/dt-confirm-delete-row` from the row's `…/confirm-delete` endpoint.
+
+Cross-table conventions:
+- **Explicit confirm-to-save.** Table edits require an explicit Save tick. The **only**
+  auto-save-on-change surface is Settings → *User Preferences*, a deliberately non-table panel.
+- **Single armed row.** At most one row may be mid-edit or mid-delete-confirm; an armed row always shows
+  a visible `.dt-btn-cancel`. `dtClearArmedRows` (in `layout.html`) disarms the rest when another row is
+  selected, and the admin page calls it to disarm a row whose delete the server rejected.
+- **Red-accent confirm-delete.** Destructive button left, Cancel right (where the original Delete was).
 
 `partials/pagination.html` exposes `#showing-shown` / `#showing-total` count spans so surgical HTMX
 deletions (Actions delete returns **204**; the `htmx:beforeSwap` handler in `actions.html` removes the

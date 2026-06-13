@@ -223,16 +223,16 @@ class ActionsResourceIT extends IntegrationTestBase {
     // ── Partial fragments ──────────────────────────────────────────────────────
 
     @Test
-    void editForm_ownAction_returns200WithForm() {
-        UUID id = createActionAndGetId("EditMe");
-        given().get("/actions/" + id + "/edit")
+    void viewItem_ownAction_returns200WithRow() {
+        UUID id = createActionAndGetId("ViewMe");
+        given().get("/actions/" + id)
             .then().statusCode(200)
-            .body(containsString("EditMe"));
+            .body(containsString("ViewMe"));
     }
 
     @Test
-    void editForm_unknownId_returns404() {
-        given().get("/actions/" + UUID.randomUUID() + "/edit")
+    void viewItem_unknownId_returns404() {
+        given().get("/actions/" + UUID.randomUUID())
             .then().statusCode(404);
     }
 
@@ -240,7 +240,8 @@ class ActionsResourceIT extends IntegrationTestBase {
     void confirmDelete_ownAction_returns200() {
         UUID id = createActionAndGetId("ConfirmMe");
         given().get("/actions/" + id + "/confirm-delete")
-            .then().statusCode(200);
+            .then().statusCode(200)
+            .body(containsString("Delete this action?"));
     }
 
     @Test

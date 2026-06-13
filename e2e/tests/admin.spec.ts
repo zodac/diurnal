@@ -58,11 +58,19 @@ test.describe('Last administrator cannot be removed', () => {
     await expect(adminRow).toBeVisible();
 
     // Click Delete → row swaps to the confirm panel, then click its destructive Delete.
+    // Hover first: view-mode actions are revealed (and clickable) only on row highlight.
+    await adminRow.hover();
     await adminRow.getByRole('button', { name: 'Delete' }).click();
     await page.locator('.dt-btn-danger').click();
 
     // The guard error must actually render in the banner (the bug: it never did).
     await expect(page.locator('#admin-error')).toContainText('Cannot delete the last administrator');
+
+    // The rejected confirmation must disarm: the row reverts to its normal state (Edit/Delete
+    // controls back, no "permanently remove" prompt) rather than staying armed.
+    const adminRowAfter = page.locator('tr', { hasText: ADMIN.email });
+    await expect(adminRowAfter).not.toContainText(/permanently remove/i);
+    await expect(adminRowAfter.getByRole('button', { name: 'Delete' })).toBeVisible();
 
     // And the account must still exist after the blocked delete.
     await page.goto('/admin/users');
@@ -74,6 +82,7 @@ test.describe('Last administrator cannot be removed', () => {
     await page.goto('/admin/users');
 
     const adminRow = page.locator('tr', { hasText: ADMIN.email });
+    await adminRow.hover();
     await adminRow.getByRole('button', { name: 'Edit' }).click();
     await adminRow.locator('select[name="role"]').selectOption('user');
     await adminRow.getByRole('button', { name: 'Save' }).click();
@@ -83,5 +92,36 @@ test.describe('Last administrator cannot be removed', () => {
     // The admin role badge must remain.
     await page.goto('/admin/users');
     await expect(page.locator('tr', { hasText: ADMIN.email })).toContainText('Administrator');
+  });
+});
+
+// ── Edit-mode action buttons (consistency with the Actions table) ─────────
+test.describe('User row edit mode', () => {
+  test('entering edit mode swaps Edit/Delete for Save/Cancel, like the Actions table', async ({ page }) => {
+    await setupTestUser(page, ADMIN);
+    await page.goto('/admin/users');
+    const row = page.locator('tr', { hasText: ADMIN.email });
+
+    // View mode shows Edit + Delete.
+    await expect(row.getByRole('button', { name: 'Edit' })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Delete' })).toBeVisible();
+
+    // Edit mode: Edit→Save, Delete→Cancel (Edit and Delete hidden), and the row gains the shared
+    // `.dt-row-highlight` ring (same element the confirm-delete row uses, only the colour differs).
+    await row.hover();
+    await row.getByRole('button', { name: 'Edit' }).click();
+    await expect(row.getByRole('button', { name: 'Save' })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Cancel' })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Edit' })).toBeHidden();
+    await expect(row.getByRole('button', { name: 'Delete' })).toBeHidden();
+    await expect(row).toHaveClass(/dt-row-highlight/);
+
+    // Cancel restores the view-mode buttons and removes the highlight.
+    await row.getByRole('button', { name: 'Cancel' }).click();
+    await expect(row.getByRole('button', { name: 'Edit' })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Delete' })).toBeVisible();
+    await expect(row.getByRole('button', { name: 'Save' })).toBeHidden();
+    await expect(row.getByRole('button', { name: 'Cancel' })).toBeHidden();
+    await expect(row).not.toHaveClass(/dt-row-highlight/);
   });
 });

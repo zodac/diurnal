@@ -25,14 +25,3 @@
 </div>
 
 {#include partials/pagination page=page pageUrl="/admin/users" listUrl="/admin/users/list" target="#admin-users-list" extraQuery="" /}
-
-<script>
-function startRoleEdit(id) {
-    document.getElementById('role-view-' + id).classList.add('hidden');
-    document.getElementById('role-edit-' + id).classList.remove('hidden');
-}
-function cancelRoleEdit(id) {
-    document.getElementById('role-edit-' + id).classList.add('hidden');
-    document.getElementById('role-view-' + id).classList.remove('hidden');
-}
-</script>

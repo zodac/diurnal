@@ -1,0 +1,23 @@
+{!
+  Shared trailing options cell for an *editable* data-table row (see CLAUDE.md "Editable tables").
+  View state ([data-dt-view]): Edit + Delete. Edit state ([data-dt-edit], hidden until dtStartEdit):
+  Save + Cancel. Built from primitives so any table can reuse it without leaking entity specifics:
+    id          — the entity id
+    rowPrefix   — DOM-id prefix of the row, so the row is "#{rowPrefix}-{id}" (e.g. "action", "user-row")
+    formPrefix  — id prefix of the row's edit <form>, submitted by Save (e.g. "action-form", "user-form")
+    confirmBase — URL base for the confirm-delete GET, i.e. "{confirmBase}/{id}/confirm-delete"
+  Edit is opened/closed by the shared dtStartEdit/dtCancelEdit toggles defined in layout.html.
+!}
+<td class="dt-cell dt-cell-actions">
+    <div data-dt-view class="dt-actions">
+        <button type="button" onclick="dtStartEdit(this.closest('tr'))" class="dt-btn dt-btn-edit">Edit</button>
+        <button hx-get="{confirmBase}/{id}/confirm-delete"
+                hx-target="#{rowPrefix}-{id}"
+                hx-swap="outerHTML"
+                class="dt-btn dt-btn-delete">Delete</button>
+    </div>
+    <div data-dt-edit class="hidden dt-actions">
+        <button type="submit" form="{formPrefix}-{id}" class="dt-btn dt-btn-save">Save</button>
+        <button type="button" onclick="dtCancelEdit(this.closest('tr'))" class="dt-btn dt-btn-cancel">Cancel</button>
+    </div>
+</td>

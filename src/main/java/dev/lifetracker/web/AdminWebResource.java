@@ -39,7 +39,7 @@ public class AdminWebResource {
     @Inject @Location("admin-users") Template adminUsersTemplate;
     @Inject @Location("partials/admin-users-list") Template adminUsersListTemplate;
     @Inject @Location("partials/admin-user-row") Template adminUserRowTemplate;
-    @Inject @Location("partials/admin-user-confirm-delete") Template adminUserConfirmDeleteTemplate;
+    @Inject @Location("partials/dt-confirm-delete-row") Template confirmDeleteRowTemplate;
     @Inject SecurityIdentity identity;
 
     @ConfigProperty(name = "app.timezone", defaultValue = "UTC")
@@ -93,7 +93,18 @@ public class AdminWebResource {
         if (target == null) {
             return errorResponse("User not found.");
         }
-        return Response.ok(adminUserConfirmDeleteTemplate.data("u", toRow(target))).build();
+        // Admin delete re-renders the whole list (innerHTML), so the confirm row's destructive
+        // POST targets #admin-users-list; Cancel restores just this row from /admin/users/{id}.
+        return Response.ok(confirmDeleteRowTemplate
+                .data("rowId", "user-row-" + id)
+                .data("cols", 6)
+                .data("swatchColour", null)
+                .data("label", target.email)
+                .data("prompt", "Delete this user, their actions and logs?")
+                .data("deleteUrl", "/admin/users/" + id + "/delete")
+                .data("deleteTarget", "#admin-users-list")
+                .data("deleteSwap", "innerHTML")
+                .data("restoreUrl", "/admin/users/" + id)).build();
     }
 
     @POST

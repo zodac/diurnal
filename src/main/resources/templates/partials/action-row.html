@@ -1,22 +1,19 @@
 <tr id="action-{action.id}" class="dt-row">
     <td class="dt-cell">
-        <span class="dt-swatch" style="background-color: {action.colour}"></span>
+        <!-- Colour: swatch in view, picker in edit (associated with the edit form below). -->
+        <span data-dt-view class="dt-swatch" style="background-color: {action.colour}"></span>
+        <input data-dt-edit type="color" name="colour" value="{action.colour}"
+               form="action-form-{action.id}" class="hidden dt-color-input" title="Pick a colour">
     </td>
-    <td class="dt-cell font-medium">{action.name}</td>
-    <td class="dt-cell dt-cell-actions">
-        <div class="dt-actions">
-            <button hx-get="/actions/{action.id}/edit"
-                    hx-target="#action-{action.id}"
-                    hx-swap="outerHTML"
-                    class="dt-btn dt-btn-edit">
-                Edit
-            </button>
-            <button hx-get="/actions/{action.id}/confirm-delete"
-                    hx-target="#action-{action.id}"
-                    hx-swap="outerHTML"
-                    class="dt-btn dt-btn-delete">
-                Delete
-            </button>
-        </div>
+    <td class="dt-cell font-medium">
+        <span data-dt-view>{action.name}</span>
+        <form data-dt-edit id="action-form-{action.id}" class="hidden"
+              hx-post="/actions/{action.id}"
+              hx-target="#action-{action.id}"
+              hx-swap="outerHTML">
+            <input type="text" name="name" value="{action.name}" required maxlength="100"
+                   class="dt-text-input w-full">
+        </form>
     </td>
+    {#include partials/dt-row-actions id=action.id rowPrefix="action" formPrefix="action-form" confirmBase="/actions" /}
 </tr>

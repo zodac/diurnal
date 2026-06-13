@@ -32,6 +32,12 @@ document.body.addEventListener('htmx:beforeSwap', function (e) {
     if (e.detail.xhr.status === 409) {
         e.detail.shouldSwap = true;
         e.detail.isError = false;
+        // A rejected delete (e.g. last administrator) leaves its row waiting on a confirmation
+        // that can never succeed — disarm it. Deferred so it runs after htmx has settled this
+        // response, and scoped to /delete so a rejected role change leaves its edit form open.
+        if ((e.detail.xhr.responseURL || '').endsWith('/delete')) {
+            setTimeout(function () { window.dtClearArmedRows(null); }, 0);
+        }
     }
 });
 </script>
