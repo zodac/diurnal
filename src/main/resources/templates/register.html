@@ -8,13 +8,10 @@
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Create a new account</p>
 
         {#if error.equals("email_taken")}
-        <div class="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 px-3 py-2 text-sm text-red-700 dark:text-red-200">
-            That email is already registered.
-        </div>
+        {#include partials/banner variant='error' cls='mb-4' message='That email is already registered.' /}
         {#else if error.equals("invalid")}
-        <div class="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 px-3 py-2 text-sm text-red-700 dark:text-red-200">
-            Please fill in all fields. Password must be at least 8 characters.
-        </div>
+        {#include partials/banner variant='error' cls='mb-4'
+            message='Please fill in all fields. Password must be at least 8 characters.' /}
         {/if}
 
         <form method="post" action="/register" class="space-y-4">

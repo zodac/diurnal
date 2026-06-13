@@ -111,6 +111,8 @@ public class AdminWebResource {
             return errorResponse("User not found.");
         }
         if (User.ROLE_USER.equals(role) && isLastAdmin(target)) {
+            log.warnf("Admin %s attempted to demote the last administrator %s",
+                    identity.getPrincipal().getName(), target.email);
             return errorResponse("Cannot remove the last administrator.");
         }
         target.role = role;
@@ -132,6 +134,8 @@ public class AdminWebResource {
             return errorResponse("User not found.");
         }
         if (isLastAdmin(target)) {
+            log.warnf("Admin %s attempted to delete the last administrator %s",
+                    identity.getPrincipal().getName(), target.email);
             return errorResponse("Cannot delete the last administrator.");
         }
 
@@ -200,7 +204,9 @@ public class AdminWebResource {
     }
 
     private Response errorResponse(String message) {
-        String html = "<p class=\"text-sm text-red-600\">" + message + "</p>";
+        // Mirrors templates/partials/banner.html so HTMX error banners match the login/register
+        // pages. The `.banner*` styling is defined once in layout.html.
+        String html = "<div class=\"banner banner-error\">" + message + "</div>";
         return Response.status(Response.Status.CONFLICT)
                 .entity(html)
                 .header("HX-Retarget", "#admin-error")

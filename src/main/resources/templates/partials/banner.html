@@ -1,0 +1,5 @@
+{! Shared inline message banner. Pass `variant` (error | success | warning) and `message`.
+   Optional `cls` adds extra utility classes (e.g. spacing like `mb-4`). The visual styling
+   lives in the `.banner*` rules in layout.html so Qute pages and Java-built HTMX error
+   responses stay identical. !}
+<div class="banner banner-{variant} {cls ?: ''}">{message}</div>

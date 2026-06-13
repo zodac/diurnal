@@ -32,6 +32,19 @@ export async function setupTestUser(page: Page, user: TestUser): Promise<void> {
   await page.waitForURL('/');
 }
 
+/**
+ * Log in an already-registered user via the web form, storing the session cookie
+ * on the given page context. Unlike setupTestUser this does not attempt registration,
+ * so it can be used to authenticate as another spec's user (e.g. the bootstrap admin).
+ */
+export async function loginAs(page: Page, user: TestUser): Promise<void> {
+  await page.goto('/login');
+  await page.fill('input[name="email"]', user.email);
+  await page.fill('input[name="password"]', user.password);
+  await page.click('button[type="submit"]');
+  await page.waitForURL('/');
+}
+
 // ── Typed fixture extension ────────────────────────────────────────────────────
 
 type Fixtures = {

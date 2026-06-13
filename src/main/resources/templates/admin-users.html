@@ -24,6 +24,18 @@
     </main>
 </div>
 
+<script>
+// Guard failures (e.g. "Cannot delete the last administrator") come back as a 409 with
+// HX-Retarget/HX-Reswap pointing at #admin-error. htmx skips the swap on non-2xx responses
+// by default, so opt the error in — the retarget/reswap headers then route it to the banner.
+document.body.addEventListener('htmx:beforeSwap', function (e) {
+    if (e.detail.xhr.status === 409) {
+        e.detail.shouldSwap = true;
+        e.detail.isError = false;
+    }
+});
+</script>
+
 {/body}
 
 {/include}

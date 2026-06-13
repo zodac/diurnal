@@ -163,6 +163,19 @@
         .dt-page-link:hover { color: #3730a3; }
         .dark .dt-page-link { color: #818cf8; }
         .dark .dt-page-link:hover { color: #a5b4fc; }
+
+        /* Inline message banners — shared by login/register pages and HTMX error responses
+           (e.g. the admin user-management guards). Use `.banner` plus one variant modifier so
+           every "something went wrong / succeeded" message reads identically. Rendered both
+           from Qute (partials/banner.html) and from Java-built HTML, hence a plain CSS class. */
+        .banner { border-radius: .5rem; border: 1px solid transparent;
+            padding: .5rem .75rem; font-size: .875rem; line-height: 1.25rem; }
+        .banner-error { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+        .dark .banner-error { background: rgb(127 29 29 / .2); border-color: #7f1d1d; color: #fecaca; }
+        .banner-success { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
+        .dark .banner-success { background: rgb(20 83 45 / .2); border-color: #14532d; color: #bbf7d0; }
+        .banner-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+        .dark .banner-warning { background: rgb(120 53 15 / .2); border-color: #78350f; color: #fde68a; }
     </style>
     <script src="https://unpkg.com/htmx.org@2.0.3"></script>
     {#insert head /}

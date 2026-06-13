@@ -8,23 +8,19 @@
         <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">Sign in to your account</p>
 
         {#if oidcError}
-        <div class="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 px-3 py-2 text-sm text-red-700 dark:text-red-200">
-            You are not authorized to access this application. Contact your administrator.
-        </div>
+        {#include partials/banner variant='error' cls='mb-4'
+            message='You are not authorized to access this application. Contact your administrator.' /}
         {/if}
 
         {#if passwordAuthEnabled}
 
         {#if registered}
-        <div class="mb-4 rounded-lg bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-900 px-3 py-2 text-sm text-green-700 dark:text-green-200">
-            Account created — you can now sign in.
-        </div>
+        {#include partials/banner variant='success' cls='mb-4'
+            message='Account created — you can now sign in.' /}
         {/if}
 
         {#if error}
-        <div class="mb-4 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-900 px-3 py-2 text-sm text-red-700 dark:text-red-200">
-            Invalid email or password.
-        </div>
+        {#include partials/banner variant='error' cls='mb-4' message='Invalid email or password.' /}
         {/if}
 
         <form method="post" action="/login" class="space-y-4">
@@ -81,9 +77,8 @@
         {/if}
 
         {#if !passwordAuthEnabled && !oidcEnabled}
-        <div class="rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-900 px-4 py-3 text-sm text-amber-800 dark:text-amber-200">
-            No authentication method is configured. Please contact your administrator.
-        </div>
+        {#include partials/banner variant='warning'
+            message='No authentication method is configured. Please contact your administrator.' /}
         {/if}
     </div>
 </div>

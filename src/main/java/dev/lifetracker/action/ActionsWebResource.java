@@ -203,7 +203,9 @@ public class ActionsWebResource {
     }
 
     private Response errorResponse(String message) {
-        String html = "<p class=\"text-sm text-red-600\">" + message + "</p>";
+        // Mirrors templates/partials/banner.html so HTMX error banners match the login/register
+        // pages. The `.banner*` styling is defined once in layout.html.
+        String html = "<div class=\"banner banner-error\">" + message + "</div>";
         return Response.status(Response.Status.CONFLICT)
                 .entity(html)
                 .header("HX-Retarget", "#action-error")
