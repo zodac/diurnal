@@ -135,6 +135,40 @@ class AdminWebResourceIT extends IntegrationTestBase {
         runInTx(() -> assertEquals(User.ROLE_USER, User.findByEmail("admin@lt.test").orElseThrow().role));
     }
 
+    // ── Confirm-delete panel ──────────────────────────────────────────────
+
+    @Test
+    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    void confirmDeleteUser_showsConfirmRow() {
+        UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
+
+        given().get("/admin/users/" + userId + "/confirm-delete")
+                .then().statusCode(200)
+                .contentType(containsString("text/html"))
+                .body(containsString("user@lt.test"))
+                .body(containsString("permanently remove"))
+                .body(containsString("Cancel"));
+    }
+
+    @Test
+    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    void confirmDeleteUser_notFound_returns409() {
+        given().get("/admin/users/" + UUID.randomUUID() + "/confirm-delete")
+                .then().statusCode(409);
+    }
+
+    @Test
+    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    void userRow_cancelRestoresRow() {
+        UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
+
+        given().get("/admin/users/" + userId)
+                .then().statusCode(200)
+                .contentType(containsString("text/html"))
+                .body(containsString("user@lt.test"))
+                .body(containsString("confirm-delete"));
+    }
+
     // ── Delete ────────────────────────────────────────────────────────────
 
     @Test

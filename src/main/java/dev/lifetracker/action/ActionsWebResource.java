@@ -28,7 +28,8 @@ import java.util.UUID;
 public class ActionsWebResource {
 
     @Inject @Location("actions")       Template actionsTemplate;
-    @Inject @Location("partials/action-item") Template actionItemTemplate;
+    @Inject @Location("partials/actions-list") Template actionsListTemplate;
+    @Inject @Location("partials/action-row") Template actionRowTemplate;
     @Inject @Location("partials/action-edit") Template actionEditTemplate;
     @Inject @Location("partials/action-confirm-delete") Template actionConfirmDeleteTemplate;
 
@@ -54,8 +55,10 @@ public class ActionsWebResource {
             @QueryParam("q") @DefaultValue("") String searchTerm) {
         User user = currentUser();
         var page = getActions(user.id, pageNum, searchTerm, user.pageSize);
-        String html = renderActionsList(page, searchTerm);
-        return Response.ok(html).build();
+        String extraQuery = (searchTerm == null || searchTerm.isBlank())
+                ? ""
+                : "&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8);
+        return Response.ok(actionsListTemplate.data("page", page, "extraQuery", extraQuery)).build();
     }
 
     private record PaginatedActions(List<Action> items, int totalCount, int totalPages, int currentPage) {}
@@ -81,55 +84,6 @@ public class ActionsWebResource {
         return new PaginatedActions(items, totalCount, totalPages, actualPage);
     }
 
-    private String renderActionsList(PaginatedActions page, String searchTerm) {
-        StringBuilder sb = new StringBuilder();
-
-        // Actions list items
-        for (Action action : page.items) {
-            sb.append("<div id=\"action-").append(action.id).append("\" class=\"flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-700 rounded-xl border border-gray-200 dark:border-gray-600 group\">\n");
-            sb.append("    <span class=\"w-4 h-4 rounded-full flex-shrink-0 border border-black/10\" style=\"background-color: ").append(action.colour).append("\"></span>\n");
-            sb.append("    <span class=\"flex-1 text-sm font-medium text-gray-800 dark:text-gray-200\">").append(escapeHtml(action.name)).append("</span>\n");
-            sb.append("    <div class=\"flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity\">\n");
-            sb.append("        <button hx-get=\"/actions/").append(action.id).append("/edit\" hx-target=\"#action-").append(action.id).append("\" hx-swap=\"outerHTML\" class=\"text-xs text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors\">Edit</button>\n");
-            sb.append("        <button hx-get=\"/actions/").append(action.id).append("/confirm-delete\" hx-target=\"#action-").append(action.id).append("\" hx-swap=\"outerHTML\" class=\"text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors\">Delete</button>\n");
-            sb.append("    </div>\n");
-            sb.append("</div>\n");
-        }
-
-        // Pagination controls
-        if (page.totalPages > 1) {
-            sb.append("<div class=\"mt-4 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400\">\n");
-            sb.append("    <p>Showing ").append(page.items.size()).append(" of ").append(page.totalCount).append("</p>\n");
-            sb.append("    <div class=\"flex gap-2\">\n");
-
-            if (page.currentPage > 1) {
-                String qParam = searchTerm.isEmpty() ? "" : "&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8);
-                sb.append("        <a href=\"/actions?page=").append(page.currentPage - 1).append(qParam).append("\" hx-get=\"/actions/list?page=").append(page.currentPage - 1).append(qParam).append("\" hx-target=\"#action-list\" hx-swap=\"innerHTML show:window:top\" class=\"text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors\">← Previous</a>\n");
-            }
-
-            sb.append("        <span>Page ").append(page.currentPage).append(" of ").append(page.totalPages).append("</span>\n");
-
-            if (page.currentPage < page.totalPages) {
-                String qParam = searchTerm.isEmpty() ? "" : "&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8);
-                sb.append("        <a href=\"/actions?page=").append(page.currentPage + 1).append(qParam).append("\" hx-get=\"/actions/list?page=").append(page.currentPage + 1).append(qParam).append("\" hx-target=\"#action-list\" hx-swap=\"innerHTML show:window:top\" class=\"text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors\">Next →</a>\n");
-            }
-
-            sb.append("    </div>\n");
-            sb.append("</div>\n");
-        }
-
-        return sb.toString();
-    }
-
-    private String escapeHtml(String text) {
-        return text == null ? "" : text
-                .replace("&", "&amp;")
-                .replace("<", "&lt;")
-                .replace(">", "&gt;")
-                .replace("\"", "&quot;")
-                .replace("'", "&#39;");
-    }
-
     // ── Partials for HTMX ─────────────────────────────────────────────────
 
     @GET
@@ -139,7 +93,7 @@ public class ActionsWebResource {
     public Response viewItem(@PathParam("id") UUID id) {
         Action action = findOwnedAction(id);
         if (action == null) return Response.status(404).build();
-        return Response.ok(actionItemTemplate.data("action", action)).build();
+        return Response.ok(actionRowTemplate.data("action", action)).build();
     }
 
     @GET
@@ -189,7 +143,7 @@ public class ActionsWebResource {
         action.colour = sanitiseColour(colour);
         action.persist();
 
-        return Response.ok(actionItemTemplate.data("action", action)).build();
+        return Response.ok(actionRowTemplate.data("action", action)).build();
     }
 
     @POST
@@ -219,7 +173,7 @@ public class ActionsWebResource {
         action.colour = sanitiseColour(colour);
         action.persist();
 
-        return Response.ok(actionItemTemplate.data("action", action)).build();
+        return Response.ok(actionRowTemplate.data("action", action)).build();
     }
 
     @POST

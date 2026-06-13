@@ -33,7 +33,7 @@
                         <p id="display-name-text" class="text-sm text-gray-900 dark:text-gray-50">{displayName}</p>
                         <button type="button"
                                 onclick="startEditDisplayName()"
-                                class="text-xs text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                                class="dt-btn dt-btn-edit">
                             Edit
                         </button>
                     </div>
@@ -50,16 +50,14 @@
                                    value="{displayName}"
                                    required
                                    maxlength="255"
-                                   class="flex-1 min-w-0 text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1
-                                          bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-50
-                                          focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                                   class="dt-text-input flex-1 min-w-0">
                             <button type="submit"
-                                    class="flex-shrink-0 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
+                                    class="dt-btn dt-btn-save flex-shrink-0">
                                 Save
                             </button>
                             <button type="button"
                                     onclick="cancelEditDisplayName()"
-                                    class="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 transition-colors">
+                                    class="dt-btn dt-btn-cancel flex-shrink-0">
                                 Cancel
                             </button>
                         </div>
@@ -77,7 +75,10 @@
         <!-- Preferences -->
         <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-50">Preferences</h3>
+                <div>
+                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-50">Preferences</h3>
+                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Changes are saved automatically.</p>
+                </div>
                 <span id="prefs-saved"
                       class="text-xs text-green-600 dark:text-green-400 opacity-0 transition-opacity duration-300">
                     Saved

@@ -38,6 +38,8 @@ public class AdminWebResource {
 
     @Inject @Location("admin-users") Template adminUsersTemplate;
     @Inject @Location("partials/admin-users-list") Template adminUsersListTemplate;
+    @Inject @Location("partials/admin-user-row") Template adminUserRowTemplate;
+    @Inject @Location("partials/admin-user-confirm-delete") Template adminUserConfirmDeleteTemplate;
     @Inject SecurityIdentity identity;
 
     @ConfigProperty(name = "app.timezone", defaultValue = "UTC")
@@ -66,6 +68,32 @@ public class AdminWebResource {
     public TemplateInstance usersList(@QueryParam("page") @DefaultValue("1") int pageNum) {
         User actor = currentUser();
         return adminUsersListTemplate.data("page", getUsersPage(pageNum, actor.pageSize));
+    }
+
+    @GET
+    @Path("users/{id}")
+    @RolesAllowed("admin")
+    @Produces(MediaType.TEXT_HTML)
+    @Transactional
+    public Response userRow(@PathParam("id") UUID id) {
+        User target = User.findById(id);
+        if (target == null) {
+            return errorResponse("User not found.");
+        }
+        return Response.ok(adminUserRowTemplate.data("u", toRow(target))).build();
+    }
+
+    @GET
+    @Path("users/{id}/confirm-delete")
+    @RolesAllowed("admin")
+    @Produces(MediaType.TEXT_HTML)
+    @Transactional
+    public Response confirmDeleteUser(@PathParam("id") UUID id) {
+        User target = User.findById(id);
+        if (target == null) {
+            return errorResponse("User not found.");
+        }
+        return Response.ok(adminUserConfirmDeleteTemplate.data("u", toRow(target))).build();
     }
 
     @POST
@@ -140,8 +168,7 @@ public class AdminWebResource {
     private record PaginatedUsers(List<UserRow> items, long totalCount, int totalPages, int currentPage) {}
 
     private PaginatedUsers getUsersPage(int pageNum, int pageSize) {
-        DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
-                .withZone(ZoneId.of(timezoneId));
+        DateTimeFormatter fmt = formatter();
         long totalCount = User.count();
         int totalPages = (int) ((totalCount + pageSize - 1) / pageSize);
         int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
@@ -154,6 +181,14 @@ public class AdminWebResource {
                 .toList();
 
         return new PaginatedUsers(items, totalCount, totalPages, actualPage);
+    }
+
+    private UserRow toRow(User u) {
+        return UserRow.of(u, formatter());
+    }
+
+    private DateTimeFormatter formatter() {
+        return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.of(timezoneId));
     }
 
     private boolean isLastAdmin(User target) {

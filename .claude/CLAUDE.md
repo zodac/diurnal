@@ -71,7 +71,29 @@ Most resources return **HTML fragments** rather than full pages. Qute templates 
 
 Error responses for HTMX mutations use `HX-Retarget` / `HX-Reswap` headers to redirect the swap into the error element rather than the default target.
 
-Some HTMX partials are rendered as raw HTML strings via `StringBuilder` inside Java (e.g. `ActionsWebResource.renderActionsList()`), rather than Qute templates, for fine-grained control over pagination links.
+### Shared data-table styling (`.dt-*`)
+
+All data tables — Actions (`/actions`), Users (`/admin/users`), and any future ones — share a single
+styling layer so they look and behave identically. The source of truth is a `<style>` block of
+semantic `.dt-*` classes in `layout.html` (plain CSS, because Tailwind is CDN-loaded and can't `@apply`
+at runtime; dark variants key off the `.dark` class). Structure is shared via Qute partials:
+`partials/pagination.html` (parameterised footer with `pageUrl`/`listUrl`/`target`/`extraQuery`),
+plus per-table row / edit-row / confirm-delete-row partials. To add a new table: wrap it in
+`.dt-table`, use `.dt-row`/`.dt-cell`, put Edit+Delete together in a trailing `.dt-actions` cell using
+`.dt-btn-edit`/`.dt-btn-delete`, and `{#include partials/pagination …}`.
+
+Conventions enforced across every table:
+- **Explicit confirm-to-save.** Edits (action name/colour, user role, account display name) require an
+  explicit Save tick. The **only** auto-save-on-change surface is Settings → *User Preferences*, which
+  is deliberately rendered as a non-table panel so the differing behaviour reads visually.
+- **Red-accent confirm-delete.** Deleting replaces the row in place with a red-*accent* row
+  (`.dt-confirm-cell` ring — never a red background fill); the destructive button sits left and Cancel
+  sits right (where the original Delete was) to avoid mis-clicks.
+
+`partials/pagination.html` exposes `#showing-shown` / `#showing-total` count spans so surgical HTMX
+deletions (Actions delete returns **204**; the `htmx:beforeSwap` handler in `actions.html` removes the
+row and decrements the counters) stay in sync without re-rendering the whole list. Admin delete/role
+changes instead re-render the whole `admin-users-list` partial.
 
 ### CalendarResource
 

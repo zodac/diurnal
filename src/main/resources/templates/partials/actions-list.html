@@ -1,0 +1,24 @@
+{!
+  The Actions data table (header + rows + pagination). Rendered on the full page
+  (inside #action-list) and returned wholesale by GET /actions/list for HTMX swaps.
+  Params: page (PaginatedActions), extraQuery (pre-encoded "&q=..." or "").
+!}
+<table class="dt-table">
+    <thead>
+        <tr>
+            <th class="dt-head-cell w-10"></th>
+            <th class="dt-head-cell">Name</th>
+            <th class="dt-head-cell"></th>
+        </tr>
+    </thead>
+    <tbody id="actions-tbody" class="dt-tbody">
+        {#for action in page.items}
+        {#include partials/action-row action=action /}
+        {/for}
+        {#if page.items.isEmpty()}
+        <tr id="actions-empty-row"><td colspan="3" class="dt-empty">No actions yet — add one above.</td></tr>
+        {/if}
+    </tbody>
+</table>
+
+{#include partials/pagination page=page pageUrl="/actions" listUrl="/actions/list" target="#action-list" extraQuery=extraQuery /}

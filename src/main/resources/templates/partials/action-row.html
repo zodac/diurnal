@@ -1,0 +1,22 @@
+<tr id="action-{action.id}" class="dt-row">
+    <td class="dt-cell">
+        <span class="dt-swatch" style="background-color: {action.colour}"></span>
+    </td>
+    <td class="dt-cell font-medium">{action.name}</td>
+    <td class="dt-cell dt-cell-actions">
+        <div class="dt-actions">
+            <button hx-get="/actions/{action.id}/edit"
+                    hx-target="#action-{action.id}"
+                    hx-swap="outerHTML"
+                    class="dt-btn dt-btn-edit">
+                Edit
+            </button>
+            <button hx-get="/actions/{action.id}/confirm-delete"
+                    hx-target="#action-{action.id}"
+                    hx-swap="outerHTML"
+                    class="dt-btn dt-btn-delete">
+                Delete
+            </button>
+        </div>
+    </td>
+</tr>

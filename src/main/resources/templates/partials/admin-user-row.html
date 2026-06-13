@@ -1,0 +1,37 @@
+<tr id="user-row-{u.id}" class="dt-row">
+    <td class="dt-cell truncate max-w-xs">{u.email}</td>
+    <td class="dt-cell">{u.displayName}</td>
+    <td class="dt-cell">
+        <!-- View mode -->
+        <div id="role-view-{u.id}" class="flex items-center gap-2">
+            <span class="dt-badge {#if u.role == 'admin'}dt-badge-admin{/if}">{u.roleName}</span>
+        </div>
+        <!-- Edit mode (hidden until the row's Edit button is clicked) -->
+        <div id="role-edit-{u.id}" class="hidden flex items-center gap-2">
+            <form hx-post="/admin/users/{u.id}/role"
+                  hx-target="#admin-users-list"
+                  hx-swap="innerHTML"
+                  class="flex items-center gap-2">
+                <select name="role" class="dt-select">
+                    <option value="user"  {#if u.role == 'user'}selected{/if}>User</option>
+                    <option value="admin" {#if u.role == 'admin'}selected{/if}>Administrator</option>
+                </select>
+                <button type="submit" class="dt-btn dt-btn-save">Save</button>
+                <button type="button" onclick="cancelRoleEdit('{u.id}')" class="dt-btn dt-btn-cancel">Cancel</button>
+            </form>
+        </div>
+    </td>
+    <td class="dt-cell dt-cell-muted">{u.createdLabel}</td>
+    <td class="dt-cell dt-cell-muted">{u.lastLoginLabel}</td>
+    <td class="dt-cell dt-cell-actions">
+        <div class="dt-actions">
+            <button type="button" onclick="startRoleEdit('{u.id}')" class="dt-btn dt-btn-edit">Edit</button>
+            <button hx-get="/admin/users/{u.id}/confirm-delete"
+                    hx-target="#user-row-{u.id}"
+                    hx-swap="outerHTML"
+                    class="dt-btn dt-btn-delete">
+                Delete
+            </button>
+        </div>
+    </td>
+</tr>

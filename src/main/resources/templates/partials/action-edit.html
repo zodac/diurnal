@@ -1,30 +1,26 @@
-<form id="action-{action.id}"
-      hx-post="/actions/{action.id}"
-      hx-target="#action-{action.id}"
-      hx-swap="outerHTML"
-      class="flex items-center gap-3 px-4 py-3 bg-white dark:bg-gray-700 rounded-xl border border-indigo-300 dark:border-indigo-600 ring-1 ring-indigo-200 dark:ring-indigo-700">
-    <input type="color"
-           name="colour"
-           value="{action.colour}"
-           class="w-6 h-6 rounded-full border-0 cursor-pointer p-0 bg-transparent flex-shrink-0"
-           title="Pick a colour">
-    <input type="text"
-           name="name"
-           value="{action.name}"
-           required
-           maxlength="100"
-           class="flex-1 min-w-0 text-sm border border-gray-200 dark:border-gray-600 rounded-lg px-2 py-1
-                  bg-white dark:bg-gray-600 text-gray-900 dark:text-gray-50
-                  focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-    <button type="submit"
-            class="flex-shrink-0 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
-        Save
-    </button>
-    <button type="button"
-            hx-get="/actions/{action.id}"
-            hx-target="#action-{action.id}"
-            hx-swap="outerHTML"
-            class="flex-shrink-0 text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 transition-colors">
-        Cancel
-    </button>
-</form>
+<tr id="action-{action.id}" class="dt-row-edit">
+    <td colspan="3" class="dt-edit-cell">
+        <form hx-post="/actions/{action.id}"
+              hx-target="#action-{action.id}"
+              hx-swap="outerHTML"
+              class="flex items-center gap-3">
+            <input type="color"
+                   name="colour"
+                   value="{action.colour}"
+                   class="dt-color-input"
+                   title="Pick a colour">
+            <input type="text"
+                   name="name"
+                   value="{action.name}"
+                   required
+                   maxlength="100"
+                   class="dt-text-input flex-1 min-w-0">
+            <button type="submit" class="dt-btn dt-btn-save flex-shrink-0">Save</button>
+            <button type="button"
+                    hx-get="/actions/{action.id}"
+                    hx-target="#action-{action.id}"
+                    hx-swap="outerHTML"
+                    class="dt-btn dt-btn-cancel flex-shrink-0">Cancel</button>
+        </form>
+    </td>
+</tr>

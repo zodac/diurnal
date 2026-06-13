@@ -17,9 +17,9 @@
         <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 mb-6">
             <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">New action</h3>
             <form hx-post="/actions"
-                  hx-target="#action-list"
+                  hx-target="#actions-tbody"
                   hx-swap="afterbegin"
-                  hx-on::after-request="if(event.detail.xhr.status===200) { document.getElementById('action-error').innerHTML=''; this.reset(); var sh=document.getElementById('showing-shown'); var tot=document.getElementById('showing-total'); if(sh) sh.textContent=parseInt(sh.textContent,10)+1; if(tot) tot.textContent=parseInt(tot.textContent,10)+1; } else if(event.detail.xhr.status===409) { document.getElementById('action-error').innerHTML=event.detail.xhr.responseText; }"
+                  hx-on::after-request="if(event.detail.xhr.status===200) { document.getElementById('action-error').innerHTML=''; this.reset(); var er=document.getElementById('actions-empty-row'); if(er) er.remove(); var sh=document.getElementById('showing-shown'); var tot=document.getElementById('showing-total'); if(sh) sh.textContent=parseInt(sh.textContent,10)+1; if(tot) tot.textContent=parseInt(tot.textContent,10)+1; } else if(event.detail.xhr.status===409) { document.getElementById('action-error').innerHTML=event.detail.xhr.responseText; }"
                   class="flex items-center gap-3">
                 <input type="color"
                        name="colour"
@@ -60,45 +60,10 @@
         </div>
 
         <!-- Action list -->
-        <div id="action-list" class="flex flex-col gap-2">
-            {#for action in page.items}
-            {#include partials/action-item action=action /}
-            {/for}
-            {#if page.items.isEmpty()}
-            <p class="text-sm text-gray-400 italic text-center py-6">
-                No actions yet — add one above.
-            </p>
-            {/if}
-
-            <!-- Pagination -->
-            {#if page.totalPages > 1}
-            <div class="mt-4 flex items-center justify-between text-xs text-gray-500">
-                <p>Showing <span id="showing-shown">{page.items.size}</span> of <span id="showing-total">{page.totalCount}</span></p>
-                <div class="flex gap-2">
-                    {#if page.currentPage > 1}
-                    <a href="/actions?page={page.currentPage - 1}"
-                       hx-get="/actions/list?page={page.currentPage - 1}"
-                       hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('search-input').value"
-                       hx-target="#action-list"
-                       hx-swap="innerHTML show:window:top"
-                       class="text-indigo-600 hover:text-indigo-800 transition-colors">
-                        ← Previous
-                    </a>
-                    {/if}
-                    <span>Page {page.currentPage} of {page.totalPages}</span>
-                    {#if page.currentPage < page.totalPages}
-                    <a href="/actions?page={page.currentPage + 1}"
-                       hx-get="/actions/list?page={page.currentPage + 1}"
-                       hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('search-input').value"
-                       hx-target="#action-list"
-                       hx-swap="innerHTML show:window:top"
-                       class="text-indigo-600 hover:text-indigo-800 transition-colors">
-                        Next →
-                    </a>
-                    {/if}
-                </div>
+        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div id="action-list">
+                {#include partials/actions-list page=page extraQuery="" /}
             </div>
-            {/if}
         </div>
     </main>
 </div>

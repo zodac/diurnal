@@ -38,6 +38,101 @@
             darkMode: 'class'
         }
     </script>
+    <!--
+        Shared data-table ("dt") component styling. This is the single source of truth for
+        how every list/table in the app looks: Actions, Users (admin), and any future tables.
+        Tailwind is loaded from the Play CDN, which cannot process `@apply` at runtime, so these
+        are written as plain CSS. Dark-mode variants key off the `.dark` class on <html>
+        (Tailwind is configured `darkMode: 'class'`), matching the rest of the app.
+
+        To add a new data table, wrap it in `.dt-table`, use `.dt-row`/`.dt-cell`, put row
+        actions in a trailing `.dt-actions` cell with `.dt-btn-edit`/`.dt-btn-delete`, and
+        reuse `partials/pagination.html`. Inline edit uses `.dt-edit-cell`; the in-place
+        confirm-delete row uses `.dt-confirm-cell` (red accent — never a red background fill).
+    -->
+    <style>
+        /* Table shell */
+        .dt-table { width: 100%; font-size: .875rem; line-height: 1.25rem; }
+        .dt-table thead tr { border-bottom: 1px solid #e5e7eb; }
+        .dark .dt-table thead tr { border-bottom-color: #374151; }
+        .dt-head-cell { padding: .75rem 1rem; text-align: left; font-size: .75rem; line-height: 1rem;
+            font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: .025em; }
+        .dark .dt-head-cell { color: #9ca3af; }
+        .dt-tbody > tr + tr { border-top: 1px solid #f3f4f6; }
+        .dark .dt-tbody > tr + tr { border-top-color: #374151; }
+
+        /* Rows + cells */
+        .dt-row { transition: background-color .15s; }
+        .dt-row:hover { background-color: #f9fafb; }
+        .dark .dt-row:hover { background-color: #374151; }
+        .dt-cell { padding: .75rem 1rem; color: #111827; vertical-align: middle; }
+        .dark .dt-cell { color: #f9fafb; }
+        .dt-cell-muted { color: #6b7280; white-space: nowrap; }
+        .dark .dt-cell-muted { color: #9ca3af; }
+        .dt-cell-actions { width: 1%; white-space: nowrap; }
+
+        /* Trailing action buttons, revealed on row hover/focus */
+        .dt-actions { display: flex; justify-content: flex-end; align-items: center; gap: .5rem;
+            opacity: 0; transition: opacity .15s; }
+        .dt-row:hover .dt-actions, .dt-row:focus-within .dt-actions { opacity: 1; }
+
+        /* Colour swatch (Actions) */
+        .dt-swatch { display: inline-block; width: 1rem; height: 1rem; border-radius: 9999px;
+            flex-shrink: 0; border: 1px solid rgba(0,0,0,.1); }
+
+        /* Buttons — shared across every table + the Settings account panel */
+        .dt-btn { font-size: .75rem; line-height: 1rem; font-weight: 500; background: none; border: 0;
+            padding: 0; cursor: pointer; transition: color .15s; }
+        .dt-btn-edit { color: #9ca3af; } .dt-btn-edit:hover { color: #4f46e5; }
+        .dark .dt-btn-edit { color: #6b7280; } .dark .dt-btn-edit:hover { color: #818cf8; }
+        .dt-btn-delete { color: #9ca3af; } .dt-btn-delete:hover { color: #dc2626; }
+        .dark .dt-btn-delete { color: #6b7280; } .dark .dt-btn-delete:hover { color: #f87171; }
+        .dt-btn-save { color: #4f46e5; } .dt-btn-save:hover { color: #3730a3; }
+        .dark .dt-btn-save { color: #818cf8; } .dark .dt-btn-save:hover { color: #a5b4fc; }
+        .dt-btn-cancel { color: #6b7280; } .dt-btn-cancel:hover { color: #374151; }
+        .dark .dt-btn-cancel { color: #9ca3af; } .dark .dt-btn-cancel:hover { color: #e5e7eb; }
+        .dt-btn-danger { color: #dc2626; } .dt-btn-danger:hover { color: #991b1b; }
+        .dark .dt-btn-danger { color: #f87171; } .dark .dt-btn-danger:hover { color: #fca5a5; }
+
+        /* Inline edit row — indigo accent */
+        .dt-edit-cell { padding: .75rem 1rem; box-shadow: inset 0 0 0 1px #a5b4fc; }
+        .dark .dt-edit-cell { box-shadow: inset 0 0 0 1px #4338ca; }
+
+        /* In-place confirm-delete row — red accent (never a fill) */
+        .dt-confirm-cell { padding: .75rem 1rem; box-shadow: inset 0 0 0 1px #fca5a5; }
+        .dark .dt-confirm-cell { box-shadow: inset 0 0 0 1px #b91c1c; }
+        .dt-confirm-prompt { font-size: .75rem; color: #6b7280; }
+        .dark .dt-confirm-prompt { color: #9ca3af; }
+
+        /* Role/status badge */
+        .dt-badge { font-size: .75rem; font-weight: 500; color: #6b7280; }
+        .dark .dt-badge { color: #9ca3af; }
+        .dt-badge-admin { color: #4f46e5; }
+        .dark .dt-badge-admin { color: #818cf8; }
+
+        /* Inputs used inside table edit rows + the Settings account panel */
+        .dt-text-input { font-size: .875rem; border: 1px solid #d1d5db; border-radius: .5rem;
+            padding: .25rem .5rem; background: #fff; color: #111827; }
+        .dt-text-input:focus { outline: none; box-shadow: 0 0 0 2px #6366f1; border-color: transparent; }
+        .dark .dt-text-input { border-color: #4b5563; background: #4b5563; color: #f9fafb; }
+        .dt-color-input { width: 1.5rem; height: 1.5rem; border-radius: 9999px; border: 0; padding: 0;
+            background: transparent; cursor: pointer; flex-shrink: 0; }
+        .dt-select { font-size: .75rem; border: 1px solid #d1d5db; border-radius: .375rem; background: #fff;
+            color: #111827; padding: .25rem 1.5rem .25rem .5rem; cursor: pointer; }
+        .dt-select:focus { outline: none; box-shadow: 0 0 0 1px #6366f1; }
+        .dark .dt-select { border-color: #4b5563; background: #374151; color: #f9fafb; }
+
+        /* Empty state + pagination footer */
+        .dt-empty { padding: 2rem 1rem; text-align: center; color: #6b7280; }
+        .dark .dt-empty { color: #9ca3af; }
+        .dt-pagination { padding: .75rem 1rem; border-top: 1px solid #e5e7eb; display: flex;
+            align-items: center; justify-content: space-between; font-size: .75rem; color: #6b7280; }
+        .dark .dt-pagination { border-top-color: #374151; color: #9ca3af; }
+        .dt-page-link { color: #4f46e5; transition: color .15s; }
+        .dt-page-link:hover { color: #3730a3; }
+        .dark .dt-page-link { color: #818cf8; }
+        .dark .dt-page-link:hover { color: #a5b4fc; }
+    </style>
     <script src="https://unpkg.com/htmx.org@2.0.3"></script>
     {#insert head /}
 </head>

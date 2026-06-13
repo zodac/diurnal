@@ -1,105 +1,30 @@
 <div class="overflow-x-auto">
-    <table class="w-full text-sm">
+    <table class="dt-table">
         <thead>
-            <tr class="border-b border-gray-200 dark:border-gray-700">
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Email</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Display Name</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Role</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Created</th>
-                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">Last Login</th>
-                <th class="px-4 py-3"></th>
+            <tr>
+                <th class="dt-head-cell">Email</th>
+                <th class="dt-head-cell">Display Name</th>
+                <th class="dt-head-cell">Role</th>
+                <th class="dt-head-cell">Created</th>
+                <th class="dt-head-cell">Last Login</th>
+                <th class="dt-head-cell"></th>
             </tr>
         </thead>
-        <tbody class="divide-y divide-gray-100 dark:divide-gray-700">
+        <tbody class="dt-tbody">
             {#if page.items.isEmpty()}
             <tr>
-                <td colspan="6" class="px-4 py-8 text-center text-gray-500 dark:text-gray-400">No users found.</td>
+                <td colspan="6" class="dt-empty">No users found.</td>
             </tr>
             {#else}
             {#for u in page.items}
-            <tr class="group hover:bg-gray-50 dark:hover:bg-gray-700">
-                <td class="px-4 py-3 text-gray-900 dark:text-gray-50 truncate max-w-xs">{u.email}</td>
-                <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{u.displayName}</td>
-                <td class="px-4 py-3">
-                    <!-- View mode -->
-                    <div id="role-view-{u.id}" class="flex items-center gap-2">
-                        <span class="text-xs font-medium {#if u.role == 'admin'}text-indigo-600 dark:text-indigo-400{#else}text-gray-600 dark:text-gray-400{/if}">{u.roleName}</span>
-                        <button type="button"
-                                onclick="startRoleEdit('{u.id}')"
-                                class="text-xs text-gray-400 dark:text-gray-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors opacity-0 group-hover:opacity-100">
-                            Edit
-                        </button>
-                    </div>
-                    <!-- Edit mode (hidden until Edit clicked) -->
-                    <div id="role-edit-{u.id}" class="hidden flex items-center gap-2">
-                        <form hx-post="/admin/users/{u.id}/role"
-                              hx-target="#admin-users-list"
-                              hx-swap="innerHTML"
-                              class="flex items-center gap-2">
-                            <select name="role"
-                                    class="text-xs rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50 py-1 pl-2 pr-6 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer">
-                                <option value="user"  {#if u.role == 'user'}selected{/if}>User</option>
-                                <option value="admin" {#if u.role == 'admin'}selected{/if}>Administrator</option>
-                            </select>
-                            <button type="submit"
-                                    class="text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
-                                Save
-                            </button>
-                            <button type="button"
-                                    onclick="cancelRoleEdit('{u.id}')"
-                                    class="text-xs text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-400 transition-colors">
-                                Cancel
-                            </button>
-                        </form>
-                    </div>
-                </td>
-                <td class="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{u.createdLabel}</td>
-                <td class="px-4 py-3 text-gray-500 dark:text-gray-400 whitespace-nowrap">{u.lastLoginLabel}</td>
-                <td class="px-4 py-3">
-                    <div class="opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button hx-post="/admin/users/{u.id}/delete"
-                                hx-target="#admin-users-list"
-                                hx-swap="innerHTML"
-                                hx-confirm="Delete {u.email}? This will permanently remove their account, actions, and logs."
-                                class="text-xs text-gray-400 dark:text-gray-500 hover:text-red-600 dark:hover:text-red-400 transition-colors">
-                            Delete
-                        </button>
-                    </div>
-                </td>
-            </tr>
+            {#include partials/admin-user-row u=u /}
             {/for}
             {/if}
         </tbody>
     </table>
 </div>
 
-<!-- Pagination -->
-{#if page.totalPages > 1}
-<div class="px-4 py-3 border-t border-gray-200 dark:border-gray-700 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
-    <p>Showing {page.items.size} of {page.totalCount}</p>
-    <div class="flex gap-2">
-        {#if page.currentPage > 1}
-        <a href="/admin/users?page={page.currentPage - 1}"
-           hx-get="/admin/users/list?page={page.currentPage - 1}"
-           hx-target="#admin-users-list"
-           hx-swap="innerHTML show:window:top"
-           class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
-            ← Previous
-        </a>
-        {/if}
-        <span>Page {page.currentPage} of {page.totalPages}</span>
-        {#if page.currentPage < page.totalPages}
-        <a href="/admin/users?page={page.currentPage + 1}"
-           hx-get="/admin/users/list?page={page.currentPage + 1}"
-           hx-target="#admin-users-list"
-           hx-swap="innerHTML show:window:top"
-           class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 transition-colors">
-            Next →
-        </a>
-        {/if}
-    </div>
-</div>
-{/if}
+{#include partials/pagination page=page pageUrl="/admin/users" listUrl="/admin/users/list" target="#admin-users-list" extraQuery="" /}
 
 <script>
 function startRoleEdit(id) {

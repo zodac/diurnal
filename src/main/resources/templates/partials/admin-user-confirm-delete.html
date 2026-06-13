@@ -1,0 +1,24 @@
+<tr id="user-row-{u.id}" class="dt-row-confirm">
+    <td colspan="6" class="dt-confirm-cell">
+        <div class="flex items-center gap-3">
+            <span class="flex-1 text-sm text-gray-700 dark:text-gray-300">
+                Delete <span class="font-medium text-gray-900 dark:text-gray-50">{u.email}</span>? This will permanently remove their account, actions, and logs.
+            </span>
+            <!-- Destructive action sits to the left, away from where the "Delete" trigger was clicked. -->
+            <button hx-post="/admin/users/{u.id}/delete"
+                    hx-target="#admin-users-list"
+                    hx-swap="innerHTML"
+                    class="dt-btn dt-btn-danger">
+                Delete
+            </button>
+            <!-- Cancel sits furthest right, where the original "Delete" button was, so a repeat
+                 click lands here and safely dismisses instead of confirming. -->
+            <button hx-get="/admin/users/{u.id}"
+                    hx-target="#user-row-{u.id}"
+                    hx-swap="outerHTML"
+                    class="dt-btn dt-btn-cancel ml-4">
+                Cancel
+            </button>
+        </div>
+    </td>
+</tr>

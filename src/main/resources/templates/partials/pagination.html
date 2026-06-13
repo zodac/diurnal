@@ -1,0 +1,34 @@
+{!
+  Shared pagination footer for every data table.
+  Params:
+    page       — paginated result with currentPage / totalPages / totalCount / items
+    pageUrl    — full-page URL for the non-JS href fallback (e.g. "/actions")
+    listUrl    — HTMX partial URL swapped into `target` (e.g. "/actions/list")
+    target     — CSS selector that receives the swapped list (e.g. "#action-list")
+    extraQuery — optional pre-encoded query suffix, e.g. "&q=foo" (pass "" when unused)
+
+  The "Showing" counter exposes #showing-shown / #showing-total so surgical (HTMX 204)
+  row removals can keep the count in sync without re-rendering the whole list.
+!}
+{#if page.totalPages > 1}
+<div class="dt-pagination">
+    <p>Showing <span id="showing-shown">{page.items.size}</span> of <span id="showing-total">{page.totalCount}</span></p>
+    <div class="flex gap-2">
+        {#if page.currentPage > 1}
+        <a href="{pageUrl}?page={page.currentPage - 1}{extraQuery}"
+           hx-get="{listUrl}?page={page.currentPage - 1}{extraQuery}"
+           hx-target="{target}"
+           hx-swap="innerHTML show:window:top"
+           class="dt-page-link">← Previous</a>
+        {/if}
+        <span>Page {page.currentPage} of {page.totalPages}</span>
+        {#if page.currentPage < page.totalPages}
+        <a href="{pageUrl}?page={page.currentPage + 1}{extraQuery}"
+           hx-get="{listUrl}?page={page.currentPage + 1}{extraQuery}"
+           hx-target="{target}"
+           hx-swap="innerHTML show:window:top"
+           class="dt-page-link">Next →</a>
+        {/if}
+    </div>
+</div>
+{/if}
