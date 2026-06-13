@@ -131,6 +131,7 @@ public class AdminWebResource {
                     u.lastLoginAt != null ? fmt.format(u.lastLoginAt) : "Never");
         }
 
+        @SuppressWarnings("unused")
         public String roleName() {
             return User.ROLE_ADMIN.equals(role) ? "Administrator" : "User";
         }

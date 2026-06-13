@@ -42,8 +42,8 @@ services:
       # Session cookie encryption — must be at least 16 chars, keep secret
       SESSION_ENCRYPTION_KEY: ${SESSION_ENCRYPTION_KEY:?SESSION_ENCRYPTION_KEY must be set}
       # JWT keys are stored in ./secrets/ — auto-generated on first start if absent (see JwtKeyProvisioner)
-      JWT_PUBLIC_KEY_LOCATION: /run/secrets/jwt-public.pem
-      JWT_PRIVATE_KEY_LOCATION: /run/secrets/jwt-private.pem
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt-private.pem
       # OIDC — set OIDC_ENABLED=true and configure the values below
       OIDC_ENABLED: ${OIDC_ENABLED:-false}
       OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
@@ -59,12 +59,6 @@ services:
     volumes:
       # Writable so the app can generate the keypair on first start; reused on later starts.
       - ./secrets:/run/secrets
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:8080/health || exit 1"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
     depends_on:
       db:
         condition: service_healthy

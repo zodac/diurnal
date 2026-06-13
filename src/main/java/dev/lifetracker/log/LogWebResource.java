@@ -51,12 +51,12 @@ public class LogWebResource {
         boolean future = isFuture(date);
         var page = future ? null : getActions(user.id, date, 1, "", user.pageSize);
 
-        return dayPanelTemplate.data(
-                "date", date,
-                "dateLabel", date.format(DAY_LABEL),
-                "theme", user.theme,
-                "future", future,
-                "page", page);
+        return dayPanelTemplate
+            .data("date", date)
+            .data("dateLabel", date.format(DAY_LABEL))
+            .data("theme", user.theme)
+            .data("future", future)
+            .data("page", page);
     }
 
     @GET

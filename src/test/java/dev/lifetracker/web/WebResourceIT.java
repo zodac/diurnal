@@ -197,4 +197,23 @@ class WebResourceIT extends IntegrationTestBase {
                 .then().statusCode(200)
                 .body(containsString("web-it@lt.test"));
     }
+
+    // ── 404 page ──────────────────────────────────────────────────────────────
+
+    @Test
+    void unknownPath_unauthenticated_returns404WithErrorPage() {
+        given().get("/this-path-does-not-exist")
+                .then().statusCode(404)
+                .contentType(containsString("text/html"))
+                .body(containsString("Page Not Found"));
+    }
+
+    @Test
+    @TestSecurity(user = "web-it@lt.test", roles = "user")
+    void unknownPath_authenticated_returns404WithErrorPage() {
+        given().get("/this-path-does-not-exist")
+                .then().statusCode(404)
+                .contentType(containsString("text/html"))
+                .body(containsString("Page Not Found"));
+    }
 }
