@@ -3,6 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--
+        Declares that this app ships its own light/dark themes. Browsers use it to
+        theme native form controls/scrollbars, and dark-mode extensions (e.g. Dark
+        Reader) read it as the standard signal that the page is already dark-aware,
+        so they back off instead of layering a second dark filter on top. The
+        content is kept in sync with the active theme by the FOUC script below and
+        by the theme picker in settings.html.
+    -->
+    <meta name="color-scheme" content="light dark">
     <title>Life Tracker</title>
     <!--
         Resolve theme before body renders to prevent FOUC.
@@ -15,13 +24,16 @@
             var theme = '{theme}';
             var dark = theme === 'dark' ||
                 (theme === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+            var scheme = dark ? 'dark' : (theme === 'system' ? 'light dark' : 'light');
+            var meta = document.querySelector('meta[name="color-scheme"]');
+            if (meta) meta.content = scheme;
             if (dark) {
                 document.documentElement.classList.add('dark');
                 document.documentElement.style.colorScheme = 'dark';
                 document.head.insertAdjacentHTML('beforeend',
                     '<style id="theme-bg">body\{background-color:#111827!important;color:#f9fafb!important}</style>');
             } else {
-                document.documentElement.style.colorScheme = theme === 'system' ? 'light dark' : 'light';
+                document.documentElement.style.colorScheme = scheme;
             }
         })();
     </script>
@@ -51,6 +63,25 @@
         confirm-delete row uses `.dt-confirm-cell` (red accent — never a red background fill).
     -->
     <style>
+        /*
+            Smooth theme switching. The `.theme-transition` class is added to <html>
+            only for the duration of a light↔dark switch (see settings.html), then
+            removed, so the cross-fade never interferes with element-level hover
+            transitions or the initial (FOUC-resolved) paint. Only colour-ish
+            properties are transitioned to keep it cheap. `prefers-reduced-motion`
+            users get the instant change.
+        */
+        .theme-transition, .theme-transition *, .theme-transition *::before, .theme-transition *::after {
+            transition: background-color .3s ease, border-color .3s ease, color .3s ease,
+                fill .3s ease, stroke .3s ease, box-shadow .3s ease !important;
+            transition-delay: 0s !important;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .theme-transition, .theme-transition *, .theme-transition *::before, .theme-transition *::after {
+                transition: none !important;
+            }
+        }
+
         /* Table shell */
         .dt-table { width: 100%; font-size: .875rem; line-height: 1.25rem; }
         .dt-table thead tr { border-bottom: 1px solid #e5e7eb; }

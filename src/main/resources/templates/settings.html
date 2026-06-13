@@ -188,8 +188,18 @@
                 var val = this.value;
                 var dark = val === 'dark' ||
                     (val === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                document.documentElement.classList.toggle('dark', dark);
-                document.documentElement.style.colorScheme = dark ? 'dark' : (val === 'system' ? 'light dark' : 'light');
+                var scheme = dark ? 'dark' : (val === 'system' ? 'light dark' : 'light');
+
+                // Cross-fade into the new theme. The class is removed once the
+                // transition finishes so it never affects normal hover transitions.
+                var root = document.documentElement;
+                root.classList.add('theme-transition');
+                window.setTimeout(function () { root.classList.remove('theme-transition'); }, 350);
+
+                var meta = document.querySelector('meta[name="color-scheme"]');
+                if (meta) meta.content = scheme;
+                root.classList.toggle('dark', dark);
+                root.style.colorScheme = scheme;
                 var override = document.getElementById('theme-bg');
                 if (dark) {
                     if (!override) {
