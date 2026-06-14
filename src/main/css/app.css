@@ -1,0 +1,170 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Colour tokens — the single source of truth for the palette.
+ *
+ * Every brand/surface/text colour is defined ONCE here as a CSS variable, with a
+ * light value on :root and a dark override under .dark. Consume them either through
+ * the semantic Tailwind utilities wired up in tailwind.config.js (`bg-surface`,
+ * `text-muted`, `text-brand`, …) or directly as `var(--color-*)` in component CSS.
+ * Because the dark value lives in the variable, token-based utilities adapt to dark
+ * mode automatically — no `dark:` variant needed.
+ *
+ * Migration note: a few templates still use raw `indigo-*` / `gray-*` Tailwind utilities,
+ * migrated to these tokens incrementally (Tier 2). The `.dt-*` component layer, the inline
+ * message banners and the calendar in layout.html / dashboard.html are now fully tokenised
+ * (every colour they use is a `var(--color-*)` below); the values intentionally match the
+ * original palette so the migration was a mechanical find-and-replace with no visual change.
+ * The only deliberate literals left are the FOUC background guard in layout.html (applied
+ * before this stylesheet loads, so it cannot reference these variables) and the per-action
+ * colour stored as data (default `#6366f1`), which is user content, not chrome.
+ */
+@layer base {
+  :root {
+    --color-brand: #4f46e5;          /* indigo-600 */
+    --color-brand-hover: #4338ca;    /* indigo-700 */
+    --color-brand-ring: #6366f1;     /* indigo-500 */
+    --color-brand-strong: #3730a3;   /* indigo-800 — deeper than -hover, for active hovers */
+    --color-brand-subtle: #eef2ff;   /* indigo-50  — faint brand tint (calendar "today" fill) */
+
+    --color-surface: #ffffff;        /* cards / header */
+    --color-surface-muted: #f9fafb;  /* page bg / subtle panels (gray-50) */
+
+    --color-border: #e5e7eb;         /* gray-200 */
+    --color-border-subtle: #f3f4f6;  /* gray-100 */
+
+    --color-text: #111827;           /* gray-900 */
+    --color-text-muted: #6b7280;     /* gray-500 */
+    --color-text-strong: #374151;    /* gray-700 — hover target for muted controls (Cancel) */
+    --color-text-faint: #9ca3af;     /* gray-400 — resting edit/delete icons (fainter than -muted) */
+
+    --color-danger: #dc2626;         /* red-600 */
+    --color-danger-strong: #991b1b;  /* red-800 — deeper danger, for active hovers */
+    --color-success: #16a34a;        /* green-600 */
+
+    /* Editable / confirm-delete data-table row highlight rings. */
+    --color-ring-edit: #a5b4fc;      /* indigo-300 */
+    --color-ring-confirm: #fca5a5;   /* red-300 */
+
+    /* Text inputs / selects inside data-table edit rows. */
+    --color-input-bg: #ffffff;
+    --color-input-border: #d1d5db;   /* gray-300 */
+
+    /* Inline message banners (error / success / warning). */
+    --color-banner-error-bg: #fef2f2;       /* red-50 */
+    --color-banner-error-border: #fecaca;   /* red-200 */
+    --color-banner-error-text: #b91c1c;     /* red-700 */
+    --color-banner-success-bg: #f0fdf4;     /* green-50 */
+    --color-banner-success-border: #bbf7d0; /* green-200 */
+    --color-banner-success-text: #15803d;   /* green-700 */
+    --color-banner-warning-bg: #fffbeb;     /* amber-50 */
+    --color-banner-warning-border: #fde68a; /* amber-200 */
+    --color-banner-warning-text: #92400e;   /* amber-800 */
+  }
+
+  .dark {
+    --color-brand: #818cf8;          /* indigo-400 */
+    --color-brand-hover: #a5b4fc;    /* indigo-300 */
+    --color-brand-ring: #6366f1;     /* indigo-500 */
+    --color-brand-strong: #a5b4fc;   /* indigo-300 */
+    --color-brand-subtle: #4f46e5;   /* indigo-600 — solid fill for "today" in dark */
+
+    --color-surface: #1f2937;        /* gray-800 */
+    --color-surface-muted: #374151;  /* gray-700 */
+
+    --color-border: #374151;         /* gray-700 */
+    --color-border-subtle: #374151;  /* gray-700 */
+
+    --color-text: #f9fafb;           /* gray-50 */
+    --color-text-muted: #9ca3af;     /* gray-400 */
+    --color-text-strong: #e5e7eb;    /* gray-200 */
+    --color-text-faint: #6b7280;     /* gray-500 */
+
+    --color-danger: #f87171;         /* red-400 */
+    --color-danger-strong: #fca5a5;  /* red-300 */
+    --color-success: #4ade80;        /* green-400 */
+
+    --color-ring-edit: #4338ca;      /* indigo-700 */
+    --color-ring-confirm: #b91c1c;   /* red-700 */
+
+    --color-input-bg: #374151;       /* gray-700 */
+    --color-input-border: #4b5563;   /* gray-600 */
+
+    --color-banner-error-bg: rgb(127 29 29 / .2);   /* red-900 / 20% */
+    --color-banner-error-border: #7f1d1d;           /* red-900 */
+    --color-banner-error-text: #fecaca;             /* red-200 */
+    --color-banner-success-bg: rgb(20 83 45 / .2);  /* green-900 / 20% */
+    --color-banner-success-border: #14532d;         /* green-900 */
+    --color-banner-success-text: #bbf7d0;           /* green-200 */
+    --color-banner-warning-bg: rgb(120 53 15 / .2); /* amber-900 / 20% */
+    --color-banner-warning-border: #78350f;         /* amber-900 */
+    --color-banner-warning-text: #fde68a;           /* amber-200 */
+  }
+}
+
+/*
+ * Component layer — the single source of truth for every shared "type" of element so the
+ * same control looks identical wherever it appears (and is changed in one place). Built with
+ * @apply so each class reproduces the markup it replaced. Token-backed utilities (bg-surface,
+ * text-ink, border-line, text-brand…) are used where their dark value matches the original;
+ * the filled primary button stays literal `indigo-600` because it must NOT lighten in dark mode.
+ */
+@layer components {
+  /* Buttons ---------------------------------------------------------------- */
+  /* Filled call-to-action (login/register submit, "Add actions" empty states). */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-lg
+           px-4 py-2 text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2
+           focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors;
+  }
+  /* Outlined / neutral action (OIDC sign-in). */
+  .btn-secondary {
+    @apply inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300
+           dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300
+           hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500
+           focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors;
+  }
+
+  /* Surfaces --------------------------------------------------------------- */
+  /* Card shell. Padding / shadow stay at the call site (they vary by context). */
+  .card { @apply bg-surface rounded-2xl border border-line; }
+  /* Section heading inside a content card (Account, Preferences, New action, Stats). Bottom
+     margin stays at the call site (it varies with the card's layout). */
+  .card-title { @apply text-base font-semibold text-ink; }
+  /* Inset stat tile (stats cards, dashboard summary). */
+  .stat-tile { @apply bg-surface-muted rounded-xl p-3; }
+
+  /* Form controls ---------------------------------------------------------- */
+  /* Full-size text input (auth forms, search bars). Width is set by the caller. */
+  .form-input {
+    @apply rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm
+           bg-white dark:bg-gray-700 text-ink
+           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent;
+  }
+  /* Settings-style select. */
+  .form-select {
+    @apply rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-ink
+           focus:ring-indigo-500 focus:border-indigo-500 py-1.5 pl-3 pr-8 cursor-pointer;
+  }
+  /* Field label above an input. */
+  .field-label { @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1; }
+  /* Small uppercase label (settings read-only fields). */
+  .field-label-caps { @apply block text-xs font-medium text-ink-muted uppercase tracking-wide mb-1; }
+  /* Muted helper / caption text. */
+  .help-text { @apply text-xs text-ink-muted; }
+
+  /* Navigation links ------------------------------------------------------- */
+  .nav-link { @apply text-ink-muted hover:text-gray-900 dark:hover:text-white transition-colors; }
+  .nav-link-active { @apply text-brand font-medium; }
+
+  /* Colour swatches -------------------------------------------------------- */
+  .swatch { @apply inline-block rounded-full flex-shrink-0 border border-black/10; }
+  .swatch-sm { @apply w-3 h-3; }
+  .swatch-md { @apply w-4 h-4; }
+
+  /* Calendar month/year picker nav arrow (dashboard). Used by both the server-rendered
+     overlay and the JS that rebuilds it on year change, so the styling lives in one place. */
+  .cal-nav-btn { @apply px-2 py-1 rounded text-ink-muted hover:bg-surface-muted transition-colors; }
+}

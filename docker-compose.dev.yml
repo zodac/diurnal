@@ -1,0 +1,45 @@
+# Local databases for development and testing. Two distinct DBs on purpose — they differ in name,
+# port, storage and lifecycle, and are designed to run side by side (dev on 5432 while a test/E2E
+# run uses 5433), so a test run never touches your dev data:
+#
+#   dev-db  — persistent (named volume), port 5432, DB "lifetracker". Start it for `mvn quarkus:dev`:
+#                 docker compose -f docker-compose.dev.yml up -d dev-db
+#   test-db — ephemeral (tmpfs, wiped on recreate), port 5433, DB "lifetracker_test". Used by tests;
+#             the `-Dall` / `-Dit` Maven profiles start/remove it automatically (target it by name —
+#             never a bare `up`/`down`, which would also affect dev-db). For a bare `mvn test`:
+#                 docker compose -f docker-compose.dev.yml up -d test-db
+services:
+  dev-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: lifetracker
+      POSTGRES_USER: lifetracker
+      POSTGRES_PASSWORD: lifetracker
+    ports:
+      - "5432:5432"
+    volumes:
+      - dev_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lifetracker -d lifetracker"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  test-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: lifetracker_test
+      POSTGRES_USER: lifetracker
+      POSTGRES_PASSWORD: lifetracker
+    ports:
+      - "5433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data   # in-memory storage — wiped on container recreate, fast I/O
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lifetracker -d lifetracker_test"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+volumes:
+  dev_postgres_data:

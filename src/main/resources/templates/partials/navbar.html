@@ -1,18 +1,15 @@
-<header class="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 relative">
+<header class="bg-surface border-b border-line px-4 py-3 relative">
     <div class="flex items-center gap-6">
-        <span class="text-lg font-semibold text-gray-900 dark:text-gray-50">Life Tracker</span>
+        <span class="text-lg font-semibold text-ink">Life Tracker</span>
 
         <!-- Desktop navigation: hidden on narrow viewports -->
         <nav class="hidden sm:flex gap-4 text-sm">
-            <a href="/" class="{#if active == 'dashboard'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Dashboard</a>
-            <a href="/actions" class="{#if active == 'actions'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Actions</a>
-            <a href="/stats" class="{#if active == 'stats'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Stats</a>
-            {#if isAdmin}<a href="/admin/users" class="{#if active == 'admin'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Admin</a>{/if}
+            {#include partials/nav-links active=active isAdmin=isAdmin /}
         </nav>
         <div class="hidden sm:flex ml-auto items-center gap-4">
-            <a id="nav-display-name" href="/settings" title="Account settings" class="text-sm {#if active == 'settings'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">{displayName}</a>
+            <a id="nav-display-name" href="/settings" title="Account settings" class="text-sm {#if active == 'settings'}nav-link-active{#else}nav-link{/if}">{displayName}</a>
             <form method="post" action="/logout">
-                <button type="submit" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                <button type="submit" class="text-sm nav-link">
                     Log out
                 </button>
             </form>
@@ -32,15 +29,12 @@
     <div id="mobile-menu" data-open="false"
          class="grid grid-rows-[0fr] data-[open=true]:grid-rows-[1fr] transition-[grid-template-rows] duration-200 ease-out sm:hidden">
         <nav class="flex flex-col gap-3 pt-3 text-sm overflow-hidden min-h-0">
-            <a href="/" class="{#if active == 'dashboard'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Dashboard</a>
-            <a href="/actions" class="{#if active == 'actions'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Actions</a>
-            <a href="/stats" class="{#if active == 'stats'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Stats</a>
-            {#if isAdmin}<a href="/admin/users" class="{#if active == 'admin'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">Admin</a>{/if}
+            {#include partials/nav-links active=active isAdmin=isAdmin /}
             <!-- Separator: mirrors the left/right split of the desktop nav -->
-            <hr class="border-gray-200 dark:border-gray-700">
-            <a id="nav-display-name-mobile" href="/settings" class="{#if active == 'settings'}text-indigo-600 dark:text-indigo-400 font-medium{#else}text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors{/if}">{displayName}</a>
+            <hr class="border-line">
+            <a id="nav-display-name-mobile" href="/settings" class="{#if active == 'settings'}nav-link-active{#else}nav-link{/if}">{displayName}</a>
             <form method="post" action="/logout">
-                <button type="submit" class="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">
+                <button type="submit" class="text-sm nav-link">
                     Log out
                 </button>
             </form>

@@ -1,0 +1,15 @@
+# Build outputs / deps — rebuilt inside the image
+target/
+node_modules/
+e2e/node_modules/
+e2e/playwright-report/
+e2e/test-results/
+
+# Local-only
+.env
+.git/
+.idea/
+.vscode/
+*.iml
+.DS_Store
+secrets/

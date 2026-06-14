@@ -7,17 +7,15 @@
     {#include partials/navbar active='stats' /}
 
     <main class="flex-1 max-w-5xl mx-auto w-full px-4 py-8">
-        <h2 class="text-2xl font-semibold mb-6 text-gray-900 dark:text-gray-50">Stats</h2>
+        <h2 class="text-2xl font-semibold mb-6 text-ink">Stats</h2>
 
         {#if page.totalCount == 0}
-        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-10 text-center">
+        <div class="card p-10 text-center">
             {#if hasActions}
-            <p class="text-gray-500 dark:text-gray-400">No logs for any actions yet.</p>
+            <p class="text-ink-muted">No logs for any actions yet.</p>
             {#else}
-            <p class="text-gray-500 dark:text-gray-400 mb-3">No actions defined yet.</p>
-            <a href="/actions"
-               class="inline-block bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium
-                      hover:bg-indigo-700 transition-colors">
+            <p class="text-ink-muted mb-3">No actions defined yet.</p>
+            <a href="/actions" class="btn-primary">
                 Add actions
             </a>
             {/if}

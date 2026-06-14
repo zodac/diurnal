@@ -146,7 +146,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
                 .then().statusCode(200)
                 .contentType(containsString("text/html"))
                 .body(containsString("user@lt.test"))
-                .body(containsString("permanently remove"))
+                .body(containsString("Delete this user, their actions and logs?"))
                 .body(containsString("Cancel"));
     }
 

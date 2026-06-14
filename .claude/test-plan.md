@@ -14,13 +14,13 @@
 
 ### 1a. Test database via docker-compose
 
-Rather than Testcontainers (which requires Docker socket access from within the Maven JVM), a dedicated `docker-compose.test.yml` runs a PostgreSQL on port 5433 with `tmpfs` storage (wiped on restart, fast I/O). This keeps the test DB fully containerised without polluting the host.
+Rather than Testcontainers (which requires Docker socket access from within the Maven JVM), the `test-db` service in `docker-compose.dev.yml` runs a PostgreSQL on port 5433 with `tmpfs` storage (wiped on restart, fast I/O). This keeps the test DB fully containerised without polluting the host.
 
-The test profile points to this DB (`%test.*` in `application.properties`). Flyway runs migrations automatically at startup. `IntegrationTestBase.setUp()` truncates tables before each test.
+The test profile points to this DB (`application-test.properties`). Flyway runs migrations automatically at startup. `IntegrationTestBase.setUp()` truncates tables before each test.
 
 **Workflow before running `mvn test`:**
 ```bash
-docker-compose -f docker-compose.test.yml up -d
+docker compose -f docker-compose.dev.yml up -d test-db
 # wait for healthy, then:
 mvn test
 ```

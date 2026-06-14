@@ -8,17 +8,17 @@
 
     <!-- Content -->
     <main class="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
-        <h2 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-gray-50">Settings</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+        <h2 class="text-2xl font-semibold mb-1 text-ink">Settings</h2>
+        <p class="text-sm text-ink-muted mb-6">
             Manage your account preferences and application settings.
         </p>
 
         <!-- Account section -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 mb-6">
+        <div class="card p-6 mb-6">
             <div class="flex items-center justify-between mb-4">
-                <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-50">Account</h3>
+                <h3 class="card-title">Account</h3>
                 <span id="account-saved"
-                      class="text-xs text-green-600 dark:text-green-400 opacity-0 transition-opacity duration-300">
+                      class="text-xs text-success opacity-0 transition-opacity duration-300">
                     Saved
                 </span>
             </div>
@@ -26,14 +26,14 @@
             <div class="space-y-4">
                 <!-- Display Name -->
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Display Name</label>
+                    <label class="field-label-caps">Display Name</label>
 
                     <!-- Read mode -->
                     <div id="display-name-view" class="flex items-center justify-between">
-                        <p id="display-name-text" class="text-sm text-gray-900 dark:text-gray-50">{displayName}</p>
+                        <p id="display-name-text" class="text-sm text-ink">{displayName}</p>
                         <button type="button"
                                 onclick="startEditDisplayName()"
-                                class="dt-btn dt-btn-edit">
+                                class="text-sm font-medium text-brand hover:underline">
                             Edit
                         </button>
                     </div>
@@ -50,14 +50,14 @@
                                    value="{displayName}"
                                    required
                                    maxlength="255"
-                                   class="dt-text-input flex-1 min-w-0">
+                                   class="form-input flex-1 min-w-0">
                             <button type="submit"
-                                    class="dt-btn dt-btn-save flex-shrink-0">
+                                    class="btn-primary flex-shrink-0">
                                 Save
                             </button>
                             <button type="button"
                                     onclick="cancelEditDisplayName()"
-                                    class="dt-btn dt-btn-cancel flex-shrink-0">
+                                    class="text-sm font-medium text-ink-muted hover:text-ink flex-shrink-0">
                                 Cancel
                             </button>
                         </div>
@@ -66,21 +66,21 @@
 
                 <!-- Email (read-only) -->
                 <div>
-                    <label class="block text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-1">Email</label>
-                    <p class="text-sm text-gray-900 dark:text-gray-50">{email}</p>
+                    <label class="field-label-caps">Email</label>
+                    <p class="text-sm text-ink">{email}</p>
                 </div>
             </div>
         </div>
 
         <!-- Preferences -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
+        <div class="card p-6">
             <div class="flex items-center justify-between mb-4">
                 <div>
-                    <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-50">Preferences</h3>
-                    <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Changes are saved automatically.</p>
+                    <h3 class="card-title">Preferences</h3>
+                    <p class="help-text mt-0.5">Changes are saved automatically.</p>
                 </div>
                 <span id="prefs-saved"
-                      class="text-xs text-green-600 dark:text-green-400 opacity-0 transition-opacity duration-300">
+                      class="text-xs text-success opacity-0 transition-opacity duration-300">
                     Saved
                 </span>
             </div>
@@ -92,15 +92,15 @@
                   hx-swap="none"
                   class="space-y-6">
                 <!-- Theme -->
-                <div class="flex items-center justify-between py-4 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between py-4 border-b border-line">
                     <div class="flex-1">
-                        <label for="theme" class="block text-sm font-medium text-gray-900 dark:text-gray-50">Theme</label>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Choose a colour theme for the application</p>
+                        <label for="theme" class="block text-sm font-medium text-ink">Theme</label>
+                        <p class="help-text mt-1">Choose a colour theme for the application</p>
                     </div>
                     <div class="ml-4 flex items-center">
                         <select id="theme"
                                 name="theme"
-                                class="rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-50 focus:ring-indigo-500 focus:border-indigo-500 py-1.5 pl-3 pr-8 cursor-pointer">
+                                class="form-select">
                             <option value="system" {#if theme == 'system'}selected{/if}>System Theme</option>
                             <option value="light"  {#if theme == 'light'}selected{/if}>Light</option>
                             <option value="dark"   {#if theme == 'dark'}selected{/if}>Dark</option>
@@ -109,15 +109,15 @@
                 </div>
 
                 <!-- Items per page -->
-                <div class="flex items-center justify-between py-4 border-b border-gray-200 dark:border-gray-700">
+                <div class="flex items-center justify-between py-4 border-b border-line">
                     <div class="flex-1">
-                        <label for="pageSize" class="block text-sm font-medium text-gray-900 dark:text-gray-50">Items per page</label>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">How many entries to show per page in list views</p>
+                        <label for="pageSize" class="block text-sm font-medium text-ink">Items per page</label>
+                        <p class="help-text mt-1">How many entries to show per page in list views</p>
                     </div>
                     <div class="ml-4 flex items-center">
                         <select id="pageSize"
                                 name="pageSize"
-                                class="rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-50 focus:ring-indigo-500 focus:border-indigo-500 py-1.5 pl-3 pr-8 cursor-pointer">
+                                class="form-select">
                             {#for option in pageSizeOptions}
                             <option value="{option}" {#if option == pageSize}selected{/if}>{option}</option>
                             {/for}
@@ -128,13 +128,13 @@
                 <!-- Calendar style -->
                 <div class="flex items-center justify-between py-4">
                     <div class="flex-1">
-                        <label for="calendarView" class="block text-sm font-medium text-gray-900 dark:text-gray-50">Calendar style</label>
-                        <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">Full shows events as text; Minimal shows dots per action; Stacked shows horizontal bars per action</p>
+                        <label for="calendarView" class="block text-sm font-medium text-ink">Calendar style</label>
+                        <p class="help-text mt-1">Full shows events as text; Minimal shows dots per action; Stacked shows horizontal bars per action</p>
                     </div>
                     <div class="ml-4 flex items-center">
                         <select id="calendarView"
                                 name="calendarView"
-                                class="rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-gray-900 dark:text-gray-50 focus:ring-indigo-500 focus:border-indigo-500 py-1.5 pl-3 pr-8 cursor-pointer">
+                                class="form-select">
                             <option value="full"    {#if calendarView == 'full'}selected{/if}>Full</option>
                             <option value="minimal" {#if calendarView == 'minimal'}selected{/if}>Minimal</option>
                             <option value="stacked" {#if calendarView == 'stacked'}selected{/if}>Stacked</option>
@@ -184,33 +184,9 @@
                 if (e.detail.successful) showSaved('prefs-saved');
             });
 
+            // Cross-fade into the chosen theme using the shared applyTheme helper (layout.html).
             document.getElementById('theme').addEventListener('change', function () {
-                var val = this.value;
-                var dark = val === 'dark' ||
-                    (val === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                var scheme = dark ? 'dark' : (val === 'system' ? 'light dark' : 'light');
-
-                // Cross-fade into the new theme. The class is removed once the
-                // transition finishes so it never affects normal hover transitions.
-                var root = document.documentElement;
-                root.classList.add('theme-transition');
-                window.setTimeout(function () { root.classList.remove('theme-transition'); }, 350);
-
-                var meta = document.querySelector('meta[name="color-scheme"]');
-                if (meta) meta.content = scheme;
-                root.classList.toggle('dark', dark);
-                root.style.colorScheme = scheme;
-                var override = document.getElementById('theme-bg');
-                if (dark) {
-                    if (!override) {
-                        document.head.insertAdjacentHTML('beforeend',
-                            '<style id="theme-bg">body\{background-color:#111827!important;color:#f9fafb!important}</style>');
-                    }
-                } else {
-                    if (override) override.remove();
-                    document.body.style.backgroundColor = '#f9fafb';
-                    document.body.style.color = '#111827';
-                }
+                window.LifeTracker.applyTheme(this.value, { transition: true, resetBody: true });
             });
         </script>
     </main>

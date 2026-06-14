@@ -1,0 +1,12 @@
+{!
+  One inset metric tile (stats cards, dashboard summary). Params:
+    label      — caption (dt)
+    value      — the figure (dd)
+    sub        — optional secondary caption (dd)
+    valueClass — optional colour/utility for the value (e.g. a trend colour); defaults to text-ink
+!}
+<div class="stat-tile">
+    <dt class="help-text mb-1">{label}</dt>
+    <dd class="text-2xl font-bold leading-none {valueClass ?: 'text-ink'}">{value}</dd>
+    {#if sub}<dd class="help-text mt-0.5">{sub}</dd>{/if}
+</div>

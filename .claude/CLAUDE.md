@@ -5,10 +5,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Start the dev PostgreSQL (required before quarkus:dev)
-docker-compose -f docker-compose.dev.yml up -d   # or the main compose if no dev file exists
+# Build the CSS once after cloning (and after any class/template change). The compiled,
+# purged Tailwind stylesheet is served at /css/app.css. The output is committed, so the app
+# runs without Node, but it must be rebuilt when classes change.
+npm install        # one-time
+npm run css        # or: npm run css:watch  (rebuild on template/class changes during dev)
+
+# Start the dev PostgreSQL (required before quarkus:dev). docker-compose.dev.yml holds BOTH the dev
+# and test DBs as separate services — start them by name so you only get the one you want.
+docker compose -f docker-compose.dev.yml up -d dev-db
 
 # Run in dev mode (hot reload, Swagger UI at /q/swagger-ui)
+# ALWAYS stop this instance once testing/verification is finished (see rule below):
+#   pkill -f "quarkus:dev"
 mvn quarkus:dev
 
 # Build JAR
@@ -19,7 +28,7 @@ mvn clean install -Dall
 # Prerequisite: Playwright browsers must be installed once: cd e2e && npx playwright install
 
 # Run unit + integration tests only (start the test DB first)
-docker-compose -f docker-compose.test.yml up -d
+docker compose -f docker-compose.dev.yml up -d test-db
 mvn test
 
 # Run a single test class
@@ -28,16 +37,39 @@ mvn test -Dtest=MyTestClass
 # Run only *IT.java integration tests (starts and stops the test DB automatically)
 mvn clean install -Dit
 
-# Run Playwright E2E tests only (app must be running on :8080, test DB on :5433)
-cd e2e && npm test
+# Run Playwright E2E tests only (test DB on :5433). Defaults to an app on :8080; point it at any
+# running instance with BASE_URL (e.g. the dev server, or the -Dall jar — both on :8081).
+cd e2e && npm test                                  # against :8080
+cd e2e && BASE_URL=http://localhost:8081 npm test   # against the dev / -Dall testing port
 
 # Full Docker deployment
 cp .env.example .env   # fill in DB_PASSWORD and SESSION_ENCRYPTION_KEY
-docker-compose up -d --build
-docker-compose logs -f app
+docker compose up -d --build
+docker compose logs -f app
 ```
 
-Dev mode disables Testcontainers and expects a local PostgreSQL on `localhost:5432` with database/user/password all `lifetracker`. Flyway migrations run automatically at startup.
+> **Always invoke the Compose CLI as `docker compose` (the v2 plugin), NEVER the legacy
+> `docker-compose` (hyphenated) binary.** This applies to every command; only the `docker-compose.yml`
+> / `docker-compose.dev.yml` **filenames** keep the hyphen, since those are the literal files on disk.
+
+Dev mode disables Testcontainers and expects a local PostgreSQL on `localhost:5432` with database/user/password all `lifetracker` (start it with `docker compose -f docker-compose.dev.yml up -d dev-db`). Flyway migrations run automatically at startup. A single `docker-compose.dev.yml` defines **both** local databases as separate services: `dev-db` (persistent, 5432, `lifetracker`) and `test-db` (tmpfs, 5433, `lifetracker_test`); always start/stop them **by service name** so the two never interfere.
+
+> **Always tear down the dev environment once testing/verification is finished.** Never leave dev
+> resources running at the end of a task:
+> 1. Stop the dev app: `pkill -f "quarkus:dev"` and confirm port 8081 is free (frees 8081 for the
+>    `@QuarkusTest` test-port and stops a stale server masking changes).
+> 2. Stop the local DBs: `docker compose -f docker-compose.dev.yml down` (brings down both `dev-db`
+>    and `test-db`; the `dev_postgres_data` volume persists, so dev data survives the next start).
+>
+> The **test** DB (the `test-db` service in `docker-compose.dev.yml`, port 5433) does **not** need
+> manual teardown for a test run: the `-Dall` / `-Dit` Maven profiles start it (`up … test-db`) in
+> `pre-integration-test` and remove it (`rm -sf test-db`) in `post-integration-test` automatically,
+> **scoped to the service** so they never touch a running `dev-db`. Only close it by hand if you
+> started it yourself for a bare `mvn test`.
+
+Config is layered by Quarkus profile: `application.properties` holds the base/production config, and profile-specific overrides live in `application-dev.properties` (dev mode — HTTP port **8081**, dev DB on 5432, DEBUG logging, Swagger UI) and `application-test.properties` (test DB on 5433, forced UTC). Both profile files **must** stay in `src/main/resources` (not `src/test/resources`): the `-Dall` E2E step runs the packaged jar with `-Dquarkus.profile=test`, which only reads config that was bundled into the jar.
+
+**Port map**: **8080** = production (`application.properties` default, the `docker compose` container); **8081** = the single "testing" port — dev mode (`application-dev.properties`), the `@QuarkusTest` test-port the unit/`*IT` tests bind, *and* the packaged-jar E2E run under `-Dall` (`-Dquarkus.http.port=${e2e.http.port}` in `pom.xml`). These three never run at once, so they share one port. Under `-Dall` the ordering is the load-bearing detail: the E2E jar is started in the `integration-test` phase **after** failsafe finishes the `*IT` tests (so the `@QuarkusTest` instance has released 8081) — guaranteed by `exec-maven-plugin` being declared after `maven-failsafe-plugin`, and by binding `quarkus-start-e2e` to `integration-test` rather than `pre-integration-test`. Keeping testing on 8081 leaves 8080 free, so `-Dall` coexists with a running production container.
 
 ## Architecture
 
@@ -71,12 +103,62 @@ Most resources return **HTML fragments** rather than full pages. Qute templates 
 
 Error responses for HTMX mutations use `HX-Retarget` / `HX-Reswap` headers to redirect the swap into the error element rather than the default target.
 
+### CSS build & colour tokens
+
+Tailwind is **compiled, not CDN**. `src/main/css/app.css` (the `@tailwind` entrypoint + colour
+tokens) is built by `npm run css` into `src/main/resources/META-INF/resources/css/app.css`, which
+Quarkus bundles and serves at `/css/app.css` (`layout.html` links it). `tailwind.config.js` sets
+`darkMode: 'class'` and scans **both** `templates/**/*.html` and `src/main/java/**/*.java` (a few
+classes are returned from Java, e.g. `StatsService` trend colours — also `safelist`ed). The compiled
+file is committed so the app runs without Node; **rebuild it (`npm run css`) after changing any class
+in a template or Java file**, or the new class will be purged/missing. The Dockerfile builds it fresh
+in a dedicated `css` stage (Node) and copies it into the Quarkus build — Node never reaches runtime.
+
+Colour is tokenised: `app.css` defines `--color-*` CSS variables once (`:root` + `.dark`), and
+`tailwind.config.js` exposes semantic utilities backed by them — `bg-surface` / `bg-surface-muted`,
+`text-ink` / `text-ink-muted`, `border-line` / `border-line-subtle`, `text-brand`, `text-success`,
+`text-danger` — that auto-adapt to dark mode **without a `dark:` variant**. Use these instead of raw
+`gray-*`/`indigo-*` pairs (the filled primary button stays literal `indigo-600` on purpose — it must
+not lighten in dark mode, so the `brand` token, which flips to indigo-400, is for accents/text only).
+
+The variable set goes beyond the Tailwind-exposed utilities: the inline component CSS (the `.dt-*`
+data-table layer and the `.banner-*` messages in `layout.html`, plus the calendar in
+`dashboard.html`) consume the tokens directly as `var(--color-*)`, so it carries extra tokens for
+states with no plain utility — `--color-brand-strong` / `--color-danger-strong` (deeper active-hover
+shades), `--color-text-strong` / `--color-text-faint` (hover target for / resting state of muted
+controls), `--color-brand-subtle` (faint brand tint → solid brand in dark, the calendar "today"
+fill), `--color-ring-edit` / `--color-ring-confirm` (edit / confirm-delete row rings),
+`--color-input-bg` / `--color-input-border` (table edit-row inputs), and a `--color-banner-{error,
+success,warning}-{bg,border,text}` group. **No raw hex remains in the UI** except two deliberate
+literals: the FOUC background guard in `layout.html` (injected before `app.css` loads, so it can't
+reference the variables) and the per-action colour, which is stored user data (default `#6366f1`),
+not chrome. Because each token carries its own dark value, the token-based component CSS needs almost
+no `.dark` overrides.
+
+**Component classes** (in `app.css` `@layer components`, the single source for each "type" of element
+so it looks identical everywhere; built with `@apply`):
+- `.btn-primary` (filled CTA), `.btn-secondary` (outlined/OIDC)
+- `.card` (surface shell — padding/shadow stay at the call site), `.stat-tile` (inset metric tile)
+- `.form-input` (width set by caller), `.form-select`, `.field-label`, `.field-label-caps`, `.help-text`
+- `.nav-link` / `.nav-link-active`, `.swatch` + `.swatch-sm`/`.swatch-md` (pagination links reuse `.dt-page-link`)
+
+**Shared structural partials**: `partials/nav-links.html` (one link list rendered into both the desktop
+bar and the mobile menu — they can't drift), `partials/stat-tile.html`, `partials/pagination.html` (now
+used by Actions, Users, **and** Stats; the dashboard day panel reuses the same `.dt-pagination`/`.dt-page-link`
+look but keeps its own markup for live-search passthrough). Theme switching is centralised in
+`window.LifeTracker.applyTheme(theme, opts)` (defined inline in `layout.html` for the FOUC pass, reused by
+the settings picker).
+
+The table chrome (`.dt-*`) still lives inline in `layout.html` (see below) — the one component layer not
+yet folded into `app.css` — but it already consumes the `app.css` colour tokens via `var(--color-*)`.
+
 ### Shared data-table styling (`.dt-*`)
 
 All data tables — Actions (`/actions`), Users (`/admin/users`), and any future ones — share a single
 styling layer so they look and behave identically. The source of truth is a `<style>` block of
-semantic `.dt-*` classes in `layout.html` (plain CSS, because Tailwind is CDN-loaded and can't `@apply`
-at runtime; dark variants key off the `.dark` class). Wrap a table in `.dt-table` and use
+semantic `.dt-*` classes in `layout.html` (still plain CSS and inline for now, though every colour is
+already a `var(--color-*)` token; moving the rules into `app.css` with `@apply` is the remaining
+Tier-2 step; the few remaining dark variants key off the `.dark` class). Wrap a table in `.dt-table` and use
 `.dt-row`/`.dt-cell`; `{#include partials/pagination …}` for the footer.
 
 **Two table variants:**
@@ -150,4 +232,4 @@ Flyway scripts live in `src/main/resources/db/migration/`. Schema versioning is 
 
 ### Testing conventions
 
-Integration tests extend `IntegrationTestBase`, which truncates tables in FK-safe order (`action_logs → actions → users`) before each test. Helper methods `newUser()`, `newAction()`, `newLog()`, and `runInTx()` are provided. Tests use `@TestSecurity` to set the principal email and roles. The `%test` profile forces `app.timezone=UTC` and uses the test DB on port 5433. BCrypt cost is set to 4 in tests for speed. E2E Playwright tests run sequentially (1 worker) against a live app instance; Chromium desktop and Galaxy S24 mobile viewports are both covered.
+Integration tests extend `IntegrationTestBase`, which truncates tables in FK-safe order (`action_logs → actions → users`) before each test. Helper methods `newUser()`, `newAction()`, `newLog()`, and `runInTx()` are provided. Tests use `@TestSecurity` to set the principal email and roles. The `test` profile (`application-test.properties`) forces `app.timezone=UTC` and uses the test DB on port 5433. BCrypt cost is set to 4 in tests for speed. E2E Playwright tests run sequentially (1 worker) against a live app instance; Chromium desktop and Galaxy S24 mobile viewports are both covered.

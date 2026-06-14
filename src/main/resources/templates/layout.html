@@ -14,48 +14,61 @@
     <meta name="color-scheme" content="light dark">
     <title>Life Tracker</title>
     <!--
-        Resolve theme before body renders to prevent FOUC.
-        'dark'   → always apply dark class.
-        'light'  → always light.
-        'system' → follow prefers-color-scheme media query.
+        Single source of truth for applying a theme ('dark' | 'light' | 'system'), defined inline
+        in <head> so it's available for the pre-render FOUC pass (no external request) AND reusable
+        by the settings theme picker. Resolves 'system' against prefers-color-scheme, toggles the
+        `.dark` class, syncs the color-scheme meta, and manages the FOUC background override.
+        opts.transition cross-fades (settings only); opts.resetBody clears the inline body colours
+        the FOUC override leaves behind. Then it runs once immediately to set the initial theme.
     -->
     <script>
-        (function () {
-            var theme = '{theme}';
+        window.LifeTracker = window.LifeTracker || {};
+        window.LifeTracker.applyTheme = function (theme, opts) {
+            opts = opts || {};
+            var root = document.documentElement;
             var dark = theme === 'dark' ||
                 (theme === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
             var scheme = dark ? 'dark' : (theme === 'system' ? 'light dark' : 'light');
+            if (opts.transition) {
+                root.classList.add('theme-transition');
+                window.setTimeout(function () { root.classList.remove('theme-transition'); }, 350);
+            }
             var meta = document.querySelector('meta[name="color-scheme"]');
             if (meta) meta.content = scheme;
+            root.classList.toggle('dark', dark);
+            root.style.colorScheme = scheme;
+            var override = document.getElementById('theme-bg');
+            // These hex literals (gray-900 bg / gray-50 text, the dark page colours) are deliberately
+            // NOT tokenised: this style is injected before /css/app.css loads, so it cannot reference
+            // the --color-* variables defined there without reintroducing the flash it exists to prevent.
             if (dark) {
-                document.documentElement.classList.add('dark');
-                document.documentElement.style.colorScheme = 'dark';
-                document.head.insertAdjacentHTML('beforeend',
+                if (!override) document.head.insertAdjacentHTML('beforeend',
                     '<style id="theme-bg">body\{background-color:#111827!important;color:#f9fafb!important}</style>');
-            } else {
-                document.documentElement.style.colorScheme = scheme;
+            } else if (override) {
+                override.remove();
+                if (opts.resetBody) {
+                    document.body.style.backgroundColor = '#f9fafb';
+                    document.body.style.color = '#111827';
+                }
             }
-        })();
+        };
+        window.LifeTracker.applyTheme('{theme}', {});
     </script>
     <!--
-        Tailwind is loaded from the Play CDN. The config MUST be assigned after the
-        CDN script so the `tailwind` global exists; otherwise the assignment throws
-        and Tailwind silently falls back to its default `darkMode: 'media'` strategy,
-        which keys dark styling off the OS theme instead of the server-controlled
-        `.dark` class on <html>.
+        Compiled, purged Tailwind stylesheet — built by `npm run css` (and by the `css` stage
+        of the Dockerfile for the image), replacing the runtime Play CDN. `darkMode: 'class'`
+        is baked into the build, so the server-controlled `.dark` class on <html> still drives
+        dark styling. Colour tokens are defined once in src/main/css/app.css.
     -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            darkMode: 'class'
-        }
-    </script>
+    <link rel="stylesheet" href="/css/app.css">
     <!--
         Shared data-table ("dt") component styling. This is the single source of truth for
         how every list/table in the app looks: Actions, Users (admin), and any future tables.
-        Tailwind is loaded from the Play CDN, which cannot process `@apply` at runtime, so these
-        are written as plain CSS. Dark-mode variants key off the `.dark` class on <html>
-        (Tailwind is configured `darkMode: 'class'`), matching the rest of the app.
+        These are written as plain CSS and remain inline for now, but every colour they use is a
+        `var(--color-*)` token from src/main/css/app.css (the tokens carry their own dark values, so
+        most `.dark .dt-*` overrides are gone — see CLAUDE.md; moving the rules themselves into
+        app.css with `@apply` is the remaining Tier-2 step). Dark-mode variants that remain key off
+        the `.dark` class on <html> (Tailwind is configured `darkMode: 'class'`), like the rest of the app.
 
         To add a new data table, wrap it in `.dt-table`, use `.dt-row`/`.dt-cell`, put row
         actions in a trailing `.dt-actions` cell with `.dt-btn-edit`/`.dt-btn-delete`, and
@@ -87,22 +100,16 @@
 
         /* Table shell */
         .dt-table { width: 100%; font-size: .875rem; line-height: 1.25rem; }
-        .dt-table thead tr { border-bottom: 1px solid #e5e7eb; }
-        .dark .dt-table thead tr { border-bottom-color: #374151; }
+        .dt-table thead tr { border-bottom: 1px solid var(--color-border); }
         .dt-head-cell { padding: .75rem 1rem; text-align: left; font-size: .75rem; line-height: 1rem;
-            font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: .025em; }
-        .dark .dt-head-cell { color: #9ca3af; }
-        .dt-tbody > tr + tr { border-top: 1px solid #f3f4f6; }
-        .dark .dt-tbody > tr + tr { border-top-color: #374151; }
+            font-weight: 500; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .025em; }
+        .dt-tbody > tr + tr { border-top: 1px solid var(--color-border-subtle); }
 
         /* Rows + cells */
         .dt-row { transition: background-color .15s; }
-        .dt-row:hover { background-color: #f9fafb; }
-        .dark .dt-row:hover { background-color: #374151; }
-        .dt-cell { padding: .75rem 1rem; color: #111827; vertical-align: middle; }
-        .dark .dt-cell { color: #f9fafb; }
-        .dt-cell-muted { color: #6b7280; white-space: nowrap; }
-        .dark .dt-cell-muted { color: #9ca3af; }
+        .dt-row:hover { background-color: var(--color-surface-muted); }
+        .dt-cell { padding: .75rem 1rem; color: var(--color-text); vertical-align: middle; }
+        .dt-cell-muted { color: var(--color-text-muted); white-space: nowrap; }
         .dt-cell-actions { width: 1%; white-space: nowrap; }
 
         /* Trailing action buttons. Each label sits in a fixed-width, centred slot, so swapping
@@ -111,6 +118,12 @@
            same two equal slots, right-aligned, so corresponding buttons line up. */
         .dt-actions { display: flex; justify-content: flex-end; align-items: center; gap: .5rem; }
         .dt-actions .dt-btn { min-width: 3.5rem; text-align: center; }
+        /* Tailwind's `.hidden` utility lives in the linked app.css, which is *earlier* in the cascade
+           than this inline block. A component class here that sets `display` (e.g. .dt-actions on the
+           options cell) would otherwise win on equal specificity and
+           keep a [data-dt-view]/[data-dt-edit] element visible after dtStartEdit/dtCancelEdit adds
+           `.hidden`. Re-assert `.hidden` at higher specificity so the view/edit toggle reliably hides. */
+        [data-dt-view].hidden, [data-dt-edit].hidden { display: none; }
         /* View-mode actions stay subtle until the row is highlighted (hovered/focused); edit +
            confirm actions are always shown. On touch this works the same way: tapping a row applies
            the :hover state (sticky until another row is tapped), so the actions reveal on tap.
@@ -121,23 +134,16 @@
         .dt-row:hover [data-dt-view].dt-actions,
         .dt-row:focus-within [data-dt-view].dt-actions { opacity: 1; pointer-events: auto; }
 
-        /* Colour swatch (Actions) */
-        .dt-swatch { display: inline-block; width: 1rem; height: 1rem; border-radius: 9999px;
-            flex-shrink: 0; border: 1px solid rgba(0,0,0,.1); }
-
-        /* Buttons — shared across every table + the Settings account panel */
+        /* Buttons — shared across every editable table. Every colour is a token that already
+           flips in dark mode (resting icons use --color-text-faint, the deeper hover shades use
+           the -strong tokens), so no .dark twin is needed here. */
         .dt-btn { font-size: .75rem; line-height: 1rem; font-weight: 500; background: none; border: 0;
             padding: 0; cursor: pointer; transition: color .15s; }
-        .dt-btn-edit { color: #9ca3af; } .dt-btn-edit:hover { color: #4f46e5; }
-        .dark .dt-btn-edit { color: #6b7280; } .dark .dt-btn-edit:hover { color: #818cf8; }
-        .dt-btn-delete { color: #9ca3af; } .dt-btn-delete:hover { color: #dc2626; }
-        .dark .dt-btn-delete { color: #6b7280; } .dark .dt-btn-delete:hover { color: #f87171; }
-        .dt-btn-save { color: #4f46e5; } .dt-btn-save:hover { color: #3730a3; }
-        .dark .dt-btn-save { color: #818cf8; } .dark .dt-btn-save:hover { color: #a5b4fc; }
-        .dt-btn-cancel { color: #6b7280; } .dt-btn-cancel:hover { color: #374151; }
-        .dark .dt-btn-cancel { color: #9ca3af; } .dark .dt-btn-cancel:hover { color: #e5e7eb; }
-        .dt-btn-danger { color: #dc2626; } .dt-btn-danger:hover { color: #991b1b; }
-        .dark .dt-btn-danger { color: #f87171; } .dark .dt-btn-danger:hover { color: #fca5a5; }
+        .dt-btn-edit { color: var(--color-text-faint); } .dt-btn-edit:hover { color: var(--color-brand); }
+        .dt-btn-delete { color: var(--color-text-faint); } .dt-btn-delete:hover { color: var(--color-danger); }
+        .dt-btn-save { color: var(--color-brand); } .dt-btn-save:hover { color: var(--color-brand-strong); }
+        .dt-btn-cancel { color: var(--color-text-muted); } .dt-btn-cancel:hover { color: var(--color-text-strong); }
+        .dt-btn-danger { color: var(--color-danger); } .dt-btn-danger:hover { color: var(--color-danger-strong); }
 
         /* Row highlight ring — the single accent shared by every editable + confirm-delete row.
            Pass the colour in via the `--dt-highlight` variable (set by the row's mode class below,
@@ -149,11 +155,10 @@
         .dt-row-highlight > td:last-child { box-shadow: inset 0 1px 0 0 var(--dt-highlight), inset 0 -1px 0 0 var(--dt-highlight), inset -1px 0 0 0 var(--dt-highlight); }
         .dt-row-highlight > td:only-child { box-shadow: inset 0 0 0 1px var(--dt-highlight); }
 
-        /* Highlight colours — each mode class supplies just the colour passed into the ring. */
-        .dt-row-edit { --dt-highlight: #a5b4fc; }
-        .dark .dt-row-edit { --dt-highlight: #4338ca; }
-        .dt-row-confirm { --dt-highlight: #fca5a5; }
-        .dark .dt-row-confirm { --dt-highlight: #b91c1c; }
+        /* Highlight colours — each mode class supplies just the colour passed into the ring.
+           The ring tokens already flip in dark mode, so no .dark twin is needed. */
+        .dt-row-edit { --dt-highlight: var(--color-ring-edit); }
+        .dt-row-confirm { --dt-highlight: var(--color-ring-confirm); }
 
         /* Edit rows hold inputs (taller than a text line), so give the inputs the row's line-height
            and trim the cell padding to match — the row keeps the SAME height as its view state, so
@@ -163,37 +168,30 @@
 
         /* In-place confirm-delete cell — ring colour comes from .dt-row-confirm; this is padding only. */
         .dt-confirm-cell { padding: .75rem 1rem; }
-        .dt-confirm-prompt { font-size: .75rem; color: #6b7280; }
-        .dark .dt-confirm-prompt { color: #9ca3af; }
+        .dt-confirm-prompt { font-size: .75rem; color: var(--color-text-muted); }
 
         /* Role/status badge */
-        .dt-badge { font-size: .75rem; font-weight: 500; color: #6b7280; }
-        .dark .dt-badge { color: #9ca3af; }
-        .dt-badge-admin { color: #4f46e5; }
-        .dark .dt-badge-admin { color: #818cf8; }
+        .dt-badge { font-size: .75rem; font-weight: 500; color: var(--color-text-muted); }
+        .dt-badge-admin { color: var(--color-brand); }
 
-        /* Inputs used inside table edit rows + the Settings account panel */
-        .dt-text-input { font-size: .875rem; border: 1px solid #d1d5db; border-radius: .5rem;
-            padding: .25rem .5rem; background: #fff; color: #111827; }
-        .dt-text-input:focus { outline: none; box-shadow: 0 0 0 2px #6366f1; border-color: transparent; }
-        .dark .dt-text-input { border-color: #4b5563; background: #4b5563; color: #f9fafb; }
+        /* Inputs used inside table edit rows. Colours are tokens that flip in dark mode (the
+           input bg/border tokens give the text input and the select an identical dark treatment),
+           so no .dark twin is needed. */
+        .dt-text-input { font-size: .875rem; border: 1px solid var(--color-input-border); border-radius: .5rem;
+            padding: .25rem .5rem; background: var(--color-input-bg); color: var(--color-text); }
+        .dt-text-input:focus { outline: none; box-shadow: 0 0 0 2px var(--color-brand-ring); border-color: transparent; }
         .dt-color-input { width: 1.5rem; height: 1.5rem; border-radius: 9999px; border: 0; padding: 0;
             background: transparent; cursor: pointer; flex-shrink: 0; }
-        .dt-select { font-size: .75rem; border: 1px solid #d1d5db; border-radius: .375rem; background: #fff;
-            color: #111827; padding: .25rem 1.5rem .25rem .5rem; cursor: pointer; }
-        .dt-select:focus { outline: none; box-shadow: 0 0 0 1px #6366f1; }
-        .dark .dt-select { border-color: #4b5563; background: #374151; color: #f9fafb; }
+        .dt-select { font-size: .75rem; border: 1px solid var(--color-input-border); border-radius: .375rem;
+            background: var(--color-input-bg); color: var(--color-text); padding: .25rem 1.5rem .25rem .5rem; cursor: pointer; }
+        .dt-select:focus { outline: none; box-shadow: 0 0 0 1px var(--color-brand-ring); }
 
-        /* Empty state + pagination footer */
-        .dt-empty { padding: 2rem 1rem; text-align: center; color: #6b7280; }
-        .dark .dt-empty { color: #9ca3af; }
-        .dt-pagination { padding: .75rem 1rem; border-top: 1px solid #e5e7eb; display: flex;
-            align-items: center; justify-content: space-between; font-size: .75rem; color: #6b7280; }
-        .dark .dt-pagination { border-top-color: #374151; color: #9ca3af; }
-        .dt-page-link { color: #4f46e5; transition: color .15s; }
-        .dt-page-link:hover { color: #3730a3; }
-        .dark .dt-page-link { color: #818cf8; }
-        .dark .dt-page-link:hover { color: #a5b4fc; }
+        /* Empty state + pagination footer. All colours are tokens that flip in dark mode. */
+        .dt-empty { padding: 2rem 1rem; text-align: center; color: var(--color-text-muted); }
+        .dt-pagination { padding: .75rem 1rem; border-top: 1px solid var(--color-border); display: flex;
+            align-items: center; justify-content: space-between; font-size: .75rem; color: var(--color-text-muted); }
+        .dt-page-link { color: var(--color-brand); transition: color .15s; }
+        .dt-page-link:hover { color: var(--color-brand-strong); }
 
         /* Inline message banners — shared by login/register pages and HTMX error responses
            (e.g. the admin user-management guards). Use `.banner` plus one variant modifier so
@@ -201,12 +199,9 @@
            from Qute (partials/banner.html) and from Java-built HTML, hence a plain CSS class. */
         .banner { border-radius: .5rem; border: 1px solid transparent;
             padding: .5rem .75rem; font-size: .875rem; line-height: 1.25rem; }
-        .banner-error { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
-        .dark .banner-error { background: rgb(127 29 29 / .2); border-color: #7f1d1d; color: #fecaca; }
-        .banner-success { background: #f0fdf4; border-color: #bbf7d0; color: #15803d; }
-        .dark .banner-success { background: rgb(20 83 45 / .2); border-color: #14532d; color: #bbf7d0; }
-        .banner-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
-        .dark .banner-warning { background: rgb(120 53 15 / .2); border-color: #78350f; color: #fde68a; }
+        .banner-error { background: var(--color-banner-error-bg); border-color: var(--color-banner-error-border); color: var(--color-banner-error-text); }
+        .banner-success { background: var(--color-banner-success-bg); border-color: var(--color-banner-success-border); color: var(--color-banner-success-text); }
+        .banner-warning { background: var(--color-banner-warning-bg); border-color: var(--color-banner-warning-border); color: var(--color-banner-warning-text); }
     </style>
     <script src="https://unpkg.com/htmx.org@2.0.3"></script>
     {#insert head /}

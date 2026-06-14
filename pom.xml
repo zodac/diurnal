@@ -14,6 +14,13 @@
         <quarkus.platform.version>3.36.1</quarkus.platform.version>
         <compiler-plugin.version>3.13.0</compiler-plugin.version>
         <surefire-plugin.version>3.3.1</surefire-plugin.version>
+        <!-- Single "testing" HTTP port, shared by both test tiers: the *IT tests bind it as the
+             @QuarkusTest test-port (Quarkus default 8081), and the packaged-jar E2E run binds the
+             same port. They never clash because they don't overlap in time — under -Dall the E2E
+             jar is started in the integration-test phase *after* failsafe has finished the *IT
+             tests (and released the port), not before (see the exec executions below). 8081 is
+             distinct from 8080 (the production container), so -Dall coexists with a deployment. -->
+        <e2e.http.port>8081</e2e.http.port>
     </properties>
 
     <dependencyManagement>
@@ -178,10 +185,11 @@
                                     <arguments>
                                         <argument>compose</argument>
                                         <argument>-f</argument>
-                                        <argument>${project.basedir}/docker-compose.test.yml</argument>
+                                        <argument>${project.basedir}/docker-compose.dev.yml</argument>
                                         <argument>up</argument>
                                         <argument>-d</argument>
                                         <argument>--wait</argument>
+                                        <argument>test-db</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
@@ -194,8 +202,11 @@
                                     <arguments>
                                         <argument>compose</argument>
                                         <argument>-f</argument>
-                                        <argument>${project.basedir}/docker-compose.test.yml</argument>
-                                        <argument>down</argument>
+                                        <argument>${project.basedir}/docker-compose.dev.yml</argument>
+                                        <argument>rm</argument>
+                                        <argument>-s</argument>
+                                        <argument>-f</argument>
+                                        <argument>test-db</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
@@ -238,10 +249,16 @@
             Phase sequence:
               test                – surefire: unit tests (*Test) only
               package             – Quarkus builds the fast-jar
-              pre-integration-test – docker compose up (DB) + java -jar (app) in background
-              integration-test    – failsafe: *IT tests + Playwright E2E (results captured; clean-up always runs)
+              pre-integration-test – docker compose up (DB) only
+              integration-test    – failsafe: *IT tests (@QuarkusTest on 8081) run FIRST; then the
+                                     packaged jar starts on the same 8081 (now free) + Playwright E2E
+                                     (results captured; clean-up always runs). Ordering is guaranteed
+                                     by failsafe being declared before exec-maven-plugin.
               post-integration-test – kill app by PID + docker compose down (always runs; failsafe defers failure)
               verify              – failsafe reports IT failures + playwright-check reports E2E failures
+
+            Both tiers share ONE testing port (8081, the @QuarkusTest default); they never overlap
+            in time, so a single port suffices and -Dall stays clear of the 8080 production container.
         -->
         <profile>
             <id>all</id>
@@ -303,24 +320,29 @@
                                     <arguments>
                                         <argument>compose</argument>
                                         <argument>-f</argument>
-                                        <argument>${project.basedir}/docker-compose.test.yml</argument>
+                                        <argument>${project.basedir}/docker-compose.dev.yml</argument>
                                         <argument>up</argument>
                                         <argument>-d</argument>
                                         <argument>--wait</argument>
+                                        <argument>test-db</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
 
-                            <!-- 2. Start Quarkus in test profile; poll /login until ready (max 120s) -->
+                            <!-- 2. Start Quarkus in test profile; poll /login until ready (max 120s).
+                                 Bound to integration-test (NOT pre-integration-test) and this exec
+                                 plugin is declared after maven-failsafe-plugin, so it runs only once
+                                 failsafe has finished the *IT tests — by then the @QuarkusTest test
+                                 instance has released ${e2e.http.port}, which this jar then reuses. -->
                             <execution>
                                 <id>quarkus-start-e2e</id>
-                                <phase>pre-integration-test</phase>
+                                <phase>integration-test</phase>
                                 <goals><goal>exec</goal></goals>
                                 <configuration>
                                     <executable>bash</executable>
                                     <arguments>
                                         <argument>-c</argument>
-                                        <argument>java -Dquarkus.profile=test -jar "${project.build.directory}/quarkus-app/quarkus-run.jar" &gt;"${project.build.directory}/app.log" 2&gt;&amp;1 &amp; echo $! &gt;"${project.build.directory}/app.pid"; for i in $(seq 1 60); do curl -sf http://localhost:8080/login &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "App ready" &amp;&amp; exit 0; sleep 2; done; echo "App failed to start — see target/app.log"; exit 1</argument>
+                                        <argument>java -Dquarkus.profile=test -Dquarkus.http.port=${e2e.http.port} -jar "${project.build.directory}/quarkus-app/quarkus-run.jar" &gt;"${project.build.directory}/app.log" 2&gt;&amp;1 &amp; echo $! &gt;"${project.build.directory}/app.pid"; for i in $(seq 1 60); do curl -sf http://localhost:${e2e.http.port}/login &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "App ready" &amp;&amp; exit 0; sleep 2; done; echo "App failed to start — see target/app.log"; exit 1</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
@@ -341,7 +363,7 @@
                                         <argument>cd "${project.basedir}/e2e" &amp;&amp; npm test; rc=$?; echo $rc &gt; "${project.build.directory}/playwright-result.txt"; exit 0</argument>
                                     </arguments>
                                     <environmentVariables>
-                                        <BASE_URL>http://localhost:8080</BASE_URL>
+                                        <BASE_URL>http://localhost:${e2e.http.port}</BASE_URL>
                                     </environmentVariables>
                                 </configuration>
                             </execution>
@@ -370,8 +392,11 @@
                                     <arguments>
                                         <argument>compose</argument>
                                         <argument>-f</argument>
-                                        <argument>${project.basedir}/docker-compose.test.yml</argument>
-                                        <argument>down</argument>
+                                        <argument>${project.basedir}/docker-compose.dev.yml</argument>
+                                        <argument>rm</argument>
+                                        <argument>-s</argument>
+                                        <argument>-f</argument>
+                                        <argument>test-db</argument>
                                     </arguments>
                                 </configuration>
                             </execution>

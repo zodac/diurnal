@@ -1,17 +1,27 @@
-import { test, expect, setupTestUser, TestUser } from '../helpers/fixtures';
+import { test, expect, registerUser, loginAs, TestUser } from '../helpers/fixtures';
+import { ensureSoleAdmin } from '../helpers/db';
 
-// e2e-actions@example.com is the very first user the suite registers, so RoleAssigner
-// makes them the (only, and therefore last) administrator. We authenticate as them to
-// exercise the admin-only screens. setupTestUser tolerates a 409 on register, so this
-// works whether actions.spec already created them (full run) or not (admin.spec alone).
+// A dedicated admin user for the admin-only screens. Rather than relying on RoleAssigner's
+// "first user ever = admin" rule (fragile: depends on spec order + a pristine DB), we register
+// this user and promote it to admin directly in the test DB, then log in. Deterministic and
+// independent of execution order or prior DB state.
 const ADMIN: TestUser = {
-  email: 'e2e-actions@example.com',
+  email: 'e2e-admin-user@example.com',
   password: 'testpassword123',
-  displayName: 'E2E actions',
+  displayName: 'E2E Admin User',
 };
 
-// The fixture user (e2e-admin@example.com) registers after e2e-actions@example.com
-// so they are never the first user and therefore always have the 'user' role.
+// Register → promote to admin in the DB → log in. The promotion must precede login because roles
+// are baked into the session at authentication time (PasswordIdentityProvider).
+async function loginAsAdmin(page) {
+  await registerUser(ADMIN);
+  await ensureSoleAdmin(ADMIN.email);
+  await loginAs(page, ADMIN);
+}
+
+// The access-control tests use the per-spec fixture user (e2e-admin@example.com), which is a
+// plain 'user' — ensureSoleAdmin only ever promotes ADMIN and demotes everyone else, so this
+// fixture user is reliably non-admin here.
 test.describe('Admin access control', () => {
   // ── Navbar: Admin link visibility ─────────────────────────────────────
 
@@ -51,7 +61,7 @@ test.describe('Admin access control', () => {
 // so without the page's htmx:beforeSwap opt-in the user saw nothing at all.
 test.describe('Last administrator cannot be removed', () => {
   test('deleting the last admin surfaces an inline error and keeps the account', async ({ page }) => {
-    await setupTestUser(page, ADMIN);
+    await loginAsAdmin(page);
     await page.goto('/admin/users');
 
     const adminRow = page.locator('tr', { hasText: ADMIN.email });
@@ -78,7 +88,7 @@ test.describe('Last administrator cannot be removed', () => {
   });
 
   test('demoting the last admin surfaces an inline error', async ({ page }) => {
-    await setupTestUser(page, ADMIN);
+    await loginAsAdmin(page);
     await page.goto('/admin/users');
 
     const adminRow = page.locator('tr', { hasText: ADMIN.email });
@@ -98,7 +108,7 @@ test.describe('Last administrator cannot be removed', () => {
 // ── Edit-mode action buttons (consistency with the Actions table) ─────────
 test.describe('User row edit mode', () => {
   test('entering edit mode swaps Edit/Delete for Save/Cancel, like the Actions table', async ({ page }) => {
-    await setupTestUser(page, ADMIN);
+    await loginAsAdmin(page);
     await page.goto('/admin/users');
     const row = page.locator('tr', { hasText: ADMIN.email });
 

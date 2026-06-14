@@ -1,9 +1,20 @@
 import { test, expect } from '../helpers/fixtures';
 
+// Preferences (theme / page size / calendar style) auto-save via an htmx POST to /settings fired
+// on the select's `change` event. That POST is asynchronous, so a test MUST wait for it to finish
+// before reloading/navigating — otherwise the reload races the save and reads the stale value
+// (the root cause of the previous flakiness). This helper selects an option and awaits the save.
+async function selectPref(page, selector: string, value: string) {
+  await Promise.all([
+    page.waitForResponse(r => r.url().endsWith('/settings') && r.request().method() === 'POST'),
+    page.selectOption(selector, value),
+  ]);
+}
+
 test.describe('Settings page', () => {
   test('select dark theme persists across reload', async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
-    await page.selectOption('select[name="theme"]', 'dark');
+    await selectPref(page, 'select[name="theme"]', 'dark');
 
     await page.reload();
     await expect(page.locator('html')).toHaveClass(/dark/);
@@ -13,12 +24,12 @@ test.describe('Settings page', () => {
   test('select light theme persists across reload and removes dark class', async ({ authenticatedPage: page }) => {
     // Set to dark first
     await page.goto('/settings');
-    await page.selectOption('select[name="theme"]', 'dark');
+    await selectPref(page, 'select[name="theme"]', 'dark');
     await page.reload();
 
     // Now switch to light
     await page.goto('/settings');
-    await page.selectOption('select[name="theme"]', 'light');
+    await selectPref(page, 'select[name="theme"]', 'light');
 
     await page.reload();
     await expect(page.locator('html')).not.toHaveClass(/dark/);
@@ -27,11 +38,11 @@ test.describe('Settings page', () => {
 
   test('select system theme persists across reload', async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
-    await page.selectOption('select[name="theme"]', 'dark');
+    await selectPref(page, 'select[name="theme"]', 'dark');
     await page.reload();
 
     await page.goto('/settings');
-    await page.selectOption('select[name="theme"]', 'system');
+    await selectPref(page, 'select[name="theme"]', 'system');
 
     await page.reload();
     await expect(page.locator('select[name="theme"]')).toHaveValue('system');
@@ -45,7 +56,7 @@ test.describe('Settings page', () => {
 
   test('change page size to 25 persists and affects action list', async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
-    await page.selectOption('select[name="pageSize"]', '25');
+    await selectPref(page, 'select[name="pageSize"]', '25');
 
     await page.goto('/settings');
     await expect(page.locator('select[name="pageSize"]')).toHaveValue('25');
@@ -131,10 +142,7 @@ test.describe('Settings page', () => {
 
   test('select minimal calendar style persists across reload', async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
-    await Promise.all([
-      page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
-      page.selectOption('select[name="calendarView"]', 'minimal'),
-    ]);
+    await selectPref(page, 'select[name="calendarView"]', 'minimal');
 
     await page.reload();
     await expect(page.locator('select[name="calendarView"]')).toHaveValue('minimal');
@@ -142,16 +150,10 @@ test.describe('Settings page', () => {
 
   test('select full calendar style persists across reload', async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
-    await Promise.all([
-      page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
-      page.selectOption('select[name="calendarView"]', 'minimal'),
-    ]);
+    await selectPref(page, 'select[name="calendarView"]', 'minimal');
 
     await page.goto('/settings');
-    await Promise.all([
-      page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
-      page.selectOption('select[name="calendarView"]', 'full'),
-    ]);
+    await selectPref(page, 'select[name="calendarView"]', 'full');
 
     await page.reload();
     await expect(page.locator('select[name="calendarView"]')).toHaveValue('full');

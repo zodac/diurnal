@@ -13,23 +13,22 @@ export interface TestUser {
  * If the email is already registered (409), proceeds straight to login.
  */
 export async function setupTestUser(page: Page, user: TestUser): Promise<void> {
+  await registerUser(user);
+  await loginAs(page, user);
+}
+
+/**
+ * Register a test user via the REST API. Idempotent: a 409 (already registered) is ignored.
+ * Does NOT log in — pair with loginAs (and optionally ensureAdmin in between).
+ */
+export async function registerUser(user: TestUser): Promise<void> {
   const apiCtx = await baseRequest.newContext({
     baseURL: process.env.BASE_URL || 'http://localhost:8080',
   });
-
-  // Register (ignore 409 — user already exists from a previous run)
   await apiCtx.post('/api/auth/register', {
     data: { email: user.email, password: user.password, displayName: user.displayName },
   });
-
   await apiCtx.dispose();
-
-  // Log in via the web form so Quarkus issues the encrypted lt_session cookie
-  await page.goto('/login');
-  await page.fill('input[name="email"]', user.email);
-  await page.fill('input[name="password"]', user.password);
-  await page.click('button[type="submit"]');
-  await page.waitForURL('/');
 }
 
 /**

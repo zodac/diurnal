@@ -8,14 +8,14 @@
 
     <!-- Content -->
     <main class="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
-        <h2 class="text-2xl font-semibold mb-1 text-gray-900 dark:text-gray-50">Actions</h2>
-        <p class="text-sm text-gray-500 dark:text-gray-400 mb-6">
+        <h2 class="text-2xl font-semibold mb-1 text-ink">Actions</h2>
+        <p class="text-sm text-ink-muted mb-6">
             Define the habits or activities you want to track on your calendar.
         </p>
 
         <!-- Add action form -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-5 mb-6">
-            <h3 class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">New action</h3>
+        <div class="card p-6 mb-6">
+            <h3 class="card-title mb-3">New action</h3>
             <form hx-post="/actions"
                   hx-target="#actions-tbody"
                   hx-swap="afterbegin"
@@ -24,20 +24,15 @@
                 <input type="color"
                        name="colour"
                        value="#6366f1"
-                       class="w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-600 cursor-pointer p-0.5 flex-shrink-0 bg-white dark:bg-gray-700"
+                       class="w-9 h-9 rounded-lg border border-line cursor-pointer p-0.5 flex-shrink-0 bg-surface"
                        title="Pick a colour">
                 <input type="text"
                        name="name"
                        placeholder="Action name"
                        required
                        maxlength="100"
-                       class="flex-1 min-w-0 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm
-                              bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50
-                              focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
-                <button type="submit"
-                        class="bg-indigo-600 text-white rounded-lg px-4 py-2 text-sm font-medium
-                               hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500
-                               focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors flex-shrink-0">
+                       class="form-input flex-1 min-w-0">
+                <button type="submit" class="btn-primary flex-shrink-0">
                     Add
                 </button>
             </form>
@@ -54,13 +49,11 @@
                    hx-target="#action-list"
                    hx-trigger="input changed delay:300ms"
                    hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('search-input').value"
-                   class="w-full rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm
-                          bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-50
-                          focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                   class="form-input w-full">
         </div>
 
         <!-- Action list -->
-        <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
+        <div class="card overflow-hidden">
             <div id="action-list">
                 {#include partials/actions-list page=page extraQuery="" /}
             </div>
