@@ -348,7 +348,10 @@
                                  Bound to integration-test (NOT pre-integration-test) and this exec
                                  plugin is declared after maven-failsafe-plugin, so it runs only once
                                  failsafe has finished the *IT tests — by then the @QuarkusTest test
-                                 instance has released ${e2e.http.port}, which this jar then reuses. -->
+                                 instance has released ${e2e.http.port}, which this jar then reuses.
+                                 NOTE: the bash -c script MUST stay on a single line. bash treats a
+                                 raw newline as a command separator, so wrapping it (e.g. after `-jar`)
+                                 splits `java … -jar` from the jar path and the launch silently fails. -->
                             <execution>
                                 <id>quarkus-start-e2e</id>
                                 <phase>integration-test</phase>
@@ -359,12 +362,7 @@
                                     <executable>bash</executable>
                                     <arguments>
                                         <argument>-c</argument>
-                                        <argument>java -Dquarkus.profile=test -Dquarkus.http.port=${e2e.http.port} -jar
-                                            "${project.build.directory}/quarkus-app/quarkus-run.jar" &gt;"${project.build.directory}/app.log" 2&gt;&amp;1
-                                            &amp; echo $! &gt;"${project.build.directory}/app.pid"; for i in $(seq 1 60); do curl -sf
-                                            http://localhost:${e2e.http.port}/login &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "App ready" &amp;&amp;
-                                            exit 0; sleep 2; done; echo "App failed to start — see target/app.log"; exit 1
-                                        </argument>
+                                        <argument>java -Dquarkus.profile=test -Dquarkus.http.port=${e2e.http.port} -jar "${project.build.directory}/quarkus-app/quarkus-run.jar" &gt;"${project.build.directory}/app.log" 2&gt;&amp;1 &amp; echo $! &gt;"${project.build.directory}/app.pid"; for i in $(seq 1 60); do curl -sf http://localhost:${e2e.http.port}/login &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "App ready" &amp;&amp; exit 0; sleep 2; done; echo "App failed to start — see target/app.log"; exit 1</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
@@ -384,9 +382,7 @@
                                     <executable>bash</executable>
                                     <arguments>
                                         <argument>-c</argument>
-                                        <argument>cd "${project.basedir}/e2e" &amp;&amp; npm test; rc=$?; echo $rc &gt;
-                                            "${project.build.directory}/playwright-result.txt"; exit 0
-                                        </argument>
+                                        <argument>cd "${project.basedir}/e2e" &amp;&amp; npm test; rc=$?; echo $rc &gt; "${project.build.directory}/playwright-result.txt"; exit 0</argument>
                                     </arguments>
                                     <environmentVariables>
                                         <BASE_URL>http://localhost:${e2e.http.port}</BASE_URL>
@@ -442,9 +438,7 @@
                                     <executable>bash</executable>
                                     <arguments>
                                         <argument>-c</argument>
-                                        <argument>rc=$(cat "${project.build.directory}/playwright-result.txt" 2>/dev/null || echo 1); [ "$rc" = "0" ]
-                                            || { echo "Playwright E2E tests FAILED (exit $rc) — see e2e/playwright-report/"; exit 1; }
-                                        </argument>
+                                        <argument>rc=$(cat "${project.build.directory}/playwright-result.txt" 2&gt;/dev/null || echo 1); [ "$rc" = "0" ] || { echo "Playwright E2E tests FAILED (exit $rc) — see e2e/playwright-report/"; exit 1; }</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
