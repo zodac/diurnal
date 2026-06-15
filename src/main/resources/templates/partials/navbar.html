@@ -8,7 +8,7 @@
         </nav>
         <div class="hidden sm:flex ml-auto items-center gap-4">
             <a id="nav-display-name" href="/settings" title="Account settings" class="text-sm {#if active == 'settings'}nav-link-active{#else}nav-link{/if}">{displayName}</a>
-            <form method="post" action="/logout">
+            <form method="post" action="/logout" class="flex items-center">
                 <button type="submit" class="text-sm nav-link">
                     Log out
                 </button>
@@ -33,7 +33,7 @@
             <!-- Separator: mirrors the left/right split of the desktop nav -->
             <hr class="border-line">
             <a id="nav-display-name-mobile" href="/settings" class="{#if active == 'settings'}nav-link-active{#else}nav-link{/if}">{displayName}</a>
-            <form method="post" action="/logout">
+            <form method="post" action="/logout" class="flex items-center">
                 <button type="submit" class="text-sm nav-link">
                     Log out
                 </button>
