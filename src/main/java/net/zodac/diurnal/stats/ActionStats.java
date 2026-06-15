@@ -30,13 +30,12 @@ public record ActionStats(
 ) {
     private static final DateTimeFormatter DATE_FMT  =
             DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH);
-    private static final DateTimeFormatter MONTH_FMT =
-            DateTimeFormatter.ofPattern("MMMM yyyy",   Locale.ENGLISH);
 
     // ── Existing helpers ──────────────────────────────────────────────────
 
     public boolean hasData() { return totalDays > 0; }
 
+    @SuppressWarnings("unused") // invoked from Qute templates (stats-cards.html, dashboard.html)
     public String lastLabel() {
         return lastPerformed == null ? "Never" : lastPerformed.format(DATE_FMT);
     }

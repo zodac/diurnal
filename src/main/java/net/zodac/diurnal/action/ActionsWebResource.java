@@ -103,7 +103,7 @@ public class ActionsWebResource {
         Action action = findOwnedAction(id);
         if (action == null) return Response.status(404).build();
         // Surgical delete: the destructive POST returns 204 and the row is removed in place
-        // (see actions.html beforeSwap), so the confirm row targets its own row with outerHTML.
+        // (see actions.html beforeSwap), so the confirmation row targets its own row with outerHTML.
         return Response.ok(confirmDeleteRowTemplate
                 .data("rowId", "action-" + id)
                 .data("cols", 3)

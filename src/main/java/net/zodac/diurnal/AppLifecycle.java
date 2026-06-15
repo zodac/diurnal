@@ -26,6 +26,7 @@ public class AppLifecycle {
     @ConfigProperty(name = "oidc.auto.redirect", defaultValue = "false")
     boolean oidcAutoRedirect;
 
+    @SuppressWarnings("unused") // CDI startup observer — invoked by Quarkus, not called directly
     void onStart(@Observes StartupEvent ev) {
         if (!passwordAuthEnabled && !oidcEnabled) {
             throw new IllegalStateException(

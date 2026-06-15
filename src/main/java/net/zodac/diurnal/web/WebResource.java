@@ -5,7 +5,6 @@ import net.zodac.diurnal.stats.StatsService;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.user.UserSettings;
-import io.quarkus.oidc.IdToken;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
@@ -31,7 +30,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.eclipse.microprofile.jwt.JsonWebToken;
 import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
@@ -64,8 +62,6 @@ public class WebResource {
 
     @ConfigProperty(name = "oidc.auto.redirect", defaultValue = "false")
     boolean oidcAutoRedirect;
-
-    @Inject @IdToken JsonWebToken idToken;
 
     @ConfigProperty(name = "oidc.logout.url")
     Optional<String> oidcLogoutUrl;

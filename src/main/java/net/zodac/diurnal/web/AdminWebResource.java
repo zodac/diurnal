@@ -90,7 +90,7 @@ public class AdminWebResource {
         if (target == null) {
             return errorResponse("User not found.");
         }
-        // Admin delete re-renders the whole list (innerHTML), so the confirm row's destructive
+        // Admin delete re-renders the whole list (innerHTML), so the confirmation row's destructive
         // POST targets #admin-users-list; Cancel restores just this row from /admin/users/{id}.
         return Response.ok(confirmDeleteRowTemplate
                 .data("rowId", "user-row-" + id)
