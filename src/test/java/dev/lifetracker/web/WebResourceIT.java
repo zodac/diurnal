@@ -195,7 +195,11 @@ class WebResourceIT extends IntegrationTestBase {
     void settingsPage_authenticated_returns200() {
         given().get("/settings")
                 .then().statusCode(200)
-                .body(containsString("web-it@lt.test"));
+                .body(containsString("web-it@lt.test"))
+                // Timezone picker renders: server default (UTC in the test profile) first as a plain,
+                // pre-selected "UTC" option, plus curated zones labelled with their current UTC offset.
+                .body(containsString("<option value=\"\" selected>UTC</option>"))
+                .body(containsString("Pacific/Auckland (UTC+12)"));
     }
 
     // ── 404 page ──────────────────────────────────────────────────────────────

@@ -3,6 +3,7 @@ package dev.lifetracker.stats;
 import dev.lifetracker.action.Action;
 import dev.lifetracker.log.ActionLog;
 import dev.lifetracker.time.AppClock;
+import dev.lifetracker.user.User;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -48,7 +49,9 @@ public class StatsService {
     private List<ActionStats> computeAll(UUID userId) {
         Map<UUID, List<ActionLog>> byAction = ActionLog.findAllByUser(userId)
                 .stream().collect(Collectors.groupingBy(l -> l.actionId));
-        LocalDate today = clock.today();
+        // Streak boundaries are evaluated in the user's own timezone (else the server default).
+        User user = User.findById(userId);
+        LocalDate today = clock.today(clock.zoneFor(user == null ? null : user.timezone));
         return Action.findActiveByUser(userId).stream()
                 .map(a -> compute(a, byAction.getOrDefault(a.id, List.of()), today))
                 .toList();

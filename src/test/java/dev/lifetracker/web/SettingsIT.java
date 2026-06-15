@@ -2,6 +2,7 @@ package dev.lifetracker.web;
 
 import static io.restassured.RestAssured.given;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 import dev.lifetracker.IntegrationTestBase;
 import dev.lifetracker.user.User;
@@ -187,5 +188,41 @@ class SettingsIT extends IntegrationTestBase {
                 .then().statusCode(200);
 
         runInTx(() -> assertEquals("full", User.findByEmail(PRIMARY).orElseThrow().calendarView));
+    }
+
+    // ── timezone ────────────────────────────────────────────────────────────────
+
+    @Test
+    void updateSettings_offeredTimezone_persists() {
+        given().formParam("theme", "system").formParam("pageSize", "10")
+                .formParam("timezone", "Pacific/Auckland")
+                .post("/settings")
+                .then().statusCode(200);
+
+        runInTx(() -> assertEquals("Pacific/Auckland", User.findByEmail(PRIMARY).orElseThrow().timezone));
+    }
+
+    @Test
+    void updateSettings_blankTimezone_clearsToServerDefault() {
+        // First set a zone, then submit blank ("Server default") to confirm it clears to null.
+        given().formParam("theme", "system").formParam("pageSize", "10")
+                .formParam("timezone", "UTC").post("/settings").then().statusCode(200);
+
+        given().formParam("theme", "system").formParam("pageSize", "10")
+                .formParam("timezone", "")
+                .post("/settings")
+                .then().statusCode(200);
+
+        runInTx(() -> assertNull(User.findByEmail(PRIMARY).orElseThrow().timezone));
+    }
+
+    @Test
+    void updateSettings_unofferedTimezone_fallsBackToServerDefault() {
+        given().formParam("theme", "system").formParam("pageSize", "10")
+                .formParam("timezone", "Mars/Phobos")
+                .post("/settings")
+                .then().statusCode(200);
+
+        runInTx(() -> assertNull(User.findByEmail(PRIMARY).orElseThrow().timezone));
     }
 }

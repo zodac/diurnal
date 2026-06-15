@@ -3,6 +3,7 @@ package dev.lifetracker.time;
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.time.Clock;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -46,9 +47,29 @@ public class AppClock {
         return clock.instant();
     }
 
-    /** "Today" in the configured zone. */
+    /** "Today" in the configured (server-default) zone. */
     public LocalDate today() {
         return LocalDate.now(clock);
+    }
+
+    /** "Today" in an explicit zone — used for per-user timezone overrides. */
+    public LocalDate today(ZoneId zone) {
+        return LocalDate.now(clock.withZone(zone));
+    }
+
+    /**
+     * Resolve a stored timezone id to a zone, falling back to the server-default zone when it is
+     * null/blank or not a valid {@link ZoneId} (defensive — stored values are sanitised on write).
+     */
+    public ZoneId zoneFor(String timezoneId) {
+        if (timezoneId == null || timezoneId.isBlank()) {
+            return clock.getZone();
+        }
+        try {
+            return ZoneId.of(timezoneId);
+        } catch (DateTimeException e) {
+            return clock.getZone();
+        }
     }
 
     // ── Test seam ─────────────────────────────────────────────────────────────

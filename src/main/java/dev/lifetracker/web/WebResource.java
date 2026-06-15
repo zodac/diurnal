@@ -230,11 +230,13 @@ public class WebResource {
     public TemplateInstance updateSettings(
             @FormParam("theme") @DefaultValue("system") String theme,
             @FormParam("pageSize") @DefaultValue("10") int pageSize,
-            @FormParam("calendarView") @DefaultValue("full") String calendarView) {
+            @FormParam("calendarView") @DefaultValue("full") String calendarView,
+            @FormParam("timezone") @DefaultValue("") String timezone) {
         User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
         user.theme = UserSettings.sanitiseTheme(theme);
         user.pageSize = UserSettings.sanitisePageSize(pageSize);
         user.calendarView = UserSettings.sanitiseCalendarView(calendarView);
+        user.timezone = UserSettings.sanitiseTimezone(timezone);
         user.persist();
         return settingsView(user, true);
     }
@@ -265,6 +267,8 @@ public class WebResource {
                 .data("themeOptions", UserSettings.THEME_OPTIONS)
                 .data("calendarView", user.calendarView)
                 .data("calendarViewOptions", UserSettings.CALENDAR_VIEW_OPTIONS)
+                .data("timezoneChoices",
+                        UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone))
                 .data("saved", saved);
     }
 
@@ -284,7 +288,7 @@ public class WebResource {
                 .data("theme", user.theme)
                 .data("isAdmin", user.isAdmin())
                 .data("calendarView", user.calendarView)
-                .data("today", clock.today().toString())
+                .data("today", clock.today(clock.zoneFor(user.timezone)).toString())
                 .data("recentStats", recentStats);
     }
 }

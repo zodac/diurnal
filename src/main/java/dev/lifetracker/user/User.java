@@ -53,6 +53,11 @@ public class User extends PanacheEntityBase {
     @Column(name = "calendar_view", nullable = false)
     public String calendarView = UserSettings.DEFAULT_CALENDAR_VIEW;
 
+    // Per-user timezone override (IANA id). NULL = use the server default (app.timezone),
+    // so "today" / streak / future-log boundaries follow the user's own clock.
+    @Column(name = "timezone")
+    public String timezone;
+
     @Column(name = "role", nullable = false)
     public String role = ROLE_USER;
 

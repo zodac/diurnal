@@ -7,6 +7,7 @@ import static org.hamcrest.Matchers.not;
 
 import dev.lifetracker.IntegrationTestBase;
 import dev.lifetracker.action.Action;
+import dev.lifetracker.user.User;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.time.Instant;
@@ -232,6 +233,24 @@ class LogResourceIT extends IntegrationTestBase {
         freezeInstant(noonUtc, ZoneId.of("Pacific/Auckland"));  // same instant, today == 16th
         given().post("/logs/" + the16th + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200);                        // the 16th is now "today"
+    }
+
+    @Test
+    void futureGuard_usesPerUserTimezone() {
+        // The server clock stays in UTC, but the user has chosen Pacific/Auckland (UTC+12).
+        runInTx(() -> {
+            User u = User.findById(primaryId);
+            u.timezone = "Pacific/Auckland";
+        });
+
+        Instant noonUtc = LocalDate.of(2026, 6, 15).atTime(12, 0).toInstant(ZoneOffset.UTC);
+        LocalDate the16th = LocalDate.of(2026, 6, 16);
+
+        // In UTC it is still the 15th, but the guard reads the user's zone where it is already the
+        // 16th — so logging the 16th is allowed even though the server clock is on the 15th.
+        freezeInstant(noonUtc, ZoneOffset.UTC);
+        given().post("/logs/" + the16th + "/" + primaryAction.id + "/increment")
+                .then().statusCode(200);
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

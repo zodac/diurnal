@@ -70,7 +70,9 @@ public abstract class IntegrationTestBase {
 
     /** Freeze {@link AppClock} so {@code today()} returns {@code date} (clock pinned to UTC midnight). */
     protected void freezeDate(LocalDate date) {
-        clock.useFixedClock(Clock.fixed(date.atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneOffset.UTC));
+        // Pin the zone to the "UTC" region (id "UTC"), matching application-test.properties and
+        // production, rather than ZoneOffset.UTC (id "Z") — same instant, but a representative zone id.
+        clock.useFixedClock(Clock.fixed(date.atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneId.of("UTC")));
     }
 
     /** Freeze {@link AppClock} to an exact instant in {@code zone} — for midnight-boundary / non-UTC tests. */

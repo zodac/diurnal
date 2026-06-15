@@ -265,6 +265,9 @@ document.addEventListener('DOMContentLoaded', function () {
     var cal = new FullCalendar.Calendar(document.getElementById('calendar'), {
         initialView: 'dayGridMonth',
         initialDate: today,
+        // Pin "today" to the server-computed (user-timezone) date so the today-highlight and the
+        // 'today' button match the user's clock rather than the browser's local date.
+        now: today,
         height: 'auto',
         headerToolbar: { left: 'prevYear,prev,next,nextYear today', center: 'title', right: '' },
         events: '/logs/events',

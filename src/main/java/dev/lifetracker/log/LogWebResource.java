@@ -45,7 +45,7 @@ public class LogWebResource {
     @Transactional
     public TemplateInstance dayPanel(@PathParam("date") LocalDate date) {
         User user = currentUser();
-        boolean future = isFuture(date);
+        boolean future = isFuture(date, user);
         var page = future ? null : getActions(user.id, date, 1, "", user.pageSize);
 
         return dayPanelTemplate
@@ -114,7 +114,7 @@ public class LogWebResource {
             @PathParam("actionId") UUID actionId) {
 
         User user = currentUser();
-        if (isFuture(date)) return Response.status(Response.Status.BAD_REQUEST).build();
+        if (isFuture(date, user)) return Response.status(Response.Status.BAD_REQUEST).build();
 
         Action action = ownedAction(user, actionId);
         if (action == null) return Response.status(Response.Status.NOT_FOUND).build();
@@ -146,7 +146,7 @@ public class LogWebResource {
             @PathParam("actionId") UUID actionId) {
 
         User user = currentUser();
-        if (isFuture(date)) return Response.status(Response.Status.BAD_REQUEST).build();
+        if (isFuture(date, user)) return Response.status(Response.Status.BAD_REQUEST).build();
 
         Action action = ownedAction(user, actionId);
         if (action == null) return Response.status(Response.Status.NOT_FOUND).build();
@@ -170,9 +170,10 @@ public class LogWebResource {
         return dayActionItemTemplate.data("date", date, "action", action, "count", count);
     }
 
-    // Actions can only be logged for today or earlier, in the user's configured timezone.
-    private boolean isFuture(LocalDate date) {
-        return date.isAfter(clock.today());
+    // Actions can only be logged for today or earlier, in the user's configured timezone
+    // (falling back to the server default when the user hasn't chosen one).
+    private boolean isFuture(LocalDate date, User user) {
+        return date.isAfter(clock.today(clock.zoneFor(user.timezone)));
     }
 
     private User currentUser() {

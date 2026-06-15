@@ -126,7 +126,7 @@
                 </div>
 
                 <!-- Calendar style -->
-                <div class="flex items-center justify-between py-4">
+                <div class="flex items-center justify-between py-4 border-b border-line">
                     <div class="flex-1">
                         <label for="calendarView" class="block text-sm font-medium text-ink">Calendar style</label>
                         <p class="help-text mt-1">Full shows events as text; Minimal shows dots per action; Stacked shows horizontal bars per action</p>
@@ -138,6 +138,23 @@
                             <option value="full"    {#if calendarView == 'full'}selected{/if}>Full</option>
                             <option value="minimal" {#if calendarView == 'minimal'}selected{/if}>Minimal</option>
                             <option value="stacked" {#if calendarView == 'stacked'}selected{/if}>Stacked</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Timezone -->
+                <div class="flex items-center justify-between py-4">
+                    <div class="flex-1">
+                        <label for="timezone" class="block text-sm font-medium text-ink">Timezone</label>
+                        <p class="help-text mt-1">Determines which day logging, streaks and the calendar treat as &ldquo;today&rdquo;</p>
+                    </div>
+                    <div class="ml-4 flex items-center">
+                        <select id="timezone"
+                                name="timezone"
+                                class="form-select">
+                            {#for choice in timezoneChoices}
+                            <option value="{choice.value}" {#if choice.selected}selected{/if}>{choice.label}</option>
+                            {/for}
                         </select>
                     </div>
                 </div>
