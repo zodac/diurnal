@@ -92,19 +92,12 @@
                   hx-swap="none"
                   class="space-y-6">
                 <!-- Theme -->
-                <div class="flex items-center justify-between py-4 border-b border-line">
-                    <div class="flex-1">
-                        <label for="theme" class="block text-sm font-medium text-ink">Theme</label>
-                        <p class="help-text mt-1">Choose a colour theme for the application</p>
-                    </div>
-                    <div class="ml-4 flex items-center">
-                        <select id="theme"
-                                name="theme"
-                                class="form-select">
-                            <option value="system" {#if theme == 'system'}selected{/if}>System Theme</option>
-                            <option value="light"  {#if theme == 'light'}selected{/if}>Light</option>
-                            <option value="dark"   {#if theme == 'dark'}selected{/if}>Dark</option>
-                        </select>
+                <div class="py-4 border-b border-line">
+                    <span class="block text-sm font-medium text-ink mb-3">Theme</span>
+                    <div id="theme-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Theme">
+                        {#include partials/preview-option group="theme" value="system" current=theme img="theme-system.png" imgDark="" label="System" title="System theme" alt="Dashboard split diagonally between light and dark themes" /}
+                        {#include partials/preview-option group="theme" value="light"  current=theme img="theme-light.png"  imgDark="" label="Light"  title="Light theme"  alt="Dashboard in light mode" /}
+                        {#include partials/preview-option group="theme" value="dark"   current=theme img="theme-dark.png"   imgDark="" label="Dark"   title="Dark theme"   alt="Dashboard in dark mode" /}
                     </div>
                 </div>
 
@@ -112,7 +105,6 @@
                 <div class="flex items-center justify-between py-4 border-b border-line">
                     <div class="flex-1">
                         <label for="pageSize" class="block text-sm font-medium text-ink">Items per page</label>
-                        <p class="help-text mt-1">How many entries to show per page in list views</p>
                     </div>
                     <div class="ml-4 flex items-center">
                         <select id="pageSize"
@@ -126,19 +118,12 @@
                 </div>
 
                 <!-- Calendar style -->
-                <div class="flex items-center justify-between py-4 border-b border-line">
-                    <div class="flex-1">
-                        <label for="calendarView" class="block text-sm font-medium text-ink">Calendar style</label>
-                        <p class="help-text mt-1">Full shows events as text; Minimal shows dots per action; Stacked shows horizontal bars per action</p>
-                    </div>
-                    <div class="ml-4 flex items-center">
-                        <select id="calendarView"
-                                name="calendarView"
-                                class="form-select">
-                            <option value="full"    {#if calendarView == 'full'}selected{/if}>Full</option>
-                            <option value="minimal" {#if calendarView == 'minimal'}selected{/if}>Minimal</option>
-                            <option value="stacked" {#if calendarView == 'stacked'}selected{/if}>Stacked</option>
-                        </select>
+                <div class="py-4 border-b border-line">
+                    <span class="block text-sm font-medium text-ink mb-3">Calendar style</span>
+                    <div class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Calendar style">
+                        {#include partials/preview-option group="calendarView" value="full"    current=calendarView img="calendar-full-light.png"    imgDark="calendar-full-dark.png"    label="Full"    title="Full calendar"    alt="Dashboard calendar showing events as text" /}
+                        {#include partials/preview-option group="calendarView" value="minimal" current=calendarView img="calendar-minimal-light.png" imgDark="calendar-minimal-dark.png" label="Minimal" title="Minimal calendar" alt="Dashboard calendar showing a coloured dot per action" /}
+                        {#include partials/preview-option group="calendarView" value="stacked" current=calendarView img="calendar-stacked-light.png" imgDark="calendar-stacked-dark.png" label="Stacked" title="Stacked calendar" alt="Dashboard calendar showing horizontal bars per action" /}
                     </div>
                 </div>
 
@@ -146,7 +131,6 @@
                 <div class="flex items-center justify-between py-4">
                     <div class="flex-1">
                         <label for="timezone" class="block text-sm font-medium text-ink">Timezone</label>
-                        <p class="help-text mt-1">Determines which day logging, streaks and the calendar treat as &ldquo;today&rdquo;</p>
                     </div>
                     <div class="ml-4 flex items-center">
                         <select id="timezone"
@@ -159,6 +143,21 @@
                     </div>
                 </div>
             </form>
+        </div>
+
+        <!-- Full-size preview overlay (opened by the (!) icon on a preview tile) -->
+        <div id="preview-modal"
+             class="hidden fixed inset-0 z-50 items-center justify-center bg-black/70 p-4"
+             onclick="closePreview()">
+            <div class="max-w-5xl w-full" onclick="event.stopPropagation()">
+                <div class="flex items-center justify-between mb-2">
+                    <h4 id="preview-modal-title" class="text-white text-sm font-medium"></h4>
+                    <button type="button" onclick="closePreview()" aria-label="Close preview"
+                            class="text-white/70 hover:text-white text-xl leading-none px-2">&times;</button>
+                </div>
+                <img id="preview-modal-img" src="" alt=""
+                     class="w-full h-auto rounded-lg shadow-2xl border border-white/10">
+            </div>
         </div>
 
         <script>
@@ -202,8 +201,30 @@
             });
 
             // Cross-fade into the chosen theme using the shared applyTheme helper (layout.html).
-            document.getElementById('theme').addEventListener('change', function () {
-                window.LifeTracker.applyTheme(this.value, { transition: true, resetBody: true });
+            document.getElementById('theme-options').addEventListener('change', function (e) {
+                if (e.target.name === 'theme') {
+                    window.LifeTracker.applyTheme(e.target.value, { transition: true, resetBody: true });
+                }
+            });
+
+            // Full-size preview overlay for the Theme / Calendar-style tiles. Calendar tiles pass a
+            // dark-mode variant as the third arg; show it when the page is currently in dark mode.
+            function openPreview(src, title, darkSrc) {
+                var modal = document.getElementById('preview-modal');
+                var img = document.getElementById('preview-modal-img');
+                img.src = (darkSrc && document.documentElement.classList.contains('dark')) ? darkSrc : src;
+                img.alt = title;
+                document.getElementById('preview-modal-title').textContent = title;
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+            }
+            function closePreview() {
+                var modal = document.getElementById('preview-modal');
+                modal.classList.add('hidden');
+                modal.classList.remove('flex');
+            }
+            document.addEventListener('keydown', function (e) {
+                if (e.key === 'Escape') closePreview();
             });
         </script>
     </main>

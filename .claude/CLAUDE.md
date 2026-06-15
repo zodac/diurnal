@@ -212,6 +212,33 @@ changes instead re-render the whole `admin-users-list` partial.
 
 `GET /logs/events` returns JSON (`CalendarEventDto` records) consumed directly by FullCalendar.js on the dashboard. It intentionally includes archived actions so historical entries still render on the calendar. The dashboard uses a custom month/year picker overlay (not FullCalendar's built-in navigation); `eventClick` mirrors `dateClick` to open the day panel.
 
+### Settings preview thumbnails
+
+The **Theme** and **Calendar style** pickers in `settings.html` are not abstract icons — each option is a
+scaled-down real screenshot of the dashboard in that configuration (rendered by
+`partials/preview-option.html`, with an `(!)` button that opens the full-size image in a lightbox). Nine
+PNGs live in `src/main/resources/META-INF/resources/img/settings/`: `theme-{light,dark,system}.png` (the
+theme picker; `system` is a diagonal light/dark split) and `calendar-{full,minimal,stacked}-{light,dark}.png`
+(the calendar picker — captured in **both** themes; the tile shows the variant matching the active mode via
+a `dark:` class toggle, so it always matches the chosen light/dark theme). `calendar-full-{light,dark}.png`
+are copies of `theme-{light,dark}.png`.
+
+**These are committed assets — nothing in the app or the Maven/Docker build regenerates them.** Re-run
+`scripts/generate-settings-previews.cjs` whenever the dashboard's appearance changes in a way the
+previews should reflect (calendar markup/styling, light/dark colour tokens, navbar/day-panel/layout):
+
+```bash
+docker compose -f docker-compose.dev.yml up -d dev-db && mvn quarkus:dev   # need a running dev server
+node scripts/generate-settings-previews.cjs                                # defaults to :8081; then commit the PNGs
+```
+
+The script is self-contained: it registers a throwaway demo user, seeds a fixed set of actions/logs over
+HTTP (idempotent), captures every theme/calendar combination from the **same** data so the only visible
+difference between previews is the setting itself, and finally losslessly optimises the PNGs with
+`optipng` (installing it via `apt-get` if missing — so neither the runtime image nor the host needs it
+preinstalled). It talks to the app only over HTTP (no DB access), so `BASE_URL=…` can point it at any
+running instance.
+
 ### Pagination
 
 All three list views (actions, day-panel actions, stats) share the same in-memory pagination pattern: fetch all, filter, slice. The pagination controls are rendered server-side as HTML. Page size is a per-user setting validated by `UserSettings.sanitisePageSize()` against a fixed allow-list `{10, 25, 50, 100}`.

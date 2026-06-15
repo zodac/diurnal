@@ -19,6 +19,17 @@ function pastDateStr(daysAgo: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+// Calendar style is chosen from a preview tile backed by a hidden radio. Tests share one user, so
+// the target value may already be selected — we set the radio and always dispatch `change` so the
+// htmx auto-save POST fires regardless, then await it (the page must be on /settings).
+async function setCalendarView(page, value: string): Promise<void> {
+  await Promise.all([
+    page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
+    page.locator(`input[name="calendarView"][value="${value}"]`).evaluate(
+      (el: HTMLInputElement) => { el.checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); }),
+  ]);
+}
+
 test.describe('Dashboard', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     // Create DASH_NAME if it doesn't exist yet (200 = created, 409 = already exists — both fine).
@@ -180,19 +191,13 @@ const ALL_CALENDAR_VIEWS: string[] = ['full', 'minimal', 'stacked'];
 test.describe('Dashboard – Calendar navigation', () => {
   test.afterEach(async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
-    await Promise.all([
-      page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
-      page.selectOption('select[name="calendarView"]', 'full'),
-    ]);
+    await setCalendarView(page, 'full');
   });
 
   test('clicking an other-month date navigates the calendar to that month', async ({ authenticatedPage: page }) => {
     for (const calendarView of ALL_CALENDAR_VIEWS) {
       await page.goto('/settings');
-      await Promise.all([
-        page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
-        page.selectOption('select[name="calendarView"]', calendarView),
-      ]);
+      await setCalendarView(page, calendarView);
       await page.goto('/');
 
       const otherCellSelector = calendarView === 'full'
@@ -225,18 +230,12 @@ test.describe('Dashboard – Minimal calendar', () => {
   // Switch to minimal view before each test; reset after so the outer describe is unaffected.
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
-    await Promise.all([
-      page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
-      page.selectOption('select[name="calendarView"]', 'minimal'),
-    ]);
+    await setCalendarView(page, 'minimal');
   });
 
   test.afterEach(async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
-    await Promise.all([
-      page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
-      page.selectOption('select[name="calendarView"]', 'full'),
-    ]);
+    await setCalendarView(page, 'full');
   });
 
   test('minimal calendar is rendered instead of FullCalendar', async ({ authenticatedPage: page }) => {
@@ -330,18 +329,12 @@ test.describe('Dashboard – Minimal calendar', () => {
 test.describe('Dashboard – Stacked calendar', () => {
   test.beforeEach(async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
-    await Promise.all([
-      page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
-      page.selectOption('select[name="calendarView"]', 'stacked'),
-    ]);
+    await setCalendarView(page, 'stacked');
   });
 
   test.afterEach(async ({ authenticatedPage: page }) => {
     await page.goto('/settings');
-    await Promise.all([
-      page.waitForResponse(r => r.url().includes('/settings') && r.request().method() === 'POST'),
-      page.selectOption('select[name="calendarView"]', 'full'),
-    ]);
+    await setCalendarView(page, 'full');
   });
 
   test('stacked calendar is rendered instead of FullCalendar', async ({ authenticatedPage: page }) => {

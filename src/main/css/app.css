@@ -148,6 +148,25 @@
     @apply rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-ink
            focus:ring-indigo-500 focus:border-indigo-500 py-1.5 pl-3 pr-8 cursor-pointer;
   }
+  /* Selectable screenshot-preview tile (settings Theme / Calendar-style pickers). Sits
+     after a `sr-only peer` radio so the checked/hover/focus states are driven by the input. */
+  .preview-option {
+    @apply block rounded-lg border border-line bg-surface overflow-hidden transition-colors
+           peer-hover:border-line-subtle
+           peer-checked:border-brand peer-checked:ring-1 peer-checked:ring-brand
+           peer-focus-visible:ring-2 peer-focus-visible:ring-brand;
+  }
+  .preview-img   { @apply block w-full h-auto object-cover object-top; }
+  .preview-label { @apply block text-center text-[10px] font-medium py-1 text-ink-muted; }
+  .peer:checked ~ .preview-option .preview-label { @apply text-brand; }
+  /* (!) full-size-preview affordance, floated over the thumbnail's top-right corner. A ring + solid
+     translucent fill keeps it legible over any screenshot (light or dark). */
+  .preview-info {
+    @apply absolute top-1 right-1 z-10 inline-flex items-center justify-center w-6 h-6
+           rounded-full text-white bg-black/55 ring-1 ring-white/70 shadow-sm
+           hover:bg-black/75 transition-colors
+           focus:outline-none focus-visible:ring-2 focus-visible:ring-white;
+  }
   /* Field label above an input. */
   .field-label { @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1; }
   /* Small uppercase label (settings read-only fields). */

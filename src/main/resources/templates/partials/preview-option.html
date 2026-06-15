@@ -1,0 +1,36 @@
+{!
+  A single selectable preview tile for the Settings Theme / Calendar-style pickers.
+  Shows a scaled-down dashboard screenshot; the (!) button opens it full size.
+  Params:
+    group   - radio group name ("theme" | "calendarView")
+    value   - this option's value
+    current - the user's currently-selected value (drives the checked state)
+    img     - screenshot filename under /img/settings/ (the light-mode one)
+    imgDark - OPTIONAL dark-mode screenshot filename; pass "" for theme tiles (which are
+              theme-specific already). When set, the tile shows whichever matches the active theme.
+    label   - short caption shown under the thumbnail
+    title   - heading shown in the full-size preview modal
+    alt     - image alt text
+!}
+<div class="relative">
+    <label class="block cursor-pointer">
+        <input type="radio" name="{group}" value="{value}" class="sr-only peer"{#if current == value} checked{/if}>
+        <span class="preview-option">
+            {#if imgDark}
+            <img src="/img/settings/{img}"     alt="{alt}" class="preview-img dark:hidden"      loading="lazy" decoding="async">
+            <img src="/img/settings/{imgDark}" alt="{alt}" class="preview-img hidden dark:block" loading="lazy" decoding="async">
+            {#else}
+            <img src="/img/settings/{img}" alt="{alt}" class="preview-img" loading="lazy" decoding="async">
+            {/if}
+            <span class="preview-label">{label}</span>
+        </span>
+    </label>
+    <button type="button" class="preview-info"
+            aria-label="View {title} preview full size"
+            onclick="openPreview('/img/settings/{img}', '{title}'{#if imgDark}, '/img/settings/{imgDark}'{/if})">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+            <path stroke-linecap="round" stroke-linejoin="round"
+                  d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+        </svg>
+    </button>
+</div>
