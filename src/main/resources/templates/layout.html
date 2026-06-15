@@ -12,7 +12,7 @@
         by the theme picker in settings.html.
     -->
     <meta name="color-scheme" content="light dark">
-    <title>Life Tracker</title>
+    <title>Diurnal</title>
     <!--
         Single source of truth for applying a theme ('dark' | 'light' | 'system'), defined inline
         in <head> so it's available for the pre-render FOUC pass (no external request) AND reusable
@@ -22,8 +22,8 @@
         the FOUC override leaves behind. Then it runs once immediately to set the initial theme.
     -->
     <script>
-        window.LifeTracker = window.LifeTracker || {};
-        window.LifeTracker.applyTheme = function (theme, opts) {
+        window.Diurnal = window.Diurnal || {};
+        window.Diurnal.applyTheme = function (theme, opts) {
             opts = opts || {};
             var root = document.documentElement;
             var dark = theme === 'dark' ||
@@ -52,7 +52,7 @@
                 }
             }
         };
-        window.LifeTracker.applyTheme('{theme}', {});
+        window.Diurnal.applyTheme('{theme}', {});
     </script>
     <!--
         Compiled, purged Tailwind stylesheet — built by `npm run css` (and by the `css` stage

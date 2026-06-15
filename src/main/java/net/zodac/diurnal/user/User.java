@@ -1,0 +1,83 @@
+package net.zodac.diurnal.user;
+
+import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.PreUpdate;
+import jakarta.persistence.Table;
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+
+@Entity
+@Table(name = "users")
+public class User extends PanacheEntityBase {
+
+    public static final String ROLE_ADMIN = "admin";
+    public static final String ROLE_USER = "user";
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    public UUID id;
+
+    @Column(nullable = false, unique = true)
+    public String email;
+
+    @Column(name = "display_name", nullable = false)
+    public String displayName;
+
+    @Column(name = "password_hash")
+    public String passwordHash;
+
+    @Column(name = "oidc_subject")
+    public String oidcSubject;
+
+    @Column(name = "oidc_issuer")
+    public String oidcIssuer;
+
+    @Column(name = "created_at", nullable = false, updatable = false)
+    public Instant createdAt = Instant.now();
+
+    @Column(name = "updated_at", nullable = false)
+    public Instant updatedAt = Instant.now();
+
+    @Column(name = "theme", nullable = false)
+    public String theme = "system";
+
+    @Column(name = "page_size", nullable = false)
+    public int pageSize = UserSettings.DEFAULT_PAGE_SIZE;
+
+    @Column(name = "calendar_view", nullable = false)
+    public String calendarView = UserSettings.DEFAULT_CALENDAR_VIEW;
+
+    // Per-user timezone override (IANA id). NULL = use the server default (app.timezone),
+    // so "today" / streak / future-log boundaries follow the user's own clock.
+    @Column(name = "timezone")
+    public String timezone;
+
+    @Column(name = "role", nullable = false)
+    public String role = ROLE_USER;
+
+    @Column(name = "last_login_at")
+    public Instant lastLoginAt;
+
+    public boolean isAdmin() {
+        return ROLE_ADMIN.equals(role);
+    }
+
+    public static Optional<User> findByEmail(String email) {
+        return find("email", email.toLowerCase()).firstResultOptional();
+    }
+
+    public static Optional<User> findByOidc(String issuer, String subject) {
+        return find("oidcIssuer = ?1 and oidcSubject = ?2", issuer, subject).firstResultOptional();
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        this.updatedAt = Instant.now();
+    }
+}

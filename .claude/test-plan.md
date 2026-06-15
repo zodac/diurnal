@@ -4,8 +4,8 @@
 
 | Layer       | Framework                             | Location                         | DB Required            |
 |-------------|---------------------------------------|----------------------------------|------------------------|
-| Unit        | JUnit 5 (plain, no Quarkus)           | `src/test/java/dev/lifetracker/` | No                     |
-| Integration | Quarkus `@QuarkusTest` + REST Assured | `src/test/java/dev/lifetracker/` | Yes (Testcontainers)   |
+| Unit        | JUnit 5 (plain, no Quarkus)           | `src/test/java/net/zodac/diurnal/` | No                     |
+| Integration | Quarkus `@QuarkusTest` + REST Assured | `src/test/java/net/zodac/diurnal/` | Yes (Testcontainers)   |
 | UI/E2E      | Playwright (Node/TypeScript)          | `e2e/`                           | Yes (full running app) |
 
 ---
@@ -63,7 +63,7 @@ Plain JUnit 5, no Quarkus context, no DB. Run with `mvn test`.
 
 ### `StatsServiceTest.java` — `StatsService` static methods
 
-The two static methods `currentStreak` and `longestStreak` are the most complex pure-logic code in the project. They are package-private statics — test them directly from the same package (`dev.lifetracker.stats`).
+The two static methods `currentStreak` and `longestStreak` are the most complex pure-logic code in the project. They are package-private statics — test them directly from the same package (`net.zodac.diurnal.stats`).
 
 **`currentStreak` cases:**
 
@@ -231,7 +231,7 @@ Use `@TestSecurity(user = "test@example.com", roles = "user")` plus `@BeforeEach
 - `POST /register` valid → redirect to `/login?registered=true`
 - `POST /register` duplicate email → redirect to `/register?error=email_taken`
 - `POST /register` short password → redirect to `/register?error=invalid`
-- `POST /logout` → clears `lt_session` cookie, redirects to `/login`
+- `POST /logout` → clears `diurnal_session` cookie, redirects to `/login`
 
 ---
 
@@ -239,7 +239,7 @@ Use `@TestSecurity(user = "test@example.com", roles = "user")` plus `@BeforeEach
 
 Playwright runs against the full app. Use the REST API (`POST /api/auth/register` + form login) to set up state rather than re-testing registration in every spec. Each spec file should register a unique test user to avoid state bleed.
 
-**Login fixture (`helpers/fixtures.ts`):** call `POST /api/auth/register` once per spec in `beforeAll`, then POST to `/login` via `request.post()`, extract the `lt_session` cookie, and apply it to `page.context()`.
+**Login fixture (`helpers/fixtures.ts`):** call `POST /api/auth/register` once per spec in `beforeAll`, then POST to `/login` via `request.post()`, extract the `diurnal_session` cookie, and apply it to `page.context()`.
 
 ### `auth.spec.ts`
 
@@ -318,7 +318,7 @@ Playwright runs against the full app. Use the REST API (`POST /api/auth/register
 - **Auth in integration tests:** `@TestSecurity(user = "user@example.com", roles = "user")` on the test class. Still need a matching `User` row — create it in `@BeforeEach` with `User.persist()` inside `@Transactional`.
 - **HTMX response assertions:** REST Assured returns raw HTML. Use `assertThat(body).contains("Running")` or Jsoup for structural assertions.
 - **Playwright test user isolation:** Each spec file registers a unique test user (e.g. `actions-test@example.com`) in `beforeAll`. Apply the session cookie to `page.context()` so all pages in that spec are authenticated.
-- **`StatsService` static methods:** `currentStreak` and `longestStreak` are package-private. A test in the same package (`dev.lifetracker.stats`) can call them directly.
+- **`StatsService` static methods:** `currentStreak` and `longestStreak` are package-private. A test in the same package (`net.zodac.diurnal.stats`) can call them directly.
 
 ---
 

@@ -4,9 +4,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>dev.lifetracker</groupId>
-    <artifactId>life-tracker-api</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <groupId>net.zodac</groupId>
+    <artifactId>diurnal</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
 
     <properties>
         <maven.compiler.release>26</maven.compiler.release>
@@ -182,7 +182,9 @@
                             <execution>
                                 <id>docker-db-start</id>
                                 <phase>pre-integration-test</phase>
-                                <goals><goal>exec</goal></goals>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
                                 <configuration>
                                     <executable>docker</executable>
                                     <arguments>
@@ -199,7 +201,9 @@
                             <execution>
                                 <id>docker-db-stop</id>
                                 <phase>post-integration-test</phase>
-                                <goals><goal>exec</goal></goals>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
                                 <configuration>
                                     <executable>docker</executable>
                                     <arguments>
@@ -323,7 +327,9 @@
                             <execution>
                                 <id>docker-db-start</id>
                                 <phase>pre-integration-test</phase>
-                                <goals><goal>exec</goal></goals>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
                                 <configuration>
                                     <executable>docker</executable>
                                     <arguments>
@@ -346,12 +352,19 @@
                             <execution>
                                 <id>quarkus-start-e2e</id>
                                 <phase>integration-test</phase>
-                                <goals><goal>exec</goal></goals>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
                                 <configuration>
                                     <executable>bash</executable>
                                     <arguments>
                                         <argument>-c</argument>
-                                        <argument>java -Dquarkus.profile=test -Dquarkus.http.port=${e2e.http.port} -jar "${project.build.directory}/quarkus-app/quarkus-run.jar" &gt;"${project.build.directory}/app.log" 2&gt;&amp;1 &amp; echo $! &gt;"${project.build.directory}/app.pid"; for i in $(seq 1 60); do curl -sf http://localhost:${e2e.http.port}/login &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "App ready" &amp;&amp; exit 0; sleep 2; done; echo "App failed to start — see target/app.log"; exit 1</argument>
+                                        <argument>java -Dquarkus.profile=test -Dquarkus.http.port=${e2e.http.port} -jar
+                                            "${project.build.directory}/quarkus-app/quarkus-run.jar" &gt;"${project.build.directory}/app.log" 2&gt;&amp;1
+                                            &amp; echo $! &gt;"${project.build.directory}/app.pid"; for i in $(seq 1 60); do curl -sf
+                                            http://localhost:${e2e.http.port}/login &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "App ready" &amp;&amp;
+                                            exit 0; sleep 2; done; echo "App failed to start — see target/app.log"; exit 1
+                                        </argument>
                                     </arguments>
                                 </configuration>
                             </execution>
@@ -364,12 +377,16 @@
                             <execution>
                                 <id>playwright-run</id>
                                 <phase>integration-test</phase>
-                                <goals><goal>exec</goal></goals>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
                                 <configuration>
                                     <executable>bash</executable>
                                     <arguments>
                                         <argument>-c</argument>
-                                        <argument>cd "${project.basedir}/e2e" &amp;&amp; npm test; rc=$?; echo $rc &gt; "${project.build.directory}/playwright-result.txt"; exit 0</argument>
+                                        <argument>cd "${project.basedir}/e2e" &amp;&amp; npm test; rc=$?; echo $rc &gt;
+                                            "${project.build.directory}/playwright-result.txt"; exit 0
+                                        </argument>
                                     </arguments>
                                     <environmentVariables>
                                         <BASE_URL>http://localhost:${e2e.http.port}</BASE_URL>
@@ -381,7 +398,9 @@
                             <execution>
                                 <id>quarkus-stop-e2e</id>
                                 <phase>post-integration-test</phase>
-                                <goals><goal>exec</goal></goals>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
                                 <configuration>
                                     <executable>bash</executable>
                                     <arguments>
@@ -395,7 +414,9 @@
                             <execution>
                                 <id>docker-db-stop</id>
                                 <phase>post-integration-test</phase>
-                                <goals><goal>exec</goal></goals>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
                                 <configuration>
                                     <executable>docker</executable>
                                     <arguments>
@@ -414,12 +435,16 @@
                             <execution>
                                 <id>playwright-check</id>
                                 <phase>verify</phase>
-                                <goals><goal>exec</goal></goals>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
                                 <configuration>
                                     <executable>bash</executable>
                                     <arguments>
                                         <argument>-c</argument>
-                                        <argument>rc=$(cat "${project.build.directory}/playwright-result.txt" 2>/dev/null || echo 1); [ "$rc" = "0" ] || { echo "Playwright E2E tests FAILED (exit $rc) — see e2e/playwright-report/"; exit 1; }</argument>
+                                        <argument>rc=$(cat "${project.build.directory}/playwright-result.txt" 2>/dev/null || echo 1); [ "$rc" = "0" ]
+                                            || { echo "Playwright E2E tests FAILED (exit $rc) — see e2e/playwright-report/"; exit 1; }
+                                        </argument>
                                     </arguments>
                                 </configuration>
                             </execution>

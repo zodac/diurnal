@@ -1,4 +1,8 @@
-# Life Tracker
+# Diurnal
+
+> _[diurnal](https://www.dictionary.com/browse/diurnal), / daɪˈɜr nl /, adjective_
+> 
+> "of or relating to a day or each day; daily."
 
 A personal habit-tracking web app. Log actions against a calendar, then query stats like streaks and frequency.
 
@@ -46,13 +50,13 @@ The application is served at `http://localhost:${APP_PORT}` (default 8080).
 
 ### Database
 
-| Variable      | Default                  | Description                                       |
-|---------------|--------------------------|---------------------------------------------------|
-| `DB_HOST`     | `localhost`              | PostgreSQL hostname (`db` inside Docker Compose). |
-| `DB_PORT`     | `5432`                   | PostgreSQL port.                                  |
-| `DB_NAME`     | `lifetracker`            | Database name.                                    |
-| `DB_USER`     | `lifetracker`            | Database user.                                    |
-| `DB_PASSWORD` | `lifetracker` (dev only) | Database password.                                |
+| Variable      | Default              | Description                                       |
+|---------------|----------------------|---------------------------------------------------|
+| `DB_HOST`     | `localhost`          | PostgreSQL hostname (`db` inside Docker Compose). |
+| `DB_PORT`     | `5432`               | PostgreSQL port.                                  |
+| `DB_NAME`     | `diurnal`            | Database name.                                    |
+| `DB_USER`     | `diurnal`            | Database user.                                    |
+| `DB_PASSWORD` | `diurnal` (dev only) | Database password.                                |
 
 ### Session
 
@@ -62,8 +66,9 @@ The application is served at `http://localhost:${APP_PORT}` (default 8080).
 
 ### JWT signing keys (REST API / future OIDC)
 
-Keys are RSA-2048 PEM files. In production they live in `secrets/` (mounted at `/run/secrets/`) and are **generated automatically on first start**
-if absent, then reused on every subsequent start. In dev they are loaded from the classpath (`src/main/resources/jwt-keys/`).
+Keys are RSA-2048 PEM files. In the production environment they live in `secrets/` (mounted at `/run/secrets/`) and are
+**generated automatically on first start** if absent, then reused on every subsequent start. In the dev environment they are loaded from the
+classpath (`src/main/resources/jwt-keys/`).
 
 | Variable                   | Default (dev)          | Description                                      |
 |----------------------------|------------------------|--------------------------------------------------|
@@ -84,12 +89,12 @@ key (e.g. to share one across multiple replicas), drop your own `private.pem` / 
 OIDC is disabled by default. When enabled, the app connects to the provider's discovery endpoint at startup and validates Bearer tokens issued by that
 provider alongside form-session auth.
 
-| Variable             | Default        | Description                                                                                                       |
-|----------------------|----------------|-------------------------------------------------------------------------------------------------------------------|
-| `OIDC_ENABLED`       | `false`        | Set to `true` to activate OIDC. The three variables below must also be provided.                                  |
-| `OIDC_ISSUER_URL`    | _(none)_       | Base URL of the OIDC provider (e.g. `https://auth.example.com`). Must expose `/.well-known/openid-configuration`. |
-| `OIDC_CLIENT_ID`     | `life-tracker` | Client ID registered with the OIDC provider.                                                                      |
-| `OIDC_CLIENT_SECRET` | _(none)_       | Client secret for the registered client.                                                                          |
+| Variable             | Default   | Description                                                                      |
+|----------------------|-----------|----------------------------------------------------------------------------------|
+| `OIDC_ENABLED`       | `false`   | Set to `true` to activate OIDC. The three variables below must also be provided. |
+| `OIDC_ISSUER_URL`    |           | Base URL of the OIDC provider (e.g. `https://auth.example.com`).                 |
+| `OIDC_CLIENT_ID`     | `diurnal` | Client ID registered with the OIDC provider.                                     |
+| `OIDC_CLIENT_SECRET` |           | Client secret for the registered client.                                         |
 
 **Authelia example** — add to your Authelia `configuration.yml`:
 
@@ -97,11 +102,11 @@ provider alongside form-session auth.
 identity_providers:
   oidc:
     clients:
-      - id: life-tracker
+      - id: diurnal
         secret: '<bcrypt hash of your OIDC_CLIENT_SECRET>'
         authorization_policy: one_factor
         redirect_uris:
-          - https://life-tracker.example.com/oidc-callback
+          - https://diurnal.example.com/oidc-callback
         scopes: [ openid, profile, email ]
         response_types: [ code ]
         grant_types: [ authorization_code ]

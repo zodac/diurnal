@@ -1,39 +1,24 @@
 networks:
-  app:
-    name: app
+  diurnal:
+    name: diurnal
     driver: bridge
 
 services:
-  db:
-    image: postgres:16-alpine
-    restart: unless-stopped
-    environment:
-      TZ: ${TZ:-UTC}
-      POSTGRES_DB: ${DB_NAME:-lifetracker}
-      POSTGRES_USER: ${DB_USER:-lifetracker}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-lifetracker} -d ${DB_NAME:-lifetracker}"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - app
 
-  app:
+  diurnal:
     build:
       context: .
       dockerfile: Dockerfile
+    container_name: diurnal
+    hostname: diurnal
     restart: unless-stopped
     ports:
       - "${APP_PORT:-8080}:8080"
     environment:
-      DB_HOST: db
+      DB_HOST: diurnal-db
       DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-lifetracker}
-      DB_USER: ${DB_USER:-lifetracker}
+      DB_NAME: ${DB_NAME:-diurnal_db}
+      DB_USER: ${DB_USER:-diurnal_user}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
       TZ: ${TZ:-UTC}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
@@ -47,21 +32,43 @@ services:
       # OIDC — set OIDC_ENABLED=true and configure the values below
       OIDC_ENABLED: ${OIDC_ENABLED:-false}
       OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
-      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-life-tracker}
+      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-diurnal}
       OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
       OIDC_PROVIDER_NAME: ${OIDC_PROVIDER_NAME:-your identity provider}
       OIDC_AUTO_REDIRECT: ${OIDC_AUTO_REDIRECT:-false}
-      OIDC_ADMIN_GROUP: ${OIDC_ADMIN_GROUP:-life-tracker-admins}
-      OIDC_USER_GROUP: ${OIDC_USER_GROUP:-life-tracker-users}
+      OIDC_ADMIN_GROUP: ${OIDC_ADMIN_GROUP:-diurnal-admins}
+      OIDC_USER_GROUP: ${OIDC_USER_GROUP:-diurnal-users}
       OIDC_LOGOUT_URL: ${OIDC_LOGOUT_URL}
     networks:
-      - app
+      - diurnal
     volumes:
-      # Writable so the app can generate the keypair on first start; reused on later starts.
+      # Writable so the app can generate the keypair on first start; reused on later starts
       - ./secrets:/run/secrets
     depends_on:
-      db:
+      diurnal-db:
         condition: service_healthy
 
+  diurnal-db:
+    image: postgres:18.4-alpine
+    container_name: diurnal-db
+    hostname: diurnal-db
+    restart: unless-stopped
+    environment:
+      TZ: ${TZ:-UTC}
+      POSTGRES_DB: ${DB_NAME:-diurnal_db}
+      POSTGRES_USER: ${DB_USER:-diurnal_user}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - diurnal-db_data:/var/lib/postgresql/
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-diurnal_user} -d ${DB_NAME:-diurnal_db}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - diurnal
+
 volumes:
-  postgres_data:
+  diurnal-db_data:
+    name: diurnal-db_data

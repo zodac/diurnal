@@ -1,8 +1,8 @@
 {
-  "name": "life-tracker-css",
+  "name": "diurnal-css",
   "version": "1.0.0",
   "private": true,
-  "description": "Tailwind CSS build for the Life Tracker UI (compiled to src/main/resources/META-INF/resources/css/app.css and served at /css/app.css).",
+  "description": "Tailwind CSS build for the Diurnal UI (compiled to src/main/resources/META-INF/resources/css/app.css and served at /css/app.css).",
   "scripts": {
     "css": "tailwindcss -i ./src/main/css/app.css -o ./src/main/resources/META-INF/resources/css/app.css --minify",
     "css:watch": "tailwindcss -i ./src/main/css/app.css -o ./src/main/resources/META-INF/resources/css/app.css --watch"

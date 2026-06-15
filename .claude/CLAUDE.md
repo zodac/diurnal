@@ -52,7 +52,7 @@ docker compose logs -f app
 > `docker-compose` (hyphenated) binary.** This applies to every command; only the `docker-compose.yml`
 > / `docker-compose.dev.yml` **filenames** keep the hyphen, since those are the literal files on disk.
 
-Dev mode disables Testcontainers and expects a local PostgreSQL on `localhost:5432` with database/user/password all `lifetracker` (start it with `docker compose -f docker-compose.dev.yml up -d dev-db`). Flyway migrations run automatically at startup. A single `docker-compose.dev.yml` defines **both** local databases as separate services: `dev-db` (persistent, 5432, `lifetracker`) and `test-db` (tmpfs, 5433, `lifetracker_test`); always start/stop them **by service name** so the two never interfere.
+Dev mode disables Testcontainers and expects a local PostgreSQL on `localhost:5432` with database/user/password all `diurnal` (start it with `docker compose -f docker-compose.dev.yml up -d dev-db`). Flyway migrations run automatically at startup. A single `docker-compose.dev.yml` defines **both** local databases as separate services: `dev-db` (persistent, 5432, `diurnal`) and `test-db` (tmpfs, 5433, `diurnal_test`); always start/stop them **by service name** so the two never interfere.
 
 > **Always tear down the dev environment once testing/verification is finished.** Never leave dev
 > resources running at the end of a task:
@@ -72,14 +72,14 @@ Config is layered by Quarkus profile: `application.properties` holds the base/pr
 **Port map**: **8080** = production (`application.properties` default, the `docker compose` container); **8081** = the single "testing" port — dev mode (`application-dev.properties`), the `@QuarkusTest` test-port the unit/`*IT` tests bind, *and* the packaged-jar E2E run under `-Dall` (`-Dquarkus.http.port=${e2e.http.port}` in `pom.xml`). These three never run at once, so they share one port. Under `-Dall` the ordering is the load-bearing detail: the E2E jar is started in the `integration-test` phase **after** failsafe finishes the `*IT` tests (so the `@QuarkusTest` instance has released 8081) — guaranteed by `exec-maven-plugin` being declared after `maven-failsafe-plugin`, and by binding `quarkus-start-e2e` to `integration-test` rather than `pre-integration-test`. Keeping testing on 8081 leaves 8080 free, so `-Dall` coexists with a running production container.
 
 > **Don't `cd` into the project root before running commands.** The working directory is already the
-> project root (`/home/arouge/git/life-tracker`); use plain or absolute paths. A redundant `cd .` (or
+> project root (`/home/arouge/git/diurnal`); use plain or absolute paths. A redundant `cd .` (or
 > `cd` to the current dir) only triggers a needless permission prompt.
 
 ## Architecture
 
 ### Package layout
 
-Code is organised by feature under `src/main/java/dev/lifetracker/`:
+Code is organised by feature under `src/main/java/net/zodac/diurnal/`:
 
 | Package  | Contents                                                                                                                    |
 |----------|-----------------------------------------------------------------------------------------------------------------------------|
@@ -92,7 +92,7 @@ Code is organised by feature under `src/main/java/dev/lifetracker/`:
 
 ### Two authentication surfaces
 
-- **Web UI (`/*`)** — encrypted session cookie (`lt_session`), form-based. Quarkus form auth redirects unauthenticated requests to `/login`. `@RolesAllowed("user")` enforces auth at the method level.
+- **Web UI (`/*`)** — encrypted session cookie (`diurnal_session`), form-based. Quarkus form auth redirects unauthenticated requests to `/login`. `@RolesAllowed("user")` enforces auth at the method level.
 - **REST API (`/api/*`)** — Bearer JWT signed with RSA-2048 keys. Keys live in `src/main/resources/jwt-keys/` (dev) or `secrets/` (production, auto-generated on first start by `JwtKeyProvisioner`).
 
 The split is configured in `application.properties` with two `quarkus.http.auth.permission.*` blocks. `quarkus.http.auth.proactive=false` is required so Bearer doesn't intercept web requests before form auth can redirect.
@@ -150,7 +150,7 @@ so it looks identical everywhere; built with `@apply`):
 bar and the mobile menu — they can't drift), `partials/stat-tile.html`, `partials/pagination.html` (now
 used by Actions, Users, **and** Stats; the dashboard day panel reuses the same `.dt-pagination`/`.dt-page-link`
 look but keeps its own markup for live-search passthrough). Theme switching is centralised in
-`window.LifeTracker.applyTheme(theme, opts)` (defined inline in `layout.html` for the FOUC pass, reused by
+`window.Diurnal.applyTheme(theme, opts)` (defined inline in `layout.html` for the FOUC pass, reused by
 the settings picker).
 
 The table chrome (`.dt-*`) still lives inline in `layout.html` (see below) — the one component layer not
@@ -249,7 +249,7 @@ All three list views (actions, day-panel actions, stats) share the same in-memor
 
 - `ActionLog.MAX_DAILY_COUNT = 255` — the count column is a `SMALLINT`; increment is silently capped.
 - Actions are soft-deleted (`archived = true`); logs are hard-deleted when an action is deleted.
-- **All date-boundary "now"/"today" goes through `AppClock`** (`dev.lifetracker.time.AppClock`, `@ApplicationScoped`), the single injectable clock built from `app.timezone`. Business logic calls `clock.today()` / `clock.zone()` instead of `LocalDate.now(...)` directly (streaks in `StatsService`, the future-date guard in `LogWebResource`, the dashboard's pre-selected day in `WebResource`, admin timestamp formatting in `AdminWebResource`). This is the seam tests freeze (see Testing conventions). Entity audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`) deliberately stay on plain `Instant.now()` — they're zone-independent and not date-boundary sensitive, so they bypass `AppClock`.
+- **All date-boundary "now"/"today" goes through `AppClock`** (`net.zodac.diurnal.time.AppClock`, `@ApplicationScoped`), the single injectable clock built from `app.timezone`. Business logic calls `clock.today()` / `clock.zone()` instead of `LocalDate.now(...)` directly (streaks in `StatsService`, the future-date guard in `LogWebResource`, the dashboard's pre-selected day in `WebResource`, admin timestamp formatting in `AdminWebResource`). This is the seam tests freeze (see Testing conventions). Entity audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`) deliberately stay on plain `Instant.now()` — they're zone-independent and not date-boundary sensitive, so they bypass `AppClock`.
 - `app.timezone` (defaults to `UTC`) feeds `AppClock`'s zone, so it governs every "today" comparison. It must match `TZ` in `docker-compose.yml`.
 - `LogWebResource.isFuture()` blocks logging for dates beyond today in the user's configured timezone.
 - Action colour defaults to `#6366f1` (indigo); invalid hex colours are silently corrected to the default.
