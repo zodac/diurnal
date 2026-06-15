@@ -2,6 +2,7 @@ package dev.lifetracker.web;
 
 import dev.lifetracker.action.Action;
 import dev.lifetracker.log.ActionLog;
+import dev.lifetracker.time.AppClock;
 import dev.lifetracker.user.User;
 import io.quarkus.panache.common.Page;
 import io.quarkus.panache.common.Sort;
@@ -23,11 +24,9 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
 @Path("/admin")
@@ -41,9 +40,7 @@ public class AdminWebResource {
     @Inject @Location("partials/admin-user-row") Template adminUserRowTemplate;
     @Inject @Location("partials/dt-confirm-delete-row") Template confirmDeleteRowTemplate;
     @Inject SecurityIdentity identity;
-
-    @ConfigProperty(name = "app.timezone", defaultValue = "UTC")
-    String timezoneId;
+    @Inject AppClock clock;
 
     @GET
     @Path("users")
@@ -203,7 +200,7 @@ public class AdminWebResource {
     }
 
     private DateTimeFormatter formatter() {
-        return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(ZoneId.of(timezoneId));
+        return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(clock.zone());
     }
 
     private boolean isLastAdmin(User target) {

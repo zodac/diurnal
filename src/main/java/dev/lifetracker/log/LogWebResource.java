@@ -1,6 +1,7 @@
 package dev.lifetracker.log;
 
 import dev.lifetracker.action.Action;
+import dev.lifetracker.time.AppClock;
 import dev.lifetracker.user.User;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
@@ -12,10 +13,8 @@ import jakarta.transaction.Transactional;
 import jakarta.ws.rs.*;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.List;
@@ -36,9 +35,7 @@ public class LogWebResource {
     @Inject @Location("partials/day-action-item")  Template dayActionItemTemplate;
 
     @Inject SecurityIdentity identity;
-
-    @ConfigProperty(name = "app.timezone", defaultValue = "UTC")
-    String timezoneId;
+    @Inject AppClock clock;
 
     // ── Day panel ──────────────────────────────────────────────────────────
 
@@ -175,7 +172,7 @@ public class LogWebResource {
 
     // Actions can only be logged for today or earlier, in the user's configured timezone.
     private boolean isFuture(LocalDate date) {
-        return date.isAfter(LocalDate.now(ZoneId.of(timezoneId)));
+        return date.isAfter(clock.today());
     }
 
     private User currentUser() {

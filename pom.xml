@@ -147,6 +147,9 @@
                     <includes>
                         <include>**/*Test.java</include>
                     </includes>
+                    <!-- Pin the JVM default timezone so a non-UTC host (e.g. NZST) can't mask a
+                         missing-ZoneId regression; all "today" logic goes through AppClock. -->
+                    <argLine>-Duser.timezone=UTC</argLine>
                     <systemPropertyVariables>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
@@ -229,6 +232,9 @@
                                     <includes>
                                         <include>**/*IT.java</include>
                                     </includes>
+                                    <!-- Pin JVM default TZ to UTC (matches app.timezone in the test
+                                         profile); a non-UTC host can't shift IT date assertions. -->
+                                    <argLine>-Duser.timezone=UTC</argLine>
                                     <systemPropertyVariables>
                                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                                         <maven.home>${maven.home}</maven.home>
@@ -295,6 +301,9 @@
                                     <includes>
                                         <include>**/*IT.java</include>
                                     </includes>
+                                    <!-- Pin JVM default TZ to UTC (matches app.timezone in the test
+                                         profile); a non-UTC host can't shift IT date assertions. -->
+                                    <argLine>-Duser.timezone=UTC</argLine>
                                     <systemPropertyVariables>
                                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                                         <maven.home>${maven.home}</maven.home>

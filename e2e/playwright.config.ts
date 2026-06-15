@@ -11,6 +11,9 @@ export default defineConfig({
   use: {
     baseURL: process.env.BASE_URL || 'http://localhost:8080',
     trace: 'on-first-retry',
+    // Pin the browser clock to UTC so the page's notion of "today" (FullCalendar's today marker,
+    // any client-side date math) matches the UTC server, regardless of the host timezone.
+    timezoneId: 'UTC',
     // Follow redirects (e.g. form auth) automatically
     extraHTTPHeaders: {},
   },

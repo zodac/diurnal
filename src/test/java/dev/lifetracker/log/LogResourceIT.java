@@ -9,8 +9,10 @@ import dev.lifetracker.IntegrationTestBase;
 import dev.lifetracker.action.Action;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -26,8 +28,9 @@ class LogResourceIT extends IntegrationTestBase {
     Action primaryAction;
     Action otherAction;
 
-    // Today in UTC — matches what the app uses (app.timezone defaults to UTC in tests)
-    static final LocalDate TODAY = LocalDate.now(ZoneId.of("UTC"));
+    // Anchored on the clock IntegrationTestBase freezes for every test, so date assertions
+    // never race the real midnight and don't depend on the host timezone.
+    static final LocalDate TODAY = FIXED_TODAY;
     static final LocalDate YESTERDAY = TODAY.minusDays(1);
     static final LocalDate TOMORROW  = TODAY.plusDays(1);
 
@@ -195,6 +198,40 @@ class LogResourceIT extends IntegrationTestBase {
         given().get("/logs/day/" + TODAY + "/list")
                 .then().statusCode(200)
                 .body(not(containsString("filler")));
+    }
+
+    // ── Clock boundary (deterministic via AppClock freeze) ──────────────────────
+
+    @Test
+    void futureGuard_rollsOverAtMidnight() {
+        LocalDate d = LocalDate.of(2026, 3, 10);
+
+        // 23:59:59 on day d → today() == d; d+1 is still the future and is blocked.
+        freezeInstant(d.atTime(23, 59, 59).toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
+        given().post("/logs/" + d.plusDays(1) + "/" + primaryAction.id + "/increment")
+                .then().statusCode(400);
+        given().post("/logs/" + d + "/" + primaryAction.id + "/increment")
+                .then().statusCode(200);
+
+        // One second later the clock has rolled into the next day → d+1 is now "today" and allowed.
+        freezeInstant(d.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneOffset.UTC);
+        given().post("/logs/" + d.plusDays(1) + "/" + primaryAction.id + "/increment")
+                .then().statusCode(200);
+    }
+
+    @Test
+    void futureGuard_dependsOnConfiguredZone() {
+        // One instant; in UTC it is still the 15th, but in Auckland (UTC+12) it is already the 16th.
+        Instant noonUtc = LocalDate.of(2026, 6, 15).atTime(12, 0).toInstant(ZoneOffset.UTC);
+        LocalDate the16th = LocalDate.of(2026, 6, 16);
+
+        freezeInstant(noonUtc, ZoneOffset.UTC);                 // today == 15th
+        given().post("/logs/" + the16th + "/" + primaryAction.id + "/increment")
+                .then().statusCode(400);                        // the 16th is the future
+
+        freezeInstant(noonUtc, ZoneId.of("Pacific/Auckland"));  // same instant, today == 16th
+        given().post("/logs/" + the16th + "/" + primaryAction.id + "/increment")
+                .then().statusCode(200);                        // the 16th is now "today"
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

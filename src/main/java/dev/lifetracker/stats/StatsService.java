@@ -2,11 +2,12 @@ package dev.lifetracker.stats;
 
 import dev.lifetracker.action.Action;
 import dev.lifetracker.log.ActionLog;
+import dev.lifetracker.time.AppClock;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -16,7 +17,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @ApplicationScoped
 public class StatsService {
@@ -24,8 +24,8 @@ public class StatsService {
     private static final DateTimeFormatter MONTH_FMT =
             DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
 
-    @ConfigProperty(name = "app.timezone", defaultValue = "UTC")
-    String timezoneId;
+    @Inject
+    AppClock clock;
 
     @Transactional
     public List<ActionStats> forAllActiveActions(UUID userId) {
@@ -48,7 +48,7 @@ public class StatsService {
     private List<ActionStats> computeAll(UUID userId) {
         Map<UUID, List<ActionLog>> byAction = ActionLog.findAllByUser(userId)
                 .stream().collect(Collectors.groupingBy(l -> l.actionId));
-        LocalDate today = LocalDate.now(ZoneId.of(timezoneId));
+        LocalDate today = clock.today();
         return Action.findActiveByUser(userId).stream()
                 .map(a -> compute(a, byAction.getOrDefault(a.id, List.of()), today))
                 .toList();

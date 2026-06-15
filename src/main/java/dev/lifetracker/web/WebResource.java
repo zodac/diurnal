@@ -2,6 +2,7 @@ package dev.lifetracker.web;
 
 import dev.lifetracker.auth.RoleAssigner;
 import dev.lifetracker.stats.StatsService;
+import dev.lifetracker.time.AppClock;
 import dev.lifetracker.user.User;
 import dev.lifetracker.user.UserSettings;
 import io.quarkus.oidc.IdToken;
@@ -27,8 +28,6 @@ import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
 import java.net.URI;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.List;
 import java.util.Optional;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -49,6 +48,7 @@ public class WebResource {
     @Inject SecurityIdentity identity;
     @Inject StatsService statsService;
     @Inject RoleAssigner roleAssigner;
+    @Inject AppClock clock;
 
     @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
     boolean passwordAuthEnabled;
@@ -69,9 +69,6 @@ public class WebResource {
 
     @ConfigProperty(name = "oidc.logout.url")
     Optional<String> oidcLogoutUrl;
-
-    @ConfigProperty(name = "app.timezone", defaultValue = "UTC")
-    String timezoneId;
 
     // ── Login ──────────────────────────────────────────────────────────────
 
@@ -287,7 +284,7 @@ public class WebResource {
                 .data("theme", user.theme)
                 .data("isAdmin", user.isAdmin())
                 .data("calendarView", user.calendarView)
-                .data("today", LocalDate.now(ZoneId.of(timezoneId)).toString())
+                .data("today", clock.today().toString())
                 .data("recentStats", recentStats);
     }
 }

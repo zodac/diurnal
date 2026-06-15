@@ -8,7 +8,6 @@ import dev.lifetracker.action.Action;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
@@ -19,7 +18,7 @@ class CalendarResourceIT extends IntegrationTestBase {
     static final String PRIMARY = "calendar-it@lt.test";
     static final String OTHER   = "calendar-other@lt.test";
 
-    static final LocalDate TODAY = LocalDate.now(ZoneId.of("UTC"));
+    static final LocalDate TODAY = FIXED_TODAY;
 
     UUID primaryId;
     UUID otherId;

@@ -71,6 +71,10 @@ Config is layered by Quarkus profile: `application.properties` holds the base/pr
 
 **Port map**: **8080** = production (`application.properties` default, the `docker compose` container); **8081** = the single "testing" port — dev mode (`application-dev.properties`), the `@QuarkusTest` test-port the unit/`*IT` tests bind, *and* the packaged-jar E2E run under `-Dall` (`-Dquarkus.http.port=${e2e.http.port}` in `pom.xml`). These three never run at once, so they share one port. Under `-Dall` the ordering is the load-bearing detail: the E2E jar is started in the `integration-test` phase **after** failsafe finishes the `*IT` tests (so the `@QuarkusTest` instance has released 8081) — guaranteed by `exec-maven-plugin` being declared after `maven-failsafe-plugin`, and by binding `quarkus-start-e2e` to `integration-test` rather than `pre-integration-test`. Keeping testing on 8081 leaves 8080 free, so `-Dall` coexists with a running production container.
 
+> **Don't `cd` into the project root before running commands.** The working directory is already the
+> project root (`/home/arouge/git/life-tracker`); use plain or absolute paths. A redundant `cd .` (or
+> `cd` to the current dir) only triggers a needless permission prompt.
+
 ## Architecture
 
 ### Package layout
@@ -218,7 +222,8 @@ All three list views (actions, day-panel actions, stats) share the same in-memor
 
 - `ActionLog.MAX_DAILY_COUNT = 255` — the count column is a `SMALLINT`; increment is silently capped.
 - Actions are soft-deleted (`archived = true`); logs are hard-deleted when an action is deleted.
-- `app.timezone` (defaults to `UTC`) is injected everywhere a "today" comparison is needed (streaks, future-date guard, dashboard). It must match `TZ` in `docker-compose.yml`.
+- **All date-boundary "now"/"today" goes through `AppClock`** (`dev.lifetracker.time.AppClock`, `@ApplicationScoped`), the single injectable clock built from `app.timezone`. Business logic calls `clock.today()` / `clock.zone()` instead of `LocalDate.now(...)` directly (streaks in `StatsService`, the future-date guard in `LogWebResource`, the dashboard's pre-selected day in `WebResource`, admin timestamp formatting in `AdminWebResource`). This is the seam tests freeze (see Testing conventions). Entity audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`) deliberately stay on plain `Instant.now()` — they're zone-independent and not date-boundary sensitive, so they bypass `AppClock`.
+- `app.timezone` (defaults to `UTC`) feeds `AppClock`'s zone, so it governs every "today" comparison. It must match `TZ` in `docker-compose.yml`.
 - `LogWebResource.isFuture()` blocks logging for dates beyond today in the user's configured timezone.
 - Action colour defaults to `#6366f1` (indigo); invalid hex colours are silently corrected to the default.
 - The dark-mode checkbox in settings uses a hidden `<input value="false">` followed by the real checkbox `<input value="true">`. When checked, the form posts `["false", "true"]`; when unchecked, just `["false"]`. `WebResource.updateSettings` checks for `"true"` in the list rather than treating the param as a boolean.
@@ -233,3 +238,5 @@ Flyway scripts live in `src/main/resources/db/migration/`. Schema versioning is 
 ### Testing conventions
 
 Integration tests extend `IntegrationTestBase`, which truncates tables in FK-safe order (`action_logs → actions → users`) before each test. Helper methods `newUser()`, `newAction()`, `newLog()`, and `runInTx()` are provided. Tests use `@TestSecurity` to set the principal email and roles. The `test` profile (`application-test.properties`) forces `app.timezone=UTC` and uses the test DB on port 5433. BCrypt cost is set to 4 in tests for speed. E2E Playwright tests run sequentially (1 worker) against a live app instance; Chromium desktop and Galaxy S24 mobile viewports are both covered.
+
+**Deterministic time in tests.** `IntegrationTestBase` injects `AppClock` and, in `@BeforeEach`, freezes it to a fixed date — `public static final LocalDate FIXED_TODAY` (currently `2026-06-15`) — restoring the real clock in `@AfterEach`. Date-relative IT tests anchor on `FIXED_TODAY` (e.g. `static final LocalDate TODAY = FIXED_TODAY`) rather than `LocalDate.now()`, which removes the old class-load-vs-request midnight race. Per-test, call `freezeDate(LocalDate)` or `freezeInstant(Instant, ZoneId)` to drive boundary cases — see `LogResourceIT.futureGuard_rollsOverAtMidnight` (midnight rollover) and `futureGuard_dependsOnConfiguredZone` (same instant, UTC vs `Pacific/Auckland`). Pure unit tests (`StatsServiceTest`, `ActionStatsTest`) pass a fixed `today` directly. Surefire/failsafe also pin `-Duser.timezone=UTC` so a non-UTC host can't mask a missing-`ZoneId` regression. E2E specs compute dates entirely in UTC (`setUTCDate`/`getUTCDate` + `toISOString`, never the local `setDate`), Playwright pins the browser clock with `timezoneId: 'UTC'`, and e2e must run against a UTC server (the `-Dall` jar is; a dev server on a non-UTC host can disagree near midnight).

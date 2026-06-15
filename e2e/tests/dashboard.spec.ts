@@ -5,15 +5,17 @@ import { test, expect } from '../helpers/fixtures';
 // Contains 'DashAction' so toContainText('DashAction') still matches.
 const DASH_NAME = `DashAction${Date.now()}`;
 
-// Helper: returns today's date as YYYY-MM-DD in local time
+// Helper: today's date as YYYY-MM-DD in UTC — matches the server (app.timezone=UTC under -Dall).
 function todayStr(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-// Helper: returns a past date offset by -n days
+// Helper: a past date offset by -n days, computed entirely in UTC. Using setUTCDate/getUTCDate
+// (not the local setDate/getDate) keeps the arithmetic in the same zone as toISOString(), so a
+// non-UTC host (e.g. NZST) near midnight can't shift the result by a day.
 function pastDateStr(daysAgo: number): string {
   const d = new Date();
-  d.setDate(d.getDate() - daysAgo);
+  d.setUTCDate(d.getUTCDate() - daysAgo);
   return d.toISOString().slice(0, 10);
 }
 

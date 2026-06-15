@@ -2,11 +2,16 @@ package dev.lifetracker;
 
 import dev.lifetracker.action.Action;
 import dev.lifetracker.log.ActionLog;
+import dev.lifetracker.time.AppClock;
 import dev.lifetracker.user.User;
 import jakarta.inject.Inject;
 import jakarta.transaction.UserTransaction;
+import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.mindrot.jbcrypt.BCrypt;
 
@@ -29,11 +34,22 @@ public abstract class IntegrationTestBase {
     static final int BCRYPT_COST = 4;
     static final String TEST_PASSWORD = "test_password";
 
+    /**
+     * The frozen "today" every IT runs at by default. A fixed date (rather than the real clock)
+     * removes the class-load-vs-request midnight race and lets date-relative tests assert against
+     * a stable anchor. Override per-test with {@link #freezeDate}/{@link #freezeInstant}.
+     */
+    public static final LocalDate FIXED_TODAY = LocalDate.of(2026, 6, 15);
+
     @Inject
     UserTransaction tx;
 
+    @Inject
+    AppClock clock;
+
     @BeforeEach
     void setUp() throws Exception {
+        freezeDate(FIXED_TODAY);
         tx.begin();
         try {
             ActionLog.deleteAll();
@@ -45,6 +61,21 @@ public abstract class IntegrationTestBase {
             throw e;
         }
         tx.commit();
+    }
+
+    @AfterEach
+    void restoreClock() {
+        clock.useSystemClock();
+    }
+
+    /** Freeze {@link AppClock} so {@code today()} returns {@code date} (clock pinned to UTC midnight). */
+    protected void freezeDate(LocalDate date) {
+        clock.useFixedClock(Clock.fixed(date.atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneOffset.UTC));
+    }
+
+    /** Freeze {@link AppClock} to an exact instant in {@code zone} — for midnight-boundary / non-UTC tests. */
+    protected void freezeInstant(java.time.Instant instant, ZoneId zone) {
+        clock.useFixedClock(Clock.fixed(instant, zone));
     }
 
     /**
