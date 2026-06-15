@@ -131,15 +131,15 @@
   }
 
   /* ── Stacked calendar (horizontal bars instead of dots) ─────────────── */
-  /* Fixed-height bar column — always reserves the same vertical space (4 bars × 3px + 3 gaps × 2px = 18px) */
+  /* Fixed-height bar column — always reserves the same vertical space (4 bars × 3.3px + 3 gaps × 2px = 19.2px) */
   .lt-stk-bars {
-    display: flex; flex-direction: column; gap: 2px;
+    display: flex; flex-direction: column; gap: 2px; align-items: center;
     width: 100%; padding: 0 3px; box-sizing: border-box;
-    height: 18px; min-height: 18px; margin-top: 2px; flex-shrink: 0;
+    height: 19.2px; min-height: 19.2px; margin-top: 2px; flex-shrink: 0;
     overflow: hidden;
   }
   .lt-stk-bar {
-    height: 3px; border-radius: 999px; flex-shrink: 0;
+    height: 3.3px; width: 80%; border-radius: 1099px; flex-shrink: 0;
   }
 </style>
 {/head}
