@@ -1,6 +1,22 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 package net.zodac.diurnal.auth;
 
-import net.zodac.diurnal.user.User;
 import io.quarkus.security.AuthenticationFailedException;
 import io.quarkus.security.identity.AuthenticationRequestContext;
 import io.quarkus.security.identity.IdentityProvider;
@@ -14,14 +30,17 @@ import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.Arrays;
+import java.util.Locale;
+import net.zodac.diurnal.user.User;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
+/** Authenticates form/API password logins by verifying the BCrypt hash and building the identity. */
 @ApplicationScoped
 public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswordAuthenticationRequest> {
 
-    private static final Logger log = Logger.getLogger(PasswordIdentityProvider.class);
+    private static final Logger LOGGER = Logger.getLogger(PasswordIdentityProvider.class);
 
     @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
     boolean passwordAuthEnabled;
@@ -37,12 +56,12 @@ public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswo
 
     @Override
     public Uni<SecurityIdentity> authenticate(
-            UsernamePasswordAuthenticationRequest request,
-            AuthenticationRequestContext context) {
+            final UsernamePasswordAuthenticationRequest request,
+            final AuthenticationRequestContext context) {
         // Credentials extracted here (still on IO thread, no blocking work).
-        String email = request.getUsername().toLowerCase().strip();
-        char[] raw = request.getPassword().getPassword();
-        String password = new String(raw);
+        final String email = request.getUsername().toLowerCase(Locale.ROOT).strip();
+        final char[] raw = request.getPassword().getPassword();
+        final String password = new String(raw);
         Arrays.fill(raw, '\0');
 
         if (!passwordAuthEnabled) {
@@ -53,25 +72,28 @@ public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswo
         return context.runBlocking(() -> self.verifyCredentials(email, password));
     }
 
+    /** Verifies the password against the stored hash, updating {@code lastLoginAt} on success. */
     @Transactional
-    SecurityIdentity verifyCredentials(String email, String password) {
+    SecurityIdentity verifyCredentials(final String email, final String password) {
         return User.findByEmail(email)
                 .filter(u -> u.passwordHash != null)
                 .filter(u -> BCrypt.checkpw(password, u.passwordHash))
                 .map(u -> {
-                    log.debugf("Login successful: %s", u.email);
+                    LOGGER.debugf("Login successful: %s", u.email);
                     u.lastLoginAt = Instant.now();
                     u.persist();
-                    var builder = QuarkusSecurityIdentity.builder()
+                    final var builder = QuarkusSecurityIdentity.builder()
                             .setPrincipal(new QuarkusPrincipal(u.email))
                             .addAttribute("userId", u.id.toString())
                             .addAttribute("displayName", u.displayName)
                             .addRole(User.ROLE_USER);
-                    if (u.isAdmin()) builder.addRole(User.ROLE_ADMIN);
+                    if (u.isAdmin()) {
+                        builder.addRole(User.ROLE_ADMIN);
+                    }
                     return (SecurityIdentity) builder.build();
                 })
                 .orElseThrow(() -> {
-                    log.debugf("Failed login attempt for: %s", email);
+                    LOGGER.debugf("Failed login attempt for: %s", email);
                     return new AuthenticationFailedException();
                 });
     }

@@ -1,3 +1,20 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 package net.zodac.diurnal.user;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
@@ -9,9 +26,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import org.jspecify.annotations.Nullable;
 
+/** A registered account — password-based or OIDC-provisioned — plus its per-user preferences. */
 @Entity
 @Table(name = "users")
 public class User extends PanacheEntityBase {
@@ -56,7 +76,7 @@ public class User extends PanacheEntityBase {
     // Per-user timezone override (IANA id). NULL = use the server default (app.timezone),
     // so "today" / streak / future-log boundaries follow the user's own clock.
     @Column(name = "timezone")
-    public String timezone;
+    public @Nullable String timezone;
 
     @Column(name = "role", nullable = false)
     public String role = ROLE_USER;
@@ -68,14 +88,17 @@ public class User extends PanacheEntityBase {
         return ROLE_ADMIN.equals(role);
     }
 
-    public static Optional<User> findByEmail(String email) {
-        return find("email", email.toLowerCase()).firstResultOptional();
+    /** Finds a user by email (case-insensitive). */
+    public static Optional<User> findByEmail(final String email) {
+        return find("email", email.toLowerCase(Locale.ROOT)).firstResultOptional();
     }
 
-    public static Optional<User> findByOidc(String issuer, String subject) {
+    /** Finds a user by their OIDC issuer and subject pair. */
+    public static Optional<User> findByOidc(final String issuer, final String subject) {
         return find("oidcIssuer = ?1 and oidcSubject = ?2", issuer, subject).firstResultOptional();
     }
 
+    /** Refreshes {@code updatedAt} before each update (JPA lifecycle callback). */
     @PreUpdate
     void onUpdate() {
         this.updatedAt = Instant.now();

@@ -1,55 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>net.zodac</groupId>
+    <parent>
+        <groupId>net.zodac</groupId>
+        <artifactId>parent-pom</artifactId>
+        <version>1.0.16</version>
+    </parent>
+
     <artifactId>diurnal</artifactId>
     <version>0.0.1-SNAPSHOT</version>
 
-    <properties>
-        <maven.compiler.release>26</maven.compiler.release>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <quarkus.platform.version>3.36.1</quarkus.platform.version>
-        <compiler-plugin.version>3.13.0</compiler-plugin.version>
-        <surefire-plugin.version>3.3.1</surefire-plugin.version>
-        <!-- Single "testing" HTTP port, shared by both test tiers: the *IT tests bind it as the
-             @QuarkusTest test-port (Quarkus default 8081), and the packaged-jar E2E run binds the
-             same port. They never clash because they don't overlap in time — under -Dall the E2E
-             jar is started in the integration-test phase *after* failsafe has finished the *IT
-             tests (and released the port), not before (see the exec executions below). 8081 is
-             distinct from 8080 (the production container), so -Dall coexists with a deployment. -->
-        <e2e.http.port>8081</e2e.http.port>
-    </properties>
-
-    <dependencyManagement>
-        <dependencies>
-            <dependency>
-                <groupId>io.quarkus.platform</groupId>
-                <artifactId>quarkus-bom</artifactId>
-                <version>${quarkus.platform.version}</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-        </dependencies>
-    </dependencyManagement>
-
     <dependencies>
-        <!-- REST -->
+        <!-- Password hashing -->
         <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-rest-jackson</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-hibernate-validator</artifactId>
+            <groupId>org.mindrot</groupId>
+            <artifactId>jbcrypt</artifactId>
         </dependency>
 
         <!-- Database -->
         <dependency>
             <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-flyway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
             <artifactId>quarkus-hibernate-orm-panache</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-hibernate-validator</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -57,7 +38,11 @@
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-flyway</artifactId>
+            <artifactId>quarkus-oidc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-jackson</artifactId>
         </dependency>
 
         <!-- Server-side templating -->
@@ -66,7 +51,7 @@
             <artifactId>quarkus-rest-qute</artifactId>
         </dependency>
 
-        <!-- JWT (verification + generation) — kept for REST API / future OIDC exchange -->
+        <!-- JWT (verification + generation) -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-smallrye-jwt</artifactId>
@@ -76,23 +61,29 @@
             <artifactId>quarkus-smallrye-jwt-build</artifactId>
         </dependency>
 
-        <!-- Password hashing -->
-        <dependency>
-            <groupId>org.mindrot</groupId>
-            <artifactId>jbcrypt</artifactId>
-            <version>0.4</version>
-        </dependency>
-
         <!-- OpenAPI / Dev UI -->
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-smallrye-openapi</artifactId>
         </dependency>
-
-        <!-- OIDC: active at runtime only when OIDC_ENABLED=true; harmless otherwise -->
+        <!--
+            JSON-B API: not used by this app (we serialise with Jackson via quarkus-rest-jackson), but
+            resteasy-reactive-common references jakarta.json.bind.annotation.JsonbTransient in its
+            serializer-config classes. Without this jar on the classpath, SpotBugs cannot resolve that
+            reference and logs "classes needed for analysis were missing" (a non-fatal warning that
+            silently weakens analysis). `provided` keeps it on the compile/analysis classpath only —
+            Quarkus does not bundle it into the runtime jar.
+        -->
         <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-oidc</artifactId>
+            <groupId>jakarta.json.bind</groupId>
+            <artifactId>jakarta.json.bind-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Nullness annotations for NullAway -->
+        <dependency>
+            <groupId>org.jspecify</groupId>
+            <artifactId>jspecify</artifactId>
+            <scope>provided</scope>
         </dependency>
 
         <!-- Testing -->
@@ -102,13 +93,13 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>io.rest-assured</groupId>
-            <artifactId>rest-assured</artifactId>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-test-security</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-test-security</artifactId>
+            <groupId>io.rest-assured</groupId>
+            <artifactId>rest-assured</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>
@@ -116,159 +107,147 @@
     <build>
         <plugins>
             <plugin>
-                <groupId>io.quarkus.platform</groupId>
-                <artifactId>quarkus-maven-plugin</artifactId>
-                <version>${quarkus.platform.version}</version>
-                <extensions>true</extensions>
+                <groupId>com.mycila</groupId>
+                <artifactId>license-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <!-- Re-bound from phase 'install' -> 'prepare-package' so lints execute before IT/e2e -->
                 <executions>
                     <execution>
-                        <goals>
-                            <goal>build</goal>
-                            <goal>generate-code</goal>
-                            <goal>generate-code-tests</goal>
-                        </goals>
+                        <id>default</id>
+                        <phase>prepare-package</phase>
                     </execution>
                 </executions>
             </plugin>
             <plugin>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <version>${compiler-plugin.version}</version>
-                <configuration>
-                    <compilerArgs>
-                        <arg>-parameters</arg>
-                    </compilerArgs>
-                </configuration>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>default</id>
+                        <configuration>
+                            <ignoredUsedUndeclaredDependencies>
+                                <!-- Declared `quarkus` extensions are "unused" in the code, while their transitive APIs are "used undeclared" -->
+                                <ignoredUsedUndeclaredDependency>io.quarkus*:*</ignoredUsedUndeclaredDependency>
+                                <ignoredUsedUndeclaredDependency>io.smallrye*:*</ignoredUsedUndeclaredDependency>
+                                <ignoredUsedUndeclaredDependency>io.vertx:*</ignoredUsedUndeclaredDependency>
+                                <ignoredUsedUndeclaredDependency>jakarta.*:*</ignoredUsedUndeclaredDependency>
+                                <ignoredUsedUndeclaredDependency>org.eclipse.microprofile.*:*</ignoredUsedUndeclaredDependency>
+                                <ignoredUsedUndeclaredDependency>org.jboss.logging:*</ignoredUsedUndeclaredDependency>
+                            </ignoredUsedUndeclaredDependencies>
+                            <ignoredUnusedDeclaredDependencies>
+                                <ignoredUnusedDeclaredDependency>io.quarkus:quarkus-*</ignoredUnusedDeclaredDependency>
+                            </ignoredUnusedDeclaredDependencies>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
             <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-enforcer-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <!-- Re-bound from phase 'install' -> 'prepare-package' so lints execute before IT/e2e -->
+                <executions>
+                    <execution>
+                        <id>default</id>
+                        <phase>prepare-package</phase>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-pmd-plugin</artifactId>
+                <!-- Re-bound from phase 'install' -> 'prepare-package' so lints execute before IT/e2e -->
+                <executions>
+                    <execution>
+                        <id>default</id>
+                        <phase>prepare-package</phase>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
-                <version>${surefire-plugin.version}</version>
                 <configuration>
-                    <!-- Default: unit tests only. Activate -Dit or -Dall to include *IT tests. -->
-                    <includes>
-                        <include>**/*Test.java</include>
-                    </includes>
-                    <!-- Pin the JVM default timezone so a non-UTC host (e.g. NZST) can't mask a
-                         missing-ZoneId regression; all "today" logic goes through AppClock. -->
-                    <argLine>-Duser.timezone=UTC</argLine>
+                    <argLine>@{argLine} -Duser.timezone=UTC</argLine>
                     <systemPropertyVariables>
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
-                        <net.bytebuddy.experimental>true</net.bytebuddy.experimental>
                     </systemPropertyVariables>
                 </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.pitest</groupId>
+                <artifactId>pitest-maven</artifactId>
+                <!-- We want the mutation testing to verify the unit tests only, so we exclude the ITs -->
+                <configuration>
+                    <excludedTestClasses>
+                        <param>*IT</param>
+                    </excludedTestClasses>
+                </configuration>
+                <!-- Re-bound install -> prepare-package (see checkstyle note: lints before IT/e2e). -->
+                <executions>
+                    <execution>
+                        <id>default</id>
+                        <phase>prepare-package</phase>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>io.quarkus.platform</groupId>
+                <artifactId>quarkus-maven-plugin</artifactId>
+            </plugin>
+            <plugin>
+                <groupId>com.github.spotbugs</groupId>
+                <artifactId>spotbugs-maven-plugin</artifactId>
+                <!-- Re-bound from phase 'install' -> 'prepare-package' so lints execute before IT/e2e -->
+                <executions>
+                    <execution>
+                        <id>default</id>
+                        <phase>prepare-package</phase>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>
 
     <profiles>
         <!--
-            Run integration tests only — starts and stops the test DB automatically:
-                mvn clean install -Dit
-        -->
-        <profile>
-            <id>it</id>
-            <activation>
-                <property>
-                    <name>it</name>
-                </property>
-            </activation>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.codehaus.mojo</groupId>
-                        <artifactId>exec-maven-plugin</artifactId>
-                        <version>3.3.0</version>
-                        <executions>
-                            <execution>
-                                <id>docker-db-start</id>
-                                <phase>pre-integration-test</phase>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>docker</executable>
-                                    <arguments>
-                                        <argument>compose</argument>
-                                        <argument>-f</argument>
-                                        <argument>${project.basedir}/docker-compose.dev.yml</argument>
-                                        <argument>up</argument>
-                                        <argument>-d</argument>
-                                        <argument>--wait</argument>
-                                        <argument>test-db</argument>
-                                    </arguments>
-                                </configuration>
-                            </execution>
-                            <execution>
-                                <id>docker-db-stop</id>
-                                <phase>post-integration-test</phase>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>docker</executable>
-                                    <arguments>
-                                        <argument>compose</argument>
-                                        <argument>-f</argument>
-                                        <argument>${project.basedir}/docker-compose.dev.yml</argument>
-                                        <argument>rm</argument>
-                                        <argument>-s</argument>
-                                        <argument>-f</argument>
-                                        <argument>test-db</argument>
-                                    </arguments>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <!--
-                        Failsafe (not surefire) defers build failure to the verify phase,
-                        so post-integration-test teardown always runs even when tests fail.
-                    -->
-                    <plugin>
-                        <artifactId>maven-failsafe-plugin</artifactId>
-                        <version>${surefire-plugin.version}</version>
-                        <executions>
-                            <execution>
-                                <goals>
-                                    <goal>integration-test</goal>
-                                    <goal>verify</goal>
-                                </goals>
-                                <configuration>
-                                    <includes>
-                                        <include>**/*IT.java</include>
-                                    </includes>
-                                    <!-- Pin JVM default TZ to UTC (matches app.timezone in the test
-                                         profile); a non-UTC host can't shift IT date assertions. -->
-                                    <argLine>-Duser.timezone=UTC</argLine>
-                                    <systemPropertyVariables>
-                                        <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
-                                        <maven.home>${maven.home}</maven.home>
-                                        <net.bytebuddy.experimental>true</net.bytebuddy.experimental>
-                                    </systemPropertyVariables>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-
-        <!--
             Run ALL test tiers in one command — starts and stops the test DB automatically:
                 mvn clean install -Dall
 
-            Phase sequence:
-              test                – surefire: unit tests (*Test) only
-              package             – Quarkus builds the fast-jar
-              pre-integration-test – docker compose up (DB) only
-              integration-test    – failsafe: *IT tests (@QuarkusTest on 8081) run FIRST; then the
-                                     packaged jar starts on the same 8081 (now free) + Playwright E2E
-                                     (results captured; clean-up always runs). Ordering is guaranteed
-                                     by failsafe being declared before exec-maven-plugin.
-              post-integration-test – kill app by PID + docker compose down (always runs; failsafe defers failure)
-              verify              – failsafe reports IT failures + playwright-check reports E2E failures
+            The shared `all` property also activates the parent's `activate_all` profile, which
+            enables the full inherited lint suite AND the unit tests. So -Dall = unit + *IT + E2E
+            tests PLUS every inherited linter, in a single command.
 
-            Both tiers share ONE testing port (8081, the @QuarkusTest default); they never overlap
-            in time, so a single port suffices and -Dall stays clear of the 8080 production container.
+            Phase sequence (correctness comes ONLY from PHASE binding, never from declaration order —
+            the inherited sortpom plugin re-sorts plugins AND executions on every build, and it orders
+            plugins by artifactId, so e.g. exec-maven-plugin sorts before maven-failsafe-plugin. Two
+            steps that must be ordered therefore must live in DIFFERENT phases; never two in one phase):
+              test                 – surefire: unit tests (*Test) only
+              package              – Quarkus builds the fast-jar
+              pre-integration-test – docker compose up (test DB) for the ITs
+              integration-test     – failsafe runs the *IT tests (@QuarkusTest on 8081); failure is
+                                     deferred to the verify phase (so post-IT teardown still runs)
+              post-integration-test – docker compose down (test DB)
+              verify               – failsafe GATE: the build fails here if any *IT failed
+              install              – e2e ('e2e-run'): runs ONLY because the build passed the verify
+                                     gate, i.e. the ITs are confirmed green first. The script is fully
+                                     self-contained (brings up its own test DB, starts the jar on 8081,
+                                     runs Playwright, tears everything down via a trap) and exits with
+                                     Playwright's code, so an E2E failure fails the build.
+
+            Why e2e is in `install`, not `integration-test`: failsafe only raises *IT failures in the
+            `verify` phase, so e2e must run AFTER verify to be gated on the ITs passing. `install` is
+            the first phase after `verify`, and the project's full gate is `mvn clean install -Dall`.
+            The E2E jar reuses 8081 (the @QuarkusTest default, long released by install), distinct from
+            8080 (production), so -Dall coexists with a running deployment. Readiness/E2E use 127.0.0.1
+            (not 'localhost') because the app binds IPv4 (0.0.0.0) and Node may resolve localhost to ::1.
         -->
         <profile>
             <id>all</id>
@@ -277,59 +256,24 @@
                     <name>all</name>
                 </property>
             </activation>
+            <properties>
+                <!-- Single "testing" HTTP port, shared by both IT & E2E test suites. Consumed only by the
+                     E2E exec execution below; override with -De2e.http.port=<port> on a port conflict. -->
+                <e2e.http.port>8081</e2e.http.port>
+            </properties>
             <build>
                 <plugins>
-                    <!-- Unit tests only; IT tests run via failsafe in integration-test phase -->
-                    <plugin>
-                        <artifactId>maven-surefire-plugin</artifactId>
-                        <configuration>
-                            <includes combine.children="override">
-                                <include>**/*Test.java</include>
-                            </includes>
-                        </configuration>
-                    </plugin>
-                    <!--
-                        Failsafe defers build failure to verify, so post-integration-test
-                        teardown always runs even when IT tests fail.
-                    -->
-                    <plugin>
-                        <artifactId>maven-failsafe-plugin</artifactId>
-                        <version>${surefire-plugin.version}</version>
-                        <executions>
-                            <execution>
-                                <goals>
-                                    <goal>integration-test</goal>
-                                    <goal>verify</goal>
-                                </goals>
-                                <configuration>
-                                    <includes>
-                                        <include>**/*IT.java</include>
-                                    </includes>
-                                    <!-- Pin JVM default TZ to UTC (matches app.timezone in the test
-                                         profile); a non-UTC host can't shift IT date assertions. -->
-                                    <argLine>-Duser.timezone=UTC</argLine>
-                                    <systemPropertyVariables>
-                                        <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
-                                        <maven.home>${maven.home}</maven.home>
-                                        <net.bytebuddy.experimental>true</net.bytebuddy.experimental>
-                                    </systemPropertyVariables>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
                     <plugin>
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>exec-maven-plugin</artifactId>
-                        <version>3.3.0</version>
                         <executions>
-
-                            <!-- 1. Start the test DB and block until its healthcheck passes -->
+                            <!-- Start the test DB and block until its healthcheck passes (pre-IT phase). -->
                             <execution>
                                 <id>docker-db-start</id>
-                                <phase>pre-integration-test</phase>
                                 <goals>
                                     <goal>exec</goal>
                                 </goals>
+                                <phase>pre-integration-test</phase>
                                 <configuration>
                                     <executable>docker</executable>
                                     <arguments>
@@ -344,75 +288,13 @@
                                 </configuration>
                             </execution>
 
-                            <!-- 2. Start Quarkus in test profile; poll /login until ready (max 120s).
-                                 Bound to integration-test (NOT pre-integration-test) and this exec
-                                 plugin is declared after maven-failsafe-plugin, so it runs only once
-                                 failsafe has finished the *IT tests — by then the @QuarkusTest test
-                                 instance has released ${e2e.http.port}, which this jar then reuses.
-                                 NOTE: the bash -c script MUST stay on a single line. bash treats a
-                                 raw newline as a command separator, so wrapping it (e.g. after `-jar`)
-                                 splits `java … -jar` from the jar path and the launch silently fails. -->
-                            <execution>
-                                <id>quarkus-start-e2e</id>
-                                <phase>integration-test</phase>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>bash</executable>
-                                    <arguments>
-                                        <argument>-c</argument>
-                                        <argument>java -Dquarkus.profile=test -Dquarkus.http.port=${e2e.http.port} -jar "${project.build.directory}/quarkus-app/quarkus-run.jar" &gt;"${project.build.directory}/app.log" 2&gt;&amp;1 &amp; echo $! &gt;"${project.build.directory}/app.pid"; for i in $(seq 1 60); do curl -sf http://localhost:${e2e.http.port}/login &gt;/dev/null 2&gt;&amp;1 &amp;&amp; echo "App ready" &amp;&amp; exit 0; sleep 2; done; echo "App failed to start — see target/app.log"; exit 1</argument>
-                                    </arguments>
-                                </configuration>
-                            </execution>
-
-                            <!--
-                                3. Run Playwright E2E tests.
-                                Exits 0 regardless of test outcome so post-integration-test
-                                clean-up always runs; the real result is checked in verify.
-                            -->
-                            <execution>
-                                <id>playwright-run</id>
-                                <phase>integration-test</phase>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>bash</executable>
-                                    <arguments>
-                                        <argument>-c</argument>
-                                        <argument>cd "${project.basedir}/e2e" &amp;&amp; npm test; rc=$?; echo $rc &gt; "${project.build.directory}/playwright-result.txt"; exit 0</argument>
-                                    </arguments>
-                                    <environmentVariables>
-                                        <BASE_URL>http://localhost:${e2e.http.port}</BASE_URL>
-                                    </environmentVariables>
-                                </configuration>
-                            </execution>
-
-                            <!-- 4. Stop Quarkus (runs even when tests failed) -->
-                            <execution>
-                                <id>quarkus-stop-e2e</id>
-                                <phase>post-integration-test</phase>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <configuration>
-                                    <executable>bash</executable>
-                                    <arguments>
-                                        <argument>-c</argument>
-                                        <argument>kill -9 $(cat "${project.build.directory}/app.pid" 2&gt;/dev/null) 2&gt;/dev/null || true</argument>
-                                    </arguments>
-                                </configuration>
-                            </execution>
-
-                            <!-- 5. Tear down the test DB (runs even when tests failed) -->
+                            <!-- Tear down the test DB (post-IT phase; always runs). -->
                             <execution>
                                 <id>docker-db-stop</id>
-                                <phase>post-integration-test</phase>
                                 <goals>
                                     <goal>exec</goal>
                                 </goals>
+                                <phase>post-integration-test</phase>
                                 <configuration>
                                     <executable>docker</executable>
                                     <arguments>
@@ -427,19 +309,62 @@
                                 </configuration>
                             </execution>
 
-                            <!-- 6. Fail the build if Playwright reported a non-zero exit code -->
+                            <!--
+                                E2E run, bound to `install` — strictly AFTER the verify-phase failsafe
+                                gate, so it runs only once the ITs are confirmed green (if they fail,
+                                the build stops at verify and this never runs). Delegates to
+                                e2e/run-e2e.sh, which is fully self-contained: it brings up its own test
+                                DB, starts the packaged jar on ${e2e.http.port}, polls /login until ready
+                                (max 120s), runs Playwright, and tears the jar + test DB down via an EXIT
+                                trap. The script exits with Playwright's exit code, so an E2E failure
+                                fails the build directly (no separate result-file check needed). It takes
+                                the port / target dir / basedir as arguments so the Maven properties
+                                resolve here, in the POM. It is the only exec execution in `install`, so
+                                sortpom execution/plugin re-ordering cannot affect it.
+                            -->
                             <execution>
-                                <id>playwright-check</id>
-                                <phase>verify</phase>
+                                <id>e2e-run</id>
                                 <goals>
                                     <goal>exec</goal>
                                 </goals>
+                                <phase>install</phase>
                                 <configuration>
                                     <executable>bash</executable>
                                     <arguments>
-                                        <argument>-c</argument>
-                                        <argument>rc=$(cat "${project.build.directory}/playwright-result.txt" 2&gt;/dev/null || echo 1); [ "$rc" = "0" ] || { echo "Playwright E2E tests FAILED (exit $rc) — see e2e/playwright-report/"; exit 1; }</argument>
+                                        <argument>${project.basedir}/e2e/run-e2e.sh</argument>
+                                        <argument>${e2e.http.port}</argument>
+                                        <argument>${project.build.directory}</argument>
+                                        <argument>${project.basedir}</argument>
                                     </arguments>
+                                </configuration>
+                            </execution>
+
+                        </executions>
+                    </plugin>
+                    <!--
+                        Failsafe defers build failure to verify, so post-integration-test
+                        teardown always runs even when IT tests fail.
+                    -->
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-failsafe-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <goals>
+                                    <goal>integration-test</goal>
+                                    <goal>verify</goal>
+                                </goals>
+                                <configuration>
+                                    <includes>
+                                        <include>**/*IT.java</include>
+                                    </includes>
+                                    <!-- Pin JVM default TZ to UTC (matches app.timezone in the test
+                                         profile); a non-UTC host can't shift IT date assertions. -->
+                                    <argLine>@{argLine} -Duser.timezone=UTC</argLine>
+                                    <systemPropertyVariables>
+                                        <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
+                                        <maven.home>${maven.home}</maven.home>
+                                    </systemPropertyVariables>
                                 </configuration>
                             </execution>
                         </executions>

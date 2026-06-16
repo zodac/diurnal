@@ -1,19 +1,37 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 package net.zodac.diurnal.stats;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-import net.zodac.diurnal.IntegrationTestBase;
-import net.zodac.diurnal.action.Action;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.time.LocalDate;
 import java.util.UUID;
+import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.action.Action;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 @TestSecurity(user = "stats-it@lt.test", roles = "user")
+@SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class StatsResourceIT extends IntegrationTestBase {
 
     static final String PRIMARY = "stats-it@lt.test";
@@ -42,7 +60,7 @@ class StatsResourceIT extends IntegrationTestBase {
     @Test
     void statsPage_withLoggedAction_showsActionName() {
         runInTx(() -> {
-            Action action = newAction(primaryId, "Jogging");
+            final Action action = newAction(primaryId, "Jogging");
             newLog(primaryId, action.id, TODAY, 2);
         });
 
@@ -54,7 +72,7 @@ class StatsResourceIT extends IntegrationTestBase {
     @Test
     void statsPage_streakDisplayed() {
         runInTx(() -> {
-            Action action = newAction(primaryId, "Streaker");
+            final Action action = newAction(primaryId, "Streaker");
             newLog(primaryId, action.id, TODAY, 1);
             newLog(primaryId, action.id, TODAY.minusDays(1), 1);
             newLog(primaryId, action.id, TODAY.minusDays(2), 1);
@@ -68,7 +86,7 @@ class StatsResourceIT extends IntegrationTestBase {
     @Test
     void statsPage_totalCountDisplayed() {
         runInTx(() -> {
-            Action action = newAction(primaryId, "Counter");
+            final Action action = newAction(primaryId, "Counter");
             newLog(primaryId, action.id, TODAY, 5);
             newLog(primaryId, action.id, TODAY.minusDays(1), 3);
         });
@@ -82,7 +100,7 @@ class StatsResourceIT extends IntegrationTestBase {
     void statsList_pagination_page1ShowsNextWhenMoreThanPageSize() {
         runInTx(() -> {
             for (int i = 1; i <= 11; i++) {
-                Action a = newAction(primaryId, String.format("PaginatedAction%02d", i));
+                final Action a = newAction(primaryId, String.format("PaginatedAction%02d", i));
                 newLog(primaryId, a.id, TODAY, 1);
             }
         });
@@ -96,7 +114,7 @@ class StatsResourceIT extends IntegrationTestBase {
     void statsList_pagination_page2ShowsPrevious() {
         runInTx(() -> {
             for (int i = 1; i <= 11; i++) {
-                Action a = newAction(primaryId, String.format("PageAction%02d", i));
+                final Action a = newAction(primaryId, String.format("PageAction%02d", i));
                 newLog(primaryId, a.id, TODAY, 1);
             }
         });
@@ -110,7 +128,7 @@ class StatsResourceIT extends IntegrationTestBase {
     void statsPage_actionsWithNoLogsAreHidden() {
         runInTx(() -> {
             newAction(primaryId, "NeverLogged");
-            Action logged = newAction(primaryId, "Logged");
+            final Action logged = newAction(primaryId, "Logged");
             newLog(primaryId, logged.id, TODAY, 1);
         });
 

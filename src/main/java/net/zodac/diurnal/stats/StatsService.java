@@ -1,9 +1,22 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 package net.zodac.diurnal.stats;
 
-import net.zodac.diurnal.action.Action;
-import net.zodac.diurnal.log.ActionLog;
-import net.zodac.diurnal.time.AppClock;
-import net.zodac.diurnal.user.User;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -18,7 +31,12 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.log.ActionLog;
+import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.user.User;
 
+/** Computes per-action statistics (counts, streaks, trends) from a user's logged entries. */
 @ApplicationScoped
 public class StatsService {
 
@@ -28,15 +46,17 @@ public class StatsService {
     @Inject
     AppClock clock;
 
+    /** Returns stats for every active action of the user that has at least one logged entry. */
     @Transactional
-    public List<ActionStats> forAllActiveActions(UUID userId) {
+    public List<ActionStats> forAllActiveActions(final UUID userId) {
         return computeAll(userId).stream()
                 .filter(ActionStats::hasData)
                 .toList();
     }
 
+    /** Returns stats for the user's most recently performed actions, newest first, up to {@code limit}. */
     @Transactional
-    public List<ActionStats> forMostRecent(UUID userId, int limit) {
+    public List<ActionStats> forMostRecent(final UUID userId, final int limit) {
         return computeAll(userId).stream()
                 .filter(ActionStats::hasData)
                 .sorted(Comparator.comparing(ActionStats::lastPerformed).reversed())
@@ -46,42 +66,42 @@ public class StatsService {
 
     // ── Shared computation ────────────────────────────────────────────────
 
-    private List<ActionStats> computeAll(UUID userId) {
-        Map<UUID, List<ActionLog>> byAction = ActionLog.findAllByUser(userId)
+    private List<ActionStats> computeAll(final UUID userId) {
+        final Map<UUID, List<ActionLog>> byAction = ActionLog.findAllByUser(userId)
                 .stream().collect(Collectors.groupingBy(l -> l.actionId));
         // Streak boundaries are evaluated in the user's own timezone (else the server default).
-        User user = User.findById(userId);
-        LocalDate today = clock.today(clock.zoneFor(user == null ? null : user.timezone));
+        final User user = User.findById(userId);
+        final LocalDate today = clock.today(clock.zoneFor(user == null ? null : user.timezone));
         return Action.findActiveByUser(userId).stream()
                 .map(a -> compute(a, byAction.getOrDefault(a.id, List.of()), today))
                 .toList();
     }
 
-    private static ActionStats compute(Action action, List<ActionLog> logs, LocalDate today) {
+    private static ActionStats compute(final Action action, final List<ActionLog> logs, final LocalDate today) {
         if (logs.isEmpty()) {
             return new ActionStats(action, 0, 0L, null, null, 0, 0,
                     0L, 0L, 0L, 0L, "—", 0L, "—", 0L, today);
         }
 
-        List<LocalDate> dates = logs.stream()
+        final List<LocalDate> dates = logs.stream()
                 .map(l -> l.logDate).distinct().sorted().toList();
 
-        long totalCount = logs.stream().mapToLong(l -> l.count).sum();
+        final long totalCount = logs.stream().mapToLong(l -> l.count).sum();
 
-        YearMonth thisMonth = YearMonth.from(today);
-        YearMonth prevMonth = thisMonth.minusMonths(1);
-        int thisYear = today.getYear();
+        final YearMonth thisMonth = YearMonth.from(today);
+        final YearMonth prevMonth = thisMonth.minusMonths(1);
+        final int thisYear = today.getYear();
 
-        Map<YearMonth, Long> byMonth = logs.stream().collect(
+        final Map<YearMonth, Long> byMonth = logs.stream().collect(
                 Collectors.groupingBy(l -> YearMonth.from(l.logDate),
                         Collectors.summingLong(l -> l.count)));
-        Map<Integer, Long> byYear = logs.stream().collect(
+        final Map<Integer, Long> byYear = logs.stream().collect(
                 Collectors.groupingBy(l -> l.logDate.getYear(),
                         Collectors.summingLong(l -> l.count)));
 
-        Map.Entry<YearMonth, Long> bestMonth = byMonth.entrySet().stream()
+        final Map.Entry<YearMonth, Long> bestMonth = byMonth.entrySet().stream()
                 .max(Map.Entry.comparingByValue()).orElse(null);
-        Map.Entry<Integer, Long> bestYear = byYear.entrySet().stream()
+        final Map.Entry<Integer, Long> bestYear = byYear.entrySet().stream()
                 .max(Map.Entry.comparingByValue()).orElse(null);
 
         return new ActionStats(
@@ -103,20 +123,29 @@ public class StatsService {
                 today);
     }
 
-    static int currentStreak(List<LocalDate> sortedDates, LocalDate today) {
-        Set<LocalDate> set = new HashSet<>(sortedDates);
+    /** The number of consecutive days up to (and including) today on which the action was performed. */
+    static int currentStreak(final List<LocalDate> sortedDates, final LocalDate today) {
+        final Set<LocalDate> set = new HashSet<>(sortedDates);
         LocalDate cursor = set.contains(today) ? today : today.minusDays(1);
         int streak = 0;
-        while (set.contains(cursor)) { streak++; cursor = cursor.minusDays(1); }
+        while (set.contains(cursor)) {
+            streak++;
+            cursor = cursor.minusDays(1);
+        }
         return streak;
     }
 
-    static int longestStreak(List<LocalDate> sortedDates) {
-        if (sortedDates.isEmpty()) return 0;
-        int longest = 1, run = 1;
+    /** The longest run of consecutive performed days anywhere in the action's history. */
+    static int longestStreak(final List<LocalDate> sortedDates) {
+        if (sortedDates.isEmpty()) {
+            return 0;
+        }
+        int longest = 1;
+        int run = 1;
         for (int i = 1; i < sortedDates.size(); i++) {
             if (sortedDates.get(i).equals(sortedDates.get(i - 1).plusDays(1))) {
-                longest = Math.max(longest, ++run);
+                run++;
+                longest = Math.max(longest, run);
             } else {
                 run = 1;
             }

@@ -1,3 +1,20 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 package net.zodac.diurnal.log;
 
 import static io.restassured.RestAssured.given;
@@ -5,9 +22,6 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-import net.zodac.diurnal.IntegrationTestBase;
-import net.zodac.diurnal.action.Action;
-import net.zodac.diurnal.user.User;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.time.Instant;
@@ -15,10 +29,14 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 @TestSecurity(user = "log-it@lt.test", roles = "user")
+@SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class LogResourceIT extends IntegrationTestBase {
 
     static final String PRIMARY = "log-it@lt.test";
@@ -51,7 +69,7 @@ class LogResourceIT extends IntegrationTestBase {
                 .then().statusCode(200)
                 .body(containsString("1"));
 
-        ActionLog log = ActionLog.findEntry(primaryId, primaryAction.id, TODAY);
+        final ActionLog log = ActionLog.findEntry(primaryId, primaryAction.id, TODAY);
         assertNotNull(log);
         assertEquals(1, log.count);
     }
@@ -79,7 +97,7 @@ class LogResourceIT extends IntegrationTestBase {
                 .then().statusCode(200)
                 .body(containsString("255"));
 
-        ActionLog log = ActionLog.findEntry(primaryId, primaryAction.id, TODAY);
+        final ActionLog log = ActionLog.findEntry(primaryId, primaryAction.id, TODAY);
         assertEquals(255, log.count);
     }
 
@@ -141,20 +159,20 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void dayPanel_pastDateWithLog_showsActionSortedByCountDesc() {
-        Action[] holder = new Action[1];
+        final Action[] holder = new Action[1];
         runInTx(() -> {
             holder[0] = newAction(primaryId, "AlphaFirst"); // alphabetically first
             newLog(primaryId, primaryAction.id, YESTERDAY, 3);
             newLog(primaryId, holder[0].id, YESTERDAY, 1);
         });
 
-        String body = given().get("/logs/day/" + YESTERDAY)
+        final String body = given().get("/logs/day/" + YESTERDAY)
                 .then().statusCode(200)
                 .extract().body().asString();
 
         // PrimaryAction has count=3, AlphaFirst count=1 — PrimaryAction should appear first in HTML
-        int posA = body.indexOf("PrimaryAction");
-        int posB = body.indexOf("AlphaFirst");
+        final int posA = body.indexOf("PrimaryAction");
+        final int posB = body.indexOf("AlphaFirst");
         assertTrue(posA < posB, "Higher count action should appear before lower count action");
     }
 
@@ -205,7 +223,7 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void futureGuard_rollsOverAtMidnight() {
-        LocalDate d = LocalDate.of(2026, 3, 10);
+        final LocalDate d = LocalDate.of(2026, 3, 10);
 
         // 23:59:59 on day d → today() == d; d+1 is still the future and is blocked.
         freezeInstant(d.atTime(23, 59, 59).toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
@@ -223,8 +241,8 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void futureGuard_dependsOnConfiguredZone() {
         // One instant; in UTC it is still the 15th, but in Auckland (UTC+12) it is already the 16th.
-        Instant noonUtc = LocalDate.of(2026, 6, 15).atTime(12, 0).toInstant(ZoneOffset.UTC);
-        LocalDate the16th = LocalDate.of(2026, 6, 16);
+        final Instant noonUtc = LocalDate.of(2026, 6, 15).atTime(12, 0).toInstant(ZoneOffset.UTC);
+        final LocalDate the16th = LocalDate.of(2026, 6, 16);
 
         freezeInstant(noonUtc, ZoneOffset.UTC);                 // today == 15th
         given().post("/logs/" + the16th + "/" + primaryAction.id + "/increment")
@@ -239,12 +257,12 @@ class LogResourceIT extends IntegrationTestBase {
     void futureGuard_usesPerUserTimezone() {
         // The server clock stays in UTC, but the user has chosen Pacific/Auckland (UTC+12).
         runInTx(() -> {
-            User u = User.findById(primaryId);
+            final User u = User.findById(primaryId);
             u.timezone = "Pacific/Auckland";
         });
 
-        Instant noonUtc = LocalDate.of(2026, 6, 15).atTime(12, 0).toInstant(ZoneOffset.UTC);
-        LocalDate the16th = LocalDate.of(2026, 6, 16);
+        final Instant noonUtc = LocalDate.of(2026, 6, 15).atTime(12, 0).toInstant(ZoneOffset.UTC);
+        final LocalDate the16th = LocalDate.of(2026, 6, 16);
 
         // In UTC it is still the 15th, but the guard reads the user's zone where it is already the
         // 16th — so logging the 16th is allowed even though the server clock is on the 15th.
@@ -255,20 +273,27 @@ class LogResourceIT extends IntegrationTestBase {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static void assertNotNull(Object o) {
-        if (o == null) throw new AssertionError("Expected non-null but was null");
+    private static void assertNotNull(final Object o) {
+        if (o == null) {
+            throw new AssertionError("Expected non-null but was null");
+        }
     }
 
-    private static void assertNull(Object o) {
-        if (o != null) throw new AssertionError("Expected null but was: " + o);
+    private static void assertNull(final Object o) {
+        if (o != null) {
+            throw new AssertionError("Expected null but was: " + o);
+        }
     }
 
-    private static void assertEquals(int expected, int actual) {
-        if (expected != actual)
+    private static void assertEquals(final int expected, final int actual) {
+        if (expected != actual) {
             throw new AssertionError("Expected " + expected + " but was " + actual);
+        }
     }
 
-    private static void assertTrue(boolean condition, String msg) {
-        if (!condition) throw new AssertionError(msg);
+    private static void assertTrue(final boolean condition, final String msg) {
+        if (!condition) {
+            throw new AssertionError(msg);
+        }
     }
 }

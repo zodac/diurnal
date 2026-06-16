@@ -1,18 +1,36 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 package net.zodac.diurnal.log;
 
 import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.equalTo;
 
-import net.zodac.diurnal.IntegrationTestBase;
-import net.zodac.diurnal.action.Action;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.time.LocalDate;
 import java.util.UUID;
+import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.action.Action;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 @TestSecurity(user = "calendar-it@lt.test", roles = "user")
+@SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class CalendarResourceIT extends IntegrationTestBase {
 
     static final String PRIMARY = "calendar-it@lt.test";
@@ -71,7 +89,7 @@ class CalendarResourceIT extends IntegrationTestBase {
 
     @Test
     void events_multipleActionsOnSameDay_allReturned() {
-        Action[] holder = new Action[1];
+        final Action[] holder = new Action[1];
         runInTx(() -> {
             holder[0] = newAction(primaryId, "Cycling");
             newLog(primaryId, primaryAction.id, TODAY, 1);
@@ -88,7 +106,7 @@ class CalendarResourceIT extends IntegrationTestBase {
     void events_onlyCurrentUsersEvents() {
         // Other user logs the same action type (their own action)
         runInTx(() -> {
-            Action otherAction = newAction(otherId, "Yoga");
+            final Action otherAction = newAction(otherId, "Yoga");
             newLog(primaryId, primaryAction.id, TODAY, 1);
             newLog(otherId,   otherAction.id,   TODAY, 1);
         });
@@ -117,8 +135,8 @@ class CalendarResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 1));
 
         // FullCalendar sends ISO datetime strings like "2025-06-15T00:00:00"
-        String startWithTime = TODAY + "T00:00:00";
-        String endWithTime   = TODAY + "T23:59:59";
+        final String startWithTime = TODAY + "T00:00:00";
+        final String endWithTime   = TODAY + "T23:59:59";
 
         given().queryParam("start", startWithTime).queryParam("end", endWithTime)
                 .get("/logs/events")
@@ -153,7 +171,7 @@ class CalendarResourceIT extends IntegrationTestBase {
 
     @Test
     void minimalEvents_multipleActionsOnSameDay_sortedByCountDescThenNameAsc() {
-        Action[] extras = new Action[2];
+        final Action[] extras = new Action[2];
         runInTx(() -> {
             extras[0] = newAction(primaryId, "Alpha");  // count 1
             extras[1] = newAction(primaryId, "Bravo");  // count 3
@@ -173,7 +191,7 @@ class CalendarResourceIT extends IntegrationTestBase {
 
     @Test
     void minimalEvents_tieInCount_sortedAlphabetically() {
-        Action[] extras = new Action[1];
+        final Action[] extras = new Action[1];
         runInTx(() -> {
             extras[0] = newAction(primaryId, "Aerobics");
             newLog(primaryId, primaryAction.id, TODAY, 1); // Running,  count 1
@@ -189,7 +207,7 @@ class CalendarResourceIT extends IntegrationTestBase {
 
     @Test
     void minimalEvents_moreThanFourActions_cappedAtFourHighestCount() {
-        Action[] extras = new Action[4];
+        final Action[] extras = new Action[4];
         runInTx(() -> {
             extras[0] = newAction(primaryId, "Action1");
             extras[1] = newAction(primaryId, "Action2");
@@ -212,7 +230,7 @@ class CalendarResourceIT extends IntegrationTestBase {
 
     @Test
     void minimalEvents_multipleDays_allDaysReturned() {
-        LocalDate yesterday = TODAY.minusDays(1);
+        final LocalDate yesterday = TODAY.minusDays(1);
         runInTx(() -> {
             newLog(primaryId, primaryAction.id, TODAY,     1);
             newLog(primaryId, primaryAction.id, yesterday, 1);
@@ -227,7 +245,7 @@ class CalendarResourceIT extends IntegrationTestBase {
     @Test
     void minimalEvents_onlyCurrentUsersLogs() {
         runInTx(() -> {
-            Action otherAction = newAction(otherId, "Yoga");
+            final Action otherAction = newAction(otherId, "Yoga");
             newLog(primaryId, primaryAction.id, TODAY, 1);
             newLog(otherId,   otherAction.id,   TODAY, 1);
         });
@@ -254,8 +272,8 @@ class CalendarResourceIT extends IntegrationTestBase {
     void minimalEvents_isoDatetimeStringWithTime_onlyDatePartUsed() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 1));
 
-        String startWithTime = TODAY + "T00:00:00";
-        String endWithTime   = TODAY.plusDays(1) + "T00:00:00";
+        final String startWithTime = TODAY + "T00:00:00";
+        final String endWithTime   = TODAY.plusDays(1) + "T00:00:00";
 
         given().queryParam("start", startWithTime).queryParam("end", endWithTime)
                 .get("/logs/minimal-events")
@@ -268,15 +286,17 @@ class CalendarResourceIT extends IntegrationTestBase {
     @Test
     void events_colourSetOnEvent() {
         // Create via API to persist the coloured action
-        String html = given().formParam("name", "Coloured2").formParam("colour", "#ff5500")
+        final String html = given().formParam("name", "Coloured2").formParam("colour", "#ff5500")
                 .post("/actions")
                 .then().statusCode(200).extract().body().asString();
 
-        java.util.regex.Matcher m = java.util.regex.Pattern
+        final java.util.regex.Matcher m = java.util.regex.Pattern
                 .compile("id=\"action-([0-9a-f-]+)\"").matcher(html);
-        if (!m.find()) return; // skip if extraction fails
+        if (!m.find()) {
+            return; // skip if extraction fails
+        }
 
-        UUID actionId = UUID.fromString(m.group(1));
+        final UUID actionId = UUID.fromString(m.group(1));
         runInTx(() -> newLog(primaryId, actionId, TODAY, 1));
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())

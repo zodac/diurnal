@@ -1,6 +1,22 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 package net.zodac.diurnal.auth;
 
-import net.zodac.diurnal.user.User;
 import io.quarkus.oidc.IdTokenCredential;
 import io.quarkus.security.AuthenticationFailedException;
 import io.quarkus.security.identity.AuthenticationRequestContext;
@@ -16,7 +32,10 @@ import jakarta.transaction.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
+import java.util.Locale;
+import net.zodac.diurnal.user.User;
 import org.jboss.logging.Logger;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Runs after every successful authentication. It only acts on OIDC web-app (authorisation code
@@ -33,7 +52,8 @@ import org.jboss.logging.Logger;
 @ApplicationScoped
 public class OidcUserProvisioner implements SecurityIdentityAugmentor {
 
-    private static final Logger log = Logger.getLogger(OidcUserProvisioner.class);
+    private static final Logger LOGGER = Logger.getLogger(OidcUserProvisioner.class);
+    private static final int MIN_JWT_SEGMENTS = 2;
 
     @Inject
     OidcUserProvisioner self;
@@ -42,51 +62,52 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
     RoleAssigner roleAssigner;
 
     @Override
-    public Uni<SecurityIdentity> augment(SecurityIdentity identity, AuthenticationRequestContext context) {
-        IdTokenCredential idTokenCred = identity.getCredential(IdTokenCredential.class);
+    public Uni<SecurityIdentity> augment(final SecurityIdentity identity, final AuthenticationRequestContext context) {
+        final IdTokenCredential idTokenCred = identity.getCredential(IdTokenCredential.class);
         if (idTokenCred == null || idTokenCred.getToken() == null) {
             return Uni.createFrom().item(identity);
         }
-        JsonObject claims = decodeClaims(idTokenCred.getToken());
+        final JsonObject claims = decodeClaims(idTokenCred.getToken());
         return context.runBlocking(() -> self.linkOrCreate(claims, idTokenCred));
     }
 
+    /** Finds or provisions the local user for the OIDC claims and returns a fresh DB-backed identity. */
     @Transactional
-    SecurityIdentity linkOrCreate(JsonObject claims, IdTokenCredential idTokenCred) {
-        String sub = claims.getString("sub");
-        String iss = claims.getString("iss");
-        String email = resolveEmail(claims);
+    SecurityIdentity linkOrCreate(final JsonObject claims, final IdTokenCredential idTokenCred) {
+        final String sub = claims.getString("sub");
+        final String iss = claims.getString("iss");
+        final String email = resolveEmail(claims);
 
         if (email == null) {
             throw new AuthenticationFailedException(
                 "OIDC token is missing an email claim — ensure openid,email scopes are configured");
         }
 
-        final String normalised = email.toLowerCase().strip();
-        List<String> groups = resolveGroups(claims);
-        var idpRole = roleAssigner.roleFromOidcGroups(groups);
+        final String normalised = email.toLowerCase(Locale.ROOT).strip();
+        final List<String> groups = resolveGroups(claims);
+        final var idpRole = roleAssigner.roleFromOidcGroups(groups);
 
         if (roleAssigner.isGroupCheckEnabled() && idpRole.isEmpty()) {
-            log.warnf("Denying OIDC login for %s: not in any configured group", normalised);
+            LOGGER.warnf("Denying OIDC login for %s: not in any configured group", normalised);
             throw new AuthenticationFailedException(
                 "Not authorised to access this service — contact your administrator.");
         }
 
-        boolean[] isNew = {false};
-        User user = User.findByOidc(iss, sub)
+        final boolean[] created = {false};
+        final User user = User.findByOidc(iss, sub)
                 .or(() -> User.findByEmail(normalised))
                 .orElseGet(() -> {
                     String name = claims.getString("name");
                     if (name == null || name.isBlank()) {
                         name = normalised.contains("@") ? normalised.split("@")[0] : normalised;
                     }
-                    User u = new User();
+                    final User u = new User();
                     u.email = normalised;
                     u.displayName = name;
                     u.role = idpRole.orElseGet(roleAssigner::roleForNewUser);
                     u.persist();
-                    isNew[0] = true;
-                    log.infof("Provisioned new OIDC user: %s (role=%s)", normalised, u.role);
+                    created[0] = true;
+                    LOGGER.infof("Provisioned new OIDC user: %s (role=%s)", normalised, u.role);
                     return u;
                 });
 
@@ -95,8 +116,8 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
             user.oidcIssuer = iss;
         }
         // IdP groups always win on every login for existing users (unless IdP has no group config)
-        if (!isNew[0] && idpRole.isPresent() && !idpRole.get().equals(user.role)) {
-            log.infof("Updating role for %s: %s -> %s (from IdP groups)", normalised, user.role, idpRole.get());
+        if (!created[0] && idpRole.isPresent() && !idpRole.get().equals(user.role)) {
+            LOGGER.infof("Updating role for %s: %s -> %s (from IdP groups)", normalised, user.role, idpRole.get());
             user.role = idpRole.get();
         }
         // lastLoginAt and the login log are written in WebResource.oidcCallback(), which runs exactly
@@ -107,7 +128,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         // Build a fresh identity — never copy from the OIDC base identity. Quarkus automatically
         // maps the token's groups claim to roles, so builder(identity) would copy any LDAP group
         // named "admin" as the admin role, bypassing our DB-backed role check.
-        var builder = QuarkusSecurityIdentity.builder()
+        final var builder = QuarkusSecurityIdentity.builder()
                 .setPrincipal(new QuarkusPrincipal(user.email))
                 .addAttribute("userId", user.id.toString())
                 .addAttribute("displayName", user.displayName)
@@ -116,26 +137,28 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
                 // The fresh identity intentionally excludes all other OIDC credentials to prevent
                 // LDAP group names from mapping to roles, but the raw token is needed for logout.
                 .addCredential(idTokenCred);
-        if (user.isAdmin()) builder.addRole(User.ROLE_ADMIN);
+        if (user.isAdmin()) {
+            builder.addRole(User.ROLE_ADMIN);
+        }
         return builder.build();
     }
 
     @SuppressWarnings("unchecked")
-    private static List<String> resolveGroups(JsonObject claims) {
-        var arr = claims.getJsonArray("groups");
+    private static List<String> resolveGroups(final JsonObject claims) {
+        final var arr = claims.getJsonArray("groups");
         if (arr == null) {
             return List.of();
         }
         return (List<String>) arr.getList();
     }
 
-    private static String resolveEmail(JsonObject claims) {
-        String email = claims.getString("email");
+    private static @Nullable String resolveEmail(final JsonObject claims) {
+        final String email = claims.getString("email");
         if (email != null && !email.isBlank()) {
             return email;
         }
         // Some providers (e.g. Keycloak) put the email in preferred_username
-        String preferred = claims.getString("preferred_username");
+        final String preferred = claims.getString("preferred_username");
         if (preferred != null && preferred.contains("@")) {
             return preferred;
         }
@@ -147,12 +170,12 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
      * signature, issuer and expiry before this augmenter runs, so we only base64url-decode the
      * payload segment — no re-validation is required or attempted here.
      */
-    private static JsonObject decodeClaims(String jwt) {
-        String[] parts = jwt.split("\\.");
-        if (parts.length < 2) {
+    private static JsonObject decodeClaims(final String jwt) {
+        final String[] parts = jwt.split("\\.");
+        if (parts.length < MIN_JWT_SEGMENTS) {
             throw new AuthenticationFailedException("Malformed OIDC ID token");
         }
-        byte[] payload = Base64.getUrlDecoder().decode(parts[1]);
+        final byte[] payload = Base64.getUrlDecoder().decode(parts[1]);
         return new JsonObject(new String(payload, StandardCharsets.UTF_8));
     }
 }

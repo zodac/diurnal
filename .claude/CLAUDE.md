@@ -5,6 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
+# After cloning, fetch the code-quality-config git submodule (the shared Checkstyle/PMD/SpotBugs/
+# license config the linters read). Without it, -Dlint / -Dall fail to find the rule files.
+git submodule update --init        # one-time (also: git clone --recurse-submodules)
+
 # Build the CSS once after cloning (and after any class/template change). The compiled,
 # purged Tailwind stylesheet is served at /css/app.css. The output is committed, so the app
 # runs without Node, but it must be rebuilt when classes change.
@@ -20,19 +24,25 @@ docker compose -f docker-compose.dev.yml up -d dev-db
 #   pkill -f "quarkus:dev"
 mvn quarkus:dev
 
-# Build JAR
+# Build JAR (tests are OPT-IN — see note below — so a bare package skips them)
 mvn package
 
-# Run ALL tests (unit + integration + Playwright E2E) — handles Docker automatically
+# Run ALL tests (unit + integration + Playwright E2E) AND every inherited linter — handles Docker
+# automatically. This is the full gate: surefire unit tests, the *IT failsafe tier, Playwright E2E,
+# plus Checkstyle/PMD/SpotBugs/Javadoc/PITest/enforcer/license/dependency analysis.
 mvn clean install -Dall
 # Prerequisite: Playwright browsers must be installed once: cd e2e && npx playwright install
 
-# Run unit + integration tests only (start the test DB first)
-docker compose -f docker-compose.dev.yml up -d test-db
-mvn test
+# Run ONLY the linters defined in the parent POM (no tests executed; test sources still compile so
+# PITest mutation coverage can run). Use this for a fast quality gate.
+mvn clean install -Dlint
+
+# Run unit tests only (pure JUnit *Test classes — no DB/Docker needed). Tests are opt-in, so the
+# `-Dtests` flag is required; a bare `mvn test` skips everything.
+mvn test -Dtests
 
 # Run a single test class
-mvn test -Dtest=MyTestClass
+mvn test -Dtests -Dtest=MyTestClass
 
 # Run only *IT.java integration tests (starts and stops the test DB automatically)
 mvn clean install -Dit
@@ -65,17 +75,48 @@ Dev mode disables Testcontainers and expects a local PostgreSQL on `localhost:54
 > manual teardown for a test run: the `-Dall` / `-Dit` Maven profiles start it (`up … test-db`) in
 > `pre-integration-test` and remove it (`rm -sf test-db`) in `post-integration-test` automatically,
 > **scoped to the service** so they never touch a running `dev-db`. Only close it by hand if you
-> started it yourself for a bare `mvn test`.
+> started it yourself (the unit-test command `mvn test -Dtests` runs pure JUnit and needs no DB).
 
 Config is layered by Quarkus profile: `application.properties` holds the base/production config, and profile-specific overrides live in `application-dev.properties` (dev mode — HTTP port **8081**, dev DB on 5432, DEBUG logging, Swagger UI) and `application-test.properties` (test DB on 5433, forced UTC). Both profile files **must** stay in `src/main/resources` (not `src/test/resources`): the `-Dall` E2E step runs the packaged jar with `-Dquarkus.profile=test`, which only reads config that was bundled into the jar.
 
-**Port map**: **8080** = production (`application.properties` default, the `docker compose` container); **8081** = the single "testing" port — dev mode (`application-dev.properties`), the `@QuarkusTest` test-port the unit/`*IT` tests bind, *and* the packaged-jar E2E run under `-Dall` (`-Dquarkus.http.port=${e2e.http.port}` in `pom.xml`). These three never run at once, so they share one port. Under `-Dall` the ordering is the load-bearing detail: the E2E jar is started in the `integration-test` phase **after** failsafe finishes the `*IT` tests (so the `@QuarkusTest` instance has released 8081) — guaranteed by `exec-maven-plugin` being declared after `maven-failsafe-plugin`, and by binding `quarkus-start-e2e` to `integration-test` rather than `pre-integration-test`. Keeping testing on 8081 leaves 8080 free, so `-Dall` coexists with a running production container.
+**Port map**: **8080** = production (`application.properties` default, the `docker compose` container); **8081** = the single "testing" port — dev mode (`application-dev.properties`), the `@QuarkusTest` test-port the unit/`*IT` tests bind, *and* the packaged-jar E2E run under `-Dall` (`-Dquarkus.http.port=${e2e.http.port}` in `pom.xml`). These three never run at once, so they share one port. Under `-Dall` the ordering is the load-bearing detail, and it comes **only from Maven phase binding, never from plugin/execution declaration order** — the inherited sortpom plugin re-sorts plugins (by `artifactId`) and executions on every build, so anything relying on declaration order is silently broken (e.g. `exec-maven-plugin` always sorts before `maven-failsafe-plugin`). So the `*IT` tests run via failsafe in `integration-test` (failure deferred to `verify`), the **failsafe gate fails the build in `verify` if any IT failed**, and only then does the E2E run — bound to `install`, the first phase after `verify` — so the ITs are always confirmed green before E2E starts, and 8081 is long released by the `@QuarkusTest` instance. The E2E step (`e2e/run-e2e.sh`) is self-contained: it brings up its own test DB, starts the jar on 8081, runs Playwright, tears everything down via an EXIT trap, and exits with Playwright's code (so an E2E failure fails the build). Keeping testing on 8081 leaves 8080 free, so `-Dall` coexists with a running production container.
 
 > **Don't `cd` into the project root before running commands.** The working directory is already the
 > project root (`/home/arouge/git/diurnal`); use plain or absolute paths. A redundant `cd .` (or
 > `cd` to the current dir) only triggers a needless permission prompt.
 
 ## Architecture
+
+### Build: parent POM, submodule & quality gates
+
+The build **inherits from `net.zodac:parent-pom`** (resolved from Maven Central, `<relativePath/>` empty —
+no sibling checkout required). The parent centralises **all dependency and plugin versions** plus the
+shared lint/test configuration; this POM declares dependencies/plugins without versions and lets the
+parent manage them (the Quarkus BOM, JUnit BOM, jbcrypt, jspecify, etc. all come from the parent).
+
+The parent's lint rule files (Checkstyle/PMD/SpotBugs filters, license header) live in a **git submodule**,
+`code-quality-config/`, vendored into this repo (mirrors how the parent itself does it). The
+`maven-checkstyle-plugin`/etc. `ci-config-directory` and `license-file` properties are overridden in
+`pom.xml` to point at this local submodule, so the lint config resolves without the parent being a
+filesystem parent. Run `git submodule update --init` after cloning or the linters can't find their config.
+
+Quality gates are **opt-in via profile-activating properties** (the parent's model):
+- `-Dlint` → runs the full linter suite: ErrorProne+NullAway (these also run on *every* compile, gated by
+  the compiler, so the code must stay null-safe to build at all), Checkstyle, PMD, SpotBugs, Javadoc,
+  Enforcer (dependency convergence/bans), license headers, dependency analysis, and **PITest** mutation
+  coverage. Compiles test sources but does not execute tests.
+- `-Dtests` → runs the surefire unit tests (`*Test`) only.
+- `-Dit` → runs the failsafe `*IT` tier (auto-manages the test DB).
+- `-Dall` → **everything**: unit + `*IT` + Playwright E2E **and** the full linter suite (it activates both
+  the parent's `activate_all` profile and this POM's `all` profile). This is the complete CI gate.
+
+A bare `mvn test` / `mvn package` runs **no tests** (skip-tests defaults true in the parent). Project-specific
+lint adjustments live in `pom.xml`: a project-local `checkstyle/checkstyle-suppression.xml` (allows the `*IT`
+naming convention), `maven-dependency-plugin` ignores for Quarkus's extension model, and `pitest-maven`
+excludes `*IT` so mutation testing verifies only the unit tests. **All inherited linters currently pass clean
+(Checkstyle/PMD/SpotBugs = 0, PITest strength = 100%); keep them that way** — e.g. the codebase is NullAway-
+annotated (JSpecify `@Nullable`), every public/package method and type carries Javadoc, locals/params are
+`final`, and unit-test assertions carry messages.
 
 ### Package layout
 

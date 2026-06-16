@@ -1,3 +1,20 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 package net.zodac.diurnal.action;
 
 import static io.restassured.RestAssured.given;
@@ -5,14 +22,15 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import net.zodac.diurnal.IntegrationTestBase;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.util.UUID;
+import net.zodac.diurnal.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 @TestSecurity(user = "actions-it@lt.test", roles = "user")
+@SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class ActionsResourceIT extends IntegrationTestBase {
 
     static final String PRIMARY = "actions-it@lt.test";
@@ -139,7 +157,7 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void updateAction_validChange_returnsUpdatedHtml() {
-        UUID id = createActionAndGetId("OldName");
+        final UUID id = createActionAndGetId("OldName");
         given().formParam("name", "NewName").formParam("colour", "#123456")
             .post("/actions/" + id)
             .then().statusCode(200)
@@ -149,7 +167,7 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void updateAction_blankName_returns409() {
-        UUID id = createActionAndGetId("ToRename");
+        final UUID id = createActionAndGetId("ToRename");
         given().formParam("name", "").formParam("colour", "#6366f1")
             .post("/actions/" + id)
             .then().statusCode(409)
@@ -159,7 +177,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     @Test
     void updateAction_renameToExistingName_returns409() {
         createActionAndGetId("Existing");
-        UUID id = createActionAndGetId("ToRename");
+        final UUID id = createActionAndGetId("ToRename");
         given().formParam("name", "Existing").formParam("colour", "#6366f1")
             .post("/actions/" + id)
             .then().statusCode(409);
@@ -167,7 +185,7 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void updateAction_renameToOwnCurrentName_returns200() {
-        UUID id = createActionAndGetId("SameName");
+        final UUID id = createActionAndGetId("SameName");
         given().formParam("name", "SameName").formParam("colour", "#6366f1")
             .post("/actions/" + id)
             .then().statusCode(200);
@@ -176,7 +194,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     @Test
     void updateAction_otherUsersAction_returns404() {
         // Create the action owned by the OTHER user directly in DB
-        Action[] holder = new Action[1];
+        final Action[] holder = new Action[1];
         runInTx(() -> holder[0] = newAction(otherId, "OtherAction"));
         given().formParam("name", "Hacked").formParam("colour", "#6366f1")
             .post("/actions/" + holder[0].id)
@@ -187,19 +205,19 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void deleteAction_ownAction_returns204AndArchivesIt() {
-        UUID id = createActionAndGetId("ToDelete");
+        final UUID id = createActionAndGetId("ToDelete");
         given().post("/actions/" + id + "/delete")
             .then().statusCode(204);
 
         // Verify archived in DB — query includes archived to find it
-        Action found = Action.<Action>find("id = ?1", id).firstResult();
+        final Action found = Action.<Action>find("id = ?1", id).firstResult();
         assertNotNull(found);
         assertTrue(found.archived);
     }
 
     @Test
     void deleteAction_deletesAssociatedLogs() {
-        Action[] holder = new Action[1];
+        final Action[] holder = new Action[1];
         runInTx(() -> {
             holder[0] = newAction(primaryId, "WithLogs");
             newLog(primaryId, holder[0].id, java.time.LocalDate.now(), 1);
@@ -208,13 +226,13 @@ class ActionsResourceIT extends IntegrationTestBase {
         given().post("/actions/" + holder[0].id + "/delete")
             .then().statusCode(204);
 
-        long logCount = net.zodac.diurnal.log.ActionLog.count("actionId = ?1", holder[0].id);
-        assertEquals(0, logCount);
+        final long logCount = net.zodac.diurnal.log.ActionLog.count("actionId = ?1", holder[0].id);
+        assertEquals(0, logCount, "unexpected value");
     }
 
     @Test
     void deleteAction_otherUsersAction_returns404() {
-        Action[] holder = new Action[1];
+        final Action[] holder = new Action[1];
         runInTx(() -> holder[0] = newAction(otherId, "OtherToDelete"));
         given().post("/actions/" + holder[0].id + "/delete")
             .then().statusCode(404);
@@ -224,7 +242,7 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void viewItem_ownAction_returns200WithRow() {
-        UUID id = createActionAndGetId("ViewMe");
+        final UUID id = createActionAndGetId("ViewMe");
         given().get("/actions/" + id)
             .then().statusCode(200)
             .body(containsString("ViewMe"));
@@ -238,7 +256,7 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void confirmDelete_ownAction_returns200() {
-        UUID id = createActionAndGetId("ConfirmMe");
+        final UUID id = createActionAndGetId("ConfirmMe");
         given().get("/actions/" + id + "/confirm-delete")
             .then().statusCode(200)
             .body(containsString("Delete this action?"));
@@ -252,19 +270,19 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private void createActions(int count) {
+    private void createActions(final int count) {
         for (int i = 1; i <= count; i++) {
             newAction(primaryId, String.format("Action%02d", i));
         }
     }
 
-    private UUID createActionAndGetId(String name) {
-        String html = given().formParam("name", name).formParam("colour", "#6366f1")
+    private UUID createActionAndGetId(final String name) {
+        final String html = given().formParam("name", name).formParam("colour", "#6366f1")
             .post("/actions")
             .then().statusCode(200)
             .extract().body().asString();
         // The returned HTML contains id="action-{uuid}"
-        java.util.regex.Matcher m = java.util.regex.Pattern
+        final java.util.regex.Matcher m = java.util.regex.Pattern
             .compile("id=\"action-([0-9a-f-]+)\"").matcher(html);
         if (m.find()) {
             return UUID.fromString(m.group(1));
@@ -272,13 +290,13 @@ class ActionsResourceIT extends IntegrationTestBase {
         throw new IllegalStateException("Could not find action id in response: " + html);
     }
 
-    private static void assertNotNull(Object o) {
+    private static void assertNotNull(final Object o) {
         if (o == null) {
             throw new AssertionError("Expected non-null");
         }
     }
 
-    private static void assertTrue(boolean condition) {
+    private static void assertTrue(final boolean condition) {
         if (!condition) {
             throw new AssertionError("Expected true");
         }

@@ -1,3 +1,20 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
@@ -8,11 +25,12 @@ import static org.hamcrest.Matchers.not;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import net.zodac.diurnal.IntegrationTestBase;
-import net.zodac.diurnal.user.User;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
@@ -50,7 +68,7 @@ class AuthResourceIT extends IntegrationTestBase {
 
     @Test
     void register_duplicateEmail_returns409() {
-        String body = """
+        final String body = """
                 {"email":"dup@example.com","displayName":"First","password":"password1"}
                 """;
         given().contentType(ContentType.JSON).body(body).post("/api/auth/register")
@@ -163,7 +181,7 @@ class AuthResourceIT extends IntegrationTestBase {
     void login_tokenHasValidJwtStructure() {
         registerUser("jwt@example.com", "JWT User", "password123");
 
-        String token = given().contentType(ContentType.JSON)
+        final String token = given().contentType(ContentType.JSON)
                 .body("""
                         {"email":"jwt@example.com","password":"password123"}
                         """)
@@ -171,10 +189,10 @@ class AuthResourceIT extends IntegrationTestBase {
                 .then().statusCode(200)
                 .extract().path("token");
 
-        String[] parts = token.split("\\.");
+        final String[] parts = token.split("\\.");
         assertEquals(3, parts.length, "JWT must have header.payload.signature");
 
-        String payloadJson = new String(Base64.getUrlDecoder().decode(parts[1]));
+        final String payloadJson = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
         assertTrue(payloadJson.contains("\"iss\":\"diurnal\""), "issuer claim missing");
         assertTrue(payloadJson.contains("\"upn\":\"jwt@example.com\""), "upn claim missing");
         assertTrue(payloadJson.contains("\"exp\""), "expiry claim missing");
@@ -193,7 +211,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .then().statusCode(201);
 
         runInTx(() -> {
-            User u = User.findByEmail("first@example.com").orElseThrow();
+            final User u = User.findByEmail("first@example.com").orElseThrow();
             assertEquals(User.ROLE_ADMIN, u.role, "First registered user should be admin");
         });
     }
@@ -210,14 +228,14 @@ class AuthResourceIT extends IntegrationTestBase {
                 .then().statusCode(201);
 
         runInTx(() -> {
-            User u = User.findByEmail("second@example.com").orElseThrow();
+            final User u = User.findByEmail("second@example.com").orElseThrow();
             assertEquals(User.ROLE_USER, u.role, "Subsequent users should be user role");
         });
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private static void registerUser(String email, String displayName, String password) {
+    private static void registerUser(final String email, final String displayName, final String password) {
         given().contentType(ContentType.JSON)
                 .body(String.format(
                         "{\"email\":\"%s\",\"displayName\":\"%s\",\"password\":\"%s\"}",

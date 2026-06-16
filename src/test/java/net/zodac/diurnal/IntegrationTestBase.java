@@ -1,16 +1,35 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 package net.zodac.diurnal;
 
-import net.zodac.diurnal.action.Action;
-import net.zodac.diurnal.log.ActionLog;
-import net.zodac.diurnal.time.AppClock;
-import net.zodac.diurnal.user.User;
 import jakarta.inject.Inject;
+import jakarta.transaction.NotSupportedException;
+import jakarta.transaction.SystemException;
 import jakarta.transaction.UserTransaction;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.UUID;
+import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.log.ActionLog;
+import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.mindrot.jbcrypt.BCrypt;
@@ -28,6 +47,7 @@ import org.mindrot.jbcrypt.BCrypt;
  * resolve the abstract class itself. Inheritance of @Inject fields still works
  * correctly once the concrete class is annotated.
  */
+@SuppressWarnings("PMD.AbstractClassWithoutAbstractMethod") // base for QuarkusTest subclasses; intentionally abstract
 public abstract class IntegrationTestBase {
 
     // Low BCrypt cost — safe for tests, fast enough to not slow the suite
@@ -69,14 +89,14 @@ public abstract class IntegrationTestBase {
     }
 
     /** Freeze {@link AppClock} so {@code today()} returns {@code date} (clock pinned to UTC midnight). */
-    protected void freezeDate(LocalDate date) {
+    protected void freezeDate(final LocalDate date) {
         // Pin the zone to the "UTC" region (id "UTC"), matching application-test.properties and
         // production, rather than ZoneOffset.UTC (id "Z") — same instant, but a representative zone id.
         clock.useFixedClock(Clock.fixed(date.atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneId.of("UTC")));
     }
 
     /** Freeze {@link AppClock} to an exact instant in {@code zone} — for midnight-boundary / non-UTC tests. */
-    protected void freezeInstant(java.time.Instant instant, ZoneId zone) {
+    protected void freezeInstant(final java.time.Instant instant, final ZoneId zone) {
         clock.useFixedClock(Clock.fixed(instant, zone));
     }
 
@@ -91,45 +111,52 @@ public abstract class IntegrationTestBase {
      * Run a block inside a fresh JTA transaction. Use this in @Test methods that need
      * to persist entities (newAction/newLog/newUser) before making an HTTP call, or to
      * force a fresh EntityManager for DB read-back assertions (avoids L1 cache stale reads).
+     *
      * <p>
      * AssertionErrors and RuntimeExceptions are rethrown as-is; checked exceptions are
      * wrapped in RuntimeException, so callers don't need a 'throws' declaration.
      */
     @FunctionalInterface
     protected interface TxBlock {
+        /** The work to run inside the transaction; may throw any {@link Throwable}. */
         void run() throws Throwable;
     }
 
-    protected void runInTx(TxBlock block) {
+    /** Runs {@code block} inside a fresh JTA transaction, rolling back and rethrowing on failure. */
+    protected void runInTx(final TxBlock block) {
         try {
             tx.begin();
-            try {
-                block.run();
-                tx.commit();
-            } catch (Throwable e) {
-                try {
-                    tx.rollback();
-                } catch (Exception ignore) {
-                }
-                if (e instanceof RuntimeException re) {
-                    throw re;
-                }
-                if (e instanceof Error err) {
-                    throw err;
-                }
-                throw new RuntimeException(e);
-            }
-        } catch (jakarta.transaction.SystemException | jakarta.transaction.NotSupportedException e) {
-            throw new RuntimeException(e);
+        } catch (final SystemException | NotSupportedException e) {
+            throw new IllegalStateException("Failed to begin test transaction", e);
+        }
+        try {
+            block.run();
+            tx.commit();
+        } catch (final RuntimeException | Error e) {
+            rollbackQuietly();
+            throw e;
+        } catch (final Throwable e) {
+            rollbackQuietly();
+            throw new IllegalStateException(e);
         }
     }
 
-    protected static User newUser(String email, String displayName) {
+    private void rollbackQuietly() {
+        try {
+            tx.rollback();
+        } catch (final SystemException ignored) {
+            // best-effort rollback; the original failure is rethrown by the caller
+        }
+    }
+
+    /** Persists a new {@code user}-role user with the shared test password. */
+    protected static User newUser(final String email, final String displayName) {
         return newUser(email, displayName, User.ROLE_USER);
     }
 
-    protected static User newUser(String email, String displayName, String role) {
-        User u = new User();
+    /** Persists a new user with the given role and the shared test password. */
+    protected static User newUser(final String email, final String displayName, final String role) {
+        final User u = new User();
         u.email = email;
         u.displayName = displayName;
         u.passwordHash = BCrypt.hashpw(TEST_PASSWORD, BCrypt.gensalt(BCRYPT_COST));
@@ -138,8 +165,9 @@ public abstract class IntegrationTestBase {
         return u;
     }
 
-    protected static Action newAction(java.util.UUID userId, String name) {
-        Action a = new Action();
+    /** Persists a new action for the given user with the default colour. */
+    protected static Action newAction(final UUID userId, final String name) {
+        final Action a = new Action();
         a.userId = userId;
         a.name = name;
         a.colour = "#6366f1";
@@ -147,8 +175,9 @@ public abstract class IntegrationTestBase {
         return a;
     }
 
-    protected static void newLog(UUID userId, UUID actionId, LocalDate date, int count) {
-        ActionLog l = new ActionLog();
+    /** Persists a single action-log entry for the given user, action, day and count. */
+    protected static void newLog(final UUID userId, final UUID actionId, final LocalDate date, final int count) {
+        final ActionLog l = new ActionLog();
         l.userId = userId;
         l.actionId = actionId;
         l.logDate = date;

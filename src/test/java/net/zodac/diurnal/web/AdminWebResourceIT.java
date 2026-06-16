@@ -1,3 +1,20 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 package net.zodac.diurnal.web;
 
 import static io.restassured.RestAssured.given;
@@ -7,11 +24,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
-import net.zodac.diurnal.IntegrationTestBase;
-import net.zodac.diurnal.user.User;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.util.UUID;
+import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
@@ -71,7 +88,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @Test
     @TestSecurity(user = "user@lt.test", roles = "user")
     void changeRole_nonAdmin_returns403() {
-        UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
+        final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
         given().formParam("role", "admin")
                 .post("/admin/users/" + userId + "/role")
@@ -94,22 +111,22 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @Test
     @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
     void changeRole_promoteUser_updatesRole() {
-        UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
+        final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
         given().formParam("role", "admin")
                 .post("/admin/users/" + userId + "/role")
                 .then().statusCode(200);
 
         runInTx(() -> {
-            User u = User.findByEmail("user@lt.test").orElseThrow();
-            assertEquals(User.ROLE_ADMIN, u.role);
+            final User u = User.findByEmail("user@lt.test").orElseThrow();
+            assertEquals(User.ROLE_ADMIN, u.role, "unexpected value");
         });
     }
 
     @Test
     @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
     void changeRole_demoteLastAdmin_returns409() {
-        UUID adminId = runInTxReturning(() -> User.findByEmail("admin@lt.test").orElseThrow().id);
+        final UUID adminId = runInTxReturning(() -> User.findByEmail("admin@lt.test").orElseThrow().id);
 
         given().formParam("role", "user")
                 .post("/admin/users/" + adminId + "/role")
@@ -121,18 +138,17 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
     void changeRole_demoteAdminWhenAnotherExists_succeeds() {
         // Promote user@lt.test to admin first, then demote admin@lt.test
-        UUID _ = runInTxReturning(() -> {
-            User u = User.findByEmail("user@lt.test").orElseThrow();
+        runInTx(() -> {
+            final User u = User.findByEmail("user@lt.test").orElseThrow();
             u.role = User.ROLE_ADMIN;
             u.persist();
-            return u.id;
         });
 
-        UUID adminId = runInTxReturning(() -> User.findByEmail("admin@lt.test").orElseThrow().id);
+        final UUID adminId = runInTxReturning(() -> User.findByEmail("admin@lt.test").orElseThrow().id);
         given().formParam("role", "user")
                 .post("/admin/users/" + adminId + "/role")
                 .then().statusCode(200);
-        runInTx(() -> assertEquals(User.ROLE_USER, User.findByEmail("admin@lt.test").orElseThrow().role));
+        runInTx(() -> assertEquals(User.ROLE_USER, User.findByEmail("admin@lt.test").orElseThrow().role, "unexpected value"));
     }
 
     // ── Confirm-delete panel ──────────────────────────────────────────────
@@ -140,7 +156,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @Test
     @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
     void confirmDeleteUser_showsConfirmRow() {
-        UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
+        final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
         given().get("/admin/users/" + userId + "/confirm-delete")
                 .then().statusCode(200)
@@ -160,7 +176,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @Test
     @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
     void userRow_cancelRestoresRow() {
-        UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
+        final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
         given().get("/admin/users/" + userId)
                 .then().statusCode(200)
@@ -174,18 +190,18 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @Test
     @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
     void deleteUser_regularUser_removesUser() {
-        UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
+        final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
         given().post("/admin/users/" + userId + "/delete")
                 .then().statusCode(200);
 
-        runInTx(() -> assertFalse(User.findByEmail("user@lt.test").isPresent()));
+        runInTx(() -> assertFalse(User.findByEmail("user@lt.test").isPresent(), "expected condition to be false"));
     }
 
     @Test
     @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
     void deleteUser_lastAdmin_returns409() {
-        UUID adminId = runInTxReturning(() -> User.findByEmail("admin@lt.test").orElseThrow().id);
+        final UUID adminId = runInTxReturning(() -> User.findByEmail("admin@lt.test").orElseThrow().id);
 
         given().post("/admin/users/" + adminId + "/delete")
                 .then().statusCode(409)
@@ -207,11 +223,11 @@ class AdminWebResourceIT extends IntegrationTestBase {
         T get() throws Throwable;
     }
 
-    private <T> T runInTxReturning(TxSupplier<T> block) {
+    private <T> T runInTxReturning(final TxSupplier<T> block) {
         final Object[] result = new Object[1];
         runInTx(() -> result[0] = block.get());
         @SuppressWarnings("unchecked")
-        T t = (T) result[0];
+        final T t = (T) result[0];
         return t;
     }
 }

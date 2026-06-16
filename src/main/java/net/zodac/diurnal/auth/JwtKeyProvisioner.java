@@ -1,3 +1,20 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 package net.zodac.diurnal.auth;
 
 import io.quarkus.runtime.StartupEvent;
@@ -13,19 +30,23 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.Set;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Generates the RSA JWT signing keypair on startup when it is missing.
+ *
  * <p>
  * This removes any manual key-generation step for container deployments: the keys are
  * written to their configured locations the first time the
  * app boots, then reused on every subsequent start. Generating at startup (rather than
  * baking keys into the image) keeps the private key out of the image layers and unique
  * per deployment.
+ *
  * <p>
  * Only absolute filesystem paths are provisioned. The dev defaults point at classpath
  * resources ({@code jwt-keys/*.pem}), which are left untouched.
@@ -33,49 +54,51 @@ import org.jboss.logging.Logger;
 @ApplicationScoped
 public class JwtKeyProvisioner {
 
-    private static final Logger log = Logger.getLogger(JwtKeyProvisioner.class);
+    private static final Logger LOGGER = Logger.getLogger(JwtKeyProvisioner.class);
     private static final int KEY_SIZE = 2048;
 
     @ConfigProperty(name = "smallrye.jwt.sign.key.location")
-    String privateKeyLocation;
+    String privateKeyLocation = "";
 
     @ConfigProperty(name = "mp.jwt.verify.publickey.location")
-    String publicKeyLocation;
+    String publicKeyLocation = "";
 
+    /** Generates the keypair (when both halves are absent) before any token is signed or verified. */
     // Run early, before anything attempts to sign or verify a token.
     void onStart(@Observes @Priority(Interceptor.Priority.LIBRARY_BEFORE) StartupEvent ev) {
-        Path privateKey = asLocalFile(privateKeyLocation);
-        Path publicKey = asLocalFile(publicKeyLocation);
+        final Path privateKey = asLocalFile(privateKeyLocation);
+        final Path publicKey = asLocalFile(publicKeyLocation);
         if (privateKey == null || publicKey == null) {
             // Classpath / relative locations (dev) — nothing to provision.
             return;
         }
 
-        boolean havePrivate = Files.isRegularFile(privateKey);
-        boolean havePublic = Files.isRegularFile(publicKey);
+        final boolean havePrivate = Files.isRegularFile(privateKey);
+        final boolean havePublic = Files.isRegularFile(publicKey);
         if (havePrivate && havePublic) {
             return; // Already provisioned (mounted, or generated on a previous boot).
         }
         if (havePrivate != havePublic) {
             // One half of the pair is missing — refuse to overwrite a key that may still be in use.
-            log.warnf("JWT keypair is incomplete (private exists=%s, public exists=%s) — leaving as-is. " +
-                    "Delete both files to have a fresh pair generated.", havePrivate, havePublic);
+            LOGGER.warnf("JWT keypair is incomplete (private exists=%s, public exists=%s) — leaving as-is. "
+                    + "Delete both files to have a fresh pair generated.", havePrivate, havePublic);
             return;
         }
 
         try {
             generateKeyPair(privateKey, publicKey);
-            log.infof("Generated new RSA-%d JWT keypair (private=%s, public=%s)",
+            LOGGER.infof("Generated new RSA-%d JWT keypair (private=%s, public=%s)",
                     KEY_SIZE, privateKey, publicKey);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to generate JWT keypair", e);
         }
     }
 
-    private void generateKeyPair(Path privateKey, Path publicKey) throws Exception {
-        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+    private void generateKeyPair(final Path privateKey, final Path publicKey)
+            throws NoSuchAlgorithmException, IOException {
+        final KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
         generator.initialize(KEY_SIZE);
-        KeyPair pair = generator.generateKeyPair();
+        final KeyPair pair = generator.generateKeyPair();
 
         Files.createDirectories(privateKey.toAbsolutePath().getParent());
         Files.createDirectories(publicKey.toAbsolutePath().getParent());
@@ -88,19 +111,19 @@ public class JwtKeyProvisioner {
         restrictToOwner(privateKey);
     }
 
-    private void writePem(Path target, String type, byte[] der) throws IOException {
-        String body = Base64.getMimeEncoder(64, new byte[]{'\n'}).encodeToString(der);
-        String pem = "-----BEGIN " + type + "-----\n" + body + "\n-----END " + type + "-----\n";
+    private void writePem(final Path target, final String type, final byte[] der) throws IOException {
+        final String body = Base64.getMimeEncoder(64, new byte[]{'\n'}).encodeToString(der);
+        final String pem = "-----BEGIN " + type + "-----\n" + body + "\n-----END " + type + "-----\n";
         Files.writeString(target, pem);
     }
 
-    private void restrictToOwner(Path privateKey) {
+    private void restrictToOwner(final Path privateKey) {
         try {
-            Set<PosixFilePermission> ownerOnly = PosixFilePermissions.fromString("rw-------");
+            final Set<PosixFilePermission> ownerOnly = PosixFilePermissions.fromString("rw-------");
             Files.setPosixFilePermissions(privateKey, ownerOnly);
         } catch (UnsupportedOperationException | IOException e) {
             // Non-POSIX filesystem (e.g. a Windows dev box) — best effort only.
-            log.debugf("Could not restrict permissions on %s: %s", privateKey, e.getMessage());
+            LOGGER.debugf("Could not restrict permissions on %s: %s", privateKey, e.getMessage());
         }
     }
 
@@ -109,11 +132,11 @@ public class JwtKeyProvisioner {
      * path (optionally {@code file:}-prefixed), or {@code null} for classpath / relative /
      * URL locations that this provisioner must not write to.
      */
-    private Path asLocalFile(String location) {
+    private @Nullable Path asLocalFile(final String location) {
         if (location == null || location.isBlank()) {
             return null;
         }
-        String value = location.strip();
+        final String value = location.strip();
         if (value.startsWith("file:")) {
             // A file: URL — let URI parsing handle the authority/slashes (file:///path, file:/path).
             try {
@@ -127,7 +150,7 @@ public class JwtKeyProvisioner {
             // (Absolute container paths like /run/secrets/... start with '/' and fall through.)
             return null;
         }
-        Path path = Path.of(value);
+        final Path path = Path.of(value);
         return path.isAbsolute() ? path : null;
     }
 }

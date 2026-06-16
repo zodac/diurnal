@@ -1,3 +1,20 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 package net.zodac.diurnal.time;
 
 import jakarta.annotation.PostConstruct;
@@ -8,6 +25,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The single source of "now" for all date-boundary business logic (streaks, the future-date
@@ -28,10 +46,11 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 public class AppClock {
 
     @ConfigProperty(name = "app.timezone", defaultValue = "UTC")
-    String timezoneId;
+    String timezoneId = "UTC";
 
     private Clock clock;
 
+    /** Builds the system clock for the configured zone once the bean is constructed. */
     @PostConstruct
     void init() {
         clock = Clock.system(ZoneId.of(timezoneId));
@@ -53,7 +72,7 @@ public class AppClock {
     }
 
     /** "Today" in an explicit zone — used for per-user timezone overrides. */
-    public LocalDate today(ZoneId zone) {
+    public LocalDate today(final ZoneId zone) {
         return LocalDate.now(clock.withZone(zone));
     }
 
@@ -61,7 +80,7 @@ public class AppClock {
      * Resolve a stored timezone id to a zone, falling back to the server-default zone when it is
      * null/blank or not a valid {@link ZoneId} (defensive — stored values are sanitised on write).
      */
-    public ZoneId zoneFor(String timezoneId) {
+    public ZoneId zoneFor(@Nullable final String timezoneId) {
         if (timezoneId == null || timezoneId.isBlank()) {
             return clock.getZone();
         }
@@ -77,7 +96,7 @@ public class AppClock {
     // production code never mutates the clock.
 
     /** Freeze time to a fixed clock (test-only). */
-    public void useFixedClock(Clock fixed) {
+    public void useFixedClock(final Clock fixed) {
         this.clock = fixed;
     }
 

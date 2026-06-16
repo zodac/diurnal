@@ -1,10 +1,22 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
 package net.zodac.diurnal.web;
 
-import net.zodac.diurnal.auth.RoleAssigner;
-import net.zodac.diurnal.stats.StatsService;
-import net.zodac.diurnal.time.AppClock;
-import net.zodac.diurnal.user.User;
-import net.zodac.diurnal.user.UserSettings;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
@@ -28,20 +40,35 @@ import jakarta.ws.rs.core.Response;
 import java.net.URI;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
+import net.zodac.diurnal.auth.RoleAssigner;
+import net.zodac.diurnal.stats.StatsService;
+import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.user.User;
+import net.zodac.diurnal.user.UserSettings;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
+/** Serves the top-level web UI pages: login, register, logout, settings and the dashboard. */
 @Path("/")
 public class WebResource {
 
-    private static final Logger log = Logger.getLogger(WebResource.class);
+    private static final Logger LOGGER = Logger.getLogger(WebResource.class);
 
-    @Inject @Location("login")    Template loginTemplate;
-    @Inject @Location("register") Template registerTemplate;
-    @Inject @Location("dashboard") Template dashboardTemplate;
-    @Inject @Location("settings") Template settingsTemplate;
+    @Inject
+    @Location("login")
+    Template loginTemplate;
+    @Inject
+    @Location("register")
+    Template registerTemplate;
+    @Inject
+    @Location("dashboard")
+    Template dashboardTemplate;
+    @Inject
+    @Location("settings")
+    Template settingsTemplate;
 
     @Inject SecurityIdentity identity;
     @Inject StatsService statsService;
@@ -58,22 +85,23 @@ public class WebResource {
     boolean oidcEnabled;
 
     @ConfigProperty(name = "oidc.provider.name", defaultValue = "your identity provider")
-    String oidcProviderName;
+    String oidcProviderName = "your identity provider";
 
     @ConfigProperty(name = "oidc.auto.redirect", defaultValue = "false")
     boolean oidcAutoRedirect;
 
     @ConfigProperty(name = "oidc.logout.url")
-    Optional<String> oidcLogoutUrl;
+    Optional<String> oidcLogoutUrl = Optional.empty();
 
     // ── Login ──────────────────────────────────────────────────────────────
 
+    /** Renders the login page, optionally auto-redirecting to OIDC and surfacing error/registered states. */
     @GET
     @Path("login")
     @Produces(MediaType.TEXT_HTML)
     public Response loginPage(
-            @QueryParam("error")      String error,
-            @QueryParam("registered") @DefaultValue("false") boolean registered) {
+            @QueryParam("error")      final String error,
+            @QueryParam("registered") @DefaultValue("false") final boolean registered) {
         // Auto-redirect to OIDC flow when configured, but not when there is an error or
         // success message to show (e.g. after registration or a failed OIDC attempt).
         if (oidcEnabled && oidcAutoRedirect && error == null && !registered) {
@@ -86,12 +114,12 @@ public class WebResource {
         // When the IdP itself denies access (e.g. Authelia access-control rule), it appends its own
         // query params to the redirect_uri. Quarkus then forwards everything to the error-path,
         // producing a double-? URL like /login?error=oidc?error=access_denied&... — redirect to clean.
-        if (error != null && error.startsWith("oidc") && !error.equals("oidc")) {
+        if (error != null && error.startsWith("oidc") && !"oidc".equals(error)) {
             return Response.seeOther(URI.create("/login?error=oidc")).build();
         }
-        boolean showOidcError = "oidc".equals(error);
-        boolean showError = error != null && !"false".equals(error) && !showOidcError;
-        Response.ResponseBuilder builder = Response.ok(loginTemplate
+        final boolean showOidcError = "oidc".equals(error);
+        final boolean showError = error != null && !"false".equals(error) && !showOidcError;
+        final Response.ResponseBuilder builder = Response.ok(loginTemplate
                 .data("error", showError, "registered", registered, "theme", "system")
                 .data("oidcError", showOidcError)
                 .data("passwordAuthEnabled", passwordAuthEnabled)
@@ -107,6 +135,7 @@ public class WebResource {
         return builder.build();
     }
 
+    /** Entry point for the OIDC code flow; authenticated users are forwarded home. */
     @GET
     @Path("oidc-login")
     @RolesAllowed("user")
@@ -117,6 +146,7 @@ public class WebResource {
         return Response.seeOther(URI.create("/")).build();
     }
 
+    /** Handles the OIDC redirect-back, records the login, and forwards the user to the dashboard. */
     @GET
     @Path("oauth2/callback/oidc")
     @PermitAll
@@ -133,7 +163,7 @@ public class WebResource {
             User.findByEmail(identity.getPrincipal().getName()).ifPresent(user -> {
                 user.lastLoginAt = Instant.now();
                 user.persist();
-                log.debugf("OIDC login: name=%s email=%s role=%s", user.displayName, user.email, user.role);
+                LOGGER.debugf("OIDC login: name=%s email=%s role=%s", user.displayName, user.email, user.role);
             });
         }
 
@@ -142,24 +172,26 @@ public class WebResource {
 
     // ── Register ───────────────────────────────────────────────────────────
 
+    /** Renders the registration page, or {@code 404} when password registration is disabled. */
     @GET
     @Path("register")
     @Produces(MediaType.TEXT_HTML)
-    public Response registerPage(@QueryParam("error") @DefaultValue("") String error) {
+    public Response registerPage(@QueryParam("error") @DefaultValue("") final String error) {
         if (!passwordAuthEnabled || !registrationEnabled) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         return Response.ok(registerTemplate.data("error", error, "theme", "system")).build();
     }
 
+    /** Handles the registration form submission, creating the user and redirecting to login. */
     @POST
     @Path("register")
     @Transactional
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response register(
-            @FormParam("email")       String email,
-            @FormParam("displayName") String displayName,
-            @FormParam("password")    String password) {
+            @FormParam("email")       final String email,
+            @FormParam("displayName") final String displayName,
+            @FormParam("password")    final String password) {
 
         if (!passwordAuthEnabled || !registrationEnabled) {
             return Response.status(Response.Status.NOT_FOUND).build();
@@ -170,53 +202,56 @@ public class WebResource {
             return Response.seeOther(URI.create("/register?error=invalid")).build();
         }
 
-        String normalised = email.toLowerCase().strip();
+        final String normalised = email.toLowerCase(Locale.ROOT).strip();
         if (User.findByEmail(normalised).isPresent()) {
             return Response.seeOther(URI.create("/register?error=email_taken")).build();
         }
 
-        User user = new User();
+        final User user = new User();
         user.email = normalised;
         user.displayName = displayName.strip();
         user.passwordHash = BCrypt.hashpw(password, BCrypt.gensalt(12));
         user.role = roleAssigner.roleForNewUser();
         user.persist();
 
-        log.infof("New user registered: %s (role=%s)", normalised, user.role);
+        LOGGER.infof("New user registered: %s (role=%s)", normalised, user.role);
         return Response.seeOther(URI.create("/login?registered=true")).build();
     }
 
     // ── Logout ────────────────────────────────────────────────────────────
 
+    /** Clears the session cookies and redirects to the IdP logout (OIDC users) or {@code /login}. */
     @POST
     @Path("logout")
-    public Response logout(@CookieParam("q_session") String qSession) {
-        NewCookie clearForm    = new NewCookie.Builder("diurnal_session").value("").path("/").maxAge(0).httpOnly(true).build();
-        NewCookie clearOidc    = new NewCookie.Builder("q_session").value("").path("/").maxAge(0).httpOnly(true).build();
+    public Response logout(@CookieParam("q_session") final String oidcSession) {
+        final NewCookie clearForm    = new NewCookie.Builder("diurnal_session").value("").path("/").maxAge(0).httpOnly(true).build();
+        final NewCookie clearOidc    = new NewCookie.Builder("q_session").value("").path("/").maxAge(0).httpOnly(true).build();
         // RP-initiated logout: only redirect to the IdP if the user authenticated via OIDC
         // (has a q_session cookie). Password users go straight to /login.
         // We send id_token_hint so Authelia can identify and properly terminate the IdP session.
         // Without it, Authelia accepts the end_session request but does nothing.
-        boolean hasOidcSession = qSession != null && !qSession.isBlank();
-        URI target = (hasOidcSession ? oidcLogoutUrl.filter(url -> !url.isBlank()) : Optional.<String>empty())
+        final boolean hasOidcSession = oidcSession != null && !oidcSession.isBlank();
+        final URI target = (hasOidcSession ? oidcLogoutUrl.filter(url -> !url.isBlank()) : Optional.<String>empty())
                 .map(URI::create)
                 .orElse(URI.create("/login"));
-        log.debugf("Logout: redirecting to %s", target);
+        LOGGER.debugf("Logout: redirecting to %s", target);
         return Response.seeOther(target).cookie(clearForm, clearOidc).build();
     }
 
     // ── Settings ───────────────────────────────────────────────────────────
 
+    /** Renders the settings page for the current user. */
     @GET
     @Path("settings")
     @RolesAllowed("user")
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance settingsPage() {
-        User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
         return settingsView(user, false);
     }
 
+    /** Persists the user's sanitised display preferences and re-renders the settings page. */
     @POST
     @Path("settings")
     @RolesAllowed("user")
@@ -224,11 +259,11 @@ public class WebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance updateSettings(
-            @FormParam("theme") @DefaultValue("system") String theme,
-            @FormParam("pageSize") @DefaultValue("10") int pageSize,
-            @FormParam("calendarView") @DefaultValue("full") String calendarView,
-            @FormParam("timezone") @DefaultValue("") String timezone) {
-        User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+            @FormParam("theme") @DefaultValue("system") final String theme,
+            @FormParam("pageSize") @DefaultValue("10") final int pageSize,
+            @FormParam("calendarView") @DefaultValue("full") final String calendarView,
+            @FormParam("timezone") @DefaultValue("") final String timezone) {
+        final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
         user.theme = UserSettings.sanitiseTheme(theme);
         user.pageSize = UserSettings.sanitisePageSize(pageSize);
         user.calendarView = UserSettings.sanitiseCalendarView(calendarView);
@@ -237,22 +272,23 @@ public class WebResource {
         return settingsView(user, true);
     }
 
+    /** Updates the current user's display name, returning {@code 422} if it is blank. */
     @POST
     @Path("settings/display-name")
     @RolesAllowed("user")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
-    public Response updateDisplayName(@FormParam("displayName") String displayName) {
+    public Response updateDisplayName(@FormParam("displayName") final String displayName) {
         if (displayName == null || displayName.isBlank()) {
             return Response.status(422).build();
         }
-        User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
         user.displayName = displayName.strip();
         user.persist();
         return Response.ok().build();
     }
 
-    private TemplateInstance settingsView(User user, boolean saved) {
+    private TemplateInstance settingsView(final User user, final boolean saved) {
         return settingsTemplate
                 .data("email", user.email)
                 .data("displayName", user.displayName)
@@ -270,14 +306,15 @@ public class WebResource {
 
     // ── Dashboard (protected) ──────────────────────────────────────────────
 
+    /** Renders the dashboard with the user's calendar and three most-recent action stats. */
     @GET
     @Path("/")
     @RolesAllowed("user")
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance dashboard() {
-        User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
-        List<?> recentStats = statsService.forMostRecent(user.id, 3);
+        final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        final List<?> recentStats = statsService.forMostRecent(user.id, 3);
         return dashboardTemplate
                 .data("email", user.email)
                 .data("displayName", user.displayName)
