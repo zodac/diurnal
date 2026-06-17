@@ -15,7 +15,7 @@ RUN npm run css
 
 # ── Stage 2: generate the favicon raster assets ──────────────────────────────
 # Rasterises the committed favicon SVG (the single-letter "d" mark, itself generated from the brand
-# font by generate-wordmark.py) into the PNG favicons + multi-res .ico the site links from <head>. Kept
+# font by generate-brand.py) into the PNG favicons + multi-res .ico the site links from <head>. Kept
 # in its own stage so ImageMagick / librsvg / optipng never reach the build or runtime images. librsvg
 # is ImageMagick's SVG-rendering backend; imagemagick also packs the .ico. Outputs land in
 # src/main/resources/META-INF/resources/img.

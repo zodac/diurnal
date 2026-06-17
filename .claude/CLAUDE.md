@@ -165,22 +165,28 @@ Colour is tokenised: `app.css` defines `--color-*` CSS variables once (`:root` +
 `text-success`, `text-danger` — that auto-adapt to dark mode **without a `dark:` variant**. Use these
 instead of raw `gray-*`/`indigo-*` pairs.
 
-**The brand colour is the single accent — `#6366f1` (indigo-500).** This is the exact colour of the
-`diurnal` wordmark and the default Action colour (`Action.colour`), and `--color-brand` resolves to it
-**constant across light and dark** (it does *not* flip shade). **Every accent/highlight in the UI must
-resolve to it**: filled buttons (`.btn-primary` → `bg-brand`/`hover:bg-brand-hover`, all CTAs like
-"Add"/"View stats"), active nav links (`.nav-link-active`) + the mobile hamburger, the log **increment**
-`+` control, all focus rings (`--color-brand-ring`, via `ring-brand-ring`), the calendar **"today"**
-fill and **selected-day** ring across *every* calendar style, the table **Edit** button + **edit-row
-highlight** (`--color-ring-edit`), and the settings preview-picker highlight. When adding any accented
-element, route it through `bg-brand` / `text-brand` / `border-brand` / `ring-brand-ring` or
-`var(--color-brand*)` — **never a literal `indigo-*`**. The derived tokens are: `--color-brand-hover`
-(one step deeper in light / lighter in dark, hover only), `--color-brand-strong` (deeper still, for
-active hovers), and `--color-brand-subtle` (the same hue at low alpha — the "today" cell fill, kept
-translucent so the date stays legible; solid in dark). The log **decrement** `−` is deliberately muted
-(`text-ink-muted`), not an accent. (Trade-off: a constant `#6366f1` is slightly below AA contrast for
-small `text-brand` on a dark surface — acceptable here since the wordmark sets the same precedent, but
-keep it for accents, not body copy.)
+**The brand colour is the single accent, and it is GENERATED — never hand-edit it.** The whole
+`--color-brand*` family lives in the `@generated:brand` regions of `app.css` (one in `:root`, one in
+`.dark`) and is **computed by `scripts/generate-brand.py` from the `fill` of `scripts/assets/wordmark.svg`
+— the one source of truth** (see "Brand assets"). To rebrand, change that fill and run `npm run brand`;
+do not edit the token values directly. The base colour is currently **`#6366f1`** (the wordmark colour,
+also the default `Action.colour`), **constant across light and dark** (it does not flip shade). **Every
+accent/highlight in the UI must resolve to it**: filled buttons (`.btn-primary` → `bg-brand` /
+`hover:bg-brand-hover` / `text-on-brand`, all CTAs like "Add"/"View stats"), active nav links
+(`.nav-link-active`) + the mobile hamburger, the log **increment** `+`, all focus rings
+(`--color-brand-ring`), the calendar **"today"** fill + **selected-day** tint/ring across *every*
+calendar style, the table **Edit** button + **edit-row highlight** (`--color-ring-edit`), and the
+settings preview-picker highlight. When adding an accented element, route it through `bg-brand` /
+`text-brand` / `border-brand` / `ring-brand-ring` / `text-on-brand` or `var(--color-brand*)` — **never a
+literal `indigo-*` or hardcoded hue** (it would not follow a rebrand). The computed family: `-hover`
+(darker in light / lighter in dark, hover) and `-strong` (more so, active hovers) are mixed toward
+black/white; `-subtle` is the brand at 0.16 alpha (translucent "today" fill, keeps the date legible) →
+solid in dark; `-faint` is a desaturated tint (selected-day fill, light tint → dark tint); `-ring`/
+`-ring-edit` equal the brand; and **`--color-on-brand`** is the readable text/icon colour on a brand
+fill, **luminance-picked** (white or near-black) so a light rebrand colour stays legible. The log
+**decrement** `−` is deliberately muted (`text-ink-muted`), not an accent. (Trade-off: a constant
+`#6366f1` is slightly below AA contrast for small `text-brand` on a dark surface — acceptable since the
+wordmark sets the same precedent, but keep it for accents, not body copy.)
 
 The variable set goes beyond the Tailwind-exposed utilities: the inline component CSS (the `.dt-*`
 data-table layer and the `.banner-*` messages in `layout.html`, plus the calendar in
@@ -271,38 +277,44 @@ changes instead re-render the whole `admin-users-list` partial.
 
 ### Brand assets
 
-There is **no logo/icon mark** — branding is purely typographic, both forms set in **Nova Flat Book**
-in the brand indigo (`#6366f1`, the default Actions colour), with the glyphs converted to `<path>`
-outlines so the assets have **no font dependency** and render identically anywhere (including sandboxed
-`<img>`/favicon contexts that can't see page CSS):
+There is **no logo/icon mark** — branding is purely typographic, set in **Nova Flat Book** with the
+glyphs converted to `<path>` outlines so the assets have **no font dependency** and render identically
+anywhere (including sandboxed `<img>`/favicon contexts that can't see page CSS).
 
-- **`wordmark.svg`** — the full word "diurnal", tightly cropped. Used for branding: the navbar
-  (`partials/navbar.html`), the login/register headings, and the centred README header.
-- **`favicon.svg`** — just the letter "d", centred in a square. The scalable favicon and the source the
-  raster favicons are rendered from.
+**`scripts/assets/wordmark.svg` is THE single source of truth** — the one file you edit to rebrand. It
+is the full word "diurnal" with one `fill="#rrggbb"`; **its fill drives the entire brand**: the served
+wordmark, the favicon, *and* every UI accent token (see "CSS build & colour tokens"). It lives in the
+masters dir `scripts/assets/` (alongside the font), **outside the Quarkus `src/` tree** and not packaged
+by Maven/Quarkus nor served directly. Everything under `src/main/resources/META-INF/resources/img/` and
+the `@generated:brand` CSS regions are **generated, committed output**.
 
-**The only hand-edited master is the font** `scripts/assets/NovaFlat-Book.ttf` — kept deliberately
-**outside the Quarkus `src/` tree** (`scripts/assets/` is the masters dir) and *not* packaged by
-Maven/Quarkus (only `src/main/resources/` ships) nor served. Everything under
-`src/main/resources/META-INF/resources/img/` is **generated, committed output**, in two steps:
+**To rebrand the colour: edit the `fill` in `scripts/assets/wordmark.svg`, then `npm run brand`.** That
+one command chains three steps (edit-one-file, run-one-thing):
 
 ```bash
-python3 scripts/generate-wordmark.py   # font  → wordmark.svg + favicon.svg   (needs fonttools)
+python3 scripts/generate-brand.py      # reads the wordmark fill → copies wordmark.svg to served,
+                                       #   renders favicon.svg (the "d") in that colour, and computes
+                                       #   the @generated:brand token family into src/main/css/app.css
 node    scripts/generate-favicons.cjs  # favicon.svg → favicon.ico + favicon-16/32.png + apple-touch-icon.png
+npm run css                            # compile app.css
 ```
 
-`generate-wordmark.py` owns both SVGs (run it first if the mark changes). `generate-favicons.cjs` only
-rasterises `favicon.svg`: it renders the PNGs (preferring `rsvg-convert`, falling back to ImageMagick),
-packs the multi-res `.ico` (16/32/48), and losslessly optimises the PNGs with optipng (installed on
-demand) — it does **not** touch the SVGs. `apple-touch-icon.png` (180px) is the iOS home-screen /
-bookmark thumbnail. This mirrors the CSS split (`src/main/css/app.css` source → `resources/css/app.css`
-served).
+- **`generate-brand.py`** (needs `fonttools`) owns `wordmark.svg`-copy + `favicon.svg` + the brand
+  tokens. The favicon **glyph** geometry comes from the font `NovaFlat-Book.ttf` (kept consistent with
+  the wordmark); only its colour + the theme come from the wordmark fill. Derived shades are mixed
+  toward black/white; `--color-on-brand` is luminance-picked. To change the **word/font** (not just
+  colour), run `python3 scripts/generate-brand.py --rebuild-wordmark` (re-renders `wordmark.svg` from
+  the font first), then `npm run brand`.
+- **`wordmark.svg`** (served) — the full word; used in the navbar (`partials/navbar.html`), login/
+  register headings, and README header. **`favicon.svg`** — the "d" in a square; the scalable favicon +
+  raster source. `generate-favicons.cjs` only rasterises `favicon.svg` (PNGs via `rsvg-convert`/
+  ImageMagick, multi-res `.ico`, optipng) — it does **not** touch the SVGs. `apple-touch-icon.png`
+  (180px) is the iOS home-screen / bookmark thumbnail.
 
-The committed SVGs are the source of truth: the **Docker build does not regenerate them** (it would need
-a Python+fonttools stage) — they ship via `COPY src`. It *does* re-render the **rasters** fresh in a
-dedicated non-runtime `icons` stage (`node:20-alpine` + ImageMagick/librsvg/optipng) from the committed
-`favicon.svg`, overwriting the committed PNG/ICO copies (visually identical, may differ by a few
-antialiasing pixels across renderer versions — harmless).
+The committed outputs are trusted: the **Docker build does not run `generate-brand.py`** (no
+Python+fonttools stage) — the SVGs + the `@generated:brand` tokens (baked into `app.css`) ship via
+`COPY src`, and the `css` stage compiles them. Docker *does* re-render the **rasters** in its `icons`
+stage from the committed `favicon.svg` (visually identical, may differ by a few antialiasing pixels).
 
 ### Settings preview thumbnails
 

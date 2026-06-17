@@ -5,7 +5,8 @@
   "description": "Tailwind CSS build for the Diurnal UI (compiled to src/main/resources/META-INF/resources/css/app.css and served at /css/app.css).",
   "scripts": {
     "css": "tailwindcss -i ./src/main/css/app.css -o ./src/main/resources/META-INF/resources/css/app.css --minify",
-    "css:watch": "tailwindcss -i ./src/main/css/app.css -o ./src/main/resources/META-INF/resources/css/app.css --watch"
+    "css:watch": "tailwindcss -i ./src/main/css/app.css -o ./src/main/resources/META-INF/resources/css/app.css --watch",
+    "brand": "python3 scripts/generate-brand.py && node scripts/generate-favicons.cjs && npm run css"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.17"

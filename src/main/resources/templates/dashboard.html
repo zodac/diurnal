@@ -54,7 +54,7 @@
     background-color: rgb(75, 85, 99);
   }
   .dark .fc-button-primary:not(:disabled).fc-button-active {
-    background-color: rgb(99, 102, 241);
+    background-color: var(--color-brand);
   }
 
   /* ── Minimal calendar ──────────────────────────────────────────────────── */
@@ -107,17 +107,16 @@
   .lt-min-cell:hover .lt-min-date { background: rgb(243,244,246); }
   .dark .lt-min-cell:hover .lt-min-date { background: rgb(55,65,81); }
   .lt-min-cell.lt-min-today .lt-min-date {
-    background: rgb(99,102,241); color: white; font-weight: 700;
+    background: var(--color-brand); color: var(--color-on-brand); font-weight: 700;
   }
   .lt-min-cell.lt-min-selected .lt-min-date {
-    background: rgb(224,231,255); color: rgb(99,102,241); font-weight: 600;
+    background: var(--color-brand-faint); color: var(--color-brand); font-weight: 600;
   }
-  .dark .lt-min-cell.lt-min-selected .lt-min-date {
-    background: rgb(55,48,163); color: rgb(199,210,254);
-  }
+  /* Selected text needs a lighter brand shade to read on the darker faint fill in dark mode. */
+  .dark .lt-min-cell.lt-min-selected .lt-min-date { color: var(--color-brand-strong); }
   /* Today + selected: keep today's filled circle */
   .lt-min-cell.lt-min-today.lt-min-selected .lt-min-date {
-    background: rgb(99,102,241); color: white;
+    background: var(--color-brand); color: var(--color-on-brand);
   }
   .lt-min-cell.lt-min-other .lt-min-date { color: rgb(156,163,175); }
   .dark .lt-min-cell.lt-min-other .lt-min-date { color: rgb(75,85,99); }
@@ -345,7 +344,7 @@ document.addEventListener('DOMContentLoaded', function () {
             b.textContent = name;
             var current = (pickerYear === shown.getFullYear() && i === shown.getMonth());
             b.className = 'text-sm rounded px-2 py-1.5 transition-colors ' + (current
-                ? 'bg-brand text-white'
+                ? 'bg-brand text-on-brand'
                 : 'text-ink hover:bg-surface-muted');
             b.addEventListener('click', function () {
                 cal.gotoDate(pickerYear + '-' + String(i + 1).padStart(2, '0') + '-01');
@@ -543,7 +542,7 @@ document.addEventListener('DOMContentLoaded', function () {
             b.textContent = name;
             var current = (pickerYear === viewYear && i === viewMonth);
             b.className = 'text-sm rounded px-2 py-1.5 transition-colors ' + (current
-                ? 'bg-brand text-white'
+                ? 'bg-brand text-on-brand'
                 : 'text-ink hover:bg-surface-muted');
             b.addEventListener('click', function () {
                 viewYear  = pickerYear;

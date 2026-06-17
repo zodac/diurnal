@@ -29,6 +29,8 @@ module.exports = {
           hover: 'var(--color-brand-hover)',
           ring: 'var(--color-brand-ring)',
         },
+        // Readable text/icon colour ON a brand fill (computed from the brand luminance).
+        'on-brand': 'var(--color-on-brand)',
         surface: {
           DEFAULT: 'var(--color-surface)',
           muted: 'var(--color-surface-muted)',

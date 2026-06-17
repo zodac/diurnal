@@ -23,11 +23,16 @@
  */
 @layer base {
   :root {
-    --color-brand: #6366f1;          /* indigo-500 — THE core brand/accent colour (matches the wordmark) */
-    --color-brand-hover: #4f46e5;    /* indigo-600 — one step deeper, for hover/active affordance */
-    --color-brand-ring: #6366f1;     /* indigo-500 — focus ring (== brand) */
-    --color-brand-strong: #4338ca;   /* indigo-700 — deeper still, for active hovers */
-    --color-brand-subtle: rgb(99 102 241 / 0.16); /* translucent brand — calendar "today" fill (date stays legible) */
+    /* @generated:brand (light) — computed from scripts/assets/wordmark.svg by scripts/generate-brand.py; do not hand-edit (edit the wordmark + run `npm run brand`). */
+    --color-brand: #6366f1;  /* the wordmark colour — THE core accent */
+    --color-brand-hover: #5356ca;  /* darker — hover/active */
+    --color-brand-strong: #4749ae;  /* darker still — active hovers */
+    --color-brand-ring: #6366f1;  /* == brand — focus ring */
+    --color-brand-subtle: rgb(99 102 241 / 0.16);  /* translucent brand — "today" fill */
+    --color-brand-faint: #e6e7fd;  /* light tint — selected-day fill */
+    --color-on-brand: #ffffff;  /* readable text/icon on a brand fill */
+    --color-ring-edit: #6366f1;  /* == brand — edit-row ring */
+    /* @end:brand */
 
     --color-surface: #ffffff;        /* cards / header */
     --color-surface-muted: #f9fafb;  /* page bg / subtle panels (gray-50) */
@@ -44,8 +49,7 @@
     --color-danger-strong: #991b1b;  /* red-800 — deeper danger, for active hovers */
     --color-success: #16a34a;        /* green-600 */
 
-    /* Editable / confirm-delete data-table row highlight rings. */
-    --color-ring-edit: #6366f1;      /* indigo-500 — brand (matches the accent) */
+    /* Confirm-delete data-table row highlight ring (the edit ring is brand-derived, see @generated:brand). */
     --color-ring-confirm: #fca5a5;   /* red-300 */
 
     /* Text inputs / selects inside data-table edit rows. */
@@ -65,11 +69,16 @@
   }
 
   .dark {
-    --color-brand: #6366f1;          /* indigo-500 — SAME core brand in dark (matches the wordmark) */
-    --color-brand-hover: #818cf8;    /* indigo-400 — lighter, for hover/active affordance on dark */
-    --color-brand-ring: #6366f1;     /* indigo-500 — focus ring (== brand) */
-    --color-brand-strong: #a5b4fc;   /* indigo-300 — for active hovers on dark */
-    --color-brand-subtle: #6366f1;   /* solid brand fill for "today" in dark */
+    /* @generated:brand (dark) — computed from scripts/assets/wordmark.svg by scripts/generate-brand.py; do not hand-edit (edit the wordmark + run `npm run brand`). */
+    --color-brand: #6366f1;  /* same brand hue as light */
+    --color-brand-hover: #8588f4;  /* lighter — hover/active on dark */
+    --color-brand-strong: #a1a3f7;  /* lighter still — active hovers on dark */
+    --color-brand-ring: #6366f1;  /* == brand — focus ring */
+    --color-brand-subtle: #6366f1;  /* solid brand "today" fill in dark */
+    --color-brand-faint: #252b57;  /* dark tint — selected-day fill */
+    --color-on-brand: #ffffff;  /* readable text/icon on a brand fill */
+    --color-ring-edit: #6366f1;  /* == brand — edit-row ring */
+    /* @end:brand */
 
     --color-surface: #1f2937;        /* gray-800 */
     --color-surface-muted: #374151;  /* gray-700 */
@@ -86,7 +95,6 @@
     --color-danger-strong: #fca5a5;  /* red-300 */
     --color-success: #4ade80;        /* green-400 */
 
-    --color-ring-edit: #6366f1;      /* indigo-500 — brand (matches the accent) */
     --color-ring-confirm: #b91c1c;   /* red-700 */
 
     --color-input-bg: #374151;       /* gray-700 */
@@ -116,7 +124,7 @@
   /* Buttons ---------------------------------------------------------------- */
   /* Filled call-to-action (login/register submit, "Add actions" empty states). */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 bg-brand text-white rounded-lg
+    @apply inline-flex items-center justify-center gap-2 bg-brand text-on-brand rounded-lg
            px-4 py-2 text-sm font-medium hover:bg-brand-hover focus:outline-none focus:ring-2
            focus:ring-brand-ring focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors;
   }

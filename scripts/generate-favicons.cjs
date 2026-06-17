@@ -5,12 +5,12 @@
  * WHEN TO RUN THIS
  * ----------------
  * The source is the served favicon.svg — itself generated from the brand font by
- * scripts/generate-wordmark.py (run that FIRST if the mark changed). This script only rasterises it:
+ * scripts/generate-brand.py (run that FIRST if the mark changed). This script only rasterises it:
  * it writes the PNG/ICO favicons next to it in the served static web root
  * (src/main/resources/META-INF/resources/img/), mirroring how the CSS is compiled from src/main/css
  * into resources/css. Re-run it whenever favicon.svg changes; then review and commit the regenerated
  * files. Nothing references them by anything but name. (It does NOT touch favicon.svg/wordmark.svg —
- * those committed SVGs are the source of truth, owned by generate-wordmark.py.)
+ * those committed SVGs are the source of truth, owned by generate-brand.py.)
  *
  * The Docker image regenerates the rasters on demand in a dedicated, non-runtime `icons` stage (see
  * the Dockerfile) from the committed favicon.svg, so the committed PNG/ICO copies exist only for
@@ -48,7 +48,7 @@ const { execFileSync, execSync } = require('child_process');
 const REPO = path.join(__dirname, '..');
 const IMG = path.join(REPO, 'src', 'main', 'resources', 'META-INF', 'resources', 'img');
 // Source SVG (the committed favicon.svg) and the served web root the rasters go into — the same dir,
-// since favicon.svg is itself a generated, served asset (owned by generate-wordmark.py).
+// since favicon.svg is itself a generated, served asset (owned by generate-brand.py).
 const SOURCE = process.env.SOURCE || path.join(IMG, 'favicon.svg');
 const OUT = process.env.OUT || IMG;
 
@@ -133,7 +133,7 @@ function optimise() {
 // ── Main ───────────────────────────────────────────────────────────────────────────────────────
 
 (() => {
-  if (!fs.existsSync(SOURCE)) throw new Error(`favicon source not found: ${SOURCE} (run generate-wordmark.py first)`);
+  if (!fs.existsSync(SOURCE)) throw new Error(`favicon source not found: ${SOURCE} (run generate-brand.py first)`);
   fs.mkdirSync(OUT, { recursive: true });
   console.log(`source: ${SOURCE}\nout:    ${OUT}\nrenderer: ${RSVG ? 'rsvg-convert' : IM}\n`);
 
