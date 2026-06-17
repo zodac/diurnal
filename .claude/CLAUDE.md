@@ -161,10 +161,26 @@ in a dedicated `css` stage (Node) and copies it into the Quarkus build — Node 
 
 Colour is tokenised: `app.css` defines `--color-*` CSS variables once (`:root` + `.dark`), and
 `tailwind.config.js` exposes semantic utilities backed by them — `bg-surface` / `bg-surface-muted`,
-`text-ink` / `text-ink-muted`, `border-line` / `border-line-subtle`, `text-brand`, `text-success`,
-`text-danger` — that auto-adapt to dark mode **without a `dark:` variant**. Use these instead of raw
-`gray-*`/`indigo-*` pairs (the filled primary button stays literal `indigo-600` on purpose — it must
-not lighten in dark mode, so the `brand` token, which flips to indigo-400, is for accents/text only).
+`text-ink` / `text-ink-muted`, `border-line` / `border-line-subtle`, `text-brand`, `bg-brand`,
+`text-success`, `text-danger` — that auto-adapt to dark mode **without a `dark:` variant**. Use these
+instead of raw `gray-*`/`indigo-*` pairs.
+
+**The brand colour is the single accent — `#6366f1` (indigo-500).** This is the exact colour of the
+`diurnal` wordmark and the default Action colour (`Action.colour`), and `--color-brand` resolves to it
+**constant across light and dark** (it does *not* flip shade). **Every accent/highlight in the UI must
+resolve to it**: filled buttons (`.btn-primary` → `bg-brand`/`hover:bg-brand-hover`, all CTAs like
+"Add"/"View stats"), active nav links (`.nav-link-active`) + the mobile hamburger, the log **increment**
+`+` control, all focus rings (`--color-brand-ring`, via `ring-brand-ring`), the calendar **"today"**
+fill and **selected-day** ring across *every* calendar style, the table **Edit** button + **edit-row
+highlight** (`--color-ring-edit`), and the settings preview-picker highlight. When adding any accented
+element, route it through `bg-brand` / `text-brand` / `border-brand` / `ring-brand-ring` or
+`var(--color-brand*)` — **never a literal `indigo-*`**. The derived tokens are: `--color-brand-hover`
+(one step deeper in light / lighter in dark, hover only), `--color-brand-strong` (deeper still, for
+active hovers), and `--color-brand-subtle` (the same hue at low alpha — the "today" cell fill, kept
+translucent so the date stays legible; solid in dark). The log **decrement** `−` is deliberately muted
+(`text-ink-muted`), not an accent. (Trade-off: a constant `#6366f1` is slightly below AA contrast for
+small `text-brand` on a dark surface — acceptable here since the wordmark sets the same precedent, but
+keep it for accents, not body copy.)
 
 The variable set goes beyond the Tailwind-exposed utilities: the inline component CSS (the `.dt-*`
 data-table layer and the `.banner-*` messages in `layout.html`, plus the calendar in
@@ -252,6 +268,41 @@ changes instead re-render the whole `admin-users-list` partial.
 ### CalendarResource
 
 `GET /logs/events` returns JSON (`CalendarEventDto` records) consumed directly by FullCalendar.js on the dashboard. It intentionally includes archived actions so historical entries still render on the calendar. The dashboard uses a custom month/year picker overlay (not FullCalendar's built-in navigation); `eventClick` mirrors `dateClick` to open the day panel.
+
+### Brand assets
+
+There is **no logo/icon mark** — branding is purely typographic, both forms set in **Nova Flat Book**
+in the brand indigo (`#6366f1`, the default Actions colour), with the glyphs converted to `<path>`
+outlines so the assets have **no font dependency** and render identically anywhere (including sandboxed
+`<img>`/favicon contexts that can't see page CSS):
+
+- **`wordmark.svg`** — the full word "diurnal", tightly cropped. Used for branding: the navbar
+  (`partials/navbar.html`), the login/register headings, and the centred README header.
+- **`favicon.svg`** — just the letter "d", centred in a square. The scalable favicon and the source the
+  raster favicons are rendered from.
+
+**The only hand-edited master is the font** `scripts/assets/NovaFlat-Book.ttf` — kept deliberately
+**outside the Quarkus `src/` tree** (`scripts/assets/` is the masters dir) and *not* packaged by
+Maven/Quarkus (only `src/main/resources/` ships) nor served. Everything under
+`src/main/resources/META-INF/resources/img/` is **generated, committed output**, in two steps:
+
+```bash
+python3 scripts/generate-wordmark.py   # font  → wordmark.svg + favicon.svg   (needs fonttools)
+node    scripts/generate-favicons.cjs  # favicon.svg → favicon.ico + favicon-16/32.png + apple-touch-icon.png
+```
+
+`generate-wordmark.py` owns both SVGs (run it first if the mark changes). `generate-favicons.cjs` only
+rasterises `favicon.svg`: it renders the PNGs (preferring `rsvg-convert`, falling back to ImageMagick),
+packs the multi-res `.ico` (16/32/48), and losslessly optimises the PNGs with optipng (installed on
+demand) — it does **not** touch the SVGs. `apple-touch-icon.png` (180px) is the iOS home-screen /
+bookmark thumbnail. This mirrors the CSS split (`src/main/css/app.css` source → `resources/css/app.css`
+served).
+
+The committed SVGs are the source of truth: the **Docker build does not regenerate them** (it would need
+a Python+fonttools stage) — they ship via `COPY src`. It *does* re-render the **rasters** fresh in a
+dedicated non-runtime `icons` stage (`node:20-alpine` + ImageMagick/librsvg/optipng) from the committed
+`favicon.svg`, overwriting the committed PNG/ICO copies (visually identical, may differ by a few
+antialiasing pixels across renderer versions — harmless).
 
 ### Settings preview thumbnails
 

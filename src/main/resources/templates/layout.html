@@ -14,6 +14,17 @@
     <meta name="color-scheme" content="light dark">
     <title>Diurnal</title>
     <!--
+        Favicons: the single-letter "d" mark. favicon.svg is generated from the brand font by
+        scripts/generate-wordmark.py; the rasters below are rendered from it by scripts/generate-favicons.cjs.
+        Modern browsers prefer the scalable SVG; favicon.ico (16/32/48 multi-res) is the legacy fallback;
+        the apple-touch-icon is the iOS home-screen / bookmark thumbnail. See CLAUDE.md ("Brand assets").
+    -->
+    <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
+    <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="/img/favicon-16.png">
+    <link rel="icon" href="/img/favicon.ico" sizes="any">
+    <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+    <!--
         Single source of truth for applying a theme ('dark' | 'light' | 'system'), defined inline
         in <head> so it's available for the pre-render FOUC pass (no external request) AND reusable
         by the settings theme picker. Resolves 'system' against prefers-color-scheme, toggles the

@@ -23,11 +23,11 @@
  */
 @layer base {
   :root {
-    --color-brand: #4f46e5;          /* indigo-600 */
-    --color-brand-hover: #4338ca;    /* indigo-700 */
-    --color-brand-ring: #6366f1;     /* indigo-500 */
-    --color-brand-strong: #3730a3;   /* indigo-800 — deeper than -hover, for active hovers */
-    --color-brand-subtle: #eef2ff;   /* indigo-50  — faint brand tint (calendar "today" fill) */
+    --color-brand: #6366f1;          /* indigo-500 — THE core brand/accent colour (matches the wordmark) */
+    --color-brand-hover: #4f46e5;    /* indigo-600 — one step deeper, for hover/active affordance */
+    --color-brand-ring: #6366f1;     /* indigo-500 — focus ring (== brand) */
+    --color-brand-strong: #4338ca;   /* indigo-700 — deeper still, for active hovers */
+    --color-brand-subtle: rgb(99 102 241 / 0.16); /* translucent brand — calendar "today" fill (date stays legible) */
 
     --color-surface: #ffffff;        /* cards / header */
     --color-surface-muted: #f9fafb;  /* page bg / subtle panels (gray-50) */
@@ -45,7 +45,7 @@
     --color-success: #16a34a;        /* green-600 */
 
     /* Editable / confirm-delete data-table row highlight rings. */
-    --color-ring-edit: #a5b4fc;      /* indigo-300 */
+    --color-ring-edit: #6366f1;      /* indigo-500 — brand (matches the accent) */
     --color-ring-confirm: #fca5a5;   /* red-300 */
 
     /* Text inputs / selects inside data-table edit rows. */
@@ -65,11 +65,11 @@
   }
 
   .dark {
-    --color-brand: #818cf8;          /* indigo-400 */
-    --color-brand-hover: #a5b4fc;    /* indigo-300 */
-    --color-brand-ring: #6366f1;     /* indigo-500 */
-    --color-brand-strong: #a5b4fc;   /* indigo-300 */
-    --color-brand-subtle: #4f46e5;   /* indigo-600 — solid fill for "today" in dark */
+    --color-brand: #6366f1;          /* indigo-500 — SAME core brand in dark (matches the wordmark) */
+    --color-brand-hover: #818cf8;    /* indigo-400 — lighter, for hover/active affordance on dark */
+    --color-brand-ring: #6366f1;     /* indigo-500 — focus ring (== brand) */
+    --color-brand-strong: #a5b4fc;   /* indigo-300 — for active hovers on dark */
+    --color-brand-subtle: #6366f1;   /* solid brand fill for "today" in dark */
 
     --color-surface: #1f2937;        /* gray-800 */
     --color-surface-muted: #374151;  /* gray-700 */
@@ -86,7 +86,7 @@
     --color-danger-strong: #fca5a5;  /* red-300 */
     --color-success: #4ade80;        /* green-400 */
 
-    --color-ring-edit: #4338ca;      /* indigo-700 */
+    --color-ring-edit: #6366f1;      /* indigo-500 — brand (matches the accent) */
     --color-ring-confirm: #b91c1c;   /* red-700 */
 
     --color-input-bg: #374151;       /* gray-700 */
@@ -108,22 +108,23 @@
  * Component layer — the single source of truth for every shared "type" of element so the
  * same control looks identical wherever it appears (and is changed in one place). Built with
  * @apply so each class reproduces the markup it replaced. Token-backed utilities (bg-surface,
- * text-ink, border-line, text-brand…) are used where their dark value matches the original;
- * the filled primary button stays literal `indigo-600` because it must NOT lighten in dark mode.
+ * text-ink, border-line, text-brand, bg-brand…) are used throughout; the `brand` token is the single
+ * accent colour (#6366f1, the wordmark colour) and is constant across light/dark, so the filled
+ * primary button references it directly (it no longer needs to dodge a dark-mode lightening).
  */
 @layer components {
   /* Buttons ---------------------------------------------------------------- */
   /* Filled call-to-action (login/register submit, "Add actions" empty states). */
   .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 bg-indigo-600 text-white rounded-lg
-           px-4 py-2 text-sm font-medium hover:bg-indigo-700 focus:outline-none focus:ring-2
-           focus:ring-indigo-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors;
+    @apply inline-flex items-center justify-center gap-2 bg-brand text-white rounded-lg
+           px-4 py-2 text-sm font-medium hover:bg-brand-hover focus:outline-none focus:ring-2
+           focus:ring-brand-ring focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors;
   }
   /* Outlined / neutral action (OIDC sign-in). */
   .btn-secondary {
     @apply inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300
            dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300
-           hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-indigo-500
+           hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-ring
            focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors;
   }
 
@@ -141,12 +142,12 @@
   .form-input {
     @apply rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm
            bg-white dark:bg-gray-700 text-ink
-           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent;
+           focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-transparent;
   }
   /* Settings-style select. */
   .form-select {
     @apply rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-ink
-           focus:ring-indigo-500 focus:border-indigo-500 py-1.5 pl-3 pr-8 cursor-pointer;
+           focus:ring-brand-ring focus:border-brand-ring py-1.5 pl-3 pr-8 cursor-pointer;
   }
   /* Selectable screenshot-preview tile (settings Theme / Calendar-style pickers). Sits
      after a `sr-only peer` radio so the checked/hover/focus states are driven by the input. */

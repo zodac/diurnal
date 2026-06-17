@@ -21,9 +21,9 @@
   .fc .fc-event { font-size: 0.7rem; }
   /* Token flips to a solid brand fill in dark mode, so a separate .dark rule isn't needed. */
   .fc-daygrid-day.fc-day-today { background-color: var(--color-brand-subtle) !important; }
-  /* Selected day — an indigo ring, distinct from the 'today' background fill so both can show together */
-  .fc-daygrid-day.lt-day-selected { box-shadow: inset 0 0 0 2px rgb(79, 70, 229); }
-  .dark .fc-daygrid-day.lt-day-selected { box-shadow: inset 0 0 0 2px rgb(129, 140, 248); }
+  /* Selected day — a brand ring, distinct from the 'today' background fill so both can show together.
+     The brand token is constant across light/dark, so no .dark twin is needed. */
+  .fc-daygrid-day.lt-day-selected { box-shadow: inset 0 0 0 2px var(--color-brand); }
 
   /* Dark mode overrides for FullCalendar */
   .dark .fc {
@@ -110,7 +110,7 @@
     background: rgb(99,102,241); color: white; font-weight: 700;
   }
   .lt-min-cell.lt-min-selected .lt-min-date {
-    background: rgb(224,231,255); color: rgb(79,70,229); font-weight: 600;
+    background: rgb(224,231,255); color: rgb(99,102,241); font-weight: 600;
   }
   .dark .lt-min-cell.lt-min-selected .lt-min-date {
     background: rgb(55,48,163); color: rgb(199,210,254);
@@ -345,7 +345,7 @@ document.addEventListener('DOMContentLoaded', function () {
             b.textContent = name;
             var current = (pickerYear === shown.getFullYear() && i === shown.getMonth());
             b.className = 'text-sm rounded px-2 py-1.5 transition-colors ' + (current
-                ? 'bg-indigo-600 text-white'
+                ? 'bg-brand text-white'
                 : 'text-ink hover:bg-surface-muted');
             b.addEventListener('click', function () {
                 cal.gotoDate(pickerYear + '-' + String(i + 1).padStart(2, '0') + '-01');
@@ -543,7 +543,7 @@ document.addEventListener('DOMContentLoaded', function () {
             b.textContent = name;
             var current = (pickerYear === viewYear && i === viewMonth);
             b.className = 'text-sm rounded px-2 py-1.5 transition-colors ' + (current
-                ? 'bg-indigo-600 text-white'
+                ? 'bg-brand text-white'
                 : 'text-ink hover:bg-surface-muted');
             b.addEventListener('click', function () {
                 viewYear  = pickerYear;

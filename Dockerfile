@@ -13,7 +13,21 @@ COPY src/main/resources/templates ./src/main/resources/templates
 COPY src/main/java ./src/main/java
 RUN npm run css
 
-# ── Stage 2: build the Quarkus app ───────────────────────────────────────────
+# ── Stage 2: generate the favicon raster assets ──────────────────────────────
+# Rasterises the committed favicon SVG (the single-letter "d" mark, itself generated from the brand
+# font by generate-wordmark.py) into the PNG favicons + multi-res .ico the site links from <head>. Kept
+# in its own stage so ImageMagick / librsvg / optipng never reach the build or runtime images. librsvg
+# is ImageMagick's SVG-rendering backend; imagemagick also packs the .ico. Outputs land in
+# src/main/resources/META-INF/resources/img.
+FROM node:20-alpine AS icons
+RUN apk add --no-cache imagemagick librsvg optipng
+WORKDIR /icons
+COPY scripts/generate-favicons.cjs ./scripts/
+COPY src/main/resources/META-INF/resources/img/favicon.svg \
+     ./src/main/resources/META-INF/resources/img/favicon.svg
+RUN node scripts/generate-favicons.cjs
+
+# ── Stage 3: build the Quarkus app ───────────────────────────────────────────
 FROM maven:3.9-eclipse-temurin-26 AS build
 WORKDIR /build
 COPY pom.xml .
@@ -23,9 +37,16 @@ COPY src ./src
 # into quarkus-app and serves it at /css/app.css (overwriting any committed copy).
 COPY --from=css /css/src/main/resources/META-INF/resources/css/app.css \
                 ./src/main/resources/META-INF/resources/css/app.css
+# Drop the freshly-rendered raster favicons into the static web root, overwriting the committed copies.
+# The SVGs themselves (favicon.svg + wordmark.svg) are committed and come in via `COPY src` above.
+COPY --from=icons /icons/src/main/resources/META-INF/resources/img/favicon-16.png \
+                  /icons/src/main/resources/META-INF/resources/img/favicon-32.png \
+                  /icons/src/main/resources/META-INF/resources/img/favicon.ico \
+                  /icons/src/main/resources/META-INF/resources/img/apple-touch-icon.png \
+                  ./src/main/resources/META-INF/resources/img/
 RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -q
 
-# ── Stage 3: runtime ─────────────────────────────────────────────────────────
+# ── Stage 4: runtime ─────────────────────────────────────────────────────────
 FROM eclipse-temurin:26-jre-alpine
 RUN apk add --no-cache tzdata
 WORKDIR /app
