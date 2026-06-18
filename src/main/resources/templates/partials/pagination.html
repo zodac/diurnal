@@ -6,13 +6,30 @@
     listUrl    — HTMX partial URL swapped into `target` (e.g. "/actions/list")
     target     — CSS selector that receives the swapped list (e.g. "#action-list")
     extraQuery — optional pre-encoded query suffix, e.g. "&q=foo" (pass "" when unused)
+    alwaysShow — true to render the footer even on a single page (real .dt-tables do this);
+                 false to only render it when there's more than one page (read-only lists)
 
   The "Showing" counter exposes #showing-shown / #showing-total so surgical (HTMX 204)
   row removals can keep the count in sync without re-rendering the whole list.
+
+  `alwaysShow=true` (Actions, Admin — real `.dt-table`s in a rounded `overflow-hidden` card)
+  keeps the footer rendered even on a single page, for two reasons: it stops the last table
+  row sitting on the card's rounded bottom corner (where the edit/confirm highlight ring would
+  be clipped), and it guarantees the #showing-shown / #showing-total spans always exist, so the
+  surgical (HTMX) add/delete handlers can keep the count in sync across the empty↔non-empty
+  transition (e.g. adding the very first row). Such a list shows "Showing 0 of 0" when empty.
+
+  `alwaysShow=false` (Stats — a grid of standalone cards, not a clipped table, with no editable
+  rows) keeps the original behaviour: no footer at all on a single page, just the page-navigation
+  controls once the list spills onto more than one page.
+
+  Either way the page-navigation block (Previous / Page X of Y / Next) only appears when there's
+  more than one page.
 !}
-{#if page.totalPages > 1}
+{#if alwaysShow || page.totalPages > 1}
 <div class="dt-pagination">
     <p>Showing <span id="showing-shown">{page.items.size}</span> of <span id="showing-total">{page.totalCount}</span></p>
+    {#if page.totalPages > 1}
     <div class="flex gap-2">
         {#if page.currentPage > 1}
         <a href="{pageUrl}?page={page.currentPage - 1}{extraQuery}"
@@ -30,5 +47,6 @@
            class="dt-page-link">Next →</a>
         {/if}
     </div>
+    {/if}
 </div>
 {/if}

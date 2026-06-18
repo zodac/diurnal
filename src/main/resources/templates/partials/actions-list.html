@@ -16,9 +16,11 @@
         {#include partials/action-row action=action /}
         {/for}
         {#if page.items.isEmpty()}
-        <tr id="actions-empty-row"><td colspan="3" class="dt-empty">No actions yet — add one above.</td></tr>
+        {! Reached only with a search that matches nothing — a zero-action account hides this whole
+           table (see actions.html #actions-section), so the unfiltered "no actions" copy never shows. !}
+        <tr id="actions-empty-row"><td colspan="3" class="dt-empty">{#if extraQuery}No actions match your search.{#else}No actions yet — add one above.{/if}</td></tr>
         {/if}
     </tbody>
 </table>
 
-{#include partials/pagination page=page pageUrl="/actions" listUrl="/actions/list" target="#action-list" extraQuery=extraQuery /}
+{#include partials/pagination page=page pageUrl="/actions" listUrl="/actions/list" target="#action-list" extraQuery=extraQuery alwaysShow=true /}

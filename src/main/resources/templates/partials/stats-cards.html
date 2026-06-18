@@ -38,5 +38,7 @@
     {/for}
 </div>
 
-<!-- Shared pagination footer (same control as every other list). -->
-{#include partials/pagination page=page pageUrl="/stats" listUrl="/stats/list" target="#stats-list" extraQuery="" /}
+<!-- Shared pagination control. Stats is a grid of standalone cards (not a clipped .dt-table)
+     with no editable rows, so alwaysShow=false: no footer on a single page, just the Previous/
+     Next controls once it spills onto more than one page. -->
+{#include partials/pagination page=page pageUrl="/stats" listUrl="/stats/list" target="#stats-list" extraQuery="" alwaysShow=false /}

@@ -224,4 +224,51 @@ test.describe('Actions page', () => {
     await page.fill('input[placeholder*="Search"], input[name="q"]', '');
     await expect(page.locator('#action-list')).toContainText('Evening Walk');
   });
+
+  test('empty account hides the search bar and table; first action reveals them, deleting the last hides them again', async ({ authenticatedPage: page }) => {
+    // beforeEach archived every action, so the account starts empty.
+    await page.goto('/actions');
+    await page.waitForFunction(() => typeof (window as any).htmx !== 'undefined');
+    await expect(page.locator('#search-input')).toBeHidden();
+    await expect(page.locator('.dt-table')).toBeHidden();
+    // The New action form is always available.
+    await expect(page.locator('form[hx-post="/actions"]')).toBeVisible();
+
+    // Adding the first action reveals the search bar and table.
+    const name = unique('FirstAction');
+    await page.fill('input[name="name"]', name);
+    await Promise.all([
+      page.waitForResponse(r => r.url().endsWith('/actions') && r.request().method() === 'POST'),
+      page.locator('form[hx-post="/actions"] button[type="submit"]').click(),
+    ]);
+    await expect(page.locator('#search-input')).toBeVisible();
+    await expect(page.locator('.dt-table')).toBeVisible();
+    await expect(page.locator('#action-list')).toContainText(name);
+
+    // Deleting the last action hides the search bar and table again.
+    const item = page.locator('#action-list [id^="action-"]').filter({ hasText: name });
+    await item.hover();
+    await item.getByRole('button', { name: 'Delete' }).click();
+    await item.locator('button').filter({ hasText: /delete|yes|confirm/i }).click();
+    await expect(page.locator('#actions-section')).toBeHidden();
+    await expect(page.locator('#search-input')).toBeHidden();
+  });
+
+  test('search with no matches keeps the (empty) table visible while actions still exist', async ({ authenticatedPage: page }) => {
+    const name = unique('Meditate');
+    await page.goto('/actions');
+    await page.waitForFunction(() => typeof (window as any).htmx !== 'undefined');
+    await page.fill('input[name="name"]', name);
+    await Promise.all([
+      page.waitForResponse(r => r.url().endsWith('/actions') && r.request().method() === 'POST'),
+      page.locator('form[hx-post="/actions"] button[type="submit"]').click(),
+    ]);
+    await expect(page.locator('#action-list')).toContainText(name);
+
+    // A search matching no action keeps the table visible (the user still has actions).
+    await page.fill('#search-input', 'zzz-no-such-action-zzz');
+    await expect(page.locator('.dt-table')).toBeVisible();
+    await expect(page.locator('#search-input')).toBeVisible();
+    await expect(page.locator('#action-list')).toContainText(/no actions match/i);
+  });
 });
