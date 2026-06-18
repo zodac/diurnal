@@ -61,32 +61,60 @@ test.describe('Authentication', () => {
     await page.fill('input[name="email"]', unique);
     await page.fill('input[name="displayName"]', 'New User');
     await page.fill('input[name="password"]', 'validpassword1');
+    await page.fill('input[name="confirmPassword"]', 'validpassword1');
     await page.click('button[type="submit"]');
 
     await expect(page).toHaveURL(/\/login\?registered/);
     await expect(page.locator('body')).toContainText(/account created/i);
   });
 
-  test('register form with duplicate email shows error', async ({ page }) => {
+  test('register form with duplicate email shows error and preserves input', async ({ page }) => {
     await page.goto('/register');
     await page.fill('input[name="email"]', USER.email);
     await page.fill('input[name="displayName"]', 'Dup User');
     await page.fill('input[name="password"]', 'validpassword1');
+    await page.fill('input[name="confirmPassword"]', 'validpassword1');
     await page.click('button[type="submit"]');
 
-    await expect(page).toHaveURL(/\/register\?error=email_taken/);
+    // No redirect — the page re-renders with an error banner and the entered values intact.
+    await expect(page).toHaveURL(/\/register$/);
+    await expect(page.locator('body')).toContainText(/already registered/i);
+    await expect(page.locator('input[name="email"]')).toHaveValue(USER.email);
+    await expect(page.locator('input[name="displayName"]')).toHaveValue('Dup User');
   });
 
-  test('register form with password too short shows error', async ({ page }) => {
+  test('register form with mismatched confirmation shows error', async ({ page }) => {
+    await page.goto('/register');
+    await page.fill('input[name="email"]', `mismatch-${Date.now()}@example.com`);
+    await page.fill('input[name="displayName"]', 'Mismatch User');
+    await page.fill('input[name="password"]', 'validpassword1');
+    await page.fill('input[name="confirmPassword"]', 'validpassword2');
+    await page.click('button[type="submit"]');
+
+    await expect(page).toHaveURL(/\/register$/);
+    await expect(page.locator('body')).toContainText(/did not match/i);
+  });
+
+  test('register form submitted empty shows a server error banner, not browser pop-ups', async ({ page }) => {
+    await page.goto('/register');
+    // Submit with every field blank — `novalidate` lets it reach the server instead of being
+    // blocked by native field validation, so the missing-fields banner is shown.
+    await page.click('button[type="submit"]');
+
+    await expect(page).toHaveURL(/\/register$/);
+    await expect(page.locator('body')).toContainText(/please fill in the following field/i);
+  });
+
+  test('register form accepts a short (non-empty) password', async ({ page }) => {
+    // There is no minimum password length — any non-empty password registers successfully.
     await page.goto('/register');
     await page.fill('input[name="email"]', `short-pw-${Date.now()}@example.com`);
     await page.fill('input[name="displayName"]', 'Short PW User');
     await page.fill('input[name="password"]', 'short');
-    // Browser minlength="8" would block submission before the server sees it — bypass it
-    await page.locator('input[name="password"]').evaluate(el => el.removeAttribute('minlength'));
+    await page.fill('input[name="confirmPassword"]', 'short');
     await page.click('button[type="submit"]');
 
-    await expect(page).toHaveURL(/\/register\?error=invalid/);
+    await expect(page).toHaveURL(/\/login\?registered/);
   });
 
   test('login page with ?error=oidc shows unauthorized OIDC error banner', async ({ page }) => {

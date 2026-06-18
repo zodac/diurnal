@@ -20,11 +20,12 @@ package net.zodac.diurnal.auth;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import net.zodac.diurnal.user.User;
 
 /** Payload submitted to the JSON registration endpoint. */
 public record RegisterRequest(
         @NotBlank @Email String email,
         @NotBlank @Size(min = 2, max = 100) String displayName,
-        @NotBlank @Size(min = 8, message = "Password must be at least 8 characters") String password
+        @NotBlank @Size(max = User.MAX_PASSWORD_LENGTH, message = "Password must be at most {max} characters") String password
 ) {
 }

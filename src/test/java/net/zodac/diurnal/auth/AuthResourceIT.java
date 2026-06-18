@@ -116,13 +116,34 @@ class AuthResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    void register_passwordTooShort_returns400() {
+    void register_blankPassword_returns400() {
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"email":"blankpw@example.com","displayName":"User","password":""}
+                        """)
+                .post("/api/auth/register")
+                .then().statusCode(400);
+    }
+
+    @Test
+    void register_passwordTooLong_returns400() {
+        given().contentType(ContentType.JSON)
+                .body(String.format(
+                        "{\"email\":\"longpw@example.com\",\"displayName\":\"User\",\"password\":\"%s\"}",
+                        "a".repeat(73)))
+                .post("/api/auth/register")
+                .then().statusCode(400);
+    }
+
+    @Test
+    void register_shortPassword_returns201() {
+        // No minimum length: a short (but non-empty) password is accepted.
         given().contentType(ContentType.JSON)
                 .body("""
                         {"email":"short@example.com","displayName":"User","password":"short"}
                         """)
                 .post("/api/auth/register")
-                .then().statusCode(400);
+                .then().statusCode(201);
     }
 
     // ── Login ─────────────────────────────────────────────────────────────────

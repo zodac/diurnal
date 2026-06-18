@@ -39,6 +39,12 @@ public class User extends PanacheEntityBase {
     public static final String ROLE_ADMIN = "admin";
     public static final String ROLE_USER = "user";
 
+    /**
+     * Maximum accepted length of a raw (pre-hash) password. BCrypt only consumes the first 72 bytes
+     * of a password, so anything beyond this is ignored at hashing time; we reject it up front.
+     */
+    public static final int MAX_PASSWORD_LENGTH = 72;
+
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     public UUID id;

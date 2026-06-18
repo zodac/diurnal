@@ -125,6 +125,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .formParam("email", "newweb@example.com")
                 .formParam("displayName", "New Web User")
                 .formParam("password", "password123")
+                .formParam("confirmPassword", "password123")
                 .post("/register")
                 .then()
                 .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
@@ -132,40 +133,119 @@ class WebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    void register_duplicateEmail_redirectsWithEmailTakenError() {
+    void register_mismatchedConfirmPassword_rendersErrorBannerInPage() {
+        given().redirects().follow(false)
+                .formParam("email", "mismatch@example.com")
+                .formParam("displayName", "Mismatch")
+                .formParam("password", "password123")
+                .formParam("confirmPassword", "password124")
+                .post("/register")
+                .then()
+                .statusCode(400)
+                .body(containsString("The passwords did not match."));
+    }
+
+    @Test
+    void register_duplicateEmail_rendersErrorBannerInPage() {
         // "taken@example.com" is pre-created in createDbState()
         given().redirects().follow(false)
                 .formParam("email", "taken@example.com")
                 .formParam("displayName", "Dup")
                 .formParam("password", "password123")
+                .formParam("confirmPassword", "password123")
                 .post("/register")
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
-                .header("Location", containsString("email_taken"));
+                .statusCode(400)
+                .body(containsString("That email is already registered."));
     }
 
     @Test
-    void register_passwordTooShort_redirectsWithInvalidError() {
+    void register_failure_preservesSubmittedFieldValues() {
+        // A failed submission must re-render the form with the user's input intact (not cleared).
+        given().redirects().follow(false)
+                .formParam("email", "taken@example.com")
+                .formParam("displayName", "Dup Name")
+                .formParam("password", "password123")
+                .formParam("confirmPassword", "password123")
+                .post("/register")
+                .then()
+                .statusCode(400)
+                .body(containsString("value=\"taken@example.com\""))
+                .body(containsString("value=\"Dup Name\""));
+    }
+
+    @Test
+    void register_emptyFields_rendersBannerListingEachMissingField() {
+        given().redirects().follow(false)
+                .formParam("email", "")
+                .formParam("displayName", "")
+                .formParam("password", "")
+                .formParam("confirmPassword", "")
+                .post("/register")
+                .then()
+                .statusCode(400)
+                // Multiple missing fields → plural heading + each field on its own list item.
+                .body(containsString("Please fill in the following fields:"))
+                .body(containsString("<li>Email</li>"))
+                .body(containsString("<li>Display name</li>"))
+                .body(containsString("<li>Password</li>"))
+                .body(containsString("<li>Confirm password</li>"));
+    }
+
+    @Test
+    void register_emailWithoutAtSign_rendersErrorBannerInPage() {
+        given().redirects().follow(false)
+                .formParam("email", "no-at-sign")
+                .formParam("displayName", "No At")
+                .formParam("password", "password123")
+                .formParam("confirmPassword", "password123")
+                .post("/register")
+                .then()
+                .statusCode(400)
+                .body(containsString("Email must contain an @ symbol."));
+    }
+
+    @Test
+    void register_passwordTooLong_rendersErrorBannerInPage() {
+        final String tooLong = "a".repeat(73);
+        given().redirects().follow(false)
+                .formParam("email", "longpw@example.com")
+                .formParam("displayName", "Long PW")
+                .formParam("password", tooLong)
+                .formParam("confirmPassword", tooLong)
+                .post("/register")
+                .then()
+                .statusCode(400)
+                .body(containsString("Password must be at most 72 characters."));
+    }
+
+    @Test
+    void register_shortPassword_succeeds() {
+        // No minimum length: a short (but non-empty) password is accepted.
         given().redirects().follow(false)
                 .formParam("email", "shortpw@example.com")
                 .formParam("displayName", "Short PW")
                 .formParam("password", "short")
+                .formParam("confirmPassword", "short")
                 .post("/register")
                 .then()
                 .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
-                .header("Location", containsString("invalid"));
+                .header("Location", containsString("/login?registered"));
     }
 
     @Test
-    void register_blankDisplayName_redirectsWithInvalidError() {
+    void register_blankDisplayName_rendersErrorBannerInPage() {
         given().redirects().follow(false)
                 .formParam("email", "nodisplay@example.com")
                 .formParam("displayName", "  ")
                 .formParam("password", "password123")
+                .formParam("confirmPassword", "password123")
                 .post("/register")
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
-                .header("Location", containsString("invalid"));
+                .statusCode(400)
+                // A single missing field → singular heading + one list item.
+                .body(containsString("Please fill in the following field:"))
+                .body(containsString("<li>Display name</li>"));
     }
 
     // ── Logout ────────────────────────────────────────────────────────────────

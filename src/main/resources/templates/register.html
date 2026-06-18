@@ -9,28 +9,45 @@
         </h1>
         <p class="text-sm text-ink-muted mb-6">Create a new account</p>
 
-        {#if error.equals("email_taken")}
-        {#include partials/banner variant='error' cls='mb-4' message='That email is already registered.' /}
-        {#else if error.equals("invalid")}
-        {#include partials/banner variant='error' cls='mb-4'
-            message='Please fill in all fields. Password must be at least 8 characters.' /}
+        {#if missingFields.size > 0}
+        <div class="banner banner-error mb-4">
+            Please fill in the following {#if missingFields.size == 1}field{#else}fields{/if}:
+            <ul class="list-disc list-inside mt-1">
+                {#for field in missingFields}
+                <li>{field}</li>
+                {/for}
+            </ul>
+        </div>
         {/if}
+        {#for message in errors}
+        {#include partials/banner variant='error' cls='mb-4' message=message /}
+        {/for}
 
-        <form method="post" action="/register" class="space-y-4">
+        {! novalidate: defer all validation to the server so failures surface as the error banners
+           above, rather than as native browser pop-ups on individual fields. !}
+        <form method="post" action="/register" novalidate class="space-y-4">
             <div>
                 <label class="field-label" for="email">Email</label>
                 <input id="email" type="email" name="email" required autocomplete="email"
+                       value="{email}"
                        class="form-input w-full">
             </div>
             <div>
                 <label class="field-label" for="displayName">Display name</label>
                 <input id="displayName" type="text" name="displayName" required autocomplete="name"
+                       value="{displayName}"
                        class="form-input w-full">
             </div>
             <div>
                 <label class="field-label" for="password">Password</label>
                 <input id="password" type="password" name="password" required autocomplete="new-password"
-                       minlength="8"
+                       maxlength="{maxPasswordLength}" value="{password}"
+                       class="form-input w-full">
+            </div>
+            <div>
+                <label class="field-label" for="confirmPassword">Confirm password</label>
+                <input id="confirmPassword" type="password" name="confirmPassword" required
+                       autocomplete="new-password" maxlength="{maxPasswordLength}" value="{confirmPassword}"
                        class="form-input w-full">
             </div>
             <button type="submit" class="btn-primary w-full">

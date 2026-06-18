@@ -39,6 +39,7 @@ import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
 import java.net.URI;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
@@ -176,11 +177,11 @@ public class WebResource {
     @GET
     @Path("register")
     @Produces(MediaType.TEXT_HTML)
-    public Response registerPage(@QueryParam("error") @DefaultValue("") final String error) {
+    public Response registerPage() {
         if (!passwordAuthEnabled || !registrationEnabled) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        return Response.ok(registerTemplate.data("error", error, "theme", "system")).build();
+        return Response.ok(renderRegister("", "", "", "", List.of(), List.of())).build();
     }
 
     /** Handles the registration form submission, creating the user and redirecting to login. */
@@ -188,34 +189,124 @@ public class WebResource {
     @Path("register")
     @Transactional
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.TEXT_HTML)
     public Response register(
-            @FormParam("email")       final String email,
-            @FormParam("displayName") final String displayName,
-            @FormParam("password")    final String password) {
+            @FormParam("email")           final String email,
+            @FormParam("displayName")     final String displayName,
+            @FormParam("password")        final String password,
+            @FormParam("confirmPassword") final String confirmPassword) {
 
         if (!passwordAuthEnabled || !registrationEnabled) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
-        if (email == null || displayName == null || password == null
-                || email.isBlank() || displayName.isBlank() || password.length() < 8) {
-            return Response.seeOther(URI.create("/register?error=invalid")).build();
-        }
+        // Null-safe copies so the form can be re-rendered with the user's input preserved on failure.
+        final String emailValue = email == null ? "" : email;
+        final String displayNameValue = displayName == null ? "" : displayName;
+        final String passwordValue = password == null ? "" : password;
+        final String confirmValue = confirmPassword == null ? "" : confirmPassword;
 
-        final String normalised = email.toLowerCase(Locale.ROOT).strip();
-        if (User.findByEmail(normalised).isPresent()) {
-            return Response.seeOther(URI.create("/register?error=email_taken")).build();
+        final List<String> missingFields = missingFields(emailValue, displayNameValue, passwordValue, confirmValue);
+        final List<String> errors = validateRegistration(emailValue, passwordValue, confirmValue);
+        final String normalised = emailValue.toLowerCase(Locale.ROOT).strip();
+        if (missingFields.isEmpty() && errors.isEmpty() && User.findByEmail(normalised).isPresent()) {
+            errors.add("That email is already registered.");
+        }
+        if (!missingFields.isEmpty() || !errors.isEmpty()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(renderRegister(emailValue, displayNameValue, passwordValue, confirmValue,
+                            missingFields, errors))
+                    .build();
         }
 
         final User user = new User();
         user.email = normalised;
-        user.displayName = displayName.strip();
-        user.passwordHash = BCrypt.hashpw(password, BCrypt.gensalt(12));
+        user.displayName = displayNameValue.strip();
+        user.passwordHash = BCrypt.hashpw(passwordValue, BCrypt.gensalt(12));
         user.role = roleAssigner.roleForNewUser();
         user.persist();
 
         LOGGER.infof("New user registered: %s (role=%s)", normalised, user.role);
         return Response.seeOther(URI.create("/login?registered=true")).build();
+    }
+
+    /**
+     * Collects the display labels of every required field left blank, so they can be listed together.
+     * Returns an empty (mutable) list when all fields are populated.
+     *
+     * @param email           the submitted email
+     * @param displayName     the submitted display name
+     * @param password        the submitted password
+     * @param confirmPassword the submitted password confirmation
+     * @return the (possibly empty) list of missing-field labels
+     */
+    private static List<String> missingFields(final String email, final String displayName,
+            final String password, final String confirmPassword) {
+        final List<String> missing = new ArrayList<>();
+        if (email.isBlank()) {
+            missing.add("Email");
+        }
+        if (displayName.isBlank()) {
+            missing.add("Display name");
+        }
+        if (password.isEmpty()) {
+            missing.add("Password");
+        }
+        if (confirmPassword.isEmpty()) {
+            missing.add("Confirm password");
+        }
+        return missing;
+    }
+
+    /**
+     * Collects the format/consistency validation errors (those not covered by {@link #missingFields})
+     * so they can all be surfaced at once. Returns an empty (mutable) list when the submission is valid.
+     *
+     * @param email           the submitted email
+     * @param password        the submitted password
+     * @param confirmPassword the submitted password confirmation
+     * @return the (possibly empty) list of human-readable error messages
+     */
+    private static List<String> validateRegistration(final String email, final String password,
+            final String confirmPassword) {
+        final List<String> errors = new ArrayList<>();
+
+        if (!email.isBlank() && !email.contains("@")) {
+            errors.add("Email must contain an @ symbol.");
+        }
+        if (!password.isEmpty() && password.length() > User.MAX_PASSWORD_LENGTH) {
+            errors.add("Password must be at most " + User.MAX_PASSWORD_LENGTH + " characters.");
+        }
+        if (!password.isEmpty() && !confirmPassword.isEmpty() && !password.equals(confirmPassword)) {
+            errors.add("The passwords did not match.");
+        }
+
+        return errors;
+    }
+
+    /**
+     * Renders the registration page, preserving the submitted values and surfacing any error messages.
+     *
+     * @param email           the email to pre-fill
+     * @param displayName     the display name to pre-fill
+     * @param password        the password to pre-fill
+     * @param confirmPassword the password confirmation to pre-fill
+     * @param missingFields   the labels of any blank required fields (empty for a fresh page)
+     * @param errors          the error messages to display (empty for a fresh page)
+     * @return the rendered template instance
+     */
+    private TemplateInstance renderRegister(final String email, final String displayName,
+            final String password, final String confirmPassword, final List<String> missingFields,
+            final List<String> errors) {
+        return registerTemplate
+                .data("email", email)
+                .data("displayName", displayName)
+                .data("password", password)
+                .data("confirmPassword", confirmPassword)
+                .data("missingFields", missingFields)
+                .data("errors", errors)
+                .data("theme", "system")
+                .data("maxPasswordLength", User.MAX_PASSWORD_LENGTH);
     }
 
     // ── Logout ────────────────────────────────────────────────────────────
