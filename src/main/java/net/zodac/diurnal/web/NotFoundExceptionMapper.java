@@ -21,11 +21,13 @@ import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.security.identity.CurrentIdentityAssociation;
 import io.smallrye.mutiny.Uni;
+import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.net.URI;
 import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 
 /** Renders the styled 404 page (instead of the default JSON error) for unknown routes. */
@@ -37,10 +39,19 @@ public class NotFoundExceptionMapper {
     Template errorTemplate;
     @Inject CurrentIdentityAssociation identityAssociation;
 
-    /** Maps a {@link NotFoundException} to the styled 404 HTML page. */
+    /**
+     * Maps a {@link NotFoundException} to a redirect or the styled 404 HTML page. For anonymous
+     * browser navigations to unknown web routes, it redirects to {@code /login} rather than showing a
+     * 404 — and {@code /login} itself redirects on to {@code /welcome} during first-run setup, so an
+     * unknown link always lands the visitor in the correct place (setup or sign-in). API, asset and
+     * health 404s, and 404s for authenticated users, fall through to the styled 404 page.
+     */
     @ServerExceptionMapper
-    public Uni<Response> toResponse(NotFoundException exception) {
+    public Uni<Response> toResponse(final NotFoundException exception, final RoutingContext routingContext) {
         return identityAssociation.getDeferredIdentity().map(identity -> {
+            if (identity.isAnonymous() && isWebNavigation(routingContext)) {
+                return Response.seeOther(URI.create("/login")).build();
+            }
             String displayName = "";
             boolean isAdmin = false;
             if (!identity.isAnonymous()) {
@@ -56,5 +67,22 @@ public class NotFoundExceptionMapper {
                     .type(MediaType.TEXT_HTML_TYPE)
                     .build();
         });
+    }
+
+    /**
+     * Whether this 404 is a browser navigation to a web-UI route (so it should be redirected into the
+     * auth flow) rather than an API/health call or static-asset request (which should 404 normally).
+     * Identified by an HTML {@code Accept} header on a non-{@code /api}, non-{@code /q/} path.
+     *
+     * @param routingContext the current request's routing context
+     * @return {@code true} if the request looks like a browser navigation to a web page
+     */
+    private static boolean isWebNavigation(final RoutingContext routingContext) {
+        final String path = routingContext.normalizedPath();
+        if (path.startsWith("/api") || path.startsWith("/q/")) {
+            return false;
+        }
+        final String accept = routingContext.request().getHeader("Accept");
+        return accept != null && accept.contains("text/html");
     }
 }

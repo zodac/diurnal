@@ -70,6 +70,9 @@ public class WebResource {
     @Inject
     @Location("settings")
     Template settingsTemplate;
+    @Inject
+    @Location("setup")
+    Template setupTemplate;
 
     @Inject SecurityIdentity identity;
     @Inject StatsService statsService;
@@ -100,9 +103,18 @@ public class WebResource {
     @GET
     @Path("login")
     @Produces(MediaType.TEXT_HTML)
+    @Transactional
     public Response loginPage(
             @QueryParam("error")      final String error,
             @QueryParam("registered") @DefaultValue("false") final boolean registered) {
+        // First run: no users exist yet. Send the deployer to the setup landing page to create the
+        // initial local account, and short-circuit any OIDC auto-redirect below — the first account
+        // must be local. During setup the initial account can always be created (ENABLE_REGISTRATION
+        // is ignored until a user exists), so this is gated only on password auth being enabled; a
+        // pure-OIDC deployment (no local auth) falls through to the normal login/OIDC flow.
+        if (setupRequired() && passwordAuthEnabled) {
+            return Response.seeOther(URI.create("/welcome")).build();
+        }
         // Auto-redirect to OIDC flow when configured, but not when there is an error or
         // success message to show (e.g. after registration or a failed OIDC attempt).
         if (oidcEnabled && oidcAutoRedirect && error == null && !registered) {
@@ -171,15 +183,42 @@ public class WebResource {
         return Response.seeOther(URI.create("/")).build();
     }
 
+    // ── First-run setup ──────────────────────────────────────────────────────
+
+    /**
+     * First-run landing page: introduces the application and guides the deployer to register the
+     * initial (local, administrator) account. Once any user exists — or when local registration is
+     * unavailable — it redirects to {@code /login}, so it is only ever visible during setup.
+     */
+    @GET
+    @Path("welcome")
+    @Produces(MediaType.TEXT_HTML)
+    @Transactional
+    public Response welcomePage() {
+        if (!setupRequired() || !passwordAuthEnabled) {
+            return Response.seeOther(URI.create("/login")).build();
+        }
+        return Response.ok(setupTemplate.data("theme", "system")).build();
+    }
+
     // ── Register ───────────────────────────────────────────────────────────
 
-    /** Renders the registration page, or {@code 404} when password registration is disabled. */
+    /**
+     * Renders the registration page. Returns {@code 404} only when password auth is disabled entirely
+     * (no local registration concept). When password auth is on but registration is disabled and setup
+     * is complete, it still renders the page — showing a "registration disabled" banner instead of the
+     * form, rather than a bare browser error.
+     */
     @GET
     @Path("register")
     @Produces(MediaType.TEXT_HTML)
+    @Transactional
     public Response registerPage() {
-        if (!passwordAuthEnabled || !registrationEnabled) {
+        if (!passwordAuthEnabled) {
             return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        if (!registrationAllowed()) {
+            return Response.ok(renderRegisterDisabled()).build();
         }
         return Response.ok(renderRegister("", "", "", "", List.of(), List.of())).build();
     }
@@ -196,8 +235,11 @@ public class WebResource {
             @FormParam("password")        final String password,
             @FormParam("confirmPassword") final String confirmPassword) {
 
-        if (!passwordAuthEnabled || !registrationEnabled) {
+        if (!passwordAuthEnabled) {
             return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        if (!registrationAllowed()) {
+            return Response.status(Response.Status.FORBIDDEN).entity(renderRegisterDisabled()).build();
         }
 
         // Null-safe copies so the form can be re-rendered with the user's input preserved on failure.
@@ -305,8 +347,39 @@ public class WebResource {
                 .data("confirmPassword", confirmPassword)
                 .data("missingFields", missingFields)
                 .data("errors", errors)
+                .data("setup", setupRequired())
+                .data("registrationDisabled", false)
                 .data("theme", "system")
                 .data("maxPasswordLength", User.MAX_PASSWORD_LENGTH);
+    }
+
+    /**
+     * Renders the registration page in its disabled state — a "registration is disabled, contact your
+     * administrator" banner in place of the form. Used when password auth is enabled but registration
+     * is off and the initial account already exists.
+     *
+     * @return the rendered template instance
+     */
+    private TemplateInstance renderRegisterDisabled() {
+        return registerTemplate
+                .data("registrationDisabled", true)
+                .data("setup", false)
+                .data("theme", "system");
+    }
+
+    /** True on first run — no users exist yet, so the deployer must create the initial local account. */
+    private boolean setupRequired() {
+        return User.count() == 0;
+    }
+
+    /**
+     * Whether local registration is currently permitted. The initial account can always be created
+     * during first-run setup (so {@code ENABLE_REGISTRATION=false} can never lock out the very first
+     * user); once any user exists, {@code ENABLE_REGISTRATION} is respected. Password auth must be
+     * enabled in either case, since registration creates a local password account.
+     */
+    private boolean registrationAllowed() {
+        return passwordAuthEnabled && (setupRequired() || registrationEnabled);
     }
 
     // ── Logout ────────────────────────────────────────────────────────────

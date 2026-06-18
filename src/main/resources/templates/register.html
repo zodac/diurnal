@@ -7,7 +7,21 @@
         <h1 class="mb-1">
             <img src="/img/wordmark.svg" alt="Diurnal" class="h-8 w-auto" width="121" height="32">
         </h1>
+        {#if setup}
+        <p class="text-sm text-ink-muted mb-6">Create the administrator account for this instance</p>
+        {#else if registrationDisabled}
+        <p class="text-sm text-ink-muted mb-6">Registration unavailable</p>
+        {#else}
         <p class="text-sm text-ink-muted mb-6">Create a new account</p>
+        {/if}
+
+        {#if registrationDisabled}
+        {#include partials/banner variant='error' cls='mb-4'
+            message='Registration is currently disabled. Please contact your system administrator.' /}
+        <p class="mt-4 text-center text-sm text-ink-muted">
+            <a href="/login" class="text-brand hover:underline font-medium">Back to sign in</a>
+        </p>
+        {#else}
 
         {#if missingFields.size > 0}
         <div class="banner banner-error mb-4">
@@ -55,10 +69,13 @@
             </button>
         </form>
 
+        {#if !setup}
         <p class="mt-4 text-center text-sm text-ink-muted">
             Already have an account?
             <a href="/login" class="text-brand hover:underline font-medium">Sign in</a>
         </p>
+        {/if}
+        {/if}
     </div>
 </div>
 {/body}

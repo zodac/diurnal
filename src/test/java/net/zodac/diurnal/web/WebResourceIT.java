@@ -317,4 +317,26 @@ class WebResourceIT extends IntegrationTestBase {
                 .contentType(containsString("text/html"))
                 .body(containsString("Page Not Found"));
     }
+
+    @Test
+    void unknownPath_unauthenticatedBrowser_redirectsToLogin() {
+        // A browser navigation (Accept: text/html) to an unknown route, while signed out, is sent to
+        // the login flow rather than shown a 404. Users exist here, so /login does not bounce onward.
+        given().redirects().follow(false)
+                .header("Accept", "text/html")
+                .get("/this-path-does-not-exist")
+                .then()
+                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .header("Location", containsString("/login"));
+    }
+
+    @Test
+    void unknownApiPath_browser_returns404NotRedirect() {
+        // /api 404s must never be redirected into the web auth flow, even with an HTML Accept header.
+        given().redirects().follow(false)
+                .header("Accept", "text/html")
+                .get("/api/this-does-not-exist")
+                .then()
+                .statusCode(404);
+    }
 }
