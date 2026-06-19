@@ -102,20 +102,13 @@
                 </div>
 
                 <!-- Items per page -->
-                <div class="flex items-center justify-between py-4 border-b border-line">
-                    <div class="flex-1">
-                        <label for="pageSize" class="block text-sm font-medium text-ink">Items per page</label>
-                    </div>
-                    <div class="ml-4 flex items-center">
-                        <select id="pageSize"
-                                name="pageSize"
-                                class="form-select">
-                            {#for option in pageSizeOptions}
-                            <option value="{option}" {#if option == pageSize}selected{/if}>{option}</option>
-                            {/for}
-                        </select>
-                    </div>
-                </div>
+                {#include partials/select-field id="pageSize" label="Items per page" border=true}
+                    {#options}
+                    {#for option in pageSizeOptions}
+                    <option value="{option}" {#if option == pageSize}selected{/if}>{option}</option>
+                    {/for}
+                    {/options}
+                {/include}
 
                 <!-- Calendar style -->
                 <div class="py-4 border-b border-line">
@@ -128,35 +121,57 @@
                 </div>
 
                 <!-- Timezone -->
-                <div class="flex items-center justify-between py-4">
-                    <div class="flex-1">
-                        <label for="timezone" class="block text-sm font-medium text-ink">Timezone</label>
-                    </div>
-                    <div class="ml-4 flex items-center">
-                        <select id="timezone"
-                                name="timezone"
-                                class="form-select">
-                            {#for choice in timezoneChoices}
-                            <option value="{choice.value}" {#if choice.selected}selected{/if}>{choice.label}</option>
-                            {/for}
-                        </select>
-                    </div>
-                </div>
+                {#include partials/select-field id="timezone" label="Timezone" border=false}
+                    {#options}
+                    {#for choice in timezoneChoices}
+                    <option value="{choice.value}" {#if choice.selected}selected{/if}>{choice.label}</option>
+                    {/for}
+                    {/options}
+                {/include}
             </form>
         </div>
 
-        <!-- Full-size preview overlay (opened by the (!) icon on a preview tile) -->
+        <!-- Full-size preview overlay (opened by the (!) icon on a preview tile). Acts as a
+             per-setting gallery: prev/next step through the options of the same picker only. -->
         <div id="preview-modal"
-             class="hidden fixed inset-0 z-50 items-center justify-center bg-black/70 p-4"
+             class="hidden fixed inset-0 z-50 items-center justify-center bg-black/70 p-4 opacity-0"
              onclick="closePreview()">
-            <div class="max-w-5xl w-full" onclick="event.stopPropagation()">
-                <div class="flex items-center justify-between mb-2">
-                    <h4 id="preview-modal-title" class="text-white text-sm font-medium"></h4>
-                    <button type="button" onclick="closePreview()" aria-label="Close preview"
-                            class="text-white/70 hover:text-white text-xl leading-none px-2">&times;</button>
+            <div id="preview-modal-panel"
+                 class="max-w-5xl w-full origin-center"
+                 onclick="event.stopPropagation()">
+                <div class="flex items-center justify-between mb-2 gap-3">
+                    <h4 id="preview-modal-title" class="text-white text-sm font-medium truncate"></h4>
+                    <div class="flex items-center gap-2 flex-shrink-0">
+                        <button type="button" id="preview-apply" onclick="applyPreview()"
+                                class="btn-primary text-xs px-3 py-1.5 sm:text-sm sm:px-4 sm:py-2">
+                            Apply
+                        </button>
+                        <button type="button" onclick="closePreview()" aria-label="Close preview"
+                                class="icon-btn-primary">
+                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
                 </div>
-                <img id="preview-modal-img" src="" alt=""
-                     class="w-full h-auto rounded-lg shadow-2xl border border-white/10">
+                <div class="relative">
+                    <img id="preview-modal-img" src="" alt=""
+                         class="w-full h-auto rounded-lg shadow-2xl border border-white/10">
+                    <!-- Arrows centred with inset-y-0 + my-auto (NOT -translate-y-1/2): a transform would
+                         put each on its own GPU layer and make the glyph sub-pixel-snap on first hover. -->
+                    <button type="button" id="preview-prev" onclick="previewStep(-1)" aria-label="Previous preview"
+                            class="icon-btn-primary absolute left-2 inset-y-0 my-auto">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+                        </svg>
+                    </button>
+                    <button type="button" id="preview-next" onclick="previewStep(1)" aria-label="Next preview"
+                            class="icon-btn-primary absolute right-2 inset-y-0 my-auto">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                        </svg>
+                    </button>
+                </div>
             </div>
         </div>
 
@@ -207,24 +222,110 @@
                 }
             });
 
-            // Full-size preview overlay for the Theme / Calendar-style tiles. Calendar tiles pass a
-            // dark-mode variant as the third arg; show it when the page is currently in dark mode.
-            function openPreview(src, title, darkSrc) {
-                var modal = document.getElementById('preview-modal');
+            // Full-size preview overlay for the Theme / Calendar-style tiles. It is a per-setting
+            // gallery: opening any tile's (!) lets you step (prev/next) through the OTHER options of
+            // the SAME picker only — the tiles are scoped by their shared data-preview-group.
+            var previewTiles = [];   // the gallery currently on screen (one picker's tiles)
+            var previewIndex = 0;    // which tile of that gallery is showing
+            var EASE = 'cubic-bezier(0.65, 0, 0.35, 1)'; // even ease-in-out used by the expand/collapse
+
+            // Cancel every animation on the modal/panel so each open or close starts from a clean
+            // slate AND, crucially, no `fill: forwards` animation is left attached at rest — a
+            // lingering one keeps the panel on a GPU layer, which makes the icon buttons inside it
+            // sub-pixel-snap the first time they're hovered.
+            function clearPreviewAnims() {
+                document.getElementById('preview-modal').getAnimations().forEach(function (a) { a.cancel(); });
+                document.getElementById('preview-modal-panel').getAnimations().forEach(function (a) { a.cancel(); });
+            }
+
+            // A tile may carry a dark-mode variant (calendar tiles); show it when in dark mode.
+            function previewSrcFor(tile) {
+                var dark = tile.dataset.previewDark;
+                return (dark && document.documentElement.classList.contains('dark')) ? dark : tile.dataset.previewSrc;
+            }
+
+            function renderPreview() {
+                var tile = previewTiles[previewIndex];
                 var img = document.getElementById('preview-modal-img');
-                img.src = (darkSrc && document.documentElement.classList.contains('dark')) ? darkSrc : src;
-                img.alt = title;
-                document.getElementById('preview-modal-title').textContent = title;
+                img.src = previewSrcFor(tile);
+                img.alt = tile.dataset.previewTitle;
+                document.getElementById('preview-modal-title').textContent = tile.dataset.previewTitle;
+                var multi = previewTiles.length > 1;
+                document.getElementById('preview-prev').classList.toggle('hidden', !multi);
+                document.getElementById('preview-next').classList.toggle('hidden', !multi);
+            }
+
+            function openPreview(btn) {
+                var tile = btn.closest('[data-preview-group]');
+                var group = tile.dataset.previewGroup;
+                previewTiles = Array.prototype.slice.call(
+                    document.querySelectorAll('[data-preview-group="' + group + '"]'));
+                previewIndex = previewTiles.indexOf(tile);
+                renderPreview();
+
+                var modal = document.getElementById('preview-modal');
+                var panel = document.getElementById('preview-modal-panel');
                 modal.classList.remove('hidden');
                 modal.classList.add('flex');
+                // Drive the expand with the Web Animations API rather than CSS transitions: WAAPI
+                // runs on the compositor and doesn't depend on the browser painting a collapsed
+                // start frame first, so there's no pop/stutter. ease-in-out grows evenly from 0.
+                clearPreviewAnims();
+                var fade = modal.animate([{ opacity: 0 }, { opacity: 1 }],
+                    { duration: 350, easing: 'ease-out', fill: 'forwards' });
+                // Promote opacity to the base style and drop the animation so the backdrop isn't
+                // left composited (the class makes the resting state, then cancel releases the layer).
+                fade.onfinish = function () { modal.classList.remove('opacity-0'); fade.cancel(); };
+                var grow = panel.animate([{ transform: 'scale(0)' }, { transform: 'scale(1)' }],
+                    { duration: 650, easing: EASE, fill: 'forwards' });
+                // scale(1) == no transform, so cancelling on finish is visually identical but releases
+                // the GPU layer — without this the buttons inside sub-pixel-snap on first hover.
+                grow.onfinish = function () { grow.cancel(); };
             }
+
+            // Select the currently-previewed option (same as ticking its radio) and close.
+            function applyPreview() {
+                var radio = previewTiles[previewIndex].querySelector('input[type="radio"]');
+                if (radio && !radio.checked) {
+                    radio.checked = true;
+                    // Bubbles so the prefs-form's change-trigger saves it and the theme listener applies it.
+                    radio.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                closePreview();
+            }
+
+            function previewStep(delta) {
+                if (previewTiles.length < 2) return;
+                previewIndex = (previewIndex + delta + previewTiles.length) % previewTiles.length;
+                renderPreview();
+            }
+
             function closePreview() {
                 var modal = document.getElementById('preview-modal');
-                modal.classList.add('hidden');
-                modal.classList.remove('flex');
+                var panel = document.getElementById('preview-modal-panel');
+                if (modal.classList.contains('hidden')) return;
+                clearPreviewAnims();
+                // Exact time-reverse of open: the panel zooms out over the full 650ms while the
+                // backdrop stays up, and the fade only runs in the LAST 350ms (delay 300ms). Open
+                // fades IN first then zooms; reversed, close zooms out then fades — so you actually
+                // see the collapse instead of a fast fade hiding it.
+                modal.animate([{ opacity: 1 }, { opacity: 0 }],
+                    { duration: 350, delay: 300, easing: 'ease-in', fill: 'forwards' });
+                var shrink = panel.animate([{ transform: 'scale(1)' }, { transform: 'scale(0)' }],
+                    { duration: 650, easing: EASE, fill: 'forwards' });
+                shrink.onfinish = function () {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                    modal.classList.add('opacity-0'); // restore the resting hidden-opacity for next open
+                    clearPreviewAnims();               // drop the forwards-fills so nothing stays composited
+                };
             }
+
             document.addEventListener('keydown', function (e) {
+                if (document.getElementById('preview-modal').classList.contains('hidden')) return;
                 if (e.key === 'Escape') closePreview();
+                else if (e.key === 'ArrowLeft') previewStep(-1);
+                else if (e.key === 'ArrowRight') previewStep(1);
             });
         </script>
     </main>

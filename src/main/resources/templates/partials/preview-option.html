@@ -12,7 +12,8 @@
     title   - heading shown in the full-size preview modal
     alt     - image alt text
 !}
-<div class="relative">
+<div class="relative" data-preview-group="{group}"
+     data-preview-src="/img/settings/{img}" data-preview-title="{title}"{#if imgDark} data-preview-dark="/img/settings/{imgDark}"{/if}>
     <label class="block cursor-pointer">
         <input type="radio" name="{group}" value="{value}" class="sr-only peer"{#if current == value} checked{/if}>
         <span class="preview-option">
@@ -27,7 +28,7 @@
     </label>
     <button type="button" class="preview-info"
             aria-label="View {title} preview full size"
-            onclick="openPreview('/img/settings/{img}', '{title}'{#if imgDark}, '/img/settings/{imgDark}'{/if})">
+            onclick="openPreview(this)">
         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
             <path stroke-linecap="round" stroke-linejoin="round"
                   d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />

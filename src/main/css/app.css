@@ -128,6 +128,17 @@
            px-4 py-2 text-sm font-medium hover:bg-brand-hover focus:outline-none focus:ring-2
            focus:ring-brand-ring focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors;
   }
+  /* Circular icon button sharing the primary button's brand colours (modal close + gallery
+     prev/next). Keeps every action control on the page visually aligned with .btn-primary. Carries
+     one responsive size (≈0.8x on mobile → full on sm:) so every preview button scales by the same
+     factor and stays consistent across viewports/pages; its glyph scales in lockstep. */
+  .icon-btn-primary {
+    @apply inline-flex items-center justify-center rounded-full bg-brand text-on-brand
+           hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand-ring
+           focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors
+           w-8 h-8 sm:w-10 sm:h-10;
+  }
+  .icon-btn-primary svg { @apply w-4 h-4 sm:w-5 sm:h-5; }
   /* Outlined / neutral action (OIDC sign-in). */
   .btn-secondary {
     @apply inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300
@@ -152,10 +163,13 @@
            bg-white dark:bg-gray-700 text-ink
            focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-transparent;
   }
-  /* Settings-style select. */
+  /* Settings-style select. `max-w-full` + `min-w-0` keep it bounded on narrow screens: a <select>'s
+     intrinsic width is its WIDEST <option> (e.g. long timezone names), so without these it overruns
+     its container on mobile. Its flex wrapper must also be allowed to shrink (`min-w-0` on the wrapper)
+     — see the settings rows. The selected text then truncates with an ellipsis instead of overflowing. */
   .form-select {
     @apply rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-ink
-           focus:ring-brand-ring focus:border-brand-ring py-1.5 pl-3 pr-8 cursor-pointer;
+           focus:ring-brand-ring focus:border-brand-ring py-1.5 pl-3 pr-8 cursor-pointer max-w-full min-w-0;
   }
   /* Selectable screenshot-preview tile (settings Theme / Calendar-style pickers). Sits
      after a `sr-only peer` radio so the checked/hover/focus states are driven by the input. */

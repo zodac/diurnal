@@ -1,0 +1,24 @@
+{!
+  A settings row: a label paired with a bounded <select>. The caller supplies the <option>s in
+  an {#options} block (evaluated in the caller's context, so page data is in scope).
+
+  The responsive bounding lives here ONCE — the wrapper's `min-w-0` lets the select shrink and
+  `.form-select`'s `max-w-full` caps it — so every dropdown stays inside its container on mobile
+  (a <select> is otherwise as wide as its widest <option>, e.g. long timezone names). Add future
+  dropdown rows via this partial instead of hand-rolling the divs/classes.
+
+  Params (all required):
+    id     - the select's id AND form field name
+    label  - the visible field label
+    border - true to add a bottom divider (between rows), false on the last row
+!}
+<div class="flex items-center justify-between py-4{#if border} border-b border-line{/if}">
+    <div class="flex-shrink-0">
+        <label for="{id}" class="block text-sm font-medium text-ink">{label}</label>
+    </div>
+    <div class="ml-4 flex items-center min-w-0">
+        <select id="{id}" name="{id}" class="form-select">
+            {#insert options /}
+        </select>
+    </div>
+</div>
