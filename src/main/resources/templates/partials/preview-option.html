@@ -18,10 +18,14 @@
         <input type="radio" name="{group}" value="{value}" class="sr-only peer"{#if current == value} checked{/if}>
         <span class="preview-option">
             {#if imgDark}
-            <img src="/img/settings/{img}"     alt="{alt}" class="preview-img dark:hidden"      loading="lazy" decoding="async">
-            <img src="/img/settings/{imgDark}" alt="{alt}" class="preview-img hidden dark:block" loading="lazy" decoding="async">
+            {! Both variants are eager-loaded (not lazy): a lazy img with display:none is never
+               fetched until shown, so the first dark<->light switch would otherwise have to fetch the
+               hidden variant on the fly — flashing in and shifting layout as it arrives. Loading both
+               up front makes the swap instant. width/height reserve the 2400x1640 box (no CLS). !}
+            <img src="/img/settings/{img}"     alt="{alt}" width="2400" height="1640" class="preview-img dark:hidden"      loading="eager" decoding="async">
+            <img src="/img/settings/{imgDark}" alt="{alt}" width="2400" height="1640" class="preview-img hidden dark:block" loading="eager" decoding="async">
             {#else}
-            <img src="/img/settings/{img}" alt="{alt}" class="preview-img" loading="lazy" decoding="async">
+            <img src="/img/settings/{img}" alt="{alt}" width="2400" height="1640" class="preview-img" loading="lazy" decoding="async">
             {/if}
             <span class="preview-label">{label}</span>
         </span>
