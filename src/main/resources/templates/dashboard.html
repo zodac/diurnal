@@ -208,13 +208,11 @@
 
         </div>
 
-        <!-- Stats quick-link -->
+        <!-- Stats quick-link (hidden until there are logged actions) -->
+        {#if !recentStats.isEmpty()}
         <div class="card p-6">
             <h3 class="card-title mb-4">Stats</h3>
 
-            {#if recentStats.isEmpty()}
-            <p class="text-sm text-ink-muted italic mb-4">No actions logged yet.</p>
-            {#else}
             <div class="flex flex-col gap-3 mb-4">
                 {#for s in recentStats}
                 <div class="stat-tile border border-line-subtle
@@ -246,12 +244,12 @@
                 </div>
                 {/for}
             </div>
-            {/if}
 
             <a href="/stats" class="btn-primary">
                 View stats for all actions
             </a>
         </div>
+        {/if}
     </main>
 </div>
 
