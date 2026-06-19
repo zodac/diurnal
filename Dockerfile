@@ -3,7 +3,7 @@
 # ── Stage 1: compile + purge the Tailwind CSS ────────────────────────────────
 # Scans the templates + Java sources and emits a minified app.css. Kept in its own
 # stage so the Node toolchain never reaches the build or runtime images.
-FROM node:20-alpine AS css
+FROM node:26-alpine AS css
 WORKDIR /css
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -19,7 +19,7 @@ RUN npm run css
 # in its own stage so ImageMagick / librsvg / optipng never reach the build or runtime images. librsvg
 # is ImageMagick's SVG-rendering backend; imagemagick also packs the .ico. Outputs land in
 # src/main/resources/META-INF/resources/img.
-FROM node:20-alpine AS icons
+FROM node:26-alpine AS icons
 RUN apk add --no-cache imagemagick librsvg optipng
 WORKDIR /icons
 COPY scripts/generate-favicons.cjs ./scripts/
