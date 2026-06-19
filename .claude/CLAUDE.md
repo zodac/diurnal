@@ -44,9 +44,6 @@ mvn test -Dtests
 # Run a single test class
 mvn test -Dtests -Dtest=MyTestClass
 
-# Run only *IT.java integration tests (starts and stops the test DB automatically)
-mvn clean install -Dit
-
 # Run Playwright E2E tests only (test DB on :5433). Defaults to an app on :8080; point it at any
 # running instance with BASE_URL (e.g. the dev server, or the -Dall jar — both on :8081).
 cd e2e && npm test                                  # against :8080
@@ -62,24 +59,40 @@ docker compose logs -f app
 > `docker-compose` (hyphenated) binary.** This applies to every command; only the `docker-compose.yml`
 > / `docker-compose.dev.yml` **filenames** keep the hyphen, since those are the literal files on disk.
 
-Dev mode disables Testcontainers and expects a local PostgreSQL on `localhost:5432` with database/user/password all `diurnal` (start it with `docker compose -f docker-compose.dev.yml up -d dev-db`). Flyway migrations run automatically at startup. A single `docker-compose.dev.yml` defines **both** local databases as separate services: `dev-db` (persistent, 5432, `diurnal`) and `test-db` (tmpfs, 5433, `diurnal_test`); always start/stop them **by service name** so the two never interfere.
+Dev mode disables Testcontainers and expects a local PostgreSQL on `localhost:5432` with database/user/password all `diurnal` (start it with
+`docker compose -f docker-compose.dev.yml up -d dev-db`). Flyway migrations run automatically at startup. A single `docker-compose.dev.yml` defines *
+*both** local databases as separate services: `dev-db` (persistent, 5432, `diurnal`) and `test-db` (tmpfs, 5433, `diurnal_test`); always start/stop
+them **by service name** so the two never interfere.
 
 > **Always tear down the dev environment once testing/verification is finished.** Never leave dev
 > resources running at the end of a task:
 > 1. Stop the dev app: `pkill -f "quarkus:dev"` and confirm port 8081 is free (frees 8081 for the
->    `@QuarkusTest` test-port and stops a stale server masking changes).
+     > `@QuarkusTest` test-port and stops a stale server masking changes).
 > 2. Stop the local DBs: `docker compose -f docker-compose.dev.yml down` (brings down both `dev-db`
->    and `test-db`; the `dev_postgres_data` volume persists, so dev data survives the next start).
+     > and `test-db`; the `dev_postgres_data` volume persists, so dev data survives the next start).
 >
 > The **test** DB (the `test-db` service in `docker-compose.dev.yml`, port 5433) does **not** need
-> manual teardown for a test run: the `-Dall` / `-Dit` Maven profiles start it (`up … test-db`) in
+> manual teardown for a test run: the `-Dall` Maven profiles start it (`up … test-db`) in
 > `pre-integration-test` and remove it (`rm -sf test-db`) in `post-integration-test` automatically,
 > **scoped to the service** so they never touch a running `dev-db`. Only close it by hand if you
 > started it yourself (the unit-test command `mvn test -Dtests` runs pure JUnit and needs no DB).
 
-Config is layered by Quarkus profile: `application.properties` holds the base/production config, and profile-specific overrides live in `application-dev.properties` (dev mode — HTTP port **8081**, dev DB on 5432, DEBUG logging, Swagger UI) and `application-test.properties` (test DB on 5433, forced UTC). Both profile files **must** stay in `src/main/resources` (not `src/test/resources`): the `-Dall` E2E step runs the packaged jar with `-Dquarkus.profile=test`, which only reads config that was bundled into the jar.
+Config is layered by Quarkus profile: `application.properties` holds the base/production config, and profile-specific overrides live in
+`application-dev.properties` (dev mode — HTTP port **8081**, dev DB on 5432, DEBUG logging, Swagger UI) and `application-test.properties` (test DB on
+5433, forced UTC). Both profile files **must** stay in `src/main/resources` (not `src/test/resources`): the `-Dall` E2E step runs the packaged jar
+with `-Dquarkus.profile=test`, which only reads config that was bundled into the jar.
 
-**Port map**: **8080** = production (`application.properties` default, the `docker compose` container); **8081** = the single "testing" port — dev mode (`application-dev.properties`), the `@QuarkusTest` test-port the unit/`*IT` tests bind, *and* the packaged-jar E2E run under `-Dall` (`-Dquarkus.http.port=${e2e.http.port}` in `pom.xml`). These three never run at once, so they share one port. Under `-Dall` the ordering is the load-bearing detail, and it comes **only from Maven phase binding, never from plugin/execution declaration order** — the inherited sortpom plugin re-sorts plugins (by `artifactId`) and executions on every build, so anything relying on declaration order is silently broken (e.g. `exec-maven-plugin` always sorts before `maven-failsafe-plugin`). So the `*IT` tests run via failsafe in `integration-test` (failure deferred to `verify`), the **failsafe gate fails the build in `verify` if any IT failed**, and only then does the E2E run — bound to `install`, the first phase after `verify` — so the ITs are always confirmed green before E2E starts, and 8081 is long released by the `@QuarkusTest` instance. The E2E step (`e2e/run-e2e.sh`) is self-contained: it brings up its own test DB, starts the jar on 8081, runs Playwright, tears everything down via an EXIT trap, and exits with Playwright's code (so an E2E failure fails the build). Keeping testing on 8081 leaves 8080 free, so `-Dall` coexists with a running production container.
+**Port map**: **8080** = production (`application.properties` default, the `docker compose` container); **8081** = the single "testing" port — dev
+mode (`application-dev.properties`), the `@QuarkusTest` test-port the unit/`*IT` tests bind, *and* the packaged-jar E2E run under `-Dall` (
+`-Dquarkus.http.port=${e2e.http.port}` in `pom.xml`). These three never run at once, so they share one port. Under `-Dall` the ordering is the
+load-bearing detail, and it comes **only from Maven phase binding, never from plugin/execution declaration order** — the inherited sortpom plugin
+re-sorts plugins (by `artifactId`) and executions on every build, so anything relying on declaration order is silently broken (e.g.
+`exec-maven-plugin` always sorts before `maven-failsafe-plugin`). So the `*IT` tests run via failsafe in `integration-test` (failure deferred to
+`verify`), the **failsafe gate fails the build in `verify` if any IT failed**, and only then does the E2E run — bound to `install`, the first phase
+after `verify` — so the ITs are always confirmed green before E2E starts, and 8081 is long released by the `@QuarkusTest` instance. The E2E step (
+`e2e/run-e2e.sh`) is self-contained: it brings up its own test DB, starts the jar on 8081, runs Playwright, tears everything down via an EXIT trap,
+and exits with Playwright's code (so an E2E failure fails the build). Keeping testing on 8081 leaves 8080 free, so `-Dall` coexists with a running
+production container.
 
 > **Don't `cd` into the project root before running commands.** The working directory is already the
 > project root (`/home/arouge/git/diurnal`); use plain or absolute paths. A redundant `cd .` (or
@@ -101,12 +114,12 @@ The parent's lint rule files (Checkstyle/PMD/SpotBugs filters, license header) l
 filesystem parent. Run `git submodule update --init` after cloning or the linters can't find their config.
 
 Quality gates are **opt-in via profile-activating properties** (the parent's model):
+
 - `-Dlint` → runs the full linter suite: ErrorProne+NullAway (these also run on *every* compile, gated by
   the compiler, so the code must stay null-safe to build at all), Checkstyle, PMD, SpotBugs, Javadoc,
   Enforcer (dependency convergence/bans), license headers, dependency analysis, and **PITest** mutation
   coverage. Compiles test sources but does not execute tests.
 - `-Dtests` → runs the surefire unit tests (`*Test`) only.
-- `-Dit` → runs the failsafe `*IT` tier (auto-manages the test DB).
 - `-Dall` → **everything**: unit + `*IT` + Playwright E2E **and** the full linter suite (it activates both
   the parent's `activate_all` profile and this POM's `all` profile). This is the complete CI gate.
 
@@ -133,16 +146,23 @@ Code is organised by feature under `src/main/java/net/zodac/diurnal/`:
 
 ### Two authentication surfaces
 
-- **Web UI (`/*`)** — encrypted session cookie (`diurnal_session`), form-based. Quarkus form auth redirects unauthenticated requests to `/login`. `@RolesAllowed("user")` enforces auth at the method level.
-- **REST API (`/api/*`)** — Bearer JWT signed with RSA-2048 keys. Keys live in `src/main/resources/jwt-keys/` (dev) or `secrets/` (production, auto-generated on first start by `JwtKeyProvisioner`).
+- **Web UI (`/*`)** — encrypted session cookie (`diurnal_session`), form-based. Quarkus form auth redirects unauthenticated requests to `/login`.
+  `@RolesAllowed("user")` enforces auth at the method level.
+- **REST API (`/api/*`)** — Bearer JWT signed with RSA-2048 keys. Keys live in `src/main/resources/jwt-keys/` (dev) or `secrets/` (production,
+  auto-generated on first start by `JwtKeyProvisioner`).
 
-The split is configured in `application.properties` with two `quarkus.http.auth.permission.*` blocks. `quarkus.http.auth.proactive=false` is required so Bearer doesn't intercept web requests before form auth can redirect.
+The split is configured in `application.properties` with two `quarkus.http.auth.permission.*` blocks. `quarkus.http.auth.proactive=false` is required
+so Bearer doesn't intercept web requests before form auth can redirect.
 
-`PasswordIdentityProvider` handles form/API password auth. `TrustedIdentityProvider` handles OIDC users (who have no password). OIDC users are stored with `oidcSubject` + `oidcIssuer` instead of a password hash; the composite unique index `(oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL` enforces uniqueness. OIDC is disabled by default (`quarkus.oidc.enabled=false`).
+`PasswordIdentityProvider` handles form/API password auth. `TrustedIdentityProvider` handles OIDC users (who have no password). OIDC users are stored
+with `oidcSubject` + `oidcIssuer` instead of a password hash; the composite unique index `(oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL`
+enforces uniqueness. OIDC is disabled by default (`quarkus.oidc.enabled=false`).
 
 ### HTMX partial responses
 
-Most resources return **HTML fragments** rather than full pages. Qute templates in `src/main/resources/templates/` are either full-page layouts (e.g. `actions.html`) or partials in `templates/partials/`. Resources inject both and choose which to return:
+Most resources return **HTML fragments** rather than full pages. Qute templates in `src/main/resources/templates/` are either full-page layouts (e.g.
+`actions.html`) or partials in `templates/partials/`. Resources inject both and choose which to return:
+
 - A full `@GET` returns a `TemplateInstance` for the whole page.
 - HTMX-targeted endpoints return `Response.ok(partialTemplate.data(...)).build()`.
 
@@ -178,7 +198,7 @@ accent/highlight in the UI must resolve to it**: filled buttons (`.btn-primary` 
 calendar style, the table **Edit** button + **edit-row highlight** (`--color-ring-edit`), and the
 settings preview-picker highlight. When adding an accented element, route it through `bg-brand` /
 `text-brand` / `border-brand` / `ring-brand-ring` / `text-on-brand` or `var(--color-brand*)` — **never a
-literal `indigo-*` or hardcoded hue** (it would not follow a rebrand). The computed family: `-hover`
+literal `indigo-*` or hardcoded hue** (it would not follow a rebranding). The computed family: `-hover`
 (darker in light / lighter in dark, hover) and `-strong` (more so, active hovers) are mixed toward
 black/white; `-subtle` is the brand at 0.16 alpha (translucent "today" fill, keeps the date legible) →
 solid in dark; `-faint` is a desaturated tint (selected-day fill, light tint → dark tint); `-ring`/
@@ -204,6 +224,7 @@ no `.dark` overrides.
 
 **Component classes** (in `app.css` `@layer components`, the single source for each "type" of element
 so it looks identical everywhere; built with `@apply`):
+
 - `.btn-primary` (filled CTA), `.btn-secondary` (outlined/OIDC)
 - `.card` (surface shell — padding/shadow stay at the call site), `.stat-tile` (inset metric tile)
 - `.form-input` (width set by caller), `.form-select`, `.field-label`, `.field-label-caps`, `.help-text`
@@ -229,19 +250,21 @@ Tier-2 step; the few remaining dark variants key off the `.dark` class). Wrap a 
 `.dt-row`/`.dt-cell`; `{#include partials/pagination …}` for the footer.
 
 **Two table variants:**
-- **Non-editable** — just `.dt-row`/`.dt-cell`, no trailing actions cell.
+
+- **Non-editable** — just `.dt-row`/`.dt-cell`, no trailing actions (edit/delete) cell.
 - **Editable** — adds the shared edit/delete chrome. The mechanism (canonical: the Users table) is an
   **in-place client-side toggle**, *not* a server round-trip: each row renders both a view state
   (`[data-dt-view]`) and a hidden edit state (`[data-dt-edit]`), toggled by `dtStartEdit`/`dtCancelEdit`
   in `layout.html`. Save submits the row's `<form>`; Cancel just restores the view (and `form.reset()`s).
 
 **Shared editable-row chrome (change once, every table updates):**
+
 - `partials/dt-row-actions.html` — the trailing options cell: Edit + Delete in view, Save + Cancel in
   edit. Parameterised by primitives only (`id`, `rowPrefix`, `formPrefix`, `confirmBase`) so it never
   leaks entity specifics; it builds the composite ids/URLs in its own attribute text. Save uses the
   HTML5 `form="{formPrefix}-{id}"` association so it can live in a different cell from the form.
   Buttons sit in fixed-width centred `.dt-actions` slots (right-aligned), so Edit↔Save / Delete↔Cancel
-  swap without shifting — and the confirm row reuses `.dt-actions` so its Cancel lands exactly where
+  swap without shifting — and the confirmation row reuses `.dt-actions` so its Cancel lands exactly where
   the original Delete was. View-mode actions reveal only when the row is highlighted (`:hover` /
   `:focus-within` — on touch a tap applies `:hover`, so they reveal on tap, same as desktop); edit +
   confirm actions are always visible.
@@ -259,6 +282,7 @@ cells plus an `id="{formPrefix}-{id}"` edit `<form>`, end the row with
 `partials/dt-confirm-delete-row` from the row's `…/confirm-delete` endpoint.
 
 Cross-table conventions:
+
 - **Explicit confirm-to-save.** Table edits require an explicit Save tick. The **only**
   auto-save-on-change surface is Settings → *User Preferences*, a deliberately non-table panel.
 - **Single armed row.** At most one row may be mid-edit or mid-delete-confirm; an armed row always shows
@@ -273,7 +297,9 @@ changes instead re-render the whole `admin-users-list` partial.
 
 ### CalendarResource
 
-`GET /logs/events` returns JSON (`CalendarEventDto` records) consumed directly by FullCalendar.js on the dashboard. It intentionally includes archived actions so historical entries still render on the calendar. The dashboard uses a custom month/year picker overlay (not FullCalendar's built-in navigation); `eventClick` mirrors `dateClick` to open the day panel.
+`GET /logs/events` returns JSON (`CalendarEventDto` records) consumed directly by FullCalendar.js on the dashboard. It intentionally includes archived
+actions so historical entries still render on the calendar. The dashboard uses a custom month/year picker overlay (not FullCalendar's built-in
+navigation); `eventClick` mirrors `dateClick` to open the day panel.
 
 ### Brand assets
 
@@ -345,7 +371,9 @@ running instance.
 
 ### Pagination
 
-All three list views (actions, day-panel actions, stats) share the same in-memory pagination pattern: fetch all, filter, slice. The pagination controls are rendered server-side as HTML. Page size is a per-user setting validated by `UserSettings.sanitisePageSize()` against a fixed allow-list `{10, 25, 50, 100}`.
+All three list views (actions, day-panel actions, stats) share the same in-memory pagination pattern: fetch all, filter, slice. The pagination
+controls are rendered server-side as HTML. Page size is a per-user setting validated by `UserSettings.sanitisePageSize()` against a fixed allow-list
+`{10, 25, 50, 100}`.
 
 `PaginatedDayActions` adds blank filler rows to keep every page the same height, preventing layout shift when fewer items are on the last page.
 
@@ -353,21 +381,41 @@ All three list views (actions, day-panel actions, stats) share the same in-memor
 
 - `ActionLog.MAX_DAILY_COUNT = 255` — the count column is a `SMALLINT`; increment is silently capped.
 - Actions are soft-deleted (`archived = true`); logs are hard-deleted when an action is deleted.
-- **All date-boundary "now"/"today" goes through `AppClock`** (`net.zodac.diurnal.time.AppClock`, `@ApplicationScoped`), the single injectable clock built from `app.timezone`. Business logic calls `clock.today()` / `clock.zone()` instead of `LocalDate.now(...)` directly (streaks in `StatsService`, the future-date guard in `LogWebResource`, the dashboard's pre-selected day in `WebResource`, admin timestamp formatting in `AdminWebResource`). This is the seam tests freeze (see Testing conventions). Entity audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`) deliberately stay on plain `Instant.now()` — they're zone-independent and not date-boundary sensitive, so they bypass `AppClock`.
+- **All date-boundary "now"/"today" goes through `AppClock`** (`net.zodac.diurnal.time.AppClock`, `@ApplicationScoped`), the single injectable clock
+  built from `app.timezone`. Business logic calls `clock.today()` / `clock.zone()` instead of `LocalDate.now(...)` directly (streaks in
+  `StatsService`, the future-date guard in `LogWebResource`, the dashboard's pre-selected day in `WebResource`, admin timestamp formatting in
+  `AdminWebResource`). This is the seam tests freeze (see Testing conventions). Entity audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`)
+  deliberately stay on plain `Instant.now()` — they're zone-independent and not date-boundary sensitive, so they bypass `AppClock`.
 - `app.timezone` (defaults to `UTC`) feeds `AppClock`'s zone, so it governs every "today" comparison. It must match `TZ` in `docker-compose.yml`.
 - `LogWebResource.isFuture()` blocks logging for dates beyond today in the user's configured timezone.
 - Action colour defaults to `#6366f1` (indigo); invalid hex colours are silently corrected to the default.
-- The dark-mode checkbox in settings uses a hidden `<input value="false">` followed by the real checkbox `<input value="true">`. When checked, the form posts `["false", "true"]`; when unchecked, just `["false"]`. `WebResource.updateSettings` checks for `"true"` in the list rather than treating the param as a boolean.
-- `password.auth.enabled=false` disables the register page (returns 404) and skips the `PasswordIdentityProvider`. `AppLifecycle` enforces that at least one of password-auth or OIDC is enabled at startup.
+- The dark-mode checkbox in settings uses a hidden `<input value="false">` followed by the real checkbox `<input value="true">`. When checked, the
+  form posts `["false", "true"]`; when unchecked, just `["false"]`. `WebResource.updateSettings` checks for `"true"` in the list rather than treating
+  the param as a boolean.
+- `password.auth.enabled=false` disables the register page (returns 404) and skips the `PasswordIdentityProvider`. `AppLifecycle` enforces that at
+  least one of password-auth or OIDC is enabled at startup.
 - Login page uses query params for state: `?error` signals a failed login; `?registered=true` shows a success message after registration.
 - `ActionStats` exposes `sinceLabel()`, `monthTrend()`, `monthTrendClass()` helpers used directly in Qute templates for display formatting.
 
 ### Database migrations
 
-Flyway scripts live in `src/main/resources/db/migration/`. Schema versioning is sequential (`V1__` through `V8__`). Never edit an already-applied migration; always add a new `V{n+1}__` file.
+Flyway scripts live in `src/main/resources/db/migration/`. Schema versioning is sequential (`V1__` through `V8__`). Never edit an already-applied
+migration; always add a new `V{n+1}__` file.
 
 ### Testing conventions
 
-Integration tests extend `IntegrationTestBase`, which truncates tables in FK-safe order (`action_logs → actions → users`) before each test. Helper methods `newUser()`, `newAction()`, `newLog()`, and `runInTx()` are provided. Tests use `@TestSecurity` to set the principal email and roles. The `test` profile (`application-test.properties`) forces `app.timezone=UTC` and uses the test DB on port 5433. BCrypt cost is set to 4 in tests for speed. E2E Playwright tests run sequentially (1 worker) against a live app instance; Chromium desktop and Galaxy S24 mobile viewports are both covered.
+Integration tests extend `IntegrationTestBase`, which truncates tables in FK-safe order (`action_logs → actions → users`) before each test. Helper
+methods `newUser()`, `newAction()`, `newLog()`, and `runInTx()` are provided. Tests use `@TestSecurity` to set the principal email and roles. The
+`test` profile (`application-test.properties`) forces `app.timezone=UTC` and uses the test DB on port 5433. BCrypt cost is set to 4 in tests for
+speed. E2E Playwright tests run sequentially (1 worker) against a live app instance; Chromium desktop and Galaxy S24 mobile viewports are both
+covered.
 
-**Deterministic time in tests.** `IntegrationTestBase` injects `AppClock` and, in `@BeforeEach`, freezes it to a fixed date — `public static final LocalDate FIXED_TODAY` (currently `2026-06-15`) — restoring the real clock in `@AfterEach`. Date-relative IT tests anchor on `FIXED_TODAY` (e.g. `static final LocalDate TODAY = FIXED_TODAY`) rather than `LocalDate.now()`, which removes the old class-load-vs-request midnight race. Per-test, call `freezeDate(LocalDate)` or `freezeInstant(Instant, ZoneId)` to drive boundary cases — see `LogResourceIT.futureGuard_rollsOverAtMidnight` (midnight rollover) and `futureGuard_dependsOnConfiguredZone` (same instant, UTC vs `Pacific/Auckland`). Pure unit tests (`StatsServiceTest`, `ActionStatsTest`) pass a fixed `today` directly. Surefire/failsafe also pin `-Duser.timezone=UTC` so a non-UTC host can't mask a missing-`ZoneId` regression. E2E specs compute dates entirely in UTC (`setUTCDate`/`getUTCDate` + `toISOString`, never the local `setDate`), Playwright pins the browser clock with `timezoneId: 'UTC'`, and e2e must run against a UTC server (the `-Dall` jar is; a dev server on a non-UTC host can disagree near midnight).
+**Deterministic time in tests.** `IntegrationTestBase` injects `AppClock` and, in `@BeforeEach`, freezes it to a fixed date —
+`public static final LocalDate FIXED_TODAY` (currently `2026-06-15`) — restoring the real clock in `@AfterEach`. Date-relative IT tests anchor on
+`FIXED_TODAY` (e.g. `static final LocalDate TODAY = FIXED_TODAY`) rather than `LocalDate.now()`, which removes the old class-load-vs-request midnight
+race. Per-test, call `freezeDate(LocalDate)` or `freezeInstant(Instant, ZoneId)` to drive boundary cases — see
+`LogResourceIT.futureGuard_rollsOverAtMidnight` (midnight rollover) and `futureGuard_dependsOnConfiguredZone` (same instant, UTC vs
+`Pacific/Auckland`). Pure unit tests (`StatsServiceTest`, `ActionStatsTest`) pass a fixed `today` directly. Surefire/failsafe also pin
+`-Duser.timezone=UTC` so a non-UTC host can't mask a missing-`ZoneId` regression. E2E specs compute dates entirely in UTC (`setUTCDate`/`getUTCDate` +
+`toISOString`, never the local `setDate`), Playwright pins the browser clock with `timezoneId: 'UTC'`, and e2e must run against a UTC server (the
+`-Dall` jar is; a dev server on a non-UTC host can disagree near midnight).

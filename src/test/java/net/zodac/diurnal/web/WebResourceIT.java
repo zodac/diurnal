@@ -293,9 +293,10 @@ class WebResourceIT extends IntegrationTestBase {
         given().get("/settings")
                 .then().statusCode(200)
                 .body(containsString("web-it@lt.test"))
-                // Timezone picker renders: server default (UTC in the test profile) first as a plain,
-                // pre-selected "UTC" option, plus curated zones labelled with their current UTC offset.
-                .body(containsString("<option value=\"\" selected>UTC</option>"))
+                // Timezone picker renders every curated zone alphabetically, each labelled with its
+                // current UTC offset. A new user (no override) defaults to the server zone (UTC in
+                // the test profile), so its own option is pre-selected.
+                .body(containsString("<option value=\"UTC\" selected>UTC</option>"))
                 .body(containsString("Pacific/Auckland (UTC+12)"));
     }
 

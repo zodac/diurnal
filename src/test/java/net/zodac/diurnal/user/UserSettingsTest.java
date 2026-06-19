@@ -152,64 +152,58 @@ class UserSettingsTest {
     // ── Timezone picker choices ─────────────────────────────────────────────────
 
     @Test
-    void timezoneChoices_defaultEntryIsFirstWithLabelAndInheritValue() {
-        final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("Pacific/Auckland"), NOW, null);
+    void timezoneChoices_offersEveryCuratedZoneWithItsOwnIdAsValue() {
+        final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("UTC"), NOW, null);
 
-        final var first = choices.get(0);
-        assertEquals("", first.value(), "unexpected value");
-        assertEquals("Pacific/Auckland (UTC+12)", first.label(), "unexpected value");
-        assertTrue(first.selected(), "default entry selected when user inherits (null timezone)");
+        assertEquals(UserSettings.TIMEZONE_OPTIONS.size(), choices.size(), "unexpected value");
+        // No "inherit" sentinel entry: every option's value is a real zone id from the curated list.
+        assertTrue(choices.stream().noneMatch(c -> c.value().isEmpty()), "no empty-value entry expected");
+        assertTrue(choices.stream().allMatch(c -> UserSettings.TIMEZONE_OPTIONS.contains(c.value())),
+                "every choice value must be a curated zone id");
+    }
+
+    @Test
+    void timezoneChoices_sortedByUtcOffsetAscending() {
+        final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("UTC"), NOW, null);
+
+        int prev = Integer.MIN_VALUE;
+        for (final var choice : choices) {
+            final int offset = java.time.ZoneId.of(choice.value()).getRules().getOffset(NOW).getTotalSeconds();
+            assertTrue(offset >= prev, "choices must be sorted by ascending UTC offset");
+            prev = offset;
+        }
+        // Most-behind option (America/Los_Angeles, PDT UTC-7 in June) sorts first.
+        assertEquals("America/Los_Angeles", choices.get(0).value(), "unexpected value");
     }
 
     @Test
     void timezoneChoices_utcLabelHasNoRedundantOffset() {
-        // As the server default, UTC renders as plain "UTC", not "UTC (UTC)".
-        final var asDefault = UserSettings.timezoneChoices(java.time.ZoneId.of("UTC"), NOW, null);
-        assertEquals("UTC", asDefault.get(0).label(), "unexpected value");
+        final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("UTC"), NOW, null);
 
-        // As a body entry (non-UTC server default), it is still just "UTC".
-        final var asBody = UserSettings.timezoneChoices(java.time.ZoneId.of("Pacific/Auckland"), NOW, null);
-        final var utc = asBody.stream().filter(c -> "UTC".equals(c.value())).findFirst().orElseThrow();
+        final var utc = choices.stream().filter(c -> "UTC".equals(c.value())).findFirst().orElseThrow();
         assertEquals("UTC", utc.label(), "unexpected value");
     }
 
     @Test
-    void timezoneChoices_serverDefaultNotDuplicatedInBody() {
+    void timezoneChoices_serverDefaultSelectedWhenUserInherits() {
         final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("Pacific/Auckland"), NOW, null);
 
-        // Pacific/Auckland appears only as the [default] entry, never as a plain body option.
-        final long aucklandBodyEntries = choices.stream()
-                .filter(c -> "Pacific/Auckland".equals(c.value()))
-                .count();
-        assertEquals(0, (int) aucklandBodyEntries, "unexpected value");
-        // Body holds the remaining curated zones (all options minus the default).
-        assertEquals(UserSettings.TIMEZONE_OPTIONS.size(), choices.size(), "unexpected value");
+        final var selected = choices.stream().filter(UserSettings.TimezoneChoice::selected).toList();
+        assertEquals(1, selected.size(), "exactly one option selected");
+        assertEquals("Pacific/Auckland", selected.get(0).value(), "server default selected when user inherits");
+        assertEquals("Pacific/Auckland (UTC+12)", selected.get(0).label(), "unexpected value");
     }
 
     @Test
-    void timezoneChoices_bodySortedByOffsetAscending() {
-        final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("UTC"), NOW, null);
-
-        // Skip the default entry; the rest must be ordered most-behind-UTC → most-ahead.
-        int prev = Integer.MIN_VALUE;
-        for (int i = 1; i < choices.size(); i++) {
-            final int offset = java.time.ZoneId.of(choices.get(i).value())
-                    .getRules().getOffset(NOW).getTotalSeconds();
-            assertTrue(offset >= prev, "choices must be sorted by ascending UTC offset");
-            prev = offset;
-        }
-        // Most-behind option (America/Los_Angeles, PDT UTC-7 in June) sorts ahead of UTC zones.
-        assertEquals("America/Los_Angeles", choices.get(1).value(), "unexpected value");
-    }
-
-    @Test
-    void timezoneChoices_userOverrideMarksMatchingBodyEntrySelected() {
+    void timezoneChoices_userOverrideMarksMatchingEntrySelected() {
         final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("UTC"), NOW, "Asia/Tokyo");
 
-        assertTrue(choices.stream().noneMatch(c -> c.value().isEmpty() && c.selected()),
-                "default entry not selected when the user has an override");
-        final var tokyo = choices.stream().filter(c -> "Asia/Tokyo".equals(c.value())).findFirst().orElseThrow();
-        assertTrue(tokyo.selected(), "expected condition to be true");
-        assertEquals("Asia/Tokyo (UTC+9)", tokyo.label(), "unexpected value");
+        final var selected = choices.stream().filter(UserSettings.TimezoneChoice::selected).toList();
+        assertEquals(1, selected.size(), "exactly one option selected");
+        assertEquals("Asia/Tokyo", selected.get(0).value(), "user override selected");
+        assertEquals("Asia/Tokyo (UTC+9)", selected.get(0).label(), "unexpected value");
+        // The server default is NOT selected when the user has an override.
+        assertTrue(choices.stream().filter(c -> "UTC".equals(c.value())).noneMatch(UserSettings.TimezoneChoice::selected),
+                "server default not selected when user has override");
     }
 }

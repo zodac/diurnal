@@ -20,7 +20,6 @@ package net.zodac.diurnal.user;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
@@ -38,8 +37,8 @@ public record UserSettings(String theme, int pageSize) {
     public static final List<String> CALENDAR_VIEW_OPTIONS = List.of("full", "minimal", "stacked");
 
     // Curated list of common IANA zones offered in Settings. A user whose timezone is null
-    // (not one of these) falls back to the server default (app.timezone). Display order in the
-    // picker is computed dynamically by current UTC offset (see timezoneChoices), not this order.
+    // (not one of these) falls back to the server default (app.timezone). The picker orders every
+    // zone by its current UTC offset (see timezoneChoices), not by this declaration order.
     public static final List<String> TIMEZONE_OPTIONS = List.of(
             "UTC",
             "Pacific/Auckland",
@@ -87,28 +86,26 @@ public record UserSettings(String theme, int pageSize) {
     }
 
     /**
-     * Builds the timezone picker options for the given server default zone, evaluated at {@code now}
-     * (so UTC offsets reflect the current DST state). The first option is always the server default
-     * (value {@code ""} → inherit, labelled with the zone and pre-selected when the user has no
-     * override); the rest are the curated zones minus the server default, sorted by current UTC
-     * offset (most behind → most ahead).
+     * Builds the timezone picker options, ordered by their current UTC offset (most behind → most
+     * ahead) and evaluated at {@code now} (so the offsets reflect the current DST state). Every
+     * curated zone is offered with its own id as the form value. The option matching the user's
+     * stored timezone is pre-selected; when the user has no override (null), the server default zone
+     * is selected instead, so a new user's initial value mirrors the server default.
      *
+     * @param serverZone       the server default zone, used as the initial selection when the user
+     *                         has no override
+     * @param now              the instant at which UTC offsets are evaluated
      * @param selectedTimezone the user's stored timezone (null = inheriting the server default)
      */
     public static List<TimezoneChoice> timezoneChoices(final ZoneId serverZone, final Instant now, @Nullable final String selectedTimezone) {
-        final List<TimezoneChoice> choices = new ArrayList<>();
-        choices.add(new TimezoneChoice("", zoneLabel(serverZone, now), selectedTimezone == null));
-
-        TIMEZONE_OPTIONS.stream()
+        final String effectiveZone = selectedTimezone == null ? serverZone.getId() : selectedTimezone;
+        return TIMEZONE_OPTIONS.stream()
                 .map(ZoneId::of)
-                .filter(zone -> !zone.equals(serverZone))   // never duplicate the server default
                 .sorted(Comparator
                         .comparingInt((ZoneId zone) -> zone.getRules().getOffset(now).getTotalSeconds())
                         .thenComparing(ZoneId::getId))
-                .forEach(zone -> choices.add(new TimezoneChoice(
-                        zone.getId(), zoneLabel(zone, now), zone.getId().equals(selectedTimezone))));
-
-        return choices;
+                .map(zone -> new TimezoneChoice(zone.getId(), zoneLabel(zone, now), zone.getId().equals(effectiveZone)))
+                .toList();
     }
 
     private static String zoneLabel(final ZoneId zone, final Instant now) {

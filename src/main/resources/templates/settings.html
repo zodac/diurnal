@@ -24,6 +24,12 @@
             </div>
 
             <div class="space-y-4">
+                <!-- Email (read-only) -->
+                <div>
+                    <label class="field-label-caps">Email</label>
+                    <p class="text-sm text-ink">{email}</p>
+                </div>
+
                 <!-- Display Name -->
                 <div>
                     <label class="field-label-caps">Display Name</label>
@@ -63,12 +69,6 @@
                         </div>
                     </form>
                 </div>
-
-                <!-- Email (read-only) -->
-                <div>
-                    <label class="field-label-caps">Email</label>
-                    <p class="text-sm text-ink">{email}</p>
-                </div>
             </div>
         </div>
 
@@ -101,15 +101,6 @@
                     </div>
                 </div>
 
-                <!-- Items per page -->
-                {#include partials/select-field id="pageSize" label="Items per page" border=true}
-                    {#options}
-                    {#for option in pageSizeOptions}
-                    <option value="{option}" {#if option == pageSize}selected{/if}>{option}</option>
-                    {/for}
-                    {/options}
-                {/include}
-
                 <!-- Calendar style -->
                 <div class="py-4 border-b border-line">
                     <span class="block text-sm font-medium text-ink mb-3">Calendar style</span>
@@ -121,10 +112,19 @@
                 </div>
 
                 <!-- Timezone -->
-                {#include partials/select-field id="timezone" label="Timezone" border=false}
+                {#include partials/select-field id="timezone" label="Timezone" border=true}
                     {#options}
                     {#for choice in timezoneChoices}
                     <option value="{choice.value}" {#if choice.selected}selected{/if}>{choice.label}</option>
+                    {/for}
+                    {/options}
+                {/include}
+
+                <!-- Items per page -->
+                {#include partials/select-field id="pageSize" label="Items per page" border=false}
+                    {#options}
+                    {#for option in pageSizeOptions}
+                    <option value="{option}" {#if option == pageSize}selected{/if}>{option}</option>
                     {/for}
                     {/options}
                 {/include}
