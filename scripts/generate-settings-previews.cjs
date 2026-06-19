@@ -38,7 +38,7 @@
  * The script is self-contained: it registers a dedicated demo user, seeds a fixed set of actions
  * and logs over HTTP (idempotent — safe to re-run), then drives a headless browser to capture each
  * configuration. It does NOT touch the database directly, so it works against any running instance.
- * Finally it losslessly optimises the PNGs with optipng, installing it via apt-get (Debian/Ubuntu)
+ * Finally, it losslessly optimises the PNGs with optipng, installing it via apt-get (Debian/Ubuntu)
  * if it isn't already on PATH.
  */
 const path = require('path');
@@ -52,7 +52,7 @@ const OUT = path.join(__dirname, '..', 'src', 'main', 'resources', 'META-INF', '
 const VW = 1200, VH = 820; // dashboard capture viewport (16:11-ish landscape)
 
 // Dedicated demo account — kept separate from real dev data.
-const USER = { email: 'preview-demo@diurnal.local', password: 'previewdemo123', displayName: 'Preview Demo' };
+const USER = { email: 'preview-demo@diurnal.local', password: 'preview_demo123', displayName: 'Preview Demo' };
 
 // The fixed seed: four colourful habits logged across the current month. `days` are days-of-month
 // (those after today are skipped — the server blocks logging future dates); `count` is how many

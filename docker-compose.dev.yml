@@ -1,45 +1,25 @@
-# Local databases for development and testing. Two distinct DBs on purpose — they differ in name,
-# port, storage and lifecycle, and are designed to run side by side (dev on 5432 while a test/E2E
-# run uses 5433), so a test run never touches your dev data:
+# Single local database for development and testing. One container, one database ("diurnal"),
+# shared by dev mode and tests. Storage is tmpfs so data is wiped on every recreate.
 #
-#   dev-db  — persistent (named volume), port 5432, DB "diurnal". Start it for `mvn quarkus:dev`:
-#                 docker compose -f docker-compose.dev.yml up -d dev-db
-#   test-db — ephemeral (tmpfs, wiped on recreate), port 5433, DB "diurnal_test". Used by tests;
-#             the `-Dall` Maven profiles start/remove it automatically (target it by name —
-#             never a bare `up`/`down`, which would also affect dev-db). For a bare `mvn test`:
-#                 docker compose -f docker-compose.dev.yml up -d test-db
+#   diurnal-db-dev — ephemeral (tmpfs), port 5432, DB "diurnal". Start it for `mvn quarkus:dev`:
+#            docker compose -f docker-compose.dev.yml up -d diurnal-db-dev
+#        The `-Dall` Maven profile starts/removes it automatically around the IT test-suite.
 services:
-  dev-db:
-    image: postgres:16-alpine
+  diurnal-db-dev:
+    image: postgres:18.4-alpine
+    container_name: diurnal-db-dev
+    hostname: diurnal-db-dev
     environment:
       POSTGRES_DB: diurnal
       POSTGRES_USER: diurnal
       POSTGRES_PASSWORD: diurnal
+      PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
-    volumes:
-      - dev_postgres_data:/var/lib/postgresql/data
+    tmpfs:
+      - /var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U diurnal -d diurnal"]
       interval: 5s
       timeout: 3s
       retries: 5
-
-  test-db:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: diurnal_test
-      POSTGRES_USER: diurnal
-      POSTGRES_PASSWORD: diurnal
-    ports:
-      - "5433:5432"
-    tmpfs:
-      - /var/lib/postgresql/data   # in-memory storage — wiped on container recreate, fast I/O
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U diurnal -d diurnal_test"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-volumes:
-  dev_postgres_data:

@@ -14,13 +14,13 @@
  *
  * The Docker image regenerates the rasters on demand in a dedicated, non-runtime `icons` stage (see
  * the Dockerfile) from the committed favicon.svg, so the committed PNG/ICO copies exist only for
- * local/dev convenience — they are visually identical but may differ by a few antialiasing pixels
+ * local/dev convenienc. They are visually identical but may differ by a few antialiasing pixels
  * across ImageMagick / librsvg versions, harmless since the build overwrites them.
  *
  * WHAT IT PRODUCES (all in the served img/ dir)
  * ---------------------------------------------
- *   favicon-16.png       16x16  — explicit small PNG favicon
- *   favicon-32.png       32x32  — explicit standard PNG favicon
+ *   favicon-16.png       16x16  — explicit small favicon PNG
+ *   favicon-32.png       32x32  — explicit standard favicon PNG
  *   favicon.ico          16/32/48 multi-resolution ICO — legacy browser fallback
  *   apple-touch-icon.png 180x180 — iOS "add to home screen" / bookmark thumbnail
  * The transparent background of the SVG is preserved in every output.

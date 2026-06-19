@@ -15,9 +15,9 @@ git submodule update --init        # one-time (also: git clone --recurse-submodu
 npm install        # one-time
 npm run css        # or: npm run css:watch  (rebuild on template/class changes during dev)
 
-# Start the dev PostgreSQL (required before quarkus:dev). docker-compose.dev.yml holds BOTH the dev
-# and test DBs as separate services — start them by name so you only get the one you want.
-docker compose -f docker-compose.dev.yml up -d dev-db
+# Start the dev PostgreSQL (required before quarkus:dev). docker-compose.dev.yml has a single
+# "db" service (database "diurnal"), shared by dev mode and tests.
+docker compose -f docker-compose.dev.yml up -d diurnal-db-dev
 
 # Run in dev mode (hot reload, Swagger UI at /q/swagger-ui)
 # ALWAYS stop this instance once testing/verification is finished (see rule below):
@@ -44,7 +44,7 @@ mvn test -Dtests
 # Run a single test class
 mvn test -Dtests -Dtest=MyTestClass
 
-# Run Playwright E2E tests only (test DB on :5433). Defaults to an app on :8080; point it at any
+# Run Playwright E2E tests only (DB on :5432). Defaults to an app on :8080; point it at any
 # running instance with BASE_URL (e.g. the dev server, or the -Dall jar — both on :8081).
 cd e2e && npm test                                  # against :8080
 cd e2e && BASE_URL=http://localhost:8081 npm test   # against the dev / -Dall testing port
@@ -60,26 +60,24 @@ docker compose logs -f app
 > / `docker-compose.dev.yml` **filenames** keep the hyphen, since those are the literal files on disk.
 
 Dev mode disables Testcontainers and expects a local PostgreSQL on `localhost:5432` with database/user/password all `diurnal` (start it with
-`docker compose -f docker-compose.dev.yml up -d dev-db`). Flyway migrations run automatically at startup. A single `docker-compose.dev.yml` defines *
-*both** local databases as separate services: `dev-db` (persistent, 5432, `diurnal`) and `test-db` (tmpfs, 5433, `diurnal_test`); always start/stop
-them **by service name** so the two never interfere.
+`docker compose -f docker-compose.dev.yml up -d diurnal-db-dev`). Flyway migrations run automatically at startup. `docker-compose.dev.yml` defines a single **`diurnal-db-dev` service** (tmpfs, 5432, database `diurnal`) shared by both dev mode and tests. Data is ephemeral —
+wiped on every container recreate.
 
 > **Always tear down the dev environment once testing/verification is finished.** Never leave dev
 > resources running at the end of a task:
 > 1. Stop the dev app: `pkill -f "quarkus:dev"` and confirm port 8081 is free (frees 8081 for the
      > `@QuarkusTest` test-port and stops a stale server masking changes).
-> 2. Stop the local DBs: `docker compose -f docker-compose.dev.yml down` (brings down both `dev-db`
-     > and `test-db`; the `dev_postgres_data` volume persists, so dev data survives the next start).
+> 2. Stop the DB: `docker compose -f docker-compose.dev.yml down` (all data is ephemeral/tmpfs so
+     > nothing is lost that wasn't already going to be lost on next start).
 >
-> The **test** DB (the `test-db` service in `docker-compose.dev.yml`, port 5433) does **not** need
-> manual teardown for a test run: the `-Dall` Maven profiles start it (`up … test-db`) in
-> `pre-integration-test` and remove it (`rm -sf test-db`) in `post-integration-test` automatically,
-> **scoped to the service** so they never touch a running `dev-db`. Only close it by hand if you
-> started it yourself (the unit-test command `mvn test -Dtests` runs pure JUnit and needs no DB).
+> The **test** DB does **not** need manual teardown for a `-Dall` run: the Maven profiles start the
+> `diurnal-db-dev` service (`up … diurnal-db-dev`) in `pre-integration-test` and remove it (`rm -sf diurnal-db-dev`) in
+> `post-integration-test` automatically. Only close it by hand if you started it yourself (the
+> unit-test command `mvn test -Dtests` runs pure JUnit and needs no DB).
 
 Config is layered by Quarkus profile: `application.properties` holds the base/production config, and profile-specific overrides live in
-`application-dev.properties` (dev mode — HTTP port **8081**, dev DB on 5432, DEBUG logging, Swagger UI) and `application-test.properties` (test DB on
-5433, forced UTC). Both profile files **must** stay in `src/main/resources` (not `src/test/resources`): the `-Dall` E2E step runs the packaged jar
+`application-dev.properties` (dev mode — HTTP port **8081**, DB on 5432/diurnal, DEBUG logging, Swagger UI) and `application-test.properties` (DB on
+5432/diurnal, forced UTC). Both profile files **must** stay in `src/main/resources` (not `src/test/resources`): the `-Dall` E2E step runs the packaged jar
 with `-Dquarkus.profile=test`, which only reads config that was bundled into the jar.
 
 **Port map**: **8080** = production (`application.properties` default, the `docker compose` container); **8081** = the single "testing" port — dev
@@ -358,7 +356,7 @@ are copies of `theme-{light,dark}.png`.
 previews should reflect (calendar markup/styling, light/dark colour tokens, navbar/day-panel/layout):
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d dev-db && mvn quarkus:dev   # need a running dev server
+docker compose -f docker-compose.dev.yml up -d diurnal-db-dev && mvn quarkus:dev   # need a running dev server
 node scripts/generate-settings-previews.cjs                                # defaults to :8081; then commit the PNGs
 ```
 
@@ -406,8 +404,8 @@ migration; always add a new `V{n+1}__` file.
 
 Integration tests extend `IntegrationTestBase`, which truncates tables in FK-safe order (`action_logs → actions → users`) before each test. Helper
 methods `newUser()`, `newAction()`, `newLog()`, and `runInTx()` are provided. Tests use `@TestSecurity` to set the principal email and roles. The
-`test` profile (`application-test.properties`) forces `app.timezone=UTC` and uses the test DB on port 5433. BCrypt cost is set to 4 in tests for
-speed. E2E Playwright tests run sequentially (1 worker) against a live app instance; Chromium desktop and Galaxy S24 mobile viewports are both
+`test` profile (`application-test.properties`) forces `app.timezone=UTC` and uses the shared `diurnal` DB on port 5432. BCrypt cost is set to 4 in tests for
+speed. E2E Playwright tests run with 2 workers (one per project) against a live app instance; Chromium desktop and Galaxy S24 mobile viewports are both
 covered.
 
 **Deterministic time in tests.** `IntegrationTestBase` injects `AppClock` and, in `@BeforeEach`, freezes it to a fixed date —

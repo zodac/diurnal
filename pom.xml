@@ -267,7 +267,7 @@
                         <groupId>org.codehaus.mojo</groupId>
                         <artifactId>exec-maven-plugin</artifactId>
                         <executions>
-                            <!-- Start the test DB and block until its healthcheck passes (pre-IT phase). -->
+                            <!-- Start the DB and block until its healthcheck passes (pre-IT phase). -->
                             <execution>
                                 <id>docker-db-start</id>
                                 <goals>
@@ -283,12 +283,12 @@
                                         <argument>up</argument>
                                         <argument>-d</argument>
                                         <argument>--wait</argument>
-                                        <argument>test-db</argument>
+                                        <argument>diurnal-db-dev</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
 
-                            <!-- Tear down the test DB (post-IT phase; always runs). -->
+                            <!-- Tear down the DB (post-IT phase; always runs). -->
                             <execution>
                                 <id>docker-db-stop</id>
                                 <goals>
@@ -304,7 +304,7 @@
                                         <argument>rm</argument>
                                         <argument>-s</argument>
                                         <argument>-f</argument>
-                                        <argument>test-db</argument>
+                                        <argument>diurnal-db-dev</argument>
                                     </arguments>
                                 </configuration>
                             </execution>

@@ -29,13 +29,13 @@ COMPOSE_FILE="${BASEDIR}/docker-compose.dev.yml"
 APP_PID=""
 
 cleanup() {
-  [ -n "${APP_PID}" ] && kill -9 "${APP_PID}" 2>/dev/null || true
-  docker compose -f "${COMPOSE_FILE}" rm -sf test-db >/dev/null 2>&1 || true
+  if [ -n "${APP_PID}" ]; then kill -9 "${APP_PID}" 2>/dev/null || true; fi
+  docker compose -f "${COMPOSE_FILE}" rm -sf diurnal-db-dev >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
-# Bring up the test DB (5433) and block until its healthcheck passes.
-docker compose -f "${COMPOSE_FILE}" up -d --wait test-db
+# Bring up the DB and block until its healthcheck passes.
+docker compose -f "${COMPOSE_FILE}" up -d --wait diurnal-db-dev
 
 java -Dquarkus.profile=test -Dquarkus.http.port="${PORT}" \
   -jar "${TARGET_DIR}/quarkus-app/quarkus-run.jar" >"${TARGET_DIR}/app.log" 2>&1 &
