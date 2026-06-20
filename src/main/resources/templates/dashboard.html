@@ -12,13 +12,49 @@
   @media (max-width: 640px) {
     .fc .fc-header-toolbar { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
   }
-  /* Minimalist, monochrome "jump to month" icon, inline after the title */
-  .lt-jump-btn { display: inline-flex; align-items: center; color: rgb(156, 163, 175); cursor: pointer; background: none; border: none; padding: 0; line-height: 0; transition: color 0.15s; }
-  .lt-jump-btn:hover { color: rgb(55, 65, 81); }
-  .dark .lt-jump-btn:hover { color: rgb(229, 231, 235); }
-  .fc .fc-button { font-size: 0.75rem; padding: 0.25rem 0.6rem; }
+  /* Minimalist, monochrome "jump to month" icon, inline after the title. Tokenised so it tracks
+     the theme (and matches the icon on the minimal/stacked toolbars). */
+  .lt-jump-btn { display: inline-flex; align-items: center; color: var(--color-text-faint); cursor: pointer; background: none; border: none; padding: 0; line-height: 0; transition: color 0.15s; }
+  .lt-jump-btn:hover { color: var(--color-brand); }
   .fc .fc-daygrid-day-number { font-size: 0.75rem; }
   .fc .fc-event { font-size: 0.7rem; }
+  /* ── Shared calendar nav buttons ──────────────────────────────────────────
+     One tokenised style for every prev/next/year/today control, so the buttons look identical
+     across the full (FullCalendar) and minimal/stacked calendars, in both light/dark themes, on
+     mobile and web. Drives BOTH FullCalendar's generated `.fc-button-primary` and the minimal
+     toolbar's `.lt-min-btn`. Matches the app's filled brand buttons (`.btn-primary` / the settings
+     gallery's `.icon-btn-primary`): brand fill, `rounded-lg`, font-medium, brand-hover, offset
+     brand focus ring — just at the compact size the calendar toolbar needs. */
+  .fc .fc-button-primary,
+  .lt-min-btn {
+    font-size: 0.75rem; font-weight: 500; line-height: 1.2; text-transform: none;
+    padding: 0.25rem 0.6rem; border-radius: 0.5rem;
+    border: 1px solid transparent;
+    background: var(--color-brand); color: var(--color-on-brand);
+    cursor: pointer; box-shadow: none;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .fc .fc-button-primary:hover,
+  .lt-min-btn:hover {
+    background: var(--color-brand-hover); color: var(--color-on-brand); border-color: transparent;
+  }
+  /* Brand ring with a surface-coloured gap, mirroring `.btn-primary`'s ring-offset-2. */
+  .fc .fc-button-primary:focus-visible,
+  .lt-min-btn:focus-visible {
+    outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-brand-ring);
+  }
+  .fc .fc-button-primary:disabled { opacity: 0.5; cursor: default; }
+  /* Separate the prev/next/year arrows like the minimal toolbar (FullCalendar joins them into a
+     segmented control with negative margins + squared inner corners by default). */
+  .fc .fc-button-group { gap: 0.25rem; }
+  .fc .fc-button-group > .fc-button { border-radius: 0.5rem; }
+  .fc .fc-button-group > .fc-button:not(:first-child) { margin-left: 0; }
+  /* Pressed / active = a deeper brand shade (constant token, so no .dark twin). */
+  .fc .fc-button-primary:not(:disabled):active,
+  .fc .fc-button-primary:not(:disabled).fc-button-active {
+    background: var(--color-brand-strong); border-color: transparent; color: var(--color-on-brand);
+  }
+
   /* Token flips to a solid brand fill in dark mode, so a separate .dark rule isn't needed. */
   .fc-daygrid-day.fc-day-today { background-color: var(--color-brand-subtle) !important; }
   /* Selected day — a brand ring, distinct from the 'today' background fill so both can show together.
@@ -29,9 +65,6 @@
   .dark .fc {
     --fc-text-muted-color: rgb(156, 163, 175);
     --fc-border-color: rgb(55, 65, 81);
-    --fc-button-text-color: rgb(209, 213, 219);
-    --fc-button-hover-bg-color: rgb(75, 85, 99);
-    --fc-button-active-bg-color: rgb(55, 65, 81);
   }
   .dark .fc-col-header-cell {
     background-color: rgb(31, 41, 55);
@@ -46,16 +79,6 @@
   .dark .fc-daygrid-day-frame {
     color: rgb(229, 231, 235);
   }
-  .dark .fc-button-primary {
-    background-color: rgb(55, 65, 81);
-    border-color: rgb(75, 85, 99);
-  }
-  .dark .fc-button-primary:hover {
-    background-color: rgb(75, 85, 99);
-  }
-  .dark .fc-button-primary:not(:disabled).fc-button-active {
-    background-color: var(--color-brand);
-  }
 
   /* ── Minimal calendar ──────────────────────────────────────────────────── */
   .lt-min-toolbar {
@@ -66,17 +89,8 @@
     .lt-min-toolbar { flex-direction: column; align-items: flex-start; }
   }
   .lt-min-toolbar-left { display: flex; gap: 0.25rem; align-items: center; }
-  .lt-min-toolbar-center { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 1rem; font-weight: 600; color: rgb(17,24,39); }
-  .dark .lt-min-toolbar-center { color: rgb(249,250,251); }
-  .lt-min-btn {
-    font-size: 0.75rem; padding: 0.25rem 0.6rem;
-    border-radius: 0.25rem; border: 1px solid rgb(209,213,219);
-    background: rgb(255,255,255); color: rgb(55,65,81);
-    cursor: pointer; transition: background 0.15s;
-  }
-  .lt-min-btn:hover { background: rgb(243,244,246); }
-  .dark .lt-min-btn { background: rgb(55,65,81); border-color: rgb(75,85,99); color: rgb(209,213,219); }
-  .dark .lt-min-btn:hover { background: rgb(75,85,99); }
+  .lt-min-toolbar-center { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 1rem; font-weight: 600; color: var(--color-text); }
+  /* `.lt-min-btn` styling lives in the shared calendar-nav-button block above. */
   .lt-min-dow-header {
     display: grid; grid-template-columns: repeat(7, 1fr);
     margin-bottom: 2px;
