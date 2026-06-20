@@ -1,31 +1,31 @@
 {!
-  A single selectable preview tile for the Settings Theme / Calendar-style pickers.
-  Shows a scaled-down dashboard screenshot; the (!) button opens it full size.
+  A single selectable preview tile for the Settings Theme / Calendar-style pickers: a radio-driven
+  selectable frame around a fixed-size screenshot thumbnail (rendered by `partials/preview-thumb.html`,
+  which owns the consistent per-viewport sizing/cropping), with an `(!)` button that opens the FULL
+  (uncropped) screenshot in the lightbox.
+
+  The lightbox derives its image from whichever thumbnail `<img>` is currently visible (the thumbnail
+  and full image are the same file — the thumbnail is just CSS-cropped), so this tile only needs to
+  carry the title + group for the modal, not explicit src attributes.
   Params:
-    group   - radio group name ("theme" | "calendarView")
-    value   - this option's value
-    current - the user's currently-selected value (drives the checked state)
-    img     - screenshot filename under /img/settings/ (the light-mode one)
-    imgDark - OPTIONAL dark-mode screenshot filename; pass "" for theme tiles (which are
-              theme-specific already). When set, the tile shows whichever matches the active theme.
-    label   - short caption shown under the thumbnail
-    title   - heading shown in the full-size preview modal
-    alt     - image alt text
+    group        - radio group name ("theme" | "calendarView")
+    value        - this option's value
+    current      - the user's currently-selected value (drives the checked state)
+    label        - short caption shown under the thumbnail
+    title        - heading shown in the full-size preview modal
+    alt          - image alt text
+    themeBase    - "light"|"dark"|"system" → theme tile (one full-page shot per calendar style); when
+                   set, img/imgMobile/imgDark/imgDarkMobile are ignored.
+    img / imgMobile / imgDark / imgDarkMobile - calendar-tile screenshot filenames (see preview-thumb).
 !}
-<div class="relative" data-preview-group="{group}"
-     data-preview-src="/img/settings/{img}" data-preview-title="{title}"{#if imgDark} data-preview-dark="/img/settings/{imgDark}"{/if}>
+<div class="relative" data-preview-group="{group}" data-preview-title="{title}">
     <label class="block cursor-pointer">
         <input type="radio" name="{group}" value="{value}" class="sr-only peer"{#if current == value} checked{/if}>
         <span class="preview-option">
-            {#if imgDark}
-            {! Both variants are eager-loaded (not lazy): a lazy img with display:none is never
-               fetched until shown, so the first dark<->light switch would otherwise have to fetch the
-               hidden variant on the fly — flashing in and shifting layout as it arrives. Loading both
-               up front makes the swap instant. width/height reserve the 2400x1640 box (no CLS). !}
-            <img src="/img/settings/{img}"     alt="{alt}" width="2400" height="1640" class="preview-img dark:hidden"      loading="eager" decoding="async">
-            <img src="/img/settings/{imgDark}" alt="{alt}" width="2400" height="1640" class="preview-img hidden dark:block" loading="eager" decoding="async">
+            {#if themeBase}
+            {#include partials/preview-thumb themeBase=themeBase alt=alt /}
             {#else}
-            <img src="/img/settings/{img}" alt="{alt}" width="2400" height="1640" class="preview-img" loading="lazy" decoding="async">
+            {#include partials/preview-thumb themeBase="" img=img imgMobile=imgMobile imgDark=imgDark imgDarkMobile=imgDarkMobile alt=alt /}
             {/if}
             <span class="preview-label">{label}</span>
         </span>

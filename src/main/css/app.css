@@ -179,9 +179,29 @@
            peer-checked:border-brand peer-checked:ring-1 peer-checked:ring-brand
            peer-focus-visible:ring-2 peer-focus-visible:ring-brand;
   }
-  .preview-img   { @apply block w-full h-auto object-cover object-top; }
+  /* Fixed-size thumbnail frame — the single source of truth for preview-thumbnail sizing. EVERY
+     settings preview thumbnail is the same size within a viewport (a portrait ratio on mobile, a
+     landscape ratio at `sm`+ for web), regardless of the underlying screenshot's real aspect ratio:
+     the image fills the frame and is cropped to the TOP (`object-top` below), so tall full-page shots
+     show only their top. The full image stays available via the (!) lightbox. Any future settings
+     thumbnail should render through `partials/preview-thumb.html` (which applies this class) so it
+     automatically follows the same rules. Change the ratios here once to resize every thumbnail. */
+  .preview-thumb { @apply relative block w-full overflow-hidden bg-surface-muted aspect-[3/4] sm:aspect-[3/2]; }
+  /* The image fills its `.preview-thumb` frame and crops to the top. */
+  .preview-img   { @apply absolute inset-0 block w-full h-full object-cover object-top; }
   .preview-label { @apply block text-center text-[10px] font-medium py-1 text-ink-muted; }
   .peer:checked ~ .preview-option .preview-label { @apply text-brand; }
+  /* Theme tiles carry one full-page shot per calendar style (`[data-cal-style]` groups). Show only the
+     one matching the user's selected style — `#theme-options[data-cal]` is set server-side and kept in
+     sync by settings.html when the Calendar-style radios change. Hiding is `visibility:hidden` (NOT
+     `display:none`) so the non-selected groups stay laid out and their images can be loaded AND decoded
+     up front (decode() never resolves for a display:none image), making the switch a flash-free
+     visibility flip. `display:contents` keeps the inner `.preview-img`s positioned against
+     `.preview-thumb` as if ungrouped. */
+  #theme-options [data-cal-style] { display: contents; visibility: hidden; }
+  #theme-options[data-cal="full"]    [data-cal-style="full"],
+  #theme-options[data-cal="minimal"] [data-cal-style="minimal"],
+  #theme-options[data-cal="stacked"] [data-cal-style="stacked"] { visibility: visible; }
   /* (!) full-size-preview affordance, floated over the thumbnail's top-right corner. A ring + solid
      translucent fill keeps it legible over any screenshot (light or dark). */
   .preview-info {

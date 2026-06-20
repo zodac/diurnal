@@ -17,10 +17,15 @@
  *
  * WHAT IT PRODUCES
  * ----------------
- *   theme-light.png / theme-dark.png / theme-system.png  (theme picker; system = diagonal split)
- *   calendar-full.png / calendar-minimal.png / calendar-stacked.png  (calendar-style picker)
- * Every screenshot uses the SAME seeded data so the only visible difference is the theme / calendar
- * style — that is the whole point of the previews.
+ * Two sets of the same configurations — a web (landscape) set and a mobile (portrait, `-mobile`
+ * suffix) set, so the Settings tiles can show the device-appropriate shot (web at the `sm` breakpoint
+ * and up, mobile below it). Both the theme picker AND the calendar picker are captured for every
+ * calendar style, so the theme picker can show the preview matching the user's selected style:
+ *   theme-{full,minimal,stacked}-{light,dark,system}.png      (+ -mobile)   (theme picker — one
+ *                                              full-page shot per calendar style; system = diagonal split)
+ *   calendar-{full,minimal,stacked}-{light,dark}.png          (+ -mobile)   (calendar picker — calendar only)
+ * Every screenshot uses the SAME seeded data so the only visible difference within a viewport is the
+ * theme / calendar style — that is the whole point of the previews.
  *
  * PREREQUISITES
  * -------------
@@ -49,7 +54,8 @@ const { chromium } = require(path.join(__dirname, '..', 'e2e', 'node_modules', '
 
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 const OUT = path.join(__dirname, '..', 'src', 'main', 'resources', 'META-INF', 'resources', 'img', 'settings');
-const VW = 1200, VH = 820; // dashboard capture viewport (16:11-ish landscape)
+const VW = 1200, VH = 820;  // web capture viewport (full-page/element shots ignore the height)
+const MVW = 390, MVH = 844; // mobile capture viewport — realistic phone size (height ~unused too)
 
 // Dedicated demo account — kept separate from real dev data.
 const USER = { email: 'preview-demo@diurnal.local', password: 'preview_demo123', displayName: 'Preview Demo' };
@@ -141,29 +147,52 @@ async function setPrefs(ctx, theme, calendarView) {
   if (!res.ok()) throw new Error('setPrefs failed: ' + res.status());
 }
 
-async function shotDashboard(ctx, calendarView, file) {
+// Open the dashboard and wait until the chosen calendar style's activity markers are painted, so
+// every capture taken from the returned page sees fully-loaded events. Caller closes the page.
+async function openDashboard(ctx, calendarView) {
   const page = await ctx.newPage();
   await page.goto(BASE + '/', { waitUntil: 'networkidle' }); // the dashboard is served at /
-  // Wait for the calendar's activity markers so events are visibly loaded before capturing.
   const sel = calendarView === 'full' ? '.fc-event'
             : calendarView === 'stacked' ? '.lt-stk-bar'
             : '.lt-min-dot';
   await page.waitForSelector(sel, { timeout: 15000 });
   await page.waitForTimeout(600); // settle fonts/layout
-  await page.screenshot({ path: path.join(OUT, file), clip: { x: 0, y: 0, width: VW, height: VH } });
-  await page.close();
+  return page;
+}
+
+// Theme preview: the WHOLE dashboard page (navbar, heading, calendar, day panel, stats) — fullPage
+// captures the entire scroll height, not just the viewport.
+async function shotFullPage(page, file) {
+  await page.screenshot({ path: path.join(OUT, file), fullPage: true });
   console.log('wrote', file);
 }
 
-async function compositeSystem(browser) {
-  // System theme = diagonal split of the light & dark dashboards (light upper-left, dark
-  // lower-right; divider runs corner-to-corner top-right → bottom-left). Inlined as base64 so the
-  // page has no cross-origin/file:// loading concerns.
-  const lightB64 = fs.readFileSync(path.join(OUT, 'theme-light.png')).toString('base64');
-  const darkB64 = fs.readFileSync(path.join(OUT, 'theme-dark.png')).toString('base64');
+// Calendar-style preview: ONLY the calendar, in full (the card wrapping #calendar / #calendar-minimal
+// is the calendar's container — its parent). An element screenshot captures the whole element even
+// where it overflows the viewport, so the calendar is never cut off.
+async function shotCalendar(page, file) {
+  const card = page.locator('#calendar, #calendar-minimal').locator('xpath=..');
+  await card.screenshot({ path: path.join(OUT, file) });
+  console.log('wrote', file);
+}
+
+// Read a PNG's pixel dimensions straight from its IHDR (width/height are big-endian uint32s at byte
+// offsets 16/20). Lets the system composite size itself to whatever the (variable-height) source is.
+function pngSize(file) {
+  const b = fs.readFileSync(file);
+  return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
+}
+
+// System theme = diagonal split of the light & dark dashboards (light upper-left, dark lower-right;
+// divider runs corner-to-corner top-right → bottom-left). Inlined as base64 so the composing page has
+// no cross-origin/file:// loading concerns. `light`/`dark` are the source filenames and `out` the
+// target; the canvas matches the sources' actual pixel size (they are already 2x captures).
+async function compositeSystem(browser, { light, dark, out }) {
+  const lightB64 = fs.readFileSync(path.join(OUT, light)).toString('base64');
+  const darkB64 = fs.readFileSync(path.join(OUT, dark)).toString('base64');
+  const { w: PW, h: PH } = pngSize(path.join(OUT, light));
   const ctx = await browser.newContext({ deviceScaleFactor: 1 });
   const page = await ctx.newPage();
-  const PW = VW * 2, PH = VH * 2; // screenshots are 2x
   await page.setViewportSize({ width: PW, height: PH });
   await page.setContent(`
     <body style="margin:0">
@@ -178,9 +207,9 @@ async function compositeSystem(browser) {
     </body>`);
   await page.evaluate(() => Promise.all([...document.images].map(i => i.decode().catch(() => {}))));
   await page.waitForTimeout(200);
-  await (await page.$('#cmp')).screenshot({ path: path.join(OUT, 'theme-system.png') });
+  await (await page.$('#cmp')).screenshot({ path: path.join(OUT, out) });
   await ctx.close();
-  console.log('wrote theme-system.png');
+  console.log('wrote', out);
 }
 
 // ── Lossless optimisation ────────────────────────────────────────────────────────────────────────
@@ -208,43 +237,71 @@ function optimise() {
 
 // ── Main ───────────────────────────────────────────────────────────────────────────────────────
 
+const CALENDAR_VIEWS = ['full', 'minimal', 'stacked'];
+
+// Capture the full set (theme + calendar pickers) for one viewport. `suffix` is appended before the
+// extension ('' for web, '-mobile' for the portrait phone shots). Prefs are stored server-side on the
+// demo user, so the same login drives both viewports; the only difference between a web and mobile
+// pair is the viewport. Each (calendar style, theme) combo yields BOTH a full-page theme shot AND a
+// calendar-only shot from the same page load — so the theme picker has one preview per calendar style
+// (settings.html then shows the one matching the user's selected style).
+async function captureSet(ctx, suffix) {
+  const f = base => base + suffix + '.png';
+
+  for (const view of CALENDAR_VIEWS) {
+    for (const theme of ['light', 'dark']) {
+      await setPrefs(ctx, theme, view);
+      const page = await openDashboard(ctx, view);
+      await shotFullPage(page, f(`theme-${view}-${theme}`));        // theme picker: whole page, this style
+      await shotCalendar(page, f(`calendar-${view}-${theme}`));     // calendar picker: calendar only
+      await page.close();
+    }
+  }
+}
+
+// Build the `system` theme preview (diagonal light/dark split) for every calendar style.
+async function compositeSystemAll(browser, suffix) {
+  const s = suffix;
+  for (const view of CALENDAR_VIEWS) {
+    await compositeSystem(browser, {
+      light: `theme-${view}-light${s}.png`,
+      dark: `theme-${view}-dark${s}.png`,
+      out: `theme-${view}-system${s}.png`,
+    });
+  }
+}
+
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch();
-  const ctx = await browser.newContext({
+
+  // Web (landscape) capture context — also does the one-time data seeding.
+  const webCtx = await browser.newContext({
     viewport: { width: VW, height: VH },
     deviceScaleFactor: 2,
     timezoneId: 'UTC',
     colorScheme: 'light',
   });
+  await seed(webCtx);
+  await captureSet(webCtx, '');
+  await compositeSystemAll(browser, '');
+  await webCtx.close();
 
-  await seed(ctx);
+  // Mobile (portrait) capture context — same seeded data, phone-width viewport. Logs in afresh
+  // because cookies are per-context; prefs are shared (stored on the user), so it reuses captureSet.
+  const mobileCtx = await browser.newContext({
+    viewport: { width: MVW, height: MVH },
+    deviceScaleFactor: 2,
+    timezoneId: 'UTC',
+    colorScheme: 'light',
+    isMobile: true,
+    hasTouch: true,
+  });
+  await login(mobileCtx);
+  await captureSet(mobileCtx, '-mobile');
+  await compositeSystemAll(browser, '-mobile');
+  await mobileCtx.close();
 
-  // The theme picker shows one fixed preview per theme (full calendar). The calendar picker shows
-  // each style in BOTH themes — settings.html picks the light/dark variant matching the active mode
-  // — so every calendar style is captured light AND dark. (calendar-full-{light,dark} are just the
-  // theme-{light,dark} shots reused.)
-  await setPrefs(ctx, 'light', 'full');
-  await shotDashboard(ctx, 'full', 'theme-light.png');
-  fs.copyFileSync(path.join(OUT, 'theme-light.png'), path.join(OUT, 'calendar-full-light.png'));
-
-  await setPrefs(ctx, 'dark', 'full');
-  await shotDashboard(ctx, 'full', 'theme-dark.png');
-  fs.copyFileSync(path.join(OUT, 'theme-dark.png'), path.join(OUT, 'calendar-full-dark.png'));
-
-  await setPrefs(ctx, 'light', 'minimal');
-  await shotDashboard(ctx, 'minimal', 'calendar-minimal-light.png');
-  await setPrefs(ctx, 'dark', 'minimal');
-  await shotDashboard(ctx, 'minimal', 'calendar-minimal-dark.png');
-
-  await setPrefs(ctx, 'light', 'stacked');
-  await shotDashboard(ctx, 'stacked', 'calendar-stacked-light.png');
-  await setPrefs(ctx, 'dark', 'stacked');
-  await shotDashboard(ctx, 'stacked', 'calendar-stacked-dark.png');
-
-  await compositeSystem(browser);
-
-  await ctx.close();
   await browser.close();
 
   optimise();

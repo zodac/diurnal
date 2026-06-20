@@ -94,10 +94,13 @@
                 <!-- Theme -->
                 <div class="py-4 border-b border-line">
                     <span class="block text-sm font-medium text-ink mb-3">Theme</span>
-                    <div id="theme-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Theme">
-                        {#include partials/preview-option group="theme" value="system" current=theme img="theme-system.png" imgDark="" label="System" title="System theme" alt="Dashboard split diagonally between light and dark themes" /}
-                        {#include partials/preview-option group="theme" value="light"  current=theme img="theme-light.png"  imgDark="" label="Light"  title="Light theme"  alt="Dashboard in light mode" /}
-                        {#include partials/preview-option group="theme" value="dark"   current=theme img="theme-dark.png"   imgDark="" label="Dark"   title="Dark theme"   alt="Dashboard in dark mode" /}
+                    <!-- data-cal = the selected calendar style; the app.css `#theme-options[data-cal]`
+                         rules show only the matching per-style theme preview, and the JS below keeps it
+                         in sync when the Calendar-style radios change. -->
+                    <div id="theme-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Theme" data-cal="{calendarView}">
+                        {#include partials/preview-option group="theme" value="system" current=theme themeBase="system" label="System" title="System theme" alt="Dashboard split diagonally between light and dark themes" /}
+                        {#include partials/preview-option group="theme" value="light"  current=theme themeBase="light"  label="Light"  title="Light theme"  alt="Dashboard in light mode" /}
+                        {#include partials/preview-option group="theme" value="dark"   current=theme themeBase="dark"   label="Dark"   title="Dark theme"   alt="Dashboard in dark mode" /}
                     </div>
                 </div>
 
@@ -105,9 +108,9 @@
                 <div class="py-4 border-b border-line">
                     <span class="block text-sm font-medium text-ink mb-3">Calendar style</span>
                     <div class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Calendar style">
-                        {#include partials/preview-option group="calendarView" value="full"    current=calendarView img="calendar-full-light.png"    imgDark="calendar-full-dark.png"    label="Full"    title="Full calendar"    alt="Dashboard calendar showing events as text" /}
-                        {#include partials/preview-option group="calendarView" value="minimal" current=calendarView img="calendar-minimal-light.png" imgDark="calendar-minimal-dark.png" label="Minimal" title="Minimal calendar" alt="Dashboard calendar showing a coloured dot per action" /}
-                        {#include partials/preview-option group="calendarView" value="stacked" current=calendarView img="calendar-stacked-light.png" imgDark="calendar-stacked-dark.png" label="Stacked" title="Stacked calendar" alt="Dashboard calendar showing horizontal bars per action" /}
+                        {#include partials/preview-option group="calendarView" value="full"    current=calendarView themeBase="" img="calendar-full-light.png"    imgMobile="calendar-full-light-mobile.png"    imgDark="calendar-full-dark.png"    imgDarkMobile="calendar-full-dark-mobile.png"    label="Full"    title="Full calendar"    alt="Dashboard calendar showing events as text" /}
+                        {#include partials/preview-option group="calendarView" value="minimal" current=calendarView themeBase="" img="calendar-minimal-light.png" imgMobile="calendar-minimal-light-mobile.png" imgDark="calendar-minimal-dark.png" imgDarkMobile="calendar-minimal-dark-mobile.png" label="Minimal" title="Minimal calendar" alt="Dashboard calendar showing a coloured dot per action" /}
+                        {#include partials/preview-option group="calendarView" value="stacked" current=calendarView themeBase="" img="calendar-stacked-light.png" imgMobile="calendar-stacked-light-mobile.png" imgDark="calendar-stacked-dark.png" imgDarkMobile="calendar-stacked-dark-mobile.png" label="Stacked" title="Stacked calendar" alt="Dashboard calendar showing horizontal bars per action" /}
                     </div>
                 </div>
 
@@ -154,9 +157,13 @@
                         </button>
                     </div>
                 </div>
+                <!-- Cap the image to the height left under the header + the modal's p-4 (≈6rem of chrome)
+                     using dynamic-viewport units (100dvh — correct on mobile with browser UI), and
+                     object-contain so a tall full-page shot scales DOWN to fit instead of overflowing
+                     and pushing the buttons off-screen. mx-auto centres the (now narrower) portrait shots. -->
                 <div class="relative">
                     <img id="preview-modal-img" src="" alt=""
-                         class="w-full h-auto rounded-lg shadow-2xl border border-white/10">
+                         class="block mx-auto max-w-full max-h-[calc(100dvh-6rem)] w-auto h-auto object-contain rounded-lg shadow-2xl border border-white/10">
                     <!-- Arrows centred with inset-y-0 + my-auto (NOT -translate-y-1/2): a transform would
                          put each on its own GPU layer and make the glyph sub-pixel-snap on first hover. -->
                     <button type="button" id="preview-prev" onclick="previewStep(-1)" aria-label="Previous preview"
@@ -222,6 +229,15 @@
                 }
             });
 
+            // Keep the theme previews showing the user's selected calendar style: each theme tile holds
+            // a full-page shot per style and #theme-options[data-cal] (via app.css) reveals the matching
+            // one. Update it the moment the Calendar-style radios change, so the previews never go stale.
+            document.getElementById('prefs-form').addEventListener('change', function (e) {
+                if (e.target.name === 'calendarView') {
+                    document.getElementById('theme-options').dataset.cal = e.target.value;
+                }
+            });
+
             // Full-size preview overlay for the Theme / Calendar-style tiles. It is a per-setting
             // gallery: opening any tile's (!) lets you step (prev/next) through the OTHER options of
             // the SAME picker only — the tiles are scoped by their shared data-preview-group.
@@ -238,10 +254,21 @@
                 document.getElementById('preview-modal-panel').getAnimations().forEach(function (a) { a.cancel(); });
             }
 
-            // A tile may carry a dark-mode variant (calendar tiles); show it when in dark mode.
+            // The thumbnail and the full-size image are the SAME file (the thumbnail is just CSS-cropped
+            // to a fixed frame), so the lightbox just shows whichever thumbnail `<img>` is currently
+            // rendered in the tile — already the right viewport + theme + calendar-style variant. We use
+            // checkVisibility because the non-selected theme-style groups are hidden with
+            // visibility:hidden (not display:none), which offsetParent alone wouldn't catch.
             function previewSrcFor(tile) {
-                var dark = tile.dataset.previewDark;
-                return (dark && document.documentElement.classList.contains('dark')) ? dark : tile.dataset.previewSrc;
+                var imgs = tile.querySelectorAll('img');
+                for (var i = 0; i < imgs.length; i++) {
+                    var el = imgs[i];
+                    var visible = el.checkVisibility
+                        ? el.checkVisibility({ visibilityProperty: true, opacityProperty: true })
+                        : (el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
+                    if (visible) return el.currentSrc || el.src;
+                }
+                return imgs.length ? (imgs[0].currentSrc || imgs[0].src) : '';
             }
 
             function renderPreview() {
@@ -327,6 +354,28 @@
                 else if (e.key === 'ArrowLeft') previewStep(-1);
                 else if (e.key === 'ArrowRight') previewStep(1);
             });
+
+            // Load + decode the thumbnails up front so switching calendar style / theme never flashes
+            // while an image loads-and-decodes for the first time. The not-yet-selected theme-style
+            // groups are hidden with visibility:hidden (see app.css), so they stay laid out and their
+            // <img>s can actually be decoded now — decode() also pulls the (lazy) bytes, and unlike a
+            // display:none image (whose decode() promise never resolves) it completes, leaving the image
+            // paint-ready. We only touch images that are laid out (display:none ones are the OTHER
+            // viewport's — never shown unless the window crosses the `sm` breakpoint — so they stay
+            // unloaded and we don't download what the user can't see).
+            (function preDecodePreviews() {
+                var imgs = Array.prototype.slice.call(document.querySelectorAll('#prefs-form .preview-img'));
+                function decodeRenderable() {
+                    imgs.forEach(function (el) {
+                        if (el.decode && getComputedStyle(el).display !== 'none') {
+                            el.decode().catch(function () {});
+                        }
+                    });
+                }
+                decodeRenderable();
+                // If the window crosses the breakpoint, the other viewport's images take over — decode them too.
+                window.matchMedia('(min-width: 640px)').addEventListener('change', decodeRenderable);
+            })();
         </script>
     </main>
 </div>

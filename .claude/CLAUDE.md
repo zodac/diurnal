@@ -64,7 +64,11 @@ Dev mode disables Testcontainers and expects a local PostgreSQL on `localhost:54
 wiped on every container recreate.
 
 > **Always tear down the dev environment once testing/verification is finished.** Never leave dev
-> resources running at the end of a task:
+> resources running at the end of a task. The easiest way is the helper scripts:
+> `scripts/dev-up.sh` brings up the dev DB + `quarkus:dev` on 8081 and waits until it answers;
+> **`scripts/dev-teardown.sh`** stops it again. The teardown only kills what LISTENs on 8081 and the
+> `diurnal-db-dev` container, so a running **production** container on 8080 is never touched. Equivalent
+> manual steps if you must:
 > 1. Stop the dev app: `pkill -f "quarkus:dev"` and confirm port 8081 is free (frees 8081 for the
      > `@QuarkusTest` test-port and stops a stale server masking changes).
 > 2. Stop the DB: `docker compose -f docker-compose.dev.yml down` (all data is ephemeral/tmpfs so
@@ -344,25 +348,70 @@ stage from the committed `favicon.svg` (visually identical, may differ by a few 
 
 The **Theme** and **Calendar style** pickers in `settings.html` are not abstract icons — each option is a
 scaled-down real screenshot of the dashboard in that configuration (rendered by
-`partials/preview-option.html`, with an `(!)` button that opens the full-size image in a lightbox). Nine
-PNGs live in `src/main/resources/META-INF/resources/img/settings/`: `theme-{light,dark,system}.png` (the
-theme picker; `system` is a diagonal light/dark split) and `calendar-{full,minimal,stacked}-{light,dark}.png`
-(the calendar picker — captured in **both** themes; the tile shows the variant matching the active mode via
-a `dark:` class toggle, so it always matches the chosen light/dark theme). `calendar-full-{light,dark}.png`
-are copies of `theme-{light,dark}.png`.
+`partials/preview-option.html`, with an `(!)` button that opens the full-size image in a lightbox). The
+PNGs live in `src/main/resources/META-INF/resources/img/settings/`, captured as **two viewport sets** —
+a **web** (landscape) set and a **mobile** (portrait, `-mobile` suffix) set — so each tile shows the
+device-appropriate shot: the web variant at the `sm` breakpoint and up, the mobile variant below it
+(selected purely by combined `sm:`/`dark:` Tailwind variants on the `<img>`s). The lightbox is
+src-attribute-free: `previewSrcFor` simply reads whichever thumbnail `<img>` is currently rendered
+(others are `display:none`), since the thumbnail and the full image are the **same file** (the thumbnail
+is just CSS-cropped) — so the modal automatically shows the right viewport/theme/calendar-style variant.
+The two pickers differ in **framing**: theme tiles are a **full-page** dashboard shot (navbar, heading,
+calendar, day panel, stats — captured with `fullPage:true`), while calendar tiles are a **calendar-only**
+shot (an element screenshot of the card wrapping `#calendar`/`#calendar-minimal`, so the whole calendar
+is captured even where it overflows the viewport, and nothing else).
+
+**Theme previews track the selected calendar style.** A theme preview is a *full-page* shot, so its
+calendar reflects a calendar style — and it must match the one the user has chosen. Each theme tile
+therefore carries **one full-page shot per calendar style** (`theme-{full,minimal,stacked}-{theme}`),
+wrapped in `[data-cal-style]` groups inside the `.preview-thumb` frame; the `#theme-options[data-cal]`
+rules in `app.css` reveal only the matching group, and `settings.html` keeps `data-cal` in sync **live**
+as the Calendar-style radios change. `preview-thumb.html` has a `themeBase` mode that emits these
+per-style groups; calendar tiles use its plain (single-screenshot) mode.
+
+**Loading/decoding — two hiding mechanisms, on purpose (see `preview-thumb.html`).** All thumbnails are
+`loading="lazy"`. **Viewport** is gated with `display` (the `sm:` classes): the other viewport's images
+are `display:none` and never fetched — so a desktop user never downloads the ~half of the ~3.8 MB set
+that is the mobile (portrait) shots, or vice-versa (only loaded if the window crosses the `sm`
+breakpoint). The not-yet-shown variant *within* the current viewport — the opposite theme on a calendar
+tile, or the other calendar styles on a theme tile — is hidden with **`visibility`/`invisible`** (NOT
+display), so it stays laid out and `settings.html` can `decode()` it up front. That pre-decode makes
+theme / calendar-style switches **flash-free**; it must use `visibility` because `img.decode()` resolves
+for a `visibility:hidden` image but **never resolves for a `display:none` one** (so a display:none image
+can't be pre-decoded — which was the cause of the switch flash). The on-load warm-up just calls
+`decode()` on every laid-out (`display!=none`) preview image; `previewSrcFor` uses `checkVisibility()`
+(visibility-aware) to find the shown variant for the lightbox.
+
+**Thumbnail sizing is decoupled from the screenshots' real aspect ratios.** The captured images have
+varying shapes, but the on-page thumbnails are all one fixed size *per viewport* (portrait on mobile,
+landscape at `sm`+): the reusable `partials/preview-thumb.html` renders the four responsive `<img>`
+variants inside a fixed-ratio frame and crops each to the **top** (`object-top`), so e.g. a tall
+full-page theme shot shows only its top in the thumbnail while the (!) lightbox still shows it whole.
+The frame ratios are the single source of truth in **`.preview-thumb`** (`app.css`,
+`aspect-[3/4] sm:aspect-[3/2]`) — change them there to resize every thumbnail at once. Any **future**
+settings thumbnail should render through `partials/preview-thumb.html` so it automatically obeys these
+rules; because sizing no longer depends on the image, the includes pass **no** per-tile dimensions.
+The files: `theme-{full,minimal,stacked}-{light,dark,system}.png` (the theme picker — one full-page shot
+per calendar style; `system` is a diagonal light/dark split) and
+`calendar-{full,minimal,stacked}-{light,dark}.png` (the calendar picker — captured in **both** themes;
+the tile shows the variant matching the active mode, so it always matches the chosen light/dark theme),
+each with a matching `…-mobile.png`. (**30 PNGs total.**) Each `theme-{style}-{theme}` and its
+`calendar-{style}-{theme}` are captured from the same dashboard load (full-page vs calendar-only).
 
 **These are committed assets — nothing in the app or the Maven/Docker build regenerates them.** Re-run
 `scripts/generate-settings-previews.cjs` whenever the dashboard's appearance changes in a way the
 previews should reflect (calendar markup/styling, light/dark colour tokens, navbar/day-panel/layout):
 
 ```bash
-docker compose -f docker-compose.dev.yml up -d diurnal-db-dev && mvn quarkus:dev   # need a running dev server
-node scripts/generate-settings-previews.cjs                                # defaults to :8081; then commit the PNGs
+scripts/dev-up.sh                            # starts diurnal-db-dev + quarkus:dev on :8081, waits until ready
+node scripts/generate-settings-previews.cjs  # defaults to :8081; then commit the PNGs
+scripts/dev-teardown.sh                       # stop the dev server + remove the dev DB when finished
 ```
 
 The script is self-contained: it registers a throwaway demo user, seeds a fixed set of actions/logs over
-HTTP (idempotent), captures every theme/calendar combination from the **same** data so the only visible
-difference between previews is the setting itself, and finally losslessly optimises the PNGs with
+HTTP (idempotent), captures every theme/calendar combination from the **same** data in **both** a web
+and a mobile viewport (so the only visible difference within a viewport is the setting itself), and
+finally losslessly optimises the PNGs with
 `optipng` (installing it via `apt-get` if missing — so neither the runtime image nor the host needs it
 preinstalled). It talks to the app only over HTTP (no DB access), so `BASE_URL=…` can point it at any
 running instance.
