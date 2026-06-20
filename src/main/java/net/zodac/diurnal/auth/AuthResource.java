@@ -28,6 +28,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.Locale;
 import net.zodac.diurnal.user.User;
+import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
@@ -45,11 +46,30 @@ public class AuthResource {
     @Inject
     RoleAssigner roleAssigner;
 
-    /** Registers a new password-based user, returning {@code 201} with a JWT, or {@code 409} if the email exists. */
+    @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
+    boolean passwordAuthEnabled;
+
+    @ConfigProperty(name = "registration.enabled", defaultValue = "true")
+    boolean registrationEnabled;
+
+    /**
+     * Registers a new password-based user, returning {@code 201} with a JWT, or {@code 409} if the email exists.
+     * Returns {@code 404} when password auth is disabled and {@code 403} when registration is disabled, mirroring
+     * the web registration guard so the API can never bypass {@code PASSWORD_AUTH_ENABLED}/{@code ENABLE_REGISTRATION}.
+     */
     @POST
     @Path("/register")
     @Transactional
     public Response register(@Valid final RegisterRequest request) {
+        if (!passwordAuthEnabled) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        if (!registrationAllowed()) {
+            return Response.status(Response.Status.FORBIDDEN)
+                    .entity(new ErrorResponse("Registration is disabled"))
+                    .build();
+        }
+
         final String email = request.email().toLowerCase(Locale.ROOT).strip();
 
         if (User.findByEmail(email).isPresent()) {
@@ -93,6 +113,16 @@ public class AuthResource {
                             .entity(new ErrorResponse("Invalid email or password"))
                             .build();
                 });
+    }
+
+    /**
+     * Whether local registration is currently permitted. Mirrors {@code WebResource}: the initial account can
+     * always be created during first-run setup (so {@code ENABLE_REGISTRATION=false} can never lock out the very
+     * first user); once any user exists, {@code ENABLE_REGISTRATION} is respected. Callers must already have
+     * verified password auth is enabled.
+     */
+    private boolean registrationAllowed() {
+        return User.count() == 0 || registrationEnabled;
     }
 
     /** Error payload returned for failed auth requests. */
