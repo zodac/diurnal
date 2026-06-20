@@ -64,6 +64,42 @@ class ActionStatsTest {
         assertTrue(s.hasData(), "expected condition to be true");
     }
 
+    // ── latestLabel ─────────────────────────────────────────────────────────────
+
+    @Test
+    void latestLabel_nullLastPerformed_returnsNever() {
+        final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertEquals("Never", s.latestLabel(), "unexpected value");
+    }
+
+    @Test
+    void latestLabel_currentYear_omitsYearAndComma() {
+        final LocalDate sameYear = LocalDate.of(TODAY.getYear(), 3, 10);
+        final ActionStats s = stats(1, 1, sameYear, sameYear, 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertEquals("10 Mar", s.latestLabel(), "unexpected value");
+    }
+
+    @Test
+    void latestLabel_previousYear_includesYear() {
+        final LocalDate priorYear = LocalDate.of(TODAY.getYear() - 1, 12, 25);
+        final ActionStats s = stats(1, 1, priorYear, priorYear, 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertEquals("25 Dec " + (TODAY.getYear() - 1), s.latestLabel(), "unexpected value");
+    }
+
+    // ── performedThisMonth ──────────────────────────────────────────────────────
+
+    @Test
+    void performedThisMonth_zeroThisMonth_returnsFalse() {
+        final ActionStats s = stats(1, 1, TODAY.minusDays(40), TODAY.minusDays(40), 0, 1, 0, 3, 1, 0, "—", 0, "—", 0);
+        assertFalse(s.performedThisMonth(), "expected condition to be false");
+    }
+
+    @Test
+    void performedThisMonth_positiveThisMonth_returnsTrue() {
+        final ActionStats s = stats(1, 1, TODAY, TODAY, 1, 1, 2, 0, 2, 0, "—", 0, "—", 0);
+        assertTrue(s.performedThisMonth(), "expected condition to be true");
+    }
+
     // ── sinceLabel ────────────────────────────────────────────────────────────
 
     @Test
@@ -124,6 +160,56 @@ class ActionStatsTest {
         // first = today-14, span = 2 weeks, totalDays=7 → 7/2 = 3.5
         final ActionStats s = stats(7, 7, TODAY.minusDays(14), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
         assertEquals("3.5", s.weeklyAverage(), "unexpected value");
+    }
+
+    // ── streak / day labels (singular-aware) ───────────────────────────────────
+
+    @Test
+    void currentStreakLabel_one_isSingular() {
+        final ActionStats s = stats(1, 1, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertEquals("1 day", s.currentStreakLabel(), "unexpected value");
+    }
+
+    @Test
+    void currentStreakLabel_zero_isPlural() {
+        final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertEquals("0 days", s.currentStreakLabel(), "unexpected value");
+    }
+
+    @Test
+    void currentStreakLabel_many_isPlural() {
+        final ActionStats s = stats(5, 5, TODAY, TODAY, 5, 5, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertEquals("5 days", s.currentStreakLabel(), "unexpected value");
+    }
+
+    @Test
+    void longestStreakLabel_one_isSingular() {
+        final ActionStats s = stats(1, 1, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertEquals("1 day", s.longestStreakLabel(), "unexpected value");
+    }
+
+    @Test
+    void longestStreakLabel_many_isPlural() {
+        final ActionStats s = stats(3, 3, TODAY, TODAY, 1, 3, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertEquals("3 days", s.longestStreakLabel(), "unexpected value");
+    }
+
+    @Test
+    void totalDaysUnit_one_isSingular() {
+        final ActionStats s = stats(1, 1, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertEquals("distinct day", s.totalDaysUnit(), "unexpected value");
+    }
+
+    @Test
+    void totalDaysUnit_zero_isPlural() {
+        final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertEquals("distinct days", s.totalDaysUnit(), "unexpected value");
+    }
+
+    @Test
+    void totalDaysUnit_many_isPlural() {
+        final ActionStats s = stats(2, 2, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertEquals("distinct days", s.totalDaysUnit(), "unexpected value");
     }
 
     // ── monthTrend / monthTrendClass ──────────────────────────────────────────
@@ -190,6 +276,12 @@ class ActionStatsTest {
     void monthContext_formatIsCorrect() {
         final ActionStats s = stats(2, 7, TODAY, TODAY, 0, 0, 5, 2, 0, 0, "—", 0, "—", 0);
         assertEquals("5 this month · 2 last month", s.monthContext(), "unexpected value");
+    }
+
+    @Test
+    void thisMonthContext_formatIsCorrect() {
+        final ActionStats s = stats(2, 7, TODAY, TODAY, 0, 0, 5, 2, 0, 0, "—", 0, "—", 0);
+        assertEquals("5 this month", s.thisMonthContext(), "unexpected value");
     }
 
     @Test

@@ -10,9 +10,9 @@
 
         <!-- Streaks & totals -->
         <dl class="grid grid-cols-2 gap-2">
-            {#include partials/stat-tile label='Current streak' value=s.currentStreak sub='days' /}
-            {#include partials/stat-tile label='Longest streak' value=s.longestStreak sub='days' /}
-            {#include partials/stat-tile label='Total days' value=s.totalDays sub='distinct days' /}
+            {#include partials/stat-tile label='Current streak' value=s.currentStreak sub=s.currentStreakUnit /}
+            {#include partials/stat-tile label='Longest streak' value=s.longestStreak sub=s.longestStreakUnit /}
+            {#include partials/stat-tile label='Total days' value=s.totalDays sub=s.totalDaysUnit /}
             {#include partials/stat-tile label='Total count' value=s.totalCount sub='all time' /}
             {#include partials/stat-tile label='Weekly average' value=s.weeklyAverage sub='days / week' /}
 

@@ -194,24 +194,23 @@
                         <span class="swatch swatch-sm" style="background-color: {s.action.colour}"></span>
                         <span class="text-sm font-medium text-ink truncate">{s.action.name}</span>
                     </div>
-                    <dl class="grid grid-cols-2 gap-4 min-w-0 sm:grid-cols-4 sm:flex-1">
+                    {! Mobile squeezes three columns into the card width, so the type is reduced a step
+                       (text-[0.65rem]/text-xs) and the gap tightened here; sm: restores the larger sizes. !}
+                    <dl class="grid grid-cols-3 gap-2 sm:gap-4 min-w-0 sm:flex-1">
                         <div>
-                            <dt class="help-text">Last performed</dt>
-                            <dd class="text-sm font-semibold text-ink">{s.lastLabel}</dd>
-                            <dd class="help-text">{s.sinceLabel}</dd>
+                            <dt class="help-text text-[0.65rem] sm:text-xs">Latest</dt>
+                            <dd class="text-xs sm:text-sm font-semibold text-ink">{s.latestLabel}</dd>
+                            <dd class="help-text text-[0.65rem] sm:text-xs">{s.sinceLabel}</dd>
                         </div>
                         <div>
-                            <dt class="help-text">vs last month</dt>
-                            <dd class="text-sm font-semibold {s.monthTrendClass}">{s.monthTrend}</dd>
-                            <dd class="help-text">{s.monthContext}</dd>
+                            <dt class="help-text text-[0.65rem] sm:text-xs">Monthly trend</dt>
+                            <dd class="text-xs sm:text-sm font-semibold {s.monthTrendClass}">{s.monthTrend}</dd>
+                            <dd class="help-text text-[0.65rem] sm:text-xs">{s.thisMonthContext}</dd>
                         </div>
                         <div>
-                            <dt class="help-text">Current streak</dt>
-                            <dd class="text-sm font-semibold text-ink">{s.currentStreak} days</dd>
-                        </div>
-                        <div>
-                            <dt class="help-text">Longest streak</dt>
-                            <dd class="text-sm font-semibold text-ink">{s.longestStreak} days</dd>
+                            <dt class="help-text text-[0.65rem] sm:text-xs">Streak</dt>
+                            <dd class="text-xs sm:text-sm font-semibold text-ink">{s.currentStreakLabel}</dd>
+                            <dd class="help-text text-[0.65rem] sm:text-xs">Best: {s.longestStreakLabel}</dd>
                         </div>
                     </dl>
                 </div>

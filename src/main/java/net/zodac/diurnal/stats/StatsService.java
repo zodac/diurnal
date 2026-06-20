@@ -54,11 +54,14 @@ public class StatsService {
                 .toList();
     }
 
-    /** Returns stats for the user's most recently performed actions, newest first, up to {@code limit}. */
+    /**
+     * Returns stats for the actions the user has performed in the current month, newest first, up to
+     * {@code limit}. Actions not logged this month are excluded entirely.
+     */
     @Transactional
     public List<ActionStats> forMostRecent(final UUID userId, final int limit) {
         return computeAll(userId).stream()
-                .filter(ActionStats::hasData)
+                .filter(ActionStats::performedThisMonth)
                 .sorted(Comparator.comparing(ActionStats::lastPerformed).reversed())
                 .limit(limit)
                 .toList();

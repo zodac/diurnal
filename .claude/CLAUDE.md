@@ -443,6 +443,13 @@ controls are rendered server-side as HTML. Page size is a per-user setting valid
   least one of password-auth or OIDC is enabled at startup.
 - Login page uses query params for state: `?error` signals a failed login; `?registered=true` shows a success message after registration.
 - `ActionStats` exposes `sinceLabel()`, `monthTrend()`, `monthTrendClass()` helpers used directly in Qute templates for display formatting.
+- **UI-facing text must use the correct singular/plural form** — never render "1 days", "1 distinct days", etc. Counts of `1`
+  take the singular noun, everything else (including `0`) the plural. Don't hardcode a static unit caption (e.g. `sub='days'`)
+  next to a variable count; route it through a count-aware helper. `ActionStats` centralises the day/streak rule via the private
+  `plural(count, unit)` helper, exposed as `currentStreakLabel()`/`longestStreakLabel()` ("5 days"/"1 day"),
+  `currentStreakUnit()`/`longestStreakUnit()`/`totalDaysUnit()` (the bare "day"/"days"/"distinct day(s)" caption for stat tiles).
+  Rates stay plural by convention (e.g. weekly average is always "N days / week"). Apply the same rule to any new pluralised
+  count anywhere in the app.
 
 ### Database migrations
 
