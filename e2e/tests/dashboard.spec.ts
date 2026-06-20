@@ -143,7 +143,7 @@ test.describe('Dashboard', () => {
     test('future date shows "future" message with no +/− buttons', async ({authenticatedPage: page}) => {
         await page.goto('/');
         // Click on the next month's first day to get a future date
-        await page.locator('.fc-next-button').click();
+        await page.locator('#cal-next').click();
         const futureCell = page.locator('.fc-daygrid-day').filter({has: page.locator('.fc-daygrid-day-number')}).first();
         await futureCell.click();
         await expect(page.locator('#day-panel')).toContainText(/future|cannot log/i);
@@ -152,9 +152,9 @@ test.describe('Dashboard', () => {
 
     test('jump picker: calendar icon opens month grid, click closes it, Escape closes it', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        const jumpBtn = page.locator('.lt-jump-btn');
+        const jumpBtn = page.locator('#cal-jump');
         await jumpBtn.click();
-        const popup = page.locator('.lt-months').first().locator('..');
+        const popup = page.locator('#cal-pop');
         await expect(popup).not.toHaveClass(/hidden/);
 
         // Escape closes
@@ -170,8 +170,8 @@ test.describe('Dashboard', () => {
 
     test('jump picker: year arrows change year label', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        await page.locator('.lt-jump-btn').click();
-        const yearLabel = page.locator('.lt-year');
+        await page.locator('#cal-jump').click();
+        const yearLabel = page.locator('.cal-pop-year');
         const originalYear = await yearLabel.textContent();
 
         await page.locator('button[data-y="1"]').click();
@@ -214,7 +214,8 @@ test.describe('Dashboard – Calendar navigation', () => {
             const otherCellSelector = calendarView === 'full'
                 ? '.fc-daygrid-day.fc-day-other'
                 : '.lt-min-cell.lt-min-other';
-            const titleSelector = calendarView === 'full' ? '.fc-toolbar-title' : '#lt-min-title';
+            // Every calendar style now shares one toolbar, so the title element is the same id.
+            const titleSelector = '#cal-title';
 
             const otherCell = page.locator(otherCellSelector).first();
             const otherDate = await otherCell.getAttribute('data-date');
@@ -251,7 +252,7 @@ test.describe('Dashboard – Minimal calendar', () => {
 
     test('minimal calendar is rendered instead of FullCalendar', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        await expect(page.locator('#calendar-minimal')).toBeVisible();
+        await expect(page.locator('#lt-min-grid')).toBeVisible();
         await expect(page.locator('#calendar')).toHaveCount(0);
     });
 
@@ -306,35 +307,35 @@ test.describe('Dashboard – Minimal calendar', () => {
 
     test('jump picker opens and closes with Escape', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        await page.locator('#lt-min-jump').click();
-        await expect(page.locator('#lt-min-pop')).not.toHaveClass(/hidden/);
+        await page.locator('#cal-jump').click();
+        await expect(page.locator('#cal-pop')).not.toHaveClass(/hidden/);
 
         await page.keyboard.press('Escape');
-        await expect(page.locator('#lt-min-pop')).toHaveClass(/hidden/);
+        await expect(page.locator('#cal-pop')).toHaveClass(/hidden/);
     });
 
     test('jump picker closes on click outside', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        await page.locator('#lt-min-jump').click();
-        await expect(page.locator('#lt-min-pop')).not.toHaveClass(/hidden/);
+        await page.locator('#cal-jump').click();
+        await expect(page.locator('#cal-pop')).not.toHaveClass(/hidden/);
 
         await page.locator('h2').first().click();
-        await expect(page.locator('#lt-min-pop')).toHaveClass(/hidden/);
+        await expect(page.locator('#cal-pop')).toHaveClass(/hidden/);
     });
 
     test('prev/next month navigation changes the title', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        const originalTitle = await page.locator('#lt-min-title').textContent();
-        await page.locator('#lt-min-next').click();
-        await expect(page.locator('#lt-min-title')).not.toHaveText(originalTitle!);
+        const originalTitle = await page.locator('#cal-title').textContent();
+        await page.locator('#cal-next').click();
+        await expect(page.locator('#cal-title')).not.toHaveText(originalTitle!);
     });
 
     test('today button returns to current month', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        const originalTitle = await page.locator('#lt-min-title').textContent();
-        await page.locator('#lt-min-next').click();
-        await page.locator('#lt-min-today').click();
-        await expect(page.locator('#lt-min-title')).toHaveText(originalTitle!);
+        const originalTitle = await page.locator('#cal-title').textContent();
+        await page.locator('#cal-next').click();
+        await page.locator('#cal-today').click();
+        await expect(page.locator('#cal-title')).toHaveText(originalTitle!);
     });
 });
 
@@ -351,7 +352,7 @@ test.describe('Dashboard – Stacked calendar', () => {
 
     test('stacked calendar is rendered instead of FullCalendar', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        await expect(page.locator('#calendar-minimal')).toBeVisible();
+        await expect(page.locator('#lt-min-grid')).toBeVisible();
         await expect(page.locator('#calendar')).toHaveCount(0);
     });
 
@@ -399,8 +400,8 @@ test.describe('Dashboard – Stacked calendar', () => {
 
     test('prev/next month navigation changes the title', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        const originalTitle = await page.locator('#lt-min-title').textContent();
-        await page.locator('#lt-min-next').click();
-        await expect(page.locator('#lt-min-title')).not.toHaveText(originalTitle!);
+        const originalTitle = await page.locator('#cal-title').textContent();
+        await page.locator('#cal-next').click();
+        await expect(page.locator('#cal-title')).not.toHaveText(originalTitle!);
     });
 });

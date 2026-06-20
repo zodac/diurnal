@@ -189,7 +189,11 @@ test.describe('Settings page', () => {
         // The (!) affordance sits outside the radio label, so it opens the modal without changing the value.
         await page.locator('[role="radiogroup"][aria-label="Theme"] .preview-info').first().click();
         await expect(page.locator('#preview-modal')).toBeVisible();
-        await expect(page.locator('#preview-modal-img')).toHaveAttribute('src', /theme-system\.png/);
+        // Theme previews are now per calendar style (theme-{full,minimal,stacked}-system.png), and
+        // the mobile viewport serves a `-mobile` variant. The lightbox shows whichever matches the
+        // user's style + viewport, so allow any style and the optional `-mobile` suffix.
+        await expect(page.locator('#preview-modal-img'))
+            .toHaveAttribute('src', /theme-(full|minimal|stacked)-system(-mobile)?\.png/);
 
         // Escape closes it.
         await page.keyboard.press('Escape');

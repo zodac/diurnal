@@ -1,0 +1,24 @@
+{! Shared labelled input for form-based modals (login, register — and any future ones). Routing
+   every field through this one partial keeps the markup identical, so the shared client-side
+   validator in layout.html (forms marked `data-validate`) treats them all the same and surfaces
+   blank/invalid fields as in-page banners instead of native browser pop-ups. The `data-field-label`
+   it stamps is the name the validator lists for a blank required field.
+
+   Strict rendering throws on a missing key inside `{#if …}`, so the `#if`-tested attributes must
+   ALWAYS be supplied by the caller (pass "" / false to omit). Params:
+     id, name, label   — text (required)
+     required          — boolean, whether the field is mandatory (required)
+     autocomplete      — autocomplete token, or "" for none (required)
+     maxlength         — max length, or "" for none (required)
+     type              — input type (optional, default "text")
+     value             — pre-filled value (optional, default "") !}
+<div>
+    <label class="field-label" for="{id}">{label}</label>
+    <input id="{id}" name="{name}" type="{type ?: 'text'}"
+           {#if required}required{/if}
+           {#if autocomplete}autocomplete="{autocomplete}"{/if}
+           {#if maxlength}maxlength="{maxlength}"{/if}
+           value="{value ?: ''}"
+           data-field-label="{label}"
+           class="form-input w-full">
+</div>

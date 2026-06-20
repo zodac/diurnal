@@ -25,17 +25,13 @@
         {#include partials/banner variant='error' cls='mb-4' message='Invalid email or password.' /}
         {/if}
 
-        <form method="post" action="/login" class="space-y-4">
-            <div>
-                <label class="field-label" for="email">Email</label>
-                <input id="email" type="email" name="email" required autocomplete="email"
-                       class="form-input w-full">
-            </div>
-            <div>
-                <label class="field-label" for="password">Password</label>
-                <input id="password" type="password" name="password" required autocomplete="current-password"
-                       class="form-input w-full">
-            </div>
+        {! novalidate + data-validate: the shared client-side validator (layout.html) surfaces
+           blank/invalid fields as the error banners below, matching the register page, instead of
+           native browser pop-ups. !}
+        <form method="post" action="/login" novalidate data-validate class="space-y-4">
+            <div data-form-errors class="space-y-2" hidden></div>
+            {#include partials/form-field id="email" name="email" label="Email" type="email" required=true autocomplete="email" maxlength="" /}
+            {#include partials/form-field id="password" name="password" label="Password" type="password" required=true autocomplete="current-password" maxlength="" /}
             <button type="submit" class="btn-primary w-full">
                 Sign in
             </button>

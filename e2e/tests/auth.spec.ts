@@ -95,14 +95,27 @@ test.describe('Authentication', () => {
         await expect(page.locator('body')).toContainText(/did not match/i);
     });
 
-    test('register form submitted empty shows a server error banner, not browser pop-ups', async ({page}) => {
+    test('register form submitted empty shows an error banner, not browser pop-ups', async ({page}) => {
         await page.goto('/register');
-        // Submit with every field blank — `novalidate` lets it reach the server instead of being
-        // blocked by native field validation, so the missing-fields banner is shown.
+        // Submit with every field blank. `novalidate` suppresses native field pop-ups; the shared
+        // client-side validator (data-validate) lists the missing fields in the error slot instead.
         await page.click('button[type="submit"]');
 
         await expect(page).toHaveURL(/\/register$/);
-        await expect(page.locator('body')).toContainText(/please fill in the following field/i);
+        await expect(page.locator('[data-form-errors]')).toContainText(/please fill in the following field/i);
+    });
+
+    test('login form submitted empty shows error banners, not browser pop-ups', async ({page}) => {
+        await page.goto('/login');
+        // Same shared validator as register: a blank submit is caught client-side and the missing
+        // fields are listed in the error slot, rather than firing the browser's native pop-ups.
+        await page.click('button[type="submit"]');
+
+        await expect(page).toHaveURL(/\/login$/);
+        const errors = page.locator('[data-form-errors]');
+        await expect(errors).toContainText(/please fill in the following field/i);
+        await expect(errors).toContainText('Email');
+        await expect(errors).toContainText('Password');
     });
 
     test('register form accepts a short (non-empty) password', async ({page}) => {

@@ -1,0 +1,34 @@
+{! Shared calendar toolbar — the prev/next/year/today buttons, the month/year title, the
+   "jump to month" icon, and the month/year picker popup. Rendered identically for EVERY calendar
+   style (full, minimal, stacked) so the navigation chrome is the same across calendars, themes and
+   viewports. dashboard.html wires the stable button ids to the active calendar: FullCalendar's API
+   for the `full` view, the grid-render functions for `minimal`/`stacked`. The popup is positioned
+   absolutely against the enclosing `#calendar-wrap` (which is `position: relative`). !}
+<div class="cal-toolbar">
+    <div class="cal-toolbar-left">
+        <button id="cal-prev-year" type="button" class="cal-toolbar-btn" title="Previous year">«</button>
+        <button id="cal-prev"      type="button" class="cal-toolbar-btn" title="Previous month">‹</button>
+        <button id="cal-next"      type="button" class="cal-toolbar-btn" title="Next month">›</button>
+        <button id="cal-next-year" type="button" class="cal-toolbar-btn" title="Next year">»</button>
+        <button id="cal-today"     type="button" class="cal-toolbar-btn">today</button>
+    </div>
+    <div class="cal-toolbar-center">
+        <span id="cal-title"></span>
+        <button id="cal-jump" type="button" class="cal-toolbar-btn" title="Jump to month" aria-label="Jump to month">
+            <svg class="cal-toolbar-glyph" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
+                <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+        </button>
+    </div>
+</div>
+<div id="cal-pop"
+     class="hidden absolute z-50 mt-1 p-3 rounded-lg shadow-lg border border-line bg-surface"
+     style="width:220px">
+    <div class="flex items-center justify-between mb-2">
+        <button type="button" data-y="-1" class="cal-nav-btn">‹</button>
+        <span class="cal-pop-year text-sm font-semibold text-ink"></span>
+        <button type="button" data-y="1" class="cal-nav-btn">›</button>
+    </div>
+    <div class="cal-pop-months grid grid-cols-3 gap-1"></div>
+</div>

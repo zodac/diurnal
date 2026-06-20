@@ -262,5 +262,73 @@
         if (trigger) window.dtClearArmedRows(trigger.closest('tr'));
     });
     </script>
+
+    <script>
+    // ── Shared form-modal validation ──────────────────────────────────────────────
+    // A form marked `data-validate` — built from partials/form-field.html with a `[data-form-errors]`
+    // slot — surfaces blank-required and malformed-email fields as in-page error banners (identical
+    // markup to the server-rendered ones) instead of the browser's native per-field pop-ups. The
+    // login and register cards both opt in, so they behave the same; any future form-based modal gets
+    // the behaviour for free. Server-side checks remain the authoritative backstop for anything the
+    // client can't see (e.g. a duplicate email or a password mismatch on register).
+    (function () {
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, function (c) {
+                return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
+            });
+        }
+        function labelOf(field) {
+            return field.getAttribute('data-field-label') || field.name || 'This field';
+        }
+
+        document.addEventListener('submit', function (e) {
+            var form = e.target;
+            if (!form || !form.matches || !form.matches('form[data-validate]')) {
+                return;
+            }
+
+            var missing = [];
+            var errors = [];
+            var firstInvalid = null;
+            form.querySelectorAll('[required]').forEach(function (field) {
+                if (!field.value.trim()) {
+                    missing.push(labelOf(field));
+                    firstInvalid = firstInvalid || field;
+                } else if (field.type === 'email' && field.value.indexOf('@') === -1) {
+                    if (errors.indexOf('Email must contain an @ symbol.') === -1) {
+                        errors.push('Email must contain an @ symbol.');
+                    }
+                    firstInvalid = firstInvalid || field;
+                }
+            });
+
+            var slot = form.querySelector('[data-form-errors]');
+            if (missing.length === 0 && errors.length === 0) {
+                if (slot) { slot.innerHTML = ''; slot.hidden = true; }
+                return; // valid — let the form submit normally
+            }
+
+            e.preventDefault();
+            if (!slot) {
+                return;
+            }
+
+            var html = '';
+            if (missing.length > 0) {
+                var noun = missing.length === 1 ? 'field' : 'fields';
+                html += '<div class="banner banner-error">Please fill in the following ' + noun + ':' +
+                        '<ul class="list-disc list-inside mt-1">' +
+                        missing.map(function (m) { return '<li>' + escapeHtml(m) + '</li>'; }).join('') +
+                        '</ul></div>';
+            }
+            errors.forEach(function (msg) {
+                html += '<div class="banner banner-error">' + escapeHtml(msg) + '</div>';
+            });
+            slot.innerHTML = html;
+            slot.hidden = false;
+            if (firstInvalid) { firstInvalid.focus(); }
+        });
+    })();
+    </script>
 </body>
 </html>

@@ -167,11 +167,11 @@ async function shotFullPage(page, file) {
   console.log('wrote', file);
 }
 
-// Calendar-style preview: ONLY the calendar, in full (the card wrapping #calendar / #calendar-minimal
-// is the calendar's container — its parent). An element screenshot captures the whole element even
-// where it overflows the viewport, so the calendar is never cut off.
+// Calendar-style preview: ONLY the calendar. Every calendar style now shares the #calendar-wrap
+// container (shared toolbar + the style's grid); the card wrapping it is its parent. An element
+// screenshot captures the whole element even where it overflows the viewport, so it is never cut off.
 async function shotCalendar(page, file) {
-  const card = page.locator('#calendar, #calendar-minimal').locator('xpath=..');
+  const card = page.locator('#calendar-wrap').locator('xpath=..');
   await card.screenshot({ path: path.join(OUT, file) });
   console.log('wrote', file);
 }

@@ -5,28 +5,31 @@
 <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
 {/if}
 <style>
-  /* Compact FullCalendar for the panel layout */
-  .fc .fc-toolbar-title { font-size: 1rem; font-weight: 600; display: inline-flex; align-items: center; gap: 0.4rem; }
-  /* Mobile: keep all nav buttons (incl. 'today') on one row and drop the
-     month/year title to the next row, instead of the toolbar wrapping mid-buttons. */
-  @media (max-width: 640px) {
-    .fc .fc-header-toolbar { flex-direction: column; align-items: flex-start; gap: 0.5rem; }
-  }
-  /* Minimalist, monochrome "jump to month" icon, inline after the title. Tokenised so it tracks
-     the theme (and matches the icon on the minimal/stacked toolbars). */
-  .lt-jump-btn { display: inline-flex; align-items: center; color: var(--color-text-faint); cursor: pointer; background: none; border: none; padding: 0; line-height: 0; transition: color 0.15s; }
-  .lt-jump-btn:hover { color: var(--color-brand); }
+  /* Compact FullCalendar grid for the panel layout. Its built-in header toolbar is disabled
+     (headerToolbar:false) in favour of the shared calendar toolbar (partials/calendar-toolbar.html),
+     so only grid styling remains here. */
   .fc .fc-daygrid-day-number { font-size: 0.75rem; }
   .fc .fc-event { font-size: 0.7rem; }
-  /* ── Shared calendar nav buttons ──────────────────────────────────────────
-     One tokenised style for every prev/next/year/today control, so the buttons look identical
-     across the full (FullCalendar) and minimal/stacked calendars, in both light/dark themes, on
-     mobile and web. Drives BOTH FullCalendar's generated `.fc-button-primary` and the minimal
-     toolbar's `.lt-min-btn`. Matches the app's filled brand buttons (`.btn-primary` / the settings
-     gallery's `.icon-btn-primary`): brand fill, `rounded-lg`, font-medium, brand-hover, offset
-     brand focus ring — just at the compact size the calendar toolbar needs. */
-  .fc .fc-button-primary,
-  .lt-min-btn {
+
+  /* ── Shared calendar toolbar (partials/calendar-toolbar.html) ──────────────
+     One toolbar — prev/next/year/today buttons, month/year title, jump-to-month icon — reused by
+     EVERY calendar style (full, minimal, stacked), so the navigation chrome is identical across
+     calendars, themes and viewports. */
+  /* `space-between` keeps the prev/next/today group at the left and the month/year + jump button
+     pinned to the right. With `flex-wrap`, the free space between them simply shrinks as the toolbar
+     narrows (bringing the title closer to the buttons) and the title only drops to a second line once
+     there is literally no room left — rather than stacking onto its own row prematurely. The 0.5rem
+     `gap` is the minimum spacing they collapse to before wrapping. */
+  .cal-toolbar {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    margin-bottom: 0.5rem; gap: 0.5rem;
+  }
+  .cal-toolbar-left { display: flex; gap: 0.25rem; align-items: center; }
+  .cal-toolbar-center { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 1rem; font-weight: 600; color: var(--color-text); }
+  /* The nav buttons match the app's filled brand buttons (`.btn-primary` / the settings gallery's
+     `.icon-btn-primary`): brand fill, rounded-lg, font-medium, brand-hover, offset brand focus ring —
+     at the compact size the toolbar needs. Brand is constant across light/dark, so no .dark twin. */
+  .cal-toolbar-btn {
     font-size: 0.75rem; font-weight: 500; line-height: 1.2; text-transform: none;
     padding: 0.25rem 0.6rem; border-radius: 0.5rem;
     border: 1px solid transparent;
@@ -34,26 +37,16 @@
     cursor: pointer; box-shadow: none;
     transition: background-color 0.15s, color 0.15s, border-color 0.15s;
   }
-  .fc .fc-button-primary:hover,
-  .lt-min-btn:hover {
-    background: var(--color-brand-hover); color: var(--color-on-brand); border-color: transparent;
-  }
+  .cal-toolbar-btn:hover { background: var(--color-brand-hover); }
   /* Brand ring with a surface-coloured gap, mirroring `.btn-primary`'s ring-offset-2. */
-  .fc .fc-button-primary:focus-visible,
-  .lt-min-btn:focus-visible {
+  .cal-toolbar-btn:focus-visible {
     outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-brand-ring);
   }
-  .fc .fc-button-primary:disabled { opacity: 0.5; cursor: default; }
-  /* Separate the prev/next/year arrows like the minimal toolbar (FullCalendar joins them into a
-     segmented control with negative margins + squared inner corners by default). */
-  .fc .fc-button-group { gap: 0.25rem; }
-  .fc .fc-button-group > .fc-button { border-radius: 0.5rem; }
-  .fc .fc-button-group > .fc-button:not(:first-child) { margin-left: 0; }
-  /* Pressed / active = a deeper brand shade (constant token, so no .dark twin). */
-  .fc .fc-button-primary:not(:disabled):active,
-  .fc .fc-button-primary:not(:disabled).fc-button-active {
-    background: var(--color-brand-strong); border-color: transparent; color: var(--color-on-brand);
-  }
+  .cal-toolbar-btn:active { background: var(--color-brand-strong); }
+  /* The "jump to month" button is a .cal-toolbar-btn whose content is the calendar glyph. Sizing it
+     to 1em (the button's own text size) keeps it the same height as the prev/next/today buttons; it
+     inherits currentColor, so it reads as a white glyph on the brand fill like their text. */
+  .cal-toolbar-glyph { width: 1em; height: 1em; vertical-align: -0.125em; }
 
   /* Token flips to a solid brand fill in dark mode, so a separate .dark rule isn't needed. */
   .fc-daygrid-day.fc-day-today { background-color: var(--color-brand-subtle) !important; }
@@ -80,17 +73,7 @@
     color: rgb(229, 231, 235);
   }
 
-  /* ── Minimal calendar ──────────────────────────────────────────────────── */
-  .lt-min-toolbar {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 0.5rem; gap: 0.5rem;
-  }
-  @media (max-width: 640px) {
-    .lt-min-toolbar { flex-direction: column; align-items: flex-start; }
-  }
-  .lt-min-toolbar-left { display: flex; gap: 0.25rem; align-items: center; }
-  .lt-min-toolbar-center { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 1rem; font-weight: 600; color: var(--color-text); }
-  /* `.lt-min-btn` styling lives in the shared calendar-nav-button block above. */
+  /* ── Minimal calendar grid (the toolbar is the shared .cal-toolbar above) ── */
   .lt-min-dow-header {
     display: grid; grid-template-columns: repeat(7, 1fr);
     margin-bottom: 2px;
@@ -173,44 +156,20 @@
         <div class="grid gap-4 lg:grid-cols-3 mb-6">
 
             <div class="lg:col-span-2 card p-4">
-                {#if calendarView == 'minimal' || calendarView == 'stacked'}
-                <div id="calendar-minimal" style="position:relative">
-                    <div class="lt-min-toolbar">
-                        <div class="lt-min-toolbar-left">
-                            <button id="lt-min-prev-year" type="button" class="lt-min-btn" title="Previous year">«</button>
-                            <button id="lt-min-prev"      type="button" class="lt-min-btn" title="Previous month">‹</button>
-                            <button id="lt-min-next"      type="button" class="lt-min-btn" title="Next month">›</button>
-                            <button id="lt-min-next-year" type="button" class="lt-min-btn" title="Next year">»</button>
-                            <button id="lt-min-today"     type="button" class="lt-min-btn">today</button>
-                        </div>
-                        <div class="lt-min-toolbar-center">
-                            <span id="lt-min-title"></span>
-                            <button id="lt-min-jump" type="button" class="lt-jump-btn" title="Jump to month">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
-                                    <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-                                </svg>
-                            </button>
-                        </div>
-                    </div>
+                {! Every calendar style shares one toolbar (partials/calendar-toolbar.html); only the
+                   body below differs — the FullCalendar mount point, or the minimal/stacked grid. The
+                   wrapper is `position: relative` so the toolbar's jump-to-month popup anchors to it. !}
+                <div id="calendar-wrap" class="relative">
+                    {#include partials/calendar-toolbar /}
+                    {#if calendarView == 'minimal' || calendarView == 'stacked'}
                     <div class="lt-min-dow-header">
                         <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
                     </div>
                     <div id="lt-min-grid" class="lt-min-grid"></div>
-                    <div id="lt-min-pop"
-                         class="hidden absolute z-50 mt-1 p-3 rounded-lg shadow-lg border border-line bg-surface"
-                         style="width:220px">
-                        <div class="flex items-center justify-between mb-2">
-                            <button type="button" data-y="-1" class="cal-nav-btn">‹</button>
-                            <span class="lt-year text-sm font-semibold text-ink"></span>
-                            <button type="button" data-y="1" class="cal-nav-btn">›</button>
-                        </div>
-                        <div class="lt-months grid grid-cols-3 gap-1"></div>
-                    </div>
+                    {#else}
+                    <div id="calendar"></div>
+                    {/if}
                 </div>
-                {#else}
-                <div id="calendar"></div>
-                {/if}
             </div>
 
             <div id="day-panel"
@@ -273,17 +232,22 @@ document.addEventListener('DOMContentLoaded', function () {
     var calendarView = '{calendarView}';
 
     if (calendarView === 'full') {
-    var cal = new FullCalendar.Calendar(document.getElementById('calendar'), {
+    var calWrap = document.getElementById('calendar-wrap');
+    var calEl   = document.getElementById('calendar');
+    var titleEl = document.getElementById('cal-title');
+    var pop     = document.getElementById('cal-pop');
+
+    var cal = new FullCalendar.Calendar(calEl, {
         initialView: 'dayGridMonth',
         initialDate: today,
         // Pin "today" to the server-computed (user-timezone) date so the today-highlight and the
         // 'today' button match the user's clock rather than the browser's local date.
         now: today,
         height: 'auto',
-        headerToolbar: { left: 'prevYear,prev,next,nextYear today', center: 'title', right: '' },
+        headerToolbar: false,   // navigation is the shared toolbar (partials/calendar-toolbar.html)
         events: '/logs/events',
         eventDisplay: 'list-item',
-        datesSet: function () { mountJumpIcon(); highlightSelected(selectedDate); },
+        datesSet: function () { titleEl.textContent = cal.view.title; highlightSelected(selectedDate); },
         dateClick: function (info) {
             selectDay(info.dateStr, info.dayEl);
         },
@@ -295,10 +259,6 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
     cal.render();
-
-    // ── Custom month/year picker ────────────────────────────────────────────
-    var calEl = document.getElementById('calendar');
-    calEl.style.position = 'relative';
 
     // Track and visually mark the currently selected day.
     var selectedDate = null;
@@ -321,30 +281,18 @@ document.addEventListener('DOMContentLoaded', function () {
         htmx.ajax('GET', '/logs/day/' + dateStr, { target: '#day-panel', swap: 'innerHTML' });
     }
 
+    // ── Shared toolbar navigation ───────────────────────────────────────────
+    document.getElementById('cal-prev-year').addEventListener('click', function () { cal.prevYear(); });
+    document.getElementById('cal-prev').addEventListener('click',      function () { cal.prev(); });
+    document.getElementById('cal-next').addEventListener('click',      function () { cal.next(); });
+    document.getElementById('cal-next-year').addEventListener('click', function () { cal.nextYear(); });
+    document.getElementById('cal-today').addEventListener('click', function () { cal.today(); selectDay(today); });
+
+    // ── Month/year picker popup (shared #cal-pop markup) ─────────────────────
     var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var CAL_ICON =
-        '<svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24"' +
-        ' fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-        '<rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>' +
-        '<line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>';
-
-    // Popup
-    var pop = document.createElement('div');
-    pop.className = 'hidden absolute z-50 mt-1 p-3 rounded-lg shadow-lg border ' +
-                    'border-line bg-surface';
-    pop.style.width = '220px';
-    pop.innerHTML =
-        '<div class="flex items-center justify-between mb-2">' +
-          '<button type="button" data-y="-1" class="cal-nav-btn">‹</button>' +
-          '<span class="lt-year text-sm font-semibold text-ink"></span>' +
-          '<button type="button" data-y="1" class="cal-nav-btn">›</button>' +
-        '</div>' +
-        '<div class="lt-months grid grid-cols-3 gap-1"></div>';
-    calEl.appendChild(pop);
-
     var pickerYear = cal.getDate().getFullYear();
-    var yearLabel = pop.querySelector('.lt-year');
-    var monthsGrid = pop.querySelector('.lt-months');
+    var yearLabel = pop.querySelector('.cal-pop-year');
+    var monthsGrid = pop.querySelector('.cal-pop-months');
 
     function renderMonths() {
         yearLabel.textContent = pickerYear;
@@ -377,35 +325,21 @@ document.addEventListener('DOMContentLoaded', function () {
         pickerYear = cal.getDate().getFullYear();
         renderMonths();
         var a = anchor.getBoundingClientRect();
-        var c = calEl.getBoundingClientRect();
-        pop.style.left = Math.min(a.left - c.left, calEl.clientWidth - 230) + 'px';
+        var c = calWrap.getBoundingClientRect();
+        pop.style.left = Math.min(a.left - c.left, calWrap.clientWidth - 230) + 'px';
         pop.style.top = (a.bottom - c.top) + 'px';
         pop.classList.remove('hidden');
     }
     function closePop() { pop.classList.add('hidden'); }
 
+    document.getElementById('cal-jump').addEventListener('click', function (e) {
+        e.stopPropagation();
+        if (pop.classList.contains('hidden')) openPop(this); else closePop();
+    });
     document.addEventListener('click', function (e) {
-        if (!pop.contains(e.target) && !e.target.closest('.lt-jump-btn')) closePop();
+        if (!pop.contains(e.target) && !e.target.closest('#cal-jump')) closePop();
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePop(); });
-
-    // Inject the icon inline after the title; re-run after navigation re-renders the toolbar.
-    function mountJumpIcon() {
-        if (!calEl) return; // datesSet can fire during initial render, before setup completes
-        var title = calEl.querySelector('.fc-toolbar-title');
-        if (!title || title.querySelector('.lt-jump-btn')) return;
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'lt-jump-btn';
-        btn.title = 'Jump to month';
-        btn.innerHTML = CAL_ICON;
-        btn.addEventListener('click', function (e) {
-            e.stopPropagation();
-            if (pop.classList.contains('hidden')) openPop(btn); else closePop();
-        });
-        title.appendChild(btn);
-    }
-    mountJumpIcon();
 
     // Pre-select today so the user can log actions immediately, without clicking the calendar.
     highlightSelected(today);
@@ -429,10 +363,10 @@ document.addEventListener('DOMContentLoaded', function () {
     var selectedDate = null;
     var dayData = {}; // date string -> array of action dot objects
 
-    var calEl   = document.getElementById('calendar-minimal');
+    var calWrap = document.getElementById('calendar-wrap');
     var grid    = document.getElementById('lt-min-grid');
-    var titleEl = document.getElementById('lt-min-title');
-    var pop     = document.getElementById('lt-min-pop');
+    var titleEl = document.getElementById('cal-title');
+    var pop     = document.getElementById('cal-pop');
 
     function pad2(n) { return String(n).padStart(2, '0'); }
 
@@ -529,11 +463,11 @@ document.addEventListener('DOMContentLoaded', function () {
         fetchAndRender();
     }
 
-    document.getElementById('lt-min-prev-year').addEventListener('click', function () { navigate(-1,  0); });
-    document.getElementById('lt-min-prev').addEventListener('click',      function () { navigate( 0, -1); });
-    document.getElementById('lt-min-next').addEventListener('click',      function () { navigate( 0,  1); });
-    document.getElementById('lt-min-next-year').addEventListener('click', function () { navigate( 1,  0); });
-    document.getElementById('lt-min-today').addEventListener('click', function () {
+    document.getElementById('cal-prev-year').addEventListener('click', function () { navigate(-1,  0); });
+    document.getElementById('cal-prev').addEventListener('click',      function () { navigate( 0, -1); });
+    document.getElementById('cal-next').addEventListener('click',      function () { navigate( 0,  1); });
+    document.getElementById('cal-next-year').addEventListener('click', function () { navigate( 1,  0); });
+    document.getElementById('cal-today').addEventListener('click', function () {
         viewYear  = parseInt(today.substring(0, 4), 10);
         viewMonth = parseInt(today.substring(5, 7), 10) - 1;
         fetchAndRender();
@@ -542,8 +476,8 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // ── Month/year picker popup ─────────────────────────────────────────────
     var pickerYear = viewYear;
-    var yearLabel  = pop.querySelector('.lt-year');
-    var monthsGrid = pop.querySelector('.lt-months');
+    var yearLabel  = pop.querySelector('.cal-pop-year');
+    var monthsGrid = pop.querySelector('.cal-pop-months');
 
     function renderMonthPicker() {
         yearLabel.textContent = pickerYear;
@@ -577,19 +511,19 @@ document.addEventListener('DOMContentLoaded', function () {
         pickerYear = viewYear;
         renderMonthPicker();
         var a = anchor.getBoundingClientRect();
-        var c = calEl.getBoundingClientRect();
-        pop.style.left = Math.min(a.left - c.left, calEl.clientWidth - 230) + 'px';
+        var c = calWrap.getBoundingClientRect();
+        pop.style.left = Math.min(a.left - c.left, calWrap.clientWidth - 230) + 'px';
         pop.style.top  = (a.bottom - c.top) + 'px';
         pop.classList.remove('hidden');
     }
     function closePop() { pop.classList.add('hidden'); }
 
-    document.getElementById('lt-min-jump').addEventListener('click', function (e) {
+    document.getElementById('cal-jump').addEventListener('click', function (e) {
         e.stopPropagation();
         if (pop.classList.contains('hidden')) openPop(this); else closePop();
     });
     document.addEventListener('click', function (e) {
-        if (!pop.contains(e.target) && !e.target.closest('#lt-min-jump')) closePop();
+        if (!pop.contains(e.target) && !e.target.closest('#cal-jump')) closePop();
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePop(); });
 
