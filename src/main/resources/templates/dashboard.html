@@ -131,9 +131,8 @@
     width: 26px; height: 26px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     font-size: 0.72rem; font-weight: 400; line-height: 1;
-    /* The digits' baseline metrics leave them riding slightly high in the circle; a hair of top
-       padding (border-box keeps the 26px circle) optically re-centres the number. */
-    padding-top: 1px; box-sizing: border-box;
+    /* Vertical (and horizontal) optical centring of the digits is handled precisely in JS — see
+       centreInk() — so no padding nudge is needed here. */
     color: rgb(31,41,55); transition: background 0.15s; flex-shrink: 0;
   }
   .dark .lt-min-date { color: rgb(229,231,235); }
@@ -411,6 +410,82 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function pad2(n) { return String(n).padStart(2, '0'); }
 
+    // Optically centre the date number inside its circle, on BOTH axes. flex centres the glyph's
+    // ADVANCE box horizontally and its line/em box vertically, but the painted ink doesn't sit
+    // centred within those, so a circle/ring around the number looks lopsided. We paint the digits to
+    // an offscreen canvas at the same font and measure the painted pixels, then translate the digits
+    // to centre them — but the right "centre" differs per axis:
+    //   • HORIZONTAL → the ink BOUNDING BOX (so the whitespace gaps left & right are equal, which is
+    //     what the eye reads sideways). The digit side-bearings (the "1" glyph especially) otherwise
+    //     leave the number off-centre. This is the web analogue of Android's Paint.getTextBounds.
+    //     NB centring the horizontal *mass* instead skews mixed-weight numbers (e.g. the light "1" +
+    //     heavy "5" in "15" pulls the mass right, so mass-centring leaves a gap on the right).
+    //   • VERTICAL → the ink MASS centroid. Digits have no descenders, so bounding-box centring makes
+    //     them ride visibly high; centring the mass reads as balanced. The vertical reference is the
+    //     text's real baseline, read from the DOM with a zero-height baseline-aligned strut probe
+    //     (canvas em-box metrics don't match the browser's line-box placement).
+    // Both measurements are cached (by digits+weight+size / weight+size — today/selected render bolder).
+    var inkCanvas = document.createElement('canvas');
+    var inkCtx = inkCanvas.getContext('2d', { willReadFrequently: true });
+    var inkCentroidCache = {}; // weight|size|text -> { x: bbox centre from advance centre, y: mass from baseline }
+    var baselineCache = {};    // weight|size      -> baseline offset from the circle's top edge (CSS px)
+    var circleSize = 0;        // the circle's height (constant across cells) — read once
+
+    function inkCentroid(cs, text) {
+        var key = cs.fontWeight + '|' + cs.fontSize + '|' + text;
+        var c = inkCentroidCache[key];
+        if (c) return c;
+        var fontPx = parseFloat(cs.fontSize) || 12;
+        var ss = 8;                            // supersample for sub-pixel precision
+        var box = Math.ceil(fontPx * 3) * ss;  // ample square around the digits
+        var baseY = box / 2;                   // draw the alphabetic baseline at mid-canvas
+        inkCanvas.width = box; inkCanvas.height = box;
+        inkCtx.font = cs.fontWeight + ' ' + (fontPx * ss) + 'px ' + cs.fontFamily;
+        inkCtx.textAlign = 'center';           // x origin = glyph advance centre
+        inkCtx.textBaseline = 'alphabetic';
+        inkCtx.fillStyle = '#000';
+        inkCtx.fillText(text, box / 2, baseY);
+        var data = inkCtx.getImageData(0, 0, box, box).data;
+        var minX = box, maxX = -1, sumY = 0, weight = 0;
+        for (var py = 0; py < box; py++) {
+            for (var px = 0; px < box; px++) {
+                var alpha = data[(py * box + px) * 4 + 3];
+                if (alpha > 20) {
+                    if (px < minX) { minX = px; }
+                    if (px > maxX) { maxX = px; }
+                    sumY += py * alpha; weight += alpha;
+                }
+            }
+        }
+        c = weight
+            ? { x: ((minX + maxX) / 2 - box / 2) / ss, y: (sumY / weight - baseY) / ss }  // x: bbox centre, y: mass
+            : { x: 0, y: 0 };
+        inkCentroidCache[key] = c;
+        return c;
+    }
+
+    function baselineOffset(circleEl, textEl, cs) {
+        var key = cs.fontWeight + '|' + cs.fontSize;
+        if (baselineCache[key] !== undefined) return baselineCache[key];
+        var strut = document.createElement('span');
+        strut.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+        textEl.appendChild(strut);
+        var off = strut.getBoundingClientRect().top - circleEl.getBoundingClientRect().top;
+        strut.remove();
+        baselineCache[key] = off;
+        return off;
+    }
+
+    function centreInk(circleEl, textEl) {
+        var cs = getComputedStyle(circleEl);
+        if (!circleSize) { circleSize = circleEl.getBoundingClientRect().height; }
+        var c = inkCentroid(cs, textEl.textContent);
+        var baseY = baselineOffset(circleEl, textEl, cs);
+        var shiftX = -c.x;                         // ink bbox centre -> circle centre (equal whitespace)
+        var shiftY = circleSize / 2 - (baseY + c.y); // ink mass centroid -> circle centre
+        textEl.style.transform = 'translate(' + shiftX.toFixed(3) + 'px,' + shiftY.toFixed(3) + 'px)';
+    }
+
     function fetchAndRender() {
         var start = viewYear + '-' + pad2(viewMonth + 1) + '-01';
         var nm = viewMonth === 11 ? 0 : viewMonth + 1;
@@ -449,7 +524,12 @@ document.addEventListener('DOMContentLoaded', function () {
 
             var dateNum = document.createElement('span');
             dateNum.className = 'lt-min-date';
-            dateNum.textContent = dy;
+            // The digits live in an inner span so we can translate the TEXT to centre its ink without
+            // moving the circle (the background/ring sits on .lt-min-date itself).
+            var dateInk = document.createElement('span');
+            dateInk.className = 'lt-min-date-ink';
+            dateInk.textContent = dy;
+            dateNum.appendChild(dateInk);
             cell.appendChild(dateNum);
 
             // Activity indicator — always appended so cell height never changes.
@@ -479,6 +559,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 return function () { selectDay(ds); };
             })(dateStr));
             grid.appendChild(cell);
+            // Measured once the cell is in the DOM, so getComputedStyle resolves the real font/weight.
+            centreInk(dateNum, dateInk);
         }
     }
 
