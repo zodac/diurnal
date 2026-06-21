@@ -19,7 +19,9 @@ npm run css        # or: npm run css:watch  (rebuild on template/class changes d
 # "db" service (database "diurnal"), shared by dev mode and tests.
 docker compose -f docker-compose.dev.yml up -d diurnal-db-dev
 
-# Run in dev mode (hot reload, Swagger UI at /q/swagger-ui)
+# Run in dev mode (hot reload, Swagger UI at /api — served in all profiles, OpenAPI doc at /q/openapi,
+# scoped to the public API by PublicApiFilter — the /api/* namespace plus the published /logs/events
+# feed — so the internal web/HTMX HTML routes are excluded)
 # ALWAYS stop this instance once testing/verification is finished (see rule below):
 #   pkill -f "quarkus:dev"
 mvn quarkus:dev
@@ -140,7 +142,7 @@ Code is organised by feature under `src/main/java/net/zodac/diurnal/`:
 | Package  | Contents                                                                                                                    |
 |----------|-----------------------------------------------------------------------------------------------------------------------------|
 | `action` | `Action` entity + `ActionsWebResource` (CRUD for user-defined trackable habits)                                             |
-| `log`    | `ActionLog` entity + `LogWebResource` (increment/decrement per day) + `CalendarResource` (JSON for FullCalendar)            |
+| `log`    | `ActionLog` entity + `LogWebResource` (increment/decrement per day) + `CalendarResource` (JSON for FullCalendar; its `/logs/events` feed is the **public** logged-events API, shared by the in-app calendar and external integrations) |
 | `stats`  | `StatsService` (streak/count calculations) + `StatsWebResource` (paginated stats page)                                      |
 | `auth`   | REST API auth: `AuthResource` (register/login → JWT), `TokenService`, `PasswordIdentityProvider`, `TrustedIdentityProvider` |
 | `user`   | `User` entity, `UserResource` (`/api/users/me`), `UserSettings` (page size options/validation)                              |
@@ -155,6 +157,13 @@ Code is organised by feature under `src/main/java/net/zodac/diurnal/`:
 
 The split is configured in `application.properties` with two `quarkus.http.auth.permission.*` blocks. `quarkus.http.auth.proactive=false` is required
 so Bearer doesn't intercept web requests before form auth can redirect.
+
+> **In a Bearer-authenticated resource, resolve the current user via `SecurityIdentity.getPrincipal().getName()`
+> (the `upn`/email claim) → `User.findByEmail(...)`, NOT via an injected `JsonWebToken.getSubject()`.**
+> When OIDC is enabled (and it is in the test profile, and in any OIDC deployment) the default
+> `JsonWebToken` producer is the OIDC one, which is **not** populated for a smallrye Bearer token — so
+> `jwt.getSubject()` returns `null` and the handler 500s. `UserResource` and `CalendarResource` use the
+> `SecurityIdentity` form, which works for both the Bearer and OIDC (and form-session) flows.
 
 `PasswordIdentityProvider` handles form/API password auth. `TrustedIdentityProvider` handles OIDC users (who have no password). OIDC users are stored
 with `oidcSubject` + `oidcIssuer` instead of a password hash; the composite unique index `(oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL`
@@ -302,6 +311,13 @@ changes instead re-render the whole `admin-users-list` partial.
 `GET /logs/events` returns JSON (`CalendarEventDto` records) consumed directly by FullCalendar.js on the dashboard. It intentionally includes archived
 actions so historical entries still render on the calendar. The dashboard uses a custom month/year picker overlay (not FullCalendar's built-in
 navigation); `eventClick` mirrors `dateClick` to open the day panel.
+
+`/logs/events` is **also the public logged-events API** — the single endpoint shared by the in-app calendar and external integrations (rather than a
+separate `/api/*` copy). It lives on the unpinned `/logs/*` (`ui`) surface, so it authenticates **both** the session cookie (in-app) and a Bearer JWT
+(integrations, via `/api/auth/login`); it's published in the Swagger UI by `PublicApiFilter`. `start`/`end` are **mandatory** ISO-8601 dates (missing or
+unparseable → `400` via `BadRequestException`) — the app requests a month at a time, integrations may widen the range for more history. An anonymous
+request is redirected to `/login` (302) by `BrowserLoginChallengeMechanism`, not given a 401. The compact `/logs/minimal-events` feed stays internal
+(`@Operation(hidden = true)`, excluded from the docs).
 
 ### Brand assets
 

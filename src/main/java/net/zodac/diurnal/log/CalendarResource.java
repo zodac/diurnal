@@ -21,12 +21,14 @@ import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.ws.rs.BadRequestException;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -37,8 +39,26 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.user.User;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
+import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
+import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
-/** Supplies JSON feeds consumed by the dashboard's FullCalendar (full and minimal/dot views). */
+/**
+ * Supplies the JSON feeds consumed by the dashboard's FullCalendar (full and minimal/dot views).
+ *
+ * <p>The {@code /logs/events} feed is also the <strong>public API</strong> for reading a user's logged
+ * actions: it is documented in the Swagger UI and may be called by external integrations with a Bearer
+ * JWT (see {@code /api/auth/login}) as well as by the in-app calendar with its session cookie. The
+ * {@code /logs/minimal-events} feed stays internal to the dashboard.
+ */
+@Tag(name = "Logs", description = "Read a user's logged actions as calendar events.")
 @Path("/logs")
 @RolesAllowed("user")
 @Produces(MediaType.APPLICATION_JSON)
@@ -50,15 +70,32 @@ public class CalendarResource {
     @GET
     @Path("/events")
     @Transactional
+    @Operation(
+            summary = "List logged events in a date range",
+            description = "Returns all logged actions within the date range for the user."
+    )
+    @SecurityRequirement(name = "BearerAuth")
+    @APIResponses({
+            @APIResponse(responseCode = "200", description = "Logged events in the range (one entry per logged action per day).",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON,
+                            schema = @Schema(type = SchemaType.ARRAY, implementation = CalendarEventDto.class))),
+            @APIResponse(responseCode = "400",
+                    description = "The 'start' or 'end' query parameter is missing or not a valid ISO-8601 date.")
+    })
     public List<CalendarEventDto> events(
+            @Parameter(name = "start", in = ParameterIn.QUERY, required = true,
+                    description = "Inclusive start of the range, as an ISO-8601 date (yyyy-MM-dd); only the date part is used.",
+                    schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-01"))
             @QueryParam("start") final String start,
+            @Parameter(name = "end", in = ParameterIn.QUERY, required = true,
+                    description = "Inclusive end of the range, as an ISO-8601 date (yyyy-MM-dd); only the date part is used.",
+                    schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-30"))
             @QueryParam("end") final String end) {
 
         final UUID userId = currentUserId();
 
-        // FullCalendar may send ISO datetime strings; take just the date part.
-        final LocalDate startDate = LocalDate.parse(start.length() > 10 ? start.substring(0, 10) : start);
-        final LocalDate endDate   = LocalDate.parse(end.length()   > 10 ? end.substring(0, 10)   : end);
+        final LocalDate startDate = requireDate("start", start);
+        final LocalDate endDate   = requireDate("end", end);
 
         // Build action map (include archived so historical logs still render).
         final Map<UUID, Action> actionMap = Action.<Action>list("userId = ?1", userId)
@@ -74,18 +111,19 @@ public class CalendarResource {
                 .toList();
     }
 
-    /** Returns up to four coloured dots per day for the compact "minimal" calendar view. */
+    /** Returns up to four coloured dots per day for the compact "minimal" calendar view (internal to the dashboard). */
     @GET
     @Path("/minimal-events")
     @Transactional
+    @Operation(hidden = true)
     public List<MinimalCalendarDayDto> minimalEvents(
             @QueryParam("start") final String start,
             @QueryParam("end") final String end) {
 
         final UUID userId = currentUserId();
 
-        final LocalDate startDate = LocalDate.parse(start.length() > 10 ? start.substring(0, 10) : start);
-        final LocalDate endDate   = LocalDate.parse(end.length()   > 10 ? end.substring(0, 10)   : end);
+        final LocalDate startDate = requireDate("start", start);
+        final LocalDate endDate   = requireDate("end", end);
 
         final Map<UUID, Action> actionMap = Action.<Action>list("userId = ?1", userId)
                 .stream().collect(Collectors.toMap(a -> a.id, a -> a));
@@ -118,12 +156,30 @@ public class CalendarResource {
                 .orElseThrow();
     }
 
+    /**
+     * Parses a required calendar boundary date. FullCalendar may send an ISO datetime, so only the
+     * leading date part is used. Throws {@link BadRequestException} (HTTP 400) when the parameter is
+     * missing/blank or not a valid date, so callers get a clear error instead of a 500.
+     */
+    private static LocalDate requireDate(final String name, final String value) {
+        if (value == null || value.isBlank()) {
+            throw new BadRequestException("Query parameter '" + name + "' is required");
+        }
+
+        final String datePart = value.length() > 10 ? value.substring(0, 10) : value;
+        try {
+            return LocalDate.parse(datePart);
+        } catch (final DateTimeParseException e) {
+            throw new BadRequestException("Query parameter '" + name + "' is not a valid ISO-8601 date: " + value);
+        }
+    }
+
     /** A single FullCalendar event: title, start date and the action's colour. */
     public record CalendarEventDto(
-            String title,
-            String start,
-            String backgroundColor,
-            String borderColor) {
+            @Schema(examples = "Morning run") String title,
+            @Schema(examples = "2026-06-15") String start,
+            @Schema(examples = "#6366f1") String backgroundColor,
+            @Schema(examples = "#6366f1") String borderColor) {
     }
 
     /** One day's worth of action dots for the minimal calendar view. */

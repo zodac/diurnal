@@ -18,12 +18,40 @@
 package net.zodac.diurnal.user;
 
 import java.util.UUID;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.jspecify.annotations.Nullable;
 
-/** API view of a {@link User} exposing only non-sensitive identity fields. */
-public record UserDto(UUID id, String email, String displayName) {
+/** API view of a {@link User} exposing only non-sensitive identity, role and preference fields. */
+public record UserDto(
+        @Schema(examples = "3fa85f64-5717-4562-b3fc-2c963f66afa6") UUID id,
+        @Schema(examples = "ada@example.com") String email,
+        @Schema(examples = "Ada Lovelace") String displayName,
+        @Schema(examples = "user", description = "The user's role: 'user' or 'admin'.") String role,
+        Preferences preferences) {
+
+    /**
+     * The user's display/behaviour preferences.
+     *
+     * @param theme        the UI theme: {@code light}, {@code dark} or {@code system}
+     * @param pageSize     the number of rows shown per page in list views
+     * @param calendarView the dashboard calendar style: {@code full}, {@code minimal} or {@code stacked}
+     * @param timezone     the user's IANA timezone override, or {@code null} to follow the server default
+     */
+    public record Preferences(
+            @Schema(examples = "system") String theme,
+            @Schema(examples = "25") int pageSize,
+            @Schema(examples = "full") String calendarView,
+            @Schema(examples = "Europe/London", description = "IANA timezone override; null means the server default is used.")
+            @Nullable String timezone) {
+    }
 
     /** Creates a {@link UserDto} from the given {@link User} entity. */
     public static UserDto from(final User user) {
-        return new UserDto(user.id, user.email, user.displayName);
+        return new UserDto(
+                user.id,
+                user.email,
+                user.displayName,
+                user.role,
+                new Preferences(user.theme, user.pageSize, user.calendarView, user.timezone));
     }
 }

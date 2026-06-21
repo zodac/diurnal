@@ -29,10 +29,17 @@ import jakarta.ws.rs.core.Response;
 import java.util.Locale;
 import net.zodac.diurnal.user.User;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.eclipse.microprofile.openapi.annotations.Operation;
+import org.eclipse.microprofile.openapi.annotations.media.Content;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
+import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
+import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
 /** REST API authentication endpoints: register a new password user and exchange credentials for a JWT. */
+@Tag(name = "Authentication", description = "Create an account and exchange credentials for a Bearer JWT.")
 @Path("/api/auth")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
@@ -60,6 +67,11 @@ public class AuthResource {
     @POST
     @Path("/register")
     @Transactional
+    @Operation(
+            hidden = true,
+            summary = "Register a new user",
+            description = "Creates an account and returns a Bearer JWT for it. The first account ever created becomes an administrator."
+    )
     public Response register(@Valid final RegisterRequest request) {
         if (!passwordAuthEnabled) {
             return Response.status(Response.Status.NOT_FOUND).build();
@@ -95,6 +107,18 @@ public class AuthResource {
     /** Validates credentials, returning {@code 200} with a JWT on success or {@code 401} otherwise. */
     @POST
     @Path("/login")
+    @Operation(
+            summary = "Log in and obtain a token",
+            description = "Validates an email and password and returns a Bearer JWT to send as the Authorization header on subsequent API calls."
+    )
+    @APIResponses({
+            @APIResponse(responseCode = "200", description = "Credentials accepted; returns a signed Bearer JWT and basic profile.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = TokenResponse.class))),
+            @APIResponse(responseCode = "400",
+                    description = "The request body is missing the email/password or the email is malformed."),
+            @APIResponse(responseCode = "401", description = "Invalid email or password.",
+                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class)))
+    })
     public Response login(@Valid final LoginRequest request) {
         final String email = request.email().toLowerCase(Locale.ROOT).strip();
 
@@ -126,6 +150,6 @@ public class AuthResource {
     }
 
     /** Error payload returned for failed auth requests. */
-    public record ErrorResponse(String message) {
+    public record ErrorResponse(@Schema(examples = "Invalid email or password") String message) {
     }
 }

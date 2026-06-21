@@ -1,0 +1,27 @@
+{#include layout.html}
+
+{#body}
+<!-- h-dvh (dynamic viewport height) rather than h-screen/100vh: on mobile the address bar
+     shrinks the visible viewport, and 100vh ignores that — pushing the iframe's bottom below
+     the fold. 100dvh tracks the actual visible height so the iframe always fills it. -->
+<div class="h-dvh flex flex-col">
+
+    <!-- Navigation -->
+    {#include partials/navbar active='api' /}
+
+    <main class="flex-1 flex flex-col w-full min-h-0">
+        <div class="max-w-5xl mx-auto w-full px-4 pt-6 pb-4 sm:pt-8">
+            <h2 class="text-2xl font-semibold mb-2 text-ink">API Documentation</h2>
+            <p class="text-sm text-ink-muted">
+                Swagger documentation for the Diurnal REST API.
+            </p>
+        </div>
+
+        <!-- Swagger UI embedded in-app so the navbar and account controls stay available. The
+             iframe spans the full page width; the underlying docs are still served at /api. -->
+        <iframe src="/api" title="Diurnal API documentation" class="flex-1 w-full min-h-0 border-0 bg-surface"></iframe>
+    </main>
+</div>
+{/body}
+
+{/include}

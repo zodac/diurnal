@@ -57,6 +57,9 @@ public class AdminWebResource {
     @Location("admin-users")
     Template adminUsersTemplate;
     @Inject
+    @Location("admin-api-docs")
+    Template adminApiDocsTemplate;
+    @Inject
     @Location("partials/admin-users-list")
     Template adminUsersListTemplate;
     @Inject
@@ -82,6 +85,21 @@ public class AdminWebResource {
                 .data("theme", actor.theme)
                 .data("isAdmin", true)
                 .data("page", getUsersPage(pageNum, actor.pageSize));
+    }
+
+    /** Renders the embedded API documentation page (Swagger UI in an in-app iframe). */
+    @GET
+    @Path("api-docs")
+    @RolesAllowed("admin")
+    @Produces(MediaType.TEXT_HTML)
+    @Transactional
+    public TemplateInstance apiDocsPage() {
+        final User actor = currentUser();
+        return adminApiDocsTemplate
+                .data("email", actor.email)
+                .data("displayName", actor.displayName)
+                .data("theme", actor.theme)
+                .data("isAdmin", true);
     }
 
     /** Returns just the users list partial for HTMX pagination. */

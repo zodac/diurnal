@@ -304,4 +304,33 @@ class CalendarResourceIT extends IntegrationTestBase {
                 .then().statusCode(200)
                 .body("find { it.title == 'Coloured2' }.backgroundColor", equalTo("#ff5500"));
     }
+
+    // ── Mandatory range params ──────────────────────────────────────────────────
+
+    @Test
+    void events_missingStart_returns400() {
+        given().queryParam("end", TODAY.toString())
+                .get("/logs/events")
+                .then().statusCode(400);
+    }
+
+    @Test
+    void events_missingEnd_returns400() {
+        given().queryParam("start", TODAY.toString())
+                .get("/logs/events")
+                .then().statusCode(400);
+    }
+
+    @Test
+    void events_missingBothParams_returns400() {
+        given().get("/logs/events")
+                .then().statusCode(400);
+    }
+
+    @Test
+    void events_invalidDate_returns400() {
+        given().queryParam("start", "not-a-date").queryParam("end", TODAY.toString())
+                .get("/logs/events")
+                .then().statusCode(400);
+    }
 }

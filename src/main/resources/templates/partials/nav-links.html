@@ -1,8 +1,10 @@
 {!
   Primary navigation links — the single source shared by the desktop bar and the mobile menu,
-  so the two never drift. Params: active (current page key), isAdmin (whether to show Admin).
+  so the two never drift. Params: active (current page key), isAdmin (whether to show the
+  admin-only Admin/API links).
 !}
 <a href="/" class="{#if active == 'dashboard'}nav-link-active{#else}nav-link{/if}">Dashboard</a>
 <a href="/actions" class="{#if active == 'actions'}nav-link-active{#else}nav-link{/if}">Actions</a>
 <a href="/stats" class="{#if active == 'stats'}nav-link-active{#else}nav-link{/if}">Stats</a>
 {#if isAdmin}<a href="/admin/users" class="{#if active == 'admin'}nav-link-active{#else}nav-link{/if}">Admin</a>{/if}
+{#if isAdmin}<a href="/admin/api-docs" class="{#if active == 'api'}nav-link-active{#else}nav-link{/if}">API</a>{/if}

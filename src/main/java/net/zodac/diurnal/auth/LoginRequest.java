@@ -19,10 +19,11 @@ package net.zodac.diurnal.auth;
 
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /** Credentials submitted to the JSON login endpoint. */
 public record LoginRequest(
-        @NotBlank @Email String email,
-        @NotBlank String password
+        @NotBlank @Email @Schema(examples = "ada@example.com") String email,
+        @NotBlank @Schema(examples = "correct horse battery staple") String password
 ) {
 }
