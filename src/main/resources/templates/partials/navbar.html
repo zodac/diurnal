@@ -20,7 +20,7 @@
         <!-- Mobile hamburger: shown only when the desktop nav is hidden -->
         <button type="button" aria-label="Toggle menu" aria-controls="mobile-menu" aria-expanded="false"
                 onclick="const m = document.getElementById('mobile-menu'); const open = m.getAttribute('data-open') !== 'true'; m.setAttribute('data-open', String(open)); this.setAttribute('aria-expanded', String(open));"
-                class="group sm:hidden ml-auto p-1 -mr-1 text-gray-500 dark:text-gray-400 aria-expanded:text-brand dark:aria-expanded:text-brand aria-[expanded=false]:hover:text-gray-900 dark:aria-[expanded=false]:hover:text-white focus:outline-none transition-colors">
+                class="group sm:hidden ml-auto p-1 -my-1 -mr-1 text-gray-500 dark:text-gray-400 aria-expanded:text-brand dark:aria-expanded:text-brand aria-[expanded=false]:hover:text-gray-900 dark:aria-[expanded=false]:hover:text-white focus:outline-none transition-colors">
             <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 transition-transform duration-200 group-aria-expanded:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
@@ -30,16 +30,20 @@
     <!-- Mobile dropdown menu: animated open/closed via a grid-rows transition, always hidden from sm up -->
     <div id="mobile-menu" data-open="false"
          class="grid grid-rows-[0fr] data-[open=true]:grid-rows-[1fr] transition-[grid-template-rows] duration-200 ease-out sm:hidden">
-        <nav class="flex flex-col gap-3 pt-3 text-sm overflow-hidden min-h-0">
-            {#include partials/nav-links active=active isAdmin=isAdmin /}
-            <!-- Separator: mirrors the left/right split of the desktop nav -->
-            <hr class="border-line">
-            <a id="nav-display-name-mobile" href="/settings" class="{#if active == 'settings'}nav-link-active{#else}nav-link{/if}">{displayName}</a>
-            <form method="post" action="/logout" class="flex items-center">
-                <button type="submit" class="text-sm nav-link">
-                    Log out
-                </button>
-            </form>
-        </nav>
+        <!-- Clip wrapper: holds overflow-hidden so the inner padding collapses to 0 when closed
+             (padding on the grid item itself isn't clipped, leaving the row visibly taller). -->
+        <div class="overflow-hidden min-h-0">
+            <nav class="flex flex-col gap-3 pt-3 text-sm">
+                {#include partials/nav-links active=active isAdmin=isAdmin /}
+                <!-- Separator: mirrors the left/right split of the desktop nav -->
+                <hr class="border-line">
+                <a id="nav-display-name-mobile" href="/settings" class="{#if active == 'settings'}nav-link-active{#else}nav-link{/if}">{displayName}</a>
+                <form method="post" action="/logout" class="flex items-center">
+                    <button type="submit" class="text-sm nav-link">
+                        Log out
+                    </button>
+                </form>
+            </nav>
+        </div>
     </div>
 </header>
