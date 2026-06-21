@@ -53,11 +53,39 @@
      that here too (the square 1em glyph alone would leave this button ~2px shorter). */
   .cal-toolbar-glyph { width: 1em; height: 1.2em; }
 
-  /* Token flips to a solid brand fill in dark mode, so a separate .dark rule isn't needed. */
-  .fc-daygrid-day.fc-day-today { background-color: var(--color-brand-subtle) !important; }
-  /* Selected day — a brand ring, distinct from the 'today' background fill so both can show together.
-     The brand token is constant across light/dark, so no .dark twin is needed. */
-  .fc-daygrid-day.lt-day-selected { box-shadow: inset 0 0 0 2px var(--color-brand); }
+  /* ── Shared day-state styling (full + minimal/stacked) ─────────────────────
+     "Today" and the selected day are marked consistently across every calendar style, defined once here
+     as named variables. "Today" is filled solid brand; a selected day gets a brand ring (around the full
+     calendar's cell, or around the minimal/stacked date circle); and a selected today layers a contained
+     brand / transparent-gap / brand ring so the selection still reads on top of the solid brand fill (a
+     plain brand ring would be invisible, brand-on-brand). */
+  #calendar-wrap {
+    --cal-today-fill:    var(--color-brand);           /* current-day highlight (whole cell / date circle) */
+    /* Selected day (not today): a brand ring (around the cell / date circle). Constant across light/dark. */
+    --cal-selected-ring: inset 0 0 0 2px var(--color-brand);
+    /* Selected day that IS today: brand outer ring, a surface-coloured ("transparent") gap of the same
+       width, then the brand fill. Two forms because the "today" geometry differs — minimal/stacked ring a
+       small circle that has room for an OUTER halo within its cell, while the full calendar fills the whole
+       cell, so it stays INSET to remain fully contained (an outer halo would spill into neighbours). The
+       shadow order differs accordingly (outset paints first-listed innermost, inset first-listed at the
+       edge), but both read identically outer-to-in: brand → gap → brand. */
+    --cal-selected-today-halo:  0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-brand);
+    --cal-selected-today-inset: inset 0 0 0 2px var(--color-brand), inset 0 0 0 4px var(--color-surface);
+  }
+
+  /* Full calendar — the whole cell carries the "today" highlight. Selecting a (non-today) day rings the
+     whole cell; selecting today instead uses the contained brand/gap/brand ring (an outer halo would
+     spill into neighbours). */
+  .fc-daygrid-day.fc-day-today { background-color: var(--cal-today-fill) !important; }
+  .fc-daygrid-day.lt-day-selected:not(.fc-day-today) { box-shadow: var(--cal-selected-ring); }
+  .fc-daygrid-day.fc-day-today.lt-day-selected { box-shadow: var(--cal-selected-today-inset); }
+  /* Date-number colour — today's number sits on the solid brand cell (on-brand text); a selected
+     (non-today) number just changes colour (the cell ring above shows the selection). */
+  .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { color: var(--color-on-brand); font-weight: 700; }
+  .fc-daygrid-day.lt-day-selected:not(.fc-day-today) .fc-daygrid-day-number {
+    color: var(--color-brand); font-weight: 600;
+  }
+  .dark .fc-daygrid-day.lt-day-selected:not(.fc-day-today) .fc-daygrid-day-number { color: var(--color-brand-strong); }
 
   /* Dark mode overrides for FullCalendar */
   .dark .fc {
@@ -112,16 +140,22 @@
   .lt-min-cell:hover .lt-min-date { background: rgb(243,244,246); }
   .dark .lt-min-cell:hover .lt-min-date { background: rgb(55,65,81); }
   .lt-min-cell.lt-min-today .lt-min-date {
-    background: var(--color-brand); color: var(--color-on-brand); font-weight: 700;
+    background: var(--cal-today-fill); color: var(--color-on-brand); font-weight: 700;
   }
+  /* Selected (non-today) day. The faint fill alone reads clearly in light mode but is nearly
+     invisible against the dark cell background, so add the shared brand selection ring: the brand
+     token is constant across light/dark, so it is equally distinct regardless of how subtle the fill. */
   .lt-min-cell.lt-min-selected .lt-min-date {
     background: var(--color-brand-faint); color: var(--color-brand); font-weight: 600;
+    box-shadow: var(--cal-selected-ring);
   }
   /* Selected text needs a lighter brand shade to read on the darker faint fill in dark mode. */
   .dark .lt-min-cell.lt-min-selected .lt-min-date { color: var(--color-brand-strong); }
-  /* Today + selected: keep today's filled circle */
+  /* Today + selected: keep today's filled circle, but it must STILL show a selection highlight (the
+     shared outer halo — an inset ring would be invisible brand-on-brand). */
   .lt-min-cell.lt-min-today.lt-min-selected .lt-min-date {
-    background: var(--color-brand); color: var(--color-on-brand);
+    background: var(--cal-today-fill); color: var(--color-on-brand);
+    box-shadow: var(--cal-selected-today-halo);
   }
   .lt-min-cell.lt-min-other .lt-min-date { color: rgb(156,163,175); }
   .dark .lt-min-cell.lt-min-other .lt-min-date { color: rgb(75,85,99); }
