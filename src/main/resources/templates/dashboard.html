@@ -43,10 +43,15 @@
     outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-brand-ring);
   }
   .cal-toolbar-btn:active { background: var(--color-brand-strong); }
-  /* The "jump to month" button is a .cal-toolbar-btn whose content is the calendar glyph. Sizing it
-     to 1em (the button's own text size) keeps it the same height as the prev/next/today buttons; it
+  /* The "jump to month" button is a .cal-toolbar-btn whose content is the calendar glyph. Flex-centre
+     the glyph so it sits dead-centre vertically (an inline svg with a vertical-align baseline tweak
+     rides high in the button). The button keeps the same height as the text prev/next/today buttons
+     because it shares their padding + 0.75rem/1.2 line metrics. The glyph stays a square 1em and
      inherits currentColor, so it reads as a white glyph on the brand fill like their text. */
-  .cal-toolbar-glyph { width: 1em; height: 1em; vertical-align: -0.125em; }
+  #cal-jump { display: inline-flex; align-items: center; justify-content: center; }
+  /* Match the text buttons' total height: their content box is 1.2em (line-height) tall, so reserve
+     that here too (the square 1em glyph alone would leave this button ~2px shorter). */
+  .cal-toolbar-glyph { width: 1em; height: 1.2em; }
 
   /* Token flips to a solid brand fill in dark mode, so a separate .dark rule isn't needed. */
   .fc-daygrid-day.fc-day-today { background-color: var(--color-brand-subtle) !important; }
@@ -98,6 +103,9 @@
     width: 26px; height: 26px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     font-size: 0.72rem; font-weight: 400; line-height: 1;
+    /* The digits' baseline metrics leave them riding slightly high in the circle; a hair of top
+       padding (border-box keeps the 26px circle) optically re-centres the number. */
+    padding-top: 1px; box-sizing: border-box;
     color: rgb(31,41,55); transition: background 0.15s; flex-shrink: 0;
   }
   .dark .lt-min-date { color: rgb(229,231,235); }
