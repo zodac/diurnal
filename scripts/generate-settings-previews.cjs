@@ -168,11 +168,14 @@ async function shotFullPage(page, file) {
 }
 
 // Calendar-style preview: ONLY the calendar. Every calendar style now shares the #calendar-wrap
-// container (shared toolbar + the style's grid); the card wrapping it is its parent. An element
-// screenshot captures the whole element even where it overflows the viewport, so it is never cut off.
+// container (shared toolbar + the style's grid). We screenshot `#calendar-wrap` ITSELF, NOT its
+// `.card` parent: the card adds a `rounded-2xl border` that would sit on the image edge and, inside
+// the lightbox modal's own `rounded-lg border`, read as a spurious "double" rounded outline that the
+// theme (full-page) shots don't have. Shooting the wrap keeps the calendar flush to the edge, so both
+// pickers' full-size previews are framed identically. An element screenshot captures the whole element
+// even where it overflows the viewport, so it is never cut off.
 async function shotCalendar(page, file) {
-  const card = page.locator('#calendar-wrap').locator('xpath=..');
-  await card.screenshot({ path: path.join(OUT, file) });
+  await page.locator('#calendar-wrap').screenshot({ path: path.join(OUT, file) });
   console.log('wrote', file);
 }
 
