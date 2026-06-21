@@ -60,17 +60,29 @@ const MVW = 390, MVH = 844; // mobile capture viewport — realistic phone size 
 // Dedicated demo account — kept separate from real dev data.
 const USER = { email: 'preview-demo@diurnal.local', password: 'preview_demo123', displayName: 'Preview Demo' };
 
-// The fixed seed: four colourful habits logged across the current month. `days` are days-of-month
-// (those after today are skipped — the server blocks logging future dates); `count` is how many
-// times each is incremented so the "full" calendar shows a representative "×N".
+// The fixed seed: four colourful habits logged on days RELATIVE TO TODAY, so the captured calendar
+// looks identical no matter which calendar date the script is run on (it was previously fixed
+// days-of-month capped at today, which made the images depend on the run date). `daysAgo` are offsets
+// back from today (0 = today, 1 = yesterday, …) — never future, so nothing is skipped; `count` is how
+// many times each is incremented so the "full" calendar shows a representative "×N". The pattern spans
+// the 15 days ending today (offsets 0..14): when today is mid-month this fills the visible month grid,
+// and when today is early in the month the trail extends into the leading (previous-month) grid cells —
+// either way the activity around the highlighted "today" cell is always the same.
 const ACTIONS = [
-  { name: 'Exercise', colour: '#ef4444', count: 1, days: [2, 4, 6, 9, 11, 13, 15] },
-  { name: 'Read',     colour: '#3b82f6', count: 2, days: [1, 2, 3, 5, 8, 10, 12, 14] },
-  { name: 'Meditate', colour: '#10b981', count: 1, days: [1, 2, 5, 7, 9, 12, 15] },
-  { name: 'Water',    colour: '#f59e0b', count: 3, days: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] },
+  { name: 'Exercise', colour: '#ef4444', count: 1, daysAgo: [13, 11, 9, 6, 4, 2, 0] },
+  { name: 'Read',     colour: '#3b82f6', count: 2, daysAgo: [14, 13, 12, 10, 7, 5, 3, 1] },
+  { name: 'Meditate', colour: '#10b981', count: 1, daysAgo: [14, 13, 10, 8, 6, 3, 0] },
+  { name: 'Water',    colour: '#f59e0b', count: 3, daysAgo: [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] },
 ];
 
 const pad = n => String(n).padStart(2, '0');
+
+// `base` minus `n` calendar days as a UTC `YYYY-MM-DD` string (n may be negative for future days).
+// Date.UTC normalises an out-of-range day-of-month, so this rolls correctly across month/year edges.
+const dateMinusDays = (base, n) => {
+  const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() - n));
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+};
 
 // ── Seeding (over HTTP, via the logged-in browser-context cookies) ───────────────────────────────
 
@@ -106,10 +118,8 @@ async function ensureAction(ctx, existing, { name, colour }) {
   return id[1];
 }
 
-// Keys (`date|colour`) for logs that already exist this month, so re-runs don't inflate counts.
-async function existingLogKeys(ctx, y, mo) {
-  const start = `${y}-${pad(mo)}-01`;
-  const end = mo === 12 ? `${y + 1}-01-01` : `${y}-${pad(mo + 1)}-01`;
+// Keys (`date|colour`) for logs already present in [start, end), so re-runs don't inflate counts.
+async function existingLogKeys(ctx, start, end) {
   const events = await (await ctx.request.get(`${BASE}/logs/events?start=${start}&end=${end}`)).json();
   return new Set(events.map(e => `${e.start}|${(e.backgroundColor || '').toLowerCase()}`));
 }
@@ -119,16 +129,16 @@ async function seed(ctx) {
   await login(ctx);
 
   const now = new Date();
-  const y = now.getUTCFullYear(), mo = now.getUTCMonth() + 1, today = now.getUTCDate();
-
+  // The seed window: from the oldest offset through today (the /logs/events `end` is exclusive, so
+  // pass today + 1). Covers the whole range even when it straddles a month/year boundary.
+  const maxAgo = Math.max(...ACTIONS.flatMap(a => a.daysAgo));
   const existing = await existingActions(ctx);
-  const have = await existingLogKeys(ctx, y, mo);
+  const have = await existingLogKeys(ctx, dateMinusDays(now, maxAgo), dateMinusDays(now, -1));
 
   for (const action of ACTIONS) {
     const id = await ensureAction(ctx, existing, action);
-    for (const day of action.days) {
-      if (day > today) continue; // future dates are rejected by the server
-      const date = `${y}-${pad(mo)}-${pad(day)}`;
+    for (const daysAgo of action.daysAgo) {
+      const date = dateMinusDays(now, daysAgo); // offsets are never future, so nothing is skipped
       if (have.has(`${date}|${action.colour.toLowerCase()}`)) continue; // already logged
       for (let i = 0; i < action.count; i++) {
         await ctx.request.post(`${BASE}/logs/${date}/${id}/increment`);
