@@ -99,7 +99,7 @@ and exits with Playwright's code (so an E2E failure fails the build). Keeping te
 production container.
 
 > **Don't `cd` into the project root before running commands.** The working directory is already the
-> project root (`/home/arouge/git/diurnal`); use plain or absolute paths. A redundant `cd .` (or
+> project root (`/home/$USER/git/diurnal`); use plain or absolute paths. A redundant `cd .` (or
 > `cd` to the current dir) only triggers a needless permission prompt.
 
 ## Architecture

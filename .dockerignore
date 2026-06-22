@@ -5,6 +5,9 @@ e2e/node_modules/
 e2e/playwright-report/
 e2e/test-results/
 
+# Sandbox env (its own build context under sandbox/; not part of the app image)
+sandbox/
+
 # Local-only
 .env
 .git/
