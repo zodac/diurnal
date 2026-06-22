@@ -123,6 +123,17 @@ def render_favicon(out_path, fill):
     _write_svg(out_path, box, box, f'translate({tx:.2f},{ty:.2f})', d, fill)
 
 
+def render_footer_mark(out_path, fill):
+    """The "d" mark for the page footer. Same glyph and colour as the favicon, but cropped SNUG to
+    the letter (no square letterboxing — mirrors render_wordmark's tight 4% framing for a single
+    glyph) so that, displayed inline at the text's height, the "d" reads as large as the words around
+    it instead of shrinking inside a padded square."""
+    d, (x0, y0, x1, y1) = _outline('d')
+    w, h = x1 - x0, y1 - y0
+    pad = round(h * 0.04)
+    _write_svg(out_path, w + 2 * pad, h + 2 * pad, f'translate({pad - x0},{pad - y0})', d, fill)
+
+
 # ── token block injection ──────────────────────────────────────────────────────────────────────
 
 def _tokens(brand):
@@ -186,10 +197,12 @@ def main():
 
     shutil.copyfile(WORDMARK_SRC, f'{IMG}/wordmark.svg')          # 1. served wordmark
     render_favicon(f'{IMG}/favicon.svg', brand)                   # 2. favicon "d" in brand colour
+    render_footer_mark(f'{IMG}/footer-mark.svg', brand)          # 2b. snug "d" for the page footer
     inject_tokens(brand)                                          # 3. theme tokens in app.css
 
     print(f'brand = {brand}')
-    print(f'wrote {IMG}/wordmark.svg, {IMG}/favicon.svg, and the @generated:brand tokens in {APP_CSS}')
+    print(f'wrote {IMG}/wordmark.svg, {IMG}/favicon.svg, {IMG}/footer-mark.svg, '
+          f'and the @generated:brand tokens in {APP_CSS}')
     print('next: `node scripts/generate-favicons.cjs` (rasters) + `npm run css` (or just `npm run brand`)')
 
 

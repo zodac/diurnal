@@ -105,6 +105,25 @@
     </dependencies>
 
     <build>
+        <!-- Filter ONLY META-INF/microprofile-config.properties (to substitute ${maven.build.timestamp}),
+             leaving every other resource — crucially application.properties, whose ${TZ:UTC}-style
+             Quarkus config expressions must survive verbatim — copied unfiltered. -->
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>false</filtering>
+                <excludes>
+                    <exclude>META-INF/microprofile-config.properties</exclude>
+                </excludes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>META-INF/microprofile-config.properties</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
             <plugin>
                 <groupId>com.mycila</groupId>

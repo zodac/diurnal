@@ -1,7 +1,7 @@
 {#include layout.html}
 
 {#body}
-<div class="min-h-screen flex flex-col">
+<div class="min-h-viewport flex flex-col">
 
     <!-- Navigation -->
     {#include partials/navbar active='actions' /}
@@ -67,6 +67,8 @@
             </div>
         </div>
     </main>
+
+    {#include partials/footer /}
 </div>
 
 <script>

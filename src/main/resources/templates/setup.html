@@ -1,7 +1,8 @@
 {#include layout.html}
 
 {#body}
-<div class="min-h-screen flex items-center justify-center p-4">
+<div class="min-h-viewport flex flex-col">
+    <main class="flex-1 flex items-center justify-center p-4">
     <div class="card shadow-sm w-full max-w-sm p-8">
 
         <h1 class="mb-1">
@@ -20,6 +21,9 @@
             Create administrator account
         </a>
     </div>
+    </main>
+
+    {#include partials/footer /}
 </div>
 {/body}
 

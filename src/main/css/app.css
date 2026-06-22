@@ -2,6 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
+@layer utilities {
+  /*
+   * Full-viewport min-height for the flexbox sticky-footer shell (the page wrapper is a
+   * `min-h-viewport flex flex-col` column whose <main> is `flex-1`, so the footer sits at the
+   * bottom of the viewport on short pages and below the content on tall ones). Two declarations on
+   * purpose: 100vh is the universally-supported fallback; 100dvh (dynamic viewport height) then
+   * overrides it on modern browsers so the height tracks the mobile address bar — keeping the
+   * footer pinned to the *visible* bottom without needing a scroll. A browser that doesn't
+   * understand dvh just ignores the second line and keeps the vh value.
+   */
+  .min-h-viewport {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+}
+
 /*
  * Colour tokens — the single source of truth for the palette.
  *

@@ -1,0 +1,36 @@
+<!--
+    Shared page footer — app identity, version and source link. Self-contained: it pulls everything
+    from the {inject:appInfo} CDI bean (net.zodac.diurnal.web.AppInfo), so it can be dropped onto any
+    page with no data passed in. Full-bleed like the navbar (partials/navbar.html): a `bg-surface`
+    bar with a top border, content padded by px-4 and split left/right. It stays a single row on
+    every viewport (no mobile stacking). Every colour is a semantic token, so it themes automatically.
+
+    Standard in-flow sticky footer: it's the last child of each page's `min-h-viewport flex flex-col`
+    wrapper (after </main>). Because the wrapper is at least one viewport tall and <main> is `flex-1`,
+    the footer's bottom rests on the bottom of the viewport on short pages, and sits just below the
+    content (reached by scrolling) on tall ones.
+-->
+<footer class="bg-surface border-t border-line px-4 py-3 text-xs text-ink-muted">
+    <div class="flex items-center justify-between gap-4">
+        <p class="flex items-center gap-2">
+            <!-- The brand "d" mark — generated from the brand font alongside the favicon by
+                 scripts/generate-brand.py (snug crop so it reads at the text's height). -->
+            <img src="/img/footer-mark.svg" alt="Diurnal" class="h-4 w-auto" width="9" height="16">
+            <span>
+                {inject:appInfo.buildYear}
+                &middot;
+                <a href="{inject:appInfo.repositoryUrl}/releases" target="_blank" rel="noopener"
+                   class="hover:text-brand transition-colors">v{inject:appInfo.version}</a>
+            </span>
+        </p>
+        <!-- GitHub mark (official octicon). Not part of the app brand — it's the icon of the
+             external service being linked to — so it uses currentColor, not a brand token. -->
+        <a href="{inject:appInfo.repositoryUrl}" target="_blank" rel="noopener"
+           class="inline-flex items-center gap-1.5 hover:text-brand transition-colors">
+            <svg viewBox="0 0 16 16" class="h-4 w-4" fill="currentColor" aria-hidden="true">
+                <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+            </svg>
+            GitHub
+        </a>
+    </div>
+</footer>

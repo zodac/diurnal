@@ -337,22 +337,25 @@ one command chains three steps (edit-one-file, run-one-thing):
 
 ```bash
 python3 scripts/generate-brand.py      # reads the wordmark fill → copies wordmark.svg to served,
-                                       #   renders favicon.svg (the "d") in that colour, and computes
-                                       #   the @generated:brand token family into src/main/css/app.css
+                                       #   renders favicon.svg + footer-mark.svg (the "d") in that
+                                       #   colour, and computes the @generated:brand tokens into app.css
 node    scripts/generate-favicons.cjs  # favicon.svg → favicon.ico + favicon-16/32.png + apple-touch-icon.png
 npm run css                            # compile app.css
 ```
 
-- **`generate-brand.py`** (needs `fonttools`) owns `wordmark.svg`-copy + `favicon.svg` + the brand
-  tokens. The favicon **glyph** geometry comes from the font `NovaFlat-Book.ttf` (kept consistent with
+- **`generate-brand.py`** (needs `fonttools`) owns `wordmark.svg`-copy + `favicon.svg` + `footer-mark.svg`
+  + the brand tokens. The favicon **glyph** geometry comes from the font `NovaFlat-Book.ttf` (kept consistent with
   the wordmark); only its colour + the theme come from the wordmark fill. Derived shades are mixed
   toward black/white; `--color-on-brand` is luminance-picked. To change the **word/font** (not just
   colour), run `python3 scripts/generate-brand.py --rebuild-wordmark` (re-renders `wordmark.svg` from
   the font first), then `npm run brand`.
 - **`wordmark.svg`** (served) — the full word; used in the navbar (`partials/navbar.html`), login/
   register headings, and README header. **`favicon.svg`** — the "d" in a square; the scalable favicon +
-  raster source. `generate-favicons.cjs` only rasterises `favicon.svg` (PNGs via `rsvg-convert`/
-  ImageMagick, multi-res `.ico`, optipng) — it does **not** touch the SVGs. `apple-touch-icon.png`
+  raster source. **`footer-mark.svg`** — the same "d" cropped **snug** (no square letterboxing, unlike
+  the favicon) so it reads at text height inline; used as the brand mark in the page footer
+  (`partials/footer.html`). `generate-favicons.cjs` only rasterises `favicon.svg` (PNGs via `rsvg-convert`/
+  ImageMagick, multi-res `.ico`, optipng) — it does **not** touch the SVGs (`footer-mark.svg`, like
+  `wordmark.svg`, is SVG-only — served straight, never rasterised). `apple-touch-icon.png`
   (180px) is the iOS home-screen / bookmark thumbnail.
 
 The committed outputs are trusted: the **Docker build does not run `generate-brand.py`** (no

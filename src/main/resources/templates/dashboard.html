@@ -182,7 +182,7 @@
 {/head}
 
 {#body}
-<div class="min-h-screen flex flex-col">
+<div class="min-h-viewport flex flex-col">
 
     <!-- Navigation -->
     {#include partials/navbar active='dashboard' /}
@@ -264,6 +264,8 @@
         </div>
         {/if}
     </main>
+
+    {#include partials/footer /}
 </div>
 
 <script>
