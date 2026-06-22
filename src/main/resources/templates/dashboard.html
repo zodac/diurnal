@@ -77,15 +77,15 @@
      whole cell; selecting today instead uses the contained brand/gap/brand ring (an outer halo would
      spill into neighbours). */
   .fc-daygrid-day.fc-day-today { background-color: var(--cal-today-fill) !important; }
-  .fc-daygrid-day.lt-day-selected:not(.fc-day-today) { box-shadow: var(--cal-selected-ring); }
-  .fc-daygrid-day.fc-day-today.lt-day-selected { box-shadow: var(--cal-selected-today-inset); }
+  .fc-daygrid-day.d-day-selected:not(.fc-day-today) { box-shadow: var(--cal-selected-ring); }
+  .fc-daygrid-day.fc-day-today.d-day-selected { box-shadow: var(--cal-selected-today-inset); }
   /* Date-number colour — today's number sits on the solid brand cell (on-brand text); a selected
      (non-today) number just changes colour (the cell ring above shows the selection). */
   .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { color: var(--color-on-brand); font-weight: 700; }
-  .fc-daygrid-day.lt-day-selected:not(.fc-day-today) .fc-daygrid-day-number {
+  .fc-daygrid-day.d-day-selected:not(.fc-day-today) .fc-daygrid-day-number {
     color: var(--color-brand); font-weight: 600;
   }
-  .dark .fc-daygrid-day.lt-day-selected:not(.fc-day-today) .fc-daygrid-day-number { color: var(--color-brand-strong); }
+  .dark .fc-daygrid-day.d-day-selected:not(.fc-day-today) .fc-daygrid-day-number { color: var(--color-brand-strong); }
 
   /* Dark mode overrides for FullCalendar */
   .dark .fc {
@@ -107,27 +107,27 @@
   }
 
   /* ── Minimal calendar grid (the toolbar is the shared .cal-toolbar above) ── */
-  .lt-min-dow-header {
+  .d-min-dow-header {
     display: grid; grid-template-columns: repeat(7, 1fr);
     margin-bottom: 2px;
   }
-  .lt-min-dow-header span {
+  .d-min-dow-header span {
     text-align: center; font-size: 0.65rem; font-weight: 600;
     color: rgb(107,114,128); padding: 0.25rem 0;
   }
-  .lt-min-grid {
+  .d-min-grid {
     display: grid;
     grid-template-columns: repeat(7, 1fr);
     grid-template-rows: repeat(6, 1fr);
     height: 318px;
   }
-  .lt-min-cell {
+  .d-min-cell {
     display: flex; flex-direction: column; align-items: center;
     justify-content: flex-start; padding: 2px 0;
     cursor: pointer;
   }
   /* Date number rendered as a circle — hover/today/selected all target this */
-  .lt-min-date {
+  .d-min-date {
     width: 26px; height: 26px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     font-size: 0.72rem; font-weight: 400; line-height: 1;
@@ -135,47 +135,47 @@
        centreInk() — so no padding nudge is needed here. */
     color: rgb(31,41,55); transition: background 0.15s; flex-shrink: 0;
   }
-  .dark .lt-min-date { color: rgb(229,231,235); }
-  .lt-min-cell:hover .lt-min-date { background: rgb(243,244,246); }
-  .dark .lt-min-cell:hover .lt-min-date { background: rgb(55,65,81); }
-  .lt-min-cell.lt-min-today .lt-min-date {
+  .dark .d-min-date { color: rgb(229,231,235); }
+  .d-min-cell:hover .d-min-date { background: rgb(243,244,246); }
+  .dark .d-min-cell:hover .d-min-date { background: rgb(55,65,81); }
+  .d-min-cell.d-min-today .d-min-date {
     background: var(--cal-today-fill); color: var(--color-on-brand); font-weight: 700;
   }
   /* Selected (non-today) day. The faint fill alone reads clearly in light mode but is nearly
      invisible against the dark cell background, so add the shared brand selection ring: the brand
      token is constant across light/dark, so it is equally distinct regardless of how subtle the fill. */
-  .lt-min-cell.lt-min-selected .lt-min-date {
+  .d-min-cell.d-min-selected .d-min-date {
     background: var(--color-brand-faint); color: var(--color-brand); font-weight: 600;
     box-shadow: var(--cal-selected-ring);
   }
   /* Selected text needs a lighter brand shade to read on the darker faint fill in dark mode. */
-  .dark .lt-min-cell.lt-min-selected .lt-min-date { color: var(--color-brand-strong); }
+  .dark .d-min-cell.d-min-selected .d-min-date { color: var(--color-brand-strong); }
   /* Today + selected: keep today's filled circle, but it must STILL show a selection highlight (the
      shared outer halo — an inset ring would be invisible brand-on-brand). */
-  .lt-min-cell.lt-min-today.lt-min-selected .lt-min-date {
+  .d-min-cell.d-min-today.d-min-selected .d-min-date {
     background: var(--cal-today-fill); color: var(--color-on-brand);
     box-shadow: var(--cal-selected-today-halo);
   }
-  .lt-min-cell.lt-min-other .lt-min-date { color: rgb(156,163,175); }
-  .dark .lt-min-cell.lt-min-other .lt-min-date { color: rgb(75,85,99); }
+  .d-min-cell.d-min-other .d-min-date { color: rgb(156,163,175); }
+  .dark .d-min-cell.d-min-other .d-min-date { color: rgb(75,85,99); }
   /* Fixed-height dot strip — always reserves the same space whether 0 or 4 dots */
-  .lt-min-dots {
+  .d-min-dots {
     display: flex; gap: 2px; align-items: center; justify-content: center;
     height: 6px; min-height: 6px; margin-top: 2px; flex-shrink: 0;
   }
-  .lt-min-dot {
+  .d-min-dot {
     width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
   }
 
   /* ── Stacked calendar (horizontal bars instead of dots) ─────────────── */
   /* Fixed-height bar column — always reserves the same vertical space (4 bars × 3.3px + 3 gaps × 2px = 19.2px) */
-  .lt-stk-bars {
+  .d-stk-bars {
     display: flex; flex-direction: column; gap: 2px; align-items: center;
     width: 100%; padding: 0 3px; box-sizing: border-box;
     height: 19.2px; min-height: 19.2px; margin-top: 2px; flex-shrink: 0;
     overflow: hidden;
   }
-  .lt-stk-bar {
+  .d-stk-bar {
     height: 3.3px; width: 80%; border-radius: 1099px; flex-shrink: 0;
   }
 </style>
@@ -203,10 +203,10 @@
                 <div id="calendar-wrap" class="relative">
                     {#include partials/calendar-toolbar /}
                     {#if calendarView == 'minimal' || calendarView == 'stacked'}
-                    <div class="lt-min-dow-header">
+                    <div class="d-min-dow-header">
                         <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
                     </div>
-                    <div id="lt-min-grid" class="lt-min-grid"></div>
+                    <div id="d-min-grid" class="d-min-grid"></div>
                     {#else}
                     <div id="calendar"></div>
                     {/if}
@@ -305,11 +305,11 @@ document.addEventListener('DOMContentLoaded', function () {
     function highlightSelected(dateStr) {
         if (!calEl) return; // datesSet can fire during initial render, before setup completes
         selectedDate = dateStr;
-        calEl.querySelectorAll('.fc-daygrid-day.lt-day-selected')
-             .forEach(function (el) { el.classList.remove('lt-day-selected'); });
+        calEl.querySelectorAll('.fc-daygrid-day.d-day-selected')
+             .forEach(function (el) { el.classList.remove('d-day-selected'); });
         if (!dateStr) return;
         var cell = calEl.querySelector('.fc-daygrid-day[data-date="' + dateStr + '"]');
-        if (cell) cell.classList.add('lt-day-selected');
+        if (cell) cell.classList.add('d-day-selected');
     }
 
     // Select a day: highlight it, jump to its month if it belongs to an adjacent one, and load its panel.
@@ -404,7 +404,7 @@ document.addEventListener('DOMContentLoaded', function () {
     var dayData = {}; // date string -> array of action dot objects
 
     var calWrap = document.getElementById('calendar-wrap');
-    var grid    = document.getElementById('lt-min-grid');
+    var grid    = document.getElementById('d-min-grid');
     var titleEl = document.getElementById('cal-title');
     var pop     = document.getElementById('cal-pop');
 
@@ -516,18 +516,18 @@ document.addEventListener('DOMContentLoaded', function () {
             var isSelected     = (dateStr === selectedDate);
 
             var cell = document.createElement('div');
-            cell.className = 'lt-min-cell' +
-                (isCurrentMonth ? '' : ' lt-min-other') +
-                (isToday    ? ' lt-min-today'    : '') +
-                (isSelected ? ' lt-min-selected' : '');
+            cell.className = 'd-min-cell' +
+                (isCurrentMonth ? '' : ' d-min-other') +
+                (isToday    ? ' d-min-today'    : '') +
+                (isSelected ? ' d-min-selected' : '');
             cell.dataset.date = dateStr;
 
             var dateNum = document.createElement('span');
-            dateNum.className = 'lt-min-date';
+            dateNum.className = 'd-min-date';
             // The digits live in an inner span so we can translate the TEXT to centre its ink without
-            // moving the circle (the background/ring sits on .lt-min-date itself).
+            // moving the circle (the background/ring sits on .d-min-date itself).
             var dateInk = document.createElement('span');
-            dateInk.className = 'lt-min-date-ink';
+            dateInk.className = 'd-min-date-ink';
             dateInk.textContent = dy;
             dateNum.appendChild(dateInk);
             cell.appendChild(dateNum);
@@ -535,20 +535,20 @@ document.addEventListener('DOMContentLoaded', function () {
             // Activity indicator — always appended so cell height never changes.
             if (calendarView === 'stacked') {
                 var barsEl = document.createElement('div');
-                barsEl.className = 'lt-stk-bars';
+                barsEl.className = 'd-stk-bars';
                 (dayData[dateStr] || []).forEach(function (a) {
                     var bar = document.createElement('span');
-                    bar.className = 'lt-stk-bar';
+                    bar.className = 'd-stk-bar';
                     bar.style.backgroundColor = a.colour;
                     barsEl.appendChild(bar);
                 });
                 cell.appendChild(barsEl);
             } else {
                 var dotRow = document.createElement('div');
-                dotRow.className = 'lt-min-dots';
+                dotRow.className = 'd-min-dots';
                 (dayData[dateStr] || []).forEach(function (a) {
                     var dot = document.createElement('span');
-                    dot.className = 'lt-min-dot';
+                    dot.className = 'd-min-dot';
                     dot.style.backgroundColor = a.colour;
                     dotRow.appendChild(dot);
                 });

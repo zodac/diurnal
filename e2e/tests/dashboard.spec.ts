@@ -65,9 +65,9 @@ test.describe('Dashboard', () => {
 
     test('page load: today is pre-selected and day panel loads automatically', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        // Today's cell should have the lt-day-selected class
+        // Today's cell should have the d-day-selected class
         const todayCell = page.locator(`.fc-daygrid-day[data-date="${todayStr()}"]`);
-        await expect(todayCell).toHaveClass(/lt-day-selected/);
+        await expect(todayCell).toHaveClass(/d-day-selected/);
         // Day panel should have loaded content (not the placeholder)
         await expect(page.locator('#day-panel')).not.toContainText('Click a day to log actions');
     });
@@ -213,7 +213,7 @@ test.describe('Dashboard – Calendar navigation', () => {
 
             const otherCellSelector = calendarView === 'full'
                 ? '.fc-daygrid-day.fc-day-other'
-                : '.lt-min-cell.lt-min-other';
+                : '.d-min-cell.d-min-other';
             // Every calendar style now shares one toolbar, so the title element is the same id.
             const titleSelector = '#cal-title';
 
@@ -230,9 +230,9 @@ test.describe('Dashboard – Calendar navigation', () => {
             // The clicked cell must no longer carry the "other month" class
             const cellAfterNav = calendarView === 'full'
                 ? page.locator(`.fc-daygrid-day[data-date="${otherDate}"]`)
-                : page.locator(`.lt-min-cell[data-date="${otherDate}"]`);
+                : page.locator(`.d-min-cell[data-date="${otherDate}"]`);
             await expect(cellAfterNav).not.toHaveClass(
-                calendarView === 'full' ? /fc-day-other/ : /lt-min-other/,
+                calendarView === 'full' ? /fc-day-other/ : /d-min-other/,
             );
         }
     });
@@ -252,13 +252,13 @@ test.describe('Dashboard – Minimal calendar', () => {
 
     test('minimal calendar is rendered instead of FullCalendar', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        await expect(page.locator('#lt-min-grid')).toBeVisible();
+        await expect(page.locator('#d-min-grid')).toBeVisible();
         await expect(page.locator('#calendar')).toHaveCount(0);
     });
 
     test('today cell carries the today highlight class', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        await expect(page.locator(`.lt-min-cell[data-date="${todayStr()}"]`)).toHaveClass(/lt-min-today/);
+        await expect(page.locator(`.d-min-cell[data-date="${todayStr()}"]`)).toHaveClass(/d-min-today/);
     });
 
     test('today is pre-selected and day panel loads automatically', async ({authenticatedPage: page}) => {
@@ -269,15 +269,15 @@ test.describe('Dashboard – Minimal calendar', () => {
     test('clicking a past date loads that day in the day panel', async ({authenticatedPage: page}) => {
         await page.goto('/');
         const past = pastDateStr(3);
-        await page.locator(`.lt-min-cell[data-date="${past}"]`).click();
+        await page.locator(`.d-min-cell[data-date="${past}"]`).click();
         await expect(page.locator('#day-panel')).not.toContainText('Click a day to log actions');
     });
 
     test('clicked date receives the selected class', async ({authenticatedPage: page}) => {
         await page.goto('/');
         const past = pastDateStr(2);
-        await page.locator(`.lt-min-cell[data-date="${past}"]`).click();
-        await expect(page.locator(`.lt-min-cell[data-date="${past}"]`)).toHaveClass(/lt-min-selected/);
+        await page.locator(`.d-min-cell[data-date="${past}"]`).click();
+        await expect(page.locator(`.d-min-cell[data-date="${past}"]`)).toHaveClass(/d-min-selected/);
     });
 
     test('dot appears under today after logging an action', async ({authenticatedPage: page}) => {
@@ -295,14 +295,14 @@ test.describe('Dashboard – Minimal calendar', () => {
         }
 
         const today = todayStr();
-        await expect(page.locator(`.lt-min-cell[data-date="${today}"] .lt-min-dot`)).toHaveCount(0);
+        await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-min-dot`)).toHaveCount(0);
 
         await Promise.all([
             page.waitForResponse(r => r.url().includes('/logs/') && r.request().method() === 'POST'),
             page.locator('#day-panel').getByTitle('Increase').first().click(),
         ]);
 
-        await expect(page.locator(`.lt-min-cell[data-date="${today}"] .lt-min-dot`)).toHaveCount(1, {timeout: 5000});
+        await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-min-dot`)).toHaveCount(1, {timeout: 5000});
     });
 
     test('jump picker opens and closes with Escape', async ({authenticatedPage: page}) => {
@@ -352,13 +352,13 @@ test.describe('Dashboard – Stacked calendar', () => {
 
     test('stacked calendar is rendered instead of FullCalendar', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        await expect(page.locator('#lt-min-grid')).toBeVisible();
+        await expect(page.locator('#d-min-grid')).toBeVisible();
         await expect(page.locator('#calendar')).toHaveCount(0);
     });
 
     test('today cell carries the today highlight class', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        await expect(page.locator(`.lt-min-cell[data-date="${todayStr()}"]`)).toHaveClass(/lt-min-today/);
+        await expect(page.locator(`.d-min-cell[data-date="${todayStr()}"]`)).toHaveClass(/d-min-today/);
     });
 
     test('today is pre-selected and day panel loads automatically', async ({authenticatedPage: page}) => {
@@ -369,7 +369,7 @@ test.describe('Dashboard – Stacked calendar', () => {
     test('clicking a past date loads that day in the day panel', async ({authenticatedPage: page}) => {
         await page.goto('/');
         const past = pastDateStr(3);
-        await page.locator(`.lt-min-cell[data-date="${past}"]`).click();
+        await page.locator(`.d-min-cell[data-date="${past}"]`).click();
         await expect(page.locator('#day-panel')).not.toContainText('Click a day to log actions');
     });
 
@@ -388,14 +388,14 @@ test.describe('Dashboard – Stacked calendar', () => {
         }
 
         const today = todayStr();
-        await expect(page.locator(`.lt-min-cell[data-date="${today}"] .lt-stk-bar`)).toHaveCount(0);
+        await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-stk-bar`)).toHaveCount(0);
 
         await Promise.all([
             page.waitForResponse(r => r.url().includes('/logs/') && r.request().method() === 'POST'),
             page.locator('#day-panel').getByTitle('Increase').first().click(),
         ]);
 
-        await expect(page.locator(`.lt-min-cell[data-date="${today}"] .lt-stk-bar`)).toHaveCount(1, {timeout: 5000});
+        await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-stk-bar`)).toHaveCount(1, {timeout: 5000});
     });
 
     test('prev/next month navigation changes the title', async ({authenticatedPage: page}) => {
