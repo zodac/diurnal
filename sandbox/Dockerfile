@@ -12,7 +12,7 @@ FROM eclipse-temurin:26-jdk-noble
 
 ARG UID=1000
 ARG GID=1000
-ARG MAVEN_VERSION=3.9.9
+ARG MAVEN_VERSION=3.9.16
 ARG NODE_MAJOR=26
 
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -20,12 +20,25 @@ ENV DEBIAN_FRONTEND=noninteractive \
     PATH=/opt/maven/bin:$PATH
 
 # ── Base tooling + brand-script tooling ──────────────────────────────────────
+# The brand pipeline (`npm run brand`) needs these:
+#   - python3 + python3-fonttools  → scripts/generate-brand.py (reads NovaFlat-Book.ttf and renders
+#                                    the wordmark.svg / favicon.svg / footer-mark.svg "d" glyphs)
+#   - imagemagick + librsvg2-bin + optipng → scripts/generate-favicons.cjs (rasterises favicon.svg
+#                                    into favicon.ico / favicon-16/32.png / apple-touch-icon.png)
+# fonttools is installed as the distro `python3-fonttools` package, NOT via pip: the base image's
+# Python is PEP-668 "externally managed", so `pip install fonttools` is refused.
+#
+# lsof + iproute2 (`ss`) back scripts/dev-teardown.sh, which frees the dev/test port 8081 by finding
+# and killing whatever LISTENs on it (the forked quarkus:dev JVM, or a stale -Dall E2E jar). Without
+# them the teardown silently no-ops and then falsely reports the port free, so a leftover process can
+# poison the next `mvn -Dall` IT phase with "Port already bound: 8081".
+#
 # Chromium's own shared-library deps are NOT listed here (the package names drift
 # across Ubuntu releases); install them once inside the sandbox with the
 # version-proof `npx playwright install --with-deps chromium` (see README).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl gnupg git bash sudo \
-      python3 python3-pip python3-venv \
+      ca-certificates curl gnupg git bash sudo lsof iproute2 \
+      python3 python3-pip python3-venv python3-fonttools \
       imagemagick librsvg2-bin optipng \
     && rm -rf /var/lib/apt/lists/*
 
@@ -76,6 +89,15 @@ RUN set -eux; \
 
 # Let Playwright manage its own Chromium (cached under $HOME, persisted via volume).
 ENV PLAYWRIGHT_BROWSERS_PATH=/home/dev/.cache/ms-playwright
+
+# Keep ALL of Claude Code's config in the persisted ~/.claude volume. By default Claude
+# splits its state: the ~/.claude/ directory (history, OAuth credentials) AND a separate
+# ~/.claude.json file in the home root (onboarding/terminal-setup state + login). Only the
+# directory is volume-mounted, so without this the .claude.json file is recreated empty on
+# every run — forcing terminal reconfiguration + re-login each time. CLAUDE_CONFIG_DIR
+# redirects .claude.json (and credentials) INTO the mounted dir, so it all persists.
+# (entrypoint.sh already forwards this var to the `dev` user via --preserve-env.)
+ENV CLAUDE_CONFIG_DIR=/home/dev/.claude
 
 COPY entrypoint.sh /usr/local/bin/entrypoint.sh
 COPY launch.sh     /usr/local/bin/sandbox-launch.sh

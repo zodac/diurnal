@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Code style:** project-specific style expectations (beyond the inherited linters) live in
+> [`CODE_STYLE.md`](CODE_STYLE.md). Read it before writing or editing code and keep code conforming to it.
+
 ## Commands
 
 ```bash
@@ -68,8 +71,10 @@ wiped on every container recreate.
 > **Always tear down the dev environment once testing/verification is finished.** Never leave dev
 > resources running at the end of a task. The easiest way is the helper scripts:
 > `scripts/dev-up.sh` brings up the dev DB + `quarkus:dev` on 8081 and waits until it answers;
-> **`scripts/dev-teardown.sh`** stops it again. The teardown only kills what LISTENs on 8081 and the
-> `diurnal-db-dev` container, so a running **production** container on 8080 is never touched. Equivalent
+> **`scripts/dev-teardown.sh`** stops it again. It frees 8081 **only if the listener belongs to this
+> project** (a `quarkus:dev` server / `-Dall` E2E jar from this tree); an *unrelated* app on 8081 is
+> left untouched and reported as an error for you to handle. It also removes the `diurnal-db-dev`
+> container — so a running **production** container on 8080 is never touched. Equivalent
 > manual steps if you must:
 > 1. Stop the dev app: `pkill -f "quarkus:dev"` and confirm port 8081 is free (frees 8081 for the
      > `@QuarkusTest` test-port and stops a stale server masking changes).
@@ -139,14 +144,14 @@ annotated (JSpecify `@Nullable`), every public/package method and type carries J
 
 Code is organised by feature under `src/main/java/net/zodac/diurnal/`:
 
-| Package  | Contents                                                                                                                    |
-|----------|-----------------------------------------------------------------------------------------------------------------------------|
-| `action` | `Action` entity + `ActionsWebResource` (CRUD for user-defined trackable habits)                                             |
+| Package  | Contents                                                                                                                                                                                                                               |
+|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `action` | `Action` entity + `ActionsWebResource` (CRUD for user-defined trackable habits)                                                                                                                                                        |
 | `log`    | `ActionLog` entity + `LogWebResource` (increment/decrement per day) + `CalendarResource` (JSON for FullCalendar; its `/logs/events` feed is the **public** logged-events API, shared by the in-app calendar and external integrations) |
-| `stats`  | `StatsService` (streak/count calculations) + `StatsWebResource` (paginated stats page)                                      |
-| `auth`   | REST API auth: `AuthResource` (register/login → JWT), `TokenService`, `PasswordIdentityProvider`, `TrustedIdentityProvider` |
-| `user`   | `User` entity, `UserResource` (`/api/users/me`), `UserSettings` (page size options/validation)                              |
-| `web`    | `WebResource` — all the top-level page routes (dashboard, login, register, logout, settings, theme toggle)                  |
+| `stats`  | `StatsService` (streak/count calculations) + `StatsWebResource` (paginated stats page)                                                                                                                                                 |
+| `auth`   | REST API auth: `AuthResource` (register/login → JWT), `TokenService`, `PasswordIdentityProvider`, `TrustedIdentityProvider`                                                                                                            |
+| `user`   | `User` entity, `UserResource` (`/api/users/me`), `UserSettings` (page size options/validation)                                                                                                                                         |
+| `web`    | `WebResource` — all the top-level page routes (dashboard, login, register, logout, settings, theme toggle)                                                                                                                             |
 
 ### Two authentication surfaces
 
@@ -391,7 +396,7 @@ per-style groups; calendar tiles use its plain (single-screenshot) mode.
 **Loading/decoding — two hiding mechanisms, on purpose (see `preview-thumb.html`).** All thumbnails are
 `loading="lazy"`. **Viewport** is gated with `display` (the `sm:` classes): the other viewport's images
 are `display:none` and never fetched — so a desktop user never downloads the ~half of the ~3.8 MB set
-that is the mobile (portrait) shots, or vice-versa (only loaded if the window crosses the `sm`
+that is the mobile (portrait) shots, or vice versa (only loaded if the window crosses the `sm`
 breakpoint). The not-yet-shown variant *within* the current viewport — the opposite theme on a calendar
 tile, or the other calendar styles on a theme tile — is hidden with **`visibility`/`invisible`** (NOT
 display), so it stays laid out and `settings.html` can `decode()` it up front. That pre-decode makes
