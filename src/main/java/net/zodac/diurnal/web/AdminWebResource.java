@@ -229,30 +229,6 @@ public class AdminWebResource {
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    /**
-     * A single row in the admin users table, with timestamps pre-formatted for display.
-     */
-    public record UserRow(UUID id, String email, String displayName, String role,
-                          String createdLabel, String lastLoginLabel) {
-        /**
-         * Builds a row from a {@link User}, formatting its timestamps with {@code fmt}.
-         */
-        static UserRow of(final User u, final DateTimeFormatter fmt) {
-            return new UserRow(
-                    u.id, u.email, u.displayName, u.role,
-                    fmt.format(u.createdAt),
-                    u.lastLoginAt != null ? fmt.format(u.lastLoginAt) : "Never");
-        }
-
-        /**
-         * The human-readable role label shown in the table.
-         */
-        @SuppressWarnings("unused")
-        public String roleName() {
-            return User.ROLE_ADMIN.equals(role) ? "Administrator" : "User";
-        }
-    }
-
     private record PaginatedUsers(List<UserRow> items, long totalCount, int totalPages, int currentPage) {
     }
 

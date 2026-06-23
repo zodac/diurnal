@@ -54,7 +54,7 @@ public class StatsService {
     @Transactional
     public List<ActionStats> forAllActiveActions(final UUID userId) {
         return computeAll(userId).stream()
-                .filter(ActionStats::hasData)
+                .filter(ActionStatsExtensions::hasData)
                 .toList();
     }
 
@@ -65,7 +65,7 @@ public class StatsService {
     @Transactional
     public List<ActionStats> forMostRecent(final UUID userId, final int limit) {
         return computeAll(userId).stream()
-                .filter(ActionStats::performedThisMonth)
+                .filter(ActionStatsExtensions::performedThisMonth)
                 .sorted(Comparator.comparing(ActionStats::lastPerformed).reversed())
                 .limit(limit)
                 .toList();

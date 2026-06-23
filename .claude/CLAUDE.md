@@ -148,7 +148,7 @@ Code is organised by feature under `src/main/java/net/zodac/diurnal/`:
 |----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `action` | `Action` entity + `ActionsWebResource` (CRUD for user-defined trackable habits)                                                                                                                                                        |
 | `log`    | `ActionLog` entity + `LogWebResource` (increment/decrement per day) + `CalendarResource` (JSON for FullCalendar; its `/logs/events` feed is the **public** logged-events API, shared by the in-app calendar and external integrations) |
-| `stats`  | `StatsService` (streak/count calculations) + `StatsWebResource` (paginated stats page)                                                                                                                                                 |
+| `stats`  | `StatsService` (streak/count calculations) + `ActionStats` (data record) + `ActionStatsExtensions` (its derived/label logic as Qute template extensions) + `StatsWebResource` (paginated stats page)                                     |
 | `auth`   | REST API auth: `AuthResource` (register/login → JWT), `TokenService`, `PasswordIdentityProvider`, `TrustedIdentityProvider`                                                                                                            |
 | `user`   | `User` entity, `UserResource` (`/api/users/me`), `UserSettings` (page size options/validation)                                                                                                                                         |
 | `web`    | `WebResource` — all the top-level page routes (dashboard, login, register, logout, settings, theme toggle)                                                                                                                             |
@@ -183,6 +183,36 @@ Most resources return **HTML fragments** rather than full pages. Qute templates 
 - HTMX-targeted endpoints return `Response.ok(partialTemplate.data(...)).build()`.
 
 Error responses for HTMX mutations use `HX-Retarget` / `HX-Reswap` headers to redirect the swap into the error element rather than the default target.
+
+### Data records vs. logic (`*Extensions` + Qute template extensions)
+
+Value types are split: a **`record` holds data only**, and its derived/computed logic lives in a
+separate **`<Type>Extensions` final class** (private constructor) whose methods take the record as the
+**first parameter**. The template-facing ones are annotated **`@io.quarkus.qute.TemplateExtension`**,
+so Qute still resolves `{x.foo}` against the record unchanged — *no template edits needed* when logic
+moves out. Established pairs: `stats/ActionStats` + `ActionStatsExtensions` (streak/trend/since/`plural`
+labels) and `web/UserRow` + `UserRowExtensions` (`roleName`).
+
+This split is **mandatory, not stylistic**, because of PITest. PITest hot-swaps each mutant into the
+running minion JVM via `Instrumentation.redefineClasses`, which the JVM **refuses for a class carrying
+a `Record` attribute** — a mutated logic method *on a record* fails to redefine with *"class
+redefinition failed: attempted to change the Record attribute"*, surfacing as
+`PIT >> WARNING: Minion exited abnormally due to RUN_ERROR` and leaving that logic **untested** (the
+errors are excluded from test-strength, so they hide silently behind the 100% gate). The same logic on
+a plain class redefines cleanly and is fully mutated; a pure-data record generates no mutants at all.
+Diagnose RUN_ERRORs with `mvn clean install -Dlint -Dverbose=true` (the real `redefineClasses`
+stack-trace is only printed under `-Dverbose`; the `LogManager` line in minion output is a red
+herring).
+
+**When a record grows an instance method with branching logic that a template calls** (a
+`@SuppressWarnings("unused")` template-only method is the tell), move it to a `<Type>Extensions` class
+and **add a unit test** so the logic gains real mutation coverage. This does **not** apply to pure-data
+records, factory methods (`from`/`of` — construction-time data prep stays on the record), or static
+validators/sanitisers — e.g. `UserSettings`'s static helpers are unit-tested and mutate fine (a record
+only trips PITest when a *mutated, unit-test-covered instance method* is hot-swapped), so leave them.
+Equivalent mutants surfaced by the move (a boundary that's unreachable because an earlier branch
+already returns) should be removed by restructuring, not suppressed — see `ActionStatsExtensions.trend`
+(`> 0` / `< 0` / else, mirroring `trendClass`) and `UserSettings.utcOffsetLabel`.
 
 ### CSS build & colour tokens
 
@@ -466,10 +496,10 @@ controls are rendered server-side as HTML. Page size is a per-user setting valid
 - `password.auth.enabled=false` disables the register page (returns 404) and skips the `PasswordIdentityProvider`. `AppLifecycle` enforces that at
   least one of password-auth or OIDC is enabled at startup.
 - Login page uses query params for state: `?error` signals a failed login; `?registered=true` shows a success message after registration.
-- `ActionStats` exposes `sinceLabel()`, `monthTrend()`, `monthTrendClass()` helpers used directly in Qute templates for display formatting.
+- `ActionStatsExtensions` exposes `sinceLabel()`, `monthTrend()`, `monthTrendClass()` etc. as Qute template extensions over the `ActionStats` data record, used directly in templates for display formatting (see "Data records vs. logic").
 - **UI-facing text must use the correct singular/plural form** — never render "1 days", "1 distinct days", etc. Counts of `1`
   take the singular noun, everything else (including `0`) the plural. Don't hardcode a static unit caption (e.g. `sub='days'`)
-  next to a variable count; route it through a count-aware helper. `ActionStats` centralises the day/streak rule via the private
+  next to a variable count; route it through a count-aware helper. `ActionStatsExtensions` centralises the day/streak rule via the private
   `plural(count, unit)` helper, exposed as `currentStreakLabel()`/`longestStreakLabel()` ("5 days"/"1 day"),
   `currentStreakUnit()`/`longestStreakUnit()`/`totalDaysUnit()` (the bare "day"/"days"/"distinct day(s)" caption for stat tiles).
   Rates stay plural by convention (e.g. weekly average is always "N days / week"). Apply the same rule to any new pluralised
