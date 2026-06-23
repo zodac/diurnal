@@ -18,11 +18,11 @@
 package net.zodac.diurnal.web;
 
 import static io.restassured.RestAssured.given;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
@@ -97,6 +97,8 @@ class FirstRunRegistrationDisabledIT extends IntegrationTestBase {
                 .statusCode(403)
                 .body(containsString("Registration is currently disabled. Please contact your system administrator."));
 
-        runInTx(() -> assertEquals(1, User.count(), "No new user should be created when registration is disabled"));
+        runInTx(() -> assertThat(User.count())
+            .as("No new user should be created when registration is disabled")
+            .isEqualTo(1));
     }
 }

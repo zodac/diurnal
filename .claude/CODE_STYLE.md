@@ -81,3 +81,43 @@ private static String plural(final long count, final String unit) { ...}
 
 Rationale: Javadoc documents the API contract; private members are implementation detail and aren't
 part of any contract, so a doc comment there is noise that can drift out of sync.
+
+### AssertJ assertions must be fluent-chained across multiple lines
+
+Every AssertJ assertion (`assertThat(...)` is the assertion library used in this project's tests) must
+place the opening `assertThat(...)` and **each** chained call on its **own line**, even when the whole
+assertion comfortably fits on one line. The single-line form must **never** be used.
+
+Continuation lines are indented **4 spaces** beyond the `assertThat(...)` line (matching Checkstyle's
+`lineWrappingIndentation`), and the terminating `;` stays on the final chained call.
+
+❌ **Wrong** — single-line:
+
+```java
+assertThat(found).as("archived action should still exist in DB").isNotNull();
+```
+
+✅ **Right** — `assertThat(...)` and each chained call on its own line:
+
+```java
+assertThat(found)
+    .as("archived action should still exist in DB")
+    .isNotNull();
+```
+
+This applies to every chain length and shape, including a bare `assertThat(x).isEqualTo(y)` (two lines)
+and assertions nested in a lambda (e.g. `runInTx(() -> assertThat(...)...)`):
+
+```java
+assertThat(user.pageSize)
+    .as("unexpected value")
+    .isEqualTo(25);
+
+runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().role)
+    .as("unexpected value")
+    .isEqualTo(User.ROLE_ADMIN));
+```
+
+Rationale: the broken-out shape keeps diffs small and predictable (adding or changing an `.as(...)`
+description or a chained condition never reflows the rest of the assertion), makes the description and
+the matcher each easy to scan, and reads consistently everywhere in the test tree.

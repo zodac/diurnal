@@ -18,10 +18,10 @@
 package net.zodac.diurnal.user;
 
 import static io.restassured.RestAssured.given;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.Header;
@@ -73,7 +73,9 @@ class UserResourceIT extends IntegrationTestBase {
             holder[0] = u;
         });
         final User admin = holder[0];
-        assertNotNull(admin, "admin user should have been created in the transaction");
+        assertThat(admin)
+            .as("admin user should have been created in the transaction")
+            .isNotNull();
 
         given().header(new Header("Authorization", "Bearer " + tokenService.generateToken(admin)))
                 .get("/api/users/me")

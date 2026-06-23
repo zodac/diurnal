@@ -18,6 +18,7 @@
 package net.zodac.diurnal.log;
 
 import static io.restassured.RestAssured.given;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -70,8 +71,12 @@ class LogResourceIT extends IntegrationTestBase {
                 .body(containsString("1"));
 
         final ActionLog log = ActionLog.findEntry(primaryId, primaryAction.id, TODAY);
-        assertNotNull(log);
-        assertEquals(1, log.count);
+        assertThat(log)
+            .as("log should be created")
+            .isNotNull();
+        assertThat(log.count)
+            .as("count after first increment")
+            .isEqualTo(1);
     }
 
     @Test
@@ -98,7 +103,9 @@ class LogResourceIT extends IntegrationTestBase {
                 .body(containsString("255"));
 
         final ActionLog log = ActionLog.findEntry(primaryId, primaryAction.id, TODAY);
-        assertEquals(255, log.count);
+        assertThat(log.count)
+            .as("count capped at 255")
+            .isEqualTo(255);
     }
 
     @Test
@@ -122,7 +129,9 @@ class LogResourceIT extends IntegrationTestBase {
                 .then().statusCode(200)
                 .body(containsString("1"));
 
-        assertEquals(1, ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count);
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
+            .as("count after decrement")
+            .isEqualTo(1);
     }
 
     @Test
@@ -132,7 +141,9 @@ class LogResourceIT extends IntegrationTestBase {
                 .then().statusCode(200)
                 .body(containsString("0"));
 
-        assertNull(ActionLog.findEntry(primaryId, primaryAction.id, TODAY));
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
+            .as("log deleted at zero")
+            .isNull();
     }
 
     @Test
@@ -173,7 +184,9 @@ class LogResourceIT extends IntegrationTestBase {
         // PrimaryAction has count=3, AlphaFirst count=1 — PrimaryAction should appear first in HTML
         final int posA = body.indexOf("PrimaryAction");
         final int posB = body.indexOf("AlphaFirst");
-        assertTrue(posA < posB, "Higher count action should appear before lower count action");
+        assertThat(posA)
+            .as("Higher count action should appear before lower count action")
+            .isLessThan(posB);
     }
 
     @Test
@@ -269,31 +282,5 @@ class LogResourceIT extends IntegrationTestBase {
         freezeInstant(noonUtc, ZoneOffset.UTC);
         given().post("/logs/" + the16th + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200);
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────────
-
-    private static void assertNotNull(final Object o) {
-        if (o == null) {
-            throw new AssertionError("Expected non-null but was null");
-        }
-    }
-
-    private static void assertNull(final Object o) {
-        if (o != null) {
-            throw new AssertionError("Expected null but was: " + o);
-        }
-    }
-
-    private static void assertEquals(final int expected, final int actual) {
-        if (expected != actual) {
-            throw new AssertionError("Expected " + expected + " but was " + actual);
-        }
-    }
-
-    private static void assertTrue(final boolean condition, final String msg) {
-        if (!condition) {
-            throw new AssertionError(msg);
-        }
     }
 }

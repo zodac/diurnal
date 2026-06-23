@@ -18,8 +18,7 @@
 package net.zodac.diurnal.web;
 
 import static io.restassured.RestAssured.given;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
@@ -50,7 +49,9 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings/display-name")
                 .then().statusCode(200);
 
-        runInTx(() -> assertEquals("New Name", User.findByEmail(PRIMARY).orElseThrow().displayName, "unexpected value"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().displayName)
+            .as("unexpected value")
+            .isEqualTo("New Name"));
     }
 
     @Test
@@ -59,7 +60,9 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings/display-name")
                 .then().statusCode(422);
 
-        runInTx(() -> assertEquals("Settings User", User.findByEmail(PRIMARY).orElseThrow().displayName, "unexpected value"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().displayName)
+            .as("unexpected value")
+            .isEqualTo("Settings User"));
     }
 
     @Test
@@ -77,7 +80,9 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings")
                 .then().statusCode(200);
 
-        runInTx(() -> assertEquals("dark", User.findByEmail(PRIMARY).orElseThrow().theme, "unexpected value"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
+            .as("unexpected value")
+            .isEqualTo("dark"));
     }
 
     @Test
@@ -87,7 +92,9 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings")
                 .then().statusCode(200);
 
-        runInTx(() -> assertEquals("light", User.findByEmail(PRIMARY).orElseThrow().theme, "unexpected value"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
+            .as("unexpected value")
+            .isEqualTo("light"));
     }
 
     @Test
@@ -99,7 +106,9 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings")
                 .then().statusCode(200);
 
-        runInTx(() -> assertEquals("system", User.findByEmail(PRIMARY).orElseThrow().theme, "unexpected value"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
+            .as("unexpected value")
+            .isEqualTo("system"));
     }
 
     @Test
@@ -109,7 +118,9 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings")
                 .then().statusCode(200);
 
-        runInTx(() -> assertEquals("system", User.findByEmail(PRIMARY).orElseThrow().theme, "unexpected value"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
+            .as("unexpected value")
+            .isEqualTo("system"));
     }
 
     @Test
@@ -120,7 +131,9 @@ class SettingsIT extends IntegrationTestBase {
                 .then().statusCode(200);
 
         final User user = User.findByEmail(PRIMARY).orElseThrow();
-        assertEquals(25, user.pageSize, "unexpected value");
+        assertThat(user.pageSize)
+            .as("unexpected value")
+            .isEqualTo(25);
     }
 
     @Test
@@ -132,7 +145,9 @@ class SettingsIT extends IntegrationTestBase {
                 .then().statusCode(200);
 
         final User user = User.findByEmail(PRIMARY).orElseThrow();
-        assertEquals(10, user.pageSize, "unexpected value"); // default
+        assertThat(user.pageSize)
+            .as("unexpected value")
+            .isEqualTo(10); // default
     }
 
     @Test
@@ -143,7 +158,9 @@ class SettingsIT extends IntegrationTestBase {
                 .then().statusCode(200);
 
         final User user = User.findByEmail(PRIMARY).orElseThrow();
-        assertEquals(10, user.pageSize, "unexpected value");
+        assertThat(user.pageSize)
+            .as("unexpected value")
+            .isEqualTo(10);
     }
 
     @Test
@@ -151,12 +168,16 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("theme", "system")
                 .formParam("pageSize", "50")
                 .post("/settings").then().statusCode(200);
-        runInTx(() -> assertEquals(50, User.findByEmail(PRIMARY).orElseThrow().pageSize, "unexpected value"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
+            .as("unexpected value")
+            .isEqualTo(50));
 
         given().formParam("theme", "system")
                 .formParam("pageSize", "100")
                 .post("/settings").then().statusCode(200);
-        runInTx(() -> assertEquals(100, User.findByEmail(PRIMARY).orElseThrow().pageSize, "unexpected value"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
+            .as("unexpected value")
+            .isEqualTo(100));
     }
 
     // ── calendarView ──────────────────────────────────────────────────────────
@@ -169,7 +190,9 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings")
                 .then().statusCode(200);
 
-        runInTx(() -> assertEquals("minimal", User.findByEmail(PRIMARY).orElseThrow().calendarView, "unexpected value"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
+            .as("unexpected value")
+            .isEqualTo("minimal"));
     }
 
     @Test
@@ -183,7 +206,9 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings")
                 .then().statusCode(200);
 
-        runInTx(() -> assertEquals("full", User.findByEmail(PRIMARY).orElseThrow().calendarView, "unexpected value"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
+            .as("unexpected value")
+            .isEqualTo("full"));
     }
 
     @Test
@@ -194,7 +219,9 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings")
                 .then().statusCode(200);
 
-        runInTx(() -> assertEquals("stacked", User.findByEmail(PRIMARY).orElseThrow().calendarView, "unexpected value"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
+            .as("unexpected value")
+            .isEqualTo("stacked"));
     }
 
     @Test
@@ -205,7 +232,9 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings")
                 .then().statusCode(200);
 
-        runInTx(() -> assertEquals("full", User.findByEmail(PRIMARY).orElseThrow().calendarView, "unexpected value"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
+            .as("unexpected value")
+            .isEqualTo("full"));
     }
 
     // ── timezone ────────────────────────────────────────────────────────────────
@@ -217,7 +246,9 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings")
                 .then().statusCode(200);
 
-        runInTx(() -> assertEquals("Pacific/Auckland", User.findByEmail(PRIMARY).orElseThrow().timezone, "unexpected value"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().timezone)
+            .as("unexpected value")
+            .isEqualTo("Pacific/Auckland"));
     }
 
     @Test
@@ -231,7 +262,9 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings")
                 .then().statusCode(200);
 
-        runInTx(() -> assertNull(User.findByEmail(PRIMARY).orElseThrow().timezone, "expected null"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().timezone)
+            .as("expected null")
+            .isNull());
     }
 
     @Test
@@ -241,6 +274,8 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings")
                 .then().statusCode(200);
 
-        runInTx(() -> assertNull(User.findByEmail(PRIMARY).orElseThrow().timezone, "expected null"));
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().timezone)
+            .as("expected null")
+            .isNull());
     }
 }

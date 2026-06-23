@@ -17,9 +17,7 @@
 
 package net.zodac.diurnal.user;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -37,7 +35,9 @@ class UserSettingsTest {
     @ParameterizedTest
     @ValueSource(ints = {5, 10, 25, 50, 100})
     void sanitisePageSize_validValues_passedThrough(final int size) {
-        assertEquals(size, UserSettings.sanitisePageSize(size), "unexpected value");
+        assertThat(UserSettings.sanitisePageSize(size))
+            .as("unexpected value")
+            .isEqualTo(size);
     }
 
     // ── Invalid page sizes (all fall back to default of 10) ──────────────────
@@ -45,40 +45,46 @@ class UserSettingsTest {
     @ParameterizedTest
     @ValueSource(ints = {0, 1, 9, 11, 24, 26, 49, 51, 99, 101, 200, -1, -100})
     void sanitisePageSize_invalidValues_returnsDefault(final int size) {
-        assertEquals(UserSettings.DEFAULT_PAGE_SIZE, UserSettings.sanitisePageSize(size), "unexpected value");
+        assertThat(UserSettings.sanitisePageSize(size))
+            .as("unexpected value")
+            .isEqualTo(UserSettings.DEFAULT_PAGE_SIZE);
     }
 
     @Test
     void sanitisePageSize_maxInt_returnsDefault() {
-        assertEquals(UserSettings.DEFAULT_PAGE_SIZE, UserSettings.sanitisePageSize(Integer.MAX_VALUE), "unexpected value");
+        assertThat(UserSettings.sanitisePageSize(Integer.MAX_VALUE))
+            .as("unexpected value")
+            .isEqualTo(UserSettings.DEFAULT_PAGE_SIZE);
     }
 
     @Test
     void sanitisePageSize_minInt_returnsDefault() {
-        assertEquals(UserSettings.DEFAULT_PAGE_SIZE, UserSettings.sanitisePageSize(Integer.MIN_VALUE), "unexpected value");
+        assertThat(UserSettings.sanitisePageSize(Integer.MIN_VALUE))
+            .as("unexpected value")
+            .isEqualTo(UserSettings.DEFAULT_PAGE_SIZE);
     }
 
     // ── Constants ─────────────────────────────────────────────────────────────
 
     @Test
     void defaultPageSize_isTen() {
-        assertEquals(10, UserSettings.DEFAULT_PAGE_SIZE, "unexpected value");
+        assertThat(UserSettings.DEFAULT_PAGE_SIZE)
+            .as("unexpected value")
+            .isEqualTo(10);
     }
 
     @Test
     void pageSizeOptions_containsExactlyFiveValues() {
-        assertEquals(5, UserSettings.PAGE_SIZE_OPTIONS.size(), "unexpected value");
+        assertThat(UserSettings.PAGE_SIZE_OPTIONS.size())
+            .as("unexpected value")
+            .isEqualTo(5);
     }
 
     @Test
     void pageSizeOptions_defaultIsIncluded() {
-        assertDefaultPageSizeIncluded();
-    }
-
-    private static void assertDefaultPageSizeIncluded() {
-        if (!UserSettings.PAGE_SIZE_OPTIONS.contains(UserSettings.DEFAULT_PAGE_SIZE)) {
-            throw new AssertionError("Expected list to contain " + UserSettings.DEFAULT_PAGE_SIZE + " but was: " + UserSettings.PAGE_SIZE_OPTIONS);
-        }
+        assertThat(UserSettings.PAGE_SIZE_OPTIONS)
+            .as("options must include the default page size")
+            .contains(UserSettings.DEFAULT_PAGE_SIZE);
     }
 
     // ── Calendar view sanitisation ─────────────────────────────────────────────
@@ -86,28 +92,38 @@ class UserSettingsTest {
     @ParameterizedTest
     @ValueSource(strings = {"full", "minimal", "stacked"})
     void sanitiseCalendarView_validValues_passedThrough(final String view) {
-        assertEquals(view, UserSettings.sanitiseCalendarView(view), "unexpected value");
+        assertThat(UserSettings.sanitiseCalendarView(view))
+            .as("unexpected value")
+            .isEqualTo(view);
     }
 
     @ParameterizedTest
     @ValueSource(strings = {"grid", "compact", "", "FULL", "Minimal", "none", "list"})
     void sanitiseCalendarView_invalidValues_returnsDefault(final String view) {
-        assertEquals(UserSettings.DEFAULT_CALENDAR_VIEW, UserSettings.sanitiseCalendarView(view), "unexpected value");
+        assertThat(UserSettings.sanitiseCalendarView(view))
+            .as("unexpected value")
+            .isEqualTo(UserSettings.DEFAULT_CALENDAR_VIEW);
     }
 
     @Test
     void defaultCalendarView_isFull() {
-        assertEquals("full", UserSettings.DEFAULT_CALENDAR_VIEW, "unexpected value");
+        assertThat(UserSettings.DEFAULT_CALENDAR_VIEW)
+            .as("unexpected value")
+            .isEqualTo("full");
     }
 
     @Test
     void calendarViewOptions_containsExactlyThreeValues() {
-        assertEquals(3, UserSettings.CALENDAR_VIEW_OPTIONS.size(), "unexpected value");
+        assertThat(UserSettings.CALENDAR_VIEW_OPTIONS.size())
+            .as("unexpected value")
+            .isEqualTo(3);
     }
 
     @Test
     void calendarViewOptions_defaultIsIncluded() {
-        assertTrue(UserSettings.CALENDAR_VIEW_OPTIONS.contains(UserSettings.DEFAULT_CALENDAR_VIEW), "expected condition to be true");
+        assertThat(UserSettings.CALENDAR_VIEW_OPTIONS.contains(UserSettings.DEFAULT_CALENDAR_VIEW))
+            .as("expected condition to be true")
+            .isTrue();
     }
 
     // ── Timezone sanitisation ──────────────────────────────────────────────────
@@ -115,19 +131,25 @@ class UserSettingsTest {
     @ParameterizedTest
     @ValueSource(strings = {"UTC", "Pacific/Auckland", "Europe/London", "America/New_York"})
     void sanitiseTimezone_offeredValues_passedThrough(final String tz) {
-        assertEquals(tz, UserSettings.sanitiseTimezone(tz), "unexpected value");
+        assertThat(UserSettings.sanitiseTimezone(tz))
+            .as("unexpected value")
+            .isEqualTo(tz);
     }
 
     @ParameterizedTest
     // Blank, unknown, mis-cased, or valid-but-not-offered zones all collapse to "use server default".
     @ValueSource(strings = {"", " ", "utc", "Mars/Phobos", "Asia/Atlantis", "Europe/Atlantis", "GMT+5"})
     void sanitiseTimezone_invalidOrUnoffered_returnsNull(final String tz) {
-        assertNull(UserSettings.sanitiseTimezone(tz), "expected null");
+        assertThat(UserSettings.sanitiseTimezone(tz))
+            .as("expected null")
+            .isNull();
     }
 
     @Test
     void sanitiseTimezone_null_returnsNull() {
-        assertNull(UserSettings.sanitiseTimezone(null), "expected null");
+        assertThat(UserSettings.sanitiseTimezone(null))
+            .as("expected null")
+            .isNull();
     }
 
     @Test
@@ -142,11 +164,21 @@ class UserSettingsTest {
 
     @Test
     void utcOffsetLabel_formatsWholeAndHalfHourOffsets() {
-        assertEquals("UTC", UserSettings.utcOffsetLabel(java.time.ZoneOffset.UTC), "unexpected value");
-        assertEquals("UTC+12", UserSettings.utcOffsetLabel(java.time.ZoneOffset.ofHours(12)), "unexpected value");
-        assertEquals("UTC-8", UserSettings.utcOffsetLabel(java.time.ZoneOffset.ofHours(-8)), "unexpected value");
-        assertEquals("UTC+5:30", UserSettings.utcOffsetLabel(java.time.ZoneOffset.ofHoursMinutes(5, 30)), "unexpected value");
-        assertEquals("UTC-3:30", UserSettings.utcOffsetLabel(java.time.ZoneOffset.ofHoursMinutes(-3, -30)), "unexpected value");
+        assertThat(UserSettings.utcOffsetLabel(java.time.ZoneOffset.UTC))
+            .as("unexpected value")
+            .isEqualTo("UTC");
+        assertThat(UserSettings.utcOffsetLabel(java.time.ZoneOffset.ofHours(12)))
+            .as("unexpected value")
+            .isEqualTo("UTC+12");
+        assertThat(UserSettings.utcOffsetLabel(java.time.ZoneOffset.ofHours(-8)))
+            .as("unexpected value")
+            .isEqualTo("UTC-8");
+        assertThat(UserSettings.utcOffsetLabel(java.time.ZoneOffset.ofHoursMinutes(5, 30)))
+            .as("unexpected value")
+            .isEqualTo("UTC+5:30");
+        assertThat(UserSettings.utcOffsetLabel(java.time.ZoneOffset.ofHoursMinutes(-3, -30)))
+            .as("unexpected value")
+            .isEqualTo("UTC-3:30");
     }
 
     // ── Timezone picker choices ─────────────────────────────────────────────────
@@ -155,11 +187,16 @@ class UserSettingsTest {
     void timezoneChoices_offersEveryCuratedZoneWithItsOwnIdAsValue() {
         final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("UTC"), NOW, null);
 
-        assertEquals(UserSettings.TIMEZONE_OPTIONS.size(), choices.size(), "unexpected value");
+        assertThat(choices.size())
+            .as("unexpected value")
+            .isEqualTo(UserSettings.TIMEZONE_OPTIONS.size());
         // No "inherit" sentinel entry: every option's value is a real zone id from the curated list.
-        assertTrue(choices.stream().noneMatch(c -> c.value().isEmpty()), "no empty-value entry expected");
-        assertTrue(choices.stream().allMatch(c -> UserSettings.TIMEZONE_OPTIONS.contains(c.value())),
-                "every choice value must be a curated zone id");
+        assertThat(choices.stream().noneMatch(c -> c.value().isEmpty()))
+            .as("no empty-value entry expected")
+            .isTrue();
+        assertThat(choices)
+            .as("every choice value must be a curated zone id")
+            .allMatch(c -> UserSettings.TIMEZONE_OPTIONS.contains(c.value()));
     }
 
     @Test
@@ -169,11 +206,15 @@ class UserSettingsTest {
         int prev = Integer.MIN_VALUE;
         for (final var choice : choices) {
             final int offset = java.time.ZoneId.of(choice.value()).getRules().getOffset(NOW).getTotalSeconds();
-            assertTrue(offset >= prev, "choices must be sorted by ascending UTC offset");
+            assertThat(offset >= prev)
+                .as("choices must be sorted by ascending UTC offset")
+                .isTrue();
             prev = offset;
         }
         // Most-behind option (America/Los_Angeles, PDT UTC-7 in June) sorts first.
-        assertEquals("America/Los_Angeles", choices.get(0).value(), "unexpected value");
+        assertThat(choices.get(0).value())
+            .as("unexpected value")
+            .isEqualTo("America/Los_Angeles");
     }
 
     @Test
@@ -181,7 +222,9 @@ class UserSettingsTest {
         final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("UTC"), NOW, null);
 
         final var utc = choices.stream().filter(c -> "UTC".equals(c.value())).findFirst().orElseThrow();
-        assertEquals("UTC", utc.label(), "unexpected value");
+        assertThat(utc.label())
+            .as("unexpected value")
+            .isEqualTo("UTC");
     }
 
     @Test
@@ -189,9 +232,15 @@ class UserSettingsTest {
         final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("Pacific/Auckland"), NOW, null);
 
         final var selected = choices.stream().filter(UserSettings.TimezoneChoice::selected).toList();
-        assertEquals(1, selected.size(), "exactly one option selected");
-        assertEquals("Pacific/Auckland", selected.get(0).value(), "server default selected when user inherits");
-        assertEquals("Pacific/Auckland (UTC+12)", selected.get(0).label(), "unexpected value");
+        assertThat(selected.size())
+            .as("exactly one option selected")
+            .isEqualTo(1);
+        assertThat(selected.get(0).value())
+            .as("server default selected when user inherits")
+            .isEqualTo("Pacific/Auckland");
+        assertThat(selected.get(0).label())
+            .as("unexpected value")
+            .isEqualTo("Pacific/Auckland (UTC+12)");
     }
 
     @Test
@@ -199,11 +248,18 @@ class UserSettingsTest {
         final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("UTC"), NOW, "Asia/Tokyo");
 
         final var selected = choices.stream().filter(UserSettings.TimezoneChoice::selected).toList();
-        assertEquals(1, selected.size(), "exactly one option selected");
-        assertEquals("Asia/Tokyo", selected.get(0).value(), "user override selected");
-        assertEquals("Asia/Tokyo (UTC+9)", selected.get(0).label(), "unexpected value");
+        assertThat(selected.size())
+            .as("exactly one option selected")
+            .isEqualTo(1);
+        assertThat(selected.get(0).value())
+            .as("user override selected")
+            .isEqualTo("Asia/Tokyo");
+        assertThat(selected.get(0).label())
+            .as("unexpected value")
+            .isEqualTo("Asia/Tokyo (UTC+9)");
         // The server default is NOT selected when the user has an override.
-        assertTrue(choices.stream().filter(c -> "UTC".equals(c.value())).noneMatch(UserSettings.TimezoneChoice::selected),
-                "server default not selected when user has override");
+        assertThat(choices.stream().filter(c -> "UTC".equals(c.value())).noneMatch(UserSettings.TimezoneChoice::selected))
+            .as("server default not selected when user has override")
+            .isTrue();
     }
 }

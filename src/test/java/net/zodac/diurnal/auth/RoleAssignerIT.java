@@ -17,8 +17,7 @@
 
 package net.zodac.diurnal.auth;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -52,31 +51,41 @@ class RoleAssignerIT extends IntegrationTestBase {
 
     @Test
     void roleForNewUser_emptyTable_returnsAdmin() {
-        runInTx(() -> assertEquals(User.ROLE_ADMIN, roleAssigner.roleForNewUser(), "unexpected value"));
+        runInTx(() -> assertThat(roleAssigner.roleForNewUser())
+            .as("unexpected value")
+            .isEqualTo(User.ROLE_ADMIN));
     }
 
     @Test
     void roleForNewUser_usersExist_returnsUser() {
         runInTx(() -> newUser("existing@lt.test", "Existing"));
-        runInTx(() -> assertEquals(User.ROLE_USER, roleAssigner.roleForNewUser(), "unexpected value"));
+        runInTx(() -> assertThat(roleAssigner.roleForNewUser())
+            .as("unexpected value")
+            .isEqualTo(User.ROLE_USER));
     }
 
     // ── roleFromOidcGroups — null / empty (always empty regardless of config) ──
 
     @Test
     void roleFromOidcGroups_nullList_returnsEmpty() {
-        assertTrue(roleAssigner.roleFromOidcGroups(null).isEmpty(), "expected condition to be true");
+        assertThat(roleAssigner.roleFromOidcGroups(null).isEmpty())
+            .as("expected condition to be true")
+            .isTrue();
     }
 
     @Test
     void roleFromOidcGroups_emptyList_returnsEmpty() {
-        assertTrue(roleAssigner.roleFromOidcGroups(List.of()).isEmpty(), "expected condition to be true");
+        assertThat(roleAssigner.roleFromOidcGroups(List.of()).isEmpty())
+            .as("expected condition to be true")
+            .isTrue();
     }
 
     @Test
     void roleFromOidcGroups_groupNotInAnyConfiguredGroup_returnsEmpty() {
         // A random UUID can't match any configured group name
-        assertTrue(roleAssigner.roleFromOidcGroups(List.of("no-such-group-" + UUID.randomUUID())).isEmpty(), "expected condition to be true");
+        assertThat(roleAssigner.roleFromOidcGroups(List.of("no-such-group-" + UUID.randomUUID())))
+            .as("expected no matching role")
+            .isEmpty();
     }
 
     // ── roleFromOidcGroups — environment-aware ────────────────────────────
@@ -84,21 +93,27 @@ class RoleAssignerIT extends IntegrationTestBase {
     @Test
     void roleFromOidcGroups_configuredAdminGroup_returnsAdmin() {
         if (oidcAdminGroup.isPresent() && !oidcAdminGroup.get().isBlank()) {
-            assertEquals(Optional.of(User.ROLE_ADMIN),
-                    roleAssigner.roleFromOidcGroups(List.of(oidcAdminGroup.get())), "unexpected value");
+            assertThat(roleAssigner.roleFromOidcGroups(List.of(oidcAdminGroup.get())))
+                .as("unexpected value")
+                .isEqualTo(Optional.of(User.ROLE_ADMIN));
         } else {
             // No admin group configured — even a group literally named "admin" returns empty
-            assertTrue(roleAssigner.roleFromOidcGroups(List.of("admin")).isEmpty(), "expected condition to be true");
+            assertThat(roleAssigner.roleFromOidcGroups(List.of("admin")).isEmpty())
+                .as("expected condition to be true")
+                .isTrue();
         }
     }
 
     @Test
     void roleFromOidcGroups_configuredUserGroup_returnsUser() {
         if (oidcUserGroup.isPresent() && !oidcUserGroup.get().isBlank()) {
-            assertEquals(Optional.of(User.ROLE_USER),
-                    roleAssigner.roleFromOidcGroups(List.of(oidcUserGroup.get())), "unexpected value");
+            assertThat(roleAssigner.roleFromOidcGroups(List.of(oidcUserGroup.get())))
+                .as("unexpected value")
+                .isEqualTo(Optional.of(User.ROLE_USER));
         } else {
-            assertTrue(roleAssigner.roleFromOidcGroups(List.of("users")).isEmpty(), "expected condition to be true");
+            assertThat(roleAssigner.roleFromOidcGroups(List.of("users")).isEmpty())
+                .as("expected condition to be true")
+                .isTrue();
         }
     }
 
@@ -110,6 +125,8 @@ class RoleAssignerIT extends IntegrationTestBase {
         // test passes in any environment (groups configured or not).
         final boolean expected = (oidcAdminGroup.isPresent() && !oidcAdminGroup.get().isBlank())
                 || (oidcUserGroup.isPresent() && !oidcUserGroup.get().isBlank());
-        assertEquals(expected, roleAssigner.isGroupCheckEnabled(), "unexpected value");
+        assertThat(roleAssigner.isGroupCheckEnabled())
+            .as("unexpected value")
+            .isEqualTo(expected);
     }
 }

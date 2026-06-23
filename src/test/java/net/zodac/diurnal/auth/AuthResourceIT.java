@@ -18,12 +18,11 @@
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
@@ -211,12 +210,20 @@ class AuthResourceIT extends IntegrationTestBase {
                 .extract().path("token");
 
         final String[] parts = token.split("\\.");
-        assertEquals(3, parts.length, "JWT must have header.payload.signature");
+        assertThat(parts.length)
+            .as("JWT must have header.payload.signature")
+            .isEqualTo(3);
 
         final String payloadJson = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
-        assertTrue(payloadJson.contains("\"iss\":\"diurnal\""), "issuer claim missing");
-        assertTrue(payloadJson.contains("\"upn\":\"jwt@example.com\""), "upn claim missing");
-        assertTrue(payloadJson.contains("\"exp\""), "expiry claim missing");
+        assertThat(payloadJson.contains("\"iss\":\"diurnal\""))
+            .as("issuer claim missing")
+            .isTrue();
+        assertThat(payloadJson.contains("\"upn\":\"jwt@example.com\""))
+            .as("upn claim missing")
+            .isTrue();
+        assertThat(payloadJson.contains("\"exp\""))
+            .as("expiry claim missing")
+            .isTrue();
     }
 
     // ── First-user-admin ──────────────────────────────────────────────────────
@@ -233,7 +240,9 @@ class AuthResourceIT extends IntegrationTestBase {
 
         runInTx(() -> {
             final User u = User.findByEmail("first@example.com").orElseThrow();
-            assertEquals(User.ROLE_ADMIN, u.role, "First registered user should be admin");
+            assertThat(u.role)
+                .as("First registered user should be admin")
+                .isEqualTo(User.ROLE_ADMIN);
         });
     }
 
@@ -250,7 +259,9 @@ class AuthResourceIT extends IntegrationTestBase {
 
         runInTx(() -> {
             final User u = User.findByEmail("second@example.com").orElseThrow();
-            assertEquals(User.ROLE_USER, u.role, "Subsequent users should be user role");
+            assertThat(u.role)
+                .as("Subsequent users should be user role")
+                .isEqualTo(User.ROLE_USER);
         });
     }
 

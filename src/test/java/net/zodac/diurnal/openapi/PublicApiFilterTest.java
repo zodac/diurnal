@@ -17,9 +17,7 @@
 
 package net.zodac.diurnal.openapi;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Set;
@@ -50,8 +48,9 @@ class PublicApiFilterTest {
         new PublicApiFilter().filterOpenAPI(api);
 
         final Set<String> paths = api.getPaths().getPathItems().keySet();
-        assertEquals(Set.of("/api/auth/login", "/logs/events"), paths,
-                "Only the /api namespace and allow-listed app endpoints should remain");
+        assertThat(paths)
+            .as("Only the /api namespace and allow-listed app endpoints should remain")
+            .isEqualTo(Set.of("/api/auth/login", "/logs/events"));
     }
 
     @Test
@@ -65,9 +64,10 @@ class PublicApiFilterTest {
         // array's items) are directly reachable; the Event* schemas are reachable only transitively
         // from CalendarEventDto, each through a DIFFERENT composition mechanism (property, not,
         // additionalProperties, allOf, anyOf, oneOf), so every recursion branch is exercised.
-        assertEquals(Set.of("LoginRequest", "RangeParam", "CalendarEventDto", "Colour",
-                        "EventNot", "EventAddProp", "EventAllOf", "EventAnyOf", "EventOneOf"), schemas,
-                "Only schemas reachable from a surviving operation (incl. transitively) should remain");
+        assertThat(schemas)
+            .as("Only schemas reachable from a surviving operation (incl. transitively) should remain")
+            .isEqualTo(Set.of("LoginRequest", "RangeParam", "CalendarEventDto", "Colour",
+                    "EventNot", "EventAddProp", "EventAllOf", "EventAnyOf", "EventOneOf"));
     }
 
     @Test
@@ -77,9 +77,15 @@ class PublicApiFilterTest {
         new PublicApiFilter().filterOpenAPI(api);
 
         final Set<String> tags = api.getTags().stream().map(Tag::getName).collect(java.util.stream.Collectors.toUnmodifiableSet());
-        assertTrue(tags.contains("Authentication"), "Authentication tag is still used by /api/auth/login");
-        assertTrue(tags.contains("Logs"), "Logs tag is still used by /logs/events");
-        assertFalse(tags.contains("Internal"), "The Internal tag's only operation was removed, so it must be pruned");
+        assertThat(tags.contains("Authentication"))
+            .as("Authentication tag is still used by /api/auth/login")
+            .isTrue();
+        assertThat(tags.contains("Logs"))
+            .as("Logs tag is still used by /logs/events")
+            .isTrue();
+        assertThat(tags.contains("Internal"))
+            .as("The Internal tag's only operation was removed, so it must be pruned")
+            .isFalse();
     }
 
     private static OpenAPI sampleDocument() {

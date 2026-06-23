@@ -17,7 +17,7 @@
 
 package net.zodac.diurnal.web;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.UUID;
 import net.zodac.diurnal.user.User;
@@ -31,16 +31,22 @@ class UserRowExtensionsTest {
 
     @Test
     void roleName_adminRole_returnsAdministrator() {
-        assertEquals("Administrator", UserRowExtensions.roleName(row(User.ROLE_ADMIN)), "unexpected value");
+        assertThat(UserRowExtensions.roleName(row(User.ROLE_ADMIN)))
+            .as("unexpected value")
+            .isEqualTo("Administrator");
     }
 
     @Test
     void roleName_userRole_returnsUser() {
-        assertEquals("User", UserRowExtensions.roleName(row(User.ROLE_USER)), "unexpected value");
+        assertThat(UserRowExtensions.roleName(row(User.ROLE_USER)))
+            .as("unexpected value")
+            .isEqualTo("User");
     }
 
     @Test
     void roleName_unknownRole_returnsUser() {
-        assertEquals("User", UserRowExtensions.roleName(row("moderator")), "unexpected value");
+        assertThat(UserRowExtensions.roleName(row("moderator")))
+            .as("unexpected value")
+            .isEqualTo("User");
     }
 }

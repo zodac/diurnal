@@ -18,9 +18,9 @@
 package net.zodac.diurnal.action;
 
 import static io.restassured.RestAssured.given;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
-import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
@@ -211,8 +211,12 @@ class ActionsResourceIT extends IntegrationTestBase {
 
         // Verify archived in DB — query includes archived to find it
         final Action found = Action.<Action>find("id = ?1", id).firstResult();
-        assertNotNull(found);
-        assertTrue(found.archived);
+        assertThat(found)
+            .as("archived action should still exist in DB")
+            .isNotNull();
+        assertThat(found.archived)
+            .as("action should be archived")
+            .isTrue();
     }
 
     @Test
@@ -227,7 +231,9 @@ class ActionsResourceIT extends IntegrationTestBase {
             .then().statusCode(204);
 
         final long logCount = net.zodac.diurnal.log.ActionLog.count("actionId = ?1", holder[0].id);
-        assertEquals(0, logCount, "unexpected value");
+        assertThat(logCount)
+            .as("unexpected value")
+            .isEqualTo(0);
     }
 
     @Test
@@ -288,17 +294,5 @@ class ActionsResourceIT extends IntegrationTestBase {
             return UUID.fromString(m.group(1));
         }
         throw new IllegalStateException("Could not find action id in response: " + html);
-    }
-
-    private static void assertNotNull(final Object o) {
-        if (o == null) {
-            throw new AssertionError("Expected non-null");
-        }
-    }
-
-    private static void assertTrue(final boolean condition) {
-        if (!condition) {
-            throw new AssertionError("Expected true");
-        }
     }
 }
