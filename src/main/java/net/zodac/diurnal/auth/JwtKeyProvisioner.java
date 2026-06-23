@@ -33,8 +33,9 @@ import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.jboss.logging.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -54,7 +55,7 @@ import org.jspecify.annotations.Nullable;
 @ApplicationScoped
 public class JwtKeyProvisioner {
 
-    private static final Logger LOGGER = Logger.getLogger(JwtKeyProvisioner.class);
+    private static final Logger LOGGER = LogManager.getLogger(JwtKeyProvisioner.class);
     private static final int KEY_SIZE = 2048;
 
     @ConfigProperty(name = "smallrye.jwt.sign.key.location")
@@ -82,14 +83,14 @@ public class JwtKeyProvisioner {
         }
         if (havePrivate != havePublic) {
             // One half of the pair is missing — refuse to overwrite a key that may still be in use.
-            LOGGER.warnf("JWT keypair is incomplete (private exists=%s, public exists=%s) — leaving as-is. "
+            LOGGER.warn("JWT keypair is incomplete (private exists={}, public exists={}) — leaving as-is. "
                     + "Delete both files to have a fresh pair generated.", havePrivate, havePublic);
             return;
         }
 
         try {
             generateKeyPair(privateKey, publicKey);
-            LOGGER.infof("Generated new RSA-%d JWT keypair (private=%s, public=%s)",
+            LOGGER.info("Generated new RSA-{} JWT keypair (private={}, public={})",
                     KEY_SIZE, privateKey, publicKey);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to generate JWT keypair", e);
@@ -125,7 +126,7 @@ public class JwtKeyProvisioner {
             Files.setPosixFilePermissions(privateKey, ownerOnly);
         } catch (UnsupportedOperationException | IOException e) {
             // Non-POSIX filesystem (e.g. a Windows dev box) — best effort only.
-            LOGGER.debugf("Could not restrict permissions on %s: %s", privateKey, e.getMessage());
+            LOGGER.debug("Could not restrict permissions on {}: {}", privateKey, e.getMessage());
         }
     }
 

@@ -48,8 +48,9 @@ import net.zodac.diurnal.stats.StatsService;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.user.UserSettings;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
 /**
@@ -58,7 +59,7 @@ import org.mindrot.jbcrypt.BCrypt;
 @Path("/")
 public class WebResource {
 
-    private static final Logger LOGGER = Logger.getLogger(WebResource.class);
+    private static final Logger LOGGER = LogManager.getLogger(WebResource.class);
 
     @Inject
     @Location("login")
@@ -184,7 +185,7 @@ public class WebResource {
             User.findByEmail(identity.getPrincipal().getName()).ifPresent(user -> {
                 user.lastLoginAt = Instant.now();
                 user.persist();
-                LOGGER.debugf("OIDC login: name=%s email=%s role=%s", user.displayName, user.email, user.role);
+                LOGGER.debug("OIDC login: name={} email={} role={}", user.displayName, user.email, user.role);
             });
         }
 
@@ -278,7 +279,7 @@ public class WebResource {
         user.role = roleAssigner.roleForNewUser();
         user.persist();
 
-        LOGGER.infof("New user registered: %s (role=%s)", normalised, user.role);
+        LOGGER.info("New user registered: {} (role={})", normalised, user.role);
         return Response.seeOther(URI.create("/login?registered=true")).build();
     }
 
@@ -366,7 +367,7 @@ public class WebResource {
         final URI target = (hasOidcSession ? oidcLogoutUrl.filter(url -> !url.isBlank()) : Optional.<String>empty())
                 .map(URI::create)
                 .orElse(URI.create("/login"));
-        LOGGER.debugf("Logout: redirecting to %s", target);
+        LOGGER.debug("Logout: redirecting to {}", target);
         return Response.seeOther(target).cookie(clearForm, clearOidc).build();
     }
 

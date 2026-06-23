@@ -32,8 +32,9 @@ import java.time.Instant;
 import java.util.Arrays;
 import java.util.Locale;
 import net.zodac.diurnal.user.User;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
 /**
@@ -42,7 +43,7 @@ import org.mindrot.jbcrypt.BCrypt;
 @ApplicationScoped
 public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswordAuthenticationRequest> {
 
-    private static final Logger LOGGER = Logger.getLogger(PasswordIdentityProvider.class);
+    private static final Logger LOGGER = LogManager.getLogger(PasswordIdentityProvider.class);
 
     @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
     boolean passwordAuthEnabled;
@@ -83,7 +84,7 @@ public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswo
                 .filter(u -> u.passwordHash != null)
                 .filter(u -> BCrypt.checkpw(password, u.passwordHash))
                 .map(u -> {
-                    LOGGER.debugf("Login successful: %s", u.email);
+                    LOGGER.debug("Login successful: {}", u.email);
                     u.lastLoginAt = Instant.now();
                     u.persist();
                     final var builder = QuarkusSecurityIdentity.builder()
@@ -97,7 +98,7 @@ public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswo
                     return (SecurityIdentity) builder.build();
                 })
                 .orElseThrow(() -> {
-                    LOGGER.debugf("Failed login attempt for: %s", email);
+                    LOGGER.debug("Failed login attempt for: {}", email);
                     return new AuthenticationFailedException();
                 });
     }

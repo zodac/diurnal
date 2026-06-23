@@ -20,8 +20,9 @@ package net.zodac.diurnal;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.jboss.logging.Logger;
 
 /**
  * Validates the authentication configuration at startup and logs the resolved auth setup.
@@ -29,7 +30,7 @@ import org.jboss.logging.Logger;
 @ApplicationScoped
 public class AppLifecycle {
 
-    private static final Logger LOGGER = Logger.getLogger(AppLifecycle.class);
+    private static final Logger LOGGER = LogManager.getLogger(AppLifecycle.class);
 
     @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
     boolean passwordAuthEnabled;
@@ -64,9 +65,9 @@ public class AppLifecycle {
 
         LOGGER.info("=================================================");
         LOGGER.info("  Diurnal started");
-        LOGGER.infof("  Password auth : %s", passwordAuthEnabled ? "enabled" : "disabled");
+        LOGGER.info("  Password auth : {}", passwordAuthEnabled ? "enabled" : "disabled");
         if (oidcEnabled) {
-            LOGGER.infof("  OIDC          : enabled  (issuer: %s, provider: %s, auto-redirect: %s)",
+            LOGGER.info("  OIDC          : enabled  (issuer: {}, provider: {}, auto-redirect: {})",
                     oidcIssuerUrl, oidcProviderName, oidcAutoRedirect);
         } else {
             LOGGER.info("  OIDC          : disabled");

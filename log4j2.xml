@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    Log4j2 tuning reference for diurnal.
+
+    HEADS-UP: this file is NOT loaded at runtime. This app runs on Quarkus and the settings that actually take
+    effect live in src/main/resources/application.properties (and the -dev / -test profile overrides).
+
+    This file is kept as a single, familiar place to draft logging changes ("tune later"): adjust the
+    levels/pattern here, then mirror them into application.properties as quarkus.log.* keys, e.g.
+        <Root level="warn">                       -> quarkus.log.level=WARN
+        <Logger name="net.zodac.diurnal" .../>    -> quarkus.log.category."net.zodac.diurnal".level=INFO
+        <Console .../> + <PatternLayout .../>     -> quarkus.log.console.{enabled,format} + quarkus.console.color
+    NOTE on the pattern below: the custom per-level %highlight colour map is a Log4j2 Core feature and
+    is the literal intent.
+
+    Twelve-Factor (XI. Logs): output is an unbuffered event stream to the console only (stdout) — the
+    container runtime collects and routes it. No file appender is defined, on purpose.
+-->
+<Configuration status="WARN">
+    <Appenders>
+        <Console name="CONSOLE" target="SYSTEM_OUT" follow="true">
+            <PatternLayout pattern="%d{yyyy-MM-dd HH:mm:ss.SSS}{${env:TIMEZONE:-UTC}} [%highlight{%-5level}{FATAL=red, ERROR=bold red, WARN=bold yellow, INFO=bold blue, DEBUG=bold green, TRACE=bold magenta}] [%logger] %msg%n"/>
+        </Console>
+    </Appenders>
+    <Loggers>
+        <!-- Application code: INFO by default (DEBUG surfaces login events and detailed traces). -->
+        <Logger name="net.zodac.diurnal" level="info"/>
+        <!-- Framework noise stays at WARN. -->
+        <Root level="warn">
+            <AppenderRef ref="CONSOLE"/>
+        </Root>
+    </Loggers>
+</Configuration>

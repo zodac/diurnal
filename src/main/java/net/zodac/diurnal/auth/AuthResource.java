@@ -28,6 +28,8 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.Locale;
 import net.zodac.diurnal.user.User;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -35,7 +37,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
-import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
 /**
@@ -47,7 +48,7 @@ import org.mindrot.jbcrypt.BCrypt;
 @Consumes(MediaType.APPLICATION_JSON)
 public class AuthResource {
 
-    private static final Logger LOGGER = Logger.getLogger(AuthResource.class);
+    private static final Logger LOGGER = LogManager.getLogger(AuthResource.class);
 
     @Inject
     TokenService tokenService;
@@ -99,7 +100,7 @@ public class AuthResource {
         user.role = roleAssigner.roleForNewUser();
         user.persist();
 
-        LOGGER.infof("New user registered: %s (role=%s)", email, user.role);
+        LOGGER.info("New user registered: {} (role={})", email, user.role);
         final String token = tokenService.generateToken(user);
         return Response.status(Response.Status.CREATED)
                 .entity(new TokenResponse(token, user.email, user.displayName))
@@ -130,13 +131,13 @@ public class AuthResource {
                 .filter(u -> u.passwordHash != null)
                 .filter(u -> BCrypt.checkpw(request.password(), u.passwordHash))
                 .map(u -> {
-                    LOGGER.debugf("Successful login: %s", email);
+                    LOGGER.debug("Successful login: {}", email);
                     return Response.ok(
                             new TokenResponse(tokenService.generateToken(u), u.email, u.displayName)
                     ).build();
                 })
                 .orElseGet(() -> {
-                    LOGGER.debugf("Failed login attempt for: %s", email);
+                    LOGGER.debug("Failed login attempt for: {}", email);
                     return Response.status(Response.Status.UNAUTHORIZED)
                             .entity(new ErrorResponse("Invalid email or password"))
                             .build();

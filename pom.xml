@@ -19,6 +19,15 @@
             <artifactId>jbcrypt</artifactId>
         </dependency>
 
+        <!--
+            Logging: the application code logs through the Log4j2 API. These calls are bridged into Quarkus's
+            backend at runtime, and tuning stays in application.properties (see the Logging block).
+        -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+        </dependency>
+
         <!-- Database -->
         <dependency>
             <groupId>io.quarkus</groupId>
@@ -84,6 +93,11 @@
             <groupId>org.jspecify</groupId>
             <artifactId>jspecify</artifactId>
             <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.logmanager</groupId>
+            <artifactId>log4j2-jboss-logmanager</artifactId>
+            <scope>runtime</scope>
         </dependency>
 
         <!-- Testing -->
@@ -154,7 +168,6 @@
                                 <ignoredUsedUndeclaredDependency>io.vertx:*</ignoredUsedUndeclaredDependency>
                                 <ignoredUsedUndeclaredDependency>jakarta.*:*</ignoredUsedUndeclaredDependency>
                                 <ignoredUsedUndeclaredDependency>org.eclipse.microprofile.*:*</ignoredUsedUndeclaredDependency>
-                                <ignoredUsedUndeclaredDependency>org.jboss.logging:*</ignoredUsedUndeclaredDependency>
                             </ignoredUsedUndeclaredDependencies>
                             <ignoredUnusedDeclaredDependencies>
                                 <ignoredUnusedDeclaredDependency>io.quarkus:quarkus-*</ignoredUnusedDeclaredDependency>
@@ -195,6 +208,7 @@
                 <configuration>
                     <argLine>@{argLine} -Duser.timezone=UTC</argLine>
                     <systemPropertyVariables>
+                        <!-- Quarkus's logging backend is JBoss LogManager; the test JVM must install it before JUL inits (log4j-core is not a JUL LogManager, so it can't substitute). -->
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
                     </systemPropertyVariables>
@@ -381,6 +395,7 @@
                                          profile); a non-UTC host can't shift IT date assertions. -->
                                     <argLine>@{argLine} -Duser.timezone=UTC</argLine>
                                     <systemPropertyVariables>
+                                        <!-- Quarkus's logging backend is JBoss LogManager; the test JVM must install it before JUL inits (log4j-core is not a JUL LogManager, so it can't substitute). -->
                                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                                         <maven.home>${maven.home}</maven.home>
                                     </systemPropertyVariables>

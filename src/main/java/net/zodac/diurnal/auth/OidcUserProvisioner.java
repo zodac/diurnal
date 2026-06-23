@@ -34,8 +34,9 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import net.zodac.diurnal.user.User;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.jboss.logging.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -53,7 +54,7 @@ import org.jspecify.annotations.Nullable;
 @ApplicationScoped
 public class OidcUserProvisioner implements SecurityIdentityAugmentor {
 
-    private static final Logger LOGGER = Logger.getLogger(OidcUserProvisioner.class);
+    private static final Logger LOGGER = LogManager.getLogger(OidcUserProvisioner.class);
     private static final int MIN_JWT_SEGMENTS = 2;
 
     @Inject
@@ -105,7 +106,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         final var idpRole = roleAssigner.roleFromOidcGroups(groups);
 
         if (roleAssigner.isGroupCheckEnabled() && idpRole.isEmpty()) {
-            LOGGER.warnf("Denying OIDC login for %s: not in any configured group", normalised);
+            LOGGER.warn("Denying OIDC login for {}: not in any configured group", normalised);
             throw new AuthenticationFailedException(
                 "Not authorised to access this service — contact your administrator.");
         }
@@ -124,7 +125,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
                     u.role = idpRole.orElseGet(roleAssigner::roleForNewUser);
                     u.persist();
                     created[0] = true;
-                    LOGGER.infof("Provisioned new OIDC user: %s (role=%s)", normalised, u.role);
+                    LOGGER.info("Provisioned new OIDC user: {} (role={})", normalised, u.role);
                     return u;
                 });
 
@@ -134,7 +135,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         }
         // IdP groups always win on every login for existing users (unless IdP has no group config)
         if (!created[0] && idpRole.isPresent() && !idpRole.get().equals(user.role)) {
-            LOGGER.infof("Updating role for %s: %s -> %s (from IdP groups)", normalised, user.role, idpRole.get());
+            LOGGER.info("Updating role for {}: {} -> {} (from IdP groups)", normalised, user.role, idpRole.get());
             user.role = idpRole.get();
         }
         // lastLoginAt and the login log are written in WebResource.oidcCallback(), which runs exactly

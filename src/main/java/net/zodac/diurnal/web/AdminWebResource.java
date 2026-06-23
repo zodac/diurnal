@@ -44,7 +44,8 @@ import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
-import org.jboss.logging.Logger;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Admin-only user management: list, change role, and delete users (with last-admin safeguards).
@@ -53,7 +54,7 @@ import org.jboss.logging.Logger;
 @RolesAllowed("admin")
 public class AdminWebResource {
 
-    private static final Logger LOGGER = Logger.getLogger(AdminWebResource.class);
+    private static final Logger LOGGER = LogManager.getLogger(AdminWebResource.class);
 
     @Inject
     @Location("admin-users")
@@ -182,13 +183,13 @@ public class AdminWebResource {
             return errorResponse("User not found.");
         }
         if (User.ROLE_USER.equals(role) && isLastAdmin(target)) {
-            LOGGER.warnf("Admin %s attempted to demote the last administrator %s",
+            LOGGER.warn("Admin {} attempted to demote the last administrator {}",
                     identity.getPrincipal().getName(), target.email);
             return errorResponse("Cannot remove the last administrator.");
         }
         target.role = role;
         target.persist();
-        LOGGER.infof("Admin %s changed role of %s to %s", identity.getPrincipal().getName(), target.email, role);
+        LOGGER.info("Admin {} changed role of {} to {}", identity.getPrincipal().getName(), target.email, role);
 
         final User actor = currentUser();
         return Response.ok(adminUsersListTemplate.data("page", getUsersPage(1, actor.pageSize))).build();
@@ -208,7 +209,7 @@ public class AdminWebResource {
             return errorResponse("User not found.");
         }
         if (isLastAdmin(target)) {
-            LOGGER.warnf("Admin %s attempted to delete the last administrator %s",
+            LOGGER.warn("Admin {} attempted to delete the last administrator {}",
                     identity.getPrincipal().getName(), target.email);
             return errorResponse("Cannot delete the last administrator.");
         }
@@ -220,7 +221,7 @@ public class AdminWebResource {
         }
         Action.delete("userId", target.id);
         target.delete();
-        LOGGER.infof("Admin %s deleted user %s", identity.getPrincipal().getName(), target.email);
+        LOGGER.info("Admin {} deleted user {}", identity.getPrincipal().getName(), target.email);
 
         final User actor = currentUser();
         return Response.ok(adminUsersListTemplate.data("page", getUsersPage(1, actor.pageSize))).build();
