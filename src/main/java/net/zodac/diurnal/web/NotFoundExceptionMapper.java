@@ -30,7 +30,9 @@ import jakarta.ws.rs.core.Response;
 import java.net.URI;
 import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 
-/** Renders the styled 404 page (instead of the default JSON error) for unknown routes. */
+/**
+ * Renders the styled 404 page (instead of the default JSON error) for unknown routes.
+ */
 @ApplicationScoped
 public class NotFoundExceptionMapper {
 
@@ -69,14 +71,6 @@ public class NotFoundExceptionMapper {
         });
     }
 
-    /**
-     * Whether this 404 is a browser navigation to a web-UI route (so it should be redirected into the
-     * auth flow) rather than an API/health call or static-asset request (which should 404 normally).
-     * Identified by an HTML {@code Accept} header on a non-{@code /api}, non-{@code /q/} path.
-     *
-     * @param routingContext the current request's routing context
-     * @return {@code true} if the request looks like a browser navigation to a web page
-     */
     private static boolean isWebNavigation(final RoutingContext routingContext) {
         final String path = routingContext.normalizedPath();
         if (path.startsWith("/api") || path.startsWith("/q/")) {

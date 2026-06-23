@@ -38,7 +38,9 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
-/** REST API authentication endpoints: register a new password user and exchange credentials for a JWT. */
+/**
+ * REST API authentication endpoints: register a new password user and exchange credentials for a JWT.
+ */
 @Tag(name = "Authentication", description = "Create an account and exchange credentials for a Bearer JWT.")
 @Path("/api/auth")
 @Produces(MediaType.APPLICATION_JSON)
@@ -76,6 +78,7 @@ public class AuthResource {
         if (!passwordAuthEnabled) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
+
         if (!registrationAllowed()) {
             return Response.status(Response.Status.FORBIDDEN)
                     .entity(new ErrorResponse("Registration is disabled"))
@@ -83,7 +86,6 @@ public class AuthResource {
         }
 
         final String email = request.email().toLowerCase(Locale.ROOT).strip();
-
         if (User.findByEmail(email).isPresent()) {
             return Response.status(Response.Status.CONFLICT)
                     .entity(new ErrorResponse("Email already registered"))
@@ -104,7 +106,9 @@ public class AuthResource {
                 .build();
     }
 
-    /** Validates credentials, returning {@code 200} with a JWT on success or {@code 401} otherwise. */
+    /**
+     * Validates credentials, returning {@code 200} with a JWT on success or {@code 401} otherwise.
+     */
     @POST
     @Path("/login")
     @Operation(
@@ -112,12 +116,12 @@ public class AuthResource {
             description = "Validates an email and password and returns a Bearer JWT to send as the Authorization header on subsequent API calls."
     )
     @APIResponses({
-            @APIResponse(responseCode = "200", description = "Credentials accepted; returns a signed Bearer JWT and basic profile.",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = TokenResponse.class))),
-            @APIResponse(responseCode = "400",
-                    description = "The request body is missing the email/password or the email is malformed."),
-            @APIResponse(responseCode = "401", description = "Invalid email or password.",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class)))
+        @APIResponse(responseCode = "200", description = "Credentials accepted; returns a signed Bearer JWT and basic profile.",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = TokenResponse.class))),
+        @APIResponse(responseCode = "400",
+                description = "The request body is missing the email/password or the email is malformed."),
+        @APIResponse(responseCode = "401", description = "Invalid email or password.",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class)))
     })
     public Response login(@Valid final LoginRequest request) {
         final String email = request.email().toLowerCase(Locale.ROOT).strip();
@@ -139,17 +143,13 @@ public class AuthResource {
                 });
     }
 
-    /**
-     * Whether local registration is currently permitted. Mirrors {@code WebResource}: the initial account can
-     * always be created during first-run setup (so {@code ENABLE_REGISTRATION=false} can never lock out the very
-     * first user); once any user exists, {@code ENABLE_REGISTRATION} is respected. Callers must already have
-     * verified password auth is enabled.
-     */
     private boolean registrationAllowed() {
         return User.count() == 0 || registrationEnabled;
     }
 
-    /** Error payload returned for failed auth requests. */
+    /**
+     * Error payload returned for failed auth requests.
+     */
     public record ErrorResponse(@Schema(examples = "Invalid email or password") String message) {
     }
 }

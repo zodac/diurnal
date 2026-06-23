@@ -46,7 +46,9 @@ import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 import org.jboss.logging.Logger;
 
-/** Admin-only user management: list, change role, and delete users (with last-admin safeguards). */
+/**
+ * Admin-only user management: list, change role, and delete users (with last-admin safeguards).
+ */
 @Path("/admin")
 @RolesAllowed("admin")
 public class AdminWebResource {
@@ -71,7 +73,9 @@ public class AdminWebResource {
     @Inject SecurityIdentity identity;
     @Inject AppClock clock;
 
-    /** Renders the paginated admin users page. */
+    /**
+     * Renders the paginated admin users page.
+     */
     @GET
     @Path("users")
     @RolesAllowed("admin")
@@ -87,7 +91,9 @@ public class AdminWebResource {
                 .data("page", getUsersPage(pageNum, actor.pageSize));
     }
 
-    /** Renders the embedded API documentation page (Swagger UI in an in-app iframe). */
+    /**
+     * Renders the embedded API documentation page (Swagger UI in an in-app iframe).
+     */
     @GET
     @Path("api-docs")
     @RolesAllowed("admin")
@@ -102,7 +108,9 @@ public class AdminWebResource {
                 .data("isAdmin", true);
     }
 
-    /** Returns just the users list partial for HTMX pagination. */
+    /**
+     * Returns just the users list partial for HTMX pagination.
+     */
     @GET
     @Path("users/list")
     @RolesAllowed("admin")
@@ -113,7 +121,9 @@ public class AdminWebResource {
         return adminUsersListTemplate.data("page", getUsersPage(pageNum, actor.pageSize));
     }
 
-    /** Returns the single table row for one user (used to restore a row after cancel). */
+    /**
+     * Returns the single table row for one user (used to restore a row after cancel).
+     */
     @GET
     @Path("users/{id}")
     @RolesAllowed("admin")
@@ -127,7 +137,9 @@ public class AdminWebResource {
         return Response.ok(adminUserRowTemplate.data("u", toRow(target))).build();
     }
 
-    /** Returns the in-place confirm-delete row for a user. */
+    /**
+     * Returns the in-place confirm-delete row for a user.
+     */
     @GET
     @Path("users/{id}/confirm-delete")
     @RolesAllowed("admin")
@@ -152,7 +164,9 @@ public class AdminWebResource {
                 .data("restoreUrl", "/admin/users/" + id)).build();
     }
 
-    /** Changes a user's role, refusing to demote the last administrator. */
+    /**
+     * Changes a user's role, refusing to demote the last administrator.
+     */
     @POST
     @Path("users/{id}/role")
     @RolesAllowed("admin")
@@ -180,7 +194,9 @@ public class AdminWebResource {
         return Response.ok(adminUsersListTemplate.data("page", getUsersPage(1, actor.pageSize))).build();
     }
 
-    /** Hard-deletes a user and all their actions/logs, refusing to delete the last administrator. */
+    /**
+     * Hard-deletes a user and all their actions/logs, refusing to delete the last administrator.
+     */
     @POST
     @Path("users/{id}/delete")
     @RolesAllowed("admin")
@@ -212,10 +228,14 @@ public class AdminWebResource {
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    /** A single row in the admin users table, with timestamps pre-formatted for display. */
+    /**
+     * A single row in the admin users table, with timestamps pre-formatted for display.
+     */
     public record UserRow(UUID id, String email, String displayName, String role,
                           String createdLabel, String lastLoginLabel) {
-        /** Builds a row from a {@link User}, formatting its timestamps with {@code fmt}. */
+        /**
+         * Builds a row from a {@link User}, formatting its timestamps with {@code fmt}.
+         */
         static UserRow of(final User u, final DateTimeFormatter fmt) {
             return new UserRow(
                     u.id, u.email, u.displayName, u.role,
@@ -223,7 +243,9 @@ public class AdminWebResource {
                     u.lastLoginAt != null ? fmt.format(u.lastLoginAt) : "Never");
         }
 
-        /** The human-readable role label shown in the table. */
+        /**
+         * The human-readable role label shown in the table.
+         */
         @SuppressWarnings("unused")
         public String roleName() {
             return User.ROLE_ADMIN.equals(role) ? "Administrator" : "User";

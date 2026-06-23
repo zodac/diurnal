@@ -31,7 +31,9 @@ import java.util.Optional;
 import java.util.UUID;
 import org.jspecify.annotations.Nullable;
 
-/** A registered account — password-based or OIDC-provisioned — plus its per-user preferences. */
+/**
+ * A registered account — password-based or OIDC-provisioned — plus its per-user preferences.
+ */
 @Entity
 @Table(name = "users")
 public class User extends PanacheEntityBase {
@@ -94,17 +96,23 @@ public class User extends PanacheEntityBase {
         return ROLE_ADMIN.equals(role);
     }
 
-    /** Finds a user by email (case-insensitive). */
+    /**
+     * Finds a user by email (case-insensitive).
+     */
     public static Optional<User> findByEmail(final String email) {
         return find("email", email.toLowerCase(Locale.ROOT)).firstResultOptional();
     }
 
-    /** Finds a user by their OIDC issuer and subject pair. */
+    /**
+     * Finds a user by their OIDC issuer and subject pair.
+     */
     public static Optional<User> findByOidc(final String issuer, final String subject) {
         return find("oidcIssuer = ?1 and oidcSubject = ?2", issuer, subject).firstResultOptional();
     }
 
-    /** Refreshes {@code updatedAt} before each update (JPA lifecycle callback). */
+    /**
+     * Refreshes {@code updatedAt} before each update (JPA lifecycle callback).
+     */
     @PreUpdate
     void onUpdate() {
         this.updatedAt = Instant.now();

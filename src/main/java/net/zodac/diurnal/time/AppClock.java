@@ -50,28 +50,38 @@ public class AppClock {
 
     private Clock clock;
 
-    /** Builds the system clock for the configured zone once the bean is constructed. */
+    /**
+     * Builds the system clock for the configured zone once the bean is constructed.
+     */
     @PostConstruct
     void init() {
         clock = Clock.system(ZoneId.of(timezoneId));
     }
 
-    /** The configured zone all "today" comparisons are made in. */
+    /**
+     * The configured zone all "today" comparisons are made in.
+     */
     public ZoneId zone() {
         return clock.getZone();
     }
 
-    /** The current instant (zone-independent). */
+    /**
+     * The current instant (zone-independent).
+     */
     public Instant now() {
         return clock.instant();
     }
 
-    /** "Today" in the configured (server-default) zone. */
+    /**
+     * "Today" in the configured (server-default) zone.
+     */
     public LocalDate today() {
         return LocalDate.now(clock);
     }
 
-    /** "Today" in an explicit zone — used for per-user timezone overrides. */
+    /**
+     * "Today" in an explicit zone — used for per-user timezone overrides.
+     */
     public LocalDate today(final ZoneId zone) {
         return LocalDate.now(clock.withZone(zone));
     }
@@ -95,12 +105,16 @@ public class AppClock {
     // Only tests call these. They let an @QuarkusTest freeze time on the shared bean;
     // production code never mutates the clock.
 
-    /** Freeze time to a fixed clock (test-only). */
+    /**
+     * Freeze time to a fixed clock (test-only).
+     */
     public void useFixedClock(final Clock fixed) {
         this.clock = fixed;
     }
 
-    /** Restore the real system clock in the configured zone (test-only). */
+    /**
+     * Restore the real system clock in the configured zone (test-only).
+     */
     public void useSystemClock() {
         this.clock = Clock.system(ZoneId.of(timezoneId));
     }

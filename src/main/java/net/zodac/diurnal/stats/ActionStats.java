@@ -24,7 +24,9 @@ import java.util.Locale;
 import net.zodac.diurnal.action.Action;
 import org.jspecify.annotations.Nullable;
 
-/** Computed statistics for a single action — totals, streaks, comparative trends and high scores. */
+/**
+ * Computed statistics for a single action — totals, streaks, comparative trends and high scores.
+ */
 public record ActionStats(
         Action    action,
         int       totalDays,
@@ -53,17 +55,23 @@ public record ActionStats(
 
     // ── Existing helpers ──────────────────────────────────────────────────
 
-    /** Whether this action has any logged data (used to filter empty actions out of stats). */
+    /**
+     * Whether this action has any logged data (used to filter empty actions out of stats).
+     */
     public boolean hasData() {
         return totalDays > 0;
     }
 
-    /** Whether this action was performed at least once in the current month. */
+    /**
+     * Whether this action was performed at least once in the current month.
+     */
     public boolean performedThisMonth() {
         return thisMonthCount > 0;
     }
 
-    /** The last-performed date formatted for display, or "Never" if the action was never logged. */
+    /**
+     * The last-performed date formatted for display, or "Never" if the action was never logged.
+     */
     @SuppressWarnings("unused") // invoked from Qute templates (stats-cards.html)
     public String lastLabel() {
         return lastPerformed == null ? "Never" : lastPerformed.format(DATE_FMT);
@@ -82,7 +90,9 @@ public record ActionStats(
                 : lastPerformed.format(DATE_FMT);
     }
 
-    /** A relative label for the last-performed date: "Today", "Yesterday" or "N days ago". */
+    /**
+     * A relative label for the last-performed date: "Today", "Yesterday" or "N days ago".
+     */
     public String sinceLabel() {
         if (lastPerformed == null) {
             return "—";
@@ -97,7 +107,9 @@ public record ActionStats(
         return days + " days ago";
     }
 
-    /** The average number of active days per week since the action was first performed. */
+    /**
+     * The average number of active days per week since the action was first performed.
+     */
     public String weeklyAverage() {
         if (firstPerformed == null) {
             return "0.0";
@@ -108,78 +120,94 @@ public record ActionStats(
 
     // ── Singular-aware day/streak labels ──────────────────────────────────
 
-    /** The current streak as a singular-aware label, e.g. {@code "1 day"} or {@code "5 days"}. */
+    /**
+     * The current streak as a singular-aware label, e.g. {@code "1 day"} or {@code "5 days"}.
+     */
     public String currentStreakLabel() {
         return currentStreak + " " + currentStreakUnit();
     }
 
-    /** The longest streak as a singular-aware label, e.g. {@code "1 day"} or {@code "5 days"}. */
+    /**
+     * The longest streak as a singular-aware label, e.g. {@code "1 day"} or {@code "5 days"}.
+     */
     public String longestStreakLabel() {
         return longestStreak + " " + longestStreakUnit();
     }
 
-    /** The unit word ({@code "day"}/{@code "days"}) matching the current-streak count. */
+    /**
+     * The unit word ({@code "day"}/{@code "days"}) matching the current-streak count.
+     */
     public String currentStreakUnit() {
         return plural(currentStreak, "day");
     }
 
-    /** The unit word ({@code "day"}/{@code "days"}) matching the longest-streak count. */
+    /**
+     * The unit word ({@code "day"}/{@code "days"}) matching the longest-streak count.
+     */
     public String longestStreakUnit() {
         return plural(longestStreak, "day");
     }
 
-    /** The unit phrase ({@code "distinct day"}/{@code "distinct days"}) matching the total-days count. */
+    /**
+     * The unit phrase ({@code "distinct day"}/{@code "distinct days"}) matching the total-days count.
+     */
     public String totalDaysUnit() {
         return plural(totalDays, "distinct day");
     }
 
     // ── Comparative helpers ───────────────────────────────────────────────
 
-    /** This month's count relative to last month's, as a signed trend label. */
+    /**
+     * This month's count relative to last month's, as a signed trend label.
+     */
     public String monthTrend() {
         return trend(thisMonthCount, lastMonthCount);
     }
 
-    /** The CSS colour class matching {@link #monthTrend()} (up/down/flat). */
+    /**
+     * The CSS colour class matching {@link #monthTrend()} (up/down/flat).
+     */
     public String monthTrendClass() {
         return trendClass(thisMonthCount, lastMonthCount);
     }
 
-    /** A "{@code X this month · Y last month}" context string. */
+    /**
+     * A "{@code X this month · Y last month}" context string.
+     */
     public String monthContext() {
         return thisMonthCount + " this month · " + lastMonthCount + " last month";
     }
 
-    /** A "{@code X this month}" context string (just the current month, no last-month comparison). */
+    /**
+     * A "{@code X this month}" context string (just the current month, no last-month comparison).
+     */
     public String thisMonthContext() {
         return thisMonthCount + " this month";
     }
 
-    /** This year's count relative to last year's, as a signed trend label. */
+    /**
+     * This year's count relative to last year's, as a signed trend label.
+     */
     public String yearTrend() {
         return trend(thisYearCount, lastYearCount);
     }
 
-    /** The CSS colour class matching {@link #yearTrend()} (up/down/flat). */
+    /**
+     * The CSS colour class matching {@link #yearTrend()} (up/down/flat).
+     */
     public String yearTrendClass() {
         return trendClass(thisYearCount, lastYearCount);
     }
 
-    /** A "{@code X this year · Y last year}" context string. */
+    /**
+     * A "{@code X this year · Y last year}" context string.
+     */
     public String yearContext() {
         return thisYearCount + " this year · " + lastYearCount + " last year";
     }
 
     // ── Private ───────────────────────────────────────────────────────────
 
-    /**
-     * Pluralises a unit word for a count: the bare {@code unit} when {@code count == 1}, otherwise
-     * {@code unit + "s"}. The single source of the app's singular/plural rule for UI-facing text.
-     *
-     * @param count the quantity the unit describes
-     * @param unit  the singular unit word (e.g. {@code "day"})
-     * @return {@code unit}, pluralised to match {@code count}
-     */
     private static String plural(final long count, final String unit) {
         return count == 1 ? unit : unit + "s";
     }

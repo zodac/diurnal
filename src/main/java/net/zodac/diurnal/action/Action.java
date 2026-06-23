@@ -29,7 +29,9 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
-/** A user-defined habit that can be tracked day-to-day; soft-deleted via {@link #archived}. */
+/**
+ * A user-defined habit that can be tracked day-to-day; soft-deleted via {@link #archived}.
+ */
 @Entity
 @Table(name = "actions")
 public class Action extends PanacheEntityBase {
@@ -56,12 +58,16 @@ public class Action extends PanacheEntityBase {
     @Column(name = "updated_at", nullable = false)
     public Instant updatedAt = Instant.now();
 
-    /** Returns the user's non-archived actions, ordered by name. */
+    /**
+     * Returns the user's non-archived actions, ordered by name.
+     */
     public static List<Action> findActiveByUser(final UUID userId) {
         return list("userId = ?1 and archived = false order by name asc", userId);
     }
 
-    /** Refreshes {@code updatedAt} before each update (JPA lifecycle callback). */
+    /**
+     * Refreshes {@code updatedAt} before each update (JPA lifecycle callback).
+     */
     @PreUpdate
     void onUpdate() {
         this.updatedAt = Instant.now();

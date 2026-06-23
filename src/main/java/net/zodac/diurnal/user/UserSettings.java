@@ -24,7 +24,9 @@ import java.util.Comparator;
 import java.util.List;
 import org.jspecify.annotations.Nullable;
 
-/** A user's display preferences plus the allow-lists and sanitisers that validate them. */
+/**
+ * A user's display preferences plus the allow-lists and sanitisers that validate them.
+ */
 public record UserSettings(String theme, int pageSize) {
 
     public static final int DEFAULT_PAGE_SIZE = 10;
@@ -56,32 +58,44 @@ public record UserSettings(String theme, int pageSize) {
             "America/Denver",
             "America/Los_Angeles");
 
-    /** Extracts the display preferences from a {@link User} entity. */
+    /**
+     * Extracts the display preferences from a {@link User} entity.
+     */
     public static UserSettings from(final User user) {
         return new UserSettings(user.theme, user.pageSize);
     }
 
-    /** Returns the requested page size if it is an allowed option, else the default. */
+    /**
+     * Returns the requested page size if it is an allowed option, else the default.
+     */
     public static int sanitisePageSize(final int requested) {
         return PAGE_SIZE_OPTIONS.contains(requested) ? requested : DEFAULT_PAGE_SIZE;
     }
 
-    /** Returns the requested theme if it is an allowed option, else the default. */
+    /**
+     * Returns the requested theme if it is an allowed option, else the default.
+     */
     public static String sanitiseTheme(final String requested) {
         return THEME_OPTIONS.contains(requested) ? requested : DEFAULT_THEME;
     }
 
-    /** Returns the requested calendar view if it is an allowed option, else the default. */
+    /**
+     * Returns the requested calendar view if it is an allowed option, else the default.
+     */
     public static String sanitiseCalendarView(final String requested) {
         return CALENDAR_VIEW_OPTIONS.contains(requested) ? requested : DEFAULT_CALENDAR_VIEW;
     }
 
-    /** Returns the requested zone if it is one of the offered options, else null ("use server default"). */
+    /**
+     * Returns the requested zone if it is one of the offered options, else null ("use server default").
+     */
     public static @Nullable String sanitiseTimezone(@Nullable final String requested) {
         return requested != null && TIMEZONE_OPTIONS.contains(requested) ? requested : null;
     }
 
-    /** A single option in the timezone picker: form {@code value}, display {@code label}, pre-selected flag. */
+    /**
+     * A single option in the timezone picker: form {@code value}, display {@code label}, pre-selected flag.
+     */
     public record TimezoneChoice(String value, String label, boolean selected) {
     }
 
@@ -115,7 +129,9 @@ public record UserSettings(String theme, int pageSize) {
         return id.equals(offset) ? id : id + " (" + offset + ")";
     }
 
-    /** Formats an offset as {@code "UTC"}, {@code "UTC+12"}, {@code "UTC-8"}, or {@code "UTC+5:30"}. */
+    /**
+     * Formats an offset as {@code "UTC"}, {@code "UTC+12"}, {@code "UTC-8"}, or {@code "UTC+5:30"}.
+     */
     static String utcOffsetLabel(final ZoneOffset offset) {
         final int totalSeconds = offset.getTotalSeconds();
         final int absSeconds = Math.abs(totalSeconds);

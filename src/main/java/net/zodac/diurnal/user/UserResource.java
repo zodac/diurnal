@@ -33,7 +33,9 @@ import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
-/** REST API endpoint exposing the authenticated user's own profile. */
+/**
+ * REST API endpoint exposing the authenticated user's own profile.
+ */
 @Tag(name = "Users", description = "Profile details for a user.")
 @Path("/api/users")
 @Authenticated
@@ -43,7 +45,9 @@ public class UserResource {
     @Inject
     SecurityIdentity identity;
 
-    /** Returns the current user as a {@link UserDto} ({@code 200}), or {@code 404} if not found. */
+    /**
+     * Returns the current user as a {@link UserDto} ({@code 200}), or {@code 404} if not found.
+     */
     @GET
     @Path("/me")
     @Operation(
@@ -53,10 +57,10 @@ public class UserResource {
     )
     @SecurityRequirement(name = "BearerAuth")
     @APIResponses({
-            @APIResponse(responseCode = "200", description = "The authenticated user's profile.",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = UserDto.class))),
-            @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-            @APIResponse(responseCode = "404", description = "The authenticated account no longer exists.")
+        @APIResponse(responseCode = "200", description = "The authenticated user's profile.",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = UserDto.class))),
+        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
+        @APIResponse(responseCode = "404", description = "The authenticated account no longer exists.")
     })
     public Response me() {
         // Resolve via the authenticated principal (the upn/email claim) rather than the JsonWebToken

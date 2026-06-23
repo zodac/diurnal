@@ -21,6 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.util.List;
 import java.util.Set;
 import org.eclipse.microprofile.openapi.OASFactory;
 import org.eclipse.microprofile.openapi.models.Components;
@@ -32,9 +33,12 @@ import org.eclipse.microprofile.openapi.models.media.Content;
 import org.eclipse.microprofile.openapi.models.media.Schema;
 import org.eclipse.microprofile.openapi.models.responses.APIResponse;
 import org.eclipse.microprofile.openapi.models.responses.APIResponses;
+import org.eclipse.microprofile.openapi.models.tags.Tag;
 import org.junit.jupiter.api.Test;
 
-/** Unit tests for {@link PublicApiFilter}: path, tag and schema pruning of the generated OpenAPI document. */
+/**
+ * Unit tests for {@link PublicApiFilter}: path, tag and schema pruning of the generated OpenAPI document.
+ */
 class PublicApiFilterTest {
 
     private static final String JSON = "application/json";
@@ -57,9 +61,12 @@ class PublicApiFilterTest {
         new PublicApiFilter().filterOpenAPI(api);
 
         final Set<String> schemas = api.getComponents().getSchemas().keySet();
-        // LoginRequest (request body), RangeParam (parameter), CalendarEventDto (response),
-        // and Colour (transitively, a property of CalendarEventDto) are reachable; the rest are not.
-        assertEquals(Set.of("LoginRequest", "RangeParam", "CalendarEventDto", "Colour"), schemas,
+        // LoginRequest (request body), RangeParam (parameter) and CalendarEventDto (response, via the
+        // array's items) are directly reachable; the Event* schemas are reachable only transitively
+        // from CalendarEventDto, each through a DIFFERENT composition mechanism (property, not,
+        // additionalProperties, allOf, anyOf, oneOf), so every recursion branch is exercised.
+        assertEquals(Set.of("LoginRequest", "RangeParam", "CalendarEventDto", "Colour",
+                        "EventNot", "EventAddProp", "EventAllOf", "EventAnyOf", "EventOneOf"), schemas,
                 "Only schemas reachable from a surviving operation (incl. transitively) should remain");
     }
 
@@ -69,27 +76,38 @@ class PublicApiFilterTest {
 
         new PublicApiFilter().filterOpenAPI(api);
 
-        final Set<String> tags = api.getTags().stream().map(t -> t.getName()).collect(java.util.stream.Collectors.toUnmodifiableSet());
+        final Set<String> tags = api.getTags().stream().map(Tag::getName).collect(java.util.stream.Collectors.toUnmodifiableSet());
         assertTrue(tags.contains("Authentication"), "Authentication tag is still used by /api/auth/login");
         assertTrue(tags.contains("Logs"), "Logs tag is still used by /logs/events");
         assertFalse(tags.contains("Internal"), "The Internal tag's only operation was removed, so it must be pruned");
     }
 
-    /**
-     * Builds a document mixing public and internal paths, with schemas that are used directly,
-     * transitively, and not at all, plus a tag that becomes unused once its path is removed.
-     */
     private static OpenAPI sampleDocument() {
         final Paths paths = OASFactory.createPaths()
-                .addPathItem("/api/auth/login", post(jsonBodyOp("Authentication", schemaRef("LoginRequest"))))
-                .addPathItem("/logs/events", get(eventsOp()))
-                .addPathItem("/actions", get(jsonResponseOp("Internal", schemaRef("TemplateInstance"))));
+                .addPathItem("/api/auth/login", post(jsonBodyOp(schemaRef("LoginRequest"))))
+                // /logs/events carries the tagged events GET plus a second, deliberately UNTAGGED
+                // operation, so pruneUnusedTags has to skip a null tag-list (exercising that guard).
+                .addPathItem("/logs/events", OASFactory.createPathItem().GET(eventsOp()).PUT(untaggedOp()))
+                .addPathItem("/actions", get(jsonResponseOp(schemaRef("TemplateInstance"))));
 
+        // CalendarEventDto references one distinct schema through EACH composition mechanism, so each
+        // is reachable only via that one recursion branch in collectSchemaRefs/collectSchemaList.
         final Components components = OASFactory.createComponents()
                 .addSchema("LoginRequest", OASFactory.createSchema())
                 .addSchema("RangeParam", OASFactory.createSchema())
-                .addSchema("CalendarEventDto", OASFactory.createSchema().addProperty("colour", schemaRef("Colour")))
+                .addSchema("CalendarEventDto", OASFactory.createSchema()
+                        .addProperty("colour", schemaRef("Colour"))
+                        .not(schemaRef("EventNot"))
+                        .additionalPropertiesSchema(schemaRef("EventAddProp"))
+                        .allOf(List.of(schemaRef("EventAllOf")))
+                        .anyOf(List.of(schemaRef("EventAnyOf")))
+                        .oneOf(List.of(schemaRef("EventOneOf"))))
                 .addSchema("Colour", OASFactory.createSchema())
+                .addSchema("EventNot", OASFactory.createSchema())
+                .addSchema("EventAddProp", OASFactory.createSchema())
+                .addSchema("EventAllOf", OASFactory.createSchema())
+                .addSchema("EventAnyOf", OASFactory.createSchema())
+                .addSchema("EventOneOf", OASFactory.createSchema())
                 .addSchema("TemplateInstance", OASFactory.createSchema().addProperty("engine", schemaRef("Engine")))
                 .addSchema("Engine", OASFactory.createSchema())
                 .addSchema("Orphan", OASFactory.createSchema());
@@ -102,7 +120,6 @@ class PublicApiFilterTest {
                 .addTag(OASFactory.createTag().name("Internal"));
     }
 
-    /** A GET /logs/events-like operation: a query parameter schema plus an array response of CalendarEventDto. */
     private static Operation eventsOp() {
         final Schema arrayResponse = OASFactory.createSchema().items(schemaRef("CalendarEventDto"));
         return OASFactory.createOperation()
@@ -111,15 +128,20 @@ class PublicApiFilterTest {
                 .responses(okJson(arrayResponse));
     }
 
-    private static Operation jsonBodyOp(final String tag, final Schema bodySchema) {
+    // No tags (getTags() == null) and no schemas — exercises the null-tag-list guard in pruneUnusedTags.
+    private static Operation untaggedOp() {
+        return OASFactory.createOperation();
+    }
+
+    private static Operation jsonBodyOp(final Schema bodySchema) {
         return OASFactory.createOperation()
-                .addTag(tag)
+                .addTag("Authentication")
                 .requestBody(OASFactory.createRequestBody().content(jsonContent(bodySchema)));
     }
 
-    private static Operation jsonResponseOp(final String tag, final Schema responseSchema) {
+    private static Operation jsonResponseOp(final Schema responseSchema) {
         return OASFactory.createOperation()
-                .addTag(tag)
+                .addTag("Internal")
                 .responses(okJson(responseSchema));
     }
 

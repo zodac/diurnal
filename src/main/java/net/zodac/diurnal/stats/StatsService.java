@@ -36,7 +36,9 @@ import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 
-/** Computes per-action statistics (counts, streaks, trends) from a user's logged entries. */
+/**
+ * Computes per-action statistics (counts, streaks, trends) from a user's logged entries.
+ */
 @ApplicationScoped
 public class StatsService {
 
@@ -46,7 +48,9 @@ public class StatsService {
     @Inject
     AppClock clock;
 
-    /** Returns stats for every active action of the user that has at least one logged entry. */
+    /**
+     * Returns stats for every active action of the user that has at least one logged entry.
+     */
     @Transactional
     public List<ActionStats> forAllActiveActions(final UUID userId) {
         return computeAll(userId).stream()
@@ -126,7 +130,9 @@ public class StatsService {
                 today);
     }
 
-    /** The number of consecutive days up to (and including) today on which the action was performed. */
+    /**
+     * The number of consecutive days up to (and including) today on which the action was performed.
+     */
     static int currentStreak(final List<LocalDate> sortedDates, final LocalDate today) {
         final Set<LocalDate> set = new HashSet<>(sortedDates);
         LocalDate cursor = set.contains(today) ? today : today.minusDays(1);
@@ -138,7 +144,9 @@ public class StatsService {
         return streak;
     }
 
-    /** The longest run of consecutive performed days anywhere in the action's history. */
+    /**
+     * The longest run of consecutive performed days anywhere in the action's history.
+     */
     static int longestStreak(final List<LocalDate> sortedDates) {
         if (sortedDates.isEmpty()) {
             return 0;

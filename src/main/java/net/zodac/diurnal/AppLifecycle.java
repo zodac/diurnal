@@ -23,7 +23,9 @@ import jakarta.enterprise.event.Observes;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 
-/** Validates the authentication configuration at startup and logs the resolved auth setup. */
+/**
+ * Validates the authentication configuration at startup and logs the resolved auth setup.
+ */
 @ApplicationScoped
 public class AppLifecycle {
 
@@ -44,7 +46,9 @@ public class AppLifecycle {
     @ConfigProperty(name = "oidc.auto.redirect", defaultValue = "false")
     boolean oidcAutoRedirect;
 
-    /** Fails fast if no auth method is enabled, or if OIDC is on without an issuer URL. */
+    /**
+     * Fails fast if no auth method is enabled, or if OIDC is on without an issuer URL.
+     */
     @SuppressWarnings("unused") // CDI startup observer — invoked by Quarkus, not called directly
     void onStart(@Observes StartupEvent ev) {
         if (!passwordAuthEnabled && !oidcEnabled) {

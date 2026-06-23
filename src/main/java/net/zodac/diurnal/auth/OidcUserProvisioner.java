@@ -75,7 +75,9 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         return context.runBlocking(() -> self.linkOrCreate(claims, idTokenCred));
     }
 
-    /** Finds or provisions the local user for the OIDC claims and returns a fresh DB-backed identity. */
+    /**
+     * Finds or provisions the local user for the OIDC claims and returns a fresh DB-backed identity.
+     */
     @Transactional
     SecurityIdentity linkOrCreate(final JsonObject claims, final IdTokenCredential idTokenCred) {
         // First-run guard: the very first account must be created locally (see the /welcome setup
@@ -180,11 +182,6 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         return null;
     }
 
-    /**
-     * Decodes the claims from the ID token payload. Quarkus has already verified the token's
-     * signature, issuer and expiry before this augmenter runs, so we only base64url-decode the
-     * payload segment — no re-validation is required or attempted here.
-     */
     private static JsonObject decodeClaims(final String jwt) {
         final String[] parts = jwt.split("\\.");
         if (parts.length < MIN_JWT_SEGMENTS) {

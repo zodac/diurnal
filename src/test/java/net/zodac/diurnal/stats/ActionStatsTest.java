@@ -30,7 +30,6 @@ class ActionStatsTest {
 
     private static final LocalDate TODAY = LocalDate.of(2025, 6, 15);
 
-    /** Builds an ActionStats with only the fields under test populated; everything else zeroed. */
     private static ActionStats stats(
             final int totalDays, final long totalCount,
             @Nullable final LocalDate first, @Nullable final LocalDate last,

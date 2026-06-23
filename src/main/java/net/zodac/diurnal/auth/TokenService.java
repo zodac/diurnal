@@ -24,13 +24,17 @@ import java.util.HashSet;
 import java.util.Set;
 import net.zodac.diurnal.user.User;
 
-/** Issues signed RSA JWTs for the REST API, encoding the user's roles as token groups. */
+/**
+ * Issues signed RSA JWTs for the REST API, encoding the user's roles as token groups.
+ */
 @ApplicationScoped
 public class TokenService {
 
     private static final Duration TOKEN_LIFESPAN = Duration.ofDays(1L);
 
-    /** Generates a signed JWT for the given user, valid for one day from now. */
+    /**
+     * Generates a signed JWT for the given user, valid for one day from now.
+     */
     public String generateToken(final User user) {
         final Set<String> groups = new HashSet<>();
         groups.add(User.ROLE_USER);

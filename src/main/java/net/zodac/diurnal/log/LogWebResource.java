@@ -45,7 +45,9 @@ import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 
-/** Increment/decrement endpoints for a day's action counts, plus the dashboard day-panel partials. */
+/**
+ * Increment/decrement endpoints for a day's action counts, plus the dashboard day-panel partials.
+ */
 @Path("/logs")
 @RolesAllowed("user")
 public class LogWebResource {
@@ -68,7 +70,9 @@ public class LogWebResource {
 
     // ── Day panel ──────────────────────────────────────────────────────────
 
-    /** Renders the dashboard day panel for a date (or a "future" placeholder for tomorrow onward). */
+    /**
+     * Renders the dashboard day panel for a date (or a "future" placeholder for tomorrow onward).
+     */
     @GET
     @Path("/day/{date}")
     @Produces(MediaType.TEXT_HTML)
@@ -86,7 +90,9 @@ public class LogWebResource {
             .data("page", page);
     }
 
-    /** Returns the paginated day-actions list partial for HTMX (search + pagination). */
+    /**
+     * Returns the paginated day-actions list partial for HTMX (search + pagination).
+     */
     @GET
     @Path("/day/{date}/list")
     @Produces(MediaType.TEXT_HTML)
@@ -137,7 +143,9 @@ public class LogWebResource {
 
     // ── Increment ─────────────────────────────────────────────────────────
 
-    /** Increments (or creates) the day's count for an action, capped at {@code MAX_DAILY_COUNT}. */
+    /**
+     * Increments (or creates) the day's count for an action, capped at {@code MAX_DAILY_COUNT}.
+     */
     @POST
     @Path("/{date}/{actionId}/increment")
     @Produces(MediaType.TEXT_HTML)
@@ -174,7 +182,9 @@ public class LogWebResource {
 
     // ── Decrement ─────────────────────────────────────────────────────────
 
-    /** Decrements the day's count for an action, deleting the entry when it reaches zero. */
+    /**
+     * Decrements the day's count for an action, deleting the entry when it reaches zero.
+     */
     @POST
     @Path("/{date}/{actionId}/decrement")
     @Produces(MediaType.TEXT_HTML)
@@ -229,7 +239,9 @@ public class LogWebResource {
                 .firstResult();
     }
 
-    /** An action paired with its count for a given day (0 when not yet logged). */
+    /**
+     * An action paired with its count for a given day (0 when not yet logged).
+     */
     public record DayActionStatus(Action action, int count) {
     }
 }

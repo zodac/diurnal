@@ -20,7 +20,9 @@ package net.zodac.diurnal.web;
 import io.quarkus.test.junit.QuarkusTestProfile;
 import java.util.Map;
 
-/** Test profile that forces {@code registration.enabled=false} to exercise the setup-time override. */
+/**
+ * Test profile that forces {@code registration.enabled=false} to exercise the setup-time override.
+ */
 public final class RegistrationDisabledProfile implements QuarkusTestProfile {
 
     /**

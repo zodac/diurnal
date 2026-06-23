@@ -27,7 +27,9 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 
-/** Renders the styled 403 page (instead of the default JSON error) when access is denied. */
+/**
+ * Renders the styled 403 page (instead of the default JSON error) when access is denied.
+ */
 @Provider
 public class ForbiddenExceptionMapper implements ExceptionMapper<ForbiddenException> {
 

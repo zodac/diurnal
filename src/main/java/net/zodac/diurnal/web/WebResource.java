@@ -52,7 +52,9 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
-/** Serves the top-level web UI pages: login, register, logout, settings and the dashboard. */
+/**
+ * Serves the top-level web UI pages: login, register, logout, settings and the dashboard.
+ */
 @Path("/")
 public class WebResource {
 
@@ -99,7 +101,9 @@ public class WebResource {
 
     // ── Login ──────────────────────────────────────────────────────────────
 
-    /** Renders the login page, optionally auto-redirecting to OIDC and surfacing error/registered states. */
+    /**
+     * Renders the login page, optionally auto-redirecting to OIDC and surfacing error/registered states.
+     */
     @GET
     @Path("login")
     @Produces(MediaType.TEXT_HTML)
@@ -148,7 +152,9 @@ public class WebResource {
         return builder.build();
     }
 
-    /** Entry point for the OIDC code flow; authenticated users are forwarded home. */
+    /**
+     * Entry point for the OIDC code flow; authenticated users are forwarded home.
+     */
     @GET
     @Path("oidc-login")
     @RolesAllowed("user")
@@ -159,7 +165,9 @@ public class WebResource {
         return Response.seeOther(URI.create("/")).build();
     }
 
-    /** Handles the OIDC redirect-back, records the login, and forwards the user to the dashboard. */
+    /**
+     * Handles the OIDC redirect-back, records the login, and forwards the user to the dashboard.
+     */
     @GET
     @Path("oauth2/callback/oidc")
     @PermitAll
@@ -223,7 +231,9 @@ public class WebResource {
         return Response.ok(renderRegister("", "", "", "", List.of(), List.of())).build();
     }
 
-    /** Handles the registration form submission, creating the user and redirecting to login. */
+    /**
+     * Handles the registration form submission, creating the user and redirecting to login.
+     */
     @POST
     @Path("register")
     @Transactional
@@ -272,16 +282,6 @@ public class WebResource {
         return Response.seeOther(URI.create("/login?registered=true")).build();
     }
 
-    /**
-     * Collects the display labels of every required field left blank, so they can be listed together.
-     * Returns an empty (mutable) list when all fields are populated.
-     *
-     * @param email           the submitted email
-     * @param displayName     the submitted display name
-     * @param password        the submitted password
-     * @param confirmPassword the submitted password confirmation
-     * @return the (possibly empty) list of missing-field labels
-     */
     private static List<String> missingFields(final String email, final String displayName,
             final String password, final String confirmPassword) {
         final List<String> missing = new ArrayList<>();
@@ -300,15 +300,6 @@ public class WebResource {
         return missing;
     }
 
-    /**
-     * Collects the format/consistency validation errors (those not covered by {@link #missingFields})
-     * so they can all be surfaced at once. Returns an empty (mutable) list when the submission is valid.
-     *
-     * @param email           the submitted email
-     * @param password        the submitted password
-     * @param confirmPassword the submitted password confirmation
-     * @return the (possibly empty) list of human-readable error messages
-     */
     private static List<String> validateRegistration(final String email, final String password,
             final String confirmPassword) {
         final List<String> errors = new ArrayList<>();
@@ -326,17 +317,6 @@ public class WebResource {
         return errors;
     }
 
-    /**
-     * Renders the registration page, preserving the submitted values and surfacing any error messages.
-     *
-     * @param email           the email to pre-fill
-     * @param displayName     the display name to pre-fill
-     * @param password        the password to pre-fill
-     * @param confirmPassword the password confirmation to pre-fill
-     * @param missingFields   the labels of any blank required fields (empty for a fresh page)
-     * @param errors          the error messages to display (empty for a fresh page)
-     * @return the rendered template instance
-     */
     private TemplateInstance renderRegister(final String email, final String displayName,
             final String password, final String confirmPassword, final List<String> missingFields,
             final List<String> errors) {
@@ -353,13 +333,6 @@ public class WebResource {
                 .data("maxPasswordLength", User.MAX_PASSWORD_LENGTH);
     }
 
-    /**
-     * Renders the registration page in its disabled state — a "registration is disabled, contact your
-     * administrator" banner in place of the form. Used when password auth is enabled but registration
-     * is off and the initial account already exists.
-     *
-     * @return the rendered template instance
-     */
     private TemplateInstance renderRegisterDisabled() {
         return registerTemplate
                 .data("registrationDisabled", true)
@@ -367,24 +340,19 @@ public class WebResource {
                 .data("theme", "system");
     }
 
-    /** True on first run — no users exist yet, so the deployer must create the initial local account. */
     private boolean setupRequired() {
         return User.count() == 0;
     }
 
-    /**
-     * Whether local registration is currently permitted. The initial account can always be created
-     * during first-run setup (so {@code ENABLE_REGISTRATION=false} can never lock out the very first
-     * user); once any user exists, {@code ENABLE_REGISTRATION} is respected. Password auth must be
-     * enabled in either case, since registration creates a local password account.
-     */
     private boolean registrationAllowed() {
         return passwordAuthEnabled && (setupRequired() || registrationEnabled);
     }
 
     // ── Logout ────────────────────────────────────────────────────────────
 
-    /** Clears the session cookies and redirects to the IdP logout (OIDC users) or {@code /login}. */
+    /**
+     * Clears the session cookies and redirects to the IdP logout (OIDC users) or {@code /login}.
+     */
     @POST
     @Path("logout")
     public Response logout(@CookieParam("q_session") final String oidcSession) {
@@ -404,7 +372,9 @@ public class WebResource {
 
     // ── Settings ───────────────────────────────────────────────────────────
 
-    /** Renders the settings page for the current user. */
+    /**
+     * Renders the settings page for the current user.
+     */
     @GET
     @Path("settings")
     @RolesAllowed("user")
@@ -415,7 +385,9 @@ public class WebResource {
         return settingsView(user, false);
     }
 
-    /** Persists the user's sanitised display preferences and re-renders the settings page. */
+    /**
+     * Persists the user's sanitised display preferences and re-renders the settings page.
+     */
     @POST
     @Path("settings")
     @RolesAllowed("user")
@@ -436,7 +408,9 @@ public class WebResource {
         return settingsView(user, true);
     }
 
-    /** Updates the current user's display name, returning {@code 422} if it is blank. */
+    /**
+     * Updates the current user's display name, returning {@code 422} if it is blank.
+     */
     @POST
     @Path("settings/display-name")
     @RolesAllowed("user")
@@ -470,7 +444,9 @@ public class WebResource {
 
     // ── Dashboard (protected) ──────────────────────────────────────────────
 
-    /** Renders the dashboard with the user's calendar and three most-recent action stats. */
+    /**
+     * Renders the dashboard with the user's calendar and three most-recent action stats.
+     */
     @GET
     @Path("/")
     @RolesAllowed("user")

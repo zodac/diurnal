@@ -26,14 +26,18 @@ import jakarta.ws.rs.core.Response;
 import java.sql.Connection;
 import javax.sql.DataSource;
 
-/** Liveness/readiness endpoint that reports {@code 200} only when the database is reachable. */
+/**
+ * Liveness/readiness endpoint that reports {@code 200} only when the database is reachable.
+ */
 @Path("/health")
 public class HealthResource {
 
     @Inject
     DataSource dataSource;
 
-    /** Returns {@code 200 OK} when the database connection is valid, else {@code 503}. */
+    /**
+     * Returns {@code 200 OK} when the database connection is valid, else {@code 503}.
+     */
     @GET
     @Produces(MediaType.TEXT_PLAIN)
     public Response health() {

@@ -55,7 +55,9 @@ public class TrustedIdentityProvider implements IdentityProvider<TrustedAuthenti
         return context.runBlocking(() -> self.loadIdentity(email));
     }
 
-    /** Looks up the user by email and rebuilds their {@link SecurityIdentity} with roles/attributes. */
+    /**
+     * Looks up the user by email and rebuilds their {@link SecurityIdentity} with roles/attributes.
+     */
     @Transactional
     SecurityIdentity loadIdentity(final String email) {
         return User.findByEmail(email)

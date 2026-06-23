@@ -88,14 +88,18 @@ public abstract class IntegrationTestBase {
         clock.useSystemClock();
     }
 
-    /** Freeze {@link AppClock} so {@code today()} returns {@code date} (clock pinned to UTC midnight). */
+    /**
+     * Freeze {@link AppClock} so {@code today()} returns {@code date} (clock pinned to UTC midnight).
+     */
     protected void freezeDate(final LocalDate date) {
         // Pin the zone to the "UTC" region (id "UTC"), matching application-test.properties and
         // production, rather than ZoneOffset.UTC (id "Z") — same instant, but a representative zone id.
         clock.useFixedClock(Clock.fixed(date.atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneId.of("UTC")));
     }
 
-    /** Freeze {@link AppClock} to an exact instant in {@code zone} — for midnight-boundary / non-UTC tests. */
+    /**
+     * Freeze {@link AppClock} to an exact instant in {@code zone} — for midnight-boundary / non-UTC tests.
+     */
     protected void freezeInstant(final java.time.Instant instant, final ZoneId zone) {
         clock.useFixedClock(Clock.fixed(instant, zone));
     }
@@ -118,11 +122,15 @@ public abstract class IntegrationTestBase {
      */
     @FunctionalInterface
     protected interface TxBlock {
-        /** The work to run inside the transaction; may throw any {@link Throwable}. */
+        /**
+         * The work to run inside the transaction; may throw any {@link Throwable}.
+         */
         void run() throws Throwable;
     }
 
-    /** Runs {@code block} inside a fresh JTA transaction, rolling back and rethrowing on failure. */
+    /**
+     * Runs {@code block} inside a fresh JTA transaction, rolling back and rethrowing on failure.
+     */
     protected void runInTx(final TxBlock block) {
         try {
             tx.begin();
@@ -149,12 +157,16 @@ public abstract class IntegrationTestBase {
         }
     }
 
-    /** Persists a new {@code user}-role user with the shared test password. */
+    /**
+     * Persists a new {@code user}-role user with the shared test password.
+     */
     protected static User newUser(final String email, final String displayName) {
         return newUser(email, displayName, User.ROLE_USER);
     }
 
-    /** Persists a new user with the given role and the shared test password. */
+    /**
+     * Persists a new user with the given role and the shared test password.
+     */
     protected static User newUser(final String email, final String displayName, final String role) {
         final User u = new User();
         u.email = email;
@@ -165,7 +177,9 @@ public abstract class IntegrationTestBase {
         return u;
     }
 
-    /** Persists a new action for the given user with the default colour. */
+    /**
+     * Persists a new action for the given user with the default colour.
+     */
     protected static Action newAction(final UUID userId, final String name) {
         final Action a = new Action();
         a.userId = userId;
@@ -175,7 +189,9 @@ public abstract class IntegrationTestBase {
         return a;
     }
 
-    /** Persists a single action-log entry for the given user, action, day and count. */
+    /**
+     * Persists a single action-log entry for the given user, action, day and count.
+     */
     protected static void newLog(final UUID userId, final UUID actionId, final LocalDate date, final int count) {
         final ActionLog l = new ActionLog();
         l.userId = userId;

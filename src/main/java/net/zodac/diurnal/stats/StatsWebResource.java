@@ -35,7 +35,9 @@ import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.user.User;
 
-/** Serves the paginated stats page and its HTMX list partial. */
+/**
+ * Serves the paginated stats page and its HTMX list partial.
+ */
 @Path("/stats")
 @RolesAllowed("user")
 public class StatsWebResource {
@@ -49,7 +51,9 @@ public class StatsWebResource {
     @Inject SecurityIdentity identity;
     @Inject StatsService statsService;
 
-    /** Renders the full stats page for the current user at the requested page. */
+    /**
+     * Renders the full stats page for the current user at the requested page.
+     */
     @GET
     @Produces(MediaType.TEXT_HTML)
     @Transactional
@@ -64,7 +68,9 @@ public class StatsWebResource {
                 .data("page", getStatsPage(user.id, pageNum, user.pageSize));
     }
 
-    /** Returns just the stats-cards list partial for HTMX pagination. */
+    /**
+     * Returns just the stats-cards list partial for HTMX pagination.
+     */
     @GET
     @Path("list")
     @Produces(MediaType.TEXT_HTML)

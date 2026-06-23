@@ -110,15 +110,15 @@
              Quarkus config expressions must survive verbatim — copied unfiltered. -->
         <resources>
             <resource>
-                <directory>src/main/resources</directory>
                 <filtering>false</filtering>
+                <directory>src/main/resources</directory>
                 <excludes>
                     <exclude>META-INF/microprofile-config.properties</exclude>
                 </excludes>
             </resource>
             <resource>
-                <directory>src/main/resources</directory>
                 <filtering>true</filtering>
+                <directory>src/main/resources</directory>
                 <includes>
                     <include>META-INF/microprofile-config.properties</include>
                 </includes>

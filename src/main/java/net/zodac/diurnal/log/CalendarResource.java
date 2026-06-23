@@ -66,7 +66,9 @@ public class CalendarResource {
 
     @Inject SecurityIdentity identity;
 
-    /** Returns one calendar event per logged entry in the range (including archived actions). */
+    /**
+     * Returns one calendar event per logged entry in the range (including archived actions).
+     */
     @GET
     @Path("/events")
     @Transactional
@@ -76,11 +78,11 @@ public class CalendarResource {
     )
     @SecurityRequirement(name = "BearerAuth")
     @APIResponses({
-            @APIResponse(responseCode = "200", description = "Logged events in the range (one entry per logged action per day).",
-                    content = @Content(mediaType = MediaType.APPLICATION_JSON,
-                            schema = @Schema(type = SchemaType.ARRAY, implementation = CalendarEventDto.class))),
-            @APIResponse(responseCode = "400",
-                    description = "The 'start' or 'end' query parameter is missing or not a valid ISO-8601 date.")
+        @APIResponse(responseCode = "200", description = "Logged events in the range (one entry per logged action per day).",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON,
+                        schema = @Schema(type = SchemaType.ARRAY, implementation = CalendarEventDto.class))),
+        @APIResponse(responseCode = "400",
+                description = "The 'start' or 'end' query parameter is missing or not a valid ISO-8601 date.")
     })
     public List<CalendarEventDto> events(
             @Parameter(name = "start", in = ParameterIn.QUERY, required = true,
@@ -111,7 +113,9 @@ public class CalendarResource {
                 .toList();
     }
 
-    /** Returns up to four coloured dots per day for the compact "minimal" calendar view (internal to the dashboard). */
+    /**
+     * Returns up to four coloured dots per day for the compact "minimal" calendar view (internal to the dashboard).
+     */
     @GET
     @Path("/minimal-events")
     @Transactional
@@ -156,11 +160,6 @@ public class CalendarResource {
                 .orElseThrow();
     }
 
-    /**
-     * Parses a required calendar boundary date. FullCalendar may send an ISO datetime, so only the
-     * leading date part is used. Throws {@link BadRequestException} (HTTP 400) when the parameter is
-     * missing/blank or not a valid date, so callers get a clear error instead of a 500.
-     */
     private static LocalDate requireDate(final String name, final String value) {
         if (value == null || value.isBlank()) {
             throw new BadRequestException("Query parameter '" + name + "' is required");
@@ -170,11 +169,13 @@ public class CalendarResource {
         try {
             return LocalDate.parse(datePart);
         } catch (final DateTimeParseException e) {
-            throw new BadRequestException("Query parameter '" + name + "' is not a valid ISO-8601 date: " + value);
+            throw new BadRequestException("Query parameter '" + name + "' is not a valid ISO-8601 date: " + value, e);
         }
     }
 
-    /** A single FullCalendar event: title, start date and the action's colour. */
+    /**
+     * A single FullCalendar event: title, start date and the action's colour.
+     */
     public record CalendarEventDto(
             @Schema(examples = "Morning run") String title,
             @Schema(examples = "2026-06-15") String start,
@@ -182,11 +183,15 @@ public class CalendarResource {
             @Schema(examples = "#6366f1") String borderColor) {
     }
 
-    /** One day's worth of action dots for the minimal calendar view. */
+    /**
+     * One day's worth of action dots for the minimal calendar view.
+     */
     public record MinimalCalendarDayDto(String date, List<ActionDotDto> actions) {
     }
 
-    /** A single coloured dot: the action's colour, name and that day's count. */
+    /**
+     * A single coloured dot: the action's colour, name and that day's count.
+     */
     public record ActionDotDto(String colour, String name, int count) {
     }
 }

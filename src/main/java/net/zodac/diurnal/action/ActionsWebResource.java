@@ -41,7 +41,9 @@ import java.util.UUID;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.user.User;
 
-/** CRUD endpoints for a user's trackable actions, returning full pages and HTMX partials. */
+/**
+ * CRUD endpoints for a user's trackable actions, returning full pages and HTMX partials.
+ */
 @Path("/actions")
 @RolesAllowed("user")
 public class ActionsWebResource {
@@ -63,7 +65,9 @@ public class ActionsWebResource {
 
     // ── Full page ──────────────────────────────────────────────────────────
 
-    /** Renders the full actions page for the current user. */
+    /**
+     * Renders the full actions page for the current user.
+     */
     @GET
     @Produces(MediaType.TEXT_HTML)
     @Transactional
@@ -74,7 +78,9 @@ public class ActionsWebResource {
                 "isAdmin", user.isAdmin(), "page", page, "theme", user.theme);
     }
 
-    /** Returns the actions list partial (with optional search) for HTMX. */
+    /**
+     * Returns the actions list partial (with optional search) for HTMX.
+     */
     @GET
     @Path("list")
     @Produces(MediaType.TEXT_HTML)
@@ -116,7 +122,9 @@ public class ActionsWebResource {
 
     // ── Partials for HTMX ─────────────────────────────────────────────────
 
-    /** Returns the table row for a single owned action, or {@code 404} if not found. */
+    /**
+     * Returns the table row for a single owned action, or {@code 404} if not found.
+     */
     @GET
     @Path("{id}")
     @Produces(MediaType.TEXT_HTML)
@@ -129,7 +137,9 @@ public class ActionsWebResource {
         return Response.ok(actionRowTemplate.data("action", action)).build();
     }
 
-    /** Returns the in-place confirm-delete row for an action, or {@code 404} if not found. */
+    /**
+     * Returns the in-place confirm-delete row for an action, or {@code 404} if not found.
+     */
     @GET
     @Path("{id}/confirm-delete")
     @Produces(MediaType.TEXT_HTML)
@@ -155,7 +165,9 @@ public class ActionsWebResource {
 
     // ── Mutations ─────────────────────────────────────────────────────────
 
-    /** Creates a new action for the current user, rejecting blank or duplicate names. */
+    /**
+     * Creates a new action for the current user, rejecting blank or duplicate names.
+     */
     @POST
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
@@ -184,7 +196,9 @@ public class ActionsWebResource {
         return Response.ok(actionRowTemplate.data("action", action)).build();
     }
 
-    /** Renames/recolours an existing owned action, rejecting blank or duplicate names. */
+    /**
+     * Renames/recolours an existing owned action, rejecting blank or duplicate names.
+     */
     @POST
     @Path("{id}")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
@@ -217,7 +231,9 @@ public class ActionsWebResource {
         return Response.ok(actionRowTemplate.data("action", action)).build();
     }
 
-    /** Soft-deletes (archives) an owned action and removes its logs, returning {@code 204}. */
+    /**
+     * Soft-deletes (archives) an owned action and removes its logs, returning {@code 204}.
+     */
     @POST
     @Path("{id}/delete")
     @Produces(MediaType.TEXT_HTML)

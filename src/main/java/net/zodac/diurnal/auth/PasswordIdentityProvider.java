@@ -36,7 +36,9 @@ import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jboss.logging.Logger;
 import org.mindrot.jbcrypt.BCrypt;
 
-/** Authenticates form/API password logins by verifying the BCrypt hash and building the identity. */
+/**
+ * Authenticates form/API password logins by verifying the BCrypt hash and building the identity.
+ */
 @ApplicationScoped
 public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswordAuthenticationRequest> {
 
@@ -72,7 +74,9 @@ public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswo
         return context.runBlocking(() -> self.verifyCredentials(email, password));
     }
 
-    /** Verifies the password against the stored hash, updating {@code lastLoginAt} on success. */
+    /**
+     * Verifies the password against the stored hash, updating {@code lastLoginAt} on success.
+     */
     @Transactional
     SecurityIdentity verifyCredentials(final String email, final String password) {
         return User.findByEmail(email)

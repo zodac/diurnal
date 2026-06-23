@@ -32,7 +32,9 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-/** A per-day tally of how many times an {@link net.zodac.diurnal.action.Action} was performed. */
+/**
+ * A per-day tally of how many times an {@link net.zodac.diurnal.action.Action} was performed.
+ */
 @Entity
 @Table(name = "action_logs")
 public class ActionLog extends PanacheEntityBase {
@@ -61,7 +63,9 @@ public class ActionLog extends PanacheEntityBase {
     @Column(name = "updated_at", nullable = false)
     public Instant updatedAt = Instant.now();
 
-    /** Refreshes {@code updatedAt} before each update (JPA lifecycle callback). */
+    /**
+     * Refreshes {@code updatedAt} before each update (JPA lifecycle callback).
+     */
     @PreUpdate
     void onUpdate() {
         this.updatedAt = Instant.now();
@@ -69,23 +73,31 @@ public class ActionLog extends PanacheEntityBase {
 
     // ── Queries ───────────────────────────────────────────────────────────
 
-    /** Returns all of the user's log entries, oldest first. */
+    /**
+     * Returns all of the user's log entries, oldest first.
+     */
     public static List<ActionLog> findAllByUser(final UUID userId) {
         return list("userId = ?1 order by logDate asc", userId);
     }
 
-    /** Returns the user's log entries falling within the inclusive {@code [start, end]} date range. */
+    /**
+     * Returns the user's log entries falling within the inclusive {@code [start, end]} date range.
+     */
     public static List<ActionLog> findByUserAndRange(final UUID userId, final LocalDate start, final LocalDate end) {
         return list("userId = ?1 and logDate >= ?2 and logDate <= ?3", userId, start, end);
     }
 
-    /** Returns a map of actionId → count for all logged actions on a given day. */
+    /**
+     * Returns a map of actionId → count for all logged actions on a given day.
+     */
     public static Map<UUID, Integer> countsByAction(final UUID userId, final LocalDate date) {
         return ActionLog.<ActionLog>list("userId = ?1 and logDate = ?2", userId, date)
                 .stream().collect(Collectors.toMap(l -> l.actionId, l -> l.count));
     }
 
-    /** Returns the user's log entry for the given action and day, or {@code null} if none exists. */
+    /**
+     * Returns the user's log entry for the given action and day, or {@code null} if none exists.
+     */
     public static ActionLog findEntry(final UUID userId, final UUID actionId, final LocalDate date) {
         return ActionLog.<ActionLog>find(
                 "userId = ?1 and actionId = ?2 and logDate = ?3", userId, actionId, date)

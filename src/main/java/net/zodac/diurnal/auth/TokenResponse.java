@@ -19,7 +19,9 @@ package net.zodac.diurnal.auth;
 
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
-/** Response body returned after a successful login: the signed JWT and basic profile fields. */
+/**
+ * Response body returned after a successful login: the signed JWT and basic profile fields.
+ */
 public record TokenResponse(
         @Schema(examples = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiM2ZjMmM5Ni1hZGEifQ.Xq9_3signature")
         String token,

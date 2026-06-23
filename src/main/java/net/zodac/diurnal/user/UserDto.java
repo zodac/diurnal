@@ -21,7 +21,9 @@ import java.util.UUID;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.jspecify.annotations.Nullable;
 
-/** API view of a {@link User} exposing only non-sensitive identity, role and preference fields. */
+/**
+ * API view of a {@link User} exposing only non-sensitive identity, role and preference fields.
+ */
 public record UserDto(
         @Schema(examples = "3fa85f64-5717-4562-b3fc-2c963f66afa6") UUID id,
         @Schema(examples = "ada@example.com") String email,
@@ -45,7 +47,9 @@ public record UserDto(
             @Nullable String timezone) {
     }
 
-    /** Creates a {@link UserDto} from the given {@link User} entity. */
+    /**
+     * Creates a {@link UserDto} from the given {@link User} entity.
+     */
     public static UserDto from(final User user) {
         return new UserDto(
                 user.id,

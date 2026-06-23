@@ -63,7 +63,9 @@ public class JwtKeyProvisioner {
     @ConfigProperty(name = "mp.jwt.verify.publickey.location")
     String publicKeyLocation = "";
 
-    /** Generates the keypair (when both halves are absent) before any token is signed or verified. */
+    /**
+     * Generates the keypair (when both halves are absent) before any token is signed or verified.
+     */
     // Run early, before anything attempts to sign or verify a token.
     void onStart(@Observes @Priority(Interceptor.Priority.LIBRARY_BEFORE) StartupEvent ev) {
         final Path privateKey = asLocalFile(privateKeyLocation);
@@ -127,11 +129,6 @@ public class JwtKeyProvisioner {
         }
     }
 
-    /**
-     * Returns the location as a local filesystem {@link Path} when it is an absolute file
-     * path (optionally {@code file:}-prefixed), or {@code null} for classpath / relative /
-     * URL locations that this provisioner must not write to.
-     */
     private @Nullable Path asLocalFile(final String location) {
         if (location == null || location.isBlank()) {
             return null;

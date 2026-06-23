@@ -36,11 +36,15 @@ public class AppInfo {
     private static final int YEAR_LENGTH = 4;
     private static final String FALLBACK_YEAR = "2026";
 
-    /** The running application version, taken from the build (project version). */
+    /**
+     * The running application version, taken from the build (project version).
+     */
     @ConfigProperty(name = "quarkus.application.version", defaultValue = "dev")
     String version = "dev";
 
-    /** Base URL of the public source repository (configurable via {@code app.repository.url}). */
+    /**
+     * Base URL of the public source repository (configurable via {@code app.repository.url}).
+     */
     @ConfigProperty(name = "app.repository.url", defaultValue = "https://github.com/zodac-personal/diurnal")
     String repositoryUrl = "https://github.com/zodac-personal/diurnal";
 

@@ -22,7 +22,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import net.zodac.diurnal.user.User;
 
-/** Payload submitted to the JSON registration endpoint. */
+/**
+ * Payload submitted to the JSON registration endpoint.
+ */
 public record RegisterRequest(
         @NotBlank @Email String email,
         @NotBlank @Size(min = 2, max = 100) String displayName,

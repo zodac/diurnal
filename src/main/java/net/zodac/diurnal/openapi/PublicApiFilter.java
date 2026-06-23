@@ -33,8 +33,6 @@ import org.eclipse.microprofile.openapi.models.Paths;
 import org.eclipse.microprofile.openapi.models.media.Content;
 import org.eclipse.microprofile.openapi.models.media.MediaType;
 import org.eclipse.microprofile.openapi.models.media.Schema;
-import org.eclipse.microprofile.openapi.models.parameters.Parameter;
-import org.eclipse.microprofile.openapi.models.responses.APIResponse;
 import org.eclipse.microprofile.openapi.models.responses.APIResponses;
 import org.eclipse.microprofile.openapi.models.tags.Tag;
 import org.jspecify.annotations.Nullable;
@@ -55,21 +53,19 @@ import org.jspecify.annotations.Nullable;
  */
 public final class PublicApiFilter implements OASFilter {
 
-    /** Prefix of the dedicated REST API namespace; all such paths are published. */
     private static final String API_PREFIX = "/api/";
 
-    /** Application endpoints outside {@code /api} that are deliberately part of the public API. */
     private static final Set<String> PUBLIC_APP_PATHS = Set.of("/logs/events");
 
     /**
      * Removes every path that is not part of the public API, then drops any top-level tag and any
      * component schema left unreferenced, so the Swagger UI shows no empty sections or stray models.
      *
-     * @param openAPI the document being generated
+     * @param openApi the document being generated
      */
     @Override
-    public void filterOpenAPI(final OpenAPI openAPI) {
-        final Paths paths = openAPI.getPaths();
+    public void filterOpenAPI(final OpenAPI openApi) {
+        final Paths paths = openApi.getPaths();
         if (paths == null || paths.getPathItems() == null) {
             return;
         }
@@ -79,19 +75,17 @@ public final class PublicApiFilter implements OASFilter {
                 .toList();
         nonPublicPaths.forEach(paths::removePathItem);
 
-        pruneUnusedTags(openAPI);
-        pruneUnusedSchemas(openAPI);
+        pruneUnusedTags(openApi);
+        pruneUnusedSchemas(openApi);
     }
 
-    /** Whether a path belongs to the public API: the {@code /api} namespace or an allow-listed app endpoint. */
     private static boolean isPublic(final String path) {
         return path.startsWith(API_PREFIX) || PUBLIC_APP_PATHS.contains(path);
     }
 
-    /** Drops top-level tag declarations no surviving operation references, avoiding empty UI sections. */
-    private static void pruneUnusedTags(final OpenAPI openAPI) {
-        final List<Tag> declaredTags = openAPI.getTags();
-        final Paths paths = openAPI.getPaths();
+    private static void pruneUnusedTags(final OpenAPI openApi) {
+        final List<Tag> declaredTags = openApi.getTags();
+        final Paths paths = openApi.getPaths();
         if (declaredTags == null || paths == null || paths.getPathItems() == null) {
             return;
         }
@@ -106,12 +100,11 @@ public final class PublicApiFilter implements OASFilter {
         final List<Tag> retainedTags = declaredTags.stream()
                 .filter(tag -> usedTags.contains(tag.getName()))
                 .toList();
-        openAPI.setTags(retainedTags);
+        openApi.setTags(retainedTags);
     }
 
-    /** Removes component schemas not transitively reachable from any surviving operation. */
-    private static void pruneUnusedSchemas(final OpenAPI openAPI) {
-        final Components components = openAPI.getComponents();
+    private static void pruneUnusedSchemas(final OpenAPI openApi) {
+        final Components components = openApi.getComponents();
         if (components == null || components.getSchemas() == null) {
             return;
         }
@@ -120,7 +113,7 @@ public final class PublicApiFilter implements OASFilter {
         // Seed the worklist with every schema directly referenced by a surviving operation, then walk
         // each referenced schema for nested refs until the reachable set stops growing.
         final Deque<String> worklist = new ArrayDeque<>();
-        collectOperationSchemaRefs(openAPI, worklist);
+        collectOperationSchemaRefs(openApi, worklist);
 
         final Set<String> used = new HashSet<>();
         while (!worklist.isEmpty()) {
@@ -136,9 +129,8 @@ public final class PublicApiFilter implements OASFilter {
         unused.forEach(components::removeSchema);
     }
 
-    /** Collects schema names referenced by every operation's parameters, request body and responses. */
-    private static void collectOperationSchemaRefs(final OpenAPI openAPI, final Deque<String> sink) {
-        final Paths paths = openAPI.getPaths();
+    private static void collectOperationSchemaRefs(final OpenAPI openApi, final Deque<String> sink) {
+        final Paths paths = openApi.getPaths();
         if (paths == null || paths.getPathItems() == null) {
             return;
         }
@@ -162,7 +154,6 @@ public final class PublicApiFilter implements OASFilter {
         }
     }
 
-    /** Collects schema refs from every media type of a request/response content block. */
     private static void collectContentRefs(final @Nullable Content content, final Deque<String> sink) {
         if (content == null || content.getMediaTypes() == null) {
             return;
@@ -172,7 +163,6 @@ public final class PublicApiFilter implements OASFilter {
         }
     }
 
-    /** Recursively collects schema names referenced by a schema (its $ref, items, properties, composites). */
     private static void collectSchemaRefs(final @Nullable Schema schema, final Deque<String> sink) {
         if (schema == null) {
             return;
@@ -194,7 +184,6 @@ public final class PublicApiFilter implements OASFilter {
         }
     }
 
-    /** Collects schema refs from a list of composite schemas ({@code allOf}/{@code anyOf}/{@code oneOf}). */
     private static void collectSchemaList(final @Nullable List<Schema> schemas, final Deque<String> sink) {
         if (schemas == null) {
             return;
