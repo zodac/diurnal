@@ -37,7 +37,7 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # across Ubuntu releases); install them once inside the sandbox with the
 # version-proof `npx playwright install --with-deps chromium` (see README).
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl gnupg git bash sudo lsof iproute2 \
+      ca-certificates curl gnupg git bash sudo lsof iproute2 unzip jq \
       python3 python3-pip python3-venv python3-fonttools \
       imagemagick librsvg2-bin optipng \
     && rm -rf /var/lib/apt/lists/*

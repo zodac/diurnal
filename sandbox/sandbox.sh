@@ -30,6 +30,11 @@ run() {
     echo "Project directory not found: $PROJECT_DIR" >&2
     exit 1
   fi
+
+  # Always (re)build before launching so every session runs the latest image. Docker's layer
+  # cache makes this a near-instant no-op when nothing in the build context has changed.
+  echo "[sandbox] building $IMAGE before launch..." >&2
+  build
   # Allocate a TTY only when attached to one (so scripted `run` invocations work too).
   local tty=()
   if [ -t 0 ] && [ -t 1 ]; then tty=(-it); else tty=(-i); fi
