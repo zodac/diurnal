@@ -209,7 +209,7 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void dayList_pageClampedWhenExceedsTotal() {
-        // Only 1 action in DB, default pageSize=10 → only 1 page
+        // Only 1 action in DB, default pageSize=5 → only 1 page
         given().queryParam("page", 99).get("/logs/day/" + TODAY + "/list")
                 .then().statusCode(200)
                 .body(containsString("PrimaryAction")); // clamped to page 1
@@ -226,7 +226,7 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void dayList_fillerRowsOnlyWhenMultiplePages() {
-        // With default pageSize=10 and 2 actions, only 1 page — no filler rows needed
+        // With default pageSize=5 and 2 actions, only 1 page — no filler rows needed
         given().get("/logs/day/" + TODAY + "/list")
                 .then().statusCode(200)
                 .body(not(containsString("filler")));

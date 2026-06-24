@@ -29,7 +29,7 @@ import org.jspecify.annotations.Nullable;
  */
 public record UserSettings(String theme, int pageSize) {
 
-    public static final int DEFAULT_PAGE_SIZE = 10;
+    public static final int DEFAULT_PAGE_SIZE = 5;
     public static final String DEFAULT_THEME = "system";
 
     public static final List<Integer> PAGE_SIZE_OPTIONS = List.of(5, 10, 25, 50, 100);

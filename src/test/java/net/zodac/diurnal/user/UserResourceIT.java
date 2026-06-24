@@ -55,7 +55,7 @@ class UserResourceIT extends IntegrationTestBase {
                 .body("role", equalTo("user"))
                 // Preferences are nested and reflect the new user's entity defaults.
                 .body("preferences.theme", equalTo("system"))
-                .body("preferences.pageSize", equalTo(10))
+                .body("preferences.pageSize", equalTo(5))
                 .body("preferences.calendarView", equalTo("full"))
                 .body("preferences.timezone", nullValue());
     }

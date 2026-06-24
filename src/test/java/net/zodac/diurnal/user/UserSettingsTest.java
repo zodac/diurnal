@@ -67,10 +67,10 @@ class UserSettingsTest {
     // ── Constants ─────────────────────────────────────────────────────────────
 
     @Test
-    void defaultPageSize_isTen() {
+    void defaultPageSize_isFive() {
         assertThat(UserSettings.DEFAULT_PAGE_SIZE)
             .as("unexpected value")
-            .isEqualTo(10);
+            .isEqualTo(5);
     }
 
     @Test
