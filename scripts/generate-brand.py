@@ -114,10 +114,15 @@ def render_wordmark(out_path, fill):
 
 
 def render_favicon(out_path, fill):
+    # Square box, but framed SNUG (4%, mirroring the wordmark/footer-mark) so the "d" fills the icon
+    # instead of floating small inside heavy letterboxing — a small mark loses too many pixels when
+    # rasterised to 16/32px and reads blurry/blocky in a browser tab. The pad is taken off the GLYPH
+    # HEIGHT (the larger dimension that drives the square) so the letter sits as tall as possible; the
+    # narrow "d" is then centred horizontally, the only slack a square frame can't avoid.
     d, (x0, y0, x1, y1) = _outline('d')
     w, h = x1 - x0, y1 - y0
     side = max(w, h)
-    pad = round(side * 0.12)
+    pad = round(side * 0.04)
     box = side + 2 * pad
     tx, ty = pad + (side - w) / 2 - x0, pad + (side - h) / 2 - y0
     _write_svg(out_path, box, box, f'translate({tx:.2f},{ty:.2f})', d, fill)

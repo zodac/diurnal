@@ -42,7 +42,7 @@ import org.mindrot.jbcrypt.BCrypt;
 /**
  * REST API authentication endpoints: register a new password user and exchange credentials for a JWT.
  */
-@Tag(name = "Authentication", description = "Create an account and exchange credentials for a Bearer JWT.")
+@Tag(name = "Auth", description = "Create an account and exchange credentials for a Bearer JWT.")
 @Path("/api/auth")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
