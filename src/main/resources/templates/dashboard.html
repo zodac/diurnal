@@ -214,7 +214,7 @@
             </div>
 
             <div id="day-panel"
-                 class="card p-6 lg:sticky lg:top-4 self-start">
+                 class="card p-6 self-start">
                 <p class="text-sm text-ink-muted italic text-center py-4">
                     Click a day to log actions.
                 </p>
@@ -224,12 +224,10 @@
 
         <!-- Stats quick-link (hidden until there are logged actions) -->
         {#if !recentStats.isEmpty()}
-        <div class="card p-6">
-            <h3 class="card-title mb-4">Stats</h3>
-
-            <div class="flex flex-col gap-3 mb-4">
+        <div class="card p-4">
+            <div class="flex flex-col gap-3">
                 {#for s in recentStats}
-                <div class="stat-tile border border-line-subtle
+                <div class="stat-tile px-3 py-2 border border-line-subtle
                             flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
                     <div class="flex items-center gap-2 min-w-0 sm:w-40 sm:flex-shrink-0">
                         <span class="swatch swatch-sm" style="background-color: {s.action.colour}"></span>
@@ -257,10 +255,6 @@
                 </div>
                 {/for}
             </div>
-
-            <a href="/stats" class="btn-primary">
-                View stats for all actions
-            </a>
         </div>
         {/if}
     </main>
