@@ -63,14 +63,14 @@
     --cal-today-fill:    var(--color-brand);           /* current-day highlight (whole cell / date circle) */
     /* Selected day (not today): a brand ring (around the cell / date circle). Constant across light/dark. */
     --cal-selected-ring: inset 0 0 0 2px var(--color-brand);
-    /* Selected day that IS today: brand outer ring, a surface-coloured ("transparent") gap of the same
-       width, then the brand fill. Two forms because the "today" geometry differs — minimal/stacked ring a
-       small circle that has room for an OUTER halo within its cell, while the full calendar fills the whole
-       cell, so it stays INSET to remain fully contained (an outer halo would spill into neighbours). The
-       shadow order differs accordingly (outset paints first-listed innermost, inset first-listed at the
-       edge), but both read identically outer-to-in: brand → gap → brand. */
-    --cal-selected-today-halo:  0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-brand);
-    --cal-selected-today-inset: inset 0 0 0 2px var(--color-brand), inset 0 0 0 4px var(--color-surface);
+    /* Selected day that IS today: a CONTAINED inset ring — a brand outer rim, then a surface-coloured
+       ("transparent") gap of the same width just inside it, then the brand fill (read outer-to-in:
+       brand → gap → brand). Inset (never an outer ring) for BOTH the full calendar and the minimal/stacked
+       date circle so it stays within its box: the full cell would otherwise bleed into neighbouring cells,
+       and the 26px circle's outer ring would overlap the dots/bars strip 2px below. The rim/gap are 1.5px
+       (not 2px) so the digits keep their padding inside the small circle — large-cell 2px looked crowded
+       there; the full calendar shares the same value for one consistent treatment. */
+    --cal-selected-today-inset: inset 0 0 0 1.5px var(--color-brand), inset 0 0 0 3px var(--color-surface);
   }
 
   /* Full calendar — the whole cell carries the "today" highlight. Selecting a (non-today) day rings the
@@ -150,11 +150,14 @@
   }
   /* Selected text needs a lighter brand shade to read on the darker faint fill in dark mode. */
   .dark .d-min-cell.d-min-selected .d-min-date { color: var(--color-brand-strong); }
-  /* Today + selected: keep today's filled circle, but it must STILL show a selection highlight (the
-     shared outer halo — an inset ring would be invisible brand-on-brand). */
+  /* Today + selected: keep today's filled circle and ring it with the shared CONTAINED inset ring (brand
+     rim / surface gap / brand fill — same as the full calendar). Inset stays inside the 26px circle so it
+     never overlaps the dots/bars strip below; the 1.5px rim/gap (see --cal-selected-today-inset) keeps the
+     digits from feeling crowded. A single plain inset brand ring would be invisible brand-on-brand — the
+     surface gap is what makes the selection read on the solid brand fill. */
   .d-min-cell.d-min-today.d-min-selected .d-min-date {
     background: var(--cal-today-fill); color: var(--color-on-brand);
-    box-shadow: var(--cal-selected-today-halo);
+    box-shadow: var(--cal-selected-today-inset);
   }
   .d-min-cell.d-min-other .d-min-date { color: rgb(156,163,175); }
   .dark .d-min-cell.d-min-other .d-min-date { color: rgb(75,85,99); }
