@@ -57,18 +57,19 @@ RUN install -m 0755 -d /etc/apt/keyrings \
          docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin \
     && rm -rf /var/lib/apt/lists/*
 
-# ── Maven 3.9 (apt ships an older one; the parent-pom enforcer wants 3.9+) ────
+# ── Maven ────
 RUN curl -fsSL "https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz" \
       -o /tmp/maven.tar.gz \
     && tar -xzf /tmp/maven.tar.gz -C /opt \
     && ln -s "/opt/apache-maven-${MAVEN_VERSION}" /opt/maven \
     && rm /tmp/maven.tar.gz
 
-# ── Node 26 via NodeSource + Claude Code CLI ─────────────────────────────────
+# ── Node 26 via NodeSource ───────────────────────────────────────────────────
+# Claude Code itself is installed later, AFTER the `dev` user exists, into a
+# dev-owned npm prefix (see below) so its self-update isn't blocked.
 RUN curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
     && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/* \
-    && npm install -g @anthropic-ai/claude-code
+    && rm -rf /var/lib/apt/lists/*
 
 # ── Non-root user `dev` matching the host UID/GID, with passwordless sudo ────
 # The base image may already ship a user/group at ${UID}/${GID} (Ubuntu's
@@ -86,6 +87,18 @@ RUN set -eux; \
     usermod -aG docker dev; \
     echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev; \
     chmod 0440 /etc/sudoers.d/dev
+
+# ── Claude Code CLI into a dev-owned npm prefix (so auto-update works) ────────
+# Installing `-g` into npm's default /usr prefix makes the package and the
+# /usr/bin/claude launcher root-owned, so the unprivileged `dev` user can't
+# self-update — /doctor reports "npm global folder isn't writable". Instead,
+# point npm's global prefix at a dev-owned dir (persisted in the image layer,
+# baked via .npmrc so it needs no runtime env) and install AS dev, so updates
+# write without sudo. The prefix's bin dir goes on PATH for both build & runtime.
+ENV PATH=/home/dev/.npm-global/bin:$PATH
+RUN install -d -o dev -g dev /home/dev/.npm-global \
+    && sudo -u dev -H npm config set prefix /home/dev/.npm-global \
+    && sudo -u dev -H npm install -g @anthropic-ai/claude-code
 
 # Let Playwright manage its own Chromium (cached under $HOME, persisted via volume).
 ENV PLAYWRIGHT_BROWSERS_PATH=/home/dev/.cache/ms-playwright
