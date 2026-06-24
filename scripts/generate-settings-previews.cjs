@@ -19,13 +19,16 @@
  * ----------------
  * Two sets of the same configurations — a web (landscape) set and a mobile (portrait, `-mobile`
  * suffix) set, so the Settings tiles can show the device-appropriate shot (web at the `sm` breakpoint
- * and up, mobile below it). Both the theme picker AND the calendar picker are captured for every
- * calendar style, so the theme picker can show the preview matching the user's selected style:
- *   theme-{full,minimal,stacked}-{light,dark,system}.png      (+ -mobile)   (theme picker — one
- *                                              full-page shot per calendar style; system = diagonal split)
- *   calendar-{full,minimal,stacked}-{light,dark}.png          (+ -mobile)   (calendar picker — calendar only)
+ * and up, mobile below it). Captures span the full `font × calendar-style × theme` matrix so EVERY
+ * picker (Theme, Calendar style, Font) can reveal the variant matching the user's current font + style
+ * + theme. The naming is uniform:
+ *   page-{nova,standard}-{full,minimal,stacked}-{light,dark,system}.png  (+ -mobile)
+ *                          full-page shot — used by the Theme picker (reveal style+font) and the Font
+ *                          picker (reveal style+theme); `system` is a diagonal light/dark split.
+ *   cal-{nova,standard}-{full,minimal,stacked}-{light,dark}.png          (+ -mobile)
+ *                          calendar-only shot — used by the Calendar picker (reveal font+theme).
  * Every screenshot uses the SAME seeded data so the only visible difference within a viewport is the
- * theme / calendar style — that is the whole point of the previews.
+ * font / calendar style / theme — that is the whole point of the previews. (**60 PNGs total.**)
  *
  * PREREQUISITES
  * -------------
@@ -150,10 +153,12 @@ async function seed(ctx) {
 
 // ── Screenshot capture ───────────────────────────────────────────────────────────────────────────
 
-async function setPrefs(ctx, theme, calendarView) {
-  // Persist prefs via the same endpoint the settings form posts to.
+async function setPrefs(ctx, theme, calendarView, font = 'nova') {
+  // Persist prefs via the same endpoint the settings form posts to. `font` defaults to 'nova' (the
+  // app default) so the theme/calendar captures are taken in the brand font; the font picker's
+  // Standard tile is captured by passing font='standard'.
   const res = await ctx.request.post(BASE + '/settings',
-    { form: { theme, pageSize: '10', calendarView, timezone: 'UTC' } });
+    { form: { theme, font, pageSize: '10', calendarView, timezone: 'UTC' } });
   if (!res.ok()) throw new Error('setPrefs failed: ' + res.status());
 }
 
@@ -163,8 +168,8 @@ async function openDashboard(ctx, calendarView) {
   const page = await ctx.newPage();
   await page.goto(BASE + '/', { waitUntil: 'networkidle' }); // the dashboard is served at /
   const sel = calendarView === 'full' ? '.fc-event'
-            : calendarView === 'stacked' ? '.lt-stk-bar'
-            : '.lt-min-dot';
+            : calendarView === 'stacked' ? '.d-stk-bar'
+            : '.d-min-dot';
   await page.waitForSelector(sel, { timeout: 15000 });
   await page.waitForTimeout(600); // settle fonts/layout
   return page;
@@ -251,6 +256,7 @@ function optimise() {
 // ── Main ───────────────────────────────────────────────────────────────────────────────────────
 
 const CALENDAR_VIEWS = ['full', 'minimal', 'stacked'];
+const FONTS = ['nova', 'standard'];
 
 // Capture the full set (theme + calendar pickers) for one viewport. `suffix` is appended before the
 // extension ('' for web, '-mobile' for the portrait phone shots). Prefs are stored server-side on the
@@ -261,26 +267,31 @@ const CALENDAR_VIEWS = ['full', 'minimal', 'stacked'];
 async function captureSet(ctx, suffix) {
   const f = base => base + suffix + '.png';
 
-  for (const view of CALENDAR_VIEWS) {
-    for (const theme of ['light', 'dark']) {
-      await setPrefs(ctx, theme, view);
-      const page = await openDashboard(ctx, view);
-      await shotFullPage(page, f(`theme-${view}-${theme}`));        // theme picker: whole page, this style
-      await shotCalendar(page, f(`calendar-${view}-${theme}`));     // calendar picker: calendar only
-      await page.close();
+  for (const font of FONTS) {
+    for (const view of CALENDAR_VIEWS) {
+      for (const theme of ['light', 'dark']) {
+        await setPrefs(ctx, theme, view, font);
+        const page = await openDashboard(ctx, view);
+        await shotFullPage(page, f(`page-${font}-${view}-${theme}`));  // Theme + Font pickers: whole page
+        await shotCalendar(page, f(`cal-${font}-${view}-${theme}`));   // Calendar picker: calendar only
+        await page.close();
+      }
     }
   }
 }
 
-// Build the `system` theme preview (diagonal light/dark split) for every calendar style.
+// Build the `system` theme preview (diagonal light/dark split) — full-page only, for every font × style
+// (the Theme picker's System tile resolves to this; the Calendar picker has no System tile).
 async function compositeSystemAll(browser, suffix) {
   const s = suffix;
-  for (const view of CALENDAR_VIEWS) {
-    await compositeSystem(browser, {
-      light: `theme-${view}-light${s}.png`,
-      dark: `theme-${view}-dark${s}.png`,
-      out: `theme-${view}-system${s}.png`,
-    });
+  for (const font of FONTS) {
+    for (const view of CALENDAR_VIEWS) {
+      await compositeSystem(browser, {
+        light: `page-${font}-${view}-light${s}.png`,
+        dark: `page-${font}-${view}-dark${s}.png`,
+        out: `page-${font}-${view}-system${s}.png`,
+      });
+    }
   }
 }
 

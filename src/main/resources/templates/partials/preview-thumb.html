@@ -5,57 +5,47 @@
   ratio of the source image is irrelevant. Drop this in wherever a settings thumbnail is needed; to
   resize every thumbnail, change `.preview-thumb` once.
 
-  Two modes:
+  Every preview tile is a screenshot parameterised by (font, calendar style, theme); each picker FIXES
+  one of those (its own dimension) and RENDERS all combinations of the other two, letting CSS reveal the
+  one matching the user's live state — so a preview always mirrors the current config. Exactly one of
+  the three mode params below is non-empty; the rest are "":
 
-  • Calendar/plain mode (default): renders the four responsive `<img>` variants for ONE screenshot —
-    web/mobile × light/dark (when imgDark is given).
-
-  • Theme mode (`themeBase` set to "light" | "dark" | "system"): the theme picker needs one full-page
-    shot PER calendar style. This renders all three (`theme-{style}-{themeBase}{,-mobile}.png`) and lets
-    the page show only the one matching the selected style — each style's pair is wrapped in a
-    `[data-cal-style]` group, toggled by the `#theme-options[data-cal=…]` CSS in app.css (settings.html
-    keeps `data-cal` in sync with the Calendar-style radios). Theme shots are theme-specific (no dark variant).
+  • Theme mode (`themeBase` = "light"|"dark"|"system"): theme fixed. Renders the full-page shot per
+    calendar style × font (`partials/preview-thumb-theme-group`). `#theme-options` reveals by selected
+    style (`data-cal`) + active font (`.font-nova`).
+  • Calendar mode (`calStyle` = "full"|"minimal"|"stacked"): style fixed. Renders the calendar-only shot
+    per font × theme (`partials/preview-thumb-cal-group`). `#calendar-options` reveals by active font
+    (`.font-nova`) + active mode (`.dark`).
+  • Font mode (`fontBase` = "nova"|"standard"): font fixed. Renders the full-page shot per calendar
+    style × theme (`partials/preview-thumb-font-group`). `#font-options` reveals by selected style
+    (`data-cal`) + active mode (`.dark`).
 
   LOADING / SWITCHING. Two separate hiding mechanisms, on purpose:
     • VIEWPORT is gated with `display` (the `sm:` classes): the OTHER viewport's images are `display:none`
       and `loading="lazy"`, so they are never fetched — we don't download what the user can't see (a
       desktop user never sees the mobile thumbnails, or vice-versa, unless the window crosses `sm`).
-    • The not-yet-shown variant WITHIN the current viewport — the opposite theme here, or the other
-      calendar styles in theme mode — is hidden with `visibility`/`invisible` (NOT display), so it stays
-      laid out and settings.html can `decode()` it up front. That makes theme / calendar-style switches
-      flash-free; a `display:none` image cannot be pre-decoded (its decode() promise never resolves).
+    • The not-yet-shown variants WITHIN the current viewport (other fonts/styles/themes) are hidden with
+      `visibility` (NOT display) by the `#…-options` rules in app.css, so they stay laid out and
+      settings.html can `decode()` them up front. That makes font/style/theme switches flash-free; a
+      `display:none` image cannot be pre-decoded (its decode() promise never resolves).
 
   Params:
-    alt          - image alt text (all modes)
-    themeBase    - "light" | "dark" | "system" to enable theme mode; omit/"" for calendar/plain mode
-    img          - (plain mode) web (landscape) light-mode screenshot filename under /img/settings/
-    imgMobile    - (plain mode) mobile (portrait) light-mode screenshot filename
-    imgDark      - (plain mode) OPTIONAL web dark-mode filename; "" when the shot is theme-specific
-    imgDarkMobile- (plain mode) OPTIONAL mobile dark-mode filename; "" alongside imgDark
+    alt        - image alt text (all modes)
+    themeBase  - "light"|"dark"|"system" to enable theme mode; "" otherwise
+    calStyle   - "full"|"minimal"|"stacked" to enable calendar mode; "" otherwise
+    fontBase   - "nova"|"standard" to enable font mode; "" otherwise
 !}
 <span class="preview-thumb">
     {#if themeBase}
-    <span data-cal-style="full">
-        <img src="/img/settings/theme-full-{themeBase}.png"        alt="{alt}" class="preview-img hidden sm:block" loading="lazy" decoding="async">
-        <img src="/img/settings/theme-full-{themeBase}-mobile.png" alt="{alt}" class="preview-img block sm:hidden" loading="lazy" decoding="async">
-    </span>
-    <span data-cal-style="minimal">
-        <img src="/img/settings/theme-minimal-{themeBase}.png"        alt="{alt}" class="preview-img hidden sm:block" loading="lazy" decoding="async">
-        <img src="/img/settings/theme-minimal-{themeBase}-mobile.png" alt="{alt}" class="preview-img block sm:hidden" loading="lazy" decoding="async">
-    </span>
-    <span data-cal-style="stacked">
-        <img src="/img/settings/theme-stacked-{themeBase}.png"        alt="{alt}" class="preview-img hidden sm:block" loading="lazy" decoding="async">
-        <img src="/img/settings/theme-stacked-{themeBase}-mobile.png" alt="{alt}" class="preview-img block sm:hidden" loading="lazy" decoding="async">
-    </span>
-    {#else if imgDark}
-    {! display gates the viewport (other viewport never loads); visibility gates the theme (both stay
-       laid out → decodable → flash-free light/dark toggle). !}
-    <img src="/img/settings/{img}"           alt="{alt}" class="preview-img hidden sm:block dark:invisible"   loading="lazy" decoding="async">
-    <img src="/img/settings/{imgDark}"       alt="{alt}" class="preview-img hidden sm:block invisible dark:visible" loading="lazy" decoding="async">
-    <img src="/img/settings/{imgMobile}"     alt="{alt}" class="preview-img block sm:hidden dark:invisible"   loading="lazy" decoding="async">
-    <img src="/img/settings/{imgDarkMobile}" alt="{alt}" class="preview-img block sm:hidden invisible dark:visible" loading="lazy" decoding="async">
-    {#else}
-    <img src="/img/settings/{img}"       alt="{alt}" class="preview-img hidden sm:block" loading="lazy" decoding="async">
-    <img src="/img/settings/{imgMobile}" alt="{alt}" class="preview-img block sm:hidden" loading="lazy" decoding="async">
+    {#include partials/preview-thumb-theme-group style="full"    themeBase=themeBase alt=alt /}
+    {#include partials/preview-thumb-theme-group style="minimal" themeBase=themeBase alt=alt /}
+    {#include partials/preview-thumb-theme-group style="stacked" themeBase=themeBase alt=alt /}
+    {#else if calStyle}
+    {#include partials/preview-thumb-cal-group font="nova"     calStyle=calStyle alt=alt /}
+    {#include partials/preview-thumb-cal-group font="standard" calStyle=calStyle alt=alt /}
+    {#else if fontBase}
+    {#include partials/preview-thumb-font-group fontBase=fontBase style="full"    alt=alt /}
+    {#include partials/preview-thumb-font-group fontBase=fontBase style="minimal" alt=alt /}
+    {#include partials/preview-thumb-font-group fontBase=fontBase style="stacked" alt=alt /}
     {/if}
 </span>

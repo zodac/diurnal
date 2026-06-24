@@ -126,6 +126,45 @@ class UserSettingsTest {
             .isTrue();
     }
 
+    // ── Font sanitisation ──────────────────────────────────────────────────────
+
+    @ParameterizedTest
+    @ValueSource(strings = {"nova", "standard"})
+    void sanitiseFont_validValues_passedThrough(final String font) {
+        assertThat(UserSettings.sanitiseFont(font))
+            .as("unexpected value")
+            .isEqualTo(font);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"serif", "system", "", "Nova", "Standard", "none", "mono"})
+    void sanitiseFont_invalidValues_returnsDefault(final String font) {
+        assertThat(UserSettings.sanitiseFont(font))
+            .as("unexpected value")
+            .isEqualTo(UserSettings.DEFAULT_FONT);
+    }
+
+    @Test
+    void defaultFont_isNova() {
+        assertThat(UserSettings.DEFAULT_FONT)
+            .as("unexpected value")
+            .isEqualTo("nova");
+    }
+
+    @Test
+    void fontOptions_containsExactlyTwoValues() {
+        assertThat(UserSettings.FONT_OPTIONS.size())
+            .as("unexpected value")
+            .isEqualTo(2);
+    }
+
+    @Test
+    void fontOptions_defaultIsIncluded() {
+        assertThat(UserSettings.FONT_OPTIONS.contains(UserSettings.DEFAULT_FONT))
+            .as("expected condition to be true")
+            .isTrue();
+    }
+
     // ── Timezone sanitisation ──────────────────────────────────────────────────
 
     @ParameterizedTest

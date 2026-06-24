@@ -139,6 +139,7 @@ public class WebResource {
         final boolean showError = error != null && !"false".equals(error) && !showOidcError;
         final Response.ResponseBuilder builder = Response.ok(loginTemplate
                 .data("error", showError, "registered", registered, "theme", "system")
+                .data("font", "nova")
                 .data("oidcError", showOidcError)
                 .data("passwordAuthEnabled", passwordAuthEnabled)
                 .data("registrationEnabled", passwordAuthEnabled && registrationEnabled)
@@ -207,7 +208,7 @@ public class WebResource {
         if (!setupRequired() || !passwordAuthEnabled) {
             return Response.seeOther(URI.create("/login")).build();
         }
-        return Response.ok(setupTemplate.data("theme", "system")).build();
+        return Response.ok(setupTemplate.data("theme", "system").data("font", "nova")).build();
     }
 
     // ── Register ───────────────────────────────────────────────────────────
@@ -331,6 +332,7 @@ public class WebResource {
                 .data("setup", setupRequired())
                 .data("registrationDisabled", false)
                 .data("theme", "system")
+                .data("font", "nova")
                 .data("maxPasswordLength", User.MAX_PASSWORD_LENGTH);
     }
 
@@ -338,7 +340,8 @@ public class WebResource {
         return registerTemplate
                 .data("registrationDisabled", true)
                 .data("setup", false)
-                .data("theme", "system");
+                .data("theme", "system")
+                .data("font", "nova");
     }
 
     private boolean setupRequired() {
@@ -397,11 +400,13 @@ public class WebResource {
     @Transactional
     public TemplateInstance updateSettings(
             @FormParam("theme") @DefaultValue("system") final String theme,
+            @FormParam("font") @DefaultValue("nova") final String font,
             @FormParam("pageSize") @DefaultValue("10") final int pageSize,
             @FormParam("calendarView") @DefaultValue("full") final String calendarView,
             @FormParam("timezone") @DefaultValue("") final String timezone) {
         final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
         user.theme = UserSettings.sanitiseTheme(theme);
+        user.font = UserSettings.sanitiseFont(font);
         user.pageSize = UserSettings.sanitisePageSize(pageSize);
         user.calendarView = UserSettings.sanitiseCalendarView(calendarView);
         user.timezone = UserSettings.sanitiseTimezone(timezone);
@@ -432,10 +437,12 @@ public class WebResource {
                 .data("email", user.email)
                 .data("displayName", user.displayName)
                 .data("theme", user.theme)
+                .data("font", user.font)
                 .data("isAdmin", user.isAdmin())
                 .data("pageSize", user.pageSize)
                 .data("pageSizeOptions", UserSettings.PAGE_SIZE_OPTIONS)
                 .data("themeOptions", UserSettings.THEME_OPTIONS)
+                .data("fontOptions", UserSettings.FONT_OPTIONS)
                 .data("calendarView", user.calendarView)
                 .data("calendarViewOptions", UserSettings.CALENDAR_VIEW_OPTIONS)
                 .data("timezoneChoices",
@@ -460,6 +467,7 @@ public class WebResource {
                 .data("email", user.email)
                 .data("displayName", user.displayName)
                 .data("theme", user.theme)
+                .data("font", user.font)
                 .data("isAdmin", user.isAdmin())
                 .data("calendarView", user.calendarView)
                 .data("today", clock.today(clock.zoneFor(user.timezone)).toString())

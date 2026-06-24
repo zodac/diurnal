@@ -354,6 +354,38 @@ unparseable → `400` via `BadRequestException`) — the app requests a month at
 request is redirected to `/login` (302) by `BrowserLoginChallengeMechanism`, not given a 401. The compact `/logs/minimal-events` feed stays internal
 (`@Operation(hidden = true)`, excluded from the docs).
 
+### Typography & the per-user Font setting
+
+The app ships two webfonts from the **Nova** superfamily, served as `woff2` from
+`src/main/resources/META-INF/resources/fonts/`: **Nova Flat** (the brand/wordmark font — body/UI face,
+with bold + oblique variants) and **Nova Round** (a softer, rounded sibling — the **display** face for
+headings/highlights). `@font-face` blocks live in `app.css` (with `font-display: swap`).
+
+The committed `woff2` are generated, self-contained output — the app/build never read a `.ttf` at
+runtime. Their `.ttf` **masters** are the curated set kept in `scripts/assets/Nova/` (only the 6 faces
+actually served: `NovaFlat-{Book,Bold,BookOblique,BoldOblique}` + `NovaRound-{Book,Bold}`). To
+regenerate a `woff2` after re-subsetting or adding a face, convert with `fonttools` (the same dependency
+the brand pipeline uses), e.g.:
+`python3 -c "from fontTools.ttLib import TTFont; f=TTFont('scripts/assets/Nova/NovaFlat-Book.ttf'); f.flavor='woff2'; f.save('src/main/resources/META-INF/resources/fonts/NovaFlat-Book.woff2')"`.
+
+Font family is **indirected through two CSS variables** so it is per-user switchable in one place:
+`--font-body` / `--font-display` (defined on `:root`). Tailwind's `font-sans` / `font-display` resolve
+to them (`tailwind.config.js`), so the whole app (body via preflight, plus the `h1,h2,h3`/`.card-title`/
+`.field-label-caps`/`stat-tile` `font-display` opt-ins) follows whichever the variables point at.
+
+The **Font setting** (`User.font`, values `nova` | `standard`, default `nova`, migration `V13`,
+allow-list + `sanitiseFont` in `UserSettings`) chooses between them. `:root`'s defaults are the
+**system** sans stack (= "Standard"); the **`.font-nova`** class (in `app.css`) re-points the variables
+to the Nova faces. `layout.html` renders that class on `<html>` server-side — `{#if font != 'standard'}`
+(so Nova is the default for any unset/`nova` value; only an explicit `standard` opts out) — correct from
+first paint, no FOUC. The settings picker also toggles `.font-nova` **live** (mirroring the live theme
+switch). The body preload of `NovaFlat-Book.woff2` is likewise gated on `font != 'standard'`.
+
+**Because Qute renders in strict mode, `font` must be passed wherever the layout is rendered** — every
+resource that passes `theme` to a full-page template also passes `font` (mirror it 1:1; the day-panel
+HTMX partial renders no layout, so it needs neither). The Settings **Font picker** (one tile per font,
+each a real dashboard screenshot in that font) is documented under "Settings preview thumbnails".
+
 ### Brand assets
 
 There is **no logo/icon mark** — branding is purely typographic, set in **Nova Flat Book** with the
@@ -400,37 +432,41 @@ stage from the committed `favicon.svg` (visually identical, may differ by a few 
 
 ### Settings preview thumbnails
 
-The **Theme** and **Calendar style** pickers in `settings.html` are not abstract icons — each option is a
-scaled-down real screenshot of the dashboard in that configuration (rendered by
+The **Theme**, **Calendar style** and **Font** pickers in `settings.html` are not abstract icons — each
+option is a scaled-down real screenshot of the dashboard in that configuration (rendered by
 `partials/preview-option.html`, with an `(!)` button that opens the full-size image in a lightbox). The
 PNGs live in `src/main/resources/META-INF/resources/img/settings/`, captured as **two viewport sets** —
 a **web** (landscape) set and a **mobile** (portrait, `-mobile` suffix) set — so each tile shows the
 device-appropriate shot: the web variant at the `sm` breakpoint and up, the mobile variant below it
-(selected purely by combined `sm:`/`dark:` Tailwind variants on the `<img>`s). The lightbox is
-src-attribute-free: `previewSrcFor` simply reads whichever thumbnail `<img>` is currently rendered
-(others are `display:none`), since the thumbnail and the full image are the **same file** (the thumbnail
-is just CSS-cropped) — so the modal automatically shows the right viewport/theme/calendar-style variant.
-The two pickers differ in **framing**: theme tiles are a **full-page** dashboard shot (navbar, heading,
-calendar, day panel, stats — captured with `fullPage:true`), while calendar tiles are a **calendar-only**
-shot (an element screenshot of the card wrapping `#calendar`/`#calendar-minimal`, so the whole calendar
-is captured even where it overflows the viewport, and nothing else).
+(the viewport split is the imgs' `sm:` `display` classes; everything else is the `#…-options` reveal
+rules below). The lightbox is src-attribute-free: `previewSrcFor` reads whichever thumbnail `<img>` is
+currently shown (it uses `checkVisibility()`, since the non-shown variants are `visibility:hidden`, not
+`display:none`), since the thumbnail and the full image are the **same file** (just CSS-cropped) — so
+the modal automatically shows the right font/style/theme/viewport variant.
+The pickers differ in **framing**: the `page-*` (full-page) shots — used by the Theme and Font pickers —
+capture the whole dashboard (navbar, heading, calendar, day panel, stats — `fullPage:true`), while the
+`cal-*` (calendar-only) shots — used by the Calendar picker — are an element screenshot of the card
+wrapping `#calendar`/`#calendar-minimal` (the whole calendar even where it overflows, and nothing else).
 
-**Theme previews track the selected calendar style.** A theme preview is a *full-page* shot, so its
-calendar reflects a calendar style — and it must match the one the user has chosen. Each theme tile
-therefore carries **one full-page shot per calendar style** (`theme-{full,minimal,stacked}-{theme}`),
-wrapped in `[data-cal-style]` groups inside the `.preview-thumb` frame; the `#theme-options[data-cal]`
-rules in `app.css` reveal only the matching group, and `settings.html` keeps `data-cal` in sync **live**
-as the Calendar-style radios change. `preview-thumb.html` has a `themeBase` mode that emits these
-per-style groups; calendar tiles use its plain (single-screenshot) mode.
+**Every picker reflects the user's full current config.** Each tile is a screenshot parameterised by
+`(font, calendar style, theme)`; a picker **fixes its own dimension** per tile and renders all
+combinations of the other two, and the `#…-options` reveal rules in `app.css` show only the variant
+matching the user's **live** state — font (`.font-nova` on `<html>`), mode (`.dark`), and/or selected
+calendar style (`#theme-options`/`#font-options[data-cal]`, kept in sync by `settings.html` as the
+Calendar-style radios change). So a **Theme** thumbnail follows the chosen style **and** font (theme
+fixed per tile); a **Calendar** thumbnail follows the active font **and** light/dark (style fixed); a
+**Font** thumbnail follows the chosen style **and** light/dark (font fixed). Toggling *any* of the three
+settings updates the other pickers' previews live (e.g. switching to the Standard font re-points every
+Theme/Calendar thumbnail to its `*-standard-*` variant).
 
 **Loading/decoding — two hiding mechanisms, on purpose (see `preview-thumb.html`).** All thumbnails are
 `loading="lazy"`. **Viewport** is gated with `display` (the `sm:` classes): the other viewport's images
 are `display:none` and never fetched — so a desktop user never downloads the ~half of the ~3.8 MB set
 that is the mobile (portrait) shots, or vice versa (only loaded if the window crosses the `sm`
-breakpoint). The not-yet-shown variant *within* the current viewport — the opposite theme on a calendar
-tile, or the other calendar styles on a theme tile — is hidden with **`visibility`/`invisible`** (NOT
-display), so it stays laid out and `settings.html` can `decode()` it up front. That pre-decode makes
-theme / calendar-style switches **flash-free**; it must use `visibility` because `img.decode()` resolves
+breakpoint). The not-yet-shown variants *within* the current viewport — the other font / calendar-style /
+theme combinations a tile carries — are hidden with **`visibility`** (NOT display) by the `#…-options`
+rules, so they stay laid out and `settings.html` can `decode()` them up front. That pre-decode makes
+font / calendar-style / theme switches **flash-free**; it must use `visibility` because `img.decode()` resolves
 for a `visibility:hidden` image but **never resolves for a `display:none` one** (so a display:none image
 can't be pre-decoded — which was the cause of the switch flash). The on-load warm-up just calls
 `decode()` on every laid-out (`display!=none`) preview image; `previewSrcFor` uses `checkVisibility()`
@@ -438,19 +474,29 @@ can't be pre-decoded — which was the cause of the switch flash). The on-load w
 
 **Thumbnail sizing is decoupled from the screenshots' real aspect ratios.** The captured images have
 varying shapes, but the on-page thumbnails are all one fixed size *per viewport* (portrait on mobile,
-landscape at `sm`+): the reusable `partials/preview-thumb.html` renders the four responsive `<img>`
+landscape at `sm`+): the reusable `partials/preview-thumb.html` renders the responsive `<img>`
 variants inside a fixed-ratio frame and crops each to the **top** (`object-top`), so e.g. a tall
 full-page theme shot shows only its top in the thumbnail while the (!) lightbox still shows it whole.
 The frame ratios are the single source of truth in **`.preview-thumb`** (`app.css`,
 `aspect-[3/4] sm:aspect-[3/2]`) — change them there to resize every thumbnail at once. Any **future**
 settings thumbnail should render through `partials/preview-thumb.html` so it automatically obeys these
 rules; because sizing no longer depends on the image, the includes pass **no** per-tile dimensions.
-The files: `theme-{full,minimal,stacked}-{light,dark,system}.png` (the theme picker — one full-page shot
-per calendar style; `system` is a diagonal light/dark split) and
-`calendar-{full,minimal,stacked}-{light,dark}.png` (the calendar picker — captured in **both** themes;
-the tile shows the variant matching the active mode, so it always matches the chosen light/dark theme),
-each with a matching `…-mobile.png`. (**30 PNGs total.**) Each `theme-{style}-{theme}` and its
-`calendar-{style}-{theme}` are captured from the same dashboard load (full-page vs calendar-only).
+The images use one **uniform naming scheme** under `img/settings/`:
+- `page-{nova,standard}-{full,minimal,stacked}-{light,dark,system}.png` (+ `-mobile`) — the **full-page**
+  shot, used by the **Theme** picker (reveal style+font) and the **Font** picker (reveal style+theme);
+  `system` is a diagonal light/dark split (`compositeSystem`, full-page only).
+- `cal-{nova,standard}-{full,minimal,stacked}-{light,dark}.png` (+ `-mobile`) — the **calendar-only**
+  shot (an element screenshot of the calendar card), used by the **Calendar** picker (reveal font+theme).
+
+(**60 PNGs total.**) The `page-` and `cal-` shots for a given `(font, style, light|dark)` are captured
+from the **same** dashboard load (full-page vs calendar-only) in `captureSet`, which loops
+`font × calendar-style × theme`; the `page-…-system` composites are derived from the light/dark pair.
+
+`partials/preview-thumb.html` has three modes — `themeBase` (Theme), `calStyle` (Calendar), `fontBase`
+(Font), exactly one non-empty — and emits the matching nested `[data-cal-style]` / `[data-font]` /
+`[data-theme]` groups via `partials/preview-thumb-{theme,cal,font}-group.html`. `preview-option.html`
+forwards all three mode params to it (Qute renders strict, so each must always be present — `""` when
+unused), so every call site in `settings.html` passes `themeBase` + `calStyle` + `fontBase`.
 
 **These are committed assets — nothing in the app or the Maven/Docker build regenerates them.** Re-run
 `scripts/generate-settings-previews.cjs` whenever the dashboard's appearance changes in a way the
@@ -507,7 +553,7 @@ controls are rendered server-side as HTML. Page size is a per-user setting valid
 
 ### Database migrations
 
-Flyway scripts live in `src/main/resources/db/migration/`. Schema versioning is sequential (`V1__` through `V8__`). Never edit an already-applied
+Flyway scripts live in `src/main/resources/db/migration/`. Schema versioning is sequential (`V1__` through `V13__`). Never edit an already-applied
 migration; always add a new `V{n+1}__` file.
 
 ### Testing conventions

@@ -1,0 +1,22 @@
+{!
+  One font group of a CALENDAR-picker thumbnail (see partials/preview-thumb.html, calendar mode).
+  The calendar style is fixed for the whole tile (`calStyle`); this group holds the calendar-only shot
+  for `{font}` in BOTH light and dark themes. The `#calendar-options` CSS in app.css reveals the
+  `[data-font]` matching the active font (`.font-nova`) and, within it, the `[data-theme]` matching the
+  active mode (`.dark`); the imgs' `sm:` classes pick the viewport.
+
+  Params:
+    font     - "nova" | "standard"
+    calStyle - calendar style of this tile: "full" | "minimal" | "stacked"
+    alt      - image alt text
+!}
+<span data-font="{font}">
+    <span data-theme="light">
+        <img src="/img/settings/cal-{font}-{calStyle}-light.png"        alt="{alt}" class="preview-img hidden sm:block" loading="lazy" decoding="async">
+        <img src="/img/settings/cal-{font}-{calStyle}-light-mobile.png" alt="{alt}" class="preview-img block sm:hidden" loading="lazy" decoding="async">
+    </span>
+    <span data-theme="dark">
+        <img src="/img/settings/cal-{font}-{calStyle}-dark.png"        alt="{alt}" class="preview-img hidden sm:block" loading="lazy" decoding="async">
+        <img src="/img/settings/cal-{font}-{calStyle}-dark-mobile.png" alt="{alt}" class="preview-img block sm:hidden" loading="lazy" decoding="async">
+    </span>
+</span>

@@ -2,6 +2,65 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Brand typography — the Nova superfamily (the same family the wordmark is set in).
+ *
+ * Two faces drive the Nova theme, both served locally as woff2 from
+ * /fonts (src/main/resources/META-INF/resources/fonts/, generated from the curated .ttf masters
+ * kept in scripts/assets/Nova/ — see CLAUDE.md "Typography & the per-user Font setting"):
+ *   - "Nova Flat"  — the brand font; the body/UI face under the Nova theme.
+ *                    Book = 400, Bold = 700, each with an oblique (italic) variant.
+ *   - "Nova Round" — a softer, rounded sibling used as the DISPLAY face for headings and
+ *                    stat highlights, giving clear hierarchy over the body.
+ * Whether these are used at all is per-user: the `--font-body`/`--font-display` variables only
+ * resolve to them under the `.font-nova` class (the Font setting), otherwise the system stack is
+ * used and these faces are never fetched (no element references them).
+ * `font-display: swap` paints text immediately in the fallback stack, then swaps when the
+ * web font arrives — so a slow font never blocks first paint.
+ */
+@font-face {
+  font-family: 'Nova Flat';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/NovaFlat-Book.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Nova Flat';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/NovaFlat-BookOblique.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Nova Flat';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/NovaFlat-Bold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Nova Flat';
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/NovaFlat-BoldOblique.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Nova Round';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/NovaRound-Book.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Nova Round';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/NovaRound-Bold.woff2') format('woff2');
+}
+
 @layer utilities {
   /*
    * Full-viewport min-height for the flexbox sticky-footer shell (the page wrapper is a
@@ -39,6 +98,16 @@
  */
 @layer base {
   :root {
+    /*
+     * Font stacks, indirected through variables so the per-user Font setting can swap the whole
+     * app between the "Standard" system sans (the default here) and the "Nova" brand theme — which
+     * is just the `.font-nova` class (set on <html> server-side from the user's preference)
+     * re-pointing these two variables. Tailwind's `font-sans`/`font-display` resolve to them (see
+     * tailwind.config.js), so body copy + headings follow whichever theme is active.
+     */
+    --font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-display: var(--font-body);
+
     /* @generated:brand (light) — computed from scripts/assets/wordmark.svg by scripts/generate-brand.py; do not hand-edit (edit the wordmark + run `npm run brand`). */
     --color-brand: #6366f1;  /* the wordmark colour — THE core accent */
     --color-brand-hover: #5356ca;  /* darker — hover/active */
@@ -126,6 +195,28 @@
     --color-banner-warning-border: #78350f;         /* amber-900 */
     --color-banner-warning-text: #fde68a;           /* amber-200 */
   }
+
+  /*
+   * The "Nova" Font setting: re-point the font variables to the brand Nova faces. Applied via the
+   * `.font-nova` class rendered on <html> from the user's preference (and toggled live by the
+   * settings picker). Absent the class, :root's system stack stands — the "Standard" font. The
+   * variants are independent of (and coexist with) the `.dark` class on the same element.
+   */
+  .font-nova {
+    --font-body: 'Nova Flat', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'Nova Round', 'Nova Flat', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  /*
+   * Headings use the display face app-wide (page titles, section headings, the dashboard
+   * "Welcome", auth headings) — Nova Round under the Nova theme, the system sans otherwise. A
+   * slight negative tracking tightens the glyphs at large sizes. Per-heading weight/size/colour
+   * stay on the element's own utilities.
+   */
+  h1, h2, h3 {
+    font-family: var(--font-display);
+    letter-spacing: -0.01em;
+  }
 }
 
 /*
@@ -168,7 +259,7 @@
   .card { @apply bg-surface rounded-2xl border border-line; }
   /* Section heading inside a content card (Account, Preferences, New action, Stats). Bottom
      margin stays at the call site (it varies with the card's layout). */
-  .card-title { @apply text-base font-semibold text-ink; }
+  .card-title { @apply text-base font-semibold text-ink font-display; }
   /* Inset stat tile (stats cards, dashboard summary). */
   .stat-tile { @apply bg-surface-muted rounded-xl p-3; }
 
@@ -205,19 +296,45 @@
   .preview-thumb { @apply relative block w-full overflow-hidden bg-surface-muted aspect-[3/4] sm:aspect-[3/2]; }
   /* The image fills its `.preview-thumb` frame and crops to the top. */
   .preview-img   { @apply absolute inset-0 block w-full h-full object-cover object-top; }
-  .preview-label { @apply block text-center text-[10px] font-medium py-1 text-ink-muted; }
+  .preview-label { @apply block text-center text-xs font-medium py-1 text-ink-muted; }
   .peer:checked ~ .preview-option .preview-label { @apply text-brand; }
-  /* Theme tiles carry one full-page shot per calendar style (`[data-cal-style]` groups). Show only the
-     one matching the user's selected style — `#theme-options[data-cal]` is set server-side and kept in
-     sync by settings.html when the Calendar-style radios change. Hiding is `visibility:hidden` (NOT
-     `display:none`) so the non-selected groups stay laid out and their images can be loaded AND decoded
-     up front (decode() never resolves for a display:none image), making the switch a flash-free
-     visibility flip. `display:contents` keeps the inner `.preview-img`s positioned against
-     `.preview-thumb` as if ungrouped. */
-  #theme-options [data-cal-style] { display: contents; visibility: hidden; }
-  #theme-options[data-cal="full"]    [data-cal-style="full"],
-  #theme-options[data-cal="minimal"] [data-cal-style="minimal"],
-  #theme-options[data-cal="stacked"] [data-cal-style="stacked"] { visibility: visible; }
+  /* Settings preview reveal. Each picker tile is a screenshot that FIXES its own dimension and renders
+     the other two (font / calendar style / theme); these rules reveal only the variant matching the
+     user's LIVE state — font (`.font-nova` on <html>), mode (`.dark`), and/or selected calendar style
+     (`#…-options[data-cal]`, kept in sync by settings.html). Hiding is `visibility` (NOT `display`) so
+     every laid-out variant stays loadable AND decodable up front (decode() never resolves for a
+     display:none image), making each switch a flash-free visibility flip; `display:contents` keeps the
+     inner `.preview-img`s positioned against `.preview-thumb` as if ungrouped. Every selector is
+     `html(:not).dark`/`(:not).font-nova`-prefixed, mutually exclusive and equal-specificity, so exactly
+     one variant is ever visible per tile. Viewport is handled separately by the imgs' `sm:` classes. */
+
+  /* Theme picker — theme fixed per tile; reveal by selected style (data-cal) + active font. */
+  #theme-options [data-cal-style] { display: contents; }
+  #theme-options [data-font] { display: contents; visibility: hidden; }
+  html.font-nova       #theme-options[data-cal="full"]    [data-cal-style="full"]    [data-font="nova"],
+  html.font-nova       #theme-options[data-cal="minimal"] [data-cal-style="minimal"] [data-font="nova"],
+  html.font-nova       #theme-options[data-cal="stacked"] [data-cal-style="stacked"] [data-font="nova"],
+  html:not(.font-nova) #theme-options[data-cal="full"]    [data-cal-style="full"]    [data-font="standard"],
+  html:not(.font-nova) #theme-options[data-cal="minimal"] [data-cal-style="minimal"] [data-font="standard"],
+  html:not(.font-nova) #theme-options[data-cal="stacked"] [data-cal-style="stacked"] [data-font="standard"] { visibility: visible; }
+
+  /* Calendar picker — style fixed per tile; reveal by active font + active mode (.dark). */
+  #calendar-options [data-font] { display: contents; }
+  #calendar-options [data-theme] { display: contents; visibility: hidden; }
+  html.font-nova:not(.dark)       #calendar-options [data-font="nova"]     [data-theme="light"],
+  html.font-nova.dark             #calendar-options [data-font="nova"]     [data-theme="dark"],
+  html:not(.font-nova):not(.dark) #calendar-options [data-font="standard"] [data-theme="light"],
+  html:not(.font-nova).dark       #calendar-options [data-font="standard"] [data-theme="dark"] { visibility: visible; }
+
+  /* Font picker — font fixed per tile; reveal by selected style (data-cal) + active mode (.dark). */
+  #font-options [data-cal-style] { display: contents; }
+  #font-options [data-theme] { display: contents; visibility: hidden; }
+  html:not(.dark) #font-options[data-cal="full"]    [data-cal-style="full"]    [data-theme="light"],
+  html:not(.dark) #font-options[data-cal="minimal"] [data-cal-style="minimal"] [data-theme="light"],
+  html:not(.dark) #font-options[data-cal="stacked"] [data-cal-style="stacked"] [data-theme="light"],
+  html.dark       #font-options[data-cal="full"]    [data-cal-style="full"]    [data-theme="dark"],
+  html.dark       #font-options[data-cal="minimal"] [data-cal-style="minimal"] [data-theme="dark"],
+  html.dark       #font-options[data-cal="stacked"] [data-cal-style="stacked"] [data-theme="dark"] { visibility: visible; }
   /* (!) full-size-preview affordance, floated over the thumbnail's top-right corner. A ring + solid
      translucent fill keeps it legible over any screenshot (light or dark). */
   .preview-info {
@@ -229,7 +346,7 @@
   /* Field label above an input. */
   .field-label { @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1; }
   /* Small uppercase label (settings read-only fields). */
-  .field-label-caps { @apply block text-xs font-medium text-ink-muted uppercase tracking-wide mb-1; }
+  .field-label-caps { @apply block text-xs font-medium text-ink-muted uppercase tracking-wide mb-1 font-display; }
   /* Muted helper / caption text. */
   .help-text { @apply text-xs text-ink-muted; }
 

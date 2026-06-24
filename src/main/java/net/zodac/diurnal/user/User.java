@@ -75,6 +75,10 @@ public class User extends PanacheEntityBase {
     @Column(name = "theme", nullable = false)
     public String theme = "system";
 
+    // UI font family: 'nova' (the brand Nova typography) or 'standard' (system sans).
+    @Column(name = "font", nullable = false)
+    public String font = UserSettings.DEFAULT_FONT;
+
     @Column(name = "page_size", nullable = false)
     public int pageSize = UserSettings.DEFAULT_PAGE_SIZE;
 

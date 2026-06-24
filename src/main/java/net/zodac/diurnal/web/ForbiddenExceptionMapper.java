@@ -52,6 +52,7 @@ public class ForbiddenExceptionMapper implements ExceptionMapper<ForbiddenExcept
         return Response.status(Response.Status.FORBIDDEN)
                 .entity(errorTemplate
                         .data("theme", "system")
+                        .data("font", "nova")
                         .data("displayName", displayName)
                         .data("isAdmin", isAdmin))
                 .type(MediaType.TEXT_HTML_TYPE)

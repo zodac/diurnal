@@ -1,5 +1,5 @@
 {!
-  A single selectable preview tile for the Settings Theme / Calendar-style pickers: a radio-driven
+  A single selectable preview tile for the Settings Theme / Calendar-style / Font pickers: a radio-driven
   selectable frame around a fixed-size screenshot thumbnail (rendered by `partials/preview-thumb.html`,
   which owns the consistent per-viewport sizing/cropping), with an `(!)` button that opens the FULL
   (uncropped) screenshot in the lightbox.
@@ -7,26 +7,25 @@
   The lightbox derives its image from whichever thumbnail `<img>` is currently visible (the thumbnail
   and full image are the same file — the thumbnail is just CSS-cropped), so this tile only needs to
   carry the title + group for the modal, not explicit src attributes.
+
+  Exactly one of `themeBase` / `calStyle` / `fontBase` selects the thumbnail mode (the others ""); all
+  three are forwarded to preview-thumb (Qute renders strict, so each must always be present).
   Params:
-    group        - radio group name ("theme" | "calendarView")
-    value        - this option's value
-    current      - the user's currently-selected value (drives the checked state)
-    label        - short caption shown under the thumbnail
-    title        - heading shown in the full-size preview modal
-    alt          - image alt text
-    themeBase    - "light"|"dark"|"system" → theme tile (one full-page shot per calendar style); when
-                   set, img/imgMobile/imgDark/imgDarkMobile are ignored.
-    img / imgMobile / imgDark / imgDarkMobile - calendar-tile screenshot filenames (see preview-thumb).
+    group     - radio group name ("theme" | "calendarView" | "font")
+    value     - this option's value
+    current   - the user's currently-selected value (drives the checked state)
+    label     - short caption shown under the thumbnail
+    title     - heading shown in the full-size preview modal
+    alt       - image alt text
+    themeBase - "light"|"dark"|"system" → Theme tile;        "" otherwise
+    calStyle  - "full"|"minimal"|"stacked" → Calendar tile;  "" otherwise
+    fontBase  - "nova"|"standard" → Font tile;               "" otherwise
 !}
 <div class="relative" data-preview-group="{group}" data-preview-title="{title}">
     <label class="block cursor-pointer">
         <input type="radio" name="{group}" value="{value}" class="sr-only peer"{#if current == value} checked{/if}>
         <span class="preview-option">
-            {#if themeBase}
-            {#include partials/preview-thumb themeBase=themeBase alt=alt /}
-            {#else}
-            {#include partials/preview-thumb themeBase="" img=img imgMobile=imgMobile imgDark=imgDark imgDarkMobile=imgDarkMobile alt=alt /}
-            {/if}
+            {#include partials/preview-thumb themeBase=themeBase calStyle=calStyle fontBase=fontBase alt=alt /}
             <span class="preview-label">{label}</span>
         </span>
     </label>

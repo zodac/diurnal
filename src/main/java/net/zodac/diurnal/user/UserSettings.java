@@ -38,6 +38,9 @@ public record UserSettings(String theme, int pageSize) {
     public static final String DEFAULT_CALENDAR_VIEW = "full";
     public static final List<String> CALENDAR_VIEW_OPTIONS = List.of("full", "minimal", "stacked");
 
+    public static final String DEFAULT_FONT = "nova";
+    public static final List<String> FONT_OPTIONS = List.of("nova", "standard");
+
     // Curated list of common IANA zones offered in Settings. A user whose timezone is null
     // (not one of these) falls back to the server default (app.timezone). The picker orders every
     // zone by its current UTC offset (see timezoneChoices), not by this declaration order.
@@ -84,6 +87,13 @@ public record UserSettings(String theme, int pageSize) {
      */
     public static String sanitiseCalendarView(final String requested) {
         return CALENDAR_VIEW_OPTIONS.contains(requested) ? requested : DEFAULT_CALENDAR_VIEW;
+    }
+
+    /**
+     * Returns the requested font if it is an allowed option, else the default.
+     */
+    public static String sanitiseFont(final String requested) {
+        return FONT_OPTIONS.contains(requested) ? requested : DEFAULT_FONT;
     }
 
     /**

@@ -20,6 +20,16 @@ module.exports = {
   safelist: ['text-green-600', 'text-red-500', 'text-gray-400'],
   theme: {
     extend: {
+      // Typography — indirected through CSS variables so the per-user Font setting swaps the whole
+      // app between the system sans ("Standard") and the Nova brand theme by re-pointing the
+      // variables (see app.css `--font-body`/`--font-display` and the `.font-nova` class).
+      // Overriding `sans` makes the body variable the app-wide default (Tailwind's preflight sets
+      // `font-family: theme(fontFamily.sans)` on <html>), so body copy, inputs, tables, buttons and
+      // nav all follow it; `display` is opted into on headings/highlights via `font-display`.
+      fontFamily: {
+        sans: ['var(--font-body)'],
+        display: ['var(--font-display)'],
+      },
       // Semantic colour tokens — backed by the CSS variables defined in app.css, so a
       // colour is changed in ONE place (and auto-adapts to dark mode without a `dark:`
       // variant). New markup should prefer these (e.g. `bg-surface`, `text-muted`).

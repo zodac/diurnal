@@ -18,10 +18,47 @@
         </div>
 
         <!-- Swagger UI embedded in-app so the navbar and account controls stay available. The
-             iframe spans the full page width; the underlying docs are still served at /api. -->
-        <iframe src="/api" title="Diurnal API documentation" class="flex-1 w-full min-h-0 border-0 bg-surface"></iframe>
+             iframe spans the full page width; the underlying docs are still served at /api.
+             `onload` restyles its font to match the app (see alignApiFont below). -->
+        <iframe src="/api" title="Diurnal API documentation" onload="alignApiFont(this)"
+                class="flex-1 w-full min-h-0 border-0 bg-surface"></iframe>
     </main>
 </div>
+
+<script>
+    // The Swagger UI at /api is its OWN (same-origin) document, so it doesn't inherit the app's fonts
+    // (it ships its own Titillium/Open Sans). Inject a stylesheet into it on load so its text matches
+    // the user's selected font — Nova when the page is in the Nova theme (`.font-nova` on <html>,
+    // rendered server-side from the Font setting), the system sans otherwise — while leaving the
+    // request/response code samples, schema models and editor monospace. Same-origin, so
+    // `contentDocument` is accessible; the @font-face URLs and the stylesheet target are same-origin too.
+    // The rule set also applies to elements Swagger renders asynchronously after load (CSS is live), so
+    // injecting once on `onload` is enough.
+    function alignApiFont(frame) {
+        var doc;
+        try { doc = frame.contentDocument; } catch (e) { return; } // guard cross-origin (shouldn't happen)
+        if (!doc || !doc.head) return;
+        var nova = document.documentElement.classList.contains('font-nova');
+        var bodyFont = nova
+            ? "'Nova Flat', ui-sans-serif, system-ui, sans-serif"
+            : "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif";
+        var css =
+            "@font-face{ font-family:'Nova Flat';font-weight:400;font-style:normal;font-display:swap;" +
+                "src:url('/fonts/NovaFlat-Book.woff2') format('woff2')}" +
+            "@font-face{ font-family:'Nova Flat';font-weight:700;font-style:normal;font-display:swap;" +
+                "src:url('/fonts/NovaFlat-Bold.woff2') format('woff2')}" +
+            ".swagger-ui, .swagger-ui *{ font-family:" + bodyFont + " !important}" +
+            // Keep actual code/JSON monospace: syntax-highlighted samples, the schema model, type
+            // labels, the "Try it out" editor and any <code>/<pre>.
+            ".swagger-ui .microlight, .swagger-ui code, .swagger-ui pre, .swagger-ui textarea," +
+            ".swagger-ui .model, .swagger-ui .prop-type, .swagger-ui .parameter__type" +
+                "{ font-family:monospace !important}";
+        var style = doc.createElement("style");
+        style.setAttribute("data-diurnal-font", "");
+        style.textContent = css;
+        doc.head.appendChild(style);
+    }
+</script>
 {/body}
 
 {/include}

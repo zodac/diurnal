@@ -98,19 +98,35 @@
                          rules show only the matching per-style theme preview, and the JS below keeps it
                          in sync when the Calendar-style radios change. -->
                     <div id="theme-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Theme" data-cal="{calendarView}">
-                        {#include partials/preview-option group="theme" value="system" current=theme themeBase="system" label="System" title="System theme" alt="Dashboard split diagonally between light and dark themes" /}
-                        {#include partials/preview-option group="theme" value="light"  current=theme themeBase="light"  label="Light"  title="Light theme"  alt="Dashboard in light mode" /}
-                        {#include partials/preview-option group="theme" value="dark"   current=theme themeBase="dark"   label="Dark"   title="Dark theme"   alt="Dashboard in dark mode" /}
+                        {#include partials/preview-option group="theme" value="system" current=theme themeBase="system" calStyle="" fontBase="" label="System" title="System theme" alt="Dashboard split diagonally between light and dark themes" /}
+                        {#include partials/preview-option group="theme" value="light"  current=theme themeBase="light"  calStyle="" fontBase="" label="Light"  title="Light theme"  alt="Dashboard in light mode" /}
+                        {#include partials/preview-option group="theme" value="dark"   current=theme themeBase="dark"   calStyle="" fontBase="" label="Dark"   title="Dark theme"   alt="Dashboard in dark mode" /}
                     </div>
                 </div>
 
                 <!-- Calendar style -->
                 <div class="py-4 border-b border-line">
                     <span class="block text-sm font-medium text-ink mb-3">Calendar style</span>
-                    <div class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Calendar style">
-                        {#include partials/preview-option group="calendarView" value="full"    current=calendarView themeBase="" img="calendar-full-light.png"    imgMobile="calendar-full-light-mobile.png"    imgDark="calendar-full-dark.png"    imgDarkMobile="calendar-full-dark-mobile.png"    label="Full"    title="Full calendar"    alt="Dashboard calendar showing events as text" /}
-                        {#include partials/preview-option group="calendarView" value="minimal" current=calendarView themeBase="" img="calendar-minimal-light.png" imgMobile="calendar-minimal-light-mobile.png" imgDark="calendar-minimal-dark.png" imgDarkMobile="calendar-minimal-dark-mobile.png" label="Minimal" title="Minimal calendar" alt="Dashboard calendar showing a coloured dot per action" /}
-                        {#include partials/preview-option group="calendarView" value="stacked" current=calendarView themeBase="" img="calendar-stacked-light.png" imgMobile="calendar-stacked-light-mobile.png" imgDark="calendar-stacked-dark.png" imgDarkMobile="calendar-stacked-dark-mobile.png" label="Stacked" title="Stacked calendar" alt="Dashboard calendar showing horizontal bars per action" /}
+                    <!-- Each tile is a calendar-only shot in its own style; #calendar-options (app.css)
+                         reveals the variant matching the active font (.font-nova) and light/dark mode. -->
+                    <div id="calendar-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Calendar style">
+                        {#include partials/preview-option group="calendarView" value="full"    current=calendarView themeBase="" calStyle="full"    fontBase="" label="Full"    title="Full calendar"    alt="Dashboard calendar showing events as text" /}
+                        {#include partials/preview-option group="calendarView" value="minimal" current=calendarView themeBase="" calStyle="minimal" fontBase="" label="Minimal" title="Minimal calendar" alt="Dashboard calendar showing a coloured dot per action" /}
+                        {#include partials/preview-option group="calendarView" value="stacked" current=calendarView themeBase="" calStyle="stacked" fontBase="" label="Stacked" title="Stacked calendar" alt="Dashboard calendar showing horizontal bars per action" /}
+                    </div>
+                </div>
+
+                <!-- Font -->
+                <div class="py-4 border-b border-line">
+                    <span class="block text-sm font-medium text-ink mb-3">Font</span>
+                    <!-- One tile per font, each a full dashboard shot in that font. They track the
+                         selected calendar style via #font-options[data-cal] (kept in sync by the JS
+                         below) and the active light/dark theme (the app.css #font-options reveal rules).
+                         grid-cols-3 (not -2) keeps each tile the SAME size as the theme/calendar pickers
+                         even though there are only two — the third column is simply left empty. -->
+                    <div id="font-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Font" data-cal="{calendarView}">
+                        {#include partials/preview-option group="font" value="nova"     current=font themeBase="" calStyle="" fontBase="nova"     label="Nova"     title="Nova font"     alt="Dashboard shown in the Nova font" /}
+                        {#include partials/preview-option group="font" value="standard" current=font themeBase="" calStyle="" fontBase="standard" label="Standard" title="Standard font" alt="Dashboard shown in the standard system font" /}
                     </div>
                 </div>
 
@@ -229,12 +245,18 @@
                 }
             });
 
-            // Keep the theme previews showing the user's selected calendar style: each theme tile holds
-            // a full-page shot per style and #theme-options[data-cal] (via app.css) reveals the matching
-            // one. Update it the moment the Calendar-style radios change, so the previews never go stale.
+            // Keep the theme + font previews showing the user's selected calendar style: each of those
+            // tiles holds a full-page shot per style and #theme-options[data-cal] / #font-options[data-cal]
+            // (via app.css) reveal the matching one. Update them the moment the Calendar-style radios
+            // change, so the previews never go stale. The font radios additionally re-point the whole
+            // page's font live (toggling `.font-nova` on <html>, the same class layout.html renders), so
+            // the rest of Settings updates instantly — matching the live theme switch above.
             document.getElementById('prefs-form').addEventListener('change', function (e) {
                 if (e.target.name === 'calendarView') {
                     document.getElementById('theme-options').dataset.cal = e.target.value;
+                    document.getElementById('font-options').dataset.cal = e.target.value;
+                } else if (e.target.name === 'font') {
+                    document.documentElement.classList.toggle('font-nova', e.target.value === 'nova');
                 }
             });
 

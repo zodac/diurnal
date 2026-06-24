@@ -63,6 +63,7 @@ public class StatsWebResource {
                 .data("email", user.email)
                 .data("displayName", user.displayName)
                 .data("theme", user.theme)
+                .data("font", user.font)
                 .data("isAdmin", user.isAdmin())
                 .data("hasActions", !Action.findActiveByUser(user.id).isEmpty())
                 .data("page", getStatsPage(user.id, pageNum, user.pageSize));

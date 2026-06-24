@@ -64,6 +64,7 @@ public class NotFoundExceptionMapper {
             return Response.status(Response.Status.NOT_FOUND)
                     .entity(errorTemplate
                             .data("theme", "system")
+                            .data("font", "nova")
                             .data("displayName", displayName)
                             .data("isAdmin", isAdmin))
                     .type(MediaType.TEXT_HTML_TYPE)

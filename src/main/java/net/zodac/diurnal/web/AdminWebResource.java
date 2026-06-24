@@ -88,6 +88,7 @@ public class AdminWebResource {
                 .data("email", actor.email)
                 .data("displayName", actor.displayName)
                 .data("theme", actor.theme)
+                .data("font", actor.font)
                 .data("isAdmin", true)
                 .data("page", getUsersPage(pageNum, actor.pageSize));
     }
@@ -106,6 +107,7 @@ public class AdminWebResource {
                 .data("email", actor.email)
                 .data("displayName", actor.displayName)
                 .data("theme", actor.theme)
+                .data("font", actor.font)
                 .data("isAdmin", true);
     }
 
