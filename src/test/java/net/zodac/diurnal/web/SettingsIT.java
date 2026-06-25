@@ -74,6 +74,19 @@ class SettingsIT extends IntegrationTestBase {
     // ── POST /settings ────────────────────────────────────────────────────────
 
     @Test
+    void updateSettings_htmxRequest_returns204AndPersists() {
+        given().formParam("theme", "dark")
+                .formParam("pageSize", "10")
+                .header("HX-Request", "true")
+                .post("/settings")
+                .then().statusCode(204);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
+            .as("unexpected value")
+            .isEqualTo("dark"));
+    }
+
+    @Test
     void updateSettings_themeDark_persists() {
         given().formParam("theme", "dark")
                 .formParam("pageSize", "10")

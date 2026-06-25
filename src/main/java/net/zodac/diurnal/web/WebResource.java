@@ -30,6 +30,7 @@ import jakarta.ws.rs.CookieParam;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
+import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -390,7 +391,9 @@ public class WebResource {
     }
 
     /**
-     * Persists the user's sanitised display preferences and re-renders the settings page.
+     * Persists the user's sanitised display preferences. Returns {@code 204} for HTMX requests
+     * (the client shows the saved indicator via {@code htmx:afterRequest}); re-renders the full
+     * settings page for plain form submissions without JavaScript.
      */
     @POST
     @Path("settings")
@@ -398,12 +401,13 @@ public class WebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
-    public TemplateInstance updateSettings(
+    public Response updateSettings(
             @FormParam("theme") @DefaultValue("system") final String theme,
             @FormParam("font") @DefaultValue("nova") final String font,
             @FormParam("pageSize") @DefaultValue("10") final int pageSize,
             @FormParam("calendarView") @DefaultValue("full") final String calendarView,
-            @FormParam("timezone") @DefaultValue("") final String timezone) {
+            @FormParam("timezone") @DefaultValue("") final String timezone,
+            @HeaderParam("HX-Request") final String hxRequest) {
         final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
         user.theme = UserSettings.sanitiseTheme(theme);
         user.font = UserSettings.sanitiseFont(font);
@@ -411,7 +415,10 @@ public class WebResource {
         user.calendarView = UserSettings.sanitiseCalendarView(calendarView);
         user.timezone = UserSettings.sanitiseTimezone(timezone);
         user.persist();
-        return settingsView(user, true);
+        if (hxRequest != null) {
+            return Response.noContent().build();
+        }
+        return Response.ok(settingsView(user, true)).build();
     }
 
     /**

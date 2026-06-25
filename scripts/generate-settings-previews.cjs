@@ -5,15 +5,15 @@
  *
  * WHEN TO RUN THIS
  * ----------------
- * These six PNGs are committed assets (src/main/resources/META-INF/resources/img/settings/). They
+ * These WebP files are committed assets (src/main/resources/META-INF/resources/img/settings/). They
  * are NOT rebuilt by the app or the Maven/Docker build — they only change when you re-run this
  * script. Re-run it whenever the dashboard's appearance changes in a way the previews should
  * reflect, e.g.:
  *   - the calendar (full / minimal / stacked) markup or styling changes,
  *   - the light/dark colour tokens or overall dashboard chrome change,
  *   - the navbar / day-panel / layout on the dashboard changes.
- * The script optimises the PNGs itself (see below), so afterwards just review and commit them.
- * Nothing else needs to change — settings.html references the files by name.
+ * Afterwards just review and commit the WebP files. Nothing else needs to change — settings.html
+ * references the files by name.
  *
  * WHAT IT PRODUCES
  * ----------------
@@ -22,13 +22,13 @@
  * and up, mobile below it). Captures span the full `font × calendar-style × theme` matrix so EVERY
  * picker (Theme, Calendar style, Font) can reveal the variant matching the user's current font + style
  * + theme. The naming is uniform:
- *   page-{nova,standard}-{full,minimal,stacked}-{light,dark,system}.png  (+ -mobile)
+ *   page-{nova,standard}-{full,minimal,stacked}-{light,dark,system}.webp  (+ -mobile)
  *                          full-page shot — used by the Theme picker (reveal style+font) and the Font
  *                          picker (reveal style+theme); `system` is a diagonal light/dark split.
- *   cal-{nova,standard}-{full,minimal,stacked}-{light,dark}.png          (+ -mobile)
+ *   cal-{nova,standard}-{full,minimal,stacked}-{light,dark}.webp          (+ -mobile)
  *                          calendar-only shot — used by the Calendar picker (reveal font+theme).
  * Every screenshot uses the SAME seeded data so the only visible difference within a viewport is the
- * font / calendar style / theme — that is the whole point of the previews. (**60 PNGs total.**)
+ * font / calendar style / theme — that is the whole point of the previews. (**60 WebP files total.**)
  *
  * PREREQUISITES
  * -------------
@@ -46,14 +46,14 @@
  * The script is self-contained: it registers a dedicated demo user, seeds a fixed set of actions
  * and logs over HTTP (idempotent — safe to re-run), then drives a headless browser to capture each
  * configuration. It does NOT touch the database directly, so it works against any running instance.
- * Finally, it losslessly optimises the PNGs with optipng, installing it via apt-get (Debian/Ubuntu)
- * if it isn't already on PATH.
  */
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { execFileSync, execSync } = require('child_process');
 // Reuse Playwright from the e2e workspace so this script needs no dependencies of its own.
 const { chromium } = require(path.join(__dirname, '..', 'e2e', 'node_modules', 'playwright'));
+
 
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 const OUT = path.join(__dirname, '..', 'src', 'main', 'resources', 'META-INF', 'resources', 'img', 'settings');
@@ -175,11 +175,43 @@ async function openDashboard(ctx, calendarView) {
   return page;
 }
 
+// Playwright only supports PNG and JPEG screenshot types. We capture as PNG (lossless) then convert
+// each buffer to lossless WebP via cwebp, which is typically 25-34% smaller than optipng PNG.
+// cwebp is installed on demand (Debian/Ubuntu) the first time this function is called.
+let _cwebpReady = false;
+function pngToLosslessWebp(pngBuf) {
+  if (!_cwebpReady) {
+    try { execFileSync('cwebp', ['-version'], { stdio: 'ignore' }); }
+    catch {
+      const sudo = process.getuid && process.getuid() !== 0 ? 'sudo ' : '';
+      console.log('cwebp not found — installing via apt-get…');
+      execSync(`${sudo}apt-get update -qq && ${sudo}apt-get install -y -qq webp`, { stdio: 'inherit' });
+    }
+    _cwebpReady = true;
+  }
+  const tmp = path.join(os.tmpdir(), `diurnal-preview-${process.pid}-${Date.now()}.png`);
+  fs.writeFileSync(tmp, pngBuf);
+  try {
+    // -lossless: pixel-perfect (no quality loss). -o -: write WebP to stdout.
+    return execFileSync('cwebp', ['-lossless', '-quiet', tmp, '-o', '-'], { maxBuffer: 50 * 1024 * 1024 });
+  } finally {
+    fs.unlinkSync(tmp);
+  }
+}
+
+// Read pixel dimensions from a PNG IHDR chunk (big-endian uint32 at offsets 16 and 20).
+function pngSize(buf) {
+  return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+}
+
 // Theme preview: the WHOLE dashboard page (navbar, heading, calendar, day panel, stats) — fullPage
 // captures the entire scroll height, not just the viewport.
+// Returns the PNG buffer so captureSet can pass it to compositeSystem for compositing.
 async function shotFullPage(page, file) {
-  await page.screenshot({ path: path.join(OUT, file), fullPage: true });
+  const pngBuf = await page.screenshot({ fullPage: true });
+  fs.writeFileSync(path.join(OUT, file), pngToLosslessWebp(pngBuf));
   console.log('wrote', file);
+  return pngBuf; // PNG for compositing — compositeSystem re-encodes the composite
 }
 
 // Calendar-style preview: ONLY the calendar. Every calendar style now shares the #calendar-wrap
@@ -190,25 +222,18 @@ async function shotFullPage(page, file) {
 // pickers' full-size previews are framed identically. An element screenshot captures the whole element
 // even where it overflows the viewport, so it is never cut off.
 async function shotCalendar(page, file) {
-  await page.locator('#calendar-wrap').screenshot({ path: path.join(OUT, file) });
+  const pngBuf = await page.locator('#calendar-wrap').screenshot();
+  fs.writeFileSync(path.join(OUT, file), pngToLosslessWebp(pngBuf));
   console.log('wrote', file);
 }
 
-// Read a PNG's pixel dimensions straight from its IHDR (width/height are big-endian uint32s at byte
-// offsets 16/20). Lets the system composite size itself to whatever the (variable-height) source is.
-function pngSize(file) {
-  const b = fs.readFileSync(file);
-  return { w: b.readUInt32BE(16), h: b.readUInt32BE(20) };
-}
-
 // System theme = diagonal split of the light & dark dashboards (light upper-left, dark lower-right;
-// divider runs corner-to-corner top-right → bottom-left). Inlined as base64 so the composing page has
-// no cross-origin/file:// loading concerns. `light`/`dark` are the source filenames and `out` the
-// target; the canvas matches the sources' actual pixel size (they are already 2x captures).
-async function compositeSystem(browser, { light, dark, out }) {
-  const lightB64 = fs.readFileSync(path.join(OUT, light)).toString('base64');
-  const darkB64 = fs.readFileSync(path.join(OUT, dark)).toString('base64');
-  const { w: PW, h: PH } = pngSize(path.join(OUT, light));
+// divider runs corner-to-corner top-right → bottom-left). Receives PNG buffers (captured by
+// shotFullPage) so no file reads are needed. The canvas matches the sources' actual pixel size.
+async function compositeSystem(browser, { lightBuf, darkBuf, out }) {
+  const lightB64 = lightBuf.toString('base64');
+  const darkB64  = darkBuf.toString('base64');
+  const { w: PW, h: PH } = pngSize(lightBuf);
   const ctx = await browser.newContext({ deviceScaleFactor: 1 });
   const page = await ctx.newPage();
   await page.setViewportSize({ width: PW, height: PH });
@@ -225,32 +250,10 @@ async function compositeSystem(browser, { light, dark, out }) {
     </body>`);
   await page.evaluate(() => Promise.all([...document.images].map(i => i.decode().catch(() => {}))));
   await page.waitForTimeout(200);
-  await (await page.$('#cmp')).screenshot({ path: path.join(OUT, out) });
+  const compositePng = await (await page.$('#cmp')).screenshot();
+  fs.writeFileSync(path.join(OUT, out), pngToLosslessWebp(compositePng));
   await ctx.close();
   console.log('wrote', out);
-}
-
-// ── Lossless optimisation ────────────────────────────────────────────────────────────────────────
-
-function hasOptipng() {
-  try { execFileSync('optipng', ['--version'], { stdio: 'ignore' }); return true; }
-  catch { return false; }
-}
-
-// Install optipng on demand (Debian/Ubuntu host) so the caller doesn't need it preinstalled.
-function installOptipng() {
-  const sudo = process.getuid && process.getuid() !== 0 ? 'sudo ' : '';
-  console.log('optipng not found — installing it via apt-get…');
-  execSync(`${sudo}apt-get update && ${sudo}apt-get install -y optipng`, { stdio: 'inherit' });
-}
-
-// Shrink every PNG losslessly (optipng -o2 typically saves ~10%). Pure metadata/encoding change —
-// the pixels are untouched, so it never alters how a preview looks.
-function optimise() {
-  if (!hasOptipng()) installOptipng();
-  const files = fs.readdirSync(OUT).filter(f => f.endsWith('.png')).map(f => path.join(OUT, f));
-  execFileSync('optipng', ['-quiet', '-o2', ...files], { stdio: 'inherit' });
-  console.log(`optimised ${files.length} PNGs`);
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────────────────────────
@@ -264,32 +267,35 @@ const FONTS = ['nova', 'standard'];
 // pair is the viewport. Each (calendar style, theme) combo yields BOTH a full-page theme shot AND a
 // calendar-only shot from the same page load — so the theme picker has one preview per calendar style
 // (settings.html then shows the one matching the user's selected style).
+// Returns { lightBufs, darkBufs } keyed by `${font}-${view}` for compositeSystemAll.
 async function captureSet(ctx, suffix) {
-  const f = base => base + suffix + '.png';
+  const f = base => base + suffix + '.webp';
+  const lightBufs = {}, darkBufs = {};
 
   for (const font of FONTS) {
     for (const view of CALENDAR_VIEWS) {
       for (const theme of ['light', 'dark']) {
         await setPrefs(ctx, theme, view, font);
         const page = await openDashboard(ctx, view);
-        await shotFullPage(page, f(`page-${font}-${view}-${theme}`));  // Theme + Font pickers: whole page
-        await shotCalendar(page, f(`cal-${font}-${view}-${theme}`));   // Calendar picker: calendar only
+        const buf = await shotFullPage(page, f(`page-${font}-${view}-${theme}`));  // Theme + Font pickers
+        (theme === 'light' ? lightBufs : darkBufs)[`${font}-${view}`] = buf;
+        await shotCalendar(page, f(`cal-${font}-${view}-${theme}`));               // Calendar picker
         await page.close();
       }
     }
   }
+  return { lightBufs, darkBufs };
 }
 
 // Build the `system` theme preview (diagonal light/dark split) — full-page only, for every font × style
 // (the Theme picker's System tile resolves to this; the Calendar picker has no System tile).
-async function compositeSystemAll(browser, suffix) {
-  const s = suffix;
+async function compositeSystemAll(browser, suffix, lightBufs, darkBufs) {
   for (const font of FONTS) {
     for (const view of CALENDAR_VIEWS) {
       await compositeSystem(browser, {
-        light: `page-${font}-${view}-light${s}.png`,
-        dark: `page-${font}-${view}-dark${s}.png`,
-        out: `page-${font}-${view}-system${s}.png`,
+        lightBuf: lightBufs[`${font}-${view}`],
+        darkBuf:  darkBufs[`${font}-${view}`],
+        out: `page-${font}-${view}-system${suffix}.webp`,
       });
     }
   }
@@ -307,8 +313,8 @@ async function compositeSystemAll(browser, suffix) {
     colorScheme: 'light',
   });
   await seed(webCtx);
-  await captureSet(webCtx, '');
-  await compositeSystemAll(browser, '');
+  const { lightBufs: webLight, darkBufs: webDark } = await captureSet(webCtx, '');
+  await compositeSystemAll(browser, '', webLight, webDark);
   await webCtx.close();
 
   // Mobile (portrait) capture context — same seeded data, phone-width viewport. Logs in afresh
@@ -322,12 +328,11 @@ async function compositeSystemAll(browser, suffix) {
     hasTouch: true,
   });
   await login(mobileCtx);
-  await captureSet(mobileCtx, '-mobile');
-  await compositeSystemAll(browser, '-mobile');
+  const { lightBufs: mobileLight, darkBufs: mobileDark } = await captureSet(mobileCtx, '-mobile');
+  await compositeSystemAll(browser, '-mobile', mobileLight, mobileDark);
   await mobileCtx.close();
 
   await browser.close();
 
-  optimise();
-  console.log('\nDone — review and commit the PNGs in\n  ' + path.relative(path.join(__dirname, '..'), OUT));
+  console.log('\nDone — review and commit the WebP files in\n  ' + path.relative(path.join(__dirname, '..'), OUT));
 })().catch(e => { console.error(e); process.exit(1); });
