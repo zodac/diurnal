@@ -288,9 +288,9 @@
                     var visible = el.checkVisibility
                         ? el.checkVisibility({ visibilityProperty: true, opacityProperty: true })
                         : (el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
-                    if (visible) return el.currentSrc || el.src;
+                    if (visible) return el.currentSrc || el.src || el.dataset.src || '';
                 }
-                return imgs.length ? (imgs[0].currentSrc || imgs[0].src) : '';
+                return imgs.length ? (imgs[0].currentSrc || imgs[0].src || imgs[0].dataset.src || '') : '';
             }
 
             function renderPreview() {
@@ -377,26 +377,58 @@
                 else if (e.key === 'ArrowRight') previewStep(1);
             });
 
-            // Load + decode the thumbnails up front so switching calendar style / theme never flashes
-            // while an image loads-and-decodes for the first time. The not-yet-selected theme-style
-            // groups are hidden with visibility:hidden (see app.css), so they stay laid out and their
-            // <img>s can actually be decoded now — decode() also pulls the (lazy) bytes, and unlike a
-            // display:none image (whose decode() promise never resolves) it completes, leaving the image
-            // paint-ready. We only touch images that are laid out (display:none ones are the OTHER
-            // viewport's — never shown unless the window crosses the `sm` breakpoint — so they stay
-            // unloaded and we don't download what the user can't see).
-            (function preDecodePreviews() {
+            // Phased image loading for the preview thumbnails. All imgs use data-src (no src), so no
+            // fetches happen until we assign src. We do this in two phases:
+            //   1. Immediately: the ~8 images currently visible (checkVisibility passes both display +
+            //      visibility checks) — these are what the user sees right now.
+            //   2. requestIdleCallback: the remaining current-viewport images (display:block but
+            //      visibility:hidden) — loaded in the background so they are paint-ready before the
+            //      user first interacts with a picker. The OTHER viewport's images (display:none) are
+            //      never loaded unless the window crosses the sm breakpoint.
+            // decode() is called after setting src so switches remain flash-free.
+            (function loadPreviews() {
                 var imgs = Array.prototype.slice.call(document.querySelectorAll('#prefs-form .preview-img'));
-                function decodeRenderable() {
+
+                function assignAndDecode(el) {
+                    if (!el.src && el.dataset.src) el.src = el.dataset.src;
+                    if (el.decode) el.decode().catch(function () {});
+                }
+
+                function loadVisible() {
                     imgs.forEach(function (el) {
-                        if (el.decode && getComputedStyle(el).display !== 'none') {
-                            el.decode().catch(function () {});
-                        }
+                        var vis = el.checkVisibility
+                            ? el.checkVisibility({ visibilityProperty: true })
+                            : (getComputedStyle(el).display !== 'none' && getComputedStyle(el).visibility !== 'hidden');
+                        if (vis) assignAndDecode(el);
                     });
                 }
-                decodeRenderable();
-                // If the window crosses the breakpoint, the other viewport's images take over — decode them too.
-                window.matchMedia('(min-width: 640px)').addEventListener('change', decodeRenderable);
+
+                function loadCurrentViewport() {
+                    imgs.forEach(function (el) {
+                        if (getComputedStyle(el).display !== 'none') assignAndDecode(el);
+                    });
+                }
+
+                function scheduleDeferred() {
+                    if (window.requestIdleCallback) {
+                        window.requestIdleCallback(loadCurrentViewport, { timeout: 2000 });
+                    } else {
+                        setTimeout(loadCurrentViewport, 100);
+                    }
+                }
+
+                loadVisible();
+                scheduleDeferred();
+
+                // When the viewport crosses the sm breakpoint the other set of imgs becomes active — load them.
+                window.matchMedia('(min-width: 640px)').addEventListener('change', function () {
+                    loadVisible();
+                    scheduleDeferred();
+                });
+
+                // Also trigger on first interaction with the pickers, in case idle hasn't fired yet.
+                document.getElementById('prefs-form').addEventListener('mouseenter', loadCurrentViewport, { once: true });
+                document.getElementById('prefs-form').addEventListener('focusin',    loadCurrentViewport, { once: true });
             })();
         </script>
     </main>

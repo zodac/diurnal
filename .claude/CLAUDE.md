@@ -435,7 +435,7 @@ stage from the committed `favicon.svg` (visually identical, may differ by a few 
 The **Theme**, **Calendar style** and **Font** pickers in `settings.html` are not abstract icons — each
 option is a scaled-down real screenshot of the dashboard in that configuration (rendered by
 `partials/preview-option.html`, with an `(!)` button that opens the full-size image in a lightbox). The
-PNGs live in `src/main/resources/META-INF/resources/img/settings/`, captured as **two viewport sets** —
+WebP files live in `src/main/resources/META-INF/resources/img/settings/`, captured as **two viewport sets** —
 a **web** (landscape) set and a **mobile** (portrait, `-mobile` suffix) set — so each tile shows the
 device-appropriate shot: the web variant at the `sm` breakpoint and up, the mobile variant below it
 (the viewport split is the imgs' `sm:` `display` classes; everything else is the `#…-options` reveal
@@ -459,18 +459,21 @@ fixed per tile); a **Calendar** thumbnail follows the active font **and** light/
 settings updates the other pickers' previews live (e.g. switching to the Standard font re-points every
 Theme/Calendar thumbnail to its `*-standard-*` variant).
 
-**Loading/decoding — two hiding mechanisms, on purpose (see `preview-thumb.html`).** All thumbnails are
-`loading="lazy"`. **Viewport** is gated with `display` (the `sm:` classes): the other viewport's images
-are `display:none` and never fetched — so a desktop user never downloads the ~half of the ~3.8 MB set
-that is the mobile (portrait) shots, or vice versa (only loaded if the window crosses the `sm`
-breakpoint). The not-yet-shown variants *within* the current viewport — the other font / calendar-style /
-theme combinations a tile carries — are hidden with **`visibility`** (NOT display) by the `#…-options`
-rules, so they stay laid out and `settings.html` can `decode()` them up front. That pre-decode makes
-font / calendar-style / theme switches **flash-free**; it must use `visibility` because `img.decode()` resolves
-for a `visibility:hidden` image but **never resolves for a `display:none` one** (so a display:none image
-can't be pre-decoded — which was the cause of the switch flash). The on-load warm-up just calls
-`decode()` on every laid-out (`display!=none`) preview image; `previewSrcFor` uses `checkVisibility()`
-(visibility-aware) to find the shown variant for the lightbox.
+**Loading/decoding — two hiding mechanisms, on purpose (see `preview-thumb.html`).** All thumbnail
+`<img>` elements use `data-src` instead of `src`, so no fetches happen until JS assigns `src`.
+**Viewport** is gated with `display` (the `sm:` classes): the other viewport's images stay
+`display:none` and are never fetched — so a desktop user never downloads the mobile shots, or vice
+versa (only loaded if the window crosses the `sm` breakpoint). The not-yet-shown variants *within* the
+current viewport — the other font / calendar-style / theme combinations a tile carries — are hidden
+with **`visibility`** (NOT display) by the `#…-options` rules, so they stay laid out. `settings.html`
+loads images in **two phases**: (1) immediately on page load it assigns `src` to the ~8 currently-
+visible images (identified via `checkVisibility({ visibilityProperty: true })`); (2) the remaining
+current-viewport images (visibility:hidden, display:block) are assigned `src` via `requestIdleCallback`
+so they are paint-ready before the user first interacts with a picker. `decode()` is called after each
+`src` assignment so font / calendar-style / theme switches remain **flash-free**; it must use
+`visibility` because `img.decode()` resolves for a `visibility:hidden` image but **never resolves for a
+`display:none` one**. `previewSrcFor` uses `checkVisibility()` (visibility-aware) to find the shown
+variant for the lightbox, with `dataset.src` as a fallback if `src` hasn't been assigned yet.
 
 **Thumbnail sizing is decoupled from the screenshots' real aspect ratios.** The captured images have
 varying shapes, but the on-page thumbnails are all one fixed size *per viewport* (portrait on mobile,
@@ -482,13 +485,13 @@ The frame ratios are the single source of truth in **`.preview-thumb`** (`app.cs
 settings thumbnail should render through `partials/preview-thumb.html` so it automatically obeys these
 rules; because sizing no longer depends on the image, the includes pass **no** per-tile dimensions.
 The images use one **uniform naming scheme** under `img/settings/`:
-- `page-{nova,standard}-{full,minimal,stacked}-{light,dark,system}.png` (+ `-mobile`) — the **full-page**
+- `page-{nova,standard}-{full,minimal,stacked}-{light,dark,system}.webp` (+ `-mobile`) — the **full-page**
   shot, used by the **Theme** picker (reveal style+font) and the **Font** picker (reveal style+theme);
   `system` is a diagonal light/dark split (`compositeSystem`, full-page only).
-- `cal-{nova,standard}-{full,minimal,stacked}-{light,dark}.png` (+ `-mobile`) — the **calendar-only**
+- `cal-{nova,standard}-{full,minimal,stacked}-{light,dark}.webp` (+ `-mobile`) — the **calendar-only**
   shot (an element screenshot of the calendar card), used by the **Calendar** picker (reveal font+theme).
 
-(**60 PNGs total.**) The `page-` and `cal-` shots for a given `(font, style, light|dark)` are captured
+(**60 WebP files total.**) The `page-` and `cal-` shots for a given `(font, style, light|dark)` are captured
 from the **same** dashboard load (full-page vs calendar-only) in `captureSet`, which loops
 `font × calendar-style × theme`; the `page-…-system` composites are derived from the light/dark pair.
 
@@ -504,17 +507,16 @@ previews should reflect (calendar markup/styling, light/dark colour tokens, navb
 
 ```bash
 scripts/dev-up.sh                            # starts diurnal-db-dev + quarkus:dev on :8081, waits until ready
-node scripts/generate-settings-previews.cjs  # defaults to :8081; then commit the PNGs
+node scripts/generate-settings-previews.cjs  # defaults to :8081; then commit the WebP files
 scripts/dev-teardown.sh                       # stop the dev server + remove the dev DB when finished
 ```
 
 The script is self-contained: it registers a throwaway demo user, seeds a fixed set of actions/logs over
 HTTP (idempotent), captures every theme/calendar combination from the **same** data in **both** a web
 and a mobile viewport (so the only visible difference within a viewport is the setting itself), and
-finally losslessly optimises the PNGs with
-`optipng` (installing it via `apt-get` if missing — so neither the runtime image nor the host needs it
-preinstalled). It talks to the app only over HTTP (no DB access), so `BASE_URL=…` can point it at any
-running instance.
+captures screenshots as PNG via Playwright then converts each to lossless WebP via `cwebp` (installed
+on demand via `apt-get` if absent) — pixel-perfect, ~25–34% smaller than optipng PNG. It talks to the app only over HTTP (no DB
+access), so `BASE_URL=…` can point it at any running instance.
 
 ### Pagination
 

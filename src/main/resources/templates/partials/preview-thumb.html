@@ -21,13 +21,16 @@
     (`data-cal`) + active mode (`.dark`).
 
   LOADING / SWITCHING. Two separate hiding mechanisms, on purpose:
-    • VIEWPORT is gated with `display` (the `sm:` classes): the OTHER viewport's images are `display:none`
-      and `loading="lazy"`, so they are never fetched — we don't download what the user can't see (a
-      desktop user never sees the mobile thumbnails, or vice-versa, unless the window crosses `sm`).
+    • VIEWPORT is gated with `display` (the `sm:` classes): the OTHER viewport's images use `display:none`
+      and are never fetched — we don't download what the user can't see (a desktop user never gets the
+      mobile thumbnails, or vice-versa, unless the window crosses `sm`).
     • The not-yet-shown variants WITHIN the current viewport (other fonts/styles/themes) are hidden with
-      `visibility` (NOT display) by the `#…-options` rules in app.css, so they stay laid out and
-      settings.html can `decode()` them up front. That makes font/style/theme switches flash-free; a
+      `visibility` (NOT display) by the `#…-options` rules in app.css, so they stay laid out and their
+      `src` can be assigned and `decode()`d up front. That makes font/style/theme switches flash-free; a
       `display:none` image cannot be pre-decoded (its decode() promise never resolves).
+  All images use `data-src` instead of `src`. settings.html sets `src` in two phases: immediately for
+  the ~8 currently-visible images (identified by checkVisibility), then the remaining current-viewport
+  images via requestIdleCallback so they are ready before the user first interacts with a picker.
 
   Params:
     alt        - image alt text (all modes)
