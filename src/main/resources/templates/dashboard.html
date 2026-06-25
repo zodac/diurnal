@@ -81,9 +81,9 @@
   .fc-daygrid-day.fc-day-today.d-day-selected { box-shadow: var(--cal-selected-today-inset); }
   /* Date-number colour — today's number sits on the solid brand cell (on-brand text); a selected
      (non-today) number just changes colour (the cell ring above shows the selection). */
-  .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { color: var(--color-on-brand); font-weight: 700; }
+  .fc-daygrid-day.fc-day-today .fc-daygrid-day-number { color: var(--color-on-brand); }
   .fc-daygrid-day.d-day-selected:not(.fc-day-today) .fc-daygrid-day-number {
-    color: var(--color-brand); font-weight: 600;
+    color: var(--color-brand);
   }
   .dark .fc-daygrid-day.d-day-selected:not(.fc-day-today) .fc-daygrid-day-number { color: var(--color-brand-strong); }
 
@@ -131,21 +131,23 @@
     width: 26px; height: 26px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     font-size: 0.72rem; font-weight: 400; line-height: 1;
-    /* Vertical (and horizontal) optical centring of the digits is handled precisely in JS — see
-       centreInk() — so no padding nudge is needed here. */
-    color: rgb(31,41,55); transition: background 0.15s; flex-shrink: 0;
+    color: rgb(31,41,5); transition: background 0.15s; flex-shrink: 0;
   }
+  /* The digits live in this inner span. Horizontal centring is pure CSS: a full-width, centred block
+     centres the glyph ADVANCE box (the robust reference). Vertical centring is nudged in JS (centreInk)
+     because the ink sits high in the line box. */
+  .d-min-date-ink { display: block; width: 100%; text-align: center; white-space: nowrap; }
   .dark .d-min-date { color: rgb(229,231,235); }
   .d-min-cell:hover .d-min-date { background: rgb(243,244,246); }
   .dark .d-min-cell:hover .d-min-date { background: rgb(55,65,81); }
   .d-min-cell.d-min-today .d-min-date {
-    background: var(--cal-today-fill); color: var(--color-on-brand); font-weight: 700;
+    background: var(--cal-today-fill); color: var(--color-on-brand);
   }
   /* Selected (non-today) day. The faint fill alone reads clearly in light mode but is nearly
      invisible against the dark cell background, so add the shared brand selection ring: the brand
      token is constant across light/dark, so it is equally distinct regardless of how subtle the fill. */
   .d-min-cell.d-min-selected .d-min-date {
-    background: var(--color-brand-faint); color: var(--color-brand); font-weight: 600;
+    background: var(--color-brand-faint); color: var(--color-brand);
     box-shadow: var(--cal-selected-ring);
   }
   /* Selected text needs a lighter brand shade to read on the darker faint fill in dark mode. */
@@ -423,7 +425,8 @@ document.addEventListener('DOMContentLoaded', function () {
     //     them ride visibly high; centring the mass reads as balanced. The vertical reference is the
     //     text's real baseline, read from the DOM with a zero-height baseline-aligned strut probe
     //     (canvas em-box metrics don't match the browser's line-box placement).
-    // Both measurements are cached (by digits+weight+size / weight+size — today/selected render bolder).
+    // Both measurements are cached (by digits+weight+size / weight+size — all day states now share
+    // one weight, so the cache key still holds if that ever changes again).
     var inkCanvas = document.createElement('canvas');
     var inkCtx = inkCanvas.getContext('2d', { willReadFrequently: true });
     var inkCentroidCache = {}; // weight|size|text -> { x: bbox centre from advance centre, y: mass from baseline }
@@ -659,6 +662,25 @@ document.addEventListener('DOMContentLoaded', function () {
             fetchAndRender();
         }
     });
+
+    // The initial render can run before the Nova webfont is decoded, in which case the canvas measures
+    // digit ink with the FALLBACK face — and those offsets are cached, so a mis-centred first paint would
+    // persist on every later render (navigation / selection), e.g. "4" sitting off-centre in its circle.
+    // Once the fonts are ready, drop the caches and re-centre every rendered cell so the offsets reflect
+    // the real glyphs. (No-op for the Standard font setting: ready resolves immediately, re-measuring the
+    // same fallback face to the same result.)
+    if (document.fonts && document.fonts.ready) {
+        document.fonts.ready.then(function () {
+            inkCentroidCache = {};
+            baselineCache = {};
+            circleSize = 0;
+            grid.querySelectorAll('.d-min-cell').forEach(function (cell) {
+                var circle = cell.querySelector('.d-min-date');
+                var ink = cell.querySelector('.d-min-date-ink');
+                if (circle && ink) { centreInk(circle, ink); }
+            });
+        });
+    }
 
     } // end else (minimal calendar)
 });
