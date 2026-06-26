@@ -17,13 +17,18 @@
  * local/dev convenienc. They are visually identical but may differ by a few antialiasing pixels
  * across ImageMagick / librsvg versions, harmless since the build overwrites them.
  *
- * WHAT IT PRODUCES (all in the served img/ dir)
- * ---------------------------------------------
- *   favicon-16.png       16x16  — explicit small favicon PNG
- *   favicon-32.png       32x32  — explicit standard favicon PNG
- *   favicon.ico          16/32/48 multi-resolution ICO — legacy browser fallback
- *   apple-touch-icon.png 180x180 — iOS "add to home screen" / bookmark thumbnail
- * The transparent background of the SVG is preserved in every output.
+ * WHAT IT PRODUCES (minimal set — every file has a distinct purpose; no redundant sizes)
+ * ----------------------------------------------------------------------------------------
+ *   favicon.ico          16/32/48 multi-resolution ICO at the web ROOT (/favicon.ico, not /img/) — the
+ *                        single legacy raster fallback + the conventional /favicon.ico probe path. The
+ *                        16/32/48 PNGs are rendered only as throwaway temps to pack this; they are NOT
+ *                        kept as standalone files (the SVG covers crisp desktop rendering already).
+ *   img/apple-touch-icon.png 180x180 — iOS "add to home screen" / bookmark thumbnail
+ *   img/icon-192.png     192x192 — load-bearing: Chromium-on-Android (Chrome/Opera) picks the widest PNG
+ *                        <link rel=icon> ≤192 for the tab; without it Opera mobile shows a globe.
+ *   img/icon-512.png     512x512 — web-manifest PWA icon (paired with 192 per Chromium installability).
+ * The favicon.svg itself (the vector icon, used by desktop browsers) is committed, not produced here.
+ * The transparent background of the SVG is preserved in every raster output.
  *
  * PREREQUISITES
  * -------------
@@ -52,13 +57,14 @@ const IMG = path.join(REPO, 'src', 'main', 'resources', 'META-INF', 'resources',
 const SOURCE = process.env.SOURCE || path.join(IMG, 'favicon.svg');
 const OUT = process.env.OUT || IMG;
 
-// Target raster assets. The 48px PNG is an intermediate that only lives inside favicon.ico.
+// First-class standalone raster outputs (each with a distinct purpose — see the header).
+// The 16/32/48 sizes are NOT here: they exist only inside favicon.ico (rendered as temps in buildIco).
 const PNGS = [
-  { name: 'favicon-16.png', size: 16 },
-  { name: 'favicon-32.png', size: 32 },
-  { name: 'apple-touch-icon.png', size: 180 },
+  { name: 'apple-touch-icon.png', size: 180 }, // iOS home-screen / bookmark thumbnail
+  { name: 'icon-192.png', size: 192 },         // Android/Opera tab icon (the load-bearing one) + manifest 192
+  { name: 'icon-512.png',  size: 512 },        // manifest PWA icon (paired with 192)
 ];
-const ICO_SIZES = [16, 32, 48]; // packed into the multi-resolution favicon.ico
+const ICO_SIZES = [16, 32, 48]; // rendered as throwaway temps, packed into the multi-resolution favicon.ico
 
 // ── Tool detection ─────────────────────────────────────────────────────────────────────────────
 
@@ -93,18 +99,18 @@ function renderPng(size, outPath) {
 }
 
 function buildIco() {
-  // Render each ICO size, pack them into one multi-resolution .ico, then drop the temp PNGs that are
-  // not first-class outputs (16/32 are kept as standalone favicons; 48 only exists inside the .ico).
+  // Render the ICO sizes as throwaway temps (they are not standalone outputs), pack them into the
+  // multi-resolution .ico, then delete the temps. Output to the web root (one dir above OUT/img/),
+  // not /img/, so a conventional /favicon.ico probe (and legacy browsers) find it.
   const temps = ICO_SIZES.map(size => {
     const p = path.join(OUT, `favicon-${size}.png`);
-    if (!fs.existsSync(p)) renderPng(size, p);
+    renderPng(size, p);
     return p;
   });
-  const ico = path.join(OUT, 'favicon.ico');
+  const ico = path.join(OUT, '..', 'favicon.ico');
   execFileSync(IM, [...temps, ico]);
   console.log(`packed favicon.ico (${ICO_SIZES.join('/')})`);
-  // 48 is ICO-only — remove its standalone PNG.
-  fs.rmSync(path.join(OUT, 'favicon-48.png'), { force: true });
+  for (const p of temps) fs.rmSync(p, { force: true });
 }
 
 // ── Lossless optimisation ──────────────────────────────────────────────────────────────────────

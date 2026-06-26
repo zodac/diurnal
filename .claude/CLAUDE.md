@@ -406,7 +406,7 @@ one command chains three steps (edit-one-file, run-one-thing):
 python3 scripts/generate-brand.py      # reads the wordmark fill → copies wordmark.svg to served,
                                        #   renders favicon.svg + footer-mark.svg (the "d") in that
                                        #   colour, and computes the @generated:brand tokens into app.css
-node    scripts/generate-favicons.cjs  # favicon.svg → favicon.ico + favicon-16/32.png + apple-touch-icon.png
+node    scripts/generate-favicons.cjs  # favicon.svg → favicon.ico (root) + apple-touch-icon.png + icon-192/512.png
 npm run css                            # compile app.css
 ```
 
@@ -422,8 +422,24 @@ npm run css                            # compile app.css
   the favicon) so it reads at text height inline; used as the brand mark in the page footer
   (`partials/footer.html`). `generate-favicons.cjs` only rasterises `favicon.svg` (PNGs via `rsvg-convert`/
   ImageMagick, multi-res `.ico`, optipng) — it does **not** touch the SVGs (`footer-mark.svg`, like
-  `wordmark.svg`, is SVG-only — served straight, never rasterised). `apple-touch-icon.png`
-  (180px) is the iOS home-screen / bookmark thumbnail.
+  `wordmark.svg`, is SVG-only — served straight, never rasterised). It produces a deliberately **minimal**
+  set, no redundant sizes — each file is a distinct surface:
+  - `favicon.ico` — at the web **ROOT** (`/favicon.ico`, not `/img/`): the single legacy raster fallback
+    + the conventional `/favicon.ico` probe path. It packs 16/32/48 internally, which is why there are
+    **no** standalone `favicon-16/32/48.png` files (the SVG covers crisp desktop rendering). The 16/32/48
+    PNGs are rendered only as throwaway temps to build the `.ico`, then deleted.
+  - `icon-192.png` (192px) — the **load-bearing** tab icon for Chromium-on-Android (Chrome/Opera): per
+    realfavicongenerator's analysis, Android Chromium does NOT auto-fetch `/favicon.ico` and does NOT use
+    the manifest for the tab/tab-switcher/bookmark icon — it picks the **widest PNG declared in a
+    `<link rel="icon">` tag no larger than 192×192**, so `icon-192.png` MUST be a real
+    `<link rel=icon sizes=192x192>` in `layout.html`, not just a manifest entry (a globe in Opera mobile
+    is the symptom of it missing). The manifest can't substitute: over a bare IP / plain HTTP (not a
+    secure context) Chromium ignores the manifest entirely.
+  - `icon-512.png` (512px) — pairs with 192 as the two `manifest.json` icons (192+512 is the Chromium
+    PWA-installability requirement, only relevant in a secure context).
+  - `apple-touch-icon.png` (180px) — the iOS home-screen / bookmark thumbnail.
+  - `manifest.json` (served as `application/json` — `.webmanifest` has no MIME mapping in Vert.x 4.x) —
+    provides the PWA/add-to-home-screen icon set (just 192 + 512).
 
 The committed outputs are trusted: the **Docker build does not run `generate-brand.py`** (no
 Python+fonttools stage) — the SVGs + the `@generated:brand` tokens (baked into `app.css`) ship via

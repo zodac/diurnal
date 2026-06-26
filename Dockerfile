@@ -17,8 +17,8 @@ RUN npm run css
 # Rasterises the committed favicon SVG (the single-letter "d" mark, itself generated from the brand
 # font by generate-brand.py) into the PNG favicons + multi-res .ico the site links from <head>. Kept
 # in its own stage so ImageMagick / librsvg / optipng never reach the build or runtime images. librsvg
-# is ImageMagick's SVG-rendering backend; imagemagick also packs the .ico. Outputs land in
-# src/main/resources/META-INF/resources/img.
+# is ImageMagick's SVG-rendering backend; imagemagick also packs the .ico. PNGs land in
+# src/main/resources/META-INF/resources/img; favicon.ico lands at the web root (one level up).
 FROM node:26-alpine AS icons
 RUN apk add --no-cache imagemagick librsvg optipng
 WORKDIR /icons
@@ -39,10 +39,12 @@ COPY --from=css /css/src/main/resources/META-INF/resources/css/app.css \
                 ./src/main/resources/META-INF/resources/css/app.css
 # Drop the freshly-rendered raster favicons into the static web root, overwriting the committed copies.
 # The SVGs themselves (favicon.svg + wordmark.svg) are committed and come in via `COPY src` above.
-COPY --from=icons /icons/src/main/resources/META-INF/resources/img/favicon-16.png \
-                  /icons/src/main/resources/META-INF/resources/img/favicon-32.png \
-                  /icons/src/main/resources/META-INF/resources/img/favicon.ico \
-                  /icons/src/main/resources/META-INF/resources/img/apple-touch-icon.png \
+# favicon.ico is at the web root (not /img/) so browsers that request /favicon.ico directly find it.
+COPY --from=icons /icons/src/main/resources/META-INF/resources/favicon.ico \
+                  ./src/main/resources/META-INF/resources/
+COPY --from=icons /icons/src/main/resources/META-INF/resources/img/apple-touch-icon.png \
+                  /icons/src/main/resources/META-INF/resources/img/icon-192.png \
+                  /icons/src/main/resources/META-INF/resources/img/icon-512.png \
                   ./src/main/resources/META-INF/resources/img/
 RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -q
 
