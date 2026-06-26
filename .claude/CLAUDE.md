@@ -1,58 +1,41 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
-> **Code style:** project-specific style expectations (beyond the inherited linters) live in
-> [`CODE_STYLE.md`](CODE_STYLE.md). Read it before writing or editing code and keep code conforming to it.
+> **Code style:** Project-specific expectations live in [`CODE_STYLE.md`](CODE_STYLE.md). Read it before writing or editing code.
 
 ## Commands
 
 ```bash
-# After cloning, fetch the code-quality-config git submodule (the shared Checkstyle/PMD/SpotBugs/
-# license config the linters read). Without it, -Dlint / -Dall fail to find the rule files.
-git submodule update --init        # one-time (also: git clone --recurse-submodules)
+# Fetch the code-quality-config submodule (required for -Dlint / -Dall)
+git submodule update --init
 
-# Build the CSS once after cloning (and after any class/template change). The compiled,
-# purged Tailwind stylesheet is served at /css/app.css. The output is committed, so the app
-# runs without Node, but it must be rebuilt when classes change.
+# Build CSS (compiled Tailwind at /css/app.css; rebuild after any class/template change)
 npm install        # one-time
-npm run css        # or: npm run css:watch  (rebuild on template/class changes during dev)
+npm run css        # or: npm run css:watch
 
-# Start the dev PostgreSQL (required before quarkus:dev). docker-compose.dev.yml has a single
-# "db" service (database "diurnal"), shared by dev mode and tests.
+# Start dev PostgreSQL (required before quarkus:dev)
 docker compose -f docker-compose.dev.yml up -d diurnal-db-dev
 
-# Run in dev mode (hot reload, Swagger UI at /api — served in all profiles, OpenAPI doc at /q/openapi,
-# scoped to the public API by PublicApiFilter — the /api/* namespace plus the published /logs/events
-# feed — so the internal web/HTMX HTML routes are excluded)
-# ALWAYS stop this instance once testing/verification is finished (see rule below):
-#   pkill -f "quarkus:dev"
+# Run in dev mode (hot reload, Swagger UI at /api, port 8081)
+# ALWAYS stop when done: pkill -f "quarkus:dev"
 mvn quarkus:dev
 
-# Build JAR (tests are OPT-IN — see note below — so a bare package skips them)
+# Build JAR (no tests by default)
 mvn package
 
-# Run ALL tests (unit + integration + Playwright E2E) AND every inherited linter — handles Docker
-# automatically. This is the full gate: surefire unit tests, the *IT failsafe tier, Playwright E2E,
-# plus Checkstyle/PMD/SpotBugs/Javadoc/PITest/enforcer/license/dependency analysis.
+# Run ALL tests + linters (full CI gate)
 mvn clean install -Dall
-# Prerequisite: Playwright browsers must be installed once: cd e2e && npx playwright install
+# Prerequisite: cd e2e && npx playwright install
 
-# Run ONLY the linters defined in the parent POM (no tests executed; test sources still compile so
-# PITest mutation coverage can run). Use this for a fast quality gate.
+# Run linters only (no tests)
 mvn clean install -Dlint
 
-# Run unit tests only (pure JUnit *Test classes — no DB/Docker needed). Tests are opt-in, so the
-# `-Dtests` flag is required; a bare `mvn test` skips everything.
+# Run unit tests only (no DB needed)
 mvn test -Dtests
-
-# Run a single test class
 mvn test -Dtests -Dtest=MyTestClass
 
-# Run Playwright E2E tests only (DB on :5432). Defaults to an app on :8080; point it at any
-# running instance with BASE_URL (e.g. the dev server, or the -Dall jar — both on :8081).
+# Run Playwright E2E tests
 cd e2e && npm test                                  # against :8080
-cd e2e && BASE_URL=http://localhost:8081 npm test   # against the dev / -Dall testing port
+cd e2e && BASE_URL=http://localhost:8081 npm test   # against dev / -Dall port
 
 # Full Docker deployment
 cp .env.example .env   # fill in DB_PASSWORD and SESSION_ENCRYPTION_KEY
@@ -60,534 +43,151 @@ docker compose up -d --build
 docker compose logs -f app
 ```
 
-> **Always invoke the Compose CLI as `docker compose` (the v2 plugin), NEVER the legacy
-> `docker-compose` (hyphenated) binary.** This applies to every command; only the `docker-compose.yml`
-> / `docker-compose.dev.yml` **filenames** keep the hyphen, since those are the literal files on disk.
+> **Always use `docker compose` (v2 plugin), never `docker-compose` (hyphenated).** Only the filenames keep the hyphen.
 
-Dev mode disables Testcontainers and expects a local PostgreSQL on `localhost:5432` with database/user/password all `diurnal` (start it with
-`docker compose -f docker-compose.dev.yml up -d diurnal-db-dev`). Flyway migrations run automatically at startup. `docker-compose.dev.yml` defines a single **`diurnal-db-dev` service** (tmpfs, 5432, database `diurnal`) shared by both dev mode and tests. Data is ephemeral —
-wiped on every container recreate.
+Dev mode expects PostgreSQL on `localhost:5432` with database/user/password all `diurnal`. Flyway migrations run automatically. Data is ephemeral (wiped on container recreate).
 
-> **Always tear down the dev environment once testing/verification is finished.** Never leave dev
-> resources running at the end of a task. The easiest way is the helper scripts:
-> `scripts/dev-up.sh` brings up the dev DB + `quarkus:dev` on 8081 and waits until it answers;
-> **`scripts/dev-teardown.sh`** stops it again. It frees 8081 **only if the listener belongs to this
-> project** (a `quarkus:dev` server / `-Dall` E2E jar from this tree); an *unrelated* app on 8081 is
-> left untouched and reported as an error for you to handle. It also removes the `diurnal-db-dev`
-> container — so a running **production** container on 8080 is never touched. Equivalent
-> manual steps if you must:
-> 1. Stop the dev app: `pkill -f "quarkus:dev"` and confirm port 8081 is free (frees 8081 for the
-     > `@QuarkusTest` test-port and stops a stale server masking changes).
-> 2. Stop the DB: `docker compose -f docker-compose.dev.yml down` (all data is ephemeral/tmpfs so
-     > nothing is lost that wasn't already going to be lost on next start).
->
-> The **test** DB does **not** need manual teardown for a `-Dall` run: the Maven profiles start the
-> `diurnal-db-dev` service (`up … diurnal-db-dev`) in `pre-integration-test` and remove it (`rm -sf diurnal-db-dev`) in
-> `post-integration-test` automatically. Only close it by hand if you started it yourself (the
-> unit-test command `mvn test -Dtests` runs pure JUnit and needs no DB).
+> **Tear down the dev environment when finished.** Use `scripts/dev-up.sh` / `scripts/dev-teardown.sh`. Manual: `pkill -f "quarkus:dev"`, then `docker compose -f docker-compose.dev.yml down`. The `-Dall` run manages the test DB automatically in `pre/post-integration-test`.
 
-Config is layered by Quarkus profile: `application.properties` holds the base/production config, and profile-specific overrides live in
-`application-dev.properties` (dev mode — HTTP port **8081**, DB on 5432/diurnal, DEBUG logging, Swagger UI) and `application-test.properties` (DB on
-5432/diurnal, forced UTC). Both profile files **must** stay in `src/main/resources` (not `src/test/resources`): the `-Dall` E2E step runs the packaged jar
-with `-Dquarkus.profile=test`, which only reads config that was bundled into the jar.
+Config layers: `application.properties` (base/prod), `application-dev.properties` (port 8081, DEBUG), `application-test.properties` (UTC). Both profile files must stay in `src/main/resources` — the E2E jar runs with `-Dquarkus.profile=test` and only reads bundled config.
 
-**Port map**: **8080** = production (`application.properties` default, the `docker compose` container); **8081** = the single "testing" port — dev
-mode (`application-dev.properties`), the `@QuarkusTest` test-port the unit/`*IT` tests bind, *and* the packaged-jar E2E run under `-Dall` (
-`-Dquarkus.http.port=${e2e.http.port}` in `pom.xml`). These three never run at once, so they share one port. Under `-Dall` the ordering is the
-load-bearing detail, and it comes **only from Maven phase binding, never from plugin/execution declaration order** — the inherited sortpom plugin
-re-sorts plugins (by `artifactId`) and executions on every build, so anything relying on declaration order is silently broken (e.g.
-`exec-maven-plugin` always sorts before `maven-failsafe-plugin`). So the `*IT` tests run via failsafe in `integration-test` (failure deferred to
-`verify`), the **failsafe gate fails the build in `verify` if any IT failed**, and only then does the E2E run — bound to `install`, the first phase
-after `verify` — so the ITs are always confirmed green before E2E starts, and 8081 is long released by the `@QuarkusTest` instance. The E2E step (
-`e2e/run-e2e.sh`) is self-contained: it brings up its own test DB, starts the jar on 8081, runs Playwright, tears everything down via an EXIT trap,
-and exits with Playwright's code (so an E2E failure fails the build). Keeping testing on 8081 leaves 8080 free, so `-Dall` coexists with a running
-production container.
-
-> **Don't `cd` into the project root before running commands.** The working directory is already the
-> project root (`/home/$USER/git/diurnal`); use plain or absolute paths. A redundant `cd .` (or
-> `cd` to the current dir) only triggers a needless permission prompt.
+**Port map**: 8080 = production; 8081 = dev mode, `@QuarkusTest`, and the E2E jar (never simultaneous). Under `-Dall`, phase binding is the load-bearing detail — the inherited sortpom plugin re-sorts plugins alphabetically, so `exec-maven-plugin` always sorts before `maven-failsafe-plugin`. `*IT` tests run in `integration-test`; E2E is bound to `install` (after `verify`), ensuring ITs are confirmed green first.
 
 ## Architecture
 
-### Build: parent POM, submodule & quality gates
+### Build
 
-The build **inherits from `net.zodac:parent-pom`** (resolved from Maven Central, `<relativePath/>` empty —
-no sibling checkout required). The parent centralises **all dependency and plugin versions** plus the
-shared lint/test configuration; this POM declares dependencies/plugins without versions and lets the
-parent manage them (the Quarkus BOM, JUnit BOM, jbcrypt, jspecify, etc. all come from the parent).
+Inherits from `net.zodac:parent-pom` (Maven Central). The parent manages all dependency/plugin versions (Quarkus BOM, JUnit BOM, jbcrypt, jspecify, etc.). Lint config lives in the `code-quality-config/` git submodule — run `git submodule update --init` after cloning.
 
-The parent's lint rule files (Checkstyle/PMD/SpotBugs filters, license header) live in a **git submodule**,
-`code-quality-config/`, vendored into this repo (mirrors how the parent itself does it). The
-`maven-checkstyle-plugin`/etc. `ci-config-directory` and `license-file` properties are overridden in
-`pom.xml` to point at this local submodule, so the lint config resolves without the parent being a
-filesystem parent. Run `git submodule update --init` after cloning or the linters can't find their config.
+Quality gates (opt-in):
+- `-Dlint` — ErrorProne+NullAway (also run on every compile), Checkstyle, PMD, SpotBugs, Javadoc, Enforcer, license headers, dependency analysis, PITest. Compiles test sources but does not run tests.
+- `-Dtests` — surefire unit tests (`*Test`) only.
+- `-Dall` — everything: unit + `*IT` + E2E + full linters.
 
-Quality gates are **opt-in via profile-activating properties** (the parent's model):
-
-- `-Dlint` → runs the full linter suite: ErrorProne+NullAway (these also run on *every* compile, gated by
-  the compiler, so the code must stay null-safe to build at all), Checkstyle, PMD, SpotBugs, Javadoc,
-  Enforcer (dependency convergence/bans), license headers, dependency analysis, and **PITest** mutation
-  coverage. Compiles test sources but does not execute tests.
-- `-Dtests` → runs the surefire unit tests (`*Test`) only.
-- `-Dall` → **everything**: unit + `*IT` + Playwright E2E **and** the full linter suite (it activates both
-  the parent's `activate_all` profile and this POM's `all` profile). This is the complete CI gate.
-
-A bare `mvn test` / `mvn package` runs **no tests** (skip-tests defaults true in the parent). Project-specific
-lint adjustments live in `pom.xml`: a project-local `checkstyle/checkstyle-suppression.xml` (allows the `*IT`
-naming convention), `maven-dependency-plugin` ignores for Quarkus's extension model, and `pitest-maven`
-excludes `*IT` so mutation testing verifies only the unit tests. **All inherited linters currently pass clean
-(Checkstyle/PMD/SpotBugs = 0, PITest strength = 100%); keep them that way** — e.g. the codebase is NullAway-
-annotated (JSpecify `@Nullable`), every public/package method and type carries Javadoc, locals/params are
-`final`, and unit-test assertions carry messages.
+**All linters currently pass clean (Checkstyle/PMD/SpotBugs = 0, PITest strength = 100%); keep them that way.** Code must be NullAway-annotated (JSpecify `@Nullable`), every public/package method and type carries Javadoc, locals/params are `final`, unit-test assertions carry messages.
 
 ### Package layout
 
-Code is organised by feature under `src/main/java/net/zodac/diurnal/`:
+Under `src/main/java/net/zodac/diurnal/`:
 
-| Package  | Contents                                                                                                                                                                                                                               |
-|----------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `action` | `Action` entity + `ActionsWebResource` (CRUD for user-defined trackable habits)                                                                                                                                                        |
-| `log`    | `ActionLog` entity + `LogWebResource` (increment/decrement per day) + `CalendarResource` (JSON for FullCalendar; its `/logs/events` feed is the **public** logged-events API, shared by the in-app calendar and external integrations) |
-| `stats`  | `StatsService` (streak/count calculations) + `ActionStats` (data record) + `ActionStatsExtensions` (its derived/label logic as Qute template extensions) + `StatsWebResource` (paginated stats page)                                     |
-| `auth`   | REST API auth: `AuthResource` (register/login → JWT), `TokenService`, `PasswordIdentityProvider`, `TrustedIdentityProvider`                                                                                                            |
-| `user`   | `User` entity, `UserResource` (`/api/users/me`), `UserSettings` (page size options/validation)                                                                                                                                         |
-| `web`    | `WebResource` — all the top-level page routes (dashboard, login, register, logout, settings, theme toggle)                                                                                                                             |
+| Package  | Contents |
+|----------|----------|
+| `action` | `Action` entity + `ActionsWebResource` (CRUD for user-defined habits) |
+| `log`    | `ActionLog` entity + `LogWebResource` (increment/decrement per day) + `CalendarResource` (`/logs/events` feed) |
+| `stats`  | `StatsService` + `ActionStats` (data record) + `ActionStatsExtensions` (template extensions) + `StatsWebResource` |
+| `auth`   | `AuthResource` (register/login → JWT), `TokenService`, `PasswordIdentityProvider`, `TrustedIdentityProvider` |
+| `user`   | `User` entity, `UserResource` (`/api/users/me`), `UserSettings` |
+| `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings, theme toggle) |
 
-### Two authentication surfaces
+### Authentication
 
-- **Web UI (`/*`)** — encrypted session cookie (`diurnal_session`), form-based. Quarkus form auth redirects unauthenticated requests to `/login`.
-  `@RolesAllowed("user")` enforces auth at the method level.
-- **REST API (`/api/*`)** — Bearer JWT signed with RSA-2048 keys. Keys live in `src/main/resources/jwt-keys/` (dev) or `secrets/` (production,
-  auto-generated on first start by `JwtKeyProvisioner`).
+- **Web UI (`/*`)** — encrypted session cookie (`diurnal_session`), form-based; unauthenticated → `/login`. `@RolesAllowed("user")` at the method level.
+- **REST API (`/api/*`)** — Bearer JWT (RSA-2048). Keys in `src/main/resources/jwt-keys/` (dev) or `secrets/` (prod, auto-generated by `JwtKeyProvisioner`).
 
-The split is configured in `application.properties` with two `quarkus.http.auth.permission.*` blocks. `quarkus.http.auth.proactive=false` is required
-so Bearer doesn't intercept web requests before form auth can redirect.
+`quarkus.http.auth.proactive=false` prevents Bearer from intercepting web requests before form auth can redirect.
 
-> **In a Bearer-authenticated resource, resolve the current user via `SecurityIdentity.getPrincipal().getName()`
-> (the `upn`/email claim) → `User.findByEmail(...)`, NOT via an injected `JsonWebToken.getSubject()`.**
-> When OIDC is enabled (and it is in the test profile, and in any OIDC deployment) the default
-> `JsonWebToken` producer is the OIDC one, which is **not** populated for a smallrye Bearer token — so
-> `jwt.getSubject()` returns `null` and the handler 500s. `UserResource` and `CalendarResource` use the
-> `SecurityIdentity` form, which works for both the Bearer and OIDC (and form-session) flows.
+> **In Bearer resources, resolve the user via `SecurityIdentity.getPrincipal().getName()` → `User.findByEmail(...)`, NOT `JsonWebToken.getSubject()`.** When OIDC is enabled, the default `JsonWebToken` producer is the OIDC one and `getSubject()` returns `null`, causing a 500.
 
-`PasswordIdentityProvider` handles form/API password auth. `TrustedIdentityProvider` handles OIDC users (who have no password). OIDC users are stored
-with `oidcSubject` + `oidcIssuer` instead of a password hash; the composite unique index `(oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL`
-enforces uniqueness. OIDC is disabled by default (`quarkus.oidc.enabled=false`).
+OIDC users store `oidcSubject` + `oidcIssuer` instead of a password hash; composite unique index `(oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL`. OIDC is disabled by default (`quarkus.oidc.enabled=false`).
 
 ### HTMX partial responses
 
-Most resources return **HTML fragments** rather than full pages. Qute templates in `src/main/resources/templates/` are either full-page layouts (e.g.
-`actions.html`) or partials in `templates/partials/`. Resources inject both and choose which to return:
+Qute templates in `src/main/resources/templates/` are full-page layouts or partials in `templates/partials/`. Full `@GET` returns a `TemplateInstance`; HTMX endpoints return `Response.ok(partial.data(...)).build()`. Error responses use `HX-Retarget`/`HX-Reswap` to redirect the swap into the error element.
 
-- A full `@GET` returns a `TemplateInstance` for the whole page.
-- HTMX-targeted endpoints return `Response.ok(partialTemplate.data(...)).build()`.
+### Data records vs. logic (`*Extensions`)
 
-Error responses for HTMX mutations use `HX-Retarget` / `HX-Reswap` headers to redirect the swap into the error element rather than the default target.
+Records hold data only; derived logic lives in a `<Type>Extensions` final class (private constructor) whose methods take the record as the first parameter. Template-facing methods are annotated `@io.quarkus.qute.TemplateExtension` so Qute resolves `{x.foo}` against the record unchanged.
 
-### Data records vs. logic (`*Extensions` + Qute template extensions)
+**This split is mandatory, not stylistic** — PITest refuses to hot-swap mutants into record classes (`"class redefinition failed: attempted to change the Record attribute"`), silently leaving logic untested behind the 100% gate. Diagnose with `-Dverbose=true`.
 
-Value types are split: a **`record` holds data only**, and its derived/computed logic lives in a
-separate **`<Type>Extensions` final class** (private constructor) whose methods take the record as the
-**first parameter**. The template-facing ones are annotated **`@io.quarkus.qute.TemplateExtension`**,
-so Qute still resolves `{x.foo}` against the record unchanged — *no template edits needed* when logic
-moves out. Established pairs: `stats/ActionStats` + `ActionStatsExtensions` (streak/trend/since/`plural`
-labels) and `web/UserRow` + `UserRowExtensions` (`roleName`).
-
-This split is **mandatory, not stylistic**, because of PITest. PITest hot-swaps each mutant into the
-running minion JVM via `Instrumentation.redefineClasses`, which the JVM **refuses for a class carrying
-a `Record` attribute** — a mutated logic method *on a record* fails to redefine with *"class
-redefinition failed: attempted to change the Record attribute"*, surfacing as
-`PIT >> WARNING: Minion exited abnormally due to RUN_ERROR` and leaving that logic **untested** (the
-errors are excluded from test-strength, so they hide silently behind the 100% gate). The same logic on
-a plain class redefines cleanly and is fully mutated; a pure-data record generates no mutants at all.
-Diagnose RUN_ERRORs with `mvn clean install -Dlint -Dverbose=true` (the real `redefineClasses`
-stack-trace is only printed under `-Dverbose`; the `LogManager` line in minion output is a red
-herring).
-
-**When a record grows an instance method with branching logic that a template calls** (a
-`@SuppressWarnings("unused")` template-only method is the tell), move it to a `<Type>Extensions` class
-and **add a unit test** so the logic gains real mutation coverage. This does **not** apply to pure-data
-records, factory methods (`from`/`of` — construction-time data prep stays on the record), or static
-validators/sanitisers — e.g. `UserSettings`'s static helpers are unit-tested and mutate fine (a record
-only trips PITest when a *mutated, unit-test-covered instance method* is hot-swapped), so leave them.
-Equivalent mutants surfaced by the move (a boundary that's unreachable because an earlier branch
-already returns) should be removed by restructuring, not suppressed — see `ActionStatsExtensions.trend`
-(`> 0` / `< 0` / else, mirroring `trendClass`) and `UserSettings.utcOffsetLabel`.
+**When a record grows branching instance logic called by a template** (watch for `@SuppressWarnings("unused")`), move it to a `<Type>Extensions` class and add a unit test. Exceptions: pure-data records, factory methods (`from`/`of`), and static validators/sanitisers.
 
 ### CSS build & colour tokens
 
-Tailwind is **compiled, not CDN**. `src/main/css/app.css` (the `@tailwind` entrypoint + colour
-tokens) is built by `npm run css` into `src/main/resources/META-INF/resources/css/app.css`, which
-Quarkus bundles and serves at `/css/app.css` (`layout.html` links it). `tailwind.config.js` sets
-`darkMode: 'class'` and scans **both** `templates/**/*.html` and `src/main/java/**/*.java` (a few
-classes are returned from Java, e.g. `StatsService` trend colours — also `safelist`ed). The compiled
-file is committed so the app runs without Node; **rebuild it (`npm run css`) after changing any class
-in a template or Java file**, or the new class will be purged/missing. The Dockerfile builds it fresh
-in a dedicated `css` stage (Node) and copies it into the Quarkus build — Node never reaches runtime.
+Tailwind is compiled (not CDN). `src/main/css/app.css` is built into `src/main/resources/META-INF/resources/css/app.css`. **Rebuild with `npm run css` after any class change in templates or Java** or the class will be purged. The Dockerfile builds it fresh in a dedicated `css` stage.
 
-Colour is tokenised: `app.css` defines `--color-*` CSS variables once (`:root` + `.dark`), and
-`tailwind.config.js` exposes semantic utilities backed by them — `bg-surface` / `bg-surface-muted`,
-`text-ink` / `text-ink-muted`, `border-line` / `border-line-subtle`, `text-brand`, `bg-brand`,
-`text-success`, `text-danger` — that auto-adapt to dark mode **without a `dark:` variant**. Use these
-instead of raw `gray-*`/`indigo-*` pairs.
+Colour tokens: `app.css` defines `--color-*` CSS variables (`:root` + `.dark`). Tailwind exposes semantic utilities: `bg-surface`/`bg-surface-muted`, `text-ink`/`text-ink-muted`, `border-line`/`border-line-subtle`, `text-brand`, `bg-brand`, `text-success`, `text-danger`. Use these instead of raw `gray-*`/`indigo-*`.
 
-**The brand colour is the single accent, and it is GENERATED — never hand-edit it.** The whole
-`--color-brand*` family lives in the `@generated:brand` regions of `app.css` (one in `:root`, one in
-`.dark`) and is **computed by `scripts/generate-brand.py` from the `fill` of `scripts/assets/wordmark.svg`
-— the one source of truth** (see "Brand assets"). To rebrand, change that fill and run `npm run brand`;
-do not edit the token values directly. The base colour is currently **`#6366f1`** (the wordmark colour,
-also the default `Action.colour`), **constant across light and dark** (it does not flip shade). **Every
-accent/highlight in the UI must resolve to it**: filled buttons (`.btn-primary` → `bg-brand` /
-`hover:bg-brand-hover` / `text-on-brand`, all CTAs like "Add"/"View stats"), active nav links
-(`.nav-link-active`) + the mobile hamburger, the log **increment** `+`, all focus rings
-(`--color-brand-ring`), the calendar **"today"** fill + **selected-day** tint/ring across *every*
-calendar style, the table **Edit** button + **edit-row highlight** (`--color-ring-edit`), and the
-settings preview-picker highlight. When adding an accented element, route it through `bg-brand` /
-`text-brand` / `border-brand` / `ring-brand-ring` / `text-on-brand` or `var(--color-brand*)` — **never a
-literal `indigo-*` or hardcoded hue** (it would not follow a rebranding). The computed family: `-hover`
-(darker in light / lighter in dark, hover) and `-strong` (more so, active hovers) are mixed toward
-black/white; `-subtle` is the brand at 0.16 alpha (translucent "today" fill, keeps the date legible) →
-solid in dark; `-faint` is a desaturated tint (selected-day fill, light tint → dark tint); `-ring`/
-`-ring-edit` equal the brand; and **`--color-on-brand`** is the readable text/icon colour on a brand
-fill, **luminance-picked** (white or near-black) so a light rebrand colour stays legible. The log
-**decrement** `−` is deliberately muted (`text-ink-muted`), not an accent. (Trade-off: a constant
-`#6366f1` is slightly below AA contrast for small `text-brand` on a dark surface — acceptable since the
-wordmark sets the same precedent, but keep it for accents, not body copy.)
+**The brand colour is generated — never hand-edit it.** The `--color-brand*` family lives in `@generated:brand` regions of `app.css`, computed by `scripts/generate-brand.py` from the `fill` of `scripts/assets/wordmark.svg` (the single source of truth). To rebrand: change the `fill`, then `npm run brand`. Base colour: `#6366f1`, constant across light and dark.
 
-The variable set goes beyond the Tailwind-exposed utilities: the inline component CSS (the `.dt-*`
-data-table layer and the `.banner-*` messages in `layout.html`, plus the calendar in
-`dashboard.html`) consume the tokens directly as `var(--color-*)`, so it carries extra tokens for
-states with no plain utility — `--color-brand-strong` / `--color-danger-strong` (deeper active-hover
-shades), `--color-text-strong` / `--color-text-faint` (hover target for / resting state of muted
-controls), `--color-brand-subtle` (faint brand tint → solid brand in dark, the calendar "today"
-fill), `--color-ring-edit` / `--color-ring-confirm` (edit / confirm-delete row rings),
-`--color-input-bg` / `--color-input-border` (table edit-row inputs), and a `--color-banner-{error,
-success,warning}-{bg,border,text}` group. **No raw hex remains in the UI** except two deliberate
-literals: the FOUC background guard in `layout.html` (injected before `app.css` loads, so it can't
-reference the variables) and the per-action colour, which is stored user data (default `#6366f1`),
-not chrome. Because each token carries its own dark value, the token-based component CSS needs almost
-no `.dark` overrides.
+Every accent must resolve to the brand: `.btn-primary`, active nav links, log increment `+`, focus rings, calendar "today" fill, Edit button, edit-row highlight. Route new accented elements through `bg-brand`/`text-brand`/`border-brand`/`ring-brand-ring`/`text-on-brand` — **never a literal `indigo-*`**.
 
-**Component classes** (in `app.css` `@layer components`, the single source for each "type" of element
-so it looks identical everywhere; built with `@apply`):
+Extra tokens consumed as `var(--color-*)` in inline CSS: `--color-brand-strong`/`-subtle`/`-faint`/`-ring`/`-ring-edit`, `--color-danger-strong`, `--color-text-strong`/`-faint`, `--color-input-bg`/`-border`, `--color-banner-{error,success,warning}-{bg,border,text}`.
 
-- `.btn-primary` (filled CTA), `.btn-secondary` (outlined/OIDC)
-- `.card` (surface shell — padding/shadow stay at the call site), `.stat-tile` (inset metric tile)
-- `.form-input` (width set by caller), `.form-select`, `.field-label`, `.field-label-caps`, `.help-text`
-- `.nav-link` / `.nav-link-active`, `.swatch` + `.swatch-sm`/`.swatch-md` (pagination links reuse `.dt-page-link`)
-
-**Shared structural partials**: `partials/nav-links.html` (one link list rendered into both the desktop
-bar and the mobile menu — they can't drift), `partials/stat-tile.html`, `partials/pagination.html` (now
-used by Actions, Users, **and** Stats; the dashboard day panel reuses the same `.dt-pagination`/`.dt-page-link`
-look but keeps its own markup for live-search passthrough). Theme switching is centralised in
-`window.Diurnal.applyTheme(theme, opts)` (defined inline in `layout.html` for the FOUC pass, reused by
-the settings picker).
-
-The table chrome (`.dt-*`) still lives inline in `layout.html` (see below) — the one component layer not
-yet folded into `app.css` — but it already consumes the `app.css` colour tokens via `var(--color-*)`.
+Component classes in `app.css @layer components`: `.btn-primary`, `.btn-secondary`, `.card`, `.stat-tile`, `.form-input`, `.form-select`, `.field-label`, `.field-label-caps`, `.help-text`, `.nav-link`/`.nav-link-active`, `.swatch`/`.swatch-sm`/`.swatch-md`.
 
 ### Shared data-table styling (`.dt-*`)
 
-All data tables — Actions (`/actions`), Users (`/admin/users`), and any future ones — share a single
-styling layer so they look and behave identically. The source of truth is a `<style>` block of
-semantic `.dt-*` classes in `layout.html` (still plain CSS and inline for now, though every colour is
-already a `var(--color-*)` token; moving the rules into `app.css` with `@apply` is the remaining
-Tier-2 step; the few remaining dark variants key off the `.dark` class). Wrap a table in `.dt-table` and use
-`.dt-row`/`.dt-cell`; `{#include partials/pagination …}` for the footer.
+All tables (Actions, Users, future) share `.dt-*` classes in a `<style>` block in `layout.html` (every colour is `var(--color-*)`). Wrap in `.dt-table`, use `.dt-row`/`.dt-cell`, include `partials/pagination` for the footer.
 
-**Two table variants:**
+**Two variants:** non-editable (just `.dt-row`/`.dt-cell`) and editable (in-place client-side toggle via `dtStartEdit`/`dtCancelEdit`, not a server round-trip). Each row renders `[data-dt-view]` + `[data-dt-edit]` states.
 
-- **Non-editable** — just `.dt-row`/`.dt-cell`, no trailing actions (edit/delete) cell.
-- **Editable** — adds the shared edit/delete chrome. The mechanism (canonical: the Users table) is an
-  **in-place client-side toggle**, *not* a server round-trip: each row renders both a view state
-  (`[data-dt-view]`) and a hidden edit state (`[data-dt-edit]`), toggled by `dtStartEdit`/`dtCancelEdit`
-  in `layout.html`. Save submits the row's `<form>`; Cancel just restores the view (and `form.reset()`s).
+Shared editable-row chrome:
+- `partials/dt-row-actions.html` — trailing cell: Edit + Delete (view) / Save + Cancel (edit). Parameterised by `id`, `rowPrefix`, `formPrefix`, `confirmBase`. View actions reveal on hover/focus-within only.
+- `partials/dt-confirm-delete-row.html` — in-place confirm-delete row, rendered from the resource via `.data(rowId, cols, swatchColour, label, prompt, deleteUrl/deleteTarget/deleteSwap, restoreUrl)`.
+- `.dt-row-highlight` — inset `box-shadow` ring; colour from `--dt-highlight` (`.dt-row-edit` = indigo, `.dt-row-confirm` = red). Edit rows trim cell padding to keep the same row height.
 
-**Shared editable-row chrome (change once, every table updates):**
-
-- `partials/dt-row-actions.html` — the trailing options cell: Edit + Delete in view, Save + Cancel in
-  edit. Parameterised by primitives only (`id`, `rowPrefix`, `formPrefix`, `confirmBase`) so it never
-  leaks entity specifics; it builds the composite ids/URLs in its own attribute text. Save uses the
-  HTML5 `form="{formPrefix}-{id}"` association so it can live in a different cell from the form.
-  Buttons sit in fixed-width centred `.dt-actions` slots (right-aligned), so Edit↔Save / Delete↔Cancel
-  swap without shifting — and the confirmation row reuses `.dt-actions` so its Cancel lands exactly where
-  the original Delete was. View-mode actions reveal only when the row is highlighted (`:hover` /
-  `:focus-within` — on touch a tap applies `:hover`, so they reveal on tap, same as desktop); edit +
-  confirm actions are always visible.
-- `partials/dt-confirm-delete-row.html` — the in-place confirm-delete row, **rendered from the resource**
-  via `.data(rowId, cols, swatchColour, label, prompt, deleteUrl/deleteTarget/deleteSwap, restoreUrl)`.
-- `.dt-row-highlight` (on the row) draws the accent ring — one definition shared by edit and
-  confirm rows, drawn with an inset `box-shadow` so it never changes the row's size. Only the
-  colour is passed in via `--dt-highlight` (set by `.dt-row-edit` indigo / `.dt-row-confirm` red).
-  Edit rows additionally trim cell padding + size inputs to the row line-height so the row keeps
-  the same height as its view state (the ring never appears to enlarge the row).
-
-To add an editable table: render each row with `[data-dt-view]`/`[data-dt-edit]` pairs for the editable
-cells plus an `id="{formPrefix}-{id}"` edit `<form>`, end the row with
-`{#include partials/dt-row-actions id=… rowPrefix=… formPrefix=… confirmBase=… /}`, and return
-`partials/dt-confirm-delete-row` from the row's `…/confirm-delete` endpoint.
-
-Cross-table conventions:
-
-- **Explicit confirm-to-save.** Table edits require an explicit Save tick. The **only**
-  auto-save-on-change surface is Settings → *User Preferences*, a deliberately non-table panel.
-- **Single armed row.** At most one row may be mid-edit or mid-delete-confirm; an armed row always shows
-  a visible `.dt-btn-cancel`. `dtClearArmedRows` (in `layout.html`) disarms the rest when another row is
-  selected, and the admin page calls it to disarm a row whose delete the server rejected.
-- **Red-accent confirm-delete.** Destructive button left, Cancel right (where the original Delete was).
-
-`partials/pagination.html` exposes `#showing-shown` / `#showing-total` count spans so surgical HTMX
-deletions (Actions delete returns **204**; the `htmx:beforeSwap` handler in `actions.html` removes the
-row and decrements the counters) stay in sync without re-rendering the whole list. Admin delete/role
-changes instead re-render the whole `admin-users-list` partial.
+Cross-table conventions: explicit Save tick required (only exception: Settings → User Preferences); at most one armed row at a time (`dtClearArmedRows` disarms others); destructive button left, Cancel right. `partials/pagination.html` exposes `#showing-shown`/`#showing-total` for surgical HTMX count updates.
 
 ### CalendarResource
 
-`GET /logs/events` returns JSON (`CalendarEventDto` records) consumed directly by FullCalendar.js on the dashboard. It intentionally includes archived
-actions so historical entries still render on the calendar. The dashboard uses a custom month/year picker overlay (not FullCalendar's built-in
-navigation); `eventClick` mirrors `dateClick` to open the day panel.
+`GET /logs/events` returns `CalendarEventDto` JSON for FullCalendar.js, including archived actions. Also the **public logged-events API** — authenticates both session cookie and Bearer JWT, published in Swagger by `PublicApiFilter`. `start`/`end` are mandatory ISO-8601 dates (missing → 400). Anonymous requests → 302 to `/login`. `/logs/minimal-events` is internal (`@Operation(hidden = true)`).
 
-`/logs/events` is **also the public logged-events API** — the single endpoint shared by the in-app calendar and external integrations (rather than a
-separate `/api/*` copy). It lives on the unpinned `/logs/*` (`ui`) surface, so it authenticates **both** the session cookie (in-app) and a Bearer JWT
-(integrations, via `/api/auth/login`); it's published in the Swagger UI by `PublicApiFilter`. `start`/`end` are **mandatory** ISO-8601 dates (missing or
-unparseable → `400` via `BadRequestException`) — the app requests a month at a time, integrations may widen the range for more history. An anonymous
-request is redirected to `/login` (302) by `BrowserLoginChallengeMechanism`, not given a 401. The compact `/logs/minimal-events` feed stays internal
-(`@Operation(hidden = true)`, excluded from the docs).
+### Typography & Font setting
 
-### Typography & the per-user Font setting
+Two Nova superfamily webfonts served as `woff2` from `src/main/resources/META-INF/resources/fonts/`: **Nova Flat** (body/UI) and **Nova Round** (display/headings). `@font-face` blocks in `app.css`.
 
-The app ships two webfonts from the **Nova** superfamily, served as `woff2` from
-`src/main/resources/META-INF/resources/fonts/`: **Nova Flat** (the brand/wordmark font — body/UI face,
-with bold + oblique variants) and **Nova Round** (a softer, rounded sibling — the **display** face for
-headings/highlights). `@font-face` blocks live in `app.css` (with `font-display: swap`).
-
-The committed `woff2` are generated, self-contained output — the app/build never read a `.ttf` at
-runtime. Their `.ttf` **masters** are the curated set kept in `scripts/assets/Nova/` (only the 6 faces
-actually served: `NovaFlat-{Book,Bold,BookOblique,BoldOblique}` + `NovaRound-{Book,Bold}`). To
-regenerate a `woff2` after re-subsetting or adding a face, convert with `fonttools` (the same dependency
-the brand pipeline uses), e.g.:
-`python3 -c "from fontTools.ttLib import TTFont; f=TTFont('scripts/assets/Nova/NovaFlat-Book.ttf'); f.flavor='woff2'; f.save('src/main/resources/META-INF/resources/fonts/NovaFlat-Book.woff2')"`.
-
-Font family is **indirected through two CSS variables** so it is per-user switchable in one place:
-`--font-body` / `--font-display` (defined on `:root`). Tailwind's `font-sans` / `font-display` resolve
-to them (`tailwind.config.js`), so the whole app (body via preflight, plus the `h1,h2,h3`/`.card-title`/
-`.field-label-caps`/`stat-tile` `font-display` opt-ins) follows whichever the variables point at.
-
-The **Font setting** (`User.font`, values `nova` | `standard`, default `nova`, migration `V13`,
-allow-list + `sanitiseFont` in `UserSettings`) chooses between them. `:root`'s defaults are the
-**system** sans stack (= "Standard"); the **`.font-nova`** class (in `app.css`) re-points the variables
-to the Nova faces. `layout.html` renders that class on `<html>` server-side — `{#if font != 'standard'}`
-(so Nova is the default for any unset/`nova` value; only an explicit `standard` opts out) — correct from
-first paint, no FOUC. The settings picker also toggles `.font-nova` **live** (mirroring the live theme
-switch). The body preload of `NovaFlat-Book.woff2` is likewise gated on `font != 'standard'`.
-
-**Because Qute renders in strict mode, `font` must be passed wherever the layout is rendered** — every
-resource that passes `theme` to a full-page template also passes `font` (mirror it 1:1; the day-panel
-HTMX partial renders no layout, so it needs neither). The Settings **Font picker** (one tile per font,
-each a real dashboard screenshot in that font) is documented under "Settings preview thumbnails".
+Font family is indirected via `--font-body`/`--font-display` CSS variables. The **Font setting** (`User.font`: `nova`|`standard`, default `nova`, migration V13) switches them. `layout.html` renders `.font-nova` on `<html>` server-side (`{#if font != 'standard'}`), no FOUC. **`font` must be passed to every full-page template** (mirror `theme` 1:1; HTMX day-panel partials need neither).
 
 ### Brand assets
 
-There is **no logo/icon mark** — branding is purely typographic, set in **Nova Flat Book** with the
-glyphs converted to `<path>` outlines so the assets have **no font dependency** and render identically
-anywhere (including sandboxed `<img>`/favicon contexts that can't see page CSS).
+No logo/icon mark — purely typographic. **`scripts/assets/wordmark.svg` is the single source of truth** (outside `src/`, not packaged by Maven). Everything under `src/main/resources/META-INF/resources/img/` is generated output.
 
-**`scripts/assets/wordmark.svg` is THE single source of truth** — the one file you edit to rebrand. It
-is the full word "diurnal" with one `fill="#rrggbb"`; **its fill drives the entire brand**: the served
-wordmark, the favicon, *and* every UI accent token (see "CSS build & colour tokens"). It lives in the
-masters dir `scripts/assets/` (alongside the font), **outside the Quarkus `src/` tree** and not packaged
-by Maven/Quarkus nor served directly. Everything under `src/main/resources/META-INF/resources/img/` and
-the `@generated:brand` CSS regions are **generated, committed output**.
+**To rebrand: change `fill` in `wordmark.svg`, then `npm run brand`** — chains `generate-brand.py` → `generate-favicons.cjs` → `npm run css`. Docker re-renders rasters from committed `favicon.svg` but does not run `generate-brand.py`.
 
-**To rebrand the colour: edit the `fill` in `scripts/assets/wordmark.svg`, then `npm run brand`.** That
-one command chains three steps (edit-one-file, run-one-thing):
-
-```bash
-python3 scripts/generate-brand.py      # reads the wordmark fill → copies wordmark.svg to served,
-                                       #   renders favicon.svg + footer-mark.svg (the "d") in that
-                                       #   colour, and computes the @generated:brand tokens into app.css
-node    scripts/generate-favicons.cjs  # favicon.svg → favicon.ico (root) + apple-touch-icon.png + icon-192/512.png
-npm run css                            # compile app.css
-```
-
-- **`generate-brand.py`** (needs `fonttools`) owns `wordmark.svg`-copy + `favicon.svg` + `footer-mark.svg`
-  + the brand tokens. The favicon **glyph** geometry comes from the font `NovaFlat-Book.ttf` (kept consistent with
-  the wordmark); only its colour + the theme come from the wordmark fill. Derived shades are mixed
-  toward black/white; `--color-on-brand` is luminance-picked. To change the **word/font** (not just
-  colour), run `python3 scripts/generate-brand.py --rebuild-wordmark` (re-renders `wordmark.svg` from
-  the font first), then `npm run brand`.
-- **`wordmark.svg`** (served) — the full word; used in the navbar (`partials/navbar.html`), login/
-  register headings, and README header. **`favicon.svg`** — the "d" in a square; the scalable favicon +
-  raster source. **`footer-mark.svg`** — the same "d" cropped **snug** (no square letterboxing, unlike
-  the favicon) so it reads at text height inline; used as the brand mark in the page footer
-  (`partials/footer.html`). `generate-favicons.cjs` only rasterises `favicon.svg` (PNGs via `rsvg-convert`/
-  ImageMagick, multi-res `.ico`, optipng) — it does **not** touch the SVGs (`footer-mark.svg`, like
-  `wordmark.svg`, is SVG-only — served straight, never rasterised). It produces a deliberately **minimal**
-  set, no redundant sizes — each file is a distinct surface:
-  - `favicon.ico` — at the web **ROOT** (`/favicon.ico`, not `/img/`): the single legacy raster fallback
-    + the conventional `/favicon.ico` probe path. It packs 16/32/48 internally, which is why there are
-    **no** standalone `favicon-16/32/48.png` files (the SVG covers crisp desktop rendering). The 16/32/48
-    PNGs are rendered only as throwaway temps to build the `.ico`, then deleted.
-  - `icon-192.png` (192px) — the **load-bearing** tab icon for Chromium-on-Android (Chrome/Opera): per
-    realfavicongenerator's analysis, Android Chromium does NOT auto-fetch `/favicon.ico` and does NOT use
-    the manifest for the tab/tab-switcher/bookmark icon — it picks the **widest PNG declared in a
-    `<link rel="icon">` tag no larger than 192×192**, so `icon-192.png` MUST be a real
-    `<link rel=icon sizes=192x192>` in `layout.html`, not just a manifest entry (a globe in Opera mobile
-    is the symptom of it missing). The manifest can't substitute: over a bare IP / plain HTTP (not a
-    secure context) Chromium ignores the manifest entirely.
-  - `icon-512.png` (512px) — pairs with 192 as the two `manifest.json` icons (192+512 is the Chromium
-    PWA-installability requirement, only relevant in a secure context).
-  - `apple-touch-icon.png` (180px) — the iOS home-screen / bookmark thumbnail.
-  - `manifest.json` (served as `application/json` — `.webmanifest` has no MIME mapping in Vert.x 4.x) —
-    provides the PWA/add-to-home-screen icon set (just 192 + 512).
-
-The committed outputs are trusted: the **Docker build does not run `generate-brand.py`** (no
-Python+fonttools stage) — the SVGs + the `@generated:brand` tokens (baked into `app.css`) ship via
-`COPY src`, and the `css` stage compiles them. Docker *does* re-render the **rasters** in its `icons`
-stage from the committed `favicon.svg` (visually identical, may differ by a few antialiasing pixels).
+Served assets: `wordmark.svg` (navbar/headings), `favicon.svg` (scalable favicon), `footer-mark.svg` (snug "d" for footer). Rasters: `favicon.ico` (16/32/48, at web root), `icon-192.png` (Chromium-Android tab icon — **must** be a `<link rel="icon">` tag, not just manifest), `icon-512.png` (PWA manifest pair), `apple-touch-icon.png` (180px iOS), `manifest.json`.
 
 ### Settings preview thumbnails
 
-The **Theme**, **Calendar style** and **Font** pickers in `settings.html` are not abstract icons — each
-option is a scaled-down real screenshot of the dashboard in that configuration (rendered by
-`partials/preview-option.html`, with an `(!)` button that opens the full-size image in a lightbox). The
-WebP files live in `src/main/resources/META-INF/resources/img/settings/`, captured as **two viewport sets** —
-a **web** (landscape) set and a **mobile** (portrait, `-mobile` suffix) set — so each tile shows the
-device-appropriate shot: the web variant at the `sm` breakpoint and up, the mobile variant below it
-(the viewport split is the imgs' `sm:` `display` classes; everything else is the `#…-options` reveal
-rules below). The lightbox is src-attribute-free: `previewSrcFor` reads whichever thumbnail `<img>` is
-currently shown (it uses `checkVisibility()`, since the non-shown variants are `visibility:hidden`, not
-`display:none`), since the thumbnail and the full image are the **same file** (just CSS-cropped) — so
-the modal automatically shows the right font/style/theme/viewport variant.
-The pickers differ in **framing**: the `page-*` (full-page) shots — used by the Theme and Font pickers —
-capture the whole dashboard (navbar, heading, calendar, day panel, stats — `fullPage:true`), while the
-`cal-*` (calendar-only) shots — used by the Calendar picker — are an element screenshot of the card
-wrapping `#calendar`/`#calendar-minimal` (the whole calendar even where it overflows, and nothing else).
+Theme, Calendar style, and Font pickers show real dashboard screenshots (via `partials/preview-option.html`). WebP files in `src/main/resources/META-INF/resources/img/settings/`, two viewport sets (web + `-mobile` suffix).
 
-**Every picker reflects the user's full current config.** Each tile is a screenshot parameterised by
-`(font, calendar style, theme)`; a picker **fixes its own dimension** per tile and renders all
-combinations of the other two, and the `#…-options` reveal rules in `app.css` show only the variant
-matching the user's **live** state — font (`.font-nova` on `<html>`), mode (`.dark`), and/or selected
-calendar style (`#theme-options`/`#font-options[data-cal]`, kept in sync by `settings.html` as the
-Calendar-style radios change). So a **Theme** thumbnail follows the chosen style **and** font (theme
-fixed per tile); a **Calendar** thumbnail follows the active font **and** light/dark (style fixed); a
-**Font** thumbnail follows the chosen style **and** light/dark (font fixed). Toggling *any* of the three
-settings updates the other pickers' previews live (e.g. switching to the Standard font re-points every
-Theme/Calendar thumbnail to its `*-standard-*` variant).
+Naming: `page-{nova,standard}-{full,minimal,stacked}-{light,dark,system}.webp` (full-page, Theme + Font pickers) and `cal-{nova,standard}-{full,minimal,stacked}-{light,dark}.webp` (calendar-only, Calendar picker). **60 WebP files total.** Each picker fixes its own dimension; `#…-options` CSS rules in `app.css` show only the variant matching the user's live state (font, dark mode, calendar style).
 
-**Loading/decoding — two hiding mechanisms, on purpose (see `preview-thumb.html`).** All thumbnail
-`<img>` elements use `data-src` instead of `src`, so no fetches happen until JS assigns `src`.
-**Viewport** is gated with `display` (the `sm:` classes): the other viewport's images stay
-`display:none` and are never fetched — so a desktop user never downloads the mobile shots, or vice
-versa (only loaded if the window crosses the `sm` breakpoint). The not-yet-shown variants *within* the
-current viewport — the other font / calendar-style / theme combinations a tile carries — are hidden
-with **`visibility`** (NOT display) by the `#…-options` rules, so they stay laid out. `settings.html`
-loads images in **two phases**: (1) immediately on page load it assigns `src` to the ~8 currently-
-visible images (identified via `checkVisibility({ visibilityProperty: true })`); (2) the remaining
-current-viewport images (visibility:hidden, display:block) are assigned `src` via `requestIdleCallback`
-so they are paint-ready before the user first interacts with a picker. `decode()` is called after each
-`src` assignment so font / calendar-style / theme switches remain **flash-free**; it must use
-`visibility` because `img.decode()` resolves for a `visibility:hidden` image but **never resolves for a
-`display:none` one**. `previewSrcFor` uses `checkVisibility()` (visibility-aware) to find the shown
-variant for the lightbox, with `dataset.src` as a fallback if `src` hasn't been assigned yet.
+Loading: `data-src` instead of `src` (no fetches until JS assigns). Viewport gated by `display` (`sm:` classes — the other viewport's images are never fetched). Non-shown variants hidden with `visibility` (not `display`) so `img.decode()` works. Two-phase load: visible images immediately, then `requestIdleCallback` for the rest.
 
-**Thumbnail sizing is decoupled from the screenshots' real aspect ratios.** The captured images have
-varying shapes, but the on-page thumbnails are all one fixed size *per viewport* (portrait on mobile,
-landscape at `sm`+): the reusable `partials/preview-thumb.html` renders the responsive `<img>`
-variants inside a fixed-ratio frame and crops each to the **top** (`object-top`), so e.g. a tall
-full-page theme shot shows only its top in the thumbnail while the (!) lightbox still shows it whole.
-The frame ratios are the single source of truth in **`.preview-thumb`** (`app.css`,
-`aspect-[3/4] sm:aspect-[3/2]`) — change them there to resize every thumbnail at once. Any **future**
-settings thumbnail should render through `partials/preview-thumb.html` so it automatically obeys these
-rules; because sizing no longer depends on the image, the includes pass **no** per-tile dimensions.
-The images use one **uniform naming scheme** under `img/settings/`:
-- `page-{nova,standard}-{full,minimal,stacked}-{light,dark,system}.webp` (+ `-mobile`) — the **full-page**
-  shot, used by the **Theme** picker (reveal style+font) and the **Font** picker (reveal style+theme);
-  `system` is a diagonal light/dark split (`compositeSystem`, full-page only).
-- `cal-{nova,standard}-{full,minimal,stacked}-{light,dark}.webp` (+ `-mobile`) — the **calendar-only**
-  shot (an element screenshot of the calendar card), used by the **Calendar** picker (reveal font+theme).
+Thumbnails use a fixed-ratio frame (`aspect-[3/4] sm:aspect-[3/2]` in `.preview-thumb`), cropped to the top — not tied to image aspect ratios. Route any future settings thumbnail through `partials/preview-thumb.html`.
 
-(**60 WebP files total.**) The `page-` and `cal-` shots for a given `(font, style, light|dark)` are captured
-from the **same** dashboard load (full-page vs calendar-only) in `captureSet`, which loops
-`font × calendar-style × theme`; the `page-…-system` composites are derived from the light/dark pair.
-
-`partials/preview-thumb.html` has three modes — `themeBase` (Theme), `calStyle` (Calendar), `fontBase`
-(Font), exactly one non-empty — and emits the matching nested `[data-cal-style]` / `[data-font]` /
-`[data-theme]` groups via `partials/preview-thumb-{theme,cal,font}-group.html`. `preview-option.html`
-forwards all three mode params to it (Qute renders strict, so each must always be present — `""` when
-unused), so every call site in `settings.html` passes `themeBase` + `calStyle` + `fontBase`.
-
-**These are committed assets — nothing in the app or the Maven/Docker build regenerates them.** Re-run
-`scripts/generate-settings-previews.cjs` whenever the dashboard's appearance changes in a way the
-previews should reflect (calendar markup/styling, light/dark colour tokens, navbar/day-panel/layout):
-
+**Regenerate when dashboard appearance changes:**
 ```bash
-scripts/dev-up.sh                            # starts diurnal-db-dev + quarkus:dev on :8081, waits until ready
-node scripts/generate-settings-previews.cjs  # defaults to :8081; then commit the WebP files
-scripts/dev-teardown.sh                       # stop the dev server + remove the dev DB when finished
+scripts/dev-up.sh
+node scripts/generate-settings-previews.cjs
+scripts/dev-teardown.sh
 ```
-
-The script is self-contained: it registers a throwaway demo user, seeds a fixed set of actions/logs over
-HTTP (idempotent), captures every theme/calendar combination from the **same** data in **both** a web
-and a mobile viewport (so the only visible difference within a viewport is the setting itself), and
-captures screenshots as PNG via Playwright then converts each to lossless WebP via `cwebp` (installed
-on demand via `apt-get` if absent) — pixel-perfect, ~25–34% smaller than optipng PNG. It talks to the app only over HTTP (no DB
-access), so `BASE_URL=…` can point it at any running instance.
 
 ### Pagination
 
-All three list views (actions, day-panel actions, stats) share the same in-memory pagination pattern: fetch all, filter, slice. The pagination
-controls are rendered server-side as HTML. Page size is a per-user setting validated by `UserSettings.sanitisePageSize()` against a fixed allow-list
-`{10, 25, 50, 100}`.
-
-`PaginatedDayActions` adds blank filler rows to keep every page the same height, preventing layout shift when fewer items are on the last page.
+All list views (actions, day-panel, stats) use in-memory pagination: fetch all, filter, slice. Page size is a per-user setting validated against `{10, 25, 50, 100}` by `UserSettings.sanitisePageSize()`. `PaginatedDayActions` adds filler rows to keep every page the same height.
 
 ### Notable invariants
 
-- `ActionLog.MAX_DAILY_COUNT = 255` — the count column is a `SMALLINT`; increment is silently capped.
+- `ActionLog.MAX_DAILY_COUNT = 255` — `SMALLINT` column; increment is silently capped.
 - Actions are soft-deleted (`archived = true`); logs are hard-deleted when an action is deleted.
-- **All date-boundary "now"/"today" goes through `AppClock`** (`net.zodac.diurnal.time.AppClock`, `@ApplicationScoped`), the single injectable clock
-  built from `app.timezone`. Business logic calls `clock.today()` / `clock.zone()` instead of `LocalDate.now(...)` directly (streaks in
-  `StatsService`, the future-date guard in `LogWebResource`, the dashboard's pre-selected day in `WebResource`, admin timestamp formatting in
-  `AdminWebResource`). This is the seam tests freeze (see Testing conventions). Entity audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`)
-  deliberately stay on plain `Instant.now()` — they're zone-independent and not date-boundary sensitive, so they bypass `AppClock`.
-- `app.timezone` (defaults to `UTC`) feeds `AppClock`'s zone, so it governs every "today" comparison. It must match `TZ` in `docker-compose.yml`.
-- `LogWebResource.isFuture()` blocks logging for dates beyond today in the user's configured timezone.
-- Action colour defaults to `#6366f1` (indigo); invalid hex colours are silently corrected to the default.
-- The dark-mode checkbox in settings uses a hidden `<input value="false">` followed by the real checkbox `<input value="true">`. When checked, the
-  form posts `["false", "true"]`; when unchecked, just `["false"]`. `WebResource.updateSettings` checks for `"true"` in the list rather than treating
-  the param as a boolean.
-- `password.auth.enabled=false` disables the register page (returns 404) and skips the `PasswordIdentityProvider`. `AppLifecycle` enforces that at
-  least one of password-auth or OIDC is enabled at startup.
-- Login page uses query params for state: `?error` signals a failed login; `?registered=true` shows a success message after registration.
-- `ActionStatsExtensions` exposes `sinceLabel()`, `monthTrend()`, `monthTrendClass()` etc. as Qute template extensions over the `ActionStats` data record, used directly in templates for display formatting (see "Data records vs. logic").
-- **UI-facing text must use the correct singular/plural form** — never render "1 days", "1 distinct days", etc. Counts of `1`
-  take the singular noun, everything else (including `0`) the plural. Don't hardcode a static unit caption (e.g. `sub='days'`)
-  next to a variable count; route it through a count-aware helper. `ActionStatsExtensions` centralises the day/streak rule via the private
-  `plural(count, unit)` helper, exposed as `currentStreakLabel()`/`longestStreakLabel()` ("5 days"/"1 day"),
-  `currentStreakUnit()`/`longestStreakUnit()`/`totalDaysUnit()` (the bare "day"/"days"/"distinct day(s)" caption for stat tiles).
-  Rates stay plural by convention (e.g. weekly average is always "N days / week"). Apply the same rule to any new pluralised
-  count anywhere in the app.
+- **All date-boundary "now"/"today" goes through `AppClock`** (`@ApplicationScoped`). Business logic calls `clock.today()`/`clock.zone()`. Entity audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`) use `Instant.now()` directly (zone-independent, not date-boundary sensitive).
+- `app.timezone` (default `UTC`) feeds `AppClock`; must match `TZ` in `docker-compose.yml`.
+- `LogWebResource.isFuture()` blocks logging for future dates in the user's configured timezone.
+- Action colour defaults to `#6366f1`; invalid hex is silently corrected to the default.
+- Dark-mode checkbox: hidden `<input value="false">` + real `<input value="true">`. Checked posts `["false","true"]`; unchecked posts `["false"]`. `updateSettings` checks for `"true"` in the list.
+- `password.auth.enabled=false` disables register (404) and skips `PasswordIdentityProvider`. `AppLifecycle` enforces at least one auth mechanism at startup.
+- Login uses query params: `?error` = failed login; `?registered=true` = success after registration.
+- `ActionStatsExtensions` exposes `sinceLabel()`, `monthTrend()`, `monthTrendClass()` etc. as Qute template extensions over `ActionStats`.
+- **UI text must use correct singular/plural** — never "1 days". `ActionStatsExtensions` centralises the rule via `plural(count, unit)`, exposed as `currentStreakLabel()`/`longestStreakLabel()`/`currentStreakUnit()`/`longestStreakUnit()`/`totalDaysUnit()`. Apply to any new pluralised count.
 
 ### Database migrations
 
-Flyway scripts live in `src/main/resources/db/migration/`. Schema versioning is sequential (`V1__` through `V13__`). Never edit an already-applied
-migration; always add a new `V{n+1}__` file.
+Flyway scripts in `src/main/resources/db/migration/`, sequential (`V1__` through `V13__`). Never edit an applied migration; always add `V{n+1}__`.
 
 ### Testing conventions
 
-Integration tests extend `IntegrationTestBase`, which truncates tables in FK-safe order (`action_logs → actions → users`) before each test. Helper
-methods `newUser()`, `newAction()`, `newLog()`, and `runInTx()` are provided. Tests use `@TestSecurity` to set the principal email and roles. The
-`test` profile (`application-test.properties`) forces `app.timezone=UTC` and uses the shared `diurnal` DB on port 5432. BCrypt cost is set to 4 in tests for
-speed. E2E Playwright tests run with 2 workers (one per project) against a live app instance; Chromium desktop and Galaxy S24 mobile viewports are both
-covered.
+Integration tests extend `IntegrationTestBase` (truncates `action_logs → actions → users` before each test). Helpers: `newUser()`, `newAction()`, `newLog()`, `runInTx()`. Tests use `@TestSecurity`. The `test` profile forces `app.timezone=UTC`. BCrypt cost = 4 in tests.
 
-**Deterministic time in tests.** `IntegrationTestBase` injects `AppClock` and, in `@BeforeEach`, freezes it to a fixed date —
-`public static final LocalDate FIXED_TODAY` (currently `2026-06-15`) — restoring the real clock in `@AfterEach`. Date-relative IT tests anchor on
-`FIXED_TODAY` (e.g. `static final LocalDate TODAY = FIXED_TODAY`) rather than `LocalDate.now()`, which removes the old class-load-vs-request midnight
-race. Per-test, call `freezeDate(LocalDate)` or `freezeInstant(Instant, ZoneId)` to drive boundary cases — see
-`LogResourceIT.futureGuard_rollsOverAtMidnight` (midnight rollover) and `futureGuard_dependsOnConfiguredZone` (same instant, UTC vs
-`Pacific/Auckland`). Pure unit tests (`StatsServiceTest`, `ActionStatsTest`) pass a fixed `today` directly. Surefire/failsafe also pin
-`-Duser.timezone=UTC` so a non-UTC host can't mask a missing-`ZoneId` regression. E2E specs compute dates entirely in UTC (`setUTCDate`/`getUTCDate` +
-`toISOString`, never the local `setDate`), Playwright pins the browser clock with `timezoneId: 'UTC'`, and e2e must run against a UTC server (the
-`-Dall` jar is; a dev server on a non-UTC host can disagree near midnight).
+**Deterministic time:** `IntegrationTestBase` freezes `AppClock` in `@BeforeEach` to `FIXED_TODAY = 2026-06-15`, restoring in `@AfterEach`. Use `freezeDate(LocalDate)` or `freezeInstant(Instant, ZoneId)` for boundary cases. Unit tests pass a fixed `today` directly. Surefire/failsafe pin `-Duser.timezone=UTC`. E2E specs use UTC date APIs (`setUTCDate`/`getUTCDate`/`toISOString`) and `timezoneId: 'UTC'` in Playwright.
