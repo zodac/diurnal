@@ -2,6 +2,8 @@
 
 > **Code style:** Project-specific expectations live in [`CODE_STYLE.md`](CODE_STYLE.md). Read it before writing or editing code.
 
+> **No real URLs or internal IPs in comments or examples.** Use only `https://diurnal.example.com` or `http://127.0.0.1:8080` as placeholder values. Never use production hostnames, LAN addresses (`192.168.*`, `10.*`, `172.16–31.*`), or any other real hostname.
+
 ## Commands
 
 ```bash
