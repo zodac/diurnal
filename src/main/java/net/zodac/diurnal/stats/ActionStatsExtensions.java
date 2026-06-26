@@ -184,6 +184,28 @@ public final class ActionStatsExtensions {
     }
 
     /**
+     * The longest gap as a singular-aware label, e.g. {@code "1 day"} or {@code "5 days"}.
+     *
+     * @param stats the statistics to inspect
+     * @return the longest-gap label
+     */
+    @TemplateExtension
+    public static String longestGapLabel(final ActionStats stats) {
+        return stats.longestGap() + " " + longestGapUnit(stats);
+    }
+
+    /**
+     * The unit word ({@code "day"}/{@code "days"}) matching the longest-gap count.
+     *
+     * @param stats the statistics to inspect
+     * @return the longest-gap unit word
+     */
+    @TemplateExtension
+    public static String longestGapUnit(final ActionStats stats) {
+        return plural(stats.longestGap(), "day");
+    }
+
+    /**
      * The unit phrase ({@code "distinct day"}/{@code "distinct days"}) matching the total-days count.
      *
      * @param stats the statistics to inspect

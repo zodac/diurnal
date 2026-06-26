@@ -23,6 +23,7 @@ import jakarta.transaction.Transactional;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
@@ -86,7 +87,7 @@ public class StatsService {
 
     private static ActionStats compute(final Action action, final List<ActionLog> logs, final LocalDate today) {
         if (logs.isEmpty()) {
-            return new ActionStats(action, 0, 0L, null, null, 0, 0,
+            return new ActionStats(action, 0, 0L, null, null, 0, 0, 0,
                     0L, 0L, 0L, 0L, "—", 0L, "—", 0L, today);
         }
 
@@ -119,6 +120,7 @@ public class StatsService {
                 dates.getLast(),
                 currentStreak(dates, today),
                 longestStreak(dates),
+                longestGap(dates, today),
                 byMonth.getOrDefault(thisMonth, 0L),
                 byMonth.getOrDefault(prevMonth, 0L),
                 byYear.getOrDefault(thisYear, 0L),
@@ -142,6 +144,25 @@ public class StatsService {
             cursor = cursor.minusDays(1);
         }
         return streak;
+    }
+
+    /**
+     * The longest span of consecutive days on which the action was <em>not</em> performed, looking
+     * both at gaps between any two logged dates and at the open gap from the last log to today.
+     */
+    static int longestGap(final List<LocalDate> sortedDates, final LocalDate today) {
+        if (sortedDates.isEmpty()) {
+            return 0;
+        }
+        int longest = 0;
+        for (int i = 1; i < sortedDates.size(); i++) {
+            final int gap = (int) (ChronoUnit.DAYS.between(sortedDates.get(i - 1), sortedDates.get(i)) - 1);
+            if (gap > longest) {
+                longest = gap;
+            }
+        }
+        final int openGap = (int) ChronoUnit.DAYS.between(sortedDates.getLast(), today);
+        return Math.max(longest, openGap);
     }
 
     /**
