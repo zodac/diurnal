@@ -25,7 +25,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
  * Credentials submitted to the JSON login endpoint.
  */
 public record LoginRequest(
-        @NotBlank @Email @Schema(examples = "ada@example.com") String email,
-        @NotBlank @Schema(examples = "correct horse battery staple") String password
+        @NotBlank @Email @Schema(examples = "ada@example.com", description = "Registered email address of the account.") String email,
+        @NotBlank @Schema(examples = "correct horse battery staple", description = "Account password.") String password
 ) {
 }
