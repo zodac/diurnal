@@ -39,7 +39,7 @@ import java.util.stream.Collectors;
 @Table(name = "action_logs")
 public class ActionLog extends PanacheEntityBase {
 
-    public static final int MAX_DAILY_COUNT = 255;
+    public static final int MAX_DAILY_COUNT = 999;
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

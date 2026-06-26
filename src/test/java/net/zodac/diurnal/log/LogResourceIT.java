@@ -62,6 +62,74 @@ class LogResourceIT extends IntegrationTestBase {
         otherAction   = newAction(otherId,   "OtherAction");
     }
 
+    // ── Confirm-delete / restore / delete entry ───────────────────────────────
+
+    @Test
+    void confirmDeleteEntry_showsConfirmationWithActionName() {
+        given().get("/logs/" + TODAY + "/" + primaryAction.id + "/confirm-delete")
+                .then().statusCode(200)
+                .body(containsString("PrimaryAction"))
+                .body(containsString("Delete"));
+    }
+
+    @Test
+    void confirmDeleteEntry_otherUsersAction_returns404() {
+        given().get("/logs/" + TODAY + "/" + otherAction.id + "/confirm-delete")
+                .then().statusCode(404);
+    }
+
+    @Test
+    void dayActionItem_returnsItemAtCurrentCount() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 7));
+        given().get("/logs/" + TODAY + "/" + primaryAction.id)
+                .then().statusCode(200)
+                .body(containsString("7"));
+    }
+
+    @Test
+    void dayActionItem_noLog_returnsItemAtZero() {
+        given().get("/logs/" + TODAY + "/" + primaryAction.id)
+                .then().statusCode(200)
+                .body(containsString("0"));
+    }
+
+    @Test
+    void dayActionItem_otherUsersAction_returns404() {
+        given().get("/logs/" + TODAY + "/" + otherAction.id)
+                .then().statusCode(404);
+    }
+
+    @Test
+    void deleteEntry_withExistingLog_deletesAndReturnsZero() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 3));
+        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/delete")
+                .then().statusCode(200)
+                .body(containsString("0"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
+            .as("log deleted")
+            .isNull();
+    }
+
+    @Test
+    void deleteEntry_noExistingLog_returns200WithZeroIdempotently() {
+        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/delete")
+                .then().statusCode(200)
+                .body(containsString("0"));
+    }
+
+    @Test
+    void deleteEntry_futureDate_returns400() {
+        given().post("/logs/" + TOMORROW + "/" + primaryAction.id + "/delete")
+                .then().statusCode(400);
+    }
+
+    @Test
+    void deleteEntry_otherUsersAction_returns404() {
+        given().post("/logs/" + TODAY + "/" + otherAction.id + "/delete")
+                .then().statusCode(404);
+    }
+
     // ── Increment ─────────────────────────────────────────────────────────────
 
     @Test
@@ -88,24 +156,24 @@ class LogResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    void increment_at254_countBecomes255() {
-        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 254));
+    void increment_at998_countBecomes999() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 998));
         given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
-                .body(containsString("255"));
+                .body(containsString("999"));
     }
 
     @Test
-    void increment_at255_countStays255AndReturns200() {
-        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 255));
+    void increment_at999_countStays999AndReturns200() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 999));
         given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
-                .body(containsString("255"));
+                .body(containsString("999"));
 
         final ActionLog log = ActionLog.findEntry(primaryId, primaryAction.id, TODAY);
         assertThat(log.count)
-            .as("count capped at 255")
-            .isEqualTo(255);
+            .as("count capped at 999")
+            .isEqualTo(999);
     }
 
     @Test
@@ -163,6 +231,187 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void decrement_otherUsersAction_returns404() {
         given().post("/logs/" + TODAY + "/" + otherAction.id + "/decrement")
+                .then().statusCode(404);
+    }
+
+    // ── Increment by 10 ──────────────────────────────────────────────────────
+
+    @Test
+    void incrementBy10_firstTime_createsLogWithCountTen() {
+        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment10")
+                .then().statusCode(200)
+                .body(containsString("10"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
+            .as("count after first increment-by-10")
+            .isEqualTo(10);
+    }
+
+    @Test
+    void incrementBy10_at995_countBecomes999() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 995));
+        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment10")
+                .then().statusCode(200)
+                .body(containsString("999"));
+    }
+
+    @Test
+    void incrementBy10_at999_countStays999AndReturns200() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 999));
+        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment10")
+                .then().statusCode(200)
+                .body(containsString("999"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
+            .as("count capped at 999")
+            .isEqualTo(999);
+    }
+
+    @Test
+    void incrementBy10_futureDate_returns400() {
+        given().post("/logs/" + TOMORROW + "/" + primaryAction.id + "/increment10")
+                .then().statusCode(400);
+    }
+
+    @Test
+    void incrementBy10_otherUsersAction_returns404() {
+        given().post("/logs/" + TODAY + "/" + otherAction.id + "/increment10")
+                .then().statusCode(404);
+    }
+
+    // ── Decrement by 10 ──────────────────────────────────────────────────────
+
+    @Test
+    void decrementBy10_fromEleven_becomesOne() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 11));
+        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement10")
+                .then().statusCode(200)
+                .body(containsString("1"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
+            .as("count after decrement-by-10")
+            .isEqualTo(1);
+    }
+
+    @Test
+    void decrementBy10_fromTen_deletesLogAndReturnsZero() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 10));
+        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement10")
+                .then().statusCode(200)
+                .body(containsString("0"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
+            .as("log deleted when count <= 10")
+            .isNull();
+    }
+
+    @Test
+    void decrementBy10_fromFive_deletesLogAndReturnsZero() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
+        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement10")
+                .then().statusCode(200)
+                .body(containsString("0"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
+            .as("log deleted when count < 10")
+            .isNull();
+    }
+
+    @Test
+    void decrementBy10_noExistingLog_returns200WithZeroIdempotently() {
+        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement10")
+                .then().statusCode(200)
+                .body(containsString("0"));
+    }
+
+    @Test
+    void decrementBy10_futureDate_returns400() {
+        given().post("/logs/" + TOMORROW + "/" + primaryAction.id + "/decrement10")
+                .then().statusCode(400);
+    }
+
+    @Test
+    void decrementBy10_otherUsersAction_returns404() {
+        given().post("/logs/" + TODAY + "/" + otherAction.id + "/decrement10")
+                .then().statusCode(404);
+    }
+
+    // ── Set count ─────────────────────────────────────────────────────────────
+
+    @Test
+    void setCount_createsNewLog() {
+        given().formParam("count", 42).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
+                .then().statusCode(200)
+                .body(containsString("42"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
+            .as("count after set")
+            .isEqualTo(42);
+    }
+
+    @Test
+    void setCount_updatesExistingLog() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
+        given().formParam("count", 20).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
+                .then().statusCode(200)
+                .body(containsString("20"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
+            .as("count updated by set")
+            .isEqualTo(20);
+    }
+
+    @Test
+    void setCount_toZero_deletesLog() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
+        given().formParam("count", 0).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
+                .then().statusCode(200)
+                .body(containsString("0"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
+            .as("log deleted when set to zero")
+            .isNull();
+    }
+
+    @Test
+    void setCount_toNegative_deletesLog() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
+        given().formParam("count", -1).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
+                .then().statusCode(200)
+                .body(containsString("0"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
+            .as("log deleted when set to negative")
+            .isNull();
+    }
+
+    @Test
+    void setCount_aboveMax_clampsToMax() {
+        given().formParam("count", 9999).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
+                .then().statusCode(200)
+                .body(containsString("999"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
+            .as("count clamped to 999")
+            .isEqualTo(999);
+    }
+
+    @Test
+    void setCount_noExistingLog_toZero_returns200WithZeroIdempotently() {
+        given().formParam("count", 0).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
+                .then().statusCode(200)
+                .body(containsString("0"));
+    }
+
+    @Test
+    void setCount_futureDate_returns400() {
+        given().formParam("count", 5).post("/logs/" + TOMORROW + "/" + primaryAction.id + "/set")
+                .then().statusCode(400);
+    }
+
+    @Test
+    void setCount_otherUsersAction_returns404() {
+        given().formParam("count", 5).post("/logs/" + TODAY + "/" + otherAction.id + "/set")
                 .then().statusCode(404);
     }
 

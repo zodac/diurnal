@@ -1,0 +1,30 @@
+{!
+  In-place confirm-delete content for a single day's action log entry.
+  Swapped into the persistent #log-{date}-{action.id} wrapper via innerHTML.
+  Cancel restores the normal day-action-item content. Parameters: date, action.
+
+  Layout mirrors the normal item so Cancel lands in exactly the Delete position:
+    normal:  [name flex-1] | [controls] [.dt-actions ml-2: Delete]
+    confirm: [name flex-1] | [prompt]   [.dt-actions ml-2: Delete | Cancel]
+  Both right sections end with .dt-actions; Cancel is the rightmost .dt-btn,
+  so it shares the same min-width (3.5rem) and right-edge position as normal Delete.
+!}
+<div class="day-item-confirm flex items-center justify-between px-2 py-2 rounded-lg">
+    <div class="flex items-center gap-2 min-w-0 flex-1">
+        <span class="swatch swatch-sm flex-shrink-0" style="background-color: {action.colour}"></span>
+        <span class="text-sm font-medium text-ink truncate">{action.name}</span>
+    </div>
+    <div class="flex items-center flex-shrink-0">
+        <span class="dt-confirm-prompt">Erase today's count?</span>
+        <div class="dt-actions ml-2" style="gap: .125rem">
+            <button hx-post="/logs/{date}/{action.id}/delete"
+                    hx-target="#log-{date}-{action.id}"
+                    hx-swap="innerHTML"
+                    class="dt-btn dt-btn-danger">Delete</button>
+            <button hx-get="/logs/{date}/{action.id}"
+                    hx-target="#log-{date}-{action.id}"
+                    hx-swap="innerHTML"
+                    class="dt-btn dt-btn-cancel">Cancel</button>
+        </div>
+    </div>
+</div>

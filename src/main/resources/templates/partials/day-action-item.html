@@ -1,38 +1,79 @@
-<div id="log-{date}-{action.id}"
-     class="flex items-center justify-between px-2 py-2 rounded-lg hover:bg-surface-muted transition-colors">
+<div class="day-item flex items-center justify-between px-2 py-2 rounded-lg hover:bg-surface-muted transition-colors">
 
     <div class="flex items-center gap-2 min-w-0 flex-1">
-        <span class="swatch swatch-sm" style="background-color: {action.colour}"></span>
+        <span class="swatch swatch-sm flex-shrink-0" style="background-color: {action.colour}"></span>
         <span class="text-sm text-ink truncate">{action.name}</span>
     </div>
 
     <div class="flex items-center gap-0.5 flex-shrink-0">
+        <!-- Decrement by 10 -->
+        <button {#if count == 0}disabled{/if}
+                hx-post="/logs/{date}/{action.id}/decrement10"
+                hx-target="#log-{date}-{action.id}"
+                hx-swap="innerHTML"
+                title="Decrease by 10"
+                class="w-8 h-7 flex items-center justify-center rounded text-xs font-semibold transition-colors
+                       {#if count == 0}text-ink-muted opacity-40 cursor-not-allowed{#else}text-ink-muted hover:bg-surface-muted hover:text-ink{/if}">
+            −10
+        </button>
+
         <!-- Decrement -->
         <button {#if count == 0}disabled{/if}
                 hx-post="/logs/{date}/{action.id}/decrement"
                 hx-target="#log-{date}-{action.id}"
-                hx-swap="outerHTML"
+                hx-swap="innerHTML"
                 title="Decrease"
                 class="w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
                        {#if count == 0}text-ink-muted opacity-40 cursor-not-allowed{#else}text-ink-muted hover:bg-surface-muted hover:text-ink{/if}">
             −
         </button>
 
-        <!-- Count -->
-        <span class="w-7 text-center text-sm font-semibold tabular-nums select-none
-                     {#if count == 0}text-ink-muted{#else}text-ink{/if}">
-            {count}
-        </span>
+        <!-- Count (editable) -->
+        <input type="text" inputmode="numeric" maxlength="3"
+               name="count"
+               value="{count}"
+               hx-post="/logs/{date}/{action.id}/set"
+               hx-trigger="change"
+               hx-target="#log-{date}-{action.id}"
+               hx-swap="innerHTML"
+               class="w-10 h-7 text-center text-sm font-semibold tabular-nums
+                      bg-transparent border border-line rounded
+                      hover:border-brand focus:border-brand focus:outline-none
+                      {#if count == 0}text-ink-muted{#else}text-ink{/if}">
 
         <!-- Increment -->
-        <button {#if count >= 255}disabled{/if}
+        <button {#if count >= 999}disabled{/if}
                 hx-post="/logs/{date}/{action.id}/increment"
                 hx-target="#log-{date}-{action.id}"
-                hx-swap="outerHTML"
-                title="{#if count >= 255}Maximum reached{#else}Increase{/if}"
+                hx-swap="innerHTML"
+                title="{#if count >= 999}Maximum reached{#else}Increase{/if}"
                 class="w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
-                       {#if count >= 255}text-ink-muted opacity-40 cursor-not-allowed{#else}text-brand hover:bg-surface-muted{/if}">
+                       {#if count >= 999}text-ink-muted opacity-40 cursor-not-allowed{#else}text-brand hover:bg-surface-muted{/if}">
             +
         </button>
+
+        <!-- Increment by 10 -->
+        <button {#if count >= 999}disabled{/if}
+                hx-post="/logs/{date}/{action.id}/increment10"
+                hx-target="#log-{date}-{action.id}"
+                hx-swap="innerHTML"
+                title="{#if count >= 999}Maximum reached{#else}Increase by 10{/if}"
+                class="w-8 h-7 flex items-center justify-center rounded text-xs font-semibold transition-colors
+                       {#if count >= 999}text-ink-muted opacity-40 cursor-not-allowed{#else}text-brand hover:bg-surface-muted{/if}">
+            +10
+        </button>
+
+        <!-- Delete entry: wrapped in .dt-actions so the button gets the same min-width as the
+             confirm state's Cancel, keeping Cancel in exactly the same position on swap.
+             Always rendered; invisible (not just opacity-0) when there is no log to erase. -->
+        <div class="dt-actions ml-2">
+            <button hx-get="/logs/{date}/{action.id}/confirm-delete"
+                    hx-target="#log-{date}-{action.id}"
+                    hx-swap="innerHTML"
+                    title="Delete this entry"
+                    class="dt-btn dt-btn-delete {#if count == 0}invisible{#else}day-item-delete{/if}">
+                Delete
+            </button>
+        </div>
     </div>
 </div>

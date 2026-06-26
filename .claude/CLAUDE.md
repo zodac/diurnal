@@ -172,7 +172,7 @@ All list views (actions, day-panel, stats) use in-memory pagination: fetch all, 
 
 ### Notable invariants
 
-- `ActionLog.MAX_DAILY_COUNT = 255` — `SMALLINT` column; increment is silently capped.
+- `ActionLog.MAX_DAILY_COUNT = 999` — `SMALLINT` column; increment, increment-by-10, and set are silently capped.
 - Actions are soft-deleted (`archived = true`); logs are hard-deleted when an action is deleted.
 - **All date-boundary "now"/"today" goes through `AppClock`** (`@ApplicationScoped`). Business logic calls `clock.today()`/`clock.zone()`. Entity audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`) use `Instant.now()` directly (zone-independent, not date-boundary sensitive).
 - `app.timezone` (default `UTC`) feeds `AppClock`; must match `TZ` in `docker-compose.yml`.
