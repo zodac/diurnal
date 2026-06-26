@@ -1,13 +1,6 @@
 # CODE_STYLE.md
 
-Project-specific code-style expectations for the **diurnal** codebase, captured so they are applied
-consistently. These are conventions **on top of** the inherited linter suite (Checkstyle / PMD /
-SpotBugs / Javadoc / NullAway — see `CLAUDE.md`): some restate a linter rule for emphasis, others
-cover things the linters do **not** catch but that this project still requires.
-
-Treat every rule here as **mandatory** when writing or editing code. This is a living document — new
-expectations are added over time, so re-read it before a task and keep it in sync when conventions
-change.
+Project-specific conventions **on top of** the inherited linter suite (Checkstyle / PMD / SpotBugs / Javadoc / NullAway). Every rule here is **mandatory**. Re-read before a task; keep it in sync when conventions change.
 
 ---
 
@@ -15,12 +8,7 @@ change.
 
 ### Javadoc must use the multi-line form
 
-Javadoc on **any public, protected, or package-protected** method, constructor, field, constant or
-type **must** be written in the expanded multi-line form — even when the text comfortably fits on a
-single line. The collapsed single-line form `/** comment */` must **never** be used.
-
-The continuation lines align their `*` one space under the opening `/**`, and the closing `*/` sits on
-its own line.
+Javadoc on **any public, protected, or package-protected** method, constructor, field, constant, or type **must** use the expanded multi-line form — even when the text fits on one line. `/** comment */` must **never** be used.
 
 ❌ **Wrong** — single-line:
 
@@ -29,14 +17,7 @@ its own line.
 public static Optional<User> findByEmail(final String email) { ...}
 ```
 
-❌ **Wrong** — also applies to fields / constants:
-
-```java
-/** The running application version, taken from the build. */
-String version = "dev";
-```
-
-✅ **Right** — multi-line, regardless of how short the text is:
+✅ **Right:**
 
 ```java
 /**
@@ -45,26 +26,13 @@ String version = "dev";
 public static Optional<User> findByEmail(final String email) { ...}
 ```
 
-```java
-/**
- * The running application version, taken from the build.
- */
-String version = "dev";
-```
-
-Rationale: a uniform Javadoc shape keeps diffs small and predictable (adding a `@param`/`@return` or a
-second sentence never reflows the whole comment), and reads consistently everywhere in the tree.
-
-> Non-Javadoc comments are unaffected: an ordinary block comment `/* ... */` or a line comment
-> `// ...` may stay on one line. This rule is specifically about Javadoc (`/** ... */`) doc comments.
+> Non-Javadoc comments (`/* ... */`, `// ...`) are unaffected — this rule applies only to Javadoc (`/** ... */`).
 
 ### No Javadoc on private members
 
-Javadoc (`/** ... */`) is for the documented surface — **public, protected, and package-protected**
-members. **Private** methods, fields and constants must **not** carry Javadoc. If a private member
-genuinely needs explaining, use an ordinary implementation comment (`//` or `/* ... */`) instead.
+**Private** methods, fields, and constants must **not** carry Javadoc. Use an ordinary `//` or `/* ... */` comment if explanation is needed.
 
-❌ **Wrong** — Javadoc on a private member:
+❌ **Wrong:**
 
 ```java
 /**
@@ -73,42 +41,29 @@ genuinely needs explaining, use an ordinary implementation comment (`//` or `/* 
 private static String plural(final long count, final String unit) { ...}
 ```
 
-✅ **Right** — no Javadoc (add a plain comment only if it adds something):
+✅ **Right:**
 
 ```java
 private static String plural(final long count, final String unit) { ...}
 ```
 
-Rationale: Javadoc documents the API contract; private members are implementation detail and aren't
-part of any contract, so a doc comment there is noise that can drift out of sync.
-
 ### AssertJ assertions must be fluent-chained across multiple lines
 
-Every AssertJ assertion (`assertThat(...)` is the assertion library used in this project's tests) must
-place the opening `assertThat(...)` and **each** chained call on its **own line**, even when the whole
-assertion comfortably fits on one line. The single-line form must **never** be used.
+Place `assertThat(...)` and **each** chained call on its own line. Continuation lines are indented **4 spaces**; the terminating `;` stays on the final chained call.
 
-Continuation lines are indented **4 spaces** beyond the `assertThat(...)` line (matching Checkstyle's
-`lineWrappingIndentation`), and the terminating `;` stays on the final chained call.
-
-❌ **Wrong** — single-line:
+❌ **Wrong:**
 
 ```java
 assertThat(found).as("archived action should still exist in DB").isNotNull();
 ```
 
-✅ **Right** — `assertThat(...)` and each chained call on its own line:
+✅ **Right:**
 
 ```java
 assertThat(found)
     .as("archived action should still exist in DB")
     .isNotNull();
-```
 
-This applies to every chain length and shape, including a bare `assertThat(x).isEqualTo(y)` (two lines)
-and assertions nested in a lambda (e.g. `runInTx(() -> assertThat(...)...)`):
-
-```java
 assertThat(user.pageSize)
     .as("unexpected value")
     .isEqualTo(25);
@@ -117,7 +72,3 @@ runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().role)
     .as("unexpected value")
     .isEqualTo(User.ROLE_ADMIN));
 ```
-
-Rationale: the broken-out shape keeps diffs small and predictable (adding or changing an `.as(...)`
-description or a chained condition never reflows the rest of the assertion), makes the description and
-the matcher each easy to scan, and reads consistently everywhere in the test tree.
