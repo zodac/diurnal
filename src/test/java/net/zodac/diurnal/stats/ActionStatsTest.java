@@ -36,9 +36,23 @@ class ActionStatsTest {
             final long thisYear, final long lastYear,
             final String bestMonthLabel, final long bestMonthCount,
             final String bestYearLabel, final long bestYearCount) {
+        return statsG(totalDays, totalCount, first, last, currentStreak, longestStreak, 0,
+                thisMonth, lastMonth, thisYear, lastYear,
+                bestMonthLabel, bestMonthCount, bestYearLabel, bestYearCount);
+    }
+
+    private static ActionStats statsG(
+            final int totalDays, final long totalCount,
+            @Nullable final LocalDate first, @Nullable final LocalDate last,
+            final int currentStreak, final int longestStreak,
+            final int longestGap,
+            final long thisMonth, final long lastMonth,
+            final long thisYear, final long lastYear,
+            final String bestMonthLabel, final long bestMonthCount,
+            final String bestYearLabel, final long bestYearCount) {
         return new ActionStats(
                 new Action(), totalDays, totalCount, first, last,
-                currentStreak, longestStreak,
+                currentStreak, longestStreak, longestGap,
                 thisMonth, lastMonth,
                 thisYear, lastYear,
                 bestMonthLabel, bestMonthCount,
@@ -255,6 +269,32 @@ class ActionStatsTest {
         assertThat(ActionStatsExtensions.totalDaysUnit(s))
             .as("unexpected value")
             .isEqualTo("distinct days");
+    }
+
+    // ── longestGapLabel / longestGapUnit ──────────────────────────────────────
+
+    @Test
+    void longestGapLabel_zero_isPlural() {
+        final ActionStats s = statsG(0, 0, null, null, 0, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.longestGapLabel(s))
+            .as("unexpected value")
+            .isEqualTo("0 days");
+    }
+
+    @Test
+    void longestGapLabel_one_isSingular() {
+        final ActionStats s = statsG(1, 1, TODAY, TODAY, 0, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.longestGapLabel(s))
+            .as("unexpected value")
+            .isEqualTo("1 day");
+    }
+
+    @Test
+    void longestGapLabel_many_isPlural() {
+        final ActionStats s = statsG(3, 3, TODAY, TODAY, 1, 3, 7, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.longestGapLabel(s))
+            .as("unexpected value")
+            .isEqualTo("7 days");
     }
 
     // ── monthTrend / monthTrendClass ──────────────────────────────────────────

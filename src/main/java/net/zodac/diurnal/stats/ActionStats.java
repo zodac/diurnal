@@ -41,6 +41,7 @@ public record ActionStats(
         @Nullable LocalDate lastPerformed,
         int       currentStreak,
         int       longestStreak,
+        int       longestGap,
         // Comparative
         long      thisMonthCount,
         long      lastMonthCount,

@@ -107,6 +107,81 @@ class StatsServiceTest {
             .isEqualTo(1);
     }
 
+    // ── longestGap ────────────────────────────────────────────────────────────
+
+    @Test
+    void longestGap_empty_returnsZero() {
+        assertThat(StatsService.longestGap(List.of(), TODAY))
+            .as("unexpected value")
+            .isEqualTo(0);
+    }
+
+    @Test
+    void longestGap_singleEntryToday_returnsZero() {
+        assertThat(StatsService.longestGap(List.of(TODAY), TODAY))
+            .as("unexpected value")
+            .isEqualTo(0);
+    }
+
+    @Test
+    void longestGap_singleEntryYesterday_returnsOne() {
+        assertThat(StatsService.longestGap(List.of(TODAY.minusDays(1)), TODAY))
+            .as("unexpected value")
+            .isEqualTo(1);
+    }
+
+    @Test
+    void longestGap_singleEntryTenDaysAgo_returnsTen() {
+        assertThat(StatsService.longestGap(List.of(TODAY.minusDays(10)), TODAY))
+            .as("unexpected value")
+            .isEqualTo(10);
+    }
+
+    @Test
+    void longestGap_twoConsecutiveEndingToday_returnsZero() {
+        assertThat(StatsService.longestGap(List.of(TODAY.minusDays(1), TODAY), TODAY))
+            .as("unexpected value")
+            .isEqualTo(0);
+    }
+
+    @Test
+    void longestGap_historicalGapLargerThanOpenGap() {
+        // Gap between today-10 and today-1 = 8; open gap (today-1 to today) = 1
+        final List<LocalDate> dates = List.of(TODAY.minusDays(10), TODAY.minusDays(1), TODAY);
+        assertThat(StatsService.longestGap(dates, TODAY))
+            .as("unexpected value")
+            .isEqualTo(8);
+    }
+
+    @Test
+    void longestGap_openGapLargerThanHistoricalGap() {
+        // Gap between today-20 and today-18 = 1; open gap from today-18 to today = 18
+        final List<LocalDate> dates = List.of(TODAY.minusDays(20), TODAY.minusDays(18));
+        assertThat(StatsService.longestGap(dates, TODAY))
+            .as("unexpected value")
+            .isEqualTo(18);
+    }
+
+    @Test
+    void longestGap_multipleGapsTakesLargest() {
+        final List<LocalDate> dates = List.of(
+                TODAY.minusDays(30), TODAY.minusDays(20), TODAY.minusDays(5), TODAY
+        );
+        // today-30 to today-20: 10 - 1 = 9; today-20 to today-5: 15 - 1 = 14; today-5 to today: 5 - 1 = 4; open: 0
+        assertThat(StatsService.longestGap(dates, TODAY))
+            .as("unexpected value")
+            .isEqualTo(14);
+    }
+
+    @Test
+    void longestGap_allConsecutiveEndingToday_returnsZero() {
+        final List<LocalDate> dates = List.of(TODAY.minusDays(4), TODAY.minusDays(3),
+                TODAY.minusDays(2), TODAY.minusDays(1), TODAY);
+        assertThat(StatsService.longestGap(dates, TODAY))
+            .as("unexpected value")
+            .isEqualTo(0);
+    }
+
     // ── longestStreak ─────────────────────────────────────────────────────────
 
     @Test

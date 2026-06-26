@@ -44,7 +44,7 @@ public class SecurityHeadersFilter {
     Router router;
 
     @ConfigProperty(name = "csrf.trusted.origins", defaultValue = "")
-    String csrfTrustedOrigins;
+    String csrfTrustedOrigins = "";
 
     @SuppressWarnings("unused") // CDI startup observer — invoked by Quarkus, not called directly
     void onStart(@Observes final StartupEvent ev) {
