@@ -17,6 +17,11 @@ IMAGE="diurnal-sandbox"
 # This script lives in <project>/sandbox/, so the project root is its parent dir.
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${PROJECT_DIR:-$(dirname "$HERE")}"
+# Git Bash on Windows resolves paths as /c/Users/... but Docker Desktop needs C:\Users\...
+if command -v cygpath &>/dev/null; then
+  HERE="$(cygpath -w "$HERE")"
+  PROJECT_DIR="$(cygpath -w "$PROJECT_DIR")"
+fi
 
 build() {
   docker build -t "$IMAGE" \
