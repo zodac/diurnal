@@ -50,13 +50,19 @@ The handiest way to use the sandbox day-to-day is a saved **Shell Script** run c
 
 1. **Run → Edit Configurations…**, click **+**, choose **Shell Script**.
 2. **Name:** `Claude Sandbox`.
-3. **Script path:** point it at `<project>/sandbox/sandbox.sh`. Leave **Script options** empty for the
+3. **Interpreter path:**
+   - **macOS / Linux:** leave as the default (`/bin/bash`).
+   - **Windows:** use Git Bash — `C:\PROGRA~1\Git\bin\bash.exe` (the 8.3 short path avoids the
+     space-escaping bug IntelliJ has with `C:\Program Files\...` on Windows). If Git is installed
+     somewhere else, find it with `where bash` in a terminal. Do **not** use `powershell.exe` —
+     `sandbox.sh` is a bash script.
+4. **Script path:** point it at `<project>/sandbox/sandbox.sh`. Leave **Script options** empty for the
    default interactive Claude session — or set `shell` for a bash shell, or `run <cmd>` for a one-off.
-4. **Working directory:** the project root (`$ProjectFileDir$`).
-5. **Tick "Execute in the terminal."** This is required — Claude's TUI needs a real PTY. Without it
+5. **Working directory:** the project root (`$ProjectFileDir$`).
+6. **Tick "Execute in the terminal."** This is required — Claude's TUI needs a real PTY. Without it
    IntelliJ pipes the console (no TTY), `sandbox.sh` falls back to non-interactive `-i` mode, and the
    session won't render or accept keystrokes.
-6. **Apply / OK**, then start it with **▶**. (First time only, build the image once — from a terminal,
+7. **Apply / OK**, then start it with **▶**. (First time only, build the image once — from a terminal,
    or a second run config whose Script options are `build`: `./sandbox/sandbox.sh build`.)
 
 Because the project root is mounted at `/work`, edits in IntelliJ are visible to Claude immediately,
@@ -64,7 +70,7 @@ and vice versa.
 
 > **No red ■ Stop button in terminal mode — that's expected.** IntelliJ only manages (and offers a Stop
 > button for) a Shell Script run when it runs in the *console*. "Execute in the terminal" (required for
-> Claude's PTY, step 5) hands the process to a terminal tab that IntelliJ no longer process-manages, so
+> Claude's PTY, step 6) hands the process to a terminal tab that IntelliJ no longer process-manages, so
 > there's no Stop square — only a ▶ rerun. Use either shutdown method below.
 
 ### Optional: a one-click "Stop" run config
