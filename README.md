@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="src/main/resources/META-INF/resources/img/wordmark.svg" alt="Diurnal" width="380">
+  <img src="scripts/assets/wordmark-readme.svg" alt="Diurnal — Make every day count" width="380">
 </p>
 
 > _[diurnal](https://www.dictionary.com/browse/diurnal), / daɪˈɜr nl /, adjective_
