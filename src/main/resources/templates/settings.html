@@ -176,10 +176,14 @@
                 <!-- Cap the image to the height left under the header + the modal's p-4 (≈6rem of chrome)
                      using dynamic-viewport units (100dvh — correct on mobile with browser UI), and
                      object-contain so a tall full-page shot scales DOWN to fit instead of overflowing
-                     and pushing the buttons off-screen. mx-auto centres the (now narrower) portrait shots. -->
+                     and pushing the buttons off-screen. mx-auto centres the (now narrower) portrait shots.
+                     One <img> per gallery tile is created here by openPreview; display is toggled between
+                     steps rather than mutating a single img's src, so no image is ever re-fetched. The
+                     data-img-class attribute carries the shared class string so Tailwind purge includes
+                     all classes even though they are applied by JS rather than declared in markup. -->
                 <div class="relative">
-                    <img id="preview-modal-img" src="" alt=""
-                         class="block mx-auto max-w-full max-h-[calc(100dvh-6rem)] w-auto h-auto object-contain rounded-lg shadow-2xl border border-white/10">
+                    <div id="preview-modal-imgs"
+                         data-img-class="block mx-auto max-w-full max-h-[calc(100dvh-6rem)] w-auto h-auto object-contain rounded-lg shadow-2xl border border-white/10"></div>
                     <!-- Arrows centred with inset-y-0 + my-auto (NOT -translate-y-1/2): a transform would
                          put each on its own GPU layer and make the glyph sub-pixel-snap on first hover. -->
                     <button type="button" id="preview-prev" onclick="previewStep(-1)" aria-label="Previous preview"
@@ -263,8 +267,9 @@
             // Full-size preview overlay for the Theme / Calendar-style tiles. It is a per-setting
             // gallery: opening any tile's (!) lets you step (prev/next) through the OTHER options of
             // the SAME picker only — the tiles are scoped by their shared data-preview-group.
-            var previewTiles = [];   // the gallery currently on screen (one picker's tiles)
-            var previewIndex = 0;    // which tile of that gallery is showing
+            var previewTiles = [];     // the gallery currently on screen (one picker's tiles)
+            var previewIndex = 0;     // which tile of that gallery is showing
+            var previewModalImgs = []; // one <img> per tile, created at open time; toggled by display
             var EASE = 'cubic-bezier(0.65, 0, 0.35, 1)'; // even ease-in-out used by the expand/collapse
 
             // Cancel every animation on the modal/panel so each open or close starts from a clean
@@ -276,29 +281,28 @@
                 document.getElementById('preview-modal-panel').getAnimations().forEach(function (a) { a.cancel(); });
             }
 
-            // The thumbnail and the full-size image are the SAME file (the thumbnail is just CSS-cropped
-            // to a fixed frame), so the lightbox just shows whichever thumbnail `<img>` is currently
-            // rendered in the tile — already the right viewport + theme + calendar-style variant. We use
-            // checkVisibility because the non-selected theme-style groups are hidden with
-            // visibility:hidden (not display:none), which offsetParent alone wouldn't catch.
+            // Returns the URL of the currently-visible thumbnail <img> inside a preview tile.
+            // Uses checkVisibility because non-selected variants are visibility:hidden (not display:none).
+            // Always normalises to an absolute URL for reliable comparison and src assignment.
             function previewSrcFor(tile) {
+                function toAbs(raw) { return raw ? new URL(raw, document.baseURI).href : ''; }
                 var imgs = tile.querySelectorAll('img');
                 for (var i = 0; i < imgs.length; i++) {
                     var el = imgs[i];
                     var visible = el.checkVisibility
                         ? el.checkVisibility({ visibilityProperty: true, opacityProperty: true })
                         : (el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden');
-                    if (visible) return el.currentSrc || el.src || el.dataset.src || '';
+                    if (visible) return toAbs(el.currentSrc || el.src || el.dataset.src || '');
                 }
-                return imgs.length ? (imgs[0].currentSrc || imgs[0].src || imgs[0].dataset.src || '') : '';
+                return imgs.length ? toAbs(imgs[0].currentSrc || imgs[0].src || imgs[0].dataset.src || '') : '';
             }
 
+            // Toggle which pre-loaded modal <img> is visible without mutating any src.
             function renderPreview() {
-                var tile = previewTiles[previewIndex];
-                var img = document.getElementById('preview-modal-img');
-                img.src = previewSrcFor(tile);
-                img.alt = tile.dataset.previewTitle;
-                document.getElementById('preview-modal-title').textContent = tile.dataset.previewTitle;
+                previewModalImgs.forEach(function (img, i) {
+                    img.style.display = i === previewIndex ? '' : 'none';
+                });
+                document.getElementById('preview-modal-title').textContent = previewTiles[previewIndex].dataset.previewTitle;
                 var multi = previewTiles.length > 1;
                 document.getElementById('preview-prev').classList.toggle('hidden', !multi);
                 document.getElementById('preview-next').classList.toggle('hidden', !multi);
@@ -310,6 +314,23 @@
                 previewTiles = Array.prototype.slice.call(
                     document.querySelectorAll('[data-preview-group="' + group + '"]'));
                 previewIndex = previewTiles.indexOf(tile);
+                // Create one <img> per gallery tile, each loaded exactly once at open time.
+                // Subsequent previewStep calls toggle display rather than mutating src, so returning
+                // to a tile that was already shown never triggers a second network request.
+                // Covers all three pickers (theme / calendar / font) through a single code path.
+                var container = document.getElementById('preview-modal-imgs');
+                container.innerHTML = '';
+                var imgClass = container.dataset.imgClass;
+                previewModalImgs = previewTiles.map(function (t) {
+                    var img = document.createElement('img');
+                    img.src = previewSrcFor(t);
+                    img.alt = t.dataset.previewTitle;
+                    img.className = imgClass;
+                    img.style.display = 'none';
+                    if (img.decode) img.decode().catch(function () {});
+                    container.appendChild(img);
+                    return img;
+                });
                 renderPreview();
 
                 var modal = document.getElementById('preview-modal');
@@ -367,6 +388,8 @@
                     modal.classList.remove('flex');
                     modal.classList.add('opacity-0'); // restore the resting hidden-opacity for next open
                     clearPreviewAnims();               // drop the forwards-fills so nothing stays composited
+                    document.getElementById('preview-modal-imgs').innerHTML = '';
+                    previewModalImgs = [];
                 };
             }
 
