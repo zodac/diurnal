@@ -203,6 +203,19 @@
         .dt-confirm-cell { padding: .75rem 1rem; }
         .dt-confirm-prompt { font-size: .75rem; color: var(--color-text-muted); }
 
+        /* Day-panel item — the delete button is hidden until the row is hovered/focused, mirroring
+           the [data-dt-view].dt-actions reveal used in editable tables. */
+        .day-item-delete { opacity: 0; pointer-events: none; transition: opacity .15s, color .15s; }
+        .day-item:hover .day-item-delete,
+        .day-item:focus-within .day-item-delete { opacity: 1; pointer-events: auto; }
+        /* The count input uses border-line at rest; step it up to input-border on row hover so it
+           stays visible against the surface-muted background. */
+        .day-item:hover input[name="count"] { border-color: var(--color-input-border); }
+        /* Confirm ring for a non-table element: drawn directly on the element (no > td needed).
+           Fixed height matches the normal item's py-2 + h-7 = 2.75rem exactly; overflow:hidden
+           prevents wrapping content from expanding the row and shifting the page scroll. */
+        .day-item-confirm { height: 2.75rem; overflow: hidden; box-shadow: inset 0 0 0 1px var(--color-ring-confirm); }
+
         /* Role/status badge */
         .dt-badge { font-size: .75rem; font-weight: 500; color: var(--color-text-muted); }
         .dt-badge-admin { color: var(--color-brand); }
@@ -283,6 +296,16 @@
         var trigger = e.target.closest('.dt-btn-edit, .dt-btn-delete');
         if (trigger) window.dtClearArmedRows(trigger.closest('tr'));
     });
+
+    // Day-panel: at most one confirm row open at a time. Runs in capture phase so it fires before
+    // HTMX on the Delete button; the Cancel click triggers its own hx-get to restore the normal state.
+    document.addEventListener('click', function (e) {
+        if (e.target.closest('.day-item .dt-btn-delete')) {
+            document.querySelectorAll('.day-item-confirm .dt-btn-cancel').forEach(function (cancel) {
+                cancel.click();
+            });
+        }
+    }, true);
     </script>
 
     <script>

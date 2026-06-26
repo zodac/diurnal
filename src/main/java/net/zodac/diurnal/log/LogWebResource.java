@@ -24,7 +24,9 @@ import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
+import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -64,6 +66,9 @@ public class LogWebResource {
     @Inject
     @Location("partials/day-action-item")
     Template dayActionItemTemplate;
+    @Inject
+    @Location("partials/day-action-item-confirm-delete")
+    Template dayActionItemConfirmDeleteTemplate;
 
     @Inject SecurityIdentity identity;
     @Inject AppClock clock;
@@ -141,6 +146,79 @@ public class LogWebResource {
         return new PaginatedDayActions(items, totalCount, totalPages, actualPage, fillerRows);
     }
 
+    // ── Single item ───────────────────────────────────────────────────────
+
+    /**
+     * Returns the day-action-item partial for a single action on a given date.
+     * Used by the confirm-delete Cancel button to restore the normal view.
+     */
+    @GET
+    @Path("/{date}/{actionId}")
+    @Produces(MediaType.TEXT_HTML)
+    @Transactional
+    public Response dayActionItem(
+            @PathParam("date") final LocalDate date,
+            @PathParam("actionId") final UUID actionId) {
+
+        final User user = currentUser();
+        final Action action = ownedAction(user, actionId);
+        if (action == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
+        return Response.ok(item(date, action, entry == null ? 0 : entry.count)).build();
+    }
+
+    /**
+     * Returns the in-place confirm-delete div for a day's action log entry.
+     */
+    @GET
+    @Path("/{date}/{actionId}/confirm-delete")
+    @Produces(MediaType.TEXT_HTML)
+    @Transactional
+    public Response confirmDeleteEntry(
+            @PathParam("date") final LocalDate date,
+            @PathParam("actionId") final UUID actionId) {
+
+        final User user = currentUser();
+        final Action action = ownedAction(user, actionId);
+        if (action == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        return Response.ok(dayActionItemConfirmDeleteTemplate.data("date", date, "action", action)).build();
+    }
+
+    /**
+     * Deletes the day's log entry for an action, returning the item at count zero.
+     */
+    @POST
+    @Path("/{date}/{actionId}/delete")
+    @Produces(MediaType.TEXT_HTML)
+    @Transactional
+    public Response deleteEntry(
+            @PathParam("date") final LocalDate date,
+            @PathParam("actionId") final UUID actionId) {
+
+        final User user = currentUser();
+        if (isFuture(date, user)) {
+            return Response.status(Response.Status.BAD_REQUEST).build();
+        }
+
+        final Action action = ownedAction(user, actionId);
+        if (action == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
+        if (entry != null) {
+            entry.delete();
+        }
+
+        return Response.ok(item(date, action, 0)).build();
+    }
+
     // ── Increment ─────────────────────────────────────────────────────────
 
     /**
@@ -216,6 +294,134 @@ public class LogWebResource {
         entry.count--;
         entry.persist();
         return Response.ok(item(date, action, entry.count)).build();
+    }
+
+    // ── Increment by 10 ──────────────────────────────────────────────────
+
+    /**
+     * Increments (or creates) the day's count for an action by 10, capped at {@code MAX_DAILY_COUNT}.
+     */
+    @POST
+    @Path("/{date}/{actionId}/increment10")
+    @Produces(MediaType.TEXT_HTML)
+    @Transactional
+    public Response incrementBy10(
+            @PathParam("date") final LocalDate date,
+            @PathParam("actionId") final UUID actionId) {
+
+        final User user = currentUser();
+        if (isFuture(date, user)) {
+            return Response.status(Response.Status.BAD_REQUEST).build();
+        }
+
+        final Action action = ownedAction(user, actionId);
+        if (action == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
+        if (entry == null) {
+            entry = new ActionLog();
+            entry.userId   = user.id;
+            entry.actionId = actionId;
+            entry.logDate  = date;
+            entry.count    = 10;
+            entry.persist();
+        } else if (entry.count < ActionLog.MAX_DAILY_COUNT) {
+            entry.count = Math.min(entry.count + 10, ActionLog.MAX_DAILY_COUNT);
+            entry.persist();
+        }
+
+        return Response.ok(item(date, action, entry.count)).build();
+    }
+
+    // ── Decrement by 10 ──────────────────────────────────────────────────
+
+    /**
+     * Decrements the day's count for an action by 10, deleting the entry when it reaches zero.
+     */
+    @POST
+    @Path("/{date}/{actionId}/decrement10")
+    @Produces(MediaType.TEXT_HTML)
+    @Transactional
+    public Response decrementBy10(
+            @PathParam("date") final LocalDate date,
+            @PathParam("actionId") final UUID actionId) {
+
+        final User user = currentUser();
+        if (isFuture(date, user)) {
+            return Response.status(Response.Status.BAD_REQUEST).build();
+        }
+
+        final Action action = ownedAction(user, actionId);
+        if (action == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
+        if (entry == null) {
+            return Response.ok(item(date, action, 0)).build();
+        }
+
+        if (entry.count <= 10) {
+            entry.delete();
+            return Response.ok(item(date, action, 0)).build();
+        }
+
+        entry.count -= 10;
+        entry.persist();
+        return Response.ok(item(date, action, entry.count)).build();
+    }
+
+    // ── Set count ─────────────────────────────────────────────────────────
+
+    /**
+     * Sets the day's count for an action to an explicit value, deleting the entry when zero or below.
+     * Values above {@code MAX_DAILY_COUNT} are silently clamped.
+     */
+    @POST
+    @Path("/{date}/{actionId}/set")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.TEXT_HTML)
+    @Transactional
+    public Response setCount(
+            @PathParam("date") final LocalDate date,
+            @PathParam("actionId") final UUID actionId,
+            @DefaultValue("0") @FormParam("count") final int requestedCount) {
+
+        final User user = currentUser();
+        if (isFuture(date, user)) {
+            return Response.status(Response.Status.BAD_REQUEST).build();
+        }
+
+        final Action action = ownedAction(user, actionId);
+        if (action == null) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+
+        final int newCount = Math.clamp(requestedCount, 0, ActionLog.MAX_DAILY_COUNT);
+
+        ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
+        if (newCount <= 0) {
+            if (entry != null) {
+                entry.delete();
+            }
+            return Response.ok(item(date, action, 0)).build();
+        }
+
+        if (entry == null) {
+            entry = new ActionLog();
+            entry.userId   = user.id;
+            entry.actionId = actionId;
+            entry.logDate  = date;
+            entry.count    = newCount;
+            entry.persist();
+        } else {
+            entry.count = newCount;
+            entry.persist();
+        }
+
+        return Response.ok(item(date, action, newCount)).build();
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────

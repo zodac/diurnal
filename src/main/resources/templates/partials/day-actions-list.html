@@ -5,7 +5,9 @@
 </p>
 {#else}
 {#for status in page.items}
-{#include partials/day-action-item date=date action=status.action count=status.count /}
+<div id="log-{date}-{status.action.id}" class="h-11 overflow-hidden">
+    {#include partials/day-action-item date=date action=status.action count=status.count /}
+</div>
 {/for}
 
 <!-- Filler rows: keep every page the same height when paginated -->
