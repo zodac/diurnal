@@ -57,7 +57,9 @@ RUN CSS_DIR=src/main/resources/META-INF/resources/css \
     && mv "${CSS_DIR}/app.css" "${CSS_DIR}/app.${CSS_HASH}.css" \
     && printf '\napp.assets.css-file=app.%s.css\n' "${CSS_HASH}" \
        >> src/main/resources/META-INF/microprofile-config.properties
-RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -q
+# -Dcss.build.skip=true: the stylesheet is already compiled by the `css` stage and copied in above,
+# and this maven image has no Node toolchain — so skip the POM's `css-build` exec.
+RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -Dcss.build.skip=true -q
 
 # ── Stage 4: runtime ─────────────────────────────────────────────────────────
 FROM eclipse-temurin:26-jre-alpine

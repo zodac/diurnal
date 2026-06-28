@@ -8,6 +8,10 @@ src/main/resources/jwt-keys/
 # Maven
 target/
 
+# Compiled Tailwind CSS — build artifact generated from src/main/css/app.css by `npm run css`
+# (and the Maven `css-build` exec / the Docker css stage). The source is the committed one.
+src/main/resources/META-INF/resources/css/app.css
+
 
 # IDE
 .idea/
