@@ -222,15 +222,18 @@ public class LogWebResource {
     // ── Increment ─────────────────────────────────────────────────────────
 
     /**
-     * Increments (or creates) the day's count for an action, capped at {@code MAX_DAILY_COUNT}.
+     * Increments (or creates) the day's count for an action by {@code amount} (default 1),
+     * capped at {@code MAX_DAILY_COUNT}. Non-positive amounts leave the count unchanged.
      */
     @POST
     @Path("/{date}/{actionId}/increment")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response increment(
             @PathParam("date") final LocalDate date,
-            @PathParam("actionId") final UUID actionId) {
+            @PathParam("actionId") final UUID actionId,
+            @DefaultValue("1") @FormParam("amount") final int amount) {
 
         final User user = currentUser();
         if (isFuture(date, user)) {
@@ -242,34 +245,42 @@ public class LogWebResource {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
+        final int delta = Math.max(amount, 0);
+
         ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
         if (entry == null) {
+            if (delta <= 0) {
+                return Response.ok(item(date, action, 0)).build();
+            }
             entry = new ActionLog();
             entry.userId   = user.id;
             entry.actionId = actionId;
             entry.logDate  = date;
-            entry.count    = 1;
+            entry.count    = Math.min(delta, ActionLog.MAX_DAILY_COUNT);
             entry.persist();
-        } else if (entry.count < ActionLog.MAX_DAILY_COUNT) {
-            entry.count++;
-            entry.persist();
+            return Response.ok(item(date, action, entry.count)).build();
         }
 
+        entry.count = Math.min(entry.count + delta, ActionLog.MAX_DAILY_COUNT);
+        entry.persist();
         return Response.ok(item(date, action, entry.count)).build();
     }
 
     // ── Decrement ─────────────────────────────────────────────────────────
 
     /**
-     * Decrements the day's count for an action, deleting the entry when it reaches zero.
+     * Decrements the day's count for an action by {@code amount} (default 1), deleting the
+     * entry when it reaches zero. Non-positive amounts leave the count unchanged.
      */
     @POST
     @Path("/{date}/{actionId}/decrement")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response decrement(
             @PathParam("date") final LocalDate date,
-            @PathParam("actionId") final UUID actionId) {
+            @PathParam("actionId") final UUID actionId,
+            @DefaultValue("1") @FormParam("amount") final int amount) {
 
         final User user = currentUser();
         if (isFuture(date, user)) {
@@ -280,97 +291,23 @@ public class LogWebResource {
         if (action == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
+
+        final int delta = Math.max(amount, 0);
 
         final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
         if (entry == null) {
             return Response.ok(item(date, action, 0)).build();
         }
 
-        if (entry.count <= 1) {
+        final int newCount = entry.count - delta;
+        if (newCount <= 0) {
             entry.delete();
             return Response.ok(item(date, action, 0)).build();
         }
 
-        entry.count--;
+        entry.count = newCount;
         entry.persist();
-        return Response.ok(item(date, action, entry.count)).build();
-    }
-
-    // ── Increment by 10 ──────────────────────────────────────────────────
-
-    /**
-     * Increments (or creates) the day's count for an action by 10, capped at {@code MAX_DAILY_COUNT}.
-     */
-    @POST
-    @Path("/{date}/{actionId}/increment10")
-    @Produces(MediaType.TEXT_HTML)
-    @Transactional
-    public Response incrementBy10(
-            @PathParam("date") final LocalDate date,
-            @PathParam("actionId") final UUID actionId) {
-
-        final User user = currentUser();
-        if (isFuture(date, user)) {
-            return Response.status(Response.Status.BAD_REQUEST).build();
-        }
-
-        final Action action = ownedAction(user, actionId);
-        if (action == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-
-        ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
-        if (entry == null) {
-            entry = new ActionLog();
-            entry.userId   = user.id;
-            entry.actionId = actionId;
-            entry.logDate  = date;
-            entry.count    = 10;
-            entry.persist();
-        } else if (entry.count < ActionLog.MAX_DAILY_COUNT) {
-            entry.count = Math.min(entry.count + 10, ActionLog.MAX_DAILY_COUNT);
-            entry.persist();
-        }
-
-        return Response.ok(item(date, action, entry.count)).build();
-    }
-
-    // ── Decrement by 10 ──────────────────────────────────────────────────
-
-    /**
-     * Decrements the day's count for an action by 10, deleting the entry when it reaches zero.
-     */
-    @POST
-    @Path("/{date}/{actionId}/decrement10")
-    @Produces(MediaType.TEXT_HTML)
-    @Transactional
-    public Response decrementBy10(
-            @PathParam("date") final LocalDate date,
-            @PathParam("actionId") final UUID actionId) {
-
-        final User user = currentUser();
-        if (isFuture(date, user)) {
-            return Response.status(Response.Status.BAD_REQUEST).build();
-        }
-
-        final Action action = ownedAction(user, actionId);
-        if (action == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-
-        final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
-        if (entry == null) {
-            return Response.ok(item(date, action, 0)).build();
-        }
-
-        if (entry.count <= 10) {
-            entry.delete();
-            return Response.ok(item(date, action, 0)).build();
-        }
-
-        entry.count -= 10;
-        entry.persist();
-        return Response.ok(item(date, action, entry.count)).build();
+        return Response.ok(item(date, action, newCount)).build();
     }
 
     // ── Set count ─────────────────────────────────────────────────────────
