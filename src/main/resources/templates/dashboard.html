@@ -462,6 +462,18 @@ document.addEventListener('DOMContentLoaded', function () {
         if (cell) cell.classList.add('d-day-selected');
     }
 
+    var dayPanel = document.getElementById('day-panel');
+    // Captured before the initial day load replaces it (see below) — the "Click a day…" prompt.
+    var dayPanelPlaceholder = dayPanel ? dayPanel.innerHTML : '';
+
+    // Deselect the current day and reset the panel to its prompt. Used when only the MONTH changes
+    // (arrows / picker), where no specific day was chosen, so leaving the old day's actions on screen
+    // would be misleading. Selecting an explicit date (selectDay) does the opposite and keeps it.
+    function clearSelection() {
+        highlightSelected(null); // nulls selectedDate and strips the .d-day-selected ring
+        if (dayPanel) { dayPanel.innerHTML = dayPanelPlaceholder; }
+    }
+
     // Select a day: highlight it, jump to its month if it belongs to an adjacent one, and load its panel.
     function selectDay(dateStr, dayEl) {
         highlightSelected(dateStr);
@@ -472,10 +484,12 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     // ── Shared toolbar navigation ───────────────────────────────────────────
-    document.getElementById('cal-prev-year').addEventListener('click', function () { cal.prevYear(); });
-    document.getElementById('cal-prev').addEventListener('click',      function () { cal.prev(); });
-    document.getElementById('cal-next').addEventListener('click',      function () { cal.next(); });
-    document.getElementById('cal-next-year').addEventListener('click', function () { cal.nextYear(); });
+    // Month-only moves (< << > >>): clear the selection first, then navigate (datesSet re-applies the
+    // now-null highlight). No specific day was chosen, so the previous day's panel must not linger.
+    document.getElementById('cal-prev-year').addEventListener('click', function () { clearSelection(); cal.prevYear(); });
+    document.getElementById('cal-prev').addEventListener('click',      function () { clearSelection(); cal.prev(); });
+    document.getElementById('cal-next').addEventListener('click',      function () { clearSelection(); cal.next(); });
+    document.getElementById('cal-next-year').addEventListener('click', function () { clearSelection(); cal.nextYear(); });
     // 'Today' now lives at the bottom of the picker popup; jump to the current month, select today,
     // and close the popup.
     document.getElementById('cal-today').addEventListener('click', function () { cal.today(); selectDay(today); closePop(); });
@@ -501,6 +515,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 + (isToday ? ' cal-pop-month-today' : '')
                 + (isSelected ? ' cal-pop-month-selected' : '');
             b.addEventListener('click', function () {
+                clearSelection(); // picked a month, not a day → drop the previous selection
                 cal.gotoDate(pickerYear + '-' + String(i + 1).padStart(2, '0') + '-01');
                 closePop();
             });
@@ -553,12 +568,24 @@ document.addEventListener('DOMContentLoaded', function () {
     var viewYear  = parseInt(today.substring(0, 4), 10);
     var viewMonth = parseInt(today.substring(5, 7), 10) - 1; // 0-indexed
     var selectedDate = null;
-    var dayData = {}; // date string -> array of action dot objects
+    var dayData = {}; // date string -> array of action dot objects; ACCUMULATES across months (keys are
+                      // full dates, so months never collide) and acts as the month cache, see fetchMonth.
 
-    var calWrap = document.getElementById('calendar-wrap');
-    var grid    = document.getElementById('d-min-grid');
-    var titleEl = document.getElementById('cal-title');
-    var pop     = document.getElementById('cal-pop');
+    var calWrap  = document.getElementById('calendar-wrap');
+    var grid     = document.getElementById('d-min-grid');
+    var titleEl  = document.getElementById('cal-title');
+    var pop      = document.getElementById('cal-pop');
+    var dayPanel = document.getElementById('day-panel');
+    // Captured before the initial day load replaces it (see bottom of script) — the "Click a day…" prompt.
+    var dayPanelPlaceholder = dayPanel ? dayPanel.innerHTML : '';
+
+    // Deselect the current day and reset the panel to its prompt. Used when only the MONTH changes
+    // (arrows / picker), where no specific day was chosen, so leaving the old day's actions on screen
+    // would be misleading. Selecting an explicit date (selectDay) does the opposite and keeps it.
+    function clearSelection() {
+        selectedDate = null;
+        if (dayPanel) { dayPanel.innerHTML = dayPanelPlaceholder; }
+    }
 
     function pad2(n) { return String(n).padStart(2, '0'); }
 
@@ -639,18 +666,129 @@ document.addEventListener('DOMContentLoaded', function () {
         textEl.style.transform = 'translate(' + shiftX.toFixed(3) + 'px,' + shiftY.toFixed(3) + 'px)';
     }
 
-    function fetchAndRender() {
-        var start = viewYear + '-' + pad2(viewMonth + 1) + '-01';
-        var nm = viewMonth === 11 ? 0 : viewMonth + 1;
-        var ny = viewMonth === 11 ? viewYear + 1 : viewYear;
-        var end = ny + '-' + pad2(nm + 1) + '-01';
-        fetch('/logs/minimal-events?start=' + start + '&end=' + end)
+    // ── Month data cache (LRU) & background prefetch ────────────────────────────
+    // Each month's dots are fetched once and merged into `dayData`; `monthPromises` dedupes in-flight
+    // and resolved fetches, and `monthLoaded` flags a month whose data is already in `dayData` so we
+    // can render it WITHOUT a network wait. This is what makes month navigation feel instant: the public
+    // origin sits behind Cloudflare, so every `/logs/minimal-events` call is a ~250ms+ edge round-trip.
+    // We pay that once per month (eagerly for the visible month, on idle for its neighbours) instead of
+    // on every prev/next click.
+    //
+    // To bound memory when a user hops across many months, resident months are capped by a least-recently-
+    // -used policy (`lru` holds month keys oldest→newest; `touch` refreshes recency on every access). Only
+    // RESOLVED months count toward the cap and are eligible for eviction, so an in-flight prefetch is never
+    // dropped mid-fetch. CACHE_LIMIT must stay well above the live window (2*PREFETCH_RADIUS+1) so that
+    // hopping between adjacent months never evicts a month that's still on screen or about to be revisited.
+    var monthPromises = {}; // "YYYY-MM" -> Promise (in-flight or resolved)
+    var monthLoaded   = {}; // "YYYY-MM" -> true once its data has been merged into dayData
+    var lru           = []; // "YYYY-MM" keys, least-recently-used first
+    var PREFETCH_RADIUS = 2; // months either side of the visible one to warm in the background
+    var CACHE_LIMIT     = 12; // max RESOLVED months retained (>> 2*PREFETCH_RADIUS+1 = 5, the live window)
+
+    function monthKey(y, m) { return y + '-' + pad2(m + 1); }
+
+    function stepMonth(y, m, delta) {
+        m += delta;
+        while (m > 11) { m -= 12; y++; }
+        while (m < 0)  { m += 12; y--; }
+        return [y, m];
+    }
+
+    // Mark a month as most-recently-used (moves it to the end of `lru`).
+    function touch(key) {
+        var i = lru.indexOf(key);
+        if (i !== -1) { lru.splice(i, 1); }
+        lru.push(key);
+    }
+
+    // Forget a month entirely: its dots, its cached fetch, and its loaded flag.
+    function dropMonth(key) {
+        var prefix = key + '-'; // "2026-06-" — every date key in that month
+        Object.keys(dayData).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete dayData[d]; } });
+        delete monthPromises[key];
+        delete monthLoaded[key];
+    }
+
+    // Evict the oldest RESOLVED months until at most CACHE_LIMIT remain resident. In-flight months
+    // (touched but not yet loaded) are skipped — they get trimmed once they resolve and re-run this.
+    function evictIfNeeded() {
+        var resident = 0, i;
+        for (i = 0; i < lru.length; i++) { if (monthLoaded[lru[i]]) { resident++; } }
+        while (resident > CACHE_LIMIT) {
+            var idx = -1;
+            for (i = 0; i < lru.length; i++) { if (monthLoaded[lru[i]]) { idx = i; break; } }
+            if (idx === -1) { break; }
+            var key = lru[idx];
+            lru.splice(idx, 1);
+            dropMonth(key);
+            resident--;
+        }
+    }
+
+    function fetchMonth(y, m) {
+        var key = monthKey(y, m);
+        touch(key);                                            // record access (also on cache hits)
+        if (monthPromises[key]) { return monthPromises[key]; } // already in-flight or resolved
+        var start = y + '-' + pad2(m + 1) + '-01';
+        var nx  = stepMonth(y, m, 1);
+        var end = nx[0] + '-' + pad2(nx[1] + 1) + '-01';
+        var p = fetch('/logs/minimal-events?start=' + start + '&end=' + end)
             .then(function (r) { return r.json(); })
             .then(function (data) {
-                dayData = {};
                 data.forEach(function (day) { dayData[day.date] = day.actions; });
-                renderGrid();
+                monthLoaded[key] = true;
+                evictIfNeeded();                               // trim once this month is actually resident
+                return data;
+            })
+            .catch(function (err) {                            // drop so a later view retries
+                delete monthPromises[key];
+                var i = lru.indexOf(key);
+                if (i !== -1) { lru.splice(i, 1); }
+                throw err;
             });
+        monthPromises[key] = p;
+        return p;
+    }
+
+    // Drop a month from the cache (e.g. after its dots change via a log toggle) so it re-fetches.
+    // Clears its day entries too, so days whose last action was removed don't keep a stale dot.
+    function invalidateMonth(y, m) {
+        dropMonth(monthKey(y, m)); // keep its LRU slot; the imminent refetch refreshes it
+    }
+
+    // Warm the surrounding months once the browser is idle, so the next prev/next click reads from
+    // cache. Deferred via requestIdleCallback so it never competes with the initial calendar paint,
+    // the day-panel load or the stats summary.
+    function prefetchNeighbours() {
+        var schedule = window.requestIdleCallback || function (fn) { return setTimeout(fn, 200); };
+        schedule(function () {
+            for (var d = 1; d <= PREFETCH_RADIUS; d++) {
+                var prev = stepMonth(viewYear, viewMonth, -d);
+                var next = stepMonth(viewYear, viewMonth,  d);
+                fetchMonth(prev[0], prev[1]);
+                fetchMonth(next[0], next[1]);
+            }
+        });
+    }
+
+    function fetchAndRender() {
+        var key = monthKey(viewYear, viewMonth);
+        // Paint the grid immediately — numbers, today, selection — so the month switch is instant and the
+        // page never blocks on the network. The activity dots come from `dayData`: already present for a
+        // cached month, or filled in by the re-render below once the fetch lands for an uncached one. Cells
+        // always reserve the dot/bar row, so dots appearing later causes no layout shift.
+        renderGrid();
+        if (monthLoaded[key]) {       // cached → dots are already drawn, nothing more to fetch
+            touch(key);               // viewing it counts as use, so it stays hot in the LRU
+            prefetchNeighbours();
+            return;
+        }
+        fetchMonth(viewYear, viewMonth).then(function () {
+            // Re-render with the dots — but only if the user is still on this month (they may have
+            // clicked onward mid-fetch, in which case that month's own render already won).
+            if (monthKey(viewYear, viewMonth) === key) { renderGrid(); }
+            prefetchNeighbours();
+        });
     }
 
     function renderGrid() {
@@ -736,6 +874,7 @@ document.addEventListener('DOMContentLoaded', function () {
         viewYear  += deltaYears;
         while (viewMonth > 11) { viewMonth -= 12; viewYear++; }
         while (viewMonth < 0)  { viewMonth += 12; viewYear--; }
+        clearSelection(); // month-only move (< << > >>): no day chosen, so drop the previous selection
         fetchAndRender();
     }
 
@@ -773,6 +912,7 @@ document.addEventListener('DOMContentLoaded', function () {
             b.addEventListener('click', function () {
                 viewYear  = pickerYear;
                 viewMonth = i;
+                clearSelection(); // picked a month, not a day → drop the previous selection
                 fetchAndRender();
                 closePop();
             });
@@ -814,6 +954,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Re-fetch dots after every log toggle inside the day panel.
     document.body.addEventListener('htmx:afterRequest', function (e) {
         if (e.target && e.target.closest && e.target.closest('#day-panel')) {
+            invalidateMonth(viewYear, viewMonth); // dots for this month changed → drop the stale cache
             fetchAndRender();
         }
     });
