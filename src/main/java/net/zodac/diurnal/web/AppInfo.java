@@ -57,6 +57,16 @@ public class AppInfo {
     String buildTimestamp = "";
 
     /**
+     * Filename of the compiled stylesheet served under {@code /css/}. Content-hashed at image-build
+     * time (e.g. {@code app.9f3a1c2b4d5e.css}) by the Dockerfile so each deployment serves a brand-new
+     * URL — the immutable long-cache header then can't hand back a stale stylesheet through a reverse
+     * proxy/CDN. Defaults to the un-hashed {@code app.css} for an un-packaged dev run (where assets are
+     * served {@code no-store}; see {@code application-dev.properties}).
+     */
+    @ConfigProperty(name = "app.assets.css-file", defaultValue = "app.css")
+    String cssFile = "app.css";
+
+    /**
      * The running application version (e.g. {@code 0.0.1-SNAPSHOT}), shown in the footer.
      *
      * @return the application version
@@ -90,5 +100,16 @@ public class AppInfo {
             }
         }
         return FALLBACK_YEAR;
+    }
+
+    /**
+     * The content-hashed compiled stylesheet filename (e.g. {@code app.9f3a1c2b4d5e.css}), referenced
+     * by {@code layout.html} as {@code /css/{cssFile}} so each deploy busts client and reverse-proxy
+     * caches without serving a stale stylesheet.
+     *
+     * @return the stylesheet filename served under {@code /css/}
+     */
+    public String getCssFile() {
+        return cssFile;
     }
 }

@@ -157,9 +157,7 @@ public class StatsService {
         int longest = 0;
         for (int i = 1; i < sortedDates.size(); i++) {
             final int gap = (int) (ChronoUnit.DAYS.between(sortedDates.get(i - 1), sortedDates.get(i)) - 1);
-            if (gap > longest) {
-                longest = gap;
-            }
+            longest = Math.max(longest, gap);
         }
         final int openGap = (int) ChronoUnit.DAYS.between(sortedDates.getLast(), today);
         return Math.max(longest, openGap);

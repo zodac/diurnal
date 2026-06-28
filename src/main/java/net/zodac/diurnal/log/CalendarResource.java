@@ -179,8 +179,10 @@ public class CalendarResource {
     public record CalendarEventDto(
             @Schema(examples = "Morning run", description = "Action name; includes a ×N suffix when the day's count exceeds 1.") String title,
             @Schema(examples = "2026-06-15", description = "Date of the logged entry as an ISO-8601 date string.") String start,
-            @Schema(examples = "#6366f1", description = "Action colour as a CSS hex value, used by FullCalendar for the event background.") String backgroundColor,
-            @Schema(examples = "#6366f1", description = "Action colour as a CSS hex value, used by FullCalendar for the event border.") String borderColor) {
+            @Schema(examples = "#6366f1", description = "Action colour as a CSS hex value, used by FullCalendar for the event background.")
+            String backgroundColor,
+            @Schema(examples = "#6366f1", description = "Action colour as a CSS hex value, used by FullCalendar for the event border.")
+            String borderColor) {
     }
 
     /**

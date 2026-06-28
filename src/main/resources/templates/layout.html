@@ -93,7 +93,7 @@
     {#if font != 'standard'}
     <link rel="preload" href="/fonts/NovaFlat-Book.woff2" as="font" type="font/woff2" crossorigin>
     {/if}
-    <link rel="stylesheet" href="/css/app.css">
+    <link rel="stylesheet" href="/css/{inject:appInfo.cssFile}">
     <!--
         Shared data-table ("dt") component styling. This is the single source of truth for
         how every list/table in the app looks: Actions, Users (admin), and any future tables.

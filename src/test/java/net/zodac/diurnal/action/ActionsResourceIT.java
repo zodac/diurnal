@@ -26,6 +26,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.user.UserSettings;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
@@ -111,7 +112,8 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void actionsList_exactlyOnePage_noPaginationControls() {
-        runInTx(() -> createActions(10));
+        // Exactly a full page of actions fits without spilling onto a second page.
+        runInTx(() -> createActions(UserSettings.DEFAULT_PAGE_SIZE));
         given().queryParam("page", 1).get("/actions/list")
             .then().statusCode(200)
             .body(not(containsString("Next")))
@@ -119,16 +121,17 @@ class ActionsResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    void actionsList_elevenActions_page1_showsNextButton() {
-        runInTx(() -> createActions(11));
+    void actionsList_multiplePages_page1_showsNextButton() {
+        // One more than a page forces a second page, so page 1 offers a Next control.
+        runInTx(() -> createActions(UserSettings.DEFAULT_PAGE_SIZE + 1));
         given().queryParam("page", 1).get("/actions/list")
             .then().statusCode(200)
             .body(containsString("Next"));
     }
 
     @Test
-    void actionsList_elevenActions_page2_showsPreviousButton() {
-        runInTx(() -> createActions(11));
+    void actionsList_multiplePages_page2_showsPreviousButton() {
+        runInTx(() -> createActions(UserSettings.DEFAULT_PAGE_SIZE + 1));
         given().queryParam("page", 2).get("/actions/list")
             .then().statusCode(200)
             .body(containsString("Previous"));
@@ -136,7 +139,7 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void actionsList_pageNumberBeyondTotal_clampsToLastPage() {
-        runInTx(() -> createActions(5));
+        runInTx(() -> createActions(UserSettings.DEFAULT_PAGE_SIZE));
         given().queryParam("page", 99).get("/actions/list")
             .then().statusCode(200)
             .body(not(containsString("Next")));

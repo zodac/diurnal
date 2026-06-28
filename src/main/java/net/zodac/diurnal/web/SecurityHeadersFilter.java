@@ -46,6 +46,12 @@ public class SecurityHeadersFilter {
     @ConfigProperty(name = "csrf.trusted.origins", defaultValue = "")
     String csrfTrustedOrigins = "";
 
+    /**
+     * Registers a top-priority Vert.x route that adds the {@code Content-Security-Policy} header
+     * (built from {@link #csrfTrustedOrigins}) to every HTTP response.
+     *
+     * @param ev the application startup event that triggers route registration
+     */
     @SuppressWarnings("unused") // CDI startup observer — invoked by Quarkus, not called directly
     void onStart(@Observes final StartupEvent ev) {
         final String csp = buildFrameAncestorsCsp(csrfTrustedOrigins);
