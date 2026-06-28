@@ -12,6 +12,13 @@
     <artifactId>diurnal</artifactId>
     <version>0.0.1-SNAPSHOT</version>
 
+    <properties>
+        <!-- Skip the Tailwind CSS build (the exec-maven-plugin `css-build` execution below). Set true
+             in the Docker build, which compiles the stylesheet in its own Node stage and copies it in,
+             so the Maven JVM image needs no Node toolchain. -->
+        <css.build.skip>false</css.build.skip>
+    </properties>
+
     <dependencies>
         <!-- Password hashing -->
         <dependency>
@@ -144,6 +151,39 @@
             </resource>
         </resources>
         <plugins>
+            <!--
+                Compile the Tailwind stylesheet as part of the Maven build: src/main/css/app.css (the
+                hand-edited source) -> src/main/resources/META-INF/resources/css/app.css (the served,
+                minified, purged output). Bound to generate-resources so it runs BEFORE process-resources
+                copies resources into target/classes and Quarkus packages the fast-jar — so every Maven
+                build (dev, package, *IT, E2E) produces the stylesheet and it never needs committing
+                (it is .gitignored). This just delegates to `npm run css`, so the npm script stays the
+                single definition of the build; it therefore needs a local `npm install` (node_modules).
+                Skipped in Docker via -Dcss.build.skip=true: that build compiles the CSS in a dedicated
+                Node stage and copies it in, keeping Node out of the Maven/runtime images.
+            -->
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>exec-maven-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>css-build</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <phase>generate-resources</phase>
+                        <configuration>
+                            <skip>${css.build.skip}</skip>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                            <executable>npm</executable>
+                            <arguments>
+                                <argument>run</argument>
+                                <argument>css</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
             <plugin>
                 <groupId>com.mycila</groupId>
                 <artifactId>license-maven-plugin</artifactId>

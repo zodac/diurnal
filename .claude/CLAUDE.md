@@ -11,7 +11,10 @@
 git submodule update --init
 
 # Build CSS (compiled Tailwind at /css/app.css; rebuild after any class/template change)
-npm install        # one-time
+# The compiled file is a build artifact (.gitignored); any `mvn` build regenerates it via the
+# POM's `css-build` exec, but it needs node_modules — so run `npm install` once after cloning.
+# For a hot-reload dev loop, run `npm run css:watch` alongside quarkus:dev.
+npm install        # one-time (required for `mvn` to build the CSS)
 npm run css        # or: npm run css:watch
 
 # Start dev PostgreSQL (required before quarkus:dev)
@@ -106,7 +109,9 @@ Records hold data only; derived logic lives in a `<Type>Extensions` final class 
 
 ### CSS build & colour tokens
 
-Tailwind is compiled (not CDN). `src/main/css/app.css` is built into `src/main/resources/META-INF/resources/css/app.css`. **Rebuild with `npm run css` after any class change in templates or Java** or the class will be purged. The Dockerfile builds it fresh in a dedicated `css` stage.
+Tailwind is compiled (not CDN). `src/main/css/app.css` (the committed source) is built into `src/main/resources/META-INF/resources/css/app.css` (the served output). **Rebuild with `npm run css` after any class change in templates or Java** or the class will be purged.
+
+The compiled output is a **build artifact, not committed** (`.gitignore`d). Every Maven build regenerates it: the POM's `exec-maven-plugin` `css-build` execution runs `npm run css` in `generate-resources` (before resources are copied/packaged), so `package`/`*IT`/E2E always bundle a fresh stylesheet. This needs `node_modules` (`npm install` once). The Docker build instead compiles the CSS in a dedicated `css` stage and copies it in, passing `-Dcss.build.skip=true` to `mvn package` so the Node-less Maven image skips the exec. Dev mode (`quarkus:dev`) serves the on-disk file directly — keep `npm run css:watch` running, or run `npm run css` manually, to refresh it.
 
 Colour tokens: `app.css` defines `--color-*` CSS variables (`:root` + `.dark`). Tailwind exposes semantic utilities: `bg-surface`/`bg-surface-muted`, `text-ink`/`text-ink-muted`, `border-line`/`border-line-subtle`, `text-brand`, `bg-brand`, `text-success`, `text-danger`. Use these instead of raw `gray-*`/`indigo-*`.
 
