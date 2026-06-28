@@ -417,503 +417,433 @@ document.addEventListener('DOMContentLoaded', function () {
         if (t) fitCalTitle(t);
     });
 
-    if (calendarView === 'full') {
-    var calWrap = document.getElementById('calendar-wrap');
-    var calEl   = document.getElementById('calendar');
-    var titleEl = document.getElementById('cal-title');
-    var pop     = document.getElementById('cal-pop');
-
-    var cal = new FullCalendar.Calendar(calEl, {
-        initialView: 'dayGridMonth',
-        initialDate: today,
-        // Pin "today" to the server-computed (user-timezone) date so the today-highlight and the
-        // 'today' button match the user's clock rather than the browser's local date.
-        now: today,
-        height: 'auto',
-        headerToolbar: false,   // navigation is the shared toolbar (partials/calendar-toolbar.html)
-        events: '/logs/events',
-        eventDisplay: 'list-item',
-        datesSet: function () {
-            var d = cal.getDate();
-            setCalTitle(titleEl, d.getFullYear(), d.getMonth());
-            highlightSelected(selectedDate);
-        },
-        dateClick: function (info) {
-            selectDay(info.dateStr, info.dayEl);
-        },
-        // Clicking a logged action's event element should select its day too (dateClick
-        // does not fire when the click lands on an event rather than the empty cell).
-        eventClick: function (info) {
-            info.jsEvent.preventDefault();
-            selectDay(info.event.startStr, info.el.closest('.fc-daygrid-day'));
-        }
-    });
-    cal.render();
-
-    // Track and visually mark the currently selected day.
-    var selectedDate = null;
-    function highlightSelected(dateStr) {
-        if (!calEl) return; // datesSet can fire during initial render, before setup completes
-        selectedDate = dateStr;
-        calEl.querySelectorAll('.fc-daygrid-day.d-day-selected')
-             .forEach(function (el) { el.classList.remove('d-day-selected'); });
-        if (!dateStr) return;
-        var cell = calEl.querySelector('.fc-daygrid-day[data-date="' + dateStr + '"]');
-        if (cell) cell.classList.add('d-day-selected');
-    }
-
-    var dayPanel = document.getElementById('day-panel');
-    // Captured before the initial day load replaces it (see below) — the "Click a day…" prompt.
-    var dayPanelPlaceholder = dayPanel ? dayPanel.innerHTML : '';
-
-    // Deselect the current day and reset the panel to its prompt. Used when only the MONTH changes
-    // (arrows / picker), where no specific day was chosen, so leaving the old day's actions on screen
-    // would be misleading. Selecting an explicit date (selectDay) does the opposite and keeps it.
-    function clearSelection() {
-        highlightSelected(null); // nulls selectedDate and strips the .d-day-selected ring
-        if (dayPanel) { dayPanel.innerHTML = dayPanelPlaceholder; }
-    }
-
-    // Select a day: highlight it, jump to its month if it belongs to an adjacent one, and load its panel.
-    function selectDay(dateStr, dayEl) {
-        highlightSelected(dateStr);
-        if (dayEl && dayEl.classList.contains('fc-day-other')) {
-            cal.gotoDate(dateStr);
-        }
-        htmx.ajax('GET', '/logs/day/' + dateStr, { target: '#day-panel', swap: 'innerHTML' });
-    }
-
-    // ── Shared toolbar navigation ───────────────────────────────────────────
-    // Month-only moves (< << > >>): clear the selection first, then navigate (datesSet re-applies the
-    // now-null highlight). No specific day was chosen, so the previous day's panel must not linger.
-    document.getElementById('cal-prev-year').addEventListener('click', function () { clearSelection(); cal.prevYear(); });
-    document.getElementById('cal-prev').addEventListener('click',      function () { clearSelection(); cal.prev(); });
-    document.getElementById('cal-next').addEventListener('click',      function () { clearSelection(); cal.next(); });
-    document.getElementById('cal-next-year').addEventListener('click', function () { clearSelection(); cal.nextYear(); });
-    // 'Today' now lives at the bottom of the picker popup; jump to the current month, select today,
-    // and close the popup.
-    document.getElementById('cal-today').addEventListener('click', function () { cal.today(); selectDay(today); closePop(); });
-
-    // ── Month/year picker popup (shared #cal-pop markup) ─────────────────────
-    var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var pickerYear = cal.getDate().getFullYear();
-    var yearLabel = pop.querySelector('.cal-pop-year');
-    var monthsGrid = pop.querySelector('.cal-pop-months');
-
-    function renderMonths() {
-        yearLabel.textContent = pickerYear;
-        var shown = cal.getDate();
-        var shownYear = shown.getFullYear(), shownMonth = shown.getMonth();
-        monthsGrid.innerHTML = '';
-        MONTHS.forEach(function (name, i) {
-            var b = document.createElement('button');
-            b.type = 'button';
-            b.textContent = name;
-            var isToday    = (pickerYear === todayYear && i === todayMonth);   // solid "today" fill
-            var isSelected = (pickerYear === shownYear && i === shownMonth);   // brand selection ring
-            b.className = 'cal-pop-month'
-                + (isToday ? ' cal-pop-month-today' : '')
-                + (isSelected ? ' cal-pop-month-selected' : '');
-            b.addEventListener('click', function () {
-                clearSelection(); // picked a month, not a day → drop the previous selection
-                cal.gotoDate(pickerYear + '-' + String(i + 1).padStart(2, '0') + '-01');
-                closePop();
-            });
-            monthsGrid.appendChild(b);
-        });
-    }
-
-    pop.querySelectorAll('button[data-y]').forEach(function (btn) {
-        btn.addEventListener('click', function () {
-            pickerYear += parseInt(btn.dataset.y, 10);
-            renderMonths();
-        });
-    });
-
-    function openPop(anchor) {
-        pickerYear = cal.getDate().getFullYear();
-        renderMonths();
-        var a = anchor.getBoundingClientRect();
-        var c = calWrap.getBoundingClientRect();
-        pop.style.left = Math.min(a.left - c.left, calWrap.clientWidth - 230) + 'px';
-        pop.style.top = (a.bottom - c.top) + 'px';
-        pop.classList.remove('hidden');
-    }
-    function closePop() { pop.classList.add('hidden'); }
-
-    document.getElementById('cal-jump').addEventListener('click', function (e) {
-        e.stopPropagation();
-        if (pop.classList.contains('hidden')) openPop(this); else closePop();
-    });
-    document.addEventListener('click', function (e) {
-        if (!pop.contains(e.target) && !e.target.closest('#cal-jump')) closePop();
-    });
-    document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePop(); });
-
-    // Pre-select today so the user can log actions immediately, without clicking the calendar.
-    highlightSelected(today);
-    htmx.ajax('GET', '/logs/day/' + today, { target: '#day-panel', swap: 'innerHTML' });
-
-    // Refresh calendar events after every log toggle inside the day panel.
-    document.body.addEventListener('htmx:afterRequest', function (e) {
-        if (e.target && e.target.closest && e.target.closest('#day-panel')) {
-            cal.refetchEvents();
-        }
-    });
-
-    } else {
-    // ── Minimal calendar ────────────────────────────────────────────────────
-    var MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-    var viewYear  = parseInt(today.substring(0, 4), 10);
-    var viewMonth = parseInt(today.substring(5, 7), 10) - 1; // 0-indexed
-    var selectedDate = null;
-    var dayData = {}; // date string -> array of action dot objects; ACCUMULATES across months (keys are
-                      // full dates, so months never collide) and acts as the month cache, see fetchMonth.
-
+    // ── Shared calendar chrome ──────────────────────────────────────────────
+    // The two calendar styles (FullCalendar vs the custom grid) differ only in how they RENDER and fetch
+    // their month. Everything around them — toolbar navigation, the month/year picker popup, day selection
+    // and the day-panel, and the log-toggle refresh — is identical, so it lives here ONCE and drives
+    // whichever style is active through a small adapter (`cal`) built below, with four methods:
+    //   currentView() -> { year, month }  the month on screen
+    //   goToMonth(year, month)           navigate to a month (no selection change)
+    //   setHighlight(dateStr|null)       record + paint (or clear) the selected-day ring
+    //   refresh()                        re-pull the month's dots/events after a log change
     var calWrap  = document.getElementById('calendar-wrap');
-    var grid     = document.getElementById('d-min-grid');
     var titleEl  = document.getElementById('cal-title');
     var pop      = document.getElementById('cal-pop');
     var dayPanel = document.getElementById('day-panel');
-    // Captured before the initial day load replaces it (see bottom of script) — the "Click a day…" prompt.
-    var dayPanelPlaceholder = dayPanel ? dayPanel.innerHTML : '';
+    var dayPanelPlaceholder = dayPanel ? dayPanel.innerHTML : ''; // the "Click a day…" prompt, captured pre-load
+    var selectedDate = null; // ISO date of the highlighted day, or null when nothing is selected
+
+    function pad2(n) { return String(n).padStart(2, '0'); }
+
+    function loadDayPanel(dateStr) {
+        htmx.ajax('GET', '/logs/day/' + dateStr, { target: '#day-panel', swap: 'innerHTML' });
+    }
+
+    // Select a specific day: paint its highlight, switch month if it belongs to an adjacent one, load panel.
+    function selectDay(dateStr) {
+        var y = parseInt(dateStr.substring(0, 4), 10);
+        var m = parseInt(dateStr.substring(5, 7), 10) - 1;
+        var v = cal.currentView();
+        cal.setHighlight(dateStr);
+        if (y !== v.year || m !== v.month) { cal.goToMonth(y, m); } // re-applies the highlight on arrival
+        loadDayPanel(dateStr);
+    }
 
     // Deselect the current day and reset the panel to its prompt. Used when only the MONTH changes
     // (arrows / picker), where no specific day was chosen, so leaving the old day's actions on screen
     // would be misleading. Selecting an explicit date (selectDay) does the opposite and keeps it.
     function clearSelection() {
-        selectedDate = null;
+        cal.setHighlight(null);
         if (dayPanel) { dayPanel.innerHTML = dayPanelPlaceholder; }
     }
 
-    function pad2(n) { return String(n).padStart(2, '0'); }
+    // ── FullCalendar style ──────────────────────────────────────────────────
+    function buildFullCalendar() {
+        var calEl = document.getElementById('calendar');
 
-    // Optically centre the date number inside its circle, on BOTH axes. flex centres the glyph's
-    // ADVANCE box horizontally and its line/em box vertically, but the painted ink doesn't sit
-    // centred within those, so a circle/ring around the number looks lopsided. We paint the digits to
-    // an offscreen canvas at the same font and measure the painted pixels, then translate the digits
-    // to centre them — but the right "centre" differs per axis:
-    //   • HORIZONTAL → the ink BOUNDING BOX (so the whitespace gaps left & right are equal, which is
-    //     what the eye reads sideways). The digit side-bearings (the "1" glyph especially) otherwise
-    //     leave the number off-centre. This is the web analogue of Android's Paint.getTextBounds.
-    //     NB centring the horizontal *mass* instead skews mixed-weight numbers (e.g. the light "1" +
-    //     heavy "5" in "15" pulls the mass right, so mass-centring leaves a gap on the right).
-    //   • VERTICAL → the ink MASS centroid. Digits have no descenders, so bounding-box centring makes
-    //     them ride visibly high; centring the mass reads as balanced. The vertical reference is the
-    //     text's real baseline, read from the DOM with a zero-height baseline-aligned strut probe
-    //     (canvas em-box metrics don't match the browser's line-box placement).
-    // Both measurements are cached (by digits+weight+size / weight+size — all day states now share
-    // one weight, so the cache key still holds if that ever changes again).
-    var inkCanvas = document.createElement('canvas');
-    var inkCtx = inkCanvas.getContext('2d', { willReadFrequently: true });
-    var inkCentroidCache = {}; // weight|size|text -> { x: bbox centre from advance centre, y: mass from baseline }
-    var baselineCache = {};    // weight|size      -> baseline offset from the circle's top edge (CSS px)
-    var circleSize = 0;        // the circle's height (constant across cells) — read once
+        var fc = new FullCalendar.Calendar(calEl, {
+            initialView: 'dayGridMonth',
+            initialDate: today,
+            // Pin "today" to the server-computed (user-timezone) date so the today-highlight and the
+            // 'today' button match the user's clock rather than the browser's local date.
+            now: today,
+            height: 'auto',
+            headerToolbar: false,   // navigation is the shared toolbar (partials/calendar-toolbar.html)
+            events: '/logs/events',
+            eventDisplay: 'list-item',
+            datesSet: function () {
+                var d = fc.getDate();
+                setCalTitle(titleEl, d.getFullYear(), d.getMonth());
+                applyHighlight(selectedDate);
+            },
+            dateClick: function (info) { selectDay(info.dateStr); },
+            // Clicking a logged action's event element should select its day too (dateClick
+            // does not fire when the click lands on an event rather than the empty cell).
+            eventClick: function (info) { info.jsEvent.preventDefault(); selectDay(info.event.startStr); }
+        });
 
-    function inkCentroid(cs, text) {
-        var key = cs.fontWeight + '|' + cs.fontSize + '|' + text;
-        var c = inkCentroidCache[key];
-        if (c) return c;
-        var fontPx = parseFloat(cs.fontSize) || 12;
-        var ss = 8;                            // supersample for sub-pixel precision
-        var box = Math.ceil(fontPx * 3) * ss;  // ample square around the digits
-        var baseY = box / 2;                   // draw the alphabetic baseline at mid-canvas
-        inkCanvas.width = box; inkCanvas.height = box;
-        inkCtx.font = cs.fontWeight + ' ' + (fontPx * ss) + 'px ' + cs.fontFamily;
-        inkCtx.textAlign = 'center';           // x origin = glyph advance centre
-        inkCtx.textBaseline = 'alphabetic';
-        inkCtx.fillStyle = '#000';
-        inkCtx.fillText(text, box / 2, baseY);
-        var data = inkCtx.getImageData(0, 0, box, box).data;
-        var minX = box, maxX = -1, sumY = 0, weight = 0;
-        for (var py = 0; py < box; py++) {
-            for (var px = 0; px < box; px++) {
-                var alpha = data[(py * box + px) * 4 + 3];
-                if (alpha > 20) {
-                    if (px < minX) { minX = px; }
-                    if (px > maxX) { maxX = px; }
-                    sumY += py * alpha; weight += alpha;
+        // Paint or clear the selection ring on FullCalendar's day cells (called from datesSet too).
+        function applyHighlight(dateStr) {
+            calEl.querySelectorAll('.fc-daygrid-day.d-day-selected')
+                 .forEach(function (el) { el.classList.remove('d-day-selected'); });
+            if (!dateStr) return;
+            var cell = calEl.querySelector('.fc-daygrid-day[data-date="' + dateStr + '"]');
+            if (cell) cell.classList.add('d-day-selected');
+        }
+
+        fc.render(); // initial paint; FullCalendar fetches /logs/events itself
+
+        return {
+            currentView:  function () { var d = fc.getDate(); return { year: d.getFullYear(), month: d.getMonth() }; },
+            goToMonth:    function (y, m) { fc.gotoDate(y + '-' + pad2(m + 1) + '-01'); },
+            setHighlight: function (dateStr) { selectedDate = dateStr; applyHighlight(dateStr); },
+            refresh:      function () { fc.refetchEvents(); }
+        };
+    } // end buildFullCalendar
+
+    // ── Minimal / stacked grid style ────────────────────────────────────────
+    function buildGridCalendar() {
+        var grid      = document.getElementById('d-min-grid');
+        var viewYear  = parseInt(today.substring(0, 4), 10);
+        var viewMonth = parseInt(today.substring(5, 7), 10) - 1; // 0-indexed
+        var dayData   = {}; // date string -> array of action dot objects; ACCUMULATES across months (keys are
+                            // full dates, so months never collide) and acts as the month cache, see fetchMonth.
+
+        // Optically centre the date number inside its circle, on BOTH axes. flex centres the glyph's
+        // ADVANCE box horizontally and its line/em box vertically, but the painted ink doesn't sit
+        // centred within those, so a circle/ring around the number looks lopsided. We paint the digits to
+        // an offscreen canvas at the same font and measure the painted pixels, then translate the digits
+        // to centre them — but the right "centre" differs per axis:
+        //   • HORIZONTAL → the ink BOUNDING BOX (so the whitespace gaps left & right are equal, which is
+        //     what the eye reads sideways). The digit side-bearings (the "1" glyph especially) otherwise
+        //     leave the number off-centre. This is the web analogue of Android's Paint.getTextBounds.
+        //     NB centring the horizontal *mass* instead skews mixed-weight numbers (e.g. the light "1" +
+        //     heavy "5" in "15" pulls the mass right, so mass-centring leaves a gap on the right).
+        //   • VERTICAL → the ink MASS centroid. Digits have no descenders, so bounding-box centring makes
+        //     them ride visibly high; centring the mass reads as balanced. The vertical reference is the
+        //     text's real baseline, read from the DOM with a zero-height baseline-aligned strut probe
+        //     (canvas em-box metrics don't match the browser's line-box placement).
+        // Both measurements are cached (by digits+weight+size / weight+size — all day states now share
+        // one weight, so the cache key still holds if that ever changes again).
+        var inkCanvas = document.createElement('canvas');
+        var inkCtx = inkCanvas.getContext('2d', { willReadFrequently: true });
+        var inkCentroidCache = {}; // weight|size|text -> { x: bbox centre from advance centre, y: mass from baseline }
+        var baselineCache = {};    // weight|size      -> baseline offset from the circle's top edge (CSS px)
+        var circleSize = 0;        // the circle's height (constant across cells) — read once
+
+        function inkCentroid(cs, text) {
+            var key = cs.fontWeight + '|' + cs.fontSize + '|' + text;
+            var c = inkCentroidCache[key];
+            if (c) return c;
+            var fontPx = parseFloat(cs.fontSize) || 12;
+            var ss = 8;                            // supersample for sub-pixel precision
+            var box = Math.ceil(fontPx * 3) * ss;  // ample square around the digits
+            var baseY = box / 2;                   // draw the alphabetic baseline at mid-canvas
+            inkCanvas.width = box; inkCanvas.height = box;
+            inkCtx.font = cs.fontWeight + ' ' + (fontPx * ss) + 'px ' + cs.fontFamily;
+            inkCtx.textAlign = 'center';           // x origin = glyph advance centre
+            inkCtx.textBaseline = 'alphabetic';
+            inkCtx.fillStyle = '#000';
+            inkCtx.fillText(text, box / 2, baseY);
+            var data = inkCtx.getImageData(0, 0, box, box).data;
+            var minX = box, maxX = -1, sumY = 0, weight = 0;
+            for (var py = 0; py < box; py++) {
+                for (var px = 0; px < box; px++) {
+                    var alpha = data[(py * box + px) * 4 + 3];
+                    if (alpha > 20) {
+                        if (px < minX) { minX = px; }
+                        if (px > maxX) { maxX = px; }
+                        sumY += py * alpha; weight += alpha;
+                    }
                 }
             }
+            c = weight
+                ? { x: ((minX + maxX) / 2 - box / 2) / ss, y: (sumY / weight - baseY) / ss }  // x: bbox centre, y: mass
+                : { x: 0, y: 0 };
+            inkCentroidCache[key] = c;
+            return c;
         }
-        c = weight
-            ? { x: ((minX + maxX) / 2 - box / 2) / ss, y: (sumY / weight - baseY) / ss }  // x: bbox centre, y: mass
-            : { x: 0, y: 0 };
-        inkCentroidCache[key] = c;
-        return c;
-    }
 
-    function baselineOffset(circleEl, textEl, cs) {
-        var key = cs.fontWeight + '|' + cs.fontSize;
-        if (baselineCache[key] !== undefined) return baselineCache[key];
-        var strut = document.createElement('span');
-        strut.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
-        textEl.appendChild(strut);
-        var off = strut.getBoundingClientRect().top - circleEl.getBoundingClientRect().top;
-        strut.remove();
-        baselineCache[key] = off;
-        return off;
-    }
+        function baselineOffset(circleEl, textEl, cs) {
+            var key = cs.fontWeight + '|' + cs.fontSize;
+            if (baselineCache[key] !== undefined) return baselineCache[key];
+            var strut = document.createElement('span');
+            strut.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline';
+            textEl.appendChild(strut);
+            var off = strut.getBoundingClientRect().top - circleEl.getBoundingClientRect().top;
+            strut.remove();
+            baselineCache[key] = off;
+            return off;
+        }
 
-    function centreInk(circleEl, textEl) {
-        var cs = getComputedStyle(circleEl);
-        if (!circleSize) { circleSize = circleEl.getBoundingClientRect().height; }
-        var c = inkCentroid(cs, textEl.textContent);
-        var baseY = baselineOffset(circleEl, textEl, cs);
-        var shiftX = -c.x;                         // ink bbox centre -> circle centre (equal whitespace)
-        var shiftY = circleSize / 2 - (baseY + c.y); // ink mass centroid -> circle centre
-        textEl.style.transform = 'translate(' + shiftX.toFixed(3) + 'px,' + shiftY.toFixed(3) + 'px)';
-    }
+        function centreInk(circleEl, textEl) {
+            var cs = getComputedStyle(circleEl);
+            if (!circleSize) { circleSize = circleEl.getBoundingClientRect().height; }
+            var c = inkCentroid(cs, textEl.textContent);
+            var baseY = baselineOffset(circleEl, textEl, cs);
+            var shiftX = -c.x;                         // ink bbox centre -> circle centre (equal whitespace)
+            var shiftY = circleSize / 2 - (baseY + c.y); // ink mass centroid -> circle centre
+            textEl.style.transform = 'translate(' + shiftX.toFixed(3) + 'px,' + shiftY.toFixed(3) + 'px)';
+        }
 
-    // ── Month data cache (LRU) & background prefetch ────────────────────────────
-    // Each month's dots are fetched once and merged into `dayData`; `monthPromises` dedupes in-flight
-    // and resolved fetches, and `monthLoaded` flags a month whose data is already in `dayData` so we
-    // can render it WITHOUT a network wait. This is what makes month navigation feel instant: the public
-    // origin sits behind Cloudflare, so every `/logs/minimal-events` call is a ~250ms+ edge round-trip.
-    // We pay that once per month (eagerly for the visible month, on idle for its neighbours) instead of
-    // on every prev/next click.
-    //
-    // To bound memory when a user hops across many months, resident months are capped by a least-recently-
-    // -used policy (`lru` holds month keys oldest→newest; `touch` refreshes recency on every access). Only
-    // RESOLVED months count toward the cap and are eligible for eviction, so an in-flight prefetch is never
-    // dropped mid-fetch. CACHE_LIMIT must stay well above the live window (2*PREFETCH_RADIUS+1) so that
-    // hopping between adjacent months never evicts a month that's still on screen or about to be revisited.
-    var monthPromises = {}; // "YYYY-MM" -> Promise (in-flight or resolved)
-    var monthLoaded   = {}; // "YYYY-MM" -> true once its data has been merged into dayData
-    var lru           = []; // "YYYY-MM" keys, least-recently-used first
-    var PREFETCH_RADIUS = 2; // months either side of the visible one to warm in the background
-    var CACHE_LIMIT     = 12; // max RESOLVED months retained (>> 2*PREFETCH_RADIUS+1 = 5, the live window)
+        // ── Month data cache (LRU) & background prefetch ────────────────────────────
+        // Each month's dots are fetched once and merged into `dayData`; `monthPromises` dedupes in-flight
+        // and resolved fetches, and `monthLoaded` flags a month whose data is already in `dayData` so we
+        // can render it WITHOUT a network wait. This is what makes month navigation feel instant: the public
+        // origin sits behind Cloudflare, so every `/logs/minimal-events` call is a ~250ms+ edge round-trip.
+        // We pay that once per month (eagerly for the visible month, on idle for its neighbours) instead of
+        // on every prev/next click.
+        //
+        // To bound memory when a user hops across many months, resident months are capped by a least-recently-
+        // -used policy (`lru` holds month keys oldest→newest; `touch` refreshes recency on every access). Only
+        // RESOLVED months count toward the cap and are eligible for eviction, so an in-flight prefetch is never
+        // dropped mid-fetch. CACHE_LIMIT must stay well above the live window (2*PREFETCH_RADIUS+1) so that
+        // hopping between adjacent months never evicts a month that's still on screen or about to be revisited.
+        var monthPromises = {}; // "YYYY-MM" -> Promise (in-flight or resolved)
+        var monthLoaded   = {}; // "YYYY-MM" -> true once its data has been merged into dayData
+        var lru           = []; // "YYYY-MM" keys, least-recently-used first
+        var PREFETCH_RADIUS = 2; // months either side of the visible one to warm in the background
+        var CACHE_LIMIT     = 12; // max RESOLVED months retained (>> 2*PREFETCH_RADIUS+1 = 5, the live window)
 
-    function monthKey(y, m) { return y + '-' + pad2(m + 1); }
+        function monthKey(y, m) { return y + '-' + pad2(m + 1); }
 
-    function stepMonth(y, m, delta) {
-        m += delta;
+        function stepMonth(y, m, delta) {
+            m += delta;
+            while (m > 11) { m -= 12; y++; }
+            while (m < 0)  { m += 12; y--; }
+            return [y, m];
+        }
+
+        // Mark a month as most-recently-used (moves it to the end of `lru`).
+        function touch(key) {
+            var i = lru.indexOf(key);
+            if (i !== -1) { lru.splice(i, 1); }
+            lru.push(key);
+        }
+
+        // Forget a month entirely: its dots, its cached fetch, and its loaded flag.
+        function dropMonth(key) {
+            var prefix = key + '-'; // "2026-06-" — every date key in that month
+            Object.keys(dayData).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete dayData[d]; } });
+            delete monthPromises[key];
+            delete monthLoaded[key];
+        }
+
+        // Evict the oldest RESOLVED months until at most CACHE_LIMIT remain resident. In-flight months
+        // (touched but not yet loaded) are skipped — they get trimmed once they resolve and re-run this.
+        function evictIfNeeded() {
+            var resident = 0, i;
+            for (i = 0; i < lru.length; i++) { if (monthLoaded[lru[i]]) { resident++; } }
+            while (resident > CACHE_LIMIT) {
+                var idx = -1;
+                for (i = 0; i < lru.length; i++) { if (monthLoaded[lru[i]]) { idx = i; break; } }
+                if (idx === -1) { break; }
+                var key = lru[idx];
+                lru.splice(idx, 1);
+                dropMonth(key);
+                resident--;
+            }
+        }
+
+        function fetchMonth(y, m) {
+            var key = monthKey(y, m);
+            touch(key);                                            // record access (also on cache hits)
+            if (monthPromises[key]) { return monthPromises[key]; } // already in-flight or resolved
+            var start = y + '-' + pad2(m + 1) + '-01';
+            var nx  = stepMonth(y, m, 1);
+            var end = nx[0] + '-' + pad2(nx[1] + 1) + '-01';
+            var p = fetch('/logs/minimal-events?start=' + start + '&end=' + end)
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    data.forEach(function (day) { dayData[day.date] = day.actions; });
+                    monthLoaded[key] = true;
+                    evictIfNeeded();                               // trim once this month is actually resident
+                    return data;
+                })
+                .catch(function (err) {                            // drop so a later view retries
+                    delete monthPromises[key];
+                    var i = lru.indexOf(key);
+                    if (i !== -1) { lru.splice(i, 1); }
+                    throw err;
+                });
+            monthPromises[key] = p;
+            return p;
+        }
+
+        // Drop a month from the cache (e.g. after its dots change via a log toggle) so it re-fetches.
+        // Clears its day entries too, so days whose last action was removed don't keep a stale dot.
+        function invalidateMonth(y, m) {
+            dropMonth(monthKey(y, m)); // keep its LRU slot; the imminent refetch refreshes it
+        }
+
+        // Warm the surrounding months once the browser is idle, so the next prev/next click reads from
+        // cache. Deferred via requestIdleCallback so it never competes with the initial calendar paint,
+        // the day-panel load or the stats summary.
+        function prefetchNeighbours() {
+            var schedule = window.requestIdleCallback || function (fn) { return setTimeout(fn, 200); };
+            schedule(function () {
+                for (var d = 1; d <= PREFETCH_RADIUS; d++) {
+                    var prev = stepMonth(viewYear, viewMonth, -d);
+                    var next = stepMonth(viewYear, viewMonth,  d);
+                    fetchMonth(prev[0], prev[1]);
+                    fetchMonth(next[0], next[1]);
+                }
+            });
+        }
+
+        function fetchAndRender() {
+            var key = monthKey(viewYear, viewMonth);
+            // Paint the grid immediately — numbers, today, selection — so the month switch is instant and the
+            // page never blocks on the network. The activity dots come from `dayData`: already present for a
+            // cached month, or filled in by the re-render below once the fetch lands for an uncached one. Cells
+            // always reserve the dot/bar row, so dots appearing later causes no layout shift.
+            renderGrid();
+            if (monthLoaded[key]) {       // cached → dots are already drawn, nothing more to fetch
+                touch(key);               // viewing it counts as use, so it stays hot in the LRU
+                prefetchNeighbours();
+                return;
+            }
+            fetchMonth(viewYear, viewMonth).then(function () {
+                // Re-render with the dots — but only if the user is still on this month (they may have
+                // clicked onward mid-fetch, in which case that month's own render already won).
+                if (monthKey(viewYear, viewMonth) === key) { renderGrid(); }
+                prefetchNeighbours();
+            });
+        }
+
+        function renderGrid() {
+            setCalTitle(titleEl, viewYear, viewMonth);
+            grid.innerHTML = '';
+            var firstDow = new Date(viewYear, viewMonth, 1).getDay(); // 0 = Sunday
+
+            for (var i = 0; i < 42; i++) {
+                // JS Date constructor handles month overflow correctly for cells outside the current month.
+                var d  = new Date(viewYear, viewMonth, i - firstDow + 1);
+                var yr = d.getFullYear(), mo = d.getMonth(), dy = d.getDate();
+                var dateStr = yr + '-' + pad2(mo + 1) + '-' + pad2(dy);
+
+                var isCurrentMonth = (mo === viewMonth && yr === viewYear);
+                var isToday        = (dateStr === today);
+                var isSelected     = (dateStr === selectedDate);
+
+                var cell = document.createElement('div');
+                cell.className = 'd-min-cell' +
+                    (isCurrentMonth ? '' : ' d-min-other') +
+                    (isToday    ? ' d-min-today'    : '') +
+                    (isSelected ? ' d-min-selected' : '');
+                cell.dataset.date = dateStr;
+
+                var dateNum = document.createElement('span');
+                dateNum.className = 'd-min-date';
+                // The digits live in an inner span so we can translate the TEXT to centre its ink without
+                // moving the circle (the background/ring sits on .d-min-date itself).
+                var dateInk = document.createElement('span');
+                dateInk.className = 'd-min-date-ink';
+                dateInk.textContent = dy;
+                dateNum.appendChild(dateInk);
+                cell.appendChild(dateNum);
+
+                // Activity indicator — always appended so cell height never changes.
+                if (calendarView === 'stacked') {
+                    var barsEl = document.createElement('div');
+                    barsEl.className = 'd-stk-bars';
+                    (dayData[dateStr] || []).forEach(function (a) {
+                        var bar = document.createElement('span');
+                        bar.className = 'd-stk-bar';
+                        bar.style.backgroundColor = a.colour;
+                        barsEl.appendChild(bar);
+                    });
+                    cell.appendChild(barsEl);
+                } else {
+                    var dotRow = document.createElement('div');
+                    dotRow.className = 'd-min-dots';
+                    (dayData[dateStr] || []).forEach(function (a) {
+                        var dot = document.createElement('span');
+                        dot.className = 'd-min-dot';
+                        dot.style.backgroundColor = a.colour;
+                        dotRow.appendChild(dot);
+                    });
+                    cell.appendChild(dotRow);
+                }
+
+                cell.addEventListener('click', (function (ds) {
+                    return function () { selectDay(ds); };
+                })(dateStr));
+                grid.appendChild(cell);
+                // Measured once the cell is in the DOM, so getComputedStyle resolves the real font/weight.
+                centreInk(dateNum, dateInk);
+            }
+        }
+
+        fetchAndRender(); // initial month render + dot fetch; shared chrome (below) wires nav/picker/selection
+
+        // The initial render can run before the Nova webfont is decoded, in which case the canvas measures
+        // digit ink with the FALLBACK face — and those offsets are cached, so a mis-centred first paint would
+        // persist on every later render (navigation / selection), e.g. "4" sitting off-centre in its circle.
+        // Once the fonts are ready, drop the caches and re-centre every rendered cell so the offsets reflect
+        // the real glyphs. (No-op for the Standard font setting: ready resolves immediately, re-measuring the
+        // same fallback face to the same result.)
+        if (document.fonts && document.fonts.ready) {
+            document.fonts.ready.then(function () {
+                inkCentroidCache = {};
+                baselineCache = {};
+                circleSize = 0;
+                grid.querySelectorAll('.d-min-cell').forEach(function (cell) {
+                    var circle = cell.querySelector('.d-min-date');
+                    var ink = cell.querySelector('.d-min-date-ink');
+                    if (circle && ink) { centreInk(circle, ink); }
+                });
+            });
+        }
+
+        return {
+            currentView:  function () { return { year: viewYear, month: viewMonth }; },
+            goToMonth:    function (y, m) { viewYear = y; viewMonth = m; fetchAndRender(); },
+            setHighlight: function (dateStr) { selectedDate = dateStr; renderGrid(); },
+            refresh:      function () { invalidateMonth(viewYear, viewMonth); fetchAndRender(); }
+        };
+    } // end buildGridCalendar
+
+    // ── Build the active calendar, then wire the shared chrome against its adapter ──
+    var cal = (calendarView === 'full') ? buildFullCalendar() : buildGridCalendar();
+
+    // Toolbar: month-only moves clear the day selection first (no specific day was chosen), then navigate.
+    function navMonths(delta) {
+        var v = cal.currentView();
+        var m = v.month + delta, y = v.year;
         while (m > 11) { m -= 12; y++; }
         while (m < 0)  { m += 12; y--; }
-        return [y, m];
+        clearSelection();
+        cal.goToMonth(y, m);
     }
+    document.getElementById('cal-prev-year').addEventListener('click', function () { navMonths(-12); });
+    document.getElementById('cal-prev').addEventListener('click',      function () { navMonths(-1); });
+    document.getElementById('cal-next').addEventListener('click',      function () { navMonths(1); });
+    document.getElementById('cal-next-year').addEventListener('click', function () { navMonths(12); });
+    // 'Today' lives at the bottom of the picker popup: select today (switching month if needed) and close.
+    document.getElementById('cal-today').addEventListener('click', function () { selectDay(today); closePop(); });
 
-    // Mark a month as most-recently-used (moves it to the end of `lru`).
-    function touch(key) {
-        var i = lru.indexOf(key);
-        if (i !== -1) { lru.splice(i, 1); }
-        lru.push(key);
-    }
-
-    // Forget a month entirely: its dots, its cached fetch, and its loaded flag.
-    function dropMonth(key) {
-        var prefix = key + '-'; // "2026-06-" — every date key in that month
-        Object.keys(dayData).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete dayData[d]; } });
-        delete monthPromises[key];
-        delete monthLoaded[key];
-    }
-
-    // Evict the oldest RESOLVED months until at most CACHE_LIMIT remain resident. In-flight months
-    // (touched but not yet loaded) are skipped — they get trimmed once they resolve and re-run this.
-    function evictIfNeeded() {
-        var resident = 0, i;
-        for (i = 0; i < lru.length; i++) { if (monthLoaded[lru[i]]) { resident++; } }
-        while (resident > CACHE_LIMIT) {
-            var idx = -1;
-            for (i = 0; i < lru.length; i++) { if (monthLoaded[lru[i]]) { idx = i; break; } }
-            if (idx === -1) { break; }
-            var key = lru[idx];
-            lru.splice(idx, 1);
-            dropMonth(key);
-            resident--;
-        }
-    }
-
-    function fetchMonth(y, m) {
-        var key = monthKey(y, m);
-        touch(key);                                            // record access (also on cache hits)
-        if (monthPromises[key]) { return monthPromises[key]; } // already in-flight or resolved
-        var start = y + '-' + pad2(m + 1) + '-01';
-        var nx  = stepMonth(y, m, 1);
-        var end = nx[0] + '-' + pad2(nx[1] + 1) + '-01';
-        var p = fetch('/logs/minimal-events?start=' + start + '&end=' + end)
-            .then(function (r) { return r.json(); })
-            .then(function (data) {
-                data.forEach(function (day) { dayData[day.date] = day.actions; });
-                monthLoaded[key] = true;
-                evictIfNeeded();                               // trim once this month is actually resident
-                return data;
-            })
-            .catch(function (err) {                            // drop so a later view retries
-                delete monthPromises[key];
-                var i = lru.indexOf(key);
-                if (i !== -1) { lru.splice(i, 1); }
-                throw err;
-            });
-        monthPromises[key] = p;
-        return p;
-    }
-
-    // Drop a month from the cache (e.g. after its dots change via a log toggle) so it re-fetches.
-    // Clears its day entries too, so days whose last action was removed don't keep a stale dot.
-    function invalidateMonth(y, m) {
-        dropMonth(monthKey(y, m)); // keep its LRU slot; the imminent refetch refreshes it
-    }
-
-    // Warm the surrounding months once the browser is idle, so the next prev/next click reads from
-    // cache. Deferred via requestIdleCallback so it never competes with the initial calendar paint,
-    // the day-panel load or the stats summary.
-    function prefetchNeighbours() {
-        var schedule = window.requestIdleCallback || function (fn) { return setTimeout(fn, 200); };
-        schedule(function () {
-            for (var d = 1; d <= PREFETCH_RADIUS; d++) {
-                var prev = stepMonth(viewYear, viewMonth, -d);
-                var next = stepMonth(viewYear, viewMonth,  d);
-                fetchMonth(prev[0], prev[1]);
-                fetchMonth(next[0], next[1]);
-            }
-        });
-    }
-
-    function fetchAndRender() {
-        var key = monthKey(viewYear, viewMonth);
-        // Paint the grid immediately — numbers, today, selection — so the month switch is instant and the
-        // page never blocks on the network. The activity dots come from `dayData`: already present for a
-        // cached month, or filled in by the re-render below once the fetch lands for an uncached one. Cells
-        // always reserve the dot/bar row, so dots appearing later causes no layout shift.
-        renderGrid();
-        if (monthLoaded[key]) {       // cached → dots are already drawn, nothing more to fetch
-            touch(key);               // viewing it counts as use, so it stays hot in the LRU
-            prefetchNeighbours();
-            return;
-        }
-        fetchMonth(viewYear, viewMonth).then(function () {
-            // Re-render with the dots — but only if the user is still on this month (they may have
-            // clicked onward mid-fetch, in which case that month's own render already won).
-            if (monthKey(viewYear, viewMonth) === key) { renderGrid(); }
-            prefetchNeighbours();
-        });
-    }
-
-    function renderGrid() {
-        setCalTitle(titleEl, viewYear, viewMonth);
-        grid.innerHTML = '';
-        var firstDow = new Date(viewYear, viewMonth, 1).getDay(); // 0 = Sunday
-
-        for (var i = 0; i < 42; i++) {
-            // JS Date constructor handles month overflow correctly for cells outside the current month.
-            var d  = new Date(viewYear, viewMonth, i - firstDow + 1);
-            var yr = d.getFullYear(), mo = d.getMonth(), dy = d.getDate();
-            var dateStr = yr + '-' + pad2(mo + 1) + '-' + pad2(dy);
-
-            var isCurrentMonth = (mo === viewMonth && yr === viewYear);
-            var isToday        = (dateStr === today);
-            var isSelected     = (dateStr === selectedDate);
-
-            var cell = document.createElement('div');
-            cell.className = 'd-min-cell' +
-                (isCurrentMonth ? '' : ' d-min-other') +
-                (isToday    ? ' d-min-today'    : '') +
-                (isSelected ? ' d-min-selected' : '');
-            cell.dataset.date = dateStr;
-
-            var dateNum = document.createElement('span');
-            dateNum.className = 'd-min-date';
-            // The digits live in an inner span so we can translate the TEXT to centre its ink without
-            // moving the circle (the background/ring sits on .d-min-date itself).
-            var dateInk = document.createElement('span');
-            dateInk.className = 'd-min-date-ink';
-            dateInk.textContent = dy;
-            dateNum.appendChild(dateInk);
-            cell.appendChild(dateNum);
-
-            // Activity indicator — always appended so cell height never changes.
-            if (calendarView === 'stacked') {
-                var barsEl = document.createElement('div');
-                barsEl.className = 'd-stk-bars';
-                (dayData[dateStr] || []).forEach(function (a) {
-                    var bar = document.createElement('span');
-                    bar.className = 'd-stk-bar';
-                    bar.style.backgroundColor = a.colour;
-                    barsEl.appendChild(bar);
-                });
-                cell.appendChild(barsEl);
-            } else {
-                var dotRow = document.createElement('div');
-                dotRow.className = 'd-min-dots';
-                (dayData[dateStr] || []).forEach(function (a) {
-                    var dot = document.createElement('span');
-                    dot.className = 'd-min-dot';
-                    dot.style.backgroundColor = a.colour;
-                    dotRow.appendChild(dot);
-                });
-                cell.appendChild(dotRow);
-            }
-
-            cell.addEventListener('click', (function (ds) {
-                return function () { selectDay(ds); };
-            })(dateStr));
-            grid.appendChild(cell);
-            // Measured once the cell is in the DOM, so getComputedStyle resolves the real font/weight.
-            centreInk(dateNum, dateInk);
-        }
-    }
-
-    function selectDay(dateStr) {
-        selectedDate = dateStr;
-        var clickedYear  = parseInt(dateStr.substring(0, 4), 10);
-        var clickedMonth = parseInt(dateStr.substring(5, 7), 10) - 1;
-        if (clickedYear !== viewYear || clickedMonth !== viewMonth) {
-            viewYear  = clickedYear;
-            viewMonth = clickedMonth;
-            fetchAndRender();
-        } else {
-            renderGrid();
-        }
-        htmx.ajax('GET', '/logs/day/' + dateStr, { target: '#day-panel', swap: 'innerHTML' });
-    }
-
-    function navigate(deltaYears, deltaMonths) {
-        viewMonth += deltaMonths;
-        viewYear  += deltaYears;
-        while (viewMonth > 11) { viewMonth -= 12; viewYear++; }
-        while (viewMonth < 0)  { viewMonth += 12; viewYear--; }
-        clearSelection(); // month-only move (< << > >>): no day chosen, so drop the previous selection
-        fetchAndRender();
-    }
-
-    document.getElementById('cal-prev-year').addEventListener('click', function () { navigate(-1,  0); });
-    document.getElementById('cal-prev').addEventListener('click',      function () { navigate( 0, -1); });
-    document.getElementById('cal-next').addEventListener('click',      function () { navigate( 0,  1); });
-    document.getElementById('cal-next-year').addEventListener('click', function () { navigate( 1,  0); });
-    // 'Today' now lives at the bottom of the picker popup; jump to the current month, select today,
-    // and close the popup.
-    document.getElementById('cal-today').addEventListener('click', function () {
-        viewYear  = parseInt(today.substring(0, 4), 10);
-        viewMonth = parseInt(today.substring(5, 7), 10) - 1;
-        fetchAndRender();
-        selectDay(today);
-        closePop();
-    });
-
-    // ── Month/year picker popup ─────────────────────────────────────────────
-    var pickerYear = viewYear;
+    // ── Month/year picker popup (shared #cal-pop markup) ─────────────────────
+    var pickerYear = cal.currentView().year;
     var yearLabel  = pop.querySelector('.cal-pop-year');
     var monthsGrid = pop.querySelector('.cal-pop-months');
 
-    function renderMonthPicker() {
+    function renderPicker() {
         yearLabel.textContent = pickerYear;
-        monthsGrid.innerHTML  = '';
-        MONTHS_SHORT.forEach(function (name, i) {
+        var v = cal.currentView();
+        monthsGrid.innerHTML = '';
+        CAL_MONTHS_ABBR.forEach(function (name, i) {
             var b = document.createElement('button');
             b.type = 'button';
             b.textContent = name;
-            var isToday    = (pickerYear === todayYear && i === todayMonth);   // solid "today" fill
-            var isSelected = (pickerYear === viewYear  && i === viewMonth);    // brand selection ring
+            var isToday    = (pickerYear === todayYear && i === todayMonth); // solid "today" fill
+            var isSelected = (pickerYear === v.year && i === v.month);       // brand selection ring
             b.className = 'cal-pop-month'
                 + (isToday ? ' cal-pop-month-today' : '')
                 + (isSelected ? ' cal-pop-month-selected' : '');
             b.addEventListener('click', function () {
-                viewYear  = pickerYear;
-                viewMonth = i;
                 clearSelection(); // picked a month, not a day → drop the previous selection
-                fetchAndRender();
+                cal.goToMonth(pickerYear, i);
                 closePop();
             });
             monthsGrid.appendChild(b);
@@ -923,13 +853,13 @@ document.addEventListener('DOMContentLoaded', function () {
     pop.querySelectorAll('button[data-y]').forEach(function (btn) {
         btn.addEventListener('click', function () {
             pickerYear += parseInt(btn.dataset.y, 10);
-            renderMonthPicker();
+            renderPicker();
         });
     });
 
     function openPop(anchor) {
-        pickerYear = viewYear;
-        renderMonthPicker();
+        pickerYear = cal.currentView().year;
+        renderPicker();
         var a = anchor.getBoundingClientRect();
         var c = calWrap.getBoundingClientRect();
         pop.style.left = Math.min(a.left - c.left, calWrap.clientWidth - 230) + 'px';
@@ -947,38 +877,15 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePop(); });
 
-    // Initial load — pre-select today so the day panel opens immediately.
-    fetchAndRender();
-    selectDay(today);
-
-    // Re-fetch dots after every log toggle inside the day panel.
+    // Refresh the active calendar's dots/events after every log toggle inside the day panel.
     document.body.addEventListener('htmx:afterRequest', function (e) {
         if (e.target && e.target.closest && e.target.closest('#day-panel')) {
-            invalidateMonth(viewYear, viewMonth); // dots for this month changed → drop the stale cache
-            fetchAndRender();
+            cal.refresh();
         }
     });
 
-    // The initial render can run before the Nova webfont is decoded, in which case the canvas measures
-    // digit ink with the FALLBACK face — and those offsets are cached, so a mis-centred first paint would
-    // persist on every later render (navigation / selection), e.g. "4" sitting off-centre in its circle.
-    // Once the fonts are ready, drop the caches and re-centre every rendered cell so the offsets reflect
-    // the real glyphs. (No-op for the Standard font setting: ready resolves immediately, re-measuring the
-    // same fallback face to the same result.)
-    if (document.fonts && document.fonts.ready) {
-        document.fonts.ready.then(function () {
-            inkCentroidCache = {};
-            baselineCache = {};
-            circleSize = 0;
-            grid.querySelectorAll('.d-min-cell').forEach(function (cell) {
-                var circle = cell.querySelector('.d-min-date');
-                var ink = cell.querySelector('.d-min-date-ink');
-                if (circle && ink) { centreInk(circle, ink); }
-            });
-        });
-    }
-
-    } // end else (minimal calendar)
+    // Pre-select today so the day panel opens immediately, without clicking the calendar.
+    selectDay(today);
 });
 </script>
 {/body}
