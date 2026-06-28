@@ -26,6 +26,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 /**
  * Payload submitted to the JSON registration endpoint.
  */
+@Schema(description = "Details for a new password-based account: email, display name and password.")
 public record RegisterRequest(
         @NotBlank @Email
         @Schema(examples = "ada@example.com", description = "Email address for the new account; must be unique.") String email,

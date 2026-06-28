@@ -24,6 +24,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 /**
  * Credentials submitted to the JSON login endpoint.
  */
+@Schema(description = "Email/password credentials submitted to exchange for a Bearer JWT.")
 public record LoginRequest(
         @NotBlank @Email @Schema(examples = "ada@example.com", description = "Registered email address of the account.") String email,
         @NotBlank @Schema(examples = "correct horse battery staple", description = "Account password.") String password

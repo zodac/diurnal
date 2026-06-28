@@ -52,7 +52,9 @@ public abstract class IntegrationTestBase {
 
     // Low BCrypt cost — safe for tests, fast enough to not slow the suite
     static final int BCRYPT_COST = 4;
-    static final String TEST_PASSWORD = "test_password";
+    // The plaintext password every newUser() is seeded with; protected so subclasses (in other
+    // packages) can authenticate as a seeded user, e.g. via HTTP Basic.
+    protected static final String TEST_PASSWORD = "test_password";
 
     /**
      * The frozen "today" every IT runs at by default. A fixed date (rather than the real clock)

@@ -47,14 +47,22 @@ import jakarta.enterprise.context.ApplicationScoped;
  *
  * <p>It deliberately abstains from authentication (returns no identity) so the real form and OIDC
  * mechanisms still authenticate any request that carries a session. Paths that ARE pinned
- * ({@code /api} → bearer, {@code /oidc-login} → code) bypass priority-based challenge selection
- * entirely, so this mechanism never affects them.
+ * ({@code /oidc-login} → code) bypass priority-based challenge selection entirely, so this mechanism
+ * never affects them.
+ *
+ * <p>The REST API ({@code /api/*}) is deliberately NOT pinned, so it accepts a Bearer JWT or a
+ * Basic credential (both reuse the same identity providers). For an <em>anonymous</em> API request
+ * this mechanism therefore issues the challenge too — but a browser redirect to {@code /login} is
+ * wrong for a programmatic API, so {@link #challengeFor(String)} returns a plain {@code 401} for
+ * {@code /api/*} paths and the {@code /login} redirect for everything else.
  */
 @ApplicationScoped
 public class BrowserLoginChallengeMechanism implements HttpAuthenticationMechanism {
 
+    private static final String API_PATH_PREFIX = "/api/";
     private static final int PRIORITY_ABOVE_BUILTINS = DEFAULT_PRIORITY + 1000;
     private static final ChallengeData REDIRECT_TO_LOGIN = new ChallengeData(302, "location", "/login");
+    private static final ChallengeData API_UNAUTHORIZED = new ChallengeData(401);
 
     @Override
     public Uni<SecurityIdentity> authenticate(RoutingContext context, IdentityProviderManager identityProviderManager) {
@@ -63,8 +71,20 @@ public class BrowserLoginChallengeMechanism implements HttpAuthenticationMechani
     }
 
     @Override
-    public Uni<ChallengeData> getChallenge(RoutingContext context) {
-        return Uni.createFrom().item(REDIRECT_TO_LOGIN);
+    public Uni<ChallengeData> getChallenge(final RoutingContext context) {
+        return Uni.createFrom().item(challengeFor(context.normalizedPath()));
+    }
+
+    /**
+     * Picks the challenge for an anonymous request by path: a plain {@code 401} for the REST API
+     * ({@code /api/*}, where a {@code /login} redirect would be wrong for a programmatic client) and a
+     * {@code 302} redirect to {@code /login} for every other (browser) path.
+     *
+     * @param path the request's normalised path
+     * @return the {@link ChallengeData} to send
+     */
+    static ChallengeData challengeFor(final String path) {
+        return path.startsWith(API_PATH_PREFIX) ? API_UNAUTHORIZED : REDIRECT_TO_LOGIN;
     }
 
     @Override

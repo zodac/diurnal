@@ -24,6 +24,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * API view of a {@link User} exposing only non-sensitive identity, role and preference fields.
  */
+@Schema(description = "Public view of a user account: identity, role and display/behaviour preferences.")
 public record UserDto(
         @Schema(examples = "3fa85f64-5717-4562-b3fc-2c963f66afa6", description = "Unique identifier for the user.") UUID id,
         @Schema(examples = "ada@example.com", description = "Email address of the user.") String email,
@@ -39,6 +40,7 @@ public record UserDto(
      * @param calendarView the dashboard calendar style: {@code full}, {@code minimal} or {@code stacked}
      * @param timezone     the user's IANA timezone override, or {@code null} to follow the server default
      */
+    @Schema(description = "A user's display and behaviour preferences (theme, page size, calendar layout, timezone).")
     public record Preferences(
             @Schema(examples = "system", description = "The UI colour scheme: 'light', 'dark', or 'system'.") String theme,
             @Schema(examples = "25", description = "Number of rows displayed per page in list views.") int pageSize,

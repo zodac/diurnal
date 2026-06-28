@@ -88,6 +88,24 @@ class UserResourceIT extends IntegrationTestBase {
     }
 
     @Test
+    void me_withBasicCredentials_returnsOwnProfile() {
+        // HTTP Basic (preemptive — anonymous /api/* is challenged with a plain 401, not a Basic prompt)
+        // is authenticated by the same PasswordIdentityProvider as the login form.
+        given().auth().preemptive().basic("me-api@lt.test", TEST_PASSWORD)
+                .get("/api/users/me")
+                .then().statusCode(200)
+                .body("email", equalTo("me-api@lt.test"))
+                .body("role", equalTo("user"));
+    }
+
+    @Test
+    void me_withWrongBasicPassword_returns401() {
+        given().auth().preemptive().basic("me-api@lt.test", "wrong-password")
+                .get("/api/users/me")
+                .then().statusCode(401);
+    }
+
+    @Test
     void me_withoutToken_returns401() {
         given()
                 .get("/api/users/me")

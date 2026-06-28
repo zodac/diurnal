@@ -22,6 +22,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 /**
  * Response body returned after a successful login: the signed JWT and basic profile fields.
  */
+@Schema(description = "Successful authentication response: the signed Bearer JWT plus the user's basic profile.")
 public record TokenResponse(
         @Schema(examples = "eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJiM2ZjMmM5Ni1hZGEifQ.Xq9_3signature",
                 description = "Signed JWT to send as the Bearer token on subsequent API calls.")
