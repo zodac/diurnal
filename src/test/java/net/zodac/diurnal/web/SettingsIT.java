@@ -25,6 +25,7 @@ import io.quarkus.test.security.TestSecurity;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.user.User;
+import net.zodac.diurnal.user.UserSettings;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
@@ -150,8 +151,22 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
+    void updateSettings_minimumPageSize_persists() {
+        // 5 is the smallest allow-listed option (added so it fits better with most calendars).
+        given().formParam("theme", "system")
+                .formParam("pageSize", "5")
+                .post("/settings")
+                .then().statusCode(200);
+
+        final User user = User.findByEmail(PRIMARY).orElseThrow();
+        assertThat(user.pageSize)
+            .as("unexpected value")
+            .isEqualTo(5);
+    }
+
+    @Test
     void updateSettings_invalidPageSize_fallsBackToDefault() {
-        // 7 is not in the allow-list {10,25,50,100}
+        // 7 is not in the allow-list {5,10,25,50,100}
         given().formParam("theme", "system")
                 .formParam("pageSize", "7")
                 .post("/settings")
@@ -160,7 +175,7 @@ class SettingsIT extends IntegrationTestBase {
         final User user = User.findByEmail(PRIMARY).orElseThrow();
         assertThat(user.pageSize)
             .as("unexpected value")
-            .isEqualTo(10); // default
+            .isEqualTo(UserSettings.DEFAULT_PAGE_SIZE);
     }
 
     @Test
@@ -173,7 +188,7 @@ class SettingsIT extends IntegrationTestBase {
         final User user = User.findByEmail(PRIMARY).orElseThrow();
         assertThat(user.pageSize)
             .as("unexpected value")
-            .isEqualTo(10);
+            .isEqualTo(UserSettings.DEFAULT_PAGE_SIZE);
     }
 
     @Test

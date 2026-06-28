@@ -151,6 +151,7 @@ public class AuthResource {
     /**
      * Error payload returned for failed auth requests.
      */
-    public record ErrorResponse(@Schema(examples = "Invalid email or password", description = "Human-readable description of the error.") String message) {
+    public record ErrorResponse(
+            @Schema(examples = "Invalid email or password", description = "Human-readable description of the error.") String message) {
     }
 }

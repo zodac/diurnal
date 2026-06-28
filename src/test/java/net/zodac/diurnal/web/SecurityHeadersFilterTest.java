@@ -75,4 +75,13 @@ class SecurityHeadersFilterTest {
             .as("unexpected value")
             .isEqualTo("frame-ancestors 'self' https://diurnal.example.com");
     }
+
+    @Test
+    void buildFrameAncestorsCsp_emptySegmentBetweenOrigins_dropped() {
+        // A double comma yields an empty token mid-list (unlike a trailing comma, which split() drops):
+        // it must be filtered out so the survivors stay single-space separated, not double-spaced.
+        assertThat(SecurityHeadersFilter.buildFrameAncestorsCsp("https://diurnal.example.com,,http://127.0.0.1:8080"))
+            .as("empty inner segment should be dropped, leaving single-space separation")
+            .isEqualTo("frame-ancestors 'self' https://diurnal.example.com http://127.0.0.1:8080");
+    }
 }

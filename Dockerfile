@@ -46,6 +46,17 @@ COPY --from=icons /icons/src/main/resources/META-INF/resources/img/apple-touch-i
                   /icons/src/main/resources/META-INF/resources/img/icon-192.png \
                   /icons/src/main/resources/META-INF/resources/img/icon-512.png \
                   ./src/main/resources/META-INF/resources/img/
+# Content-hash the compiled stylesheet for cache-busting. Rename app.css -> app.<hash>.css so every
+# build that changes the CSS yields a new URL (defeating reverse-proxy/CDN caches, which key on path
+# and may ignore query strings), then bake the resulting filename into the build-time config source
+# that AppInfo reads — so layout.html's <link> and the served file always agree. The hashed file is
+# then served `immutable` (application.properties). A non-Docker `mvn package` skips this and keeps
+# the un-hashed app.css default.
+RUN CSS_DIR=src/main/resources/META-INF/resources/css \
+    && CSS_HASH="$(sha256sum "${CSS_DIR}/app.css" | cut -c1-12)" \
+    && mv "${CSS_DIR}/app.css" "${CSS_DIR}/app.${CSS_HASH}.css" \
+    && printf '\napp.assets.css-file=app.%s.css\n' "${CSS_HASH}" \
+       >> src/main/resources/META-INF/microprofile-config.properties
 RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -q
 
 # ── Stage 4: runtime ─────────────────────────────────────────────────────────

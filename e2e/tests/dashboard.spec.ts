@@ -20,6 +20,15 @@ function pastDateStr(daysAgo: number): string {
     return d.toISOString().slice(0, 10);
 }
 
+// Helper: a future date offset by +n days, computed in UTC (same rationale as pastDateStr). A
+// small offset stays within the rendered month grid (which also shows trailing days of the next
+// month), so the cell is clickable without paging the calendar.
+function futureDateStr(daysAhead: number): string {
+    const d = new Date();
+    d.setUTCDate(d.getUTCDate() + daysAhead);
+    return d.toISOString().slice(0, 10);
+}
+
 // Calendar style is chosen from a preview tile backed by a hidden radio. Tests share one user, so
 // the target value may already be selected — we set the radio and always dispatch `change` so the
 // htmx auto-save POST fires regardless, then await it (the page must be on /settings).
@@ -85,25 +94,25 @@ test.describe('Dashboard', () => {
         await page.goto('/');
         await page.locator('#day-panel').getByTitle('Increase').first().click();
         const countEl = page.locator('#day-panel [id^="log-"]').first().locator('.tabular-nums');
-        await expect(countEl).toHaveText('1');
+        await expect(countEl).toHaveValue('1');
 
         // Navigate to yesterday — its count should be 0
         const past = pastDateStr(1);
         await page.locator(`.fc-daygrid-day[data-date="${past}"]`).click();
-        await expect(page.locator('#day-panel [id^="log-"]').first().locator('.tabular-nums')).toHaveText('0');
+        await expect(page.locator('#day-panel [id^="log-"]').first().locator('.tabular-nums')).toHaveValue('0');
 
         // Click the event dot on today's cell to navigate back
         const event = page.locator('.fc-event').first();
         await event.click();
-        await expect(page.locator('#day-panel [id^="log-"]').first().locator('.tabular-nums')).toHaveText('1');
+        await expect(page.locator('#day-panel [id^="log-"]').first().locator('.tabular-nums')).toHaveValue('1');
     });
 
     test('increment button increases count from 0 to 1', async ({authenticatedPage: page}) => {
         await page.goto('/');
         const countEl = page.locator('#day-panel [id^="log-"]').first().locator('.tabular-nums');
-        await expect(countEl).toHaveText('0');
+        await expect(countEl).toHaveValue('0');
         await page.locator('#day-panel').getByTitle('Increase').first().click();
-        await expect(countEl).toHaveText('1');
+        await expect(countEl).toHaveValue('1');
     });
 
     test('increment twice reaches count 2', async ({authenticatedPage: page}) => {
@@ -112,7 +121,7 @@ test.describe('Dashboard', () => {
         await incrementBtn.click();
         await incrementBtn.click();
         const countEl = page.locator('#day-panel [id^="log-"]').first().locator('.tabular-nums');
-        await expect(countEl).toHaveText('2');
+        await expect(countEl).toHaveValue('2');
     });
 
     test('decrement from 1 reaches 0 and disables minus button', async ({authenticatedPage: page}) => {
@@ -120,7 +129,7 @@ test.describe('Dashboard', () => {
         await page.locator('#day-panel').getByTitle('Increase').first().click();
         await page.locator('#day-panel').getByTitle('Decrease').first().click();
         const countEl = page.locator('#day-panel [id^="log-"]').first().locator('.tabular-nums');
-        await expect(countEl).toHaveText('0');
+        await expect(countEl).toHaveValue('0');
         await expect(page.locator('#day-panel').getByTitle('Decrease').first()).toBeDisabled();
     });
 
@@ -142,10 +151,10 @@ test.describe('Dashboard', () => {
 
     test('future date shows "future" message with no +/− buttons', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        // Click on the next month's first day to get a future date
-        await page.locator('#cal-next').click();
-        const futureCell = page.locator('.fc-daygrid-day').filter({has: page.locator('.fc-daygrid-day-number')}).first();
-        await futureCell.click();
+        // Click a deterministic future date. A 2-day offset is always within the current month grid
+        // (which renders trailing days of the next month too), avoiding the leading-day coincidence
+        // where "the next month's first cell" can resolve to today near a month boundary.
+        await page.locator(`.fc-daygrid-day[data-date="${futureDateStr(2)}"]`).click();
         await expect(page.locator('#day-panel')).toContainText(/future|cannot log/i);
         await expect(page.locator('#day-panel').getByTitle('Increase')).toHaveCount(0);
     });

@@ -321,7 +321,7 @@ public class LogWebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
-    public Response setCount(
+    public Response updateCount(
             @PathParam("date") final LocalDate date,
             @PathParam("actionId") final UUID actionId,
             @DefaultValue("0") @FormParam("count") final int requestedCount) {

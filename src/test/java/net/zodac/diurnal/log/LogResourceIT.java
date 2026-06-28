@@ -69,7 +69,8 @@ class LogResourceIT extends IntegrationTestBase {
         given().get("/logs/" + TODAY + "/" + primaryAction.id + "/confirm-delete")
                 .then().statusCode(200)
                 .body(containsString("PrimaryAction"))
-                .body(containsString("Delete"));
+                // The day-entry confirm action is labelled "Erase" (see day-action-item-confirm-delete.html).
+                .body(containsString("Erase"));
     }
 
     @Test

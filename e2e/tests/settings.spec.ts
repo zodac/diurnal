@@ -189,11 +189,12 @@ test.describe('Settings page', () => {
         // The (!) affordance sits outside the radio label, so it opens the modal without changing the value.
         await page.locator('[role="radiogroup"][aria-label="Theme"] .preview-info').first().click();
         await expect(page.locator('#preview-modal')).toBeVisible();
-        // Theme previews are now per calendar style (theme-{full,minimal,stacked}-system.png), and
-        // the mobile viewport serves a `-mobile` variant. The lightbox shows whichever matches the
-        // user's style + viewport, so allow any style and the optional `-mobile` suffix.
-        await expect(page.locator('#preview-modal-img'))
-            .toHaveAttribute('src', /theme-(full|minimal|stacked)-system(-mobile)?\.png/);
+        // The modal builds one <img> per gallery tile inside #preview-modal-imgs (cycled by the arrows
+        // rather than re-fetched). The System tile is first, so its image leads. Previews are WebP named
+        // page-{nova,standard}-{full,minimal,stacked}-{theme}, per font + calendar style + viewport
+        // (`-mobile` variant), so allow any font/style and the optional `-mobile` suffix.
+        await expect(page.locator('#preview-modal-imgs img').first())
+            .toHaveAttribute('src', /page-(nova|standard)-(full|minimal|stacked)-system(-mobile)?\.webp/);
 
         // Escape closes it.
         await page.keyboard.press('Escape');
