@@ -188,6 +188,75 @@ class LogResourceIT extends IntegrationTestBase {
                 .then().statusCode(404);
     }
 
+    @Test
+    void increment_withAmount_firstTime_createsLogWithThatCount() {
+        given().formParam("amount", 5).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+                .then().statusCode(200)
+                .body(containsString("5"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
+            .as("count after increment by 5")
+            .isEqualTo(5);
+    }
+
+    @Test
+    void increment_withAmount_existingLog_addsAmount() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 3));
+        given().formParam("amount", 5).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+                .then().statusCode(200)
+                .body(containsString("8"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
+            .as("count after increment by 5 from 3")
+            .isEqualTo(8);
+    }
+
+    @Test
+    void increment_withAmount_existingLog_capsAtMax() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 995));
+        given().formParam("amount", 10).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+                .then().statusCode(200)
+                .body(containsString("999"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
+            .as("count capped at 999 when amount overshoots")
+            .isEqualTo(999);
+    }
+
+    @Test
+    void increment_withAmount_firstTime_capsAtMax() {
+        given().formParam("amount", 9999).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+                .then().statusCode(200)
+                .body(containsString("999"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
+            .as("new count clamped to 999")
+            .isEqualTo(999);
+    }
+
+    @Test
+    void increment_amountZero_noExistingLog_returns200WithZeroAndCreatesNothing() {
+        given().formParam("amount", 0).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+                .then().statusCode(200)
+                .body(containsString("0"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
+            .as("no log created for a zero increment")
+            .isNull();
+    }
+
+    @Test
+    void increment_negativeAmount_existingLog_leavesCountUnchanged() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
+        given().formParam("amount", -1).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+                .then().statusCode(200)
+                .body(containsString("5"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
+            .as("negative amount does not change the count")
+            .isEqualTo(5);
+    }
+
     // ── Decrement ─────────────────────────────────────────────────────────────
 
     @Test
@@ -234,106 +303,52 @@ class LogResourceIT extends IntegrationTestBase {
                 .then().statusCode(404);
     }
 
-    // ── Increment by 10 ──────────────────────────────────────────────────────
-
     @Test
-    void incrementBy10_firstTime_createsLogWithCountTen() {
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment10")
+    void decrement_withAmount_subtractsAmount() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 8));
+        given().formParam("amount", 5).post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
-                .body(containsString("10"));
+                .body(containsString("3"));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
-            .as("count after first increment-by-10")
-            .isEqualTo(10);
+            .as("count after decrement by 5 from 8")
+            .isEqualTo(3);
     }
 
     @Test
-    void incrementBy10_at995_countBecomes999() {
-        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 995));
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment10")
-                .then().statusCode(200)
-                .body(containsString("999"));
-    }
-
-    @Test
-    void incrementBy10_at999_countStays999AndReturns200() {
-        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 999));
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment10")
-                .then().statusCode(200)
-                .body(containsString("999"));
-
-        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
-            .as("count capped at 999")
-            .isEqualTo(999);
-    }
-
-    @Test
-    void incrementBy10_futureDate_returns400() {
-        given().post("/logs/" + TOMORROW + "/" + primaryAction.id + "/increment10")
-                .then().statusCode(400);
-    }
-
-    @Test
-    void incrementBy10_otherUsersAction_returns404() {
-        given().post("/logs/" + TODAY + "/" + otherAction.id + "/increment10")
-                .then().statusCode(404);
-    }
-
-    // ── Decrement by 10 ──────────────────────────────────────────────────────
-
-    @Test
-    void decrementBy10_fromEleven_becomesOne() {
-        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 11));
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement10")
-                .then().statusCode(200)
-                .body(containsString("1"));
-
-        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
-            .as("count after decrement-by-10")
-            .isEqualTo(1);
-    }
-
-    @Test
-    void decrementBy10_fromTen_deletesLogAndReturnsZero() {
-        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 10));
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement10")
-                .then().statusCode(200)
-                .body(containsString("0"));
-
-        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
-            .as("log deleted when count <= 10")
-            .isNull();
-    }
-
-    @Test
-    void decrementBy10_fromFive_deletesLogAndReturnsZero() {
+    void decrement_withAmount_overshoot_deletesLogAndReturnsZero() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement10")
+        given().formParam("amount", 10).post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
                 .body(containsString("0"));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
-            .as("log deleted when count < 10")
+            .as("log deleted when amount exceeds count")
             .isNull();
     }
 
     @Test
-    void decrementBy10_noExistingLog_returns200WithZeroIdempotently() {
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement10")
+    void decrement_withAmount_exactlyToZero_deletesLog() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
+        given().formParam("amount", 5).post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
                 .body(containsString("0"));
+
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
+            .as("log deleted when amount lands exactly on zero")
+            .isNull();
     }
 
     @Test
-    void decrementBy10_futureDate_returns400() {
-        given().post("/logs/" + TOMORROW + "/" + primaryAction.id + "/decrement10")
-                .then().statusCode(400);
-    }
+    void decrement_negativeAmount_existingLog_leavesCountUnchanged() {
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
+        given().formParam("amount", -1).post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
+                .then().statusCode(200)
+                .body(containsString("5"));
 
-    @Test
-    void decrementBy10_otherUsersAction_returns404() {
-        given().post("/logs/" + TODAY + "/" + otherAction.id + "/decrement10")
-                .then().statusCode(404);
+        assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
+            .as("negative amount does not change the count")
+            .isEqualTo(5);
     }
 
     // ── Set count ─────────────────────────────────────────────────────────────
