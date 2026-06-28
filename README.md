@@ -113,3 +113,20 @@ identity_providers:
         response_types: [ code ]
         grant_types: [ authorization_code ]
 ```
+
+## Calendar month cache (frontend tuning)
+
+The dashboard calendar (minimal/stacked styles) fetches each month's activity dots from `/logs/minimal-events`
+once and caches them client-side, so navigating between months reads from memory instead of making a round-trip
+each time. This matters most behind a reverse proxy / CDN, where every request carries the edge latency. Two
+constants at the top of the calendar script in `src/main/resources/templates/dashboard.html` tune the behaviour:
+
+| Constant          | Default | Description                                                                                       |
+|-------------------|---------|---------------------------------------------------------------------------------------------------|
+| `PREFETCH_RADIUS` | `2`     | Months either side of the visible one to warm in the background (on idle) so prev/next is instant. |
+| `CACHE_LIMIT`     | `12`    | Maximum number of resolved months retained in memory; the oldest are evicted (least-recently-used). |
+
+> Keep `CACHE_LIMIT` comfortably above the live window of `2 * PREFETCH_RADIUS + 1` months (5 at the defaults),
+> otherwise hopping between adjacent months can evict a month that's still on screen and force a needless refetch.
+> Raise `PREFETCH_RADIUS` for smoother multi-month jumps at the cost of more idle background requests; raise
+> `CACHE_LIMIT` to retain more history at the cost of memory.
