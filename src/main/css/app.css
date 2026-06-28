@@ -151,6 +151,16 @@
     --color-banner-warning-bg: #fffbeb;     /* amber-50 */
     --color-banner-warning-border: #fde68a; /* amber-200 */
     --color-banner-warning-text: #92400e;   /* amber-800 */
+
+    /*
+     * Shared page column width — the whole app's content column is set in ONE place here.
+     * Every page's <main> is the `.page-container` class (see @layer components), which reads
+     * these two tokens (or later, a per-user setting). Theme-independent, so no .dark twin.
+     * On phones the column is full-width (see .page-container); from `sm` up it becomes
+     * `--page-width` of the viewport, capped at `--page-max-width`, and centred.
+     */
+    --page-width: 75%;        /* desktop column as a share of the viewport */
+    --page-max-width: 80rem;  /* hard cap (1280px) so it never gets too wide on large screens */
   }
 
   .dark {
@@ -228,6 +238,27 @@
  * primary button references it directly (it no longer needs to dodge a dark-mode lightening).
  */
 @layer components {
+  /* Page column ------------------------------------------------------------ */
+  /* The single shared content column for every page's <main> (Dashboard, Actions, Stats,
+     Admin, API, Settings) — so pages no longer "snap" to different widths as you navigate.
+     Base (mobile): full width, exactly like the original pages, so the column never narrows on
+     phones. `flex-1` (with each page's `min-h-viewport flex flex-col` wrapper) is what pins the
+     sticky footer to the bottom on short pages — kept here unchanged. The navbar/footer stay
+     full-bleed by design. `min-w-0` lets the column shrink below its content's intrinsic min-width
+     (a flex item defaults to `min-width:auto`), so wide children — e.g. the dashboard's FullCalendar
+     table — can't force horizontal overflow past the viewport on mobile. */
+  .page-container {
+    @apply flex-1 w-full mx-auto min-w-0;
+  }
+  /* From `sm` up it becomes the shared centred column: --page-width of the viewport, capped at
+     --page-max-width. Width is governed by the two tokens in :root — one source of truth. */
+  @media (min-width: 640px) {
+    .page-container {
+      width: var(--page-width);
+      max-width: var(--page-max-width);
+    }
+  }
+
   /* Buttons ---------------------------------------------------------------- */
   /* Filled call-to-action (login/register submit, "Add actions" empty states). */
   .btn-primary {

@@ -7,14 +7,14 @@
     {#include partials/navbar active='settings' /}
 
     <!-- Content -->
-    <main class="flex-1 max-w-2xl mx-auto w-full px-4 py-8">
+    <main class="page-container px-4 py-8">
         <h2 class="text-2xl font-semibold mb-1 text-ink">Settings</h2>
         <p class="text-sm text-ink-muted mb-6">
             Manage your account preferences and application settings.
         </p>
 
         <!-- Account section -->
-        <div class="card p-6 mb-6">
+        <div class="card p-4 mb-6">
             <div class="flex items-center justify-between mb-4">
                 <h3 class="card-title">Account</h3>
                 <span id="account-saved"
@@ -73,7 +73,7 @@
         </div>
 
         <!-- Preferences -->
-        <div class="card p-6">
+        <div class="card p-4">
             <div class="flex items-center justify-between mb-4">
                 <div>
                     <h3 class="card-title">Preferences</h3>
@@ -97,7 +97,7 @@
                     <!-- data-cal = the selected calendar style; the app.css `#theme-options[data-cal]`
                          rules show only the matching per-style theme preview, and the JS below keeps it
                          in sync when the Calendar-style radios change. -->
-                    <div id="theme-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Theme" data-cal="{calendarView}">
+                    <div id="theme-options" class="grid grid-cols-3 gap-3 max-w-md" role="radiogroup" aria-label="Theme" data-cal="{calendarView}">
                         {#include partials/preview-option group="theme" value="system" current=theme themeBase="system" calStyle="" fontBase="" label="System" title="System theme" alt="Dashboard split diagonally between light and dark themes" /}
                         {#include partials/preview-option group="theme" value="light"  current=theme themeBase="light"  calStyle="" fontBase="" label="Light"  title="Light theme"  alt="Dashboard in light mode" /}
                         {#include partials/preview-option group="theme" value="dark"   current=theme themeBase="dark"   calStyle="" fontBase="" label="Dark"   title="Dark theme"   alt="Dashboard in dark mode" /}
@@ -109,7 +109,7 @@
                     <span class="block text-sm font-medium text-ink mb-3">Calendar style</span>
                     <!-- Each tile is a calendar-only shot in its own style; #calendar-options (app.css)
                          reveals the variant matching the active font (.font-nova) and light/dark mode. -->
-                    <div id="calendar-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Calendar style">
+                    <div id="calendar-options" class="grid grid-cols-3 gap-3 max-w-md" role="radiogroup" aria-label="Calendar style">
                         {#include partials/preview-option group="calendarView" value="full"    current=calendarView themeBase="" calStyle="full"    fontBase="" label="Full"    title="Full calendar"    alt="Dashboard calendar showing events as text" /}
                         {#include partials/preview-option group="calendarView" value="minimal" current=calendarView themeBase="" calStyle="minimal" fontBase="" label="Minimal" title="Minimal calendar" alt="Dashboard calendar showing a coloured dot per action" /}
                         {#include partials/preview-option group="calendarView" value="stacked" current=calendarView themeBase="" calStyle="stacked" fontBase="" label="Stacked" title="Stacked calendar" alt="Dashboard calendar showing horizontal bars per action" /}
@@ -124,7 +124,7 @@
                          below) and the active light/dark theme (the app.css #font-options reveal rules).
                          grid-cols-3 (not -2) keeps each tile the SAME size as the theme/calendar pickers
                          even though there are only two — the third column is simply left empty. -->
-                    <div id="font-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Font" data-cal="{calendarView}">
+                    <div id="font-options" class="grid grid-cols-3 gap-3 max-w-md" role="radiogroup" aria-label="Font" data-cal="{calendarView}">
                         {#include partials/preview-option group="font" value="nova"     current=font themeBase="" calStyle="" fontBase="nova"     label="Nova"     title="Nova font"     alt="Dashboard shown in the Nova font" /}
                         {#include partials/preview-option group="font" value="standard" current=font themeBase="" calStyle="" fontBase="standard" label="Standard" title="Standard font" alt="Dashboard shown in the standard system font" /}
                     </div>

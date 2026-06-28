@@ -41,7 +41,7 @@ services:
       OIDC_ADMIN_GROUP: ${OIDC_ADMIN_GROUP:-diurnal-admins}
       OIDC_USER_GROUP: ${OIDC_USER_GROUP:-diurnal-users}
       OIDC_LOGOUT_URL: ${OIDC_LOGOUT_URL}
-      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-}
+      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-*}
     networks:
       - diurnal
     volumes:
@@ -50,6 +50,14 @@ services:
     depends_on:
       diurnal-db:
         condition: service_healthy
+    labels:
+      # Reverse proxy config
+      traefik.enable: "true"
+      traefik.http.routers.diurnal.rule: "Host(`diurnal.${DOMAIN_NAME}`)"
+      traefik.http.routers.diurnal.entrypoints: "websecure"
+      traefik.http.routers.diurnal.tls: "true"
+      traefik.http.routers.diurnal.middlewares: "no-forward-auth@file"
+      traefik.http.services.diurnal.loadbalancer.server.port: "8080"
 
   diurnal-db:
     image: postgres:18.4-alpine
