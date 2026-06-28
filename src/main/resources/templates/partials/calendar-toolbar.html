@@ -1,19 +1,19 @@
-{! Shared calendar toolbar — the prev/next/year/today buttons, the month/year title, the
-   "jump to month" icon, and the month/year picker popup. Rendered identically for EVERY calendar
-   style (full, minimal, stacked) so the navigation chrome is the same across calendars, themes and
-   viewports. dashboard.html wires the stable button ids to the active calendar: FullCalendar's API
-   for the `full` view, the grid-render functions for `minimal`/`stacked`. The popup is positioned
-   absolutely against the enclosing `#calendar-wrap` (which is `position: relative`). !}
+{! Shared calendar toolbar — a single, non-wrapping row reused for EVERY calendar style (full, minimal,
+   stacked) so the navigation chrome is identical across calendars, themes and viewports. Three groups:
+   the prev-year/prev-month buttons («  ‹) are pinned to the LEFT edge, the next-month/next-year buttons
+   (›  ») to the RIGHT edge, and the month/year title + jump-to-month glyph sit centred between them
+   (`justify-content: space-between` with equal-width side groups keeps the centre group dead-centre).
+   dashboard.html wires the stable button ids to the active calendar: FullCalendar's API for the `full`
+   view, the grid-render functions for `minimal`/`stacked`. The "Today" action lives at the bottom of
+   the month/year picker popup (#cal-pop), NOT in the toolbar row. The popup is positioned absolutely
+   against the enclosing `#calendar-wrap` (which is `position: relative`). !}
 <div class="cal-toolbar">
-    <div class="cal-toolbar-left">
+    <div class="cal-toolbar-side">
         <button id="cal-prev-year" type="button" class="cal-toolbar-btn" title="Previous year">«</button>
         <button id="cal-prev"      type="button" class="cal-toolbar-btn" title="Previous month">‹</button>
-        <button id="cal-next"      type="button" class="cal-toolbar-btn" title="Next month">›</button>
-        <button id="cal-next-year" type="button" class="cal-toolbar-btn" title="Next year">»</button>
-        <button id="cal-today"     type="button" class="cal-toolbar-btn">today</button>
     </div>
     <div class="cal-toolbar-center">
-        <span id="cal-title"></span>
+        <span id="cal-title" class="cal-title"></span>
         <button id="cal-jump" type="button" class="cal-toolbar-btn" title="Jump to month" aria-label="Jump to month">
             <svg class="cal-toolbar-glyph" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
@@ -21,9 +21,13 @@
             </svg>
         </button>
     </div>
+    <div class="cal-toolbar-side cal-toolbar-side-right">
+        <button id="cal-next"      type="button" class="cal-toolbar-btn" title="Next month">›</button>
+        <button id="cal-next-year" type="button" class="cal-toolbar-btn" title="Next year">»</button>
+    </div>
 </div>
 <div id="cal-pop"
-     class="hidden absolute z-50 mt-1 p-3 rounded-lg shadow-lg border border-line bg-surface"
+     class="hidden absolute z-50 mt-1 p-3"
      style="width:220px">
     <div class="flex items-center justify-between mb-2">
         <button type="button" data-y="-1" class="cal-nav-btn">‹</button>
@@ -31,4 +35,5 @@
         <button type="button" data-y="1" class="cal-nav-btn">›</button>
     </div>
     <div class="cal-pop-months grid grid-cols-3 gap-1"></div>
+    <button id="cal-today" type="button" class="cal-today-btn">Today</button>
 </div>

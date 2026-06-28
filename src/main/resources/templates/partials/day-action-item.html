@@ -46,13 +46,13 @@
         <!-- Delete entry: wrapped in .dt-actions so the button gets the same min-width as the
              confirm state's Cancel, keeping Cancel in exactly the same position on swap.
              Always rendered; invisible (not just opacity-0) when there is no log to erase. -->
-        <div class="dt-actions ml-2">
+        <div class="dt-actions ml-[0.2rem]">
             <button hx-get="/logs/{date}/{action.id}/confirm-delete"
                     hx-target="#log-{date}-{action.id}"
                     hx-swap="innerHTML"
-                    title="Delete this entry"
+                    title="Erase this action's entries"
                     class="dt-btn dt-btn-delete {#if count == 0}invisible{#else}day-item-delete{/if}">
-                Delete
+                Erase
             </button>
         </div>
     </div>

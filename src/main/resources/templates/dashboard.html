@@ -12,20 +12,55 @@
   .fc .fc-event { font-size: 0.7rem; }
 
   /* ── Shared calendar toolbar (partials/calendar-toolbar.html) ──────────────
-     One toolbar — prev/next/year/today buttons, month/year title, jump-to-month icon — reused by
+     One toolbar — «  ‹  month/year title  [jump icon]  ›  » — centred over the calendar and reused by
      EVERY calendar style (full, minimal, stacked), so the navigation chrome is identical across
-     calendars, themes and viewports. */
-  /* `space-between` keeps the prev/next/today group at the left and the month/year + jump button
-     pinned to the right. With `flex-wrap`, the free space between them simply shrinks as the toolbar
-     narrows (bringing the title closer to the buttons) and the title only drops to a second line once
-     there is literally no room left — rather than stacking onto its own row prematurely. The 0.5rem
-     `gap` is the minimum spacing they collapse to before wrapping. */
+     calendars, themes and viewports. The "Today" action lives in the picker popup, not this row. */
+  /* The row spans the full width above the calendar and NEVER wraps (`flex-wrap: nowrap`):
+     `justify-content: space-between` pins the prev-year/prev-month group to the left edge and the
+     next-month/next-year group to the right edge, leaving the month/year title + jump glyph centred
+     between them (the two side groups are equal width, so the centre group stays dead-centre). As the
+     screen narrows the nav buttons shrink FIRST (their horizontal padding tightens — see the media
+     queries below); only once they're at their tightest and would crowd the centred title does the
+     title abbreviate itself (see `.cal-title`), so the toolbar always stays on a single line even on
+     the narrowest phones. (On mobile the absolutely-positioned picker popup is clamped to shift left
+     so it never spills past the calendar's right edge — see openPop().) */
   .cal-toolbar {
-    display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
-    margin-bottom: 0.5rem; gap: 0.5rem;
+    display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between;
+    margin-bottom: 0.5rem; gap: 0.25rem;
   }
-  .cal-toolbar-left { display: flex; gap: 0.25rem; align-items: center; }
-  .cal-toolbar-center { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 1rem; font-weight: 600; color: var(--color-text); }
+  /* The two outer button groups; equal width keeps the centre group centred under space-between. */
+  .cal-toolbar-side   { display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0; }
+  /* The centre group never shrinks: it stays at its natural (full-title) width so that when the title
+     is too wide for the row the WHOLE toolbar overflows measurably. fitCalTitle() (in JS) watches that
+     overflow and abbreviates only when it actually happens — see the comment on .cal-title below. */
+  .cal-toolbar-center { display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0; }
+  /* The month/year title sits in the centre group beside the jump icon and never wraps. It is the
+     most prominent element in the toolbar (larger than the nav buttons). `line-height: 1` keeps its
+     box shorter than the padded nav buttons, so enlarging the font does NOT grow the toolbar's height
+     or shift the calendar below it. To keep the single-row toolbar on one line on the narrowest
+     phones — and only AFTER the nav buttons have already shrunk — it swaps the full month name for a
+     3-letter abbreviation, then the 4-digit year for 2 digits. Both variants are emitted into the DOM
+     by setCalTitle(); which one shows is decided per-month by fitCalTitle() (JS), which measures real
+     toolbar overflow rather than a fixed breakpoint — so a SHORT month ("June") keeps its full name at
+     a width where a LONG one ("September") would already need to abbreviate. */
+  .cal-title {
+    white-space: nowrap; font-size: 1.25rem; line-height: 1; font-weight: 600; color: var(--color-text);
+    padding: 0 0.4rem; text-align: center;
+  }
+  .cal-title-month-abbr, .cal-title-year-abbr { display: none; }
+  /* fitCalTitle() toggles these classes on #cal-title; CSS just picks which variant shows. */
+  .cal-title.cal-title-abbr-month .cal-title-month-full { display: none; }
+  .cal-title.cal-title-abbr-month .cal-title-month-abbr { display: inline; }
+  .cal-title.cal-title-abbr-year  .cal-title-year-full  { display: none; }
+  .cal-title.cal-title-abbr-year  .cal-title-year-abbr  { display: inline; }
+  /* Shrink the nav buttons as the viewport narrows, buying room for the full title before the title
+     itself is forced to abbreviate (that final step is content-aware, handled by fitCalTitle()). */
+  @media (max-width: 560px) {
+    .cal-toolbar-btn { padding: 0.25rem 0.4rem; }
+  }
+  @media (max-width: 460px) {
+    .cal-toolbar-btn { padding: 0.25rem 0.25rem; }
+  }
   /* The nav buttons match the app's filled brand buttons (`.btn-primary` / the settings gallery's
      `.icon-btn-primary`): brand fill, rounded-lg, font-medium, brand-hover, offset brand focus ring —
      at the compact size the toolbar needs. Brand is constant across light/dark, so no .dark twin. */
@@ -45,13 +80,79 @@
   .cal-toolbar-btn:active { background: var(--color-brand-strong); }
   /* The "jump to month" button is a .cal-toolbar-btn whose content is the calendar glyph. Flex-centre
      the glyph so it sits dead-centre vertically (an inline svg with a vertical-align baseline tweak
-     rides high in the button). The button keeps the same height as the text prev/next/today buttons
+     rides high in the button). The button keeps the same height as the text prev/next buttons
      because it shares their padding + 0.75rem/1.2 line metrics. The glyph stays a square 1em and
      inherits currentColor, so it reads as a white glyph on the brand fill like their text. */
   #cal-jump { display: inline-flex; align-items: center; justify-content: center; }
   /* Match the text buttons' total height: their content box is 1.2em (line-height) tall, so reserve
      that here too (the square 1em glyph alone would leave this button ~2px shorter). */
   .cal-toolbar-glyph { width: 1em; height: 1.2em; }
+  /* The "Today" action sits at the bottom of the month/year picker popup (#cal-pop) — a full-width
+     brand button matching the toolbar buttons' look, separated from the month grid above it. */
+  .cal-today-btn {
+    width: 100%; margin-top: 0.5rem;
+    font-size: 0.8rem; font-weight: 500; line-height: 1.2; text-transform: none;
+    padding: 0.35rem 0.6rem; border-radius: 0.5rem;
+    border: 1px solid transparent;
+    background: var(--color-brand); color: var(--color-on-brand);
+    cursor: pointer; transition: background-color 0.15s;
+  }
+  .cal-today-btn:hover { background: var(--color-brand-hover); }
+  .cal-today-btn:focus-visible {
+    outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-brand-ring);
+  }
+  .cal-today-btn:active { background: var(--color-brand-strong); }
+
+  /* The month/year jump popup is a floating menu OVER the calendar, so it must read as lifted — not as
+     part of the grid beneath it (the calendar card is a flat bg-surface / neutral-bordered panel). A
+     brand-tinted border ties it to the accent system and sets it apart from the calendar's neutral
+     lines, a more generous radius and a pronounced layered shadow lift it off the card. The background
+     stays --color-surface (NOT surface-muted) so the month-button hover wash below keeps its contrast
+     in both themes. */
+  #cal-pop {
+    background: var(--color-surface);
+    border: 1px solid var(--color-brand);
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 24px -6px rgb(0 0 0 / 0.28), 0 4px 8px -4px rgb(0 0 0 / 0.18);
+  }
+  /* Drop shadows barely register against the dark card, so separate the popup with a brighter brand
+     rim (an extra 1px brand ring via box-shadow) plus a deeper soft shadow. */
+  .dark #cal-pop {
+    box-shadow: 0 0 0 1px var(--color-brand), 0 12px 28px -6px rgb(0 0 0 / 0.6);
+  }
+
+  /* Month buttons in the jump popup mirror the calendar's own day-states (see the shared --cal-*
+     variables below) so the picker reads with the same visual grammar as the grid:
+       • the month containing TODAY  → solid brand fill + on-brand text (the "today" cell);
+       • the currently VIEWED month  → brand selection ring + faint fill + brand text (a selected day);
+       • viewed month that IS today  → the contained brand/gap/brand inset ring (selected-today);
+       • hover (plain months only)   → the same surface-muted wash a calendar day uses.
+     Brand is constant across light/dark, so the today/selected treatments hold in both themes; only the
+     selected text shifts to the lighter brand shade in dark (as on the calendar). */
+  .cal-pop-month {
+    font-size: 0.8rem; line-height: 1.2; border-radius: 0.375rem;
+    padding: 0.375rem 0.5rem; color: var(--color-text);
+    background: transparent; border: 0; cursor: pointer;
+    transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+  }
+  .cal-pop-month:hover { background: var(--color-surface-muted); }
+  .cal-pop-month-selected {
+    background: var(--color-brand-faint); color: var(--color-brand);
+    box-shadow: var(--cal-selected-ring);
+  }
+  .dark .cal-pop-month-selected { color: var(--color-brand-strong); }
+  .cal-pop-month-today {
+    background: var(--cal-today-fill); color: var(--color-on-brand);
+  }
+  .cal-pop-month-today.cal-pop-month-selected {
+    background: var(--cal-today-fill); color: var(--color-on-brand);
+    box-shadow: var(--cal-selected-today-inset);
+  }
+  /* Today/selected months keep their fill on hover (like the calendar's today/selected cells, which
+     don't take the hover wash) — only plain months react to hover. */
+  .cal-pop-month-selected:hover { background: var(--color-brand-faint); }
+  .cal-pop-month-today:hover,
+  .cal-pop-month-today.cal-pop-month-selected:hover { background: var(--cal-today-fill); }
 
   /* ── Shared day-state styling (full + minimal/stacked) ─────────────────────
      "Today" and the selected day are marked consistently across every calendar style, defined once here
@@ -274,6 +375,47 @@
 document.addEventListener('DOMContentLoaded', function () {
     var today = '{today}';
     var calendarView = '{calendarView}';
+    // The real "today" month, parsed once — the jump popup marks the month containing today with the
+    // calendar's solid "today" highlight (distinct from the merely-viewed month, which gets the
+    // selected-day ring). Shared by every calendar style's picker.
+    var todayYear  = parseInt(today.substring(0, 4), 10);
+    var todayMonth = parseInt(today.substring(5, 7), 10) - 1; // 0-indexed
+
+    // The month/year title is emitted with BOTH a full and an abbreviated variant in the DOM; CSS
+    // (see the .cal-title media queries) shows whichever fits the screen width, so the single-row
+    // toolbar never wraps. Shared by every calendar style.
+    var CAL_MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
+                           'July', 'August', 'September', 'October', 'November', 'December'];
+    var CAL_MONTHS_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    function setCalTitle(el, year, monthIndex) {
+        var yr = String(year);
+        el.innerHTML =
+            '<span class="cal-title-month-full">' + CAL_MONTHS_FULL[monthIndex] + '</span>' +
+            '<span class="cal-title-month-abbr">' + CAL_MONTHS_ABBR[monthIndex] + '</span>' +
+            ' ' +
+            '<span class="cal-title-year-full">' + yr + '</span>' +
+            '<span class="cal-title-year-abbr">' + yr.slice(-2) + '</span>';
+        fitCalTitle(el);
+    }
+
+    // Abbreviate the title ONLY when the full text would overflow the toolbar row — measured live, so a
+    // short month ("June") keeps its full name at a width where a long one ("September") must shorten.
+    // Start from the fullest form and drop detail (month, then year) only while the row still overflows.
+    function fitCalTitle(el) {
+        var bar = el.closest('.cal-toolbar');
+        if (!bar) return;
+        el.classList.remove('cal-title-abbr-month', 'cal-title-abbr-year');
+        if (bar.scrollWidth <= bar.clientWidth) return;
+        el.classList.add('cal-title-abbr-month');
+        if (bar.scrollWidth <= bar.clientWidth) return;
+        el.classList.add('cal-title-abbr-year');
+    }
+    // Re-fit on resize/orientation change: the same #cal-title serves whichever calendar style is active.
+    window.addEventListener('resize', function () {
+        var t = document.getElementById('cal-title');
+        if (t) fitCalTitle(t);
+    });
 
     if (calendarView === 'full') {
     var calWrap = document.getElementById('calendar-wrap');
@@ -291,7 +433,11 @@ document.addEventListener('DOMContentLoaded', function () {
         headerToolbar: false,   // navigation is the shared toolbar (partials/calendar-toolbar.html)
         events: '/logs/events',
         eventDisplay: 'list-item',
-        datesSet: function () { titleEl.textContent = cal.view.title; highlightSelected(selectedDate); },
+        datesSet: function () {
+            var d = cal.getDate();
+            setCalTitle(titleEl, d.getFullYear(), d.getMonth());
+            highlightSelected(selectedDate);
+        },
         dateClick: function (info) {
             selectDay(info.dateStr, info.dayEl);
         },
@@ -330,7 +476,9 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('cal-prev').addEventListener('click',      function () { cal.prev(); });
     document.getElementById('cal-next').addEventListener('click',      function () { cal.next(); });
     document.getElementById('cal-next-year').addEventListener('click', function () { cal.nextYear(); });
-    document.getElementById('cal-today').addEventListener('click', function () { cal.today(); selectDay(today); });
+    // 'Today' now lives at the bottom of the picker popup; jump to the current month, select today,
+    // and close the popup.
+    document.getElementById('cal-today').addEventListener('click', function () { cal.today(); selectDay(today); closePop(); });
 
     // ── Month/year picker popup (shared #cal-pop markup) ─────────────────────
     var MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -341,15 +489,17 @@ document.addEventListener('DOMContentLoaded', function () {
     function renderMonths() {
         yearLabel.textContent = pickerYear;
         var shown = cal.getDate();
+        var shownYear = shown.getFullYear(), shownMonth = shown.getMonth();
         monthsGrid.innerHTML = '';
         MONTHS.forEach(function (name, i) {
             var b = document.createElement('button');
             b.type = 'button';
             b.textContent = name;
-            var current = (pickerYear === shown.getFullYear() && i === shown.getMonth());
-            b.className = 'text-sm rounded px-2 py-1.5 transition-colors ' + (current
-                ? 'bg-brand text-on-brand'
-                : 'text-ink hover:bg-surface-muted');
+            var isToday    = (pickerYear === todayYear && i === todayMonth);   // solid "today" fill
+            var isSelected = (pickerYear === shownYear && i === shownMonth);   // brand selection ring
+            b.className = 'cal-pop-month'
+                + (isToday ? ' cal-pop-month-today' : '')
+                + (isSelected ? ' cal-pop-month-selected' : '');
             b.addEventListener('click', function () {
                 cal.gotoDate(pickerYear + '-' + String(i + 1).padStart(2, '0') + '-01');
                 closePop();
@@ -399,8 +549,6 @@ document.addEventListener('DOMContentLoaded', function () {
     } else {
     // ── Minimal calendar ────────────────────────────────────────────────────
     var MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    var MONTHS_LONG  = ['January','February','March','April','May','June',
-                        'July','August','September','October','November','December'];
 
     var viewYear  = parseInt(today.substring(0, 4), 10);
     var viewMonth = parseInt(today.substring(5, 7), 10) - 1; // 0-indexed
@@ -506,7 +654,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function renderGrid() {
-        titleEl.textContent = MONTHS_LONG[viewMonth] + ' ' + viewYear;
+        setCalTitle(titleEl, viewYear, viewMonth);
         grid.innerHTML = '';
         var firstDow = new Date(viewYear, viewMonth, 1).getDay(); // 0 = Sunday
 
@@ -595,11 +743,14 @@ document.addEventListener('DOMContentLoaded', function () {
     document.getElementById('cal-prev').addEventListener('click',      function () { navigate( 0, -1); });
     document.getElementById('cal-next').addEventListener('click',      function () { navigate( 0,  1); });
     document.getElementById('cal-next-year').addEventListener('click', function () { navigate( 1,  0); });
+    // 'Today' now lives at the bottom of the picker popup; jump to the current month, select today,
+    // and close the popup.
     document.getElementById('cal-today').addEventListener('click', function () {
         viewYear  = parseInt(today.substring(0, 4), 10);
         viewMonth = parseInt(today.substring(5, 7), 10) - 1;
         fetchAndRender();
         selectDay(today);
+        closePop();
     });
 
     // ── Month/year picker popup ─────────────────────────────────────────────
@@ -614,10 +765,11 @@ document.addEventListener('DOMContentLoaded', function () {
             var b = document.createElement('button');
             b.type = 'button';
             b.textContent = name;
-            var current = (pickerYear === viewYear && i === viewMonth);
-            b.className = 'text-sm rounded px-2 py-1.5 transition-colors ' + (current
-                ? 'bg-brand text-on-brand'
-                : 'text-ink hover:bg-surface-muted');
+            var isToday    = (pickerYear === todayYear && i === todayMonth);   // solid "today" fill
+            var isSelected = (pickerYear === viewYear  && i === viewMonth);    // brand selection ring
+            b.className = 'cal-pop-month'
+                + (isToday ? ' cal-pop-month-today' : '')
+                + (isSelected ? ' cal-pop-month-selected' : '');
             b.addEventListener('click', function () {
                 viewYear  = pickerYear;
                 viewMonth = i;
