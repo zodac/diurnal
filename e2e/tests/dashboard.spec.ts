@@ -334,6 +334,8 @@ test.describe('Dashboard – Minimal calendar', () => {
         await page.goto('/');
         const originalTitle = await page.locator('#cal-title').textContent();
         await page.locator('#cal-next').click();
+        // 'Today' lives at the bottom of the month/year picker popup, so open it first.
+        await page.locator('#cal-jump').click();
         await page.locator('#cal-today').click();
         await expect(page.locator('#cal-title')).toHaveText(originalTitle!);
     });
