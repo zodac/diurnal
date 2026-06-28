@@ -193,15 +193,18 @@
     {#include partials/navbar active='dashboard' /}
 
     <!-- Main content -->
-    <main class="flex-1 max-w-6xl mx-auto w-full px-4 py-6">
+    <main class="page-container px-4 py-8">
         <div class="mb-6">
             <h2 class="text-2xl font-semibold text-ink">Welcome, {displayName}</h2>
         </div>
 
         <!-- Calendar + day panel -->
-        <div class="grid gap-4 lg:grid-cols-3 mb-6">
+        <div class="grid gap-4 lg:grid-cols-3 mb-6 min-w-0">
 
-            <div class="lg:col-span-2 card p-4">
+            <!-- min-w-0: grid items default to min-width:auto, which would let the FullCalendar table's
+                 intrinsic width blow the column past the viewport on mobile. Allowing the item to shrink
+                 lets the calendar size down to fit the narrow screen. -->
+            <div class="lg:col-span-2 card p-4 min-w-0">
                 {! Every calendar style shares one toolbar (partials/calendar-toolbar.html); only the
                    body below differs — the FullCalendar mount point, or the minimal/stacked grid. The
                    wrapper is `position: relative` so the toolbar's jump-to-month popup anchors to it. !}
@@ -219,7 +222,7 @@
             </div>
 
             <div id="day-panel"
-                 class="card p-6 self-start">
+                 class="card p-4 self-start min-w-0">
                 <p class="text-sm text-ink-muted italic text-center py-4">
                     Click a day to log actions.
                 </p>

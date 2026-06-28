@@ -11,9 +11,9 @@
     <!-- Navigation -->
     {#include partials/navbar active='api' /}
 
-    <!-- Page column at 90% width (wider than the default text pages so the docs aren't cramped),
-         flex-1 so the footer is pushed to the bottom when the spec is short. -->
-    <main class="flex-1 w-[90%] mx-auto py-6">
+    <!-- Shared page column (.page-container): same width as every other page. flex-1 so the
+         footer is pushed to the bottom when the spec is short. -->
+    <main class="page-container px-4 py-8">
         <!-- Swagger UI embedded in-app so the navbar and account controls stay available; the
              underlying docs are still served at /api. Nested containers mirror the dashboard stats
              section: an outer `.card` shell, then the inner framed panel that actually holds the
