@@ -436,6 +436,14 @@ document.addEventListener('DOMContentLoaded', function () {
     function pad2(n) { return String(n).padStart(2, '0'); }
 
     function loadDayPanel(dateStr) {
+        if (dayPanel) {
+            // Keep the previous day's actions on screen but dim them while the (~edge-latency)
+            // /logs/day response is in flight. Blanking the panel (or painting a skeleton) reads as a
+            // harsh flash on fast loads; holding the content and fading the opacity makes the switch feel
+            // continuous. The dim is lifted on htmx:afterSwap, fading the new day's content back in.
+            dayPanel.style.transition = 'opacity 150ms ease';
+            dayPanel.style.opacity = '0.45';
+        }
         htmx.ajax('GET', '/logs/day/' + dateStr, { target: '#day-panel', swap: 'innerHTML' });
     }
 
@@ -454,7 +462,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // would be misleading. Selecting an explicit date (selectDay) does the opposite and keeps it.
     function clearSelection() {
         cal.setHighlight(null);
-        if (dayPanel) { dayPanel.innerHTML = dayPanelPlaceholder; }
+        if (dayPanel) { dayPanel.style.opacity = ''; dayPanel.innerHTML = dayPanelPlaceholder; }
     }
 
     // ── FullCalendar style ──────────────────────────────────────────────────
@@ -882,6 +890,11 @@ document.addEventListener('DOMContentLoaded', function () {
         if (e.target && e.target.closest && e.target.closest('#day-panel')) {
             cal.refresh();
         }
+    });
+
+    // Fade the new day's content back to full opacity once it lands (see loadDayPanel's dim).
+    document.body.addEventListener('htmx:afterSwap', function (e) {
+        if (e.target && e.target.id === 'day-panel') { e.target.style.opacity = ''; }
     });
 
     // Pre-select today so the day panel opens immediately, without clicking the calendar.
