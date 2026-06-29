@@ -375,19 +375,20 @@
                        (text-[0.65rem]/text-xs) and the gap tightened here; sm: restores the larger sizes. !}
                     <dl class="grid grid-cols-3 gap-2 sm:gap-4 min-w-0 sm:flex-1">
                         <div>
+                            {! latestLabel is a date (ungrouped); sinceLabel carries a day count. !}
                             <dt class="help-text text-[0.65rem] sm:text-xs">Latest</dt>
                             <dd class="text-xs sm:text-sm font-semibold text-ink">{s.latestLabel}</dd>
-                            <dd class="help-text text-[0.65rem] sm:text-xs">{s.sinceLabel}</dd>
+                            <dd class="js-num help-text text-[0.65rem] sm:text-xs">{s.sinceLabel}</dd>
                         </div>
                         <div>
                             <dt class="help-text text-[0.65rem] sm:text-xs">Monthly trend</dt>
-                            <dd class="text-xs sm:text-sm font-semibold {s.monthTrendClass}">{s.monthTrend}</dd>
-                            <dd class="help-text text-[0.65rem] sm:text-xs">{s.thisMonthContext}</dd>
+                            <dd class="js-num text-xs sm:text-sm font-semibold {s.monthTrendClass}">{s.monthTrend}</dd>
+                            <dd class="js-num help-text text-[0.65rem] sm:text-xs">{s.thisMonthContext}</dd>
                         </div>
                         <div>
                             <dt class="help-text text-[0.65rem] sm:text-xs">Streak</dt>
-                            <dd class="text-xs sm:text-sm font-semibold text-ink">{s.currentStreakLabel}</dd>
-                            <dd class="help-text text-[0.65rem] sm:text-xs">Best: {s.longestStreakLabel}</dd>
+                            <dd class="js-num text-xs sm:text-sm font-semibold text-ink">{s.currentStreakLabel}</dd>
+                            <dd class="js-num help-text text-[0.65rem] sm:text-xs">Best: {s.longestStreakLabel}</dd>
                         </div>
                     </dl>
                 </div>
