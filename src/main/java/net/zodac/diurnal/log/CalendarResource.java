@@ -51,7 +51,8 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
- * Supplies the JSON feeds consumed by the dashboard's FullCalendar (full and minimal/dot views).
+ * Supplies the JSON feeds consumed by the dashboard's calendar (the {@code full} view reads
+ * {@code /logs/events}; the {@code minimal}/{@code stacked} dot/bar views read {@code /logs/minimal-events}).
  *
  * <p>The {@code /logs/events} feed is also the <strong>public API</strong> for reading a user's logged
  * actions: it is documented in the Swagger UI and may be called by external integrations with a Bearer
@@ -175,15 +176,17 @@ public class CalendarResource {
     }
 
     /**
-     * A single FullCalendar event: title, start date and the action's colour.
+     * A single calendar event: title, start date and the action's colour. The {@code backgroundColor}/
+     * {@code borderColor} field names follow the common calendar-event convention and are kept as the
+     * public API contract.
      */
     @Schema(description = "A single logged-action calendar event: title, date and the action's display colour.")
     public record CalendarEventDto(
             @Schema(examples = "Morning run", description = "Action name; includes a ×N suffix when the day's count exceeds 1.") String title,
             @Schema(examples = "2026-06-15", description = "Date of the logged entry as an ISO-8601 date string.") String start,
-            @Schema(examples = "#6366f1", description = "Action colour as a CSS hex value, used by FullCalendar for the event background.")
+            @Schema(examples = "#6366f1", description = "Action colour as a CSS hex value, used as the event background colour.")
             String backgroundColor,
-            @Schema(examples = "#6366f1", description = "Action colour as a CSS hex value, used by FullCalendar for the event border.")
+            @Schema(examples = "#6366f1", description = "Action colour as a CSS hex value, used as the event border colour.")
             String borderColor) {
     }
 

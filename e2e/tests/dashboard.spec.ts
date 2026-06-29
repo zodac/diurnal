@@ -74,9 +74,9 @@ test.describe('Dashboard', () => {
 
     test('page load: today is pre-selected and day panel loads automatically', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        // Today's cell should have the d-day-selected class
-        const todayCell = page.locator(`.fc-daygrid-day[data-date="${todayStr()}"]`);
-        await expect(todayCell).toHaveClass(/d-day-selected/);
+        // Today's cell should have the selected class
+        const todayCell = page.locator(`.d-min-cell[data-date="${todayStr()}"]`);
+        await expect(todayCell).toHaveClass(/d-min-selected/);
         // Day panel should have loaded content (not the placeholder)
         await expect(page.locator('#day-panel')).not.toContainText('Click a day to log actions');
     });
@@ -84,12 +84,12 @@ test.describe('Dashboard', () => {
     test('click a past date loads that day in the day panel', async ({authenticatedPage: page}) => {
         await page.goto('/');
         const past = pastDateStr(3);
-        const cell = page.locator(`.fc-daygrid-day[data-date="${past}"]`);
+        const cell = page.locator(`.d-min-cell[data-date="${past}"]`);
         await cell.click();
         await expect(page.locator('#day-panel')).toContainText('DashAction');
     });
 
-    test('clicking a logged event dot loads the correct day panel', async ({authenticatedPage: page}) => {
+    test('clicking a logged event loads the correct day panel', async ({authenticatedPage: page}) => {
         // Log an action on today via the day panel first
         await page.goto('/');
         await page.locator('#day-panel').getByTitle('Increase').first().click();
@@ -98,11 +98,11 @@ test.describe('Dashboard', () => {
 
         // Navigate to yesterday — its count should be 0
         const past = pastDateStr(1);
-        await page.locator(`.fc-daygrid-day[data-date="${past}"]`).click();
+        await page.locator(`.d-min-cell[data-date="${past}"]`).click();
         await expect(page.locator('#day-panel [id^="log-"]').first().locator('.tabular-nums')).toHaveValue('0');
 
-        // Click the event dot on today's cell to navigate back
-        const event = page.locator('.fc-event').first();
+        // Click the event on today's cell (clicking anywhere in the cell selects its day) to navigate back
+        const event = page.locator('.d-full-event').first();
         await event.click();
         await expect(page.locator('#day-panel [id^="log-"]').first().locator('.tabular-nums')).toHaveValue('1');
     });
@@ -138,15 +138,15 @@ test.describe('Dashboard', () => {
         await expect(page.locator('#day-panel').getByTitle('Decrease').first()).toBeDisabled();
     });
 
-    test('calendar dots refresh after logging an action', async ({authenticatedPage: page}) => {
+    test('calendar events refresh after logging an action', async ({authenticatedPage: page}) => {
         await page.goto('/');
         const today = todayStr();
-        // No event dots for today initially (before logging)
-        const dotsBefore = await page.locator(`.fc-daygrid-day[data-date="${today}"] .fc-event`).count();
+        // No events for today initially (before logging)
+        const eventsBefore = await page.locator(`.d-min-cell[data-date="${today}"] .d-full-event`).count();
         // Log an action
         await page.locator('#day-panel').getByTitle('Increase').first().click();
-        // FullCalendar refetches events after htmx:afterRequest — wait for the dot
-        await expect(page.locator(`.fc-daygrid-day[data-date="${today}"] .fc-event`)).toHaveCount(Math.max(dotsBefore + 1, 1), {timeout: 5000});
+        // The grid refetches its month after htmx:afterRequest — wait for the new event row
+        await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-full-event`)).toHaveCount(Math.max(eventsBefore + 1, 1), {timeout: 5000});
     });
 
     test('future date shows "future" message with no +/− buttons', async ({authenticatedPage: page}) => {
@@ -154,7 +154,7 @@ test.describe('Dashboard', () => {
         // Click a deterministic future date. A 2-day offset is always within the current month grid
         // (which renders trailing days of the next month too), avoiding the leading-day coincidence
         // where "the next month's first cell" can resolve to today near a month boundary.
-        await page.locator(`.fc-daygrid-day[data-date="${futureDateStr(2)}"]`).click();
+        await page.locator(`.d-min-cell[data-date="${futureDateStr(2)}"]`).click();
         await expect(page.locator('#day-panel')).toContainText(/future|cannot log/i);
         await expect(page.locator('#day-panel').getByTitle('Increase')).toHaveCount(0);
     });
@@ -220,10 +220,9 @@ test.describe('Dashboard – Calendar navigation', () => {
             await setCalendarView(page, calendarView);
             await page.goto('/');
 
-            const otherCellSelector = calendarView === 'full'
-                ? '.fc-daygrid-day.fc-day-other'
-                : '.d-min-cell.d-min-other';
-            // Every calendar style now shares one toolbar, so the title element is the same id.
+            // Every style now shares one hand-rolled grid, so the "other month" cell and the title use
+            // the same selectors regardless of calendarView.
+            const otherCellSelector = '.d-min-cell.d-min-other';
             const titleSelector = '#cal-title';
 
             const otherCell = page.locator(otherCellSelector).first();
@@ -237,12 +236,7 @@ test.describe('Dashboard – Calendar navigation', () => {
             await expect(page.locator(titleSelector)).not.toHaveText(titleBefore);
 
             // The clicked cell must no longer carry the "other month" class
-            const cellAfterNav = calendarView === 'full'
-                ? page.locator(`.fc-daygrid-day[data-date="${otherDate}"]`)
-                : page.locator(`.d-min-cell[data-date="${otherDate}"]`);
-            await expect(cellAfterNav).not.toHaveClass(
-                calendarView === 'full' ? /fc-day-other/ : /d-min-other/,
-            );
+            await expect(page.locator(`.d-min-cell[data-date="${otherDate}"]`)).not.toHaveClass(/d-min-other/);
         }
     });
 });
@@ -259,10 +253,10 @@ test.describe('Dashboard – Minimal calendar', () => {
         await setCalendarView(page, 'full');
     });
 
-    test('minimal calendar is rendered instead of FullCalendar', async ({authenticatedPage: page}) => {
+    test('minimal calendar renders the shared grid (no legacy #calendar mount)', async ({authenticatedPage: page}) => {
         await page.goto('/');
         await expect(page.locator('#d-min-grid')).toBeVisible();
-        await expect(page.locator('#calendar')).toHaveCount(0);
+        await expect(page.locator('#calendar')).toHaveCount(0); // the old FullCalendar mount is gone for every style
     });
 
     test('today cell carries the today highlight class', async ({authenticatedPage: page}) => {
@@ -361,10 +355,10 @@ test.describe('Dashboard – Stacked calendar', () => {
         await setCalendarView(page, 'full');
     });
 
-    test('stacked calendar is rendered instead of FullCalendar', async ({authenticatedPage: page}) => {
+    test('stacked calendar renders the shared grid (no legacy #calendar mount)', async ({authenticatedPage: page}) => {
         await page.goto('/');
         await expect(page.locator('#d-min-grid')).toBeVisible();
-        await expect(page.locator('#calendar')).toHaveCount(0);
+        await expect(page.locator('#calendar')).toHaveCount(0); // the old FullCalendar mount is gone for every style
     });
 
     test('today cell carries the today highlight class', async ({authenticatedPage: page}) => {

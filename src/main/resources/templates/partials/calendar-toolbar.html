@@ -3,8 +3,8 @@
    the prev-year/prev-month buttons («  ‹) are pinned to the LEFT edge, the next-month/next-year buttons
    (›  ») to the RIGHT edge, and the month/year title + jump-to-month glyph sit centred between them
    (`justify-content: space-between` with equal-width side groups keeps the centre group dead-centre).
-   dashboard.html wires the stable button ids to the active calendar: FullCalendar's API for the `full`
-   view, the grid-render functions for `minimal`/`stacked`. The "Today" action lives at the bottom of
+   dashboard.html wires the stable button ids to the shared grid engine (buildGridCalendar) that draws
+   every style — full, minimal and stacked. The "Today" action lives at the bottom of
    the month/year picker popup (#cal-pop), NOT in the toolbar row. The popup is positioned absolutely
    against the enclosing `#calendar-wrap` (which is `position: relative`). !}
 <div class="cal-toolbar">

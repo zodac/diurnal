@@ -134,7 +134,7 @@ class CalendarResourceIT extends IntegrationTestBase {
     void events_isoDatetimeStringWithTime_onlyDatePartUsed() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 1));
 
-        // FullCalendar sends ISO datetime strings like "2025-06-15T00:00:00"
+        // Clients may send ISO datetime strings like "2025-06-15T00:00:00"; only the date part is used.
         final String startWithTime = TODAY + "T00:00:00";
         final String endWithTime   = TODAY + "T23:59:59";
 

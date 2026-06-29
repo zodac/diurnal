@@ -167,7 +167,7 @@ async function setPrefs(ctx, theme, calendarView, font = 'nova') {
 async function openDashboard(ctx, calendarView) {
   const page = await ctx.newPage();
   await page.goto(BASE + '/', { waitUntil: 'networkidle' }); // the dashboard is served at /
-  const sel = calendarView === 'full' ? '.fc-event'
+  const sel = calendarView === 'full' ? '.d-full-event'
             : calendarView === 'stacked' ? '.d-stk-bar'
             : '.d-min-dot';
   await page.waitForSelector(sel, { timeout: 15000 });
