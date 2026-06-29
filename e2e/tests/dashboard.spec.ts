@@ -60,11 +60,10 @@ test.describe('Dashboard', () => {
         // Navigate to dashboard and reset today's log count to 0 before each test.
         // Tests that increment/decrement need a clean starting state.
         await page.goto('/');
-        await page.locator('#day-panel [id^="log-"]').first().waitFor({timeout: 5000}).catch(() => {
-        });
         for (let i = 0; i < 10; i++) {
             const decBtn = page.locator('#day-panel').getByTitle('Decrease').first();
-            if (await decBtn.isDisabled().catch(() => true)) break;
+            // Button is invisible (not clickable) when count is 0; if we can't see it, we're done.
+            if (!(await decBtn.isVisible().catch(() => false))) break;
             await Promise.all([
                 page.waitForResponse(r => r.url().includes('/logs/') && r.request().method() === 'POST'),
                 decBtn.click(),
@@ -286,11 +285,9 @@ test.describe('Dashboard – Minimal calendar', () => {
     test('dot appears under today after logging an action', async ({authenticatedPage: page}) => {
         await page.goto('/');
         // Ensure today's log is at 0 first
-        await page.locator('#day-panel [id^="log-"]').first().waitFor({timeout: 5000}).catch(() => {
-        });
         for (let i = 0; i < 10; i++) {
             const decBtn = page.locator('#day-panel').getByTitle('Decrease').first();
-            if (await decBtn.isDisabled().catch(() => true)) break;
+            if (!(await decBtn.isVisible().catch(() => false))) break;
             await Promise.all([
                 page.waitForResponse(r => r.url().includes('/logs/') && r.request().method() === 'POST'),
                 decBtn.click(),
@@ -381,11 +378,9 @@ test.describe('Dashboard – Stacked calendar', () => {
     test('bar appears under today after logging an action', async ({authenticatedPage: page}) => {
         await page.goto('/');
         // Reset log count to 0
-        await page.locator('#day-panel [id^="log-"]').first().waitFor({timeout: 5000}).catch(() => {
-        });
         for (let i = 0; i < 10; i++) {
             const decBtn = page.locator('#day-panel').getByTitle('Decrease').first();
-            if (await decBtn.isDisabled().catch(() => true)) break;
+            if (!(await decBtn.isVisible().catch(() => false))) break;
             await Promise.all([
                 page.waitForResponse(r => r.url().includes('/logs/') && r.request().method() === 'POST'),
                 decBtn.click(),
