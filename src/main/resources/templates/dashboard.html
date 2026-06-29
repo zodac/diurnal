@@ -465,16 +465,66 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function pad2(n) { return String(n).padStart(2, '0'); }
 
+    // ── Day-panel cache ──────────────────────────────────────────────────────
+    // The /logs/day/<date> partial for each day is fetched once and cached, so re-opening a day by
+    // clicking around the calendar is instant instead of paying the edge round-trip every time (the
+    // public origin sits behind Cloudflare, so each call is a ~250ms+ round-trip). We cache the
+    // PRISTINE default view (page 1, no search filter) — exactly what a fresh load returns — so a
+    // cached swap is indistinguishable from a network one. After the selected day's panel loads, the
+    // rest of its month is warmed in the background, mirroring the month-dot prefetch.
+    var dayPanelCache    = {}; // dateStr -> HTML string (the /logs/day response body)
+    var dayPanelInflight = {}; // dateStr -> Promise, dedupes concurrent fetches
+
+    function fetchDayPanel(dateStr) {
+        if (dayPanelCache[dateStr] !== undefined) { return Promise.resolve(dayPanelCache[dateStr]); }
+        if (dayPanelInflight[dateStr]) { return dayPanelInflight[dateStr]; }
+        var p = fetch('/logs/day/' + dateStr)
+            .then(function (r) { return r.text(); })
+            .then(function (html) { dayPanelCache[dateStr] = html; delete dayPanelInflight[dateStr]; return html; })
+            .catch(function (err) { delete dayPanelInflight[dateStr]; throw err; }); // drop so a later view retries
+        dayPanelInflight[dateStr] = p;
+        return p;
+    }
+
+    // Warm every day of dateStr's month in the background, once the browser is idle so it never competes
+    // with the just-issued load for the selected day. fetchDayPanel dedupes (in-flight + cached), so the
+    // selected day and any already-cached days cost nothing, and re-warming a warm month is a no-op.
+    function prefetchMonthDays(dateStr) {
+        var y = parseInt(dateStr.substring(0, 4), 10);
+        var m = parseInt(dateStr.substring(5, 7), 10) - 1; // 0-indexed
+        var schedule = window.requestIdleCallback || function (fn) { return setTimeout(fn, 200); };
+        schedule(function () {
+            var lastDay = new Date(y, m + 1, 0).getDate(); // day 0 of next month = last day of this one
+            for (var d = 1; d <= lastDay; d++) {
+                fetchDayPanel(y + '-' + pad2(m + 1) + '-' + pad2(d));
+            }
+        });
+    }
+
+    // Swap a day's cached/loaded HTML into the panel and wire its HTMX attributes (htmx.process, since
+    // we set innerHTML directly rather than going through htmx.ajax). Lifts the in-flight dim.
+    function swapDayPanel(html) {
+        if (!dayPanel) return;
+        dayPanel.innerHTML = html;
+        htmx.process(dayPanel);
+        dayPanel.style.opacity = '';
+    }
+
     function loadDayPanel(dateStr) {
-        if (dayPanel) {
-            // Keep the previous day's actions on screen but dim them while the (~edge-latency)
-            // /logs/day response is in flight. Blanking the panel (or painting a skeleton) reads as a
-            // harsh flash on fast loads; holding the content and fading the opacity makes the switch feel
-            // continuous. The dim is lifted on htmx:afterSwap, fading the new day's content back in.
+        if (dayPanel && dayPanelCache[dateStr] === undefined) {
+            // Cache miss: keep the previous day's actions on screen but dim them while the response is in
+            // flight. Blanking the panel (or painting a skeleton) reads as a harsh flash on fast loads;
+            // holding the content and fading the opacity makes the switch feel continuous. A cache hit
+            // resolves on the next microtask, so it swaps instantly with no dim.
             dayPanel.style.transition = 'opacity 150ms ease';
             dayPanel.style.opacity = '0.45';
         }
-        htmx.ajax('GET', '/logs/day/' + dateStr, { target: '#day-panel', swap: 'innerHTML' });
+        fetchDayPanel(dateStr).then(function (html) {
+            // Only swap if the user is still on this day (they may have clicked onward mid-fetch, or
+            // cleared the selection, in which case that action already won).
+            if (selectedDate === dateStr) { swapDayPanel(html); }
+        });
+        prefetchMonthDays(dateStr); // warm the rest of the month in the background
     }
 
     // Select a specific day: paint its highlight, switch month if it belongs to an adjacent one, load panel.
@@ -951,12 +1001,11 @@ document.addEventListener('DOMContentLoaded', function () {
         var verb = e.detail && e.detail.requestConfig && e.detail.requestConfig.verb;
         if (verb && verb !== 'get' && e.target && e.target.closest && e.target.closest('#day-panel')) {
             cal.refresh();
+            // The live panel was updated inline by the mutation, but the cached snapshot for this day is
+            // now stale. Drop it so a later revisit re-fetches the fresh counts; prefetchMonthDays will
+            // re-warm it on the next navigation into this month.
+            if (selectedDate) { delete dayPanelCache[selectedDate]; }
         }
-    });
-
-    // Fade the new day's content back to full opacity once it lands (see loadDayPanel's dim).
-    document.body.addEventListener('htmx:afterSwap', function (e) {
-        if (e.target && e.target.id === 'day-panel') { e.target.style.opacity = ''; }
     });
 
     // Pre-select today so the day panel opens immediately, without clicking the calendar.

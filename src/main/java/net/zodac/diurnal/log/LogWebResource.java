@@ -54,8 +54,7 @@ import net.zodac.diurnal.user.User;
 @RolesAllowed("user")
 public class LogWebResource {
 
-    private static final DateTimeFormatter DAY_LABEL =
-            DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.ENGLISH);
+    private static final DateTimeFormatter DAY_LABEL = DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.ENGLISH);
 
     @Inject
     @Location("partials/day-panel")

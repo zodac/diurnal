@@ -456,11 +456,11 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void dayPanel_pastDateNoLogs_showsAllActionsAtZero() {
-        // count=0 renders the decrement button as disabled (cursor-not-allowed class)
+        // count=0 hides the decrement button (there is nothing to decrement) via the `invisible` class
         given().get("/logs/day/" + YESTERDAY)
                 .then().statusCode(200)
                 .body(containsString("PrimaryAction"))
-                .body(containsString("cursor-not-allowed"));
+                .body(containsString("invisible"));
     }
 
     @Test

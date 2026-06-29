@@ -99,6 +99,8 @@ OIDC users store `oidcSubject` + `oidcIssuer` instead of a password hash; compos
 
 Qute templates in `src/main/resources/templates/` are full-page layouts or partials in `templates/partials/`. Full `@GET` returns a `TemplateInstance`; HTMX endpoints return `Response.ok(partial.data(...)).build()`. Error responses use `HX-Retarget`/`HX-Reswap` to redirect the swap into the error element.
 
+> **Qute parses `{` everywhere in a template — including inside `<script>` blocks, JS comments, and HTML comments.** A `{` immediately followed by a non-whitespace char (e.g. `{date}`, `{view}`, `{foo.bar}`) is read as an expression and will throw `TemplateException: Key "date" not found …` at render time — even when it only appears in a code comment like `// fetch /logs/day/{date}`. This bites repeatedly in `dashboard.html`'s inline JS. To write a literal brace in template text: put a space after it (`{ foo`), use a different placeholder (`<date>`, `:date`), or wrap the whole region in a Qute comment `{! … !}` (which is NOT parsed — that's why `d-cal-{view}` survives inside one). Only `{` + whitespace or `{!` is safe; everything else is an expression.
+
 ### Data records vs. logic (`*Extensions`)
 
 Records hold data only; derived logic lives in a `<Type>Extensions` final class (private constructor) whose methods take the record as the first parameter. Template-facing methods are annotated `@io.quarkus.qute.TemplateExtension` so Qute resolves `{x.foo}` against the record unchanged.
