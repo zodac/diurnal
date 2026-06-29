@@ -84,7 +84,7 @@ public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswo
                 .filter(u -> u.passwordHash != null)
                 .filter(u -> BCrypt.checkpw(password, u.passwordHash))
                 .map(u -> {
-                    LOGGER.debug("Login successful: {} ({})", u.displayName, u.email);
+                    LOGGER.debug("Password login: name={} email={} role={}", u.displayName, u.email, u.role);
                     u.lastLoginAt = Instant.now();
                     u.persist();
                     final var builder = QuarkusSecurityIdentity.builder()

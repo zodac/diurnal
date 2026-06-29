@@ -115,7 +115,7 @@ public class WebResource {
             @QueryParam("registered") @DefaultValue("false") final boolean registered) {
         // First run: no users exist yet. Send the deployer to the setup landing page to create the
         // initial local account, and short-circuit any OIDC auto-redirect below — the first account
-        // must be local. During setup the initial account can always be created (ENABLE_REGISTRATION
+        // must be local. During set up the initial account can always be created (ENABLE_REGISTRATION
         // is ignored until a user exists), so this is gated only on password auth being enabled; a
         // pure-OIDC deployment (no local auth) falls through to the normal login/OIDC flow.
         if (setupRequired() && passwordAuthEnabled) {
@@ -228,14 +228,14 @@ public class WebResource {
         if (!passwordAuthEnabled) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        if (!registrationAllowed()) {
+        if (registrationNotAllowed()) {
             return Response.ok(renderRegisterDisabled()).build();
         }
         return Response.ok(renderRegister("", "", "", "", List.of(), List.of())).build();
     }
 
     /**
-     * Handles the registration form submission, creating the user and redirecting to login.
+     * Handles the registration form submission, creating the user and redirecting to /login.
      */
     @POST
     @Path("register")
@@ -251,7 +251,7 @@ public class WebResource {
         if (!passwordAuthEnabled) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        if (!registrationAllowed()) {
+        if (registrationNotAllowed()) {
             return Response.status(Response.Status.FORBIDDEN).entity(renderRegisterDisabled()).build();
         }
 
@@ -310,9 +310,11 @@ public class WebResource {
         if (!email.isBlank() && !email.contains("@")) {
             errors.add("Email must contain an @ symbol.");
         }
-        if (!password.isEmpty() && password.length() > User.MAX_PASSWORD_LENGTH) {
+
+        if (password.length() > User.MAX_PASSWORD_LENGTH) {
             errors.add("Password must be at most " + User.MAX_PASSWORD_LENGTH + " characters.");
         }
+
         if (!password.isEmpty() && !confirmPassword.isEmpty() && !password.equals(confirmPassword)) {
             errors.add("The passwords did not match.");
         }
@@ -349,8 +351,8 @@ public class WebResource {
         return User.count() == 0;
     }
 
-    private boolean registrationAllowed() {
-        return passwordAuthEnabled && (setupRequired() || registrationEnabled);
+    private boolean registrationNotAllowed() {
+        return !passwordAuthEnabled || (!setupRequired() && !registrationEnabled);
     }
 
     // ── Logout ────────────────────────────────────────────────────────────
