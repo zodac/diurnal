@@ -375,5 +375,47 @@
         });
     })();
     </script>
+
+    <script>
+    // ── Browser-locale number grouping ────────────────────────────────────────────
+    // Stats figures (counts, streaks, trends, averages) are rendered as bare digit strings by the
+    // server, which can't know the viewer's locale. This formats every number inside a `.js-num`
+    // element using the *browser's* locale (`toLocaleString()` with no locale arg), so 1000 becomes
+    // "1,000" (en) or "1.000" (de) etc. Only elements explicitly tagged `.js-num` are touched —
+    // never date/label fields (e.g. "Jun 2026"), names or emails — so years are left alone.
+    (function () {
+        function fmt(num, decimals) {
+            return decimals > 0
+                ? num.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+                : num.toLocaleString(undefined);
+        }
+        // Replace each run of digits (optionally with a decimal part) in the element's text. A leading
+        // sign/word stays put, so "+1234" → "+1,234" and "1234 this month" → "1,234 this month".
+        window.Diurnal.formatNumbers = function (root) {
+            root = root || document.body;
+            var els = [];
+            if (root.classList && root.classList.contains('js-num')) { els.push(root); }
+            if (root.querySelectorAll) { Array.prototype.push.apply(els, root.querySelectorAll('.js-num')); }
+            els.forEach(function (el) {
+                if (el.dataset.numDone) { return; }   // idempotent: don't re-group an already-grouped value
+                el.dataset.numDone = '1';
+                var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+                var nodes = [];
+                var node;
+                while ((node = walker.nextNode())) { nodes.push(node); }
+                nodes.forEach(function (textNode) {
+                    textNode.nodeValue = textNode.nodeValue.replace(/\d+(?:\.\d+)?/g, function (match) {
+                        var dot = match.indexOf('.');
+                        return fmt(Number(match), dot === -1 ? 0 : match.length - dot - 1);
+                    });
+                });
+            });
+        };
+        // Initial render (the body is fully parsed above this script), then again for any HTMX-swapped
+        // content (e.g. the stats list paginating in).
+        window.Diurnal.formatNumbers(document.body);
+        document.body.addEventListener('htmx:afterSwap', function (e) { window.Diurnal.formatNumbers(e.target); });
+    })();
+    </script>
 </body>
 </html>

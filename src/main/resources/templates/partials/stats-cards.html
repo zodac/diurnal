@@ -10,28 +10,29 @@
 
         <!-- Streaks & totals -->
         <dl class="grid grid-cols-2 gap-2">
-            {#include partials/stat-tile label='Current streak' value=s.currentStreak sub=s.currentStreakUnit /}
-            {#include partials/stat-tile label='Longest streak' value=s.longestStreak sub=s.longestStreakUnit /}
-            {#include partials/stat-tile label='Biggest gap' value=s.longestGap sub=s.longestGapUnit /}
-            {#include partials/stat-tile label='Total days' value=s.totalDays sub=s.totalDaysUnit /}
-            {#include partials/stat-tile label='Total count' value=s.totalCount sub='all time' /}
-            {#include partials/stat-tile label='Weekly average' value=s.weeklyAverage sub='days / week' /}
+            {#include partials/stat-tile label='Current streak' value=s.currentStreak sub=s.currentStreakUnit subNum=false /}
+            {#include partials/stat-tile label='Longest streak' value=s.longestStreak sub=s.longestStreakUnit subNum=false /}
+            {#include partials/stat-tile label='Biggest gap' value=s.longestGap sub=s.longestGapUnit subNum=false /}
+            {#include partials/stat-tile label='Total days' value=s.totalDays sub=s.totalDaysUnit subNum=false /}
+            {#include partials/stat-tile label='Total count' value=s.totalCount sub='all time' subNum=false /}
+            {#include partials/stat-tile label='Weekly average' value=s.weeklyAverage sub='days / week' subNum=false /}
 
-            <!-- Last performed: smaller value styling than the numeric tiles -->
+            <!-- Last performed: smaller value styling than the numeric tiles. lastLabel is a date
+                 (left ungrouped); sinceLabel carries a day count, so it gets `.js-num`. -->
             <div class="stat-tile">
                 <dt class="help-text mb-1">Last performed</dt>
                 <dd class="text-sm font-semibold text-ink leading-snug mt-0.5">{s.lastLabel}</dd>
-                <dd class="help-text mt-0.5">{s.sinceLabel}</dd>
+                <dd class="js-num help-text mt-0.5">{s.sinceLabel}</dd>
             </div>
         </dl>
 
         <!-- Comparative & high scores -->
         <div class="border-t border-line-subtle pt-3">
             <dl class="grid grid-cols-2 gap-2">
-                {#include partials/stat-tile label='vs last month' value=s.monthTrend sub=s.monthContext valueClass=s.monthTrendClass /}
-                {#include partials/stat-tile label='vs last year' value=s.yearTrend sub=s.yearContext valueClass=s.yearTrendClass /}
-                {#include partials/stat-tile label='Best month' value=s.bestMonthCount sub=s.bestMonthLabel /}
-                {#include partials/stat-tile label='Best year' value=s.bestYearCount sub=s.bestYearLabel /}
+                {#include partials/stat-tile label='vs last month' value=s.monthTrend sub=s.monthContext subNum=true valueClass=s.monthTrendClass /}
+                {#include partials/stat-tile label='vs last year' value=s.yearTrend sub=s.yearContext subNum=true valueClass=s.yearTrendClass /}
+                {#include partials/stat-tile label='Best month' value=s.bestMonthCount sub=s.bestMonthLabel subNum=false /}
+                {#include partials/stat-tile label='Best year' value=s.bestYearCount sub=s.bestYearLabel subNum=false /}
             </dl>
         </div>
 
