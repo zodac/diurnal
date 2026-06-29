@@ -245,8 +245,8 @@
      phones. `flex-1` (with each page's `min-h-viewport flex flex-col` wrapper) is what pins the
      sticky footer to the bottom on short pages — kept here unchanged. The navbar/footer stay
      full-bleed by design. `min-w-0` lets the column shrink below its content's intrinsic min-width
-     (a flex item defaults to `min-width:auto`), so wide children — e.g. the dashboard's FullCalendar
-     table — can't force horizontal overflow past the viewport on mobile. */
+     (a flex item defaults to `min-width:auto`), so wide children — e.g. the dashboard's calendar
+     grid — can't force horizontal overflow past the viewport on mobile. */
   .page-container {
     @apply flex-1 w-full mx-auto min-w-0;
   }

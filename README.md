@@ -15,14 +15,14 @@ Trying to use AI to build this application, with guidance as needed. Expect seve
 | Layer     | Technology                                                              |
 |-----------|-------------------------------------------------------------------------|
 | Backend   | Quarkus 3 (Java 21), RESTEasy Reactive, Hibernate ORM Panache, Flyway   |
-| UI        | Qute (server-side templates), HTMX, FullCalendar.js, Tailwind CSS (CDN) |
+| UI        | Qute (server-side templates), HTMX, Tailwind CSS (CDN)                  |
 | Auth      | Form-based sessions (web UI); JWT Bearer (REST API / future OIDC)       |
 | Database  | PostgreSQL                                                              |
 | Packaging | Single Docker image — everything in one Quarkus JAR                     |
 
 > **Note on templating:** Quarkus uses **Qute** as its native template engine. It is conceptually identical to Thymeleaf (server-side HTML rendering
 > with Java variables), with a slightly different syntax (`{variable}` instead of`th:text`).
-> HTMX handles dynamic partial updates so there is no need for a JavaScript framework. FullCalendar.js is loaded from CDN for the calendar widget.
+> HTMX handles dynamic partial updates so there is no need for a JavaScript framework. The dashboard calendar (all styles) is a small hand-rolled vanilla-JS month grid — no calendar library.
 
 ## Deployment
 
