@@ -6,15 +6,16 @@
     </div>
 
     <div class="flex items-center gap-0.5 flex-shrink-0">
-        <!-- Decrement -->
-        <button {#if count == 0}disabled{/if}
-                hx-post="/logs/{date}/{action.id}/decrement"
+        <!-- Decrement: hidden (not just disabled) at 0, since there is nothing to decrement.
+             `invisible` keeps the cell's width so the count stays put. -->
+        <button hx-post="/logs/{date}/{action.id}/decrement"
                 hx-vals='{"amount": 1}'
                 hx-target="#log-{date}-{action.id}"
                 hx-swap="innerHTML"
                 title="Decrease"
                 class="w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
-                       {#if count == 0}text-ink-muted opacity-40 cursor-not-allowed{#else}text-ink-muted hover:bg-surface-muted hover:text-ink{/if}">
+                       text-ink-muted hover:bg-surface-muted hover:text-ink
+                       {#if count == 0}invisible{/if}">
             −
         </button>
 
@@ -31,15 +32,16 @@
                       hover:border-brand focus:border-brand focus:outline-none
                       {#if count == 0}text-ink-muted{#else}text-ink{/if}">
 
-        <!-- Increment -->
-        <button {#if count >= 999}disabled{/if}
-                hx-post="/logs/{date}/{action.id}/increment"
+        <!-- Increment: hidden (not just disabled) at the 999 cap, since it can go no higher.
+             `invisible` keeps the cell's width so the count stays put. -->
+        <button hx-post="/logs/{date}/{action.id}/increment"
                 hx-vals='{"amount": 1}'
                 hx-target="#log-{date}-{action.id}"
                 hx-swap="innerHTML"
-                title="{#if count >= 999}Maximum reached{#else}Increase{/if}"
+                title="Increase"
                 class="w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
-                       {#if count >= 999}text-ink-muted opacity-40 cursor-not-allowed{#else}text-brand hover:bg-surface-muted{/if}">
+                       text-brand hover:bg-surface-muted
+                       {#if count >= 999}invisible{/if}">
             +
         </button>
 

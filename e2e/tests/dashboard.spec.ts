@@ -124,18 +124,18 @@ test.describe('Dashboard', () => {
         await expect(countEl).toHaveValue('2');
     });
 
-    test('decrement from 1 reaches 0 and disables minus button', async ({authenticatedPage: page}) => {
+    test('decrement from 1 reaches 0 and hides minus button', async ({authenticatedPage: page}) => {
         await page.goto('/');
         await page.locator('#day-panel').getByTitle('Increase').first().click();
         await page.locator('#day-panel').getByTitle('Decrease').first().click();
         const countEl = page.locator('#day-panel [id^="log-"]').first().locator('.tabular-nums');
         await expect(countEl).toHaveValue('0');
-        await expect(page.locator('#day-panel').getByTitle('Decrease').first()).toBeDisabled();
+        await expect(page.locator('#day-panel').getByTitle('Decrease').first()).toBeHidden();
     });
 
-    test('decrement button is disabled when count is 0', async ({authenticatedPage: page}) => {
+    test('decrement button is hidden when count is 0', async ({authenticatedPage: page}) => {
         await page.goto('/');
-        await expect(page.locator('#day-panel').getByTitle('Decrease').first()).toBeDisabled();
+        await expect(page.locator('#day-panel').getByTitle('Decrease').first()).toBeHidden();
     });
 
     test('calendar events refresh after logging an action', async ({authenticatedPage: page}) => {
