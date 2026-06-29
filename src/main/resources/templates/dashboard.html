@@ -466,14 +466,16 @@ document.addEventListener('DOMContentLoaded', function () {
     function pad2(n) { return String(n).padStart(2, '0'); }
 
     // ── Day-panel cache ──────────────────────────────────────────────────────
-    // The /logs/day/<date> partial for each day is fetched once and cached, so re-opening a day by
-    // clicking around the calendar is instant instead of paying the edge round-trip every time (the
-    // public origin sits behind Cloudflare, so each call is a ~250ms+ round-trip). We cache the
-    // PRISTINE default view (page 1, no search filter) — exactly what a fresh load returns — so a
-    // cached swap is indistinguishable from a network one. After the selected day's panel loads, the
-    // rest of its month is warmed in the background, mirroring the month-dot prefetch.
+    // Each /logs/day/<date> partial is cached so re-opening a day by clicking around the calendar is
+    // instant instead of paying the edge round-trip every time (the public origin sits behind Cloudflare,
+    // so each call is a ~250ms+ round-trip). We cache the PRISTINE default view (page 1, no search
+    // filter) — exactly what a fresh load returns — so a cached swap is indistinguishable from a network
+    // one. The selected day is fetched on its own (fast first paint); the REST of its month is then
+    // back-filled by a SINGLE /logs/month/<yyyy-MM> request that returns every day's HTML in one map,
+    // rather than fanning out ~30 concurrent per-day requests (which would exhaust the small JDBC pool).
     var dayPanelCache    = {}; // dateStr -> HTML string (the /logs/day response body)
-    var dayPanelInflight = {}; // dateStr -> Promise, dedupes concurrent fetches
+    var dayPanelInflight = {}; // dateStr -> Promise, dedupes concurrent single-day fetches
+    var monthBackfilled  = {}; // "YYYY-MM" -> true once its whole-month back-fill has been requested
 
     function fetchDayPanel(dateStr) {
         if (dayPanelCache[dateStr] !== undefined) { return Promise.resolve(dayPanelCache[dateStr]); }
@@ -486,18 +488,24 @@ document.addEventListener('DOMContentLoaded', function () {
         return p;
     }
 
-    // Warm every day of dateStr's month in the background, once the browser is idle so it never competes
-    // with the just-issued load for the selected day. fetchDayPanel dedupes (in-flight + cached), so the
-    // selected day and any already-cached days cost nothing, and re-warming a warm month is a no-op.
-    function prefetchMonthDays(dateStr) {
-        var y = parseInt(dateStr.substring(0, 4), 10);
-        var m = parseInt(dateStr.substring(5, 7), 10) - 1; // 0-indexed
+    // Back-fill every other day of dateStr's month from one bulk request, once the browser is idle so it
+    // never competes with the just-issued load for the selected day. Runs at most once per month, and
+    // only fills days NOT already cached — so the selected day (and any day the user has since changed,
+    // whose stale entry was dropped) keeps its fresher copy instead of being clobbered by the snapshot.
+    function backfillMonth(dateStr) {
+        var ym = dateStr.substring(0, 7); // "YYYY-MM"
+        if (monthBackfilled[ym]) { return; }
+        monthBackfilled[ym] = true;
         var schedule = window.requestIdleCallback || function (fn) { return setTimeout(fn, 200); };
         schedule(function () {
-            var lastDay = new Date(y, m + 1, 0).getDate(); // day 0 of next month = last day of this one
-            for (var d = 1; d <= lastDay; d++) {
-                fetchDayPanel(y + '-' + pad2(m + 1) + '-' + pad2(d));
-            }
+            fetch('/logs/month/' + ym)
+                .then(function (r) { return r.json(); })
+                .then(function (panels) {
+                    Object.keys(panels).forEach(function (d) {
+                        if (dayPanelCache[d] === undefined) { dayPanelCache[d] = panels[d]; }
+                    });
+                })
+                .catch(function () { delete monthBackfilled[ym]; }); // let a later navigation retry
         });
     }
 
@@ -524,7 +532,7 @@ document.addEventListener('DOMContentLoaded', function () {
             // cleared the selection, in which case that action already won).
             if (selectedDate === dateStr) { swapDayPanel(html); }
         });
-        prefetchMonthDays(dateStr); // warm the rest of the month in the background
+        backfillMonth(dateStr); // back-fill the rest of the month from one bulk request
     }
 
     // Select a specific day: paint its highlight, switch month if it belongs to an adjacent one, load panel.
@@ -749,18 +757,83 @@ document.addEventListener('DOMContentLoaded', function () {
             return p;
         }
 
+        // Warm SEVERAL months in ONE request instead of a fetch per month. The feeds are range queries
+        // (start/end can span any number of months), so the ±PREFETCH_RADIUS window is a single contiguous
+        // round-trip rather than 4 — fewer connections, no per-month edge-latency tax, and it stays off the
+        // JDBC pool's back the way the day-panel back-fill does. The one response is split back out per
+        // month so the per-month cache, LRU and eviction below all behave exactly as the single-month path:
+        //   • skip months already resolved/in-flight (deduped via monthPromises);
+        //   • fetch the contiguous span covering the rest, but merge ONLY those months — an already-cached
+        //     month sitting inside the span (e.g. the visible month, between its neighbours) is ignored, so
+        //     the `full` feed never double-appends its events;
+        //   • share the one promise across the pending months so a concurrent fetchMonth() dedups against it.
+        function fetchMonthsSpan(months) {
+            var pending = months.filter(function (ym) { return !monthPromises[monthKey(ym[0], ym[1])]; });
+            if (pending.length === 0) { return; }
+
+            var ordered = pending.slice().sort(function (a, b) { return (a[0] - b[0]) || (a[1] - b[1]); });
+            var first = ordered[0], last = ordered[ordered.length - 1];
+            var start = first[0] + '-' + pad2(first[1] + 1) + '-01';
+            var after = stepMonth(last[0], last[1], 1);
+            var end   = after[0] + '-' + pad2(after[1] + 1) + '-01';
+
+            var pendingKeys = {};
+            pending.forEach(function (ym) { pendingKeys[monthKey(ym[0], ym[1])] = true; });
+
+            var endpoint = (calendarView === 'full') ? '/logs/events' : '/logs/minimal-events';
+            var p = fetch(endpoint + '?start=' + start + '&end=' + end)
+                .then(function (r) { return r.json(); })
+                .then(function (data) {
+                    if (calendarView === 'full') {
+                        var touched = {};
+                        data.forEach(function (ev) {
+                            if (!pendingKeys[ev.start.substring(0, 7)]) { return; } // skip non-pending months in the span
+                            (dayData[ev.start] = dayData[ev.start] || []).push({ colour: ev.backgroundColor, label: ev.title });
+                            touched[ev.start] = true;
+                        });
+                        Object.keys(touched).forEach(function (d) {
+                            dayData[d].sort(function (a, b) { return a.label.localeCompare(b.label); });
+                        });
+                    } else {
+                        data.forEach(function (day) {
+                            if (!pendingKeys[day.date.substring(0, 7)]) { return; }
+                            dayData[day.date] = day.actions.map(function (a) { return { colour: a.colour, label: a.name }; });
+                        });
+                    }
+                    pending.forEach(function (ym) { monthLoaded[monthKey(ym[0], ym[1])] = true; });
+                    evictIfNeeded();
+                    return data;
+                })
+                .catch(function (err) {                            // drop each so a later view retries
+                    pending.forEach(function (ym) {
+                        var key = monthKey(ym[0], ym[1]);
+                        delete monthPromises[key];
+                        var i = lru.indexOf(key);
+                        if (i !== -1) { lru.splice(i, 1); }
+                    });
+                    throw err;
+                });
+
+            pending.forEach(function (ym) {
+                var key = monthKey(ym[0], ym[1]);
+                touch(key);                                        // mirror fetchMonth's per-month LRU touch
+                monthPromises[key] = p;                            // share the one promise for dedup
+            });
+            return p;
+        }
+
         // Warm the surrounding months once the browser is idle, so the next prev/next click reads from
         // cache. Deferred via requestIdleCallback so it never competes with the initial calendar paint,
-        // the day-panel load or the stats summary.
+        // the day-panel load or the stats summary. The whole ±PREFETCH_RADIUS window is one request.
         function prefetchNeighbours() {
             var schedule = window.requestIdleCallback || function (fn) { return setTimeout(fn, 200); };
             schedule(function () {
+                var months = [];
                 for (var d = 1; d <= PREFETCH_RADIUS; d++) {
-                    var prev = stepMonth(viewYear, viewMonth, -d);
-                    var next = stepMonth(viewYear, viewMonth,  d);
-                    fetchMonth(prev[0], prev[1]);
-                    fetchMonth(next[0], next[1]);
+                    months.push(stepMonth(viewYear, viewMonth, -d));
+                    months.push(stepMonth(viewYear, viewMonth,  d));
                 }
+                fetchMonthsSpan(months);
             });
         }
 
@@ -1002,8 +1075,8 @@ document.addEventListener('DOMContentLoaded', function () {
         if (verb && verb !== 'get' && e.target && e.target.closest && e.target.closest('#day-panel')) {
             cal.refresh();
             // The live panel was updated inline by the mutation, but the cached snapshot for this day is
-            // now stale. Drop it so a later revisit re-fetches the fresh counts; prefetchMonthDays will
-            // re-warm it on the next navigation into this month.
+            // now stale. Drop it so the next revisit re-fetches the fresh counts via the single-day fetch
+            // (the once-per-month back-fill won't re-run, and skips already-cached days anyway).
             if (selectedDate) { delete dayPanelCache[selectedDate]; }
         }
     });

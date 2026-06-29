@@ -36,12 +36,16 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeParseException;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.time.AppClock;
@@ -110,6 +114,58 @@ public class LogWebResource {
         return dayActionsListTemplate.data("date", date, "page", page);
     }
 
+    /**
+     * Renders every day of a month in ONE response: a JSON map of ISO date → day-panel HTML.
+     *
+     * <p>The dashboard loads the selected day on its own, then calls this once to back-fill the rest of
+     * the month into its client-side cache, so flicking between days is instant. Doing it as a single
+     * request with one range query avoids a per-day fan-out — a burst of ~30 concurrent requests that
+     * could exhaust the small JDBC pool — by fetching the action list and the whole month's counts once
+     * and paging each day from memory.
+     *
+     * @param month the month to render, as {@code yyyy-MM}
+     * @return {@code 200} with a JSON object mapping each {@code yyyy-MM-dd} to its day-panel HTML, or
+     *         {@code 400} when {@code month} is not a valid {@code yyyy-MM}
+     */
+    @GET
+    @Path("/month/{month}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @Transactional
+    public Response monthPanels(@PathParam("month") final String month) {
+        final YearMonth yearMonth;
+        try {
+            yearMonth = YearMonth.parse(month);
+        } catch (final DateTimeParseException e) {
+            return Response.status(Response.Status.BAD_REQUEST).build();
+        }
+
+        final User user = currentUser();
+        final LocalDate start = yearMonth.atDay(1);
+        final LocalDate end = yearMonth.atEndOfMonth();
+
+        // Fetch the action list and the month's logs ONCE, then page each day from memory.
+        final List<Action> all = Action.findActiveByUser(user.id);
+        final Map<LocalDate, Map<UUID, Integer>> countsByDate = ActionLog.findByUserAndRange(user.id, start, end)
+                .stream()
+                .collect(Collectors.groupingBy(
+                        log -> log.logDate,
+                        Collectors.toMap(log -> log.actionId, log -> log.count)));
+
+        final Map<String, String> panels = new LinkedHashMap<>();
+        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+            final boolean future = isFuture(date, user);
+            final var page = future ? null : paginate(all, countsByDate.getOrDefault(date, Map.of()), 1, "", user.pageSize);
+            panels.put(date.toString(), dayPanelTemplate
+                    .data("date", date)
+                    .data("dateLabel", date.format(DAY_LABEL))
+                    .data("theme", user.theme)
+                    .data("future", future)
+                    .data("page", page)
+                    .render());
+        }
+        return Response.ok(panels).build();
+    }
+
     // fillerRows: blank rows that keep every paginated page the height of a full page.
     // Only populated when there is more than one page; a single short page keeps its natural height.
     private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages,
@@ -117,9 +173,14 @@ public class LogWebResource {
     }
 
     private PaginatedDayActions getActions(final UUID userId, final LocalDate date, final int pageNum, final String searchTerm, final int pageSize) {
-        final List<Action> all = Action.findActiveByUser(userId);
-        final Map<UUID, Integer> counts = ActionLog.countsByAction(userId, date);
+        return paginate(Action.findActiveByUser(userId), ActionLog.countsByAction(userId, date), pageNum, searchTerm, pageSize);
+    }
 
+    // Pages a day's actions purely in memory, given a pre-fetched action list and that day's counts.
+    // Shared by the single-day fetch (which queries both per call) and the whole-month back-fill (which
+    // queries the list and the month's counts ONCE, then pages every day from these without more queries).
+    private static PaginatedDayActions paginate(final List<Action> all, final Map<UUID, Integer> counts,
+                                                final int pageNum, final String searchTerm, final int pageSize) {
         final var filtered = all.stream()
                 .filter(a -> searchTerm == null || searchTerm.isBlank()
                         || a.name.toLowerCase(Locale.ROOT).contains(searchTerm.toLowerCase(Locale.ROOT)))

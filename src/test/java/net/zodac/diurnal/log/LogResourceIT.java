@@ -21,6 +21,8 @@ import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -468,6 +470,46 @@ class LogResourceIT extends IntegrationTestBase {
         given().get("/logs/day/" + TOMORROW)
                 .then().statusCode(200)
                 .body(anyOf(containsString("future"), containsString("cannot")));
+    }
+
+    // ── Month back-fill (bulk day panels) ──────────────────────────────────────
+
+    @Test
+    void monthPanels_returnsAPanelForEveryDayOfMonth() {
+        // FIXED_TODAY is in June 2026 (30 days); the map must hold one entry per day, keyed by ISO date.
+        given().get("/logs/month/2026-06")
+                .then().statusCode(200)
+                .body("size()", is(30))
+                .body("$", hasKey("2026-06-01"))
+                .body("$", hasKey("2026-06-30"));
+    }
+
+    @Test
+    void monthPanels_rendersLoggedCountForEachDay() {
+        // A logged past day carries the action + its count; an unlogged past day shows the action at 0.
+        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY.withDayOfMonth(10), 42));
+        given().get("/logs/month/2026-06")
+                .then().statusCode(200)
+                .body("'2026-06-10'", containsString("PrimaryAction"))
+                .body("'2026-06-10'", containsString("42"))
+                .body("'2026-06-11'", containsString("PrimaryAction"))
+                .body("'2026-06-11'", not(containsString("42")));
+    }
+
+    @Test
+    void monthPanels_futureDaysShowFuturePlaceholderNotTheActionList() {
+        // FIXED_TODAY = 2026-06-15: the 10th is loggable (action list), the 20th is a future placeholder.
+        given().get("/logs/month/2026-06")
+                .then().statusCode(200)
+                .body("'2026-06-10'", containsString("PrimaryAction"))
+                .body("'2026-06-20'", not(containsString("PrimaryAction")))
+                .body("'2026-06-20'", anyOf(containsString("future"), containsString("cannot")));
+    }
+
+    @Test
+    void monthPanels_invalidMonth_returns400() {
+        given().get("/logs/month/not-a-month")
+                .then().statusCode(400);
     }
 
     // ── Day list pagination ────────────────────────────────────────────────────
