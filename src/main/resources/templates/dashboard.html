@@ -653,16 +653,25 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
-        function fetchMonth(y, m) {
+        // `force` re-fetches a month even if it's already cached (used by refresh() after a log change).
+        // A forced fetch is AUTHORITATIVE for the month: when its data lands it drops the month's old day
+        // entries before merging the fresh set, so a day whose last action was removed loses its dot.
+        // Crucially it does NOT clear `dayData` up front — the existing dots stay painted until the new
+        // data is ready, so the caller can repaint once with no empty-then-filled flash.
+        function fetchMonth(y, m, force) {
             var key = monthKey(y, m);
             touch(key);                                            // record access (also on cache hits)
-            if (monthPromises[key]) { return monthPromises[key]; } // already in-flight or resolved
+            if (monthPromises[key] && !force) { return monthPromises[key]; } // already in-flight or resolved
             var start = y + '-' + pad2(m + 1) + '-01';
             var nx  = stepMonth(y, m, 1);
             var end = nx[0] + '-' + pad2(nx[1] + 1) + '-01';
             var p = fetch('/logs/minimal-events?start=' + start + '&end=' + end)
                 .then(function (r) { return r.json(); })
                 .then(function (data) {
+                    if (force) {                                   // authoritative refresh: clear then merge
+                        var prefix = key + '-';
+                        Object.keys(dayData).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete dayData[d]; } });
+                    }
                     data.forEach(function (day) { dayData[day.date] = day.actions; });
                     monthLoaded[key] = true;
                     evictIfNeeded();                               // trim once this month is actually resident
@@ -676,12 +685,6 @@ document.addEventListener('DOMContentLoaded', function () {
                 });
             monthPromises[key] = p;
             return p;
-        }
-
-        // Drop a month from the cache (e.g. after its dots change via a log toggle) so it re-fetches.
-        // Clears its day entries too, so days whose last action was removed don't keep a stale dot.
-        function invalidateMonth(y, m) {
-            dropMonth(monthKey(y, m)); // keep its LRU slot; the imminent refetch refreshes it
         }
 
         // Warm the surrounding months once the browser is idle, so the next prev/next click reads from
@@ -808,7 +811,15 @@ document.addEventListener('DOMContentLoaded', function () {
             currentView:  function () { return { year: viewYear, month: viewMonth }; },
             goToMonth:    function (y, m) { viewYear = y; viewMonth = m; fetchAndRender(); },
             setHighlight: function (dateStr) { selectedDate = dateStr; renderGrid(); },
-            refresh:      function () { invalidateMonth(viewYear, viewMonth); fetchAndRender(); }
+            // Re-fetch the visible month in the BACKGROUND, leaving the current dots/bars on screen, then
+            // repaint exactly once when the fresh data lands — so a log change swaps the dots in smoothly
+            // instead of blanking them for the duration of the (edge-latency) refetch.
+            refresh:      function () {
+                var key = monthKey(viewYear, viewMonth);
+                fetchMonth(viewYear, viewMonth, true).then(function () {
+                    if (monthKey(viewYear, viewMonth) === key) { renderGrid(); } // skip if navigated away mid-fetch
+                });
+            }
         };
     } // end buildGridCalendar
 
@@ -885,9 +896,14 @@ document.addEventListener('DOMContentLoaded', function () {
     });
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closePop(); });
 
-    // Refresh the active calendar's dots/events after every log toggle inside the day panel.
+    // Refresh the active calendar's dots/events after a log MUTATION inside the day panel. Only the
+    // increment/decrement/set/delete endpoints (all POSTs) change a day's logged actions; the panel's
+    // own GETs — the day-panel load, the Erase confirmation prompt, the Cancel that restores the row —
+    // leave the logs untouched. Refreshing on those would needlessly re-fetch and repaint every dot,
+    // which reads as a flash of all logged actions across the calendar. So gate on a non-GET verb.
     document.body.addEventListener('htmx:afterRequest', function (e) {
-        if (e.target && e.target.closest && e.target.closest('#day-panel')) {
+        var verb = e.detail && e.detail.requestConfig && e.detail.requestConfig.verb;
+        if (verb && verb !== 'get' && e.target && e.target.closest && e.target.closest('#day-panel')) {
             cal.refresh();
         }
     });
