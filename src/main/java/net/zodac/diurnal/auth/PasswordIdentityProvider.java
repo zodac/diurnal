@@ -31,10 +31,10 @@ import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Locale;
+import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.mindrot.jbcrypt.BCrypt;
 
 /**
@@ -45,8 +45,8 @@ public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswo
 
     private static final Logger LOGGER = LogManager.getLogger(PasswordIdentityProvider.class);
 
-    @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
-    boolean passwordAuthEnabled;
+    @Inject
+    PasswordAuthConfig passwordAuthConfig;
 
     // Self-injection gives us the CDI proxy, so @Transactional on verifyCredentials is honoured.
     @Inject
@@ -67,7 +67,7 @@ public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswo
         final String password = new String(raw);
         Arrays.fill(raw, '\0');
 
-        if (!passwordAuthEnabled) {
+        if (!passwordAuthConfig.enabled()) {
             return Uni.createFrom().failure(new AuthenticationFailedException("Password authentication is disabled."));
         }
 

@@ -45,6 +45,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import net.zodac.diurnal.auth.RoleAssigner;
+import net.zodac.diurnal.config.OidcConfig;
+import net.zodac.diurnal.config.PasswordAuthConfig;
+import net.zodac.diurnal.config.RegistrationConfig;
 import net.zodac.diurnal.stats.StatsService;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
@@ -83,23 +86,17 @@ public class WebResource {
     @Inject RoleAssigner roleAssigner;
     @Inject AppClock clock;
 
-    @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
-    boolean passwordAuthEnabled;
-
-    @ConfigProperty(name = "registration.enabled", defaultValue = "true")
-    boolean registrationEnabled;
-
     @ConfigProperty(name = "quarkus.oidc.tenant-enabled", defaultValue = "false")
     boolean oidcEnabled;
 
-    @ConfigProperty(name = "oidc.provider.name", defaultValue = "your identity provider")
-    String oidcProviderName = "your identity provider";
+    @Inject
+    OidcConfig oidcConfig;
 
-    @ConfigProperty(name = "oidc.auto.redirect", defaultValue = "false")
-    boolean oidcAutoRedirect;
+    @Inject
+    PasswordAuthConfig passwordAuthConfig;
 
-    @ConfigProperty(name = "oidc.logout.url")
-    Optional<String> oidcLogoutUrl = Optional.empty();
+    @Inject
+    RegistrationConfig registrationConfig;
 
     // ── Login ──────────────────────────────────────────────────────────────
 
@@ -118,12 +115,12 @@ public class WebResource {
         // must be local. During set up the initial account can always be created (ENABLE_REGISTRATION
         // is ignored until a user exists), so this is gated only on password auth being enabled; a
         // pure-OIDC deployment (no local auth) falls through to the normal login/OIDC flow.
-        if (setupRequired() && passwordAuthEnabled) {
+        if (setupRequired() && passwordAuthConfig.enabled()) {
             return Response.seeOther(URI.create("/welcome")).build();
         }
         // Auto-redirect to OIDC flow when configured, but not when there is an error or
         // success message to show (e.g. after registration or a failed OIDC attempt).
-        if (oidcEnabled && oidcAutoRedirect && error == null && !registered) {
+        if (oidcEnabled && oidcConfig.autoRedirect() && error == null && !registered) {
             return Response.seeOther(URI.create("/oidc-login")).build();
         }
         // error is null when absent, "" when present with no value (?error), or a string value.
@@ -142,10 +139,10 @@ public class WebResource {
                 .data("error", showError, "registered", registered, "theme", "system")
                 .data("font", "nova")
                 .data("oidcError", showOidcError)
-                .data("passwordAuthEnabled", passwordAuthEnabled)
-                .data("registrationEnabled", passwordAuthEnabled && registrationEnabled)
+                .data("passwordAuthEnabled", passwordAuthConfig.enabled())
+                .data("registrationEnabled", passwordAuthConfig.enabled() && registrationConfig.enabled())
                 .data("oidcEnabled", oidcEnabled)
-                .data("oidcProviderName", oidcProviderName))
+                .data("oidcProviderName", oidcConfig.providerName()))
                 .type(MediaType.TEXT_HTML_TYPE);
         if (showOidcError) {
             // Clear the stale OIDC session cookie so the next "Log in with Authelia" click
@@ -206,7 +203,7 @@ public class WebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response welcomePage() {
-        if (!setupRequired() || !passwordAuthEnabled) {
+        if (!setupRequired() || !passwordAuthConfig.enabled()) {
             return Response.seeOther(URI.create("/login")).build();
         }
         return Response.ok(setupTemplate.data("theme", "system").data("font", "nova")).build();
@@ -225,7 +222,7 @@ public class WebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response registerPage() {
-        if (!passwordAuthEnabled) {
+        if (!passwordAuthConfig.enabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         if (registrationNotAllowed()) {
@@ -248,7 +245,7 @@ public class WebResource {
             @FormParam("password")        final String password,
             @FormParam("confirmPassword") final String confirmPassword) {
 
-        if (!passwordAuthEnabled) {
+        if (!passwordAuthConfig.enabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         if (registrationNotAllowed()) {
@@ -352,7 +349,7 @@ public class WebResource {
     }
 
     private boolean registrationNotAllowed() {
-        return !passwordAuthEnabled || (!setupRequired() && !registrationEnabled);
+        return !passwordAuthConfig.enabled() || (!setupRequired() && !registrationConfig.enabled());
     }
 
     // ── Logout ────────────────────────────────────────────────────────────
@@ -370,7 +367,7 @@ public class WebResource {
         // We send id_token_hint so Authelia can identify and properly terminate the IdP session.
         // Without it, Authelia accepts the end_session request but does nothing.
         final boolean hasOidcSession = oidcSession != null && !oidcSession.isBlank();
-        final URI target = (hasOidcSession ? oidcLogoutUrl.filter(url -> !url.isBlank()) : Optional.<String>empty())
+        final URI target = (hasOidcSession ? oidcConfig.logoutUrl().filter(url -> !url.isBlank()) : Optional.<String>empty())
                 .map(URI::create)
                 .orElse(URI.create("/login"));
         LOGGER.debug("Logout: redirecting to {}", target);

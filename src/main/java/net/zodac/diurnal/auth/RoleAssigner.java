@@ -18,10 +18,11 @@
 package net.zodac.diurnal.auth;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Optional;
+import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.user.User;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -31,11 +32,8 @@ import org.jspecify.annotations.Nullable;
 @ApplicationScoped
 public class RoleAssigner {
 
-    @ConfigProperty(name = "oidc.admin.group")
-    Optional<String> oidcAdminGroup = Optional.empty();
-
-    @ConfigProperty(name = "oidc.user.group")
-    Optional<String> oidcUserGroup = Optional.empty();
+    @Inject
+    OidcConfig oidcConfig;
 
     /**
      * Determines the role for a brand-new user created by password registration.
@@ -51,8 +49,10 @@ public class RoleAssigner {
      * is the gate for access. A user not in any configured group should be denied.
      */
     public boolean isGroupCheckEnabled() {
-        return (oidcAdminGroup.isPresent() && !oidcAdminGroup.get().isBlank())
-            || (oidcUserGroup.isPresent() && !oidcUserGroup.get().isBlank());
+        final Optional<String> adminGroup = oidcConfig.adminGroup();
+        final Optional<String> userGroup = oidcConfig.userGroup();
+        return (adminGroup.isPresent() && !adminGroup.get().isBlank())
+            || (userGroup.isPresent() && !userGroup.get().isBlank());
     }
 
     /**
@@ -64,12 +64,14 @@ public class RoleAssigner {
         if (groups == null || groups.isEmpty()) {
             return Optional.empty();
         }
-        if (oidcAdminGroup.isPresent() && !oidcAdminGroup.get().isBlank()
-                && groups.contains(oidcAdminGroup.get())) {
+        final Optional<String> adminGroup = oidcConfig.adminGroup();
+        final Optional<String> userGroup = oidcConfig.userGroup();
+        if (adminGroup.isPresent() && !adminGroup.get().isBlank()
+                && groups.contains(adminGroup.get())) {
             return Optional.of(User.ROLE_ADMIN);
         }
-        if (oidcUserGroup.isPresent() && !oidcUserGroup.get().isBlank()
-                && groups.contains(oidcUserGroup.get())) {
+        if (userGroup.isPresent() && !userGroup.get().isBlank()
+                && groups.contains(userGroup.get())) {
             return Optional.of(User.ROLE_USER);
         }
         return Optional.empty();

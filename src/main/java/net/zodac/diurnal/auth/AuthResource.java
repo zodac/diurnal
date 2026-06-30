@@ -27,10 +27,11 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.Locale;
+import net.zodac.diurnal.config.PasswordAuthConfig;
+import net.zodac.diurnal.config.RegistrationConfig;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -56,11 +57,11 @@ public class AuthResource {
     @Inject
     RoleAssigner roleAssigner;
 
-    @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
-    boolean passwordAuthEnabled;
+    @Inject
+    PasswordAuthConfig passwordAuthConfig;
 
-    @ConfigProperty(name = "registration.enabled", defaultValue = "true")
-    boolean registrationEnabled;
+    @Inject
+    RegistrationConfig registrationConfig;
 
     /**
      * Registers a new password-based user, returning {@code 201} with a JWT, or {@code 409} if the email exists.
@@ -76,7 +77,7 @@ public class AuthResource {
             description = "Creates an account and returns a Bearer JWT for it. The first account ever created becomes an administrator."
     )
     public Response register(@Valid final RegisterRequest request) {
-        if (!passwordAuthEnabled) {
+        if (!passwordAuthConfig.enabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
@@ -145,7 +146,7 @@ public class AuthResource {
     }
 
     private boolean registrationAllowed() {
-        return User.count() == 0 || registrationEnabled;
+        return User.count() == 0 || registrationConfig.enabled();
     }
 
     /**

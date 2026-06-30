@@ -19,12 +19,13 @@ package net.zodac.diurnal.time;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import java.time.Clock;
 import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
+import net.zodac.diurnal.config.AppConfig;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -45,8 +46,8 @@ import org.jspecify.annotations.Nullable;
 @ApplicationScoped
 public class AppClock {
 
-    @ConfigProperty(name = "app.timezone", defaultValue = "UTC")
-    String timezoneId = "UTC";
+    @Inject
+    AppConfig appConfig;
 
     private Clock clock;
 
@@ -55,7 +56,7 @@ public class AppClock {
      */
     @PostConstruct
     void init() {
-        clock = Clock.system(ZoneId.of(timezoneId));
+        clock = Clock.system(ZoneId.of(appConfig.timezone()));
     }
 
     /**
@@ -116,6 +117,6 @@ public class AppClock {
      * Restore the real system clock in the configured zone (test-only).
      */
     public void useSystemClock() {
-        this.clock = Clock.system(ZoneId.of(timezoneId));
+        this.clock = Clock.system(ZoneId.of(appConfig.timezone()));
     }
 }

@@ -18,7 +18,9 @@
 package net.zodac.diurnal.web;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.inject.Named;
+import net.zodac.diurnal.config.AppConfig;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 /**
@@ -43,28 +45,10 @@ public class AppInfo {
     String version = "dev";
 
     /**
-     * Base URL of the public source repository (configurable via {@code app.repository.url}).
+     * Application-specific {@code app.*} settings (repository URL, build timestamp, stylesheet name).
      */
-    @ConfigProperty(name = "app.repository.url", defaultValue = "https://github.com/zodac-personal/diurnal")
-    String repositoryUrl = "https://github.com/zodac-personal/diurnal";
-
-    /**
-     * Maven's build timestamp (ISO-8601, UTC, e.g. {@code 2026-06-22T06:07:35Z}), filtered in at
-     * package time via {@code META-INF/microprofile-config.properties}. Only its leading year is
-     * shown (see {@link #getBuildYear()}); the default is used for an un-packaged dev run.
-     */
-    @ConfigProperty(name = "app.build.timestamp", defaultValue = "")
-    String buildTimestamp = "";
-
-    /**
-     * Filename of the compiled stylesheet served under {@code /css/}. Content-hashed at image-build
-     * time (e.g. {@code app.9f3a1c2b4d5e.css}) by the Dockerfile so each deployment serves a brand-new
-     * URL — the immutable long-cache header then can't hand back a stale stylesheet through a reverse
-     * proxy/CDN. Defaults to the un-hashed {@code app.css} for an un-packaged dev run (where assets are
-     * served {@code no-store}; see {@code application-dev.properties}).
-     */
-    @ConfigProperty(name = "app.assets.css-file", defaultValue = "app.css")
-    String cssFile = "app.css";
+    @Inject
+    AppConfig appConfig;
 
     /**
      * The running application version (e.g. {@code 0.0.1-SNAPSHOT}), shown in the footer.
@@ -82,17 +66,18 @@ public class AppInfo {
      * @return the repository base URL, without a trailing slash
      */
     public String getRepositoryUrl() {
-        return repositoryUrl;
+        return appConfig.repositoryUrl();
     }
 
     /**
      * The year the running artifact was built (e.g. {@code 2026}), shown in the footer. Taken as the
-     * leading four digits of {@link #buildTimestamp}; falls back to {@link #FALLBACK_YEAR} when the
+     * leading four digits of {@link AppConfig#buildTimestamp()}; falls back to {@link #FALLBACK_YEAR} when the
      * timestamp is absent or malformed (an un-packaged dev run, where filtering hasn't substituted it).
      *
      * @return the four-digit build year
      */
     public String getBuildYear() {
+        final String buildTimestamp = appConfig.buildTimestamp();
         if (buildTimestamp.length() >= YEAR_LENGTH) {
             final String year = buildTimestamp.substring(0, YEAR_LENGTH);
             if (year.chars().allMatch(Character::isDigit)) {
@@ -110,6 +95,6 @@ public class AppInfo {
      * @return the stylesheet filename served under {@code /css/}
      */
     public String getCssFile() {
-        return cssFile;
+        return appConfig.cssFile();
     }
 }
