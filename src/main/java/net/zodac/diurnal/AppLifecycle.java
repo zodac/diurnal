@@ -20,6 +20,9 @@ package net.zodac.diurnal;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
+import jakarta.inject.Inject;
+import net.zodac.diurnal.config.OidcConfig;
+import net.zodac.diurnal.config.PasswordAuthConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
@@ -32,8 +35,8 @@ public class AppLifecycle {
 
     private static final Logger LOGGER = LogManager.getLogger(AppLifecycle.class);
 
-    @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
-    boolean passwordAuthEnabled;
+    @Inject
+    PasswordAuthConfig passwordAuthConfig;
 
     @ConfigProperty(name = "quarkus.oidc.tenant-enabled", defaultValue = "false")
     boolean oidcEnabled;
@@ -41,18 +44,15 @@ public class AppLifecycle {
     @ConfigProperty(name = "quarkus.oidc.auth-server-url", defaultValue = "")
     String oidcIssuerUrl = "";
 
-    @ConfigProperty(name = "oidc.provider.name", defaultValue = "your identity provider")
-    String oidcProviderName = "your identity provider";
-
-    @ConfigProperty(name = "oidc.auto.redirect", defaultValue = "false")
-    boolean oidcAutoRedirect;
+    @Inject
+    OidcConfig oidcConfig;
 
     /**
      * Fails fast if no auth method is enabled, or if OIDC is on without an issuer URL.
      */
     @SuppressWarnings("unused") // CDI startup observer — invoked by Quarkus, not called directly
     void onStart(@Observes StartupEvent ev) {
-        if (!passwordAuthEnabled && !oidcEnabled) {
+        if (!passwordAuthConfig.enabled() && !oidcEnabled) {
             throw new IllegalStateException(
                 "Both PASSWORD_AUTH_ENABLED and OIDC_ENABLED are false — "
                 + "at least one authentication method must be enabled.");
@@ -65,13 +65,13 @@ public class AppLifecycle {
 
         LOGGER.info("=================================================");
         LOGGER.info("  Diurnal started");
-        LOGGER.info("  Password auth : {}", passwordAuthEnabled ? "enabled" : "disabled");
+        LOGGER.info("  Password auth : {}", passwordAuthConfig.enabled() ? "enabled" : "disabled");
         if (oidcEnabled) {
             LOGGER.info("  OIDC          : enabled  (issuer: {}, provider: {}, auto-redirect: {})",
-                    oidcIssuerUrl, oidcProviderName, oidcAutoRedirect);
+                    oidcIssuerUrl, oidcConfig.providerName(), oidcConfig.autoRedirect());
         } else {
             LOGGER.info("  OIDC          : disabled");
-            if (oidcAutoRedirect) {
+            if (oidcConfig.autoRedirect()) {
                 LOGGER.warn("  OIDC_AUTO_REDIRECT=true has no effect because OIDC_ENABLED=false");
             }
         }

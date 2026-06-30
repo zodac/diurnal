@@ -24,7 +24,7 @@ import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import java.util.Arrays;
 import java.util.stream.Collectors;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
+import net.zodac.diurnal.config.CsrfConfig;
 
 /**
  * Adds a {@code Content-Security-Policy} header to every HTTP response.
@@ -43,18 +43,18 @@ public class SecurityHeadersFilter {
     @Inject
     Router router;
 
-    @ConfigProperty(name = "csrf.trusted.origins", defaultValue = "")
-    String csrfTrustedOrigins = "";
+    @Inject
+    CsrfConfig csrfConfig;
 
     /**
      * Registers a top-priority Vert.x route that adds the {@code Content-Security-Policy} header
-     * (built from {@link #csrfTrustedOrigins}) to every HTTP response.
+     * (built from {@link CsrfConfig#trustedOrigins()}) to every HTTP response.
      *
      * @param ev the application startup event that triggers route registration
      */
     @SuppressWarnings("unused") // CDI startup observer — invoked by Quarkus, not called directly
     void onStart(@Observes final StartupEvent ev) {
-        final String csp = buildFrameAncestorsCsp(csrfTrustedOrigins);
+        final String csp = buildFrameAncestorsCsp(csrfConfig.trustedOrigins());
         router.route().order(Integer.MIN_VALUE).handler(ctx -> {
             ctx.response().putHeader("Content-Security-Policy", csp);
             ctx.next();

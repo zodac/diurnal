@@ -33,10 +33,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
+import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -63,8 +63,8 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
     @Inject
     RoleAssigner roleAssigner;
 
-    @ConfigProperty(name = "password.auth.enabled", defaultValue = "true")
-    boolean passwordAuthEnabled;
+    @Inject
+    PasswordAuthConfig passwordAuthConfig;
 
     @Override
     public Uni<SecurityIdentity> augment(final SecurityIdentity identity, final AuthenticationRequestContext context) {
@@ -86,7 +86,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         // the setup flow always permits creating the initial account (ENABLE_REGISTRATION is ignored
         // during setup), so this is gated only on password auth. A pure-OIDC deployment (no local
         // auth) has no other way to bootstrap, so it is allowed to create its first user via the IdP.
-        if (User.count() == 0 && passwordAuthEnabled) {
+        if (User.count() == 0 && passwordAuthConfig.enabled()) {
             LOGGER.warn("Refusing to provision the first user via OIDC — the initial account must be created locally");
             throw new AuthenticationFailedException(
                 "The first account must be created locally before signing in with an identity provider.");

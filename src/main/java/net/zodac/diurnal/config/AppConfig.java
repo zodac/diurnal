@@ -1,0 +1,68 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+package net.zodac.diurnal.config;
+
+import io.smallrye.config.ConfigMapping;
+import io.smallrye.config.WithDefault;
+import io.smallrye.config.WithName;
+
+/**
+ * Typed view over the application's own {@code app.*} settings — general metadata and runtime
+ * behaviour that is specific to Diurnal rather than to any Quarkus extension.
+ */
+@ConfigMapping(prefix = "app")
+public interface AppConfig {
+
+    /**
+     * Base URL of the public source repository, linked from the page footer.
+     *
+     * @return the repository URL
+     */
+    @WithName("repository.url")
+    @WithDefault("https://github.com/zodac-personal/diurnal")
+    String repositoryUrl();
+
+    /**
+     * IANA timezone used for all "today" calculations (streaks, since-labels, comparisons). Must
+     * match {@code TZ} in {@code docker-compose.yml}.
+     *
+     * @return the configured timezone ID, defaulting to {@code UTC}
+     */
+    @WithDefault("UTC")
+    String timezone();
+
+    /**
+     * Maven's build timestamp (ISO-8601, UTC), filtered in at package time. Empty for an un-packaged
+     * dev run.
+     *
+     * @return the build timestamp, or empty when not packaged
+     */
+    @WithName("build.timestamp")
+    @WithDefault("")
+    String buildTimestamp();
+
+    /**
+     * Filename of the compiled stylesheet served under {@code /css/}. Content-hashed at image-build
+     * time so each deployment serves a fresh URL; defaults to the un-hashed {@code app.css} in dev.
+     *
+     * @return the served stylesheet filename
+     */
+    @WithName("assets.css-file")
+    @WithDefault("app.css")
+    String cssFile();
+}
