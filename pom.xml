@@ -314,18 +314,26 @@
                                      deferred to the verify phase (so post-IT teardown still runs)
               post-integration-test – docker compose down (test DB)
               verify               – failsafe GATE: the build fails here if any *IT failed
-              install              – e2e ('e2e-run'): runs ONLY because the build passed the verify
-                                     gate, i.e. the ITs are confirmed green first. The script is fully
-                                     self-contained (brings up its own test DB, starts the jar on 8081,
-                                     runs Playwright, tears everything down via a trap) and exits with
-                                     Playwright's code, so an E2E failure fails the build.
+              install              – e2e ('e2e-run') AND deployment-smoke ('deployment-smoke'): both
+                                     run ONLY because the build passed the verify gate (ITs confirmed
+                                     green first). 'e2e-run' starts the packaged jar on 8081 and runs the
+                                     Playwright E2E suite (feature coverage on a full JDK). 'deployment-
+                                     smoke' builds the REAL production Docker image, runs an isolated
+                                     app+DB stack on 8082, and runs the black-box smoke suite against it
+                                     — the only tier exercising the packaged distroless/jlink/non-root
+                                     runtime. Each is self-contained (brings up its own deps, tears them
+                                     down via a trap) and exits with Playwright's code, so either failing
+                                     fails the build. They share `install` but are order-independent, so
+                                     sortpom may run them in either order (see their execution comments).
 
-            Why e2e is in `install`, not `integration-test`: failsafe only raises *IT failures in the
-            `verify` phase, so e2e must run AFTER verify to be gated on the ITs passing. `install` is
-            the first phase after `verify`, and the project's full gate is `mvn clean install -Dall`.
-            The E2E jar reuses 8081 (the @QuarkusTest default, long released by install), distinct from
-            8080 (production), so -Dall coexists with a running deployment. Readiness/E2E use 127.0.0.1
-            (not 'localhost') because the app binds IPv4 (0.0.0.0) and Node may resolve localhost to ::1.
+            Why e2e + smoke are in `install`, not `integration-test`: failsafe only raises *IT failures
+            in the `verify` phase, so they must run AFTER verify to be gated on the ITs passing.
+            `install` is the first phase after `verify`, and the project's full gate is
+            `mvn clean install -Dall`. The E2E jar reuses 8081 (the @QuarkusTest default, long released
+            by install) and the smoke stack uses 8082 with an isolated compose project — both distinct
+            from 8080 (production), so -Dall coexists with a running deployment. Readiness/E2E/smoke use
+            127.0.0.1 (not 'localhost') because the app binds IPv4 (0.0.0.0) and Node may resolve
+            localhost to ::1.
         -->
         <profile>
             <id>all</id>
@@ -338,6 +346,10 @@
                 <!-- Single "testing" HTTP port, shared by both IT & E2E test suites. Consumed only by the
                      E2E exec execution below; override with -De2e.http.port=<port> on a port conflict. -->
                 <e2e.http.port>8081</e2e.http.port>
+                <!-- Host port the deployment-smoke stack (docker-compose.smoke.yml) publishes the real
+                     production image on. != 8081 (IT/E2E) and != 8080 (production) so the smoke run
+                     coexists with both; override with -Dsmoke.http.port=<port> on a conflict. -->
+                <smoke.http.port>8082</smoke.http.port>
             </properties>
             <build>
                 <plugins>
@@ -388,6 +400,40 @@
                             </execution>
 
                             <!--
+                                Deployment-smoke run, bound to `install` like `e2e-run` and likewise
+                                strictly AFTER the verify-phase failsafe gate (so it runs only once the
+                                ITs are confirmed green). Delegates to e2e/run-smoke.sh, which builds the
+                                REAL production image from the Dockerfile, brings up an isolated full
+                                stack (docker-compose.smoke.yml: app + ephemeral DB) on
+                                ${smoke.http.port}, runs the small black-box smoke suite against it, and
+                                tears the stack down via an EXIT trap. It exits with Playwright's code,
+                                so a smoke failure fails the build. This is the tier — and the ONLY tier
+                                — that exercises the packaged distroless / jlink / non-root runtime;
+                                unit + IT + E2E all run on a full JDK.
+
+                                This and `e2e-run` are the two exec executions in `install`. sortpom
+                                reorders executions, so their relative order is NOT guaranteed — but they
+                                are deliberately order-independent: disjoint ports (${e2e.http.port} vs
+                                ${smoke.http.port}), disjoint compose projects/DBs, each self-cleaning,
+                                each failing the build on its own. Never make one depend on the other.
+                            -->
+                            <execution>
+                                <id>deployment-smoke</id>
+                                <goals>
+                                    <goal>exec</goal>
+                                </goals>
+                                <phase>install</phase>
+                                <configuration>
+                                    <executable>bash</executable>
+                                    <arguments>
+                                        <argument>${project.basedir}/e2e/run-smoke.sh</argument>
+                                        <argument>${smoke.http.port}</argument>
+                                        <argument>${project.basedir}</argument>
+                                    </arguments>
+                                </configuration>
+                            </execution>
+
+                            <!--
                                 E2E run, bound to `install` — strictly AFTER the verify-phase failsafe
                                 gate, so it runs only once the ITs are confirmed green (if they fail,
                                 the build stops at verify and this never runs). Delegates to
@@ -397,8 +443,9 @@
                                 trap. The script exits with Playwright's exit code, so an E2E failure
                                 fails the build directly (no separate result-file check needed). It takes
                                 the port / target dir / basedir as arguments so the Maven properties
-                                resolve here, in the POM. It is the only exec execution in `install`, so
-                                sortpom execution/plugin re-ordering cannot affect it.
+                                resolve here, in the POM. It shares the `install` phase with
+                                `deployment-smoke` (below); the two are order-independent (see that
+                                execution's comment), so sortpom re-ordering them is safe.
                             -->
                             <execution>
                                 <id>e2e-run</id>

@@ -24,6 +24,7 @@ import io.smallrye.config.WithName;
 /**
  * Typed view over the {@code csrf.*} settings feeding the {@code Content-Security-Policy} header.
  */
+@FunctionalInterface
 @ConfigMapping(prefix = "csrf")
 public interface CsrfConfig {
 

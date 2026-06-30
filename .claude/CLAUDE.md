@@ -42,6 +42,11 @@ mvn test -Dtests -Dtest=MyTestClass
 cd e2e && npm test                                  # against :8080
 cd e2e && BASE_URL=http://localhost:8081 npm test   # against dev / -Dall port
 
+# Run the deployment-smoke suite against the REAL production image (the only tier that exercises the
+# distroless/jlink/non-root runtime). Self-contained: builds the image, runs an isolated app+DB stack
+# on :8082, runs the smoke specs, tears it all down. Included automatically in `mvn clean install -Dall`.
+bash e2e/run-smoke.sh 8082 "$(pwd)"
+
 # Full Docker deployment
 cp .env.example .env   # fill in DB_PASSWORD and SESSION_ENCRYPTION_KEY
 docker compose up -d --build
@@ -56,7 +61,7 @@ Dev mode expects PostgreSQL on `localhost:5432` with database/user/password all 
 
 Config layers: `application.properties` (base/prod), `application-dev.properties` (port 8081, DEBUG), `application-test.properties` (UTC). Both profile files must stay in `src/main/resources` — the E2E jar runs with `-Dquarkus.profile=test` and only reads bundled config.
 
-**Port map**: 8080 = production; 8081 = dev mode, `@QuarkusTest`, and the E2E jar (never simultaneous). Under `-Dall`, phase binding is the load-bearing detail — the inherited sortpom plugin re-sorts plugins alphabetically, so `exec-maven-plugin` always sorts before `maven-failsafe-plugin`. `*IT` tests run in `integration-test`; E2E is bound to `install` (after `verify`), ensuring ITs are confirmed green first.
+**Port map**: 8080 = production; 8081 = dev mode, `@QuarkusTest`, and the E2E jar (never simultaneous); 8082 = the deployment-smoke stack (isolated compose project, coexists with a running prod stack). Under `-Dall`, phase binding is the load-bearing detail — the inherited sortpom plugin re-sorts plugins alphabetically, so `exec-maven-plugin` always sorts before `maven-failsafe-plugin`. `*IT` tests run in `integration-test`; **both** the E2E run and the deployment-smoke run are bound to `install` (after `verify`), ensuring ITs are confirmed green first. The two `install`-phase execs (`e2e-run`, `deployment-smoke`) are order-independent (disjoint ports/DBs, each self-cleaning) since sortpom may reorder executions within a phase.
 
 ## Architecture
 
@@ -67,7 +72,7 @@ Inherits from `net.zodac:parent-pom` (Maven Central). The parent manages all dep
 Quality gates (opt-in):
 - `-Dlint` — ErrorProne+NullAway (also run on every compile), Checkstyle, PMD, SpotBugs, Javadoc, Enforcer, license headers, dependency analysis, PITest. Compiles test sources but does not run tests.
 - `-Dtests` — surefire unit tests (`*Test`) only.
-- `-Dall` — everything: unit + `*IT` + E2E + full linters.
+- `-Dall` — everything: unit + `*IT` + E2E + deployment-smoke + full linters.
 
 **All linters currently pass clean (Checkstyle/PMD/SpotBugs = 0, PITest strength = 100%); keep them that way.** Code must be NullAway-annotated (JSpecify `@Nullable`), every public/package method and type carries Javadoc, locals/params are `final`, unit-test assertions carry messages.
 
@@ -204,3 +209,12 @@ Flyway scripts in `src/main/resources/db/migration/`, sequential (`V1__` through
 Integration tests extend `IntegrationTestBase` (truncates `action_logs → actions → users` before each test). Helpers: `newUser()`, `newAction()`, `newLog()`, `runInTx()`. Tests use `@TestSecurity`. The `test` profile forces `app.timezone=UTC`. BCrypt cost = 4 in tests.
 
 **Deterministic time:** `IntegrationTestBase` freezes `AppClock` in `@BeforeEach` to `FIXED_TODAY = 2026-06-15`, restoring in `@AfterEach`. Use `freezeDate(LocalDate)` or `freezeInstant(Instant, ZoneId)` for boundary cases. Unit tests pass a fixed `today` directly. Surefire/failsafe pin `-Duser.timezone=UTC`. E2E specs use UTC date APIs (`setUTCDate`/`getUTCDate`/`toISOString`) and `timezoneId: 'UTC'` in Playwright.
+
+### Deployment-smoke tier (`e2e/smoke/`)
+
+The test pyramid has a fourth tier on top of unit / `*IT` / E2E: **deployment-smoke**, the only tier that runs the **actual production Docker image** (distroless, jlink custom JRE, non-root UID 65532) rather than a full JDK. It exists because that runtime is now a real source of bugs none of the lower tiers can see — e.g. a jlink module trimmed too far (the `java.rmi` boot failure), non-root write permissions, or a CSS-hash/favicon build-stage desync.
+
+- **Files:** `docker-compose.smoke.yml` (isolated app+DB stack built from the `Dockerfile`), `e2e/run-smoke.sh` (build → `up --wait` → run → trap-teardown), `e2e/playwright.smoke.config.ts` (`testDir: ./smoke`, single chromium project), `e2e/smoke/*.spec.ts`.
+- **Runs the prod profile** against a live Postgres — so there is **NO frozen clock and NO seeded DB**. Smoke specs must **self-seed** and use only the app's own UTC "today" (`TZ=UTC` in the compose stack; browser pinned to UTC). Do **not** port frozen-time E2E specs here. Keep the suite small and image-focused (boot/health, non-root JWT key-gen, hashed assets, one persisted round-trip) — feature behaviour belongs in the E2E suite.
+- **Isolation:** dedicated compose project (`-p diurnal-smoke`), ephemeral tmpfs DB, host port **8082**, tmpfs `/run/secrets` (mode 1777) so the non-root UID can write the generated keypair. Coexists with a running prod stack.
+- **CI wiring:** the `deployment-smoke` exec in the `-Dall` profile, bound to `install` alongside `e2e-run` (both gated after the `verify` IT check); the image's own HEALTHCHECK drives `up --wait`, so a boot failure fails the build before Playwright starts.

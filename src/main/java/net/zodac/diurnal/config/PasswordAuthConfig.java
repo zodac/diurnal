@@ -24,6 +24,7 @@ import io.smallrye.config.WithName;
 /**
  * Typed view over the {@code password.auth.*} settings governing the form/password login mechanism.
  */
+@FunctionalInterface
 @ConfigMapping(prefix = "password")
 public interface PasswordAuthConfig {
 
