@@ -23,6 +23,7 @@ import io.smallrye.config.WithDefault;
 /**
  * Typed view over the {@code registration.*} settings controlling new-account creation.
  */
+@FunctionalInterface
 @ConfigMapping(prefix = "registration")
 public interface RegistrationConfig {
 

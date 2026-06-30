@@ -1,0 +1,64 @@
+# Isolated full-stack smoke environment — builds and runs the REAL production image (Dockerfile) so
+# the deployment-smoke suite can exercise the packaged distroless / jlink / non-root runtime, which
+# no other test tier covers (unit + IT + E2E all run on a full JDK). Brought up by e2e/run-smoke.sh,
+# which is wired into `mvn clean install -Dall` via the `deployment-smoke` exec in pom.xml.
+#
+# Deliberately self-contained and namespaced so it NEVER collides with a running production stack
+# (docker-compose.yml): a distinct compose project (`-p diurnal-smoke`, set by run-smoke.sh), no
+# fixed container_name / network name, an ephemeral tmpfs DB, and a non-8080 host port. Every secret
+# here is a throwaway test value — nothing in this file is sensitive.
+services:
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      # Host 8082 (!= 8080 production, != 8081 dev / IT / E2E) so smoke coexists with both.
+      # Overridden by run-smoke.sh via SMOKE_PORT (Maven ${smoke.http.port}).
+      - "${SMOKE_PORT:-8082}:8080"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: diurnal_smoke
+      DB_USER: diurnal_smoke
+      DB_PASSWORD: smoke_db_password
+      # UTC so the server's "today" matches the UTC-pinned Playwright browser (self-seeding specs).
+      TZ: UTC
+      LOG_LEVEL: INFO
+      PASSWORD_AUTH_ENABLED: "true"
+      ENABLE_REGISTRATION: "true"
+      # Throwaway session key (must be >= 16 chars).
+      SESSION_ENCRYPTION_KEY: smoke-session-key-0123456789abcd
+      # JwtKeyProvisioner generates the RSA keypair at these paths on first start. The tmpfs mount
+      # below makes /run/secrets writable by the image's non-root UID 65532 — so this exercises the
+      # real non-root key-generation path that a production deployment relies on.
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt-private.pem
+      CSRF_TRUSTED_ORIGINS: "*"
+      OIDC_ENABLED: "false"
+    tmpfs:
+      # World-writable (mode 1777) so non-root UID 65532 can write the generated keypair.
+      - /run/secrets:mode=1777
+    depends_on:
+      db:
+        condition: service_healthy
+    # The image's own HEALTHCHECK (busybox wget -> /health) drives `docker compose up --wait`, so a
+    # boot failure — e.g. a missing jlink module, see the java.rmi incident — fails the smoke run fast.
+
+  db:
+    image: postgres:18.4-alpine
+    environment:
+      TZ: UTC
+      POSTGRES_DB: diurnal_smoke
+      POSTGRES_USER: diurnal_smoke
+      POSTGRES_PASSWORD: smoke_db_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    tmpfs:
+      # Ephemeral DB — no named volume, wiped with the container (mirrors docker-compose.dev.yml).
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U diurnal_smoke -d diurnal_smoke"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
