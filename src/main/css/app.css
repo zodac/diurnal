@@ -329,43 +329,6 @@
   .preview-img   { @apply absolute inset-0 block w-full h-full object-cover object-top; }
   .preview-label { @apply block text-center text-xs font-medium py-1 text-ink-muted; }
   .peer:checked ~ .preview-option .preview-label { @apply text-brand; }
-  /* Settings preview reveal. Each picker tile is a screenshot that FIXES its own dimension and renders
-     the other two (font / calendar style / theme); these rules reveal only the variant matching the
-     user's LIVE state — font (`.font-nova` on <html>), mode (`.dark`), and/or selected calendar style
-     (`#…-options[data-cal]`, kept in sync by settings.html). Hiding is `visibility` (NOT `display`) so
-     every laid-out variant stays loadable AND decodable up front (decode() never resolves for a
-     display:none image), making each switch a flash-free visibility flip; `display:contents` keeps the
-     inner `.preview-img`s positioned against `.preview-thumb` as if ungrouped. Every selector is
-     `html(:not).dark`/`(:not).font-nova`-prefixed, mutually exclusive and equal-specificity, so exactly
-     one variant is ever visible per tile. Viewport is handled separately by the imgs' `sm:` classes. */
-
-  /* Theme picker — theme fixed per tile; reveal by selected style (data-cal) + active font. */
-  #theme-options [data-cal-style] { display: contents; }
-  #theme-options [data-font] { display: contents; visibility: hidden; }
-  html.font-nova       #theme-options[data-cal="full"]    [data-cal-style="full"]    [data-font="nova"],
-  html.font-nova       #theme-options[data-cal="minimal"] [data-cal-style="minimal"] [data-font="nova"],
-  html.font-nova       #theme-options[data-cal="stacked"] [data-cal-style="stacked"] [data-font="nova"],
-  html:not(.font-nova) #theme-options[data-cal="full"]    [data-cal-style="full"]    [data-font="standard"],
-  html:not(.font-nova) #theme-options[data-cal="minimal"] [data-cal-style="minimal"] [data-font="standard"],
-  html:not(.font-nova) #theme-options[data-cal="stacked"] [data-cal-style="stacked"] [data-font="standard"] { visibility: visible; }
-
-  /* Calendar picker — style fixed per tile; reveal by active font + active mode (.dark). */
-  #calendar-options [data-font] { display: contents; }
-  #calendar-options [data-theme] { display: contents; visibility: hidden; }
-  html.font-nova:not(.dark)       #calendar-options [data-font="nova"]     [data-theme="light"],
-  html.font-nova.dark             #calendar-options [data-font="nova"]     [data-theme="dark"],
-  html:not(.font-nova):not(.dark) #calendar-options [data-font="standard"] [data-theme="light"],
-  html:not(.font-nova).dark       #calendar-options [data-font="standard"] [data-theme="dark"] { visibility: visible; }
-
-  /* Font picker — font fixed per tile; reveal by selected style (data-cal) + active mode (.dark). */
-  #font-options [data-cal-style] { display: contents; }
-  #font-options [data-theme] { display: contents; visibility: hidden; }
-  html:not(.dark) #font-options[data-cal="full"]    [data-cal-style="full"]    [data-theme="light"],
-  html:not(.dark) #font-options[data-cal="minimal"] [data-cal-style="minimal"] [data-theme="light"],
-  html:not(.dark) #font-options[data-cal="stacked"] [data-cal-style="stacked"] [data-theme="light"],
-  html.dark       #font-options[data-cal="full"]    [data-cal-style="full"]    [data-theme="dark"],
-  html.dark       #font-options[data-cal="minimal"] [data-cal-style="minimal"] [data-theme="dark"],
-  html.dark       #font-options[data-cal="stacked"] [data-cal-style="stacked"] [data-theme="dark"] { visibility: visible; }
   /* (!) full-size-preview affordance, floated over the thumbnail's top-right corner. A ring + solid
      translucent fill keeps it legible over any screenshot (light or dark). */
   .preview-info {

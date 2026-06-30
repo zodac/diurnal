@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Regenerates the Settings page preview thumbnails — the scaled-down dashboard screenshots shown
- * for the Theme and Calendar-style pickers (see settings.html → partials/preview-option.html).
+ * for the Theme, Calendar-style, and Font pickers (see settings.html → partials/preview-option.html).
  *
  * WHEN TO RUN THIS
  * ----------------
@@ -17,18 +17,12 @@
  *
  * WHAT IT PRODUCES
  * ----------------
- * Two sets of the same configurations — a web (landscape) set and a mobile (portrait, `-mobile`
- * suffix) set, so the Settings tiles can show the device-appropriate shot (web at the `sm` breakpoint
- * and up, mobile below it). Captures span the full `font × calendar-style × theme` matrix so EVERY
- * picker (Theme, Calendar style, Font) can reveal the variant matching the user's current font + style
- * + theme. The naming is uniform:
- *   page-{nova,standard}-{full,minimal,stacked}-{light,dark,system}.webp  (+ -mobile)
- *                          full-page shot — used by the Theme picker (reveal style+font) and the Font
- *                          picker (reveal style+theme); `system` is a diagonal light/dark split.
- *   cal-{nova,standard}-{full,minimal,stacked}-{light,dark}.webp          (+ -mobile)
- *                          calendar-only shot — used by the Calendar picker (reveal font+theme).
- * Every screenshot uses the SAME seeded data so the only visible difference within a viewport is the
- * font / calendar style / theme — that is the whole point of the previews. (**60 WebP files total.**)
+ * 7 WebP files (web/desktop viewport only):
+ *   page-nova-full-{light,dark,system}.webp  — Theme picker (Nova font, Full calendar)
+ *   cal-nova-{full,minimal,stacked}-dark.webp — Calendar picker (Nova font, dark)
+ *   page-{nova,standard}-full-dark.webp      — Font picker (Full calendar, dark)
+ *
+ * Note: page-nova-full-dark is shared between the Theme-dark tile and the Font-nova tile.
  *
  * PREREQUISITES
  * -------------
@@ -58,7 +52,6 @@ const { chromium } = require(path.join(__dirname, '..', 'e2e', 'node_modules', '
 const BASE = process.env.BASE_URL || 'http://localhost:8081';
 const OUT = path.join(__dirname, '..', 'src', 'main', 'resources', 'META-INF', 'resources', 'img', 'settings');
 const VW = 1200, VH = 820;  // web capture viewport (full-page/element shots ignore the height)
-const MVW = 390, MVH = 844; // mobile capture viewport — realistic phone size (height ~unused too)
 
 // Dedicated demo account — kept separate from real dev data.
 const USER = { email: 'preview-demo@diurnal.local', password: 'preview_demo123', displayName: 'Preview Demo' };
@@ -154,19 +147,16 @@ async function seed(ctx) {
 // ── Screenshot capture ───────────────────────────────────────────────────────────────────────────
 
 async function setPrefs(ctx, theme, calendarView, font = 'nova') {
-  // Persist prefs via the same endpoint the settings form posts to. `font` defaults to 'nova' (the
-  // app default) so the theme/calendar captures are taken in the brand font; the font picker's
-  // Standard tile is captured by passing font='standard'.
   const res = await ctx.request.post(BASE + '/settings',
     { form: { theme, font, pageSize: '10', calendarView, timezone: 'UTC' } });
   if (!res.ok()) throw new Error('setPrefs failed: ' + res.status());
 }
 
-// Open the dashboard and wait until the chosen calendar style's activity markers are painted, so
-// every capture taken from the returned page sees fully-loaded events. Caller closes the page.
+// Open the dashboard and wait until the chosen calendar style's activity markers are painted.
+// Caller closes the page.
 async function openDashboard(ctx, calendarView) {
   const page = await ctx.newPage();
-  await page.goto(BASE + '/', { waitUntil: 'networkidle' }); // the dashboard is served at /
+  await page.goto(BASE + '/', { waitUntil: 'networkidle' });
   const sel = calendarView === 'full' ? '.d-full-event'
             : calendarView === 'stacked' ? '.d-stk-bar'
             : '.d-min-dot';
@@ -258,79 +248,63 @@ async function compositeSystem(browser, { lightBuf, darkBuf, out }) {
 
 // ── Main ───────────────────────────────────────────────────────────────────────────────────────
 
-const CALENDAR_VIEWS = ['full', 'minimal', 'stacked'];
-const FONTS = ['nova', 'standard'];
+// Capture all 7 images. Captures (in order):
+//   page-nova-full-light    — Theme-light tile
+//   page-nova-full-dark     — Theme-dark tile + Font-nova tile (shared image)
+//   cal-nova-full-dark      — Calendar-full tile
+//   cal-nova-minimal-dark   — Calendar-minimal tile
+//   cal-nova-stacked-dark   — Calendar-stacked tile
+//   page-standard-full-dark — Font-standard tile
+//   page-nova-full-system   — Theme-system tile (composite of light + dark PNGs)
+async function captureAll(ctx, browser) {
+  // Nova, full, light → Theme-light tile; store PNG for system composite
+  await setPrefs(ctx, 'light', 'full', 'nova');
+  const lightPage = await openDashboard(ctx, 'full');
+  const lightBuf = await shotFullPage(lightPage, 'page-nova-full-light.webp');
+  await lightPage.close();
 
-// Capture the full set (theme + calendar pickers) for one viewport. `suffix` is appended before the
-// extension ('' for web, '-mobile' for the portrait phone shots). Prefs are stored server-side on the
-// demo user, so the same login drives both viewports; the only difference between a web and mobile
-// pair is the viewport. Each (calendar style, theme) combo yields BOTH a full-page theme shot AND a
-// calendar-only shot from the same page load — so the theme picker has one preview per calendar style
-// (settings.html then shows the one matching the user's selected style).
-// Returns { lightBufs, darkBufs } keyed by `${font}-${view}` for compositeSystemAll.
-async function captureSet(ctx, suffix) {
-  const f = base => base + suffix + '.webp';
-  const lightBufs = {}, darkBufs = {};
+  // Nova, full, dark → Theme-dark + Font-nova tiles; store PNG for system composite; cal-full-dark
+  await setPrefs(ctx, 'dark', 'full', 'nova');
+  const darkFullPage = await openDashboard(ctx, 'full');
+  const darkBuf = await shotFullPage(darkFullPage, 'page-nova-full-dark.webp');
+  await shotCalendar(darkFullPage, 'cal-nova-full-dark.webp');
+  await darkFullPage.close();
 
-  for (const font of FONTS) {
-    for (const view of CALENDAR_VIEWS) {
-      for (const theme of ['light', 'dark']) {
-        await setPrefs(ctx, theme, view, font);
-        const page = await openDashboard(ctx, view);
-        const buf = await shotFullPage(page, f(`page-${font}-${view}-${theme}`));  // Theme + Font pickers
-        (theme === 'light' ? lightBufs : darkBufs)[`${font}-${view}`] = buf;
-        await shotCalendar(page, f(`cal-${font}-${view}-${theme}`));               // Calendar picker
-        await page.close();
-      }
-    }
-  }
-  return { lightBufs, darkBufs };
-}
+  // Nova, minimal, dark → Calendar-minimal tile
+  await setPrefs(ctx, 'dark', 'minimal', 'nova');
+  const minPage = await openDashboard(ctx, 'minimal');
+  await shotCalendar(minPage, 'cal-nova-minimal-dark.webp');
+  await minPage.close();
 
-// Build the `system` theme preview (diagonal light/dark split) — full-page only, for every font × style
-// (the Theme picker's System tile resolves to this; the Calendar picker has no System tile).
-async function compositeSystemAll(browser, suffix, lightBufs, darkBufs) {
-  for (const font of FONTS) {
-    for (const view of CALENDAR_VIEWS) {
-      await compositeSystem(browser, {
-        lightBuf: lightBufs[`${font}-${view}`],
-        darkBuf:  darkBufs[`${font}-${view}`],
-        out: `page-${font}-${view}-system${suffix}.webp`,
-      });
-    }
-  }
+  // Nova, stacked, dark → Calendar-stacked tile
+  await setPrefs(ctx, 'dark', 'stacked', 'nova');
+  const stkPage = await openDashboard(ctx, 'stacked');
+  await shotCalendar(stkPage, 'cal-nova-stacked-dark.webp');
+  await stkPage.close();
+
+  // Standard, full, dark → Font-standard tile
+  await setPrefs(ctx, 'dark', 'full', 'standard');
+  const stdPage = await openDashboard(ctx, 'full');
+  await shotFullPage(stdPage, 'page-standard-full-dark.webp');
+  await stdPage.close();
+
+  // System composite (light upper-left, dark lower-right) → Theme-system tile
+  await compositeSystem(browser, { lightBuf, darkBuf, out: 'page-nova-full-system.webp' });
 }
 
 (async () => {
   fs.mkdirSync(OUT, { recursive: true });
   const browser = await chromium.launch();
 
-  // Web (landscape) capture context — also does the one-time data seeding.
-  const webCtx = await browser.newContext({
+  const ctx = await browser.newContext({
     viewport: { width: VW, height: VH },
     deviceScaleFactor: 2,
     timezoneId: 'UTC',
     colorScheme: 'light',
   });
-  await seed(webCtx);
-  const { lightBufs: webLight, darkBufs: webDark } = await captureSet(webCtx, '');
-  await compositeSystemAll(browser, '', webLight, webDark);
-  await webCtx.close();
-
-  // Mobile (portrait) capture context — same seeded data, phone-width viewport. Logs in afresh
-  // because cookies are per-context; prefs are shared (stored on the user), so it reuses captureSet.
-  const mobileCtx = await browser.newContext({
-    viewport: { width: MVW, height: MVH },
-    deviceScaleFactor: 2,
-    timezoneId: 'UTC',
-    colorScheme: 'light',
-    isMobile: true,
-    hasTouch: true,
-  });
-  await login(mobileCtx);
-  const { lightBufs: mobileLight, darkBufs: mobileDark } = await captureSet(mobileCtx, '-mobile');
-  await compositeSystemAll(browser, '-mobile', mobileLight, mobileDark);
-  await mobileCtx.close();
+  await seed(ctx);
+  await captureAll(ctx, browser);
+  await ctx.close();
 
   await browser.close();
 

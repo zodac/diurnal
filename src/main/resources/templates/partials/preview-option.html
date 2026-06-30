@@ -8,24 +8,20 @@
   and full image are the same file — the thumbnail is just CSS-cropped), so this tile only needs to
   carry the title + group for the modal, not explicit src attributes.
 
-  Exactly one of `themeBase` / `calStyle` / `fontBase` selects the thumbnail mode (the others ""); all
-  three are forwarded to preview-thumb (Qute renders strict, so each must always be present).
   Params:
-    group     - radio group name ("theme" | "calendarView" | "font")
-    value     - this option's value
-    current   - the user's currently-selected value (drives the checked state)
-    label     - short caption shown under the thumbnail
-    title     - heading shown in the full-size preview modal
-    alt       - image alt text
-    themeBase - "light"|"dark"|"system" → Theme tile;        "" otherwise
-    calStyle  - "full"|"minimal"|"stacked" → Calendar tile;  "" otherwise
-    fontBase  - "nova"|"standard" → Font tile;               "" otherwise
+    group   - radio group name ("theme" | "calendarView" | "font")
+    value   - this option's value
+    current - the user's currently-selected value (drives the checked state)
+    label   - short caption shown under the thumbnail
+    title   - heading shown in the full-size preview modal
+    alt     - image alt text
+    imgBase - base image name (no extension), forwarded to preview-thumb
 !}
 <div class="relative" data-preview-group="{group}" data-preview-title="{title}">
     <label class="block cursor-pointer">
         <input type="radio" name="{group}" value="{value}" class="sr-only peer"{#if current == value} checked{/if}>
         <span class="preview-option">
-            {#include partials/preview-thumb themeBase=themeBase calStyle=calStyle fontBase=fontBase alt=alt /}
+            {#include partials/preview-thumb imgBase=imgBase alt=alt /}
             <span class="preview-label">{label}</span>
         </span>
     </label>
