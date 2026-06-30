@@ -1,54 +1,9 @@
 {!
-  A fixed-size, top-cropped screenshot thumbnail — the reusable UI element for ANY settings preview
-  thumbnail. It guarantees a consistent size per viewport (see `.preview-thumb` in app.css for the
-  ratios) by cropping whatever screenshot it is given to the TOP of a fixed frame, so the real aspect
-  ratio of the source image is irrelevant. Drop this in wherever a settings thumbnail is needed; to
-  resize every thumbnail, change `.preview-thumb` once.
-
-  Every preview tile is a screenshot parameterised by (font, calendar style, theme); each picker FIXES
-  one of those (its own dimension) and RENDERS all combinations of the other two, letting CSS reveal the
-  one matching the user's live state — so a preview always mirrors the current config. Exactly one of
-  the three mode params below is non-empty; the rest are "":
-
-  • Theme mode (`themeBase` = "light"|"dark"|"system"): theme fixed. Renders the full-page shot per
-    calendar style × font (`partials/preview-thumb-theme-group`). `#theme-options` reveals by selected
-    style (`data-cal`) + active font (`.font-nova`).
-  • Calendar mode (`calStyle` = "full"|"minimal"|"stacked"): style fixed. Renders the calendar-only shot
-    per font × theme (`partials/preview-thumb-cal-group`). `#calendar-options` reveals by active font
-    (`.font-nova`) + active mode (`.dark`).
-  • Font mode (`fontBase` = "nova"|"standard"): font fixed. Renders the full-page shot per calendar
-    style × theme (`partials/preview-thumb-font-group`). `#font-options` reveals by selected style
-    (`data-cal`) + active mode (`.dark`).
-
-  LOADING / SWITCHING. Two separate hiding mechanisms, on purpose:
-    • VIEWPORT is gated with `display` (the `sm:` classes): the OTHER viewport's images use `display:none`
-      and are never fetched — we don't download what the user can't see (a desktop user never gets the
-      mobile thumbnails, or vice-versa, unless the window crosses `sm`).
-    • The not-yet-shown variants WITHIN the current viewport (other fonts/styles/themes) are hidden with
-      `visibility` (NOT display) by the `#…-options` rules in app.css, so they stay laid out and their
-      `src` can be assigned and `decode()`d up front. That makes font/style/theme switches flash-free; a
-      `display:none` image cannot be pre-decoded (its decode() promise never resolves).
-  All images use `data-src` instead of `src`. settings.html sets `src` in two phases: immediately for
-  the ~8 currently-visible images (identified by checkVisibility), then the remaining current-viewport
-  images via requestIdleCallback so they are ready before the user first interacts with a picker.
-
+  A fixed-size, top-cropped screenshot thumbnail. See `.preview-thumb` in app.css for sizing.
   Params:
-    alt        - image alt text (all modes)
-    themeBase  - "light"|"dark"|"system" to enable theme mode; "" otherwise
-    calStyle   - "full"|"minimal"|"stacked" to enable calendar mode; "" otherwise
-    fontBase   - "nova"|"standard" to enable font mode; "" otherwise
+    alt     - image alt text
+    imgBase - image base name without extension, e.g. "page-nova-full-dark"
 !}
 <span class="preview-thumb">
-    {#if themeBase}
-    {#include partials/preview-thumb-theme-group style="full"    themeBase=themeBase alt=alt /}
-    {#include partials/preview-thumb-theme-group style="minimal" themeBase=themeBase alt=alt /}
-    {#include partials/preview-thumb-theme-group style="stacked" themeBase=themeBase alt=alt /}
-    {#else if calStyle}
-    {#include partials/preview-thumb-cal-group font="nova"     calStyle=calStyle alt=alt /}
-    {#include partials/preview-thumb-cal-group font="standard" calStyle=calStyle alt=alt /}
-    {#else if fontBase}
-    {#include partials/preview-thumb-font-group fontBase=fontBase style="full"    alt=alt /}
-    {#include partials/preview-thumb-font-group fontBase=fontBase style="minimal" alt=alt /}
-    {#include partials/preview-thumb-font-group fontBase=fontBase style="stacked" alt=alt /}
-    {/if}
+    <img data-src="/img/settings/{imgBase}.webp" alt="{alt}" class="preview-img">
 </span>

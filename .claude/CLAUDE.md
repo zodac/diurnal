@@ -169,9 +169,14 @@ Served assets: `wordmark.svg` (navbar/headings), `favicon.svg` (scalable favicon
 
 Theme, Calendar style, and Font pickers show real dashboard screenshots (via `partials/preview-option.html`). WebP files in `src/main/resources/META-INF/resources/img/settings/`, two viewport sets (web + `-mobile` suffix).
 
-Naming: `page-{nova,standard}-{full,minimal,stacked}-{light,dark,system}.webp` (full-page, Theme + Font pickers) and `cal-{nova,standard}-{full,minimal,stacked}-{light,dark}.webp` (calendar-only, Calendar picker). **60 WebP files total.** Each picker fixes its own dimension; `#…-options` CSS rules in `app.css` show only the variant matching the user's live state (font, dark mode, calendar style).
+**7 WebP files**, fixed per picker:
+- Theme: `page-nova-full-{system,light,dark}.webp`
+- Calendar: `cal-nova-{full,minimal,stacked}-dark.webp`
+- Font: `page-{nova,standard}-full-dark.webp`
 
-Loading: `data-src` instead of `src` (no fetches until JS assigns). Viewport gated by `display` (`sm:` classes — the other viewport's images are never fetched). Non-shown variants hidden with `visibility` (not `display`) so `img.decode()` works. Two-phase load: visible images immediately, then `requestIdleCallback` for the rest.
+`page-nova-full-dark` is shared by the Theme-dark and Font-nova tiles.
+
+Loading: `data-src` instead of `src` (no fetches until JS assigns). Two-phase load: visible images immediately, then `requestIdleCallback` for the rest.
 
 Thumbnails use a fixed-ratio frame (`aspect-[3/4] sm:aspect-[3/2]` in `.preview-thumb`), cropped to the top — not tied to image aspect ratios. Route any future settings thumbnail through `partials/preview-thumb.html`.
 
