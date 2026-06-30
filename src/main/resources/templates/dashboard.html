@@ -237,6 +237,13 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .dark .d-cal-full .d-full-event-title { color: rgb(229, 231, 235); }
+  /* Mobile: hide action name, show only the ×N count badge. */
+  .d-cal-full .d-full-event-count { font-weight: 700; font-size: 0.6rem; color: var(--color-text); display: none; }
+  .dark .d-cal-full .d-full-event-count { color: rgb(229, 231, 235); }
+  @media (max-width: 639px) {
+    .d-cal-full .d-full-event-title { display: none; }
+    .d-cal-full .d-full-event-count { display: block; }
+  }
 
   /* ── Minimal calendar grid (the toolbar is the shared .cal-toolbar above) ── */
   .d-min-dow-header {
@@ -906,6 +913,14 @@ document.addEventListener('DOMContentLoaded', function () {
                         title.textContent = a.label;
                         ev.appendChild(dot);
                         ev.appendChild(title);
+                        // Mobile-only count label (e.g. "×3"); omitted when count = 1.
+                        var mIdx = a.label.lastIndexOf(' ×');
+                        if (mIdx !== -1) {
+                            var count = document.createElement('span');
+                            count.className = 'd-full-event-count';
+                            count.textContent = a.label.slice(mIdx + 1);
+                            ev.appendChild(count);
+                        }
                         evList.appendChild(ev);
                     });
                     cell.appendChild(evList);
