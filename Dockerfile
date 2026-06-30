@@ -61,14 +61,66 @@ RUN CSS_DIR=src/main/resources/META-INF/resources/css \
 # and this maven image has no Node toolchain — so skip the POM's `css-build` exec.
 RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -Dcss.build.skip=true -q
 
-# ── Stage 4: runtime ─────────────────────────────────────────────────────────
-FROM eclipse-temurin:26-jre-alpine
-RUN apk add --no-cache tzdata
-WORKDIR /app
-RUN addgroup -S app && adduser -S app -G app
-USER app
-COPY --from=build /build/target/quarkus-app/ ./
+# ── Stage 4: build a minimal custom JRE with jlink ───────────────────────────
+# Trims the ~330 MB JDK down to a ~70 MB modular runtime carrying only the modules this app uses,
+# shrinking both the image and the attack surface. Built on a *glibc* Temurin JDK (the default,
+# non-alpine tag) so the result is binary-compatible with the glibc distroless runtime base below —
+# a musl/alpine JRE would not run there. binutils supplies `strip` for the libjvm debug-symbol purge.
+#
+# Module set (keep in sync with the app's needs; a missing module surfaces only at runtime):
+#   java.base                          – always required
+#   java.logging                       – JBoss LogManager / JUL bridge
+#   java.xml                           – config + persistence XML parsing
+#   java.sql / java.naming             – JDBC (Agroal + PostgreSQL driver), JNDI lookups
+#   java.rmi                           – RemoteException, referenced by SmallRye Context Propagation
+#   java.management / jdk.management    – metrics, MXBeans
+#   java.net.http                      – OIDC token refresh + REST client (java.net.http.HttpClient)
+#   jdk.naming.dns                     – DNS resolution for OIDC discovery
+#   java.security.jgss / .sasl          – GSS/SASL chains pulled in by TLS + auth
+#   jdk.crypto.cryptoki / jdk.crypto.ec – PKCS#11 + EC crypto (modern TLS handshakes, ES* JWT)
+#   java.desktop                       – java.beans, required reflectively by Hibernate / Jackson
+#   java.instrument                    – bytecode instrumentation agents
+#   jdk.unsupported                    – sun.misc.Unsafe (Netty, Hibernate, et al.)
+#   jdk.zipfs                          – zip filesystem provider used when opening nested jars
+FROM eclipse-temurin:26-jdk AS jre
+RUN apt-get update && apt-get install -yqq --no-install-recommends binutils \
+    && jlink --compress=zip-9 \
+        --no-header-files \
+        --no-man-pages \
+        --strip-debug \
+        --add-modules java.base,java.logging,java.xml,java.sql,java.rmi,java.naming,java.management,java.net.http,jdk.naming.dns,java.security.jgss,java.security.sasl,jdk.crypto.cryptoki,jdk.crypto.ec,java.desktop,java.instrument,jdk.unsupported,jdk.management,jdk.zipfs \
+        --output /opt/jdk \
+    && strip -p --strip-unneeded /opt/jdk/lib/server/libjvm.so
+
+# ── Stage 5: static busybox (single-binary wget for the healthcheck) ─────────
+# busybox:*-musl is fully statically linked, so the binary runs unchanged on the glibc distroless
+# base. It is the only "shell tool" we add — distroless ships no wget/curl/sh of its own.
+FROM busybox:1.37.0-musl AS shell
+
+# ── Stage 6: runtime (distroless, non-root) ──────────────────────────────────
+# distroless/base-debian13 = glibc + libssl + ca-certificates + tzdata + /tmp, and nothing else
+# (no shell, no package manager). The :nonroot tag defaults the process to UID 65532. No `apk add
+# tzdata` is needed — tzdata is already present, so `app.timezone` / TZ resolve as on a full distro.
+FROM gcr.io/distroless/base-debian13:nonroot AS runtime
+
+# Custom jlink JRE (glibc, matches this debian base) + its tools on PATH.
+COPY --from=jre /opt/jdk /opt/jdk
+ENV JAVA_HOME="/opt/jdk" \
+    PATH="/opt/jdk/bin:${PATH}"
+
 EXPOSE 8080
+
+# App health lives at /health over plain HTTP on 8080 (TLS is terminated at the reverse proxy).
+# Exec-form CMD invokes busybox-wget directly so no shell is required; --spider makes it a HEAD-style
+# probe that exits non-zero on any non-2xx response.
+COPY --from=shell /bin/busybox /bin/wget
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD wget -qO /dev/null http://localhost:8080/health || exit 1
-ENTRYPOINT ["java", "-jar", "quarkus-run.jar"]
+  CMD ["/bin/wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/health"]
+
+# Quarkus fast-jar layout: quarkus-run.jar alongside lib/ app/ quarkus/. Deploy the whole directory.
+# Files land root-owned but world-readable, so UID 65532 can read/exec them; the app never writes here
+# (JWT keys go to the mounted /run/secrets volume, logs go to stdout).
+WORKDIR /app
+COPY --from=build /build/target/quarkus-app/ ./
+
+ENTRYPOINT ["/opt/jdk/bin/java", "-jar", "quarkus-run.jar"]

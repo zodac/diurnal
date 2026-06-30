@@ -2,7 +2,12 @@
 #
 # Tear down the local dev environment used for manual testing / preview generation:
 #   - the `mvn quarkus:dev` server on the testing port 8081 (NEVER the production container on 8080),
-#   - the ephemeral `diurnal-db-dev` Postgres container (tmpfs — nothing persisted is lost).
+#   - the ephemeral `diurnal-db-dev` Postgres container (tmpfs — nothing persisted is lost),
+#   - the `diurnal-smoke` stack on port 8082 (the deployment-smoke app + DB built from the Dockerfile).
+#     run-smoke.sh tears its own stack down via an EXIT/signal trap, but an outright `kill -9` of the
+#     runner (or a host reboot mid-run) can still leak it — so we sweep it here as a safety net. It is
+#     a pure test artifact (project name `diurnal-smoke`, distinct from the prod `diurnal` stack), so
+#     removing it is always safe; the production stack on 8080 is never touched.
 #
 # Port 8081 is freed ONLY when it is held by a process that belongs to THIS project — a `quarkus:dev`
 # dev server or an `-Dall` E2E jar launched from this tree. Anything else on 8081 (another app, or a
@@ -104,6 +109,13 @@ done
 echo "→ Removing the dev database container (diurnal-db-dev)…"
 docker compose -f docker-compose.dev.yml rm -sf diurnal-db-dev >/dev/null 2>&1 || true
 
+echo "→ Removing any leftover deployment-smoke stack (diurnal-smoke)…"
+# Namespaced project, so this only ever touches the smoke app + DB — never the prod `diurnal` stack.
+# `down` first; then a label-based force-remove sweeps any container a killed run-smoke.sh left behind.
+docker compose -p diurnal-smoke -f docker-compose.smoke.yml down -v --remove-orphans --timeout 10 >/dev/null 2>&1 || true
+smoke_left="$(docker ps -aq --filter "label=com.docker.compose.project=diurnal-smoke" 2>/dev/null || true)"
+[ -n "${smoke_left}" ] && docker rm -f ${smoke_left} >/dev/null 2>&1 || true
+
 # ── Verify and report ─────────────────────────────────────────────────────────
 sleep 1
 ok=0
@@ -130,6 +142,11 @@ if docker ps --format '{{.Names}}' | grep -qx 'diurnal-db-dev'; then
   echo "✗ diurnal-db-dev is still running"; ok=1
 else
   echo "✓ diurnal-db-dev is stopped"
+fi
+if docker ps --format '{{.Names}}' | grep -q '^diurnal-smoke-'; then
+  echo "✗ a diurnal-smoke container is still running"; ok=1
+else
+  echo "✓ deployment-smoke stack is stopped"
 fi
 
 [ "${ok}" -eq 0 ] && echo "Dev teardown complete." || echo "Dev teardown finished with warnings."

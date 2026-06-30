@@ -34,9 +34,23 @@ COMPOSE_FILE="${BASEDIR}/docker-compose.smoke.yml"
 PROJECT="diurnal-smoke"
 
 cleanup() {
-  docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" down -v --remove-orphans >/dev/null 2>&1 || true
+  # Best-effort + idempotent. `down` removes the tracked stack (containers, network, volumes); the
+  # label-based sweep afterwards catches anything `down` missed — e.g. a container left half-created
+  # by an interrupted `up`, which `down` won't always reap. Both are quiet so they never mask the
+  # real (Playwright/Maven) exit code.
+  docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" down -v --remove-orphans --timeout 10 >/dev/null 2>&1 || true
+  local leftovers
+  leftovers="$(docker ps -aq --filter "label=com.docker.compose.project=${PROJECT}" 2>/dev/null || true)"
+  [ -n "${leftovers}" ] && docker rm -f ${leftovers} >/dev/null 2>&1 || true
 }
+# EXIT alone is not enough: a SIGINT (Ctrl-C) or SIGTERM (Maven/CI killing the child when the build
+# fails) would skip an EXIT-only trap and leak the stack. Trap the signals to a plain `exit`, which
+# then fires the EXIT trap exactly once — so cleanup runs on normal exit, on test failure, AND on
+# interruption.
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 # Build the real image and bring the stack up, blocking until the image's own HEALTHCHECK reports
 # healthy (--wait). A boot failure (e.g. a missing jlink module) trips here and fails the script
