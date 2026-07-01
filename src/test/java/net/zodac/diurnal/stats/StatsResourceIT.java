@@ -80,7 +80,7 @@ class StatsResourceIT extends IntegrationTestBase {
 
         given().get("/stats")
                 .then().statusCode(200)
-                .body(containsString("3")); // current streak = 3
+                .body(containsString(">3<")); // current streak = 3
     }
 
     @Test
@@ -93,7 +93,7 @@ class StatsResourceIT extends IntegrationTestBase {
 
         given().get("/stats")
                 .then().statusCode(200)
-                .body(containsString("8")); // total count = 5+3
+                .body(containsString(">8<")); // total count = 5+3
     }
 
     @Test

@@ -86,14 +86,14 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 7));
         given().get("/logs/" + TODAY + "/" + primaryAction.id)
                 .then().statusCode(200)
-                .body(containsString("7"));
+                .body(containsString("value=\"7\""));
     }
 
     @Test
     void dayActionItem_noLog_returnsItemAtZero() {
         given().get("/logs/" + TODAY + "/" + primaryAction.id)
                 .then().statusCode(200)
-                .body(containsString("0"));
+                .body(containsString("value=\"0\""));
     }
 
     @Test
@@ -107,7 +107,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 3));
         given().post("/logs/" + TODAY + "/" + primaryAction.id + "/delete")
                 .then().statusCode(200)
-                .body(containsString("0"));
+                .body(containsString("value=\"0\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
             .as("log deleted")
@@ -118,7 +118,7 @@ class LogResourceIT extends IntegrationTestBase {
     void deleteEntry_noExistingLog_returns200WithZeroIdempotently() {
         given().post("/logs/" + TODAY + "/" + primaryAction.id + "/delete")
                 .then().statusCode(200)
-                .body(containsString("0"));
+                .body(containsString("value=\"0\""));
     }
 
     @Test
@@ -139,7 +139,7 @@ class LogResourceIT extends IntegrationTestBase {
     void increment_firstTime_createsLogWithCountOne() {
         given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
-                .body(containsString("1"));
+                .body(containsString("value=\"1\""));
 
         final ActionLog log = ActionLog.findEntry(primaryId, primaryAction.id, TODAY);
         assertThat(log)
@@ -155,7 +155,7 @@ class LogResourceIT extends IntegrationTestBase {
         given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment");
         given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
-                .body(containsString("2"));
+                .body(containsString("value=\"2\""));
     }
 
     @Test
@@ -163,7 +163,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 998));
         given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
-                .body(containsString("999"));
+                .body(containsString("value=\"999\""));
     }
 
     @Test
@@ -171,7 +171,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 999));
         given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
-                .body(containsString("999"));
+                .body(containsString("value=\"999\""));
 
         final ActionLog log = ActionLog.findEntry(primaryId, primaryAction.id, TODAY);
         assertThat(log.count)
@@ -195,7 +195,7 @@ class LogResourceIT extends IntegrationTestBase {
     void increment_withAmount_firstTime_createsLogWithThatCount() {
         given().formParam("amount", 5).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
-                .body(containsString("5"));
+                .body(containsString("value=\"5\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
             .as("count after increment by 5")
@@ -207,7 +207,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 3));
         given().formParam("amount", 5).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
-                .body(containsString("8"));
+                .body(containsString("value=\"8\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
             .as("count after increment by 5 from 3")
@@ -219,7 +219,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 995));
         given().formParam("amount", 10).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
-                .body(containsString("999"));
+                .body(containsString("value=\"999\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
             .as("count capped at 999 when amount overshoots")
@@ -230,7 +230,7 @@ class LogResourceIT extends IntegrationTestBase {
     void increment_withAmount_firstTime_capsAtMax() {
         given().formParam("amount", 9999).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
-                .body(containsString("999"));
+                .body(containsString("value=\"999\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
             .as("new count clamped to 999")
@@ -241,7 +241,7 @@ class LogResourceIT extends IntegrationTestBase {
     void increment_amountZero_noExistingLog_returns200WithZeroAndCreatesNothing() {
         given().formParam("amount", 0).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
-                .body(containsString("0"));
+                .body(containsString("value=\"0\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
             .as("no log created for a zero increment")
@@ -253,7 +253,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
         given().formParam("amount", -1).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
-                .body(containsString("5"));
+                .body(containsString("value=\"5\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
             .as("negative amount does not change the count")
@@ -267,7 +267,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 2));
         given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
-                .body(containsString("1"));
+                .body(containsString("value=\"1\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
             .as("count after decrement")
@@ -279,7 +279,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 1));
         given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
-                .body(containsString("0"));
+                .body(containsString("value=\"0\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
             .as("log deleted at zero")
@@ -291,7 +291,7 @@ class LogResourceIT extends IntegrationTestBase {
         // No log exists — should not error
         given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
-                .body(containsString("0"));
+                .body(containsString("value=\"0\""));
     }
 
     @Test
@@ -311,7 +311,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 8));
         given().formParam("amount", 5).post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
-                .body(containsString("3"));
+                .body(containsString("value=\"3\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
             .as("count after decrement by 5 from 8")
@@ -323,7 +323,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
         given().formParam("amount", 10).post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
-                .body(containsString("0"));
+                .body(containsString("value=\"0\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
             .as("log deleted when amount exceeds count")
@@ -335,7 +335,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
         given().formParam("amount", 5).post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
-                .body(containsString("0"));
+                .body(containsString("value=\"0\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
             .as("log deleted when amount lands exactly on zero")
@@ -347,7 +347,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
         given().formParam("amount", -1).post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
-                .body(containsString("5"));
+                .body(containsString("value=\"5\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
             .as("negative amount does not change the count")
@@ -360,7 +360,7 @@ class LogResourceIT extends IntegrationTestBase {
     void setCount_createsNewLog() {
         given().formParam("count", 42).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
                 .then().statusCode(200)
-                .body(containsString("42"));
+                .body(containsString("value=\"42\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
             .as("count after set")
@@ -372,7 +372,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
         given().formParam("count", 20).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
                 .then().statusCode(200)
-                .body(containsString("20"));
+                .body(containsString("value=\"20\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
             .as("count updated by set")
@@ -384,7 +384,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
         given().formParam("count", 0).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
                 .then().statusCode(200)
-                .body(containsString("0"));
+                .body(containsString("value=\"0\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
             .as("log deleted when set to zero")
@@ -396,7 +396,7 @@ class LogResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
         given().formParam("count", -1).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
                 .then().statusCode(200)
-                .body(containsString("0"));
+                .body(containsString("value=\"0\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY))
             .as("log deleted when set to negative")
@@ -407,7 +407,7 @@ class LogResourceIT extends IntegrationTestBase {
     void setCount_aboveMax_clampsToMax() {
         given().formParam("count", 9999).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
                 .then().statusCode(200)
-                .body(containsString("999"));
+                .body(containsString("value=\"999\""));
 
         assertThat(ActionLog.findEntry(primaryId, primaryAction.id, TODAY).count)
             .as("count clamped to 999")
@@ -418,7 +418,7 @@ class LogResourceIT extends IntegrationTestBase {
     void setCount_noExistingLog_toZero_returns200WithZeroIdempotently() {
         given().formParam("count", 0).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
                 .then().statusCode(200)
-                .body(containsString("0"));
+                .body(containsString("value=\"0\""));
     }
 
     @Test
