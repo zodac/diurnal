@@ -8,10 +8,11 @@
 # Pinned to the Noble (Ubuntu 24.04) variant: Playwright's `--with-deps` installer
 # supports 24.04 but NOT the rolling latest (26.04 "resolute"), and the default tag
 # tracks the latter.
-FROM eclipse-temurin:26-jdk-noble
+FROM eclipse-temurin:26_35-jdk-noble
 
 ARG UID=1000
 ARG GID=1000
+# TODO: Use muti-stage docker images instead, and update the update script
 ARG MAVEN_VERSION=3.9.16
 ARG NODE_MAJOR=26
 
@@ -36,26 +37,54 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # Chromium's own shared-library deps are NOT listed here (the package names drift
 # across Ubuntu releases); install them once inside the sandbox with the
 # version-proof `npx playwright install --with-deps chromium` (see README).
-RUN apt-get update && apt-get install -y --no-install-recommends \
-      ca-certificates curl gnupg git bash sudo lsof iproute2 unzip jq \
-      python3 python3-pip python3-venv python3-fonttools \
-      imagemagick librsvg2-bin optipng \
-    && rm -rf /var/lib/apt/lists/*
+
+# BEGIN UBUNTU PACKAGES
+RUN apt-get update && apt-get install -yqq --no-install-recommends \
+        bash="5.2.21-2ubuntu4" \
+        ca-certificates="20260601~24.04.1" \
+        curl="8.5.0-2ubuntu10.10" \
+        git="1:2.43.0-1ubuntu7.3" \
+        gnupg="2.4.4-2ubuntu17.4" \
+        imagemagick="8:6.9.12.98+dfsg1-5.2build2" \
+        iproute2="6.1.0-1ubuntu6.3" \
+        jq="1.7.1-3ubuntu0.24.04.2" \
+        librsvg2-bin="2.58.0+dfsg-1build1" \
+        lsof="4.95.0-1build3" \
+        optipng="0.7.8+ds-1build2" \
+        python3="3.12.3-0ubuntu2.1" \
+        python3-pip="24.0+dfsg-1ubuntu1.3" \
+        python3-fonttools="4.46.0-1build2" \
+        python3-venv="3.12.3-0ubuntu2.1" \
+        sudo="1.9.15p5-3ubuntu5.24.04.2" \
+        unzip="6.0-28ubuntu4.1" \
+    && \
+    apt-get autoremove && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+# END UBUNTU PACKAGES
 
 # ── Docker engine + compose plugin (the nested daemon) ───────────────────────
 RUN install -m 0755 -d /etc/apt/keyrings \
-    && curl -fsSL https://download.docker.com/linux/debian/gpg \
-         -o /etc/apt/keyrings/docker.asc 2>/dev/null \
-       || curl -fsSL https://download.docker.com/linux/ubuntu/gpg \
-            -o /etc/apt/keyrings/docker.asc \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc 2>/dev/null \
+       || curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
     && chmod a+r /etc/apt/keyrings/docker.asc \
     && . /etc/os-release \
     && DOCKER_REPO="$ID" \
     && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${DOCKER_REPO} ${VERSION_CODENAME} stable" \
-         > /etc/apt/sources.list.d/docker.list \
-    && apt-get update && apt-get install -y --no-install-recommends \
-         docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin \
-    && rm -rf /var/lib/apt/lists/*
+         > /etc/apt/sources.list.d/docker.list
+
+# BEGIN UBUNTU PACKAGES
+RUN apt-get update && apt-get install -yqq --no-install-recommends \
+        docker-ce="5:29.6.1-1~ubuntu.24.04~noble" \
+        docker-ce-cli="5:29.6.1-1~ubuntu.24.04~noble" \
+        containerd.io="2.2.5-1~ubuntu.24.04~noble" \
+        docker-buildx-plugin="0.35.0-1~ubuntu.24.04~noble" \
+        docker-compose-plugin="5.2.0-1~ubuntu.24.04~noble" \
+    && \
+    apt-get autoremove && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+# END UBUNTU PACKAGES
 
 # ── Maven ────
 RUN curl -fsSL "https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz" \
