@@ -80,14 +80,14 @@ Quality gates (opt-in):
 
 Under `src/main/java/net/zodac/diurnal/`:
 
-| Package  | Contents |
-|----------|----------|
-| `action` | `Action` entity + `ActionsWebResource` (CRUD for user-defined habits) |
-| `log`    | `ActionLog` entity + `LogWebResource` (increment/decrement per day) + `CalendarResource` (`/logs/events` feed) |
+| Package  | Contents                                                                                                          |
+|----------|-------------------------------------------------------------------------------------------------------------------|
+| `action` | `Action` entity + `ActionsWebResource` (CRUD for user-defined habits)                                             |
+| `log`    | `ActionLog` entity + `LogWebResource` (increment/decrement per day) + `CalendarResource` (`/logs/events` feed)    |
 | `stats`  | `StatsService` + `ActionStats` (data record) + `ActionStatsExtensions` (template extensions) + `StatsWebResource` |
-| `auth`   | `AuthResource` (register/login → JWT), `TokenService`, `PasswordIdentityProvider`, `TrustedIdentityProvider` |
-| `user`   | `User` entity, `UserResource` (`/api/users/me`), `UserSettings` |
-| `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings, theme toggle) |
+| `auth`   | `AuthResource` (register/login → JWT), `TokenService`, `PasswordIdentityProvider`, `TrustedIdentityProvider`      |
+| `user`   | `User` entity, `UserResource` (`/api/users/me`), `UserSettings`                                                   |
+| `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings, theme toggle)            |
 
 ### Authentication
 
@@ -141,7 +141,7 @@ Shared editable-row chrome:
 - `partials/dt-confirm-delete-row.html` — in-place confirm-delete row, rendered from the resource via `.data(rowId, cols, swatchColour, label, prompt, deleteUrl/deleteTarget/deleteSwap, restoreUrl)`.
 - `.dt-row-highlight` — inset `box-shadow` ring; colour from `--dt-highlight` (`.dt-row-edit` = indigo, `.dt-row-confirm` = red). Edit rows trim cell padding to keep the same row height.
 
-Cross-table conventions: explicit Save tick required (only exception: Settings → User Preferences); at most one armed row at a time (`dtClearArmedRows` disarms others); destructive button left, Cancel right. `partials/pagination.html` exposes `#showing-shown`/`#showing-total` for surgical HTMX count updates.
+Cross-table conventions: explicit Save tick required (only exception: Settings → User Preferences); at most one 'armed row' at a time (`dtClearArmedRows` disarms others); destructive button left, Cancel right. `partials/pagination.html` exposes `#showing-shown`/`#showing-total` for surgical HTMX count updates.
 
 ### CalendarResource
 
@@ -155,7 +155,7 @@ All three calendar styles (`full`/`minimal`/`stacked`, `UserSettings.CALENDAR_VI
 
 Two Nova superfamily webfonts served as `woff2` from `src/main/resources/META-INF/resources/fonts/`: **Nova Flat** (body/UI) and **Nova Round** (display/headings). `@font-face` blocks in `app.css`.
 
-Font family is indirected via `--font-body`/`--font-display` CSS variables. The **Font setting** (`User.font`: `nova`|`standard`, default `nova`, migration V13) switches them. `layout.html` renders `.font-nova` on `<html>` server-side (`{#if font != 'standard'}`), no FOUC. **`font` must be passed to every full-page template** (mirror `theme` 1:1; HTMX day-panel partials need neither).
+Font family is indirect via `--font-body`/`--font-display` CSS variables. The **Font setting** (`User.font`: `nova`|`standard`, default `nova`, migration V13) switches them. `layout.html` renders `.font-nova` on `<html>` server-side (`{#if font != 'standard'}`), no FOUC. **`font` must be passed to every full-page template** (mirror `theme` 1:1; HTMX day-panel partials need neither).
 
 ### Brand assets
 

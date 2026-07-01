@@ -58,12 +58,12 @@ COPY --from=icons /icons/src/main/resources/META-INF/resources/img/apple-touch-i
 # and may ignore query strings), then bake the resulting filename into the build-time config source
 # that AppInfo reads — so layout.html's <link> and the served file always agree. The hashed file is
 # then served `immutable` (application.properties). A non-Docker `mvn package` skips this and keeps
-# the un-hashed app.css default.
-RUN CSS_DIR=src/main/resources/META-INF/resources/css \
-    && CSS_HASH="$(sha256sum "${CSS_DIR}/app.css" | cut -c1-12)" \
-    && mv "${CSS_DIR}/app.css" "${CSS_DIR}/app.${CSS_HASH}.css" \
-    && printf '\napp.assets.css-file=app.%s.css\n' "${CSS_HASH}" \
-       >> src/main/resources/META-INF/microprofile-config.properties
+# the un-hashed app.css default. The hash is folded straight into the rename (no intermediate shell
+# var) and read back from the glob for the config line — after the mv, only the hashed file matches.
+RUN cd src/main/resources/META-INF/resources/css \
+    && mv app.css "app.$(sha256sum app.css | cut -c1-12).css" \
+    && printf '\napp.assets.css-file=%s\n' app.*.css \
+       >> /build/src/main/resources/META-INF/microprofile-config.properties
 # -Dcss.build.skip=true: the stylesheet is already compiled by the `css` stage and copied in above,
 # and this maven image has no Node toolchain — so skip the POM's `css-build` exec.
 RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -Dcss.build.skip=true -q

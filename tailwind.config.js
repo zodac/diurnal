@@ -20,7 +20,7 @@ module.exports = {
   safelist: ['text-green-600', 'text-red-500', 'text-gray-400'],
   theme: {
     extend: {
-      // Typography — indirected through CSS variables so the per-user Font setting swaps the whole
+      // Typography — indirect through CSS variables so the per-user Font setting swaps the whole
       // app between the system sans ("Standard") and the Nova brand theme by re-pointing the
       // variables (see app.css `--font-body`/`--font-display` and the `.font-nova` class).
       // Overriding `sans` makes the body variable the app-wide default (Tailwind's preflight sets
