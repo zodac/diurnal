@@ -6,7 +6,7 @@
     <parent>
         <groupId>net.zodac</groupId>
         <artifactId>parent-pom</artifactId>
-        <version>1.0.16</version>
+        <version>1.0.17</version>
     </parent>
 
     <artifactId>diurnal</artifactId>
@@ -17,6 +17,10 @@
              in the Docker build, which compiles the stylesheet in its own Node stage and copies it in,
              so the Maven JVM image needs no Node toolchain. -->
         <css.build.skip>false</css.build.skip>
+
+        <!-- Inherited from parent-pom, but defined here for version update testing -->
+        <java-release>26</java-release>
+        <maven-release>3.9.16</maven-release>
     </properties>
 
     <dependencies>
@@ -156,7 +160,7 @@
                 hand-edited source) -> src/main/resources/META-INF/resources/css/app.css (the served,
                 minified, purged output). Bound to generate-resources so it runs BEFORE process-resources
                 copies resources into target/classes and Quarkus packages the fast-jar — so every Maven
-                build (dev, package, *IT, E2E) produces the stylesheet and it never needs committing
+                build (dev, package, *IT, E2E) produces the stylesheet, and it never needs committing
                 (it is .gitignored). This just delegates to `npm run css`, so the npm script stays the
                 single definition of the build; it therefore needs a local `npm install` (node_modules).
                 Skipped in Docker via -Dcss.build.skip=true: that build compiles the CSS in a dedicated
@@ -317,12 +321,12 @@
               install              – e2e ('e2e-run') AND deployment-smoke ('deployment-smoke'): both
                                      run ONLY because the build passed the verify gate (ITs confirmed
                                      green first). 'e2e-run' starts the packaged jar on 8081 and runs the
-                                     Playwright E2E suite (feature coverage on a full JDK). 'deployment-
-                                     smoke' builds the REAL production Docker image, runs an isolated
+                                     Playwright E2E suite (feature coverage on a full JDK). 'deployment-smoke'
+                                     builds the REAL production Docker image, runs an isolated
                                      app+DB stack on 8082, and runs the black-box smoke suite against it
                                      — the only tier exercising the packaged distroless/jlink/non-root
                                      runtime. Each is self-contained (brings up its own deps, tears them
-                                     down via a trap) and exits with Playwright's code, so either failing
+                                     down via a trap) and exits with Playwright's code, so either having an error
                                      fails the build. They share `install` but are order-independent, so
                                      sortpom may run them in either order (see their execution comments).
 

@@ -3,7 +3,7 @@
 # ── Stage 1: compile + purge the Tailwind CSS ────────────────────────────────
 # Scans the templates + Java sources and emits a minified app.css. Kept in its own
 # stage so the Node toolchain never reaches the build or runtime images.
-FROM node:26-alpine AS css
+FROM node:26.4.0-alpine AS css
 WORKDIR /css
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -19,8 +19,15 @@ RUN npm run css
 # in its own stage so ImageMagick / librsvg / optipng never reach the build or runtime images. librsvg
 # is ImageMagick's SVG-rendering backend; imagemagick also packs the .ico. PNGs land in
 # src/main/resources/META-INF/resources/img; favicon.ico lands at the web root (one level up).
-FROM node:26-alpine AS icons
-RUN apk add --no-cache imagemagick librsvg optipng
+FROM node:26.4.0-alpine AS icons
+
+# BEGIN ALPINE PACKAGES
+RUN apk add --no-cache  \
+    imagemagick="7.1.2.24-r0" \
+    librsvg="2.62.3-r0" \
+    optipng="7.9.1-r1"
+# END ALPINE PACKAGES
+
 WORKDIR /icons
 COPY scripts/generate-favicons.cjs ./scripts/
 COPY src/main/resources/META-INF/resources/img/favicon.svg \
@@ -28,7 +35,7 @@ COPY src/main/resources/META-INF/resources/img/favicon.svg \
 RUN node scripts/generate-favicons.cjs
 
 # ── Stage 3: build the Quarkus app ───────────────────────────────────────────
-FROM maven:3.9-eclipse-temurin-26 AS build
+FROM maven:3.9.16-eclipse-temurin-26 AS build
 WORKDIR /build
 COPY pom.xml .
 RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline -q
@@ -62,12 +69,18 @@ RUN CSS_DIR=src/main/resources/META-INF/resources/css \
 RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -Dcss.build.skip=true -q
 
 # ── Stage 4: build a minimal custom JRE with jlink ───────────────────────────
-# Trims the ~330 MB JDK down to a ~70 MB modular runtime carrying only the modules this app uses,
-# shrinking both the image and the attack surface. Built on a *glibc* Temurin JDK (the default,
-# non-alpine tag) so the result is binary-compatible with the glibc distroless runtime base below —
-# a musl/alpine JRE would not run there. binutils supplies `strip` for the libjvm debug-symbol purge.
-#
-# Module set (keep in sync with the app's needs; a missing module surfaces only at runtime):
+FROM eclipse-temurin:26_35-jdk AS jre
+
+# BEGIN UBUNTU PACKAGES
+RUN apt-get update && apt-get install -yqq --no-install-recommends \
+        binutils="2.42-4ubuntu2.10" \
+    && \
+    apt-get autoremove && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+# END UBUNTU PACKAGES
+
+# Module set
 #   java.base                          – always required
 #   java.logging                       – JBoss LogManager / JUL bridge
 #   java.xml                           – config + persistence XML parsing
@@ -82,9 +95,7 @@ RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -Dcss.build.skip
 #   java.instrument                    – bytecode instrumentation agents
 #   jdk.unsupported                    – sun.misc.Unsafe (Netty, Hibernate, et al.)
 #   jdk.zipfs                          – zip filesystem provider used when opening nested jars
-FROM eclipse-temurin:26-jdk AS jre
-RUN apt-get update && apt-get install -yqq --no-install-recommends binutils \
-    && jlink --compress=zip-9 \
+RUN jlink --compress=zip-9 \
         --no-header-files \
         --no-man-pages \
         --strip-debug \
@@ -105,8 +116,8 @@ FROM gcr.io/distroless/base-debian13:nonroot AS runtime
 
 # Custom jlink JRE (glibc, matches this debian base) + its tools on PATH.
 COPY --from=jre /opt/jdk /opt/jdk
-ENV JAVA_HOME="/opt/jdk" \
-    PATH="/opt/jdk/bin:${PATH}"
+ENV JAVA_HOME="/opt/jdk"
+ENV PATH="/opt/jdk/bin:${PATH}"
 
 EXPOSE 8080
 

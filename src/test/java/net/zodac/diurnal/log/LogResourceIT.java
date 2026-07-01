@@ -491,9 +491,9 @@ class LogResourceIT extends IntegrationTestBase {
         given().get("/logs/month/2026-06")
                 .then().statusCode(200)
                 .body("'2026-06-10'", containsString("PrimaryAction"))
-                .body("'2026-06-10'", containsString("42"))
+                .body("'2026-06-10'", containsString("value=\"42\""))
                 .body("'2026-06-11'", containsString("PrimaryAction"))
-                .body("'2026-06-11'", not(containsString("42")));
+                .body("'2026-06-11'", not(containsString("value=\"42\"")));
     }
 
     @Test

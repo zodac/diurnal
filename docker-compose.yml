@@ -79,6 +79,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+      start_interval: 5s
     networks:
       - diurnal
 
