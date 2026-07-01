@@ -73,26 +73,36 @@ update_java() {
     fi
     echo "  Latest Java major: ${latest_major}"
 
-    # Latest full eclipse-temurin tag for the bare -jdk variant (Dockerfile jre stage)
+    # Fetch tags using both name-prefix formats Eclipse Temurin uses for a given major:
+    #   {major}_<build>          (initial GA,         e.g. 26_35)
+    #   {major}.<n>.<n>_<build>  (maintenance release, e.g. 26.0.1_8)
+    # A single ?name={major} query with ordering=-last_updated risks burying the plain -jdk
+    # tag behind 100+ Alpine/Noble/Windows variants that were pushed more recently.
+    # Two targeted prefix queries cover both formats and keep each result set small.
+    local raw_tags
+    raw_tags=$(
+        curl_get "https://hub.docker.com/v2/repositories/library/eclipse-temurin/tags?name=${latest_major}_&page_size=100&ordering=-last_updated" \
+            | jq -r '.results[].name'
+        curl_get "https://hub.docker.com/v2/repositories/library/eclipse-temurin/tags?name=${latest_major}.&page_size=100&ordering=-last_updated" \
+            | jq -r '.results[].name'
+    )
+
     local jdk_tag
-    jdk_tag=$(curl_get \
-        "https://hub.docker.com/v2/repositories/library/eclipse-temurin/tags?name=${latest_major}&page_size=100&ordering=-last_updated" \
-        | jq -r '.results[].name' \
+    jdk_tag=$(echo "${raw_tags}" \
         | grep -E "^${latest_major}[_.][0-9].*-jdk$" \
-        | head -1)
+        | sort -t_ -k1,1V -k2,2n \
+        | tail -1)
     if [[ -z "${jdk_tag}" ]]; then
         warn "No eclipse-temurin:${latest_major}*-jdk tag on Docker Hub, skipping Java update"
         return 0
     fi
     echo "  eclipse-temurin jdk tag: ${jdk_tag}"
 
-    # Latest full eclipse-temurin tag for the -jdk-noble variant (sandbox/Dockerfile)
     local jdk_noble_tag
-    jdk_noble_tag=$(curl_get \
-        "https://hub.docker.com/v2/repositories/library/eclipse-temurin/tags?name=${latest_major}&page_size=100&ordering=-last_updated" \
-        | jq -r '.results[].name' \
+    jdk_noble_tag=$(echo "${raw_tags}" \
         | grep -E "^${latest_major}[_.][0-9].*-jdk-noble$" \
-        | head -1)
+        | sort -t_ -k1,1V -k2,2n \
+        | tail -1)
     if [[ -z "${jdk_noble_tag}" ]]; then
         warn "No eclipse-temurin:${latest_major}*-jdk-noble tag on Docker Hub, skipping Java update"
         return 0

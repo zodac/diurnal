@@ -69,11 +69,11 @@ RUN CSS_DIR=src/main/resources/META-INF/resources/css \
 RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -Dcss.build.skip=true -q
 
 # ── Stage 4: build a minimal custom JRE with jlink ───────────────────────────
-FROM eclipse-temurin:26_35-jdk AS jre
+FROM eclipse-temurin:26.0.1_8-jdk AS jre
 
 # BEGIN UBUNTU PACKAGES
 RUN apt-get update && apt-get install -yqq --no-install-recommends \
-        binutils="2.42-4ubuntu2.10" \
+        binutils="2.46-3ubuntu2" \
     && \
     apt-get autoremove && \
     apt-get clean && \

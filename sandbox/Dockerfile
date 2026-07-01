@@ -8,7 +8,7 @@
 # Pinned to the Noble (Ubuntu 24.04) variant: Playwright's `--with-deps` installer
 # supports 24.04 but NOT the rolling latest (26.04 "resolute"), and the default tag
 # tracks the latter.
-FROM eclipse-temurin:26_35-jdk-noble
+FROM eclipse-temurin:26.0.1_8-jdk-noble
 
 ARG UID=1000
 ARG GID=1000
