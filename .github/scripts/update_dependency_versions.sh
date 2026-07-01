@@ -8,6 +8,7 @@
 #                 - Maven (full) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
 #                 - Node (full/major) in Dockerfile, sandbox/Dockerfile
 #                 - Ubuntu packages (# BEGIN/END UBUNTU PACKAGES blocks)
+#                 - Debian packages (# BEGIN/END DEBIAN PACKAGES blocks)
 #                 - Alpine packages (# BEGIN/END ALPINE PACKAGES blocks)
 #                 - Git submodules (latest tag, best-effort)
 #                 - GitHub Actions (latest release tag, best-effort)
@@ -55,9 +56,9 @@ hub_tag_exists() {
 
 # ── 1. Java ───────────────────────────────────────────────────────────────────
 # Updates: pom.xml <java-release>, Dockerfile maven stage (major),
-#          Dockerfile jre stage (full tag), sandbox/Dockerfile FROM (full tag),
-#          all workflow java-version fields.
-# Pre-condition: eclipse-temurin jdk and jdk-noble tags exist on Docker Hub,
+#          Dockerfile jre stage (full tag), sandbox/Dockerfile jdk stage (full tag)
+#          + maven stage (major), all workflow java-version fields.
+# Pre-condition: eclipse-temurin jdk tag exists on Docker Hub,
 #                AND maven:{current_maven}-eclipse-temurin-{new_major} exists.
 
 update_java() {
@@ -98,17 +99,6 @@ update_java() {
     fi
     echo "  eclipse-temurin jdk tag: ${jdk_tag}"
 
-    local jdk_noble_tag
-    jdk_noble_tag=$(echo "${raw_tags}" \
-        | grep -E "^${latest_major}[_.][0-9].*-jdk-noble$" \
-        | sort -t_ -k1,1V -k2,2n \
-        | tail -1)
-    if [[ -z "${jdk_noble_tag}" ]]; then
-        warn "No eclipse-temurin:${latest_major}*-jdk-noble tag on Docker Hub, skipping Java update"
-        return 0
-    fi
-    echo "  eclipse-temurin jdk-noble tag: ${jdk_noble_tag}"
-
     # The Dockerfile maven build stage image combines both versions.
     # Verify the current Maven version still resolves against the new Java major.
     local current_maven
@@ -131,20 +121,23 @@ update_java() {
     # Dockerfile: full tag in the jre stage (ends with "-jdk", then a space or end-of-line before "AS")
     sed -i "s|FROM eclipse-temurin:[^ ]*-jdk |FROM eclipse-temurin:${jdk_tag} |" "${DOCKERFILE}"
 
-    # sandbox/Dockerfile: full tag (-jdk-noble suffix)
-    sed -i "s|FROM eclipse-temurin:[^ ]*-jdk-noble|FROM eclipse-temurin:${jdk_noble_tag}|" "${SANDBOX_DOCKERFILE}"
+    # sandbox/Dockerfile: full tag in the jdk source stage (plain "-jdk", then "AS jdk")
+    sed -i "s|FROM eclipse-temurin:[^ ]*-jdk AS jdk|FROM eclipse-temurin:${jdk_tag} AS jdk|" "${SANDBOX_DOCKERFILE}"
+
+    # sandbox/Dockerfile: java major in the maven source stage image tag
+    sed -i "s|eclipse-temurin-[0-9]* AS maven|eclipse-temurin-${latest_major} AS maven|" "${SANDBOX_DOCKERFILE}"
 
     # All workflow files
     for workflow in "${WORKFLOWS_DIR}"/*.yml; do
         sed -i "s|java-version: '[0-9]*'|java-version: '${latest_major}'|g" "${workflow}"
     done
 
-    ok "Java updated → major ${latest_major} (jdk: ${jdk_tag}, jdk-noble: ${jdk_noble_tag})"
+    ok "Java updated → major ${latest_major} (jdk: ${jdk_tag})"
 }
 
 # ── 2. Maven ──────────────────────────────────────────────────────────────────
 # Updates: pom.xml <maven-release>, Dockerfile maven stage,
-#          sandbox/Dockerfile ARG MAVEN_VERSION, all workflow maven-version fields.
+#          sandbox/Dockerfile maven source stage, all workflow maven-version fields.
 # Pre-condition: maven:{new_version}-eclipse-temurin-{java_major} exists on Docker Hub.
 
 update_maven() {
@@ -180,8 +173,8 @@ update_maven() {
     # Dockerfile: maven version in the build stage image tag
     sed -i "s|FROM maven:[^-]*-eclipse-temurin|FROM maven:${latest_version}-eclipse-temurin|" "${DOCKERFILE}"
 
-    # sandbox/Dockerfile
-    sed -i "s|ARG MAVEN_VERSION=.*|ARG MAVEN_VERSION=${latest_version}|" "${SANDBOX_DOCKERFILE}"
+    # sandbox/Dockerfile: maven version in the maven source stage image tag
+    sed -i "s|FROM maven:[^-]*-eclipse-temurin|FROM maven:${latest_version}-eclipse-temurin|" "${SANDBOX_DOCKERFILE}"
 
     # All workflow files
     for workflow in "${WORKFLOWS_DIR}"/*.yml; do
@@ -193,9 +186,9 @@ update_maven() {
 
 # ── 3. Node ───────────────────────────────────────────────────────────────────
 # Updates: Dockerfile node stages (full version-alpine tag),
-#          sandbox/Dockerfile ARG NODE_MAJOR (major only).
-# Pre-condition: node:{version}-alpine exists on Docker Hub AND
-#                NodeSource setup_{major}.x script is available.
+#          sandbox/Dockerfile node source stage (full version-trixie tag).
+# Pre-condition: node:{version}-alpine (Dockerfile) AND node:{version}-trixie
+#                (sandbox/Dockerfile) both exist on Docker Hub.
 
 update_node() {
     echo
@@ -211,6 +204,7 @@ update_node() {
     latest_version="${latest_version#v}"
     local latest_major="${latest_version%%.*}"
     local alpine_tag="${latest_version}-alpine"
+    local trixie_tag="${latest_version}-trixie"
     echo "  Latest Node: ${latest_version} (major: ${latest_major})"
 
     # Check node:{version}-alpine on Docker Hub (used in Dockerfile)
@@ -220,35 +214,36 @@ update_node() {
     fi
     echo "  node:${alpine_tag} confirmed on Docker Hub"
 
-    # Check NodeSource setup script for this major (used in sandbox/Dockerfile)
-    local nodesource_status
-    nodesource_status=$(curl -fsSL -o /dev/null -w "%{http_code}" \
-        "https://deb.nodesource.com/setup_${latest_major}.x")
-    if [[ "${nodesource_status}" != "200" ]]; then
-        warn "NodeSource setup_${latest_major}.x not available (HTTP ${nodesource_status}), skipping Node update"
+    # Check node:{version}-trixie on Docker Hub (the source stage in sandbox/Dockerfile;
+    # -trixie matches the Debian 13 runtime base's glibc)
+    if ! hub_tag_exists "library/node" "${trixie_tag}"; then
+        warn "node:${trixie_tag} not on Docker Hub, skipping Node update"
         return 0
     fi
-    echo "  NodeSource setup_${latest_major}.x confirmed"
+    echo "  node:${trixie_tag} confirmed on Docker Hub"
 
     # ── Apply ──────────────────────────────────────────────────────────────────
 
-    # Dockerfile: both node stages use the same tag
+    # Dockerfile: both node stages use the same alpine tag
     sed -i "s|FROM node:[0-9.]*-alpine|FROM node:${alpine_tag}|g" "${DOCKERFILE}"
 
-    # sandbox/Dockerfile: major version only
-    sed -i "s|ARG NODE_MAJOR=.*|ARG NODE_MAJOR=${latest_major}|" "${SANDBOX_DOCKERFILE}"
+    # sandbox/Dockerfile: node source stage uses the trixie tag
+    sed -i "s|FROM node:[0-9.]*-trixie|FROM node:${trixie_tag}|g" "${SANDBOX_DOCKERFILE}"
 
     ok "Node updated → ${latest_version} (major: ${latest_major})"
 }
 
-# ── 4. Ubuntu packages ────────────────────────────────────────────────────────
-# For each # BEGIN/END UBUNTU PACKAGES block in the given Dockerfile:
+# ── 4. Debian/Ubuntu (apt) packages ───────────────────────────────────────────
+# For each # BEGIN/END <LABEL> PACKAGES block (LABEL = UBUNTU or DEBIAN) in the given
+# Dockerfile:
 #   - Determines the preceding FROM image and queries apt-cache policy in a fresh container
 #   - If packages aren't in the base image's default repos (e.g. Docker-engine packages that
 #     need the Docker APT repo configured), falls back to building a temporary context image
-#     from all Dockerfile content up to that section. Version pins in earlier UBUNTU PACKAGES
+#     from all Dockerfile content up to that section. Version pins in earlier <LABEL> PACKAGES
 #     blocks are stripped so they install cleanly in the context image.
 #   - Updates each package's pinned version in-place via sed
+# Both labels share this logic (apt on both distros); the label only picks the markers and the
+# base image (the Ubuntu-based eclipse-temurin jre stage vs. the Debian sandbox base).
 # Best-effort per section.
 
 _parse_apt_candidates() {
@@ -258,10 +253,11 @@ _parse_apt_candidates() {
     '
 }
 
-update_ubuntu_packages() {
+update_apt_packages() {
     local dockerfile="${1}"
-    local start_marker="# BEGIN UBUNTU PACKAGES"
-    local end_marker="# END UBUNTU PACKAGES"
+    local label="${2}"
+    local start_marker="# BEGIN ${label} PACKAGES"
+    local end_marker="# END ${label} PACKAGES"
 
     if ! grep -q "${start_marker}" "${dockerfile}"; then
         return 0
@@ -271,7 +267,7 @@ update_ubuntu_packages() {
     section_count=$(grep -c "${start_marker}" "${dockerfile}")
 
     echo
-    echo "🔍 Updating Ubuntu packages in ${dockerfile} (${section_count} section(s))..."
+    echo "🔍 Updating ${label} packages in ${dockerfile} (${section_count} section(s))..."
 
     for ((section = 1; section <= section_count; section++)); do
         echo "  --- Section ${section}/${section_count}"
@@ -318,16 +314,16 @@ update_ubuntu_packages() {
             "apt-get update -qq -o Acquire::Languages=none 2>/dev/null \
              && apt-cache policy ${package_names[*]}")
 
-        unset ubuntu_versions
-        declare -A ubuntu_versions
+        unset apt_versions
+        declare -A apt_versions
         while IFS='=' read -r pkg ver; do
-            [[ -n "${pkg}" && -n "${ver}" ]] && ubuntu_versions["${pkg}"]="${ver}"
+            [[ -n "${pkg}" && -n "${ver}" ]] && apt_versions["${pkg}"]="${ver}"
         done < <(echo "${versions_raw}" | _parse_apt_candidates)
 
         # Detect any package with no Candidate (repo not configured in base image)
         local first_missing=""
         for package in "${package_names[@]}"; do
-            if [[ -z "${ubuntu_versions["${package}"]:-}" ]]; then
+            if [[ -z "${apt_versions["${package}"]:-}" ]]; then
                 first_missing="${package}"
                 break
             fi
@@ -335,7 +331,7 @@ update_ubuntu_packages() {
 
         # ── Fallback: build a context image that includes the repo setup ──────
         # Extracts all Dockerfile content up to (not including) this section's BEGIN
-        # marker and builds a temporary image. Version pins in earlier UBUNTU PACKAGES
+        # marker and builds a temporary image. Version pins in earlier <label> PACKAGES
         # blocks are stripped (gsub) so they install as latest-available rather than
         # requiring exact versions that may no longer be in the apt cache.
         local temp_image=""
@@ -374,10 +370,10 @@ update_ubuntu_packages() {
                 "apt-get update -qq -o Acquire::Languages=none 2>/dev/null \
                  && apt-cache policy ${package_names[*]}")
 
-            unset ubuntu_versions
-            declare -A ubuntu_versions
+            unset apt_versions
+            declare -A apt_versions
             while IFS='=' read -r pkg ver; do
-                [[ -n "${pkg}" && -n "${ver}" ]] && ubuntu_versions["${pkg}"]="${ver}"
+                [[ -n "${pkg}" && -n "${ver}" ]] && apt_versions["${pkg}"]="${ver}"
             done < <(echo "${versions_raw}" | _parse_apt_candidates)
         fi
 
@@ -389,22 +385,22 @@ update_ubuntu_packages() {
         # Verify all packages resolved after quick or fallback path
         local all_found=true
         for package in "${package_names[@]}"; do
-            if [[ -z "${ubuntu_versions["${package}"]:-}" ]]; then
+            if [[ -z "${apt_versions["${package}"]:-}" ]]; then
                 warn "Could not resolve version for '${package}', skipping section ${section}"
                 all_found=false
                 break
             fi
-            echo "    ${package}=${ubuntu_versions[${package}]}"
+            echo "    ${package}=${apt_versions[${package}]}"
         done
         [[ "${all_found}" == "true" ]] || continue
 
         # Update each package version in-place
         for package in "${package_names[@]}"; do
-            sed -i "s|${package}=\"[^\"]*\"|${package}=\"${ubuntu_versions[${package}]}\"|g" "${dockerfile}"
+            sed -i "s|${package}=\"[^\"]*\"|${package}=\"${apt_versions[${package}]}\"|g" "${dockerfile}"
         done
     done
 
-    ok "Ubuntu packages processed in ${dockerfile}"
+    ok "${label} packages processed in ${dockerfile}"
 }
 
 # ── 5. Alpine packages ────────────────────────────────────────────────────────
@@ -683,9 +679,9 @@ update_java       || warn "Java update failed, continuing..."
 update_maven      || warn "Maven update failed, continuing..."
 update_node       || warn "Node update failed, continuing..."
 
-update_ubuntu_packages "${DOCKERFILE}"         || warn "Ubuntu packages update failed for Dockerfile, continuing..."
-update_ubuntu_packages "${SANDBOX_DOCKERFILE}" || warn "Ubuntu packages update failed for sandbox/Dockerfile, continuing..."
-update_alpine_packages "${DOCKERFILE}"         || warn "Alpine packages update failed for Dockerfile, continuing..."
+update_apt_packages "${DOCKERFILE}"         "UBUNTU" || warn "Ubuntu packages update failed for Dockerfile, continuing..."
+update_apt_packages "${SANDBOX_DOCKERFILE}" "DEBIAN" || warn "Debian packages update failed for sandbox/Dockerfile, continuing..."
+update_alpine_packages "${DOCKERFILE}"              || warn "Alpine packages update failed for Dockerfile, continuing..."
 
 update_submodules      || warn "Submodules update failed, continuing..."
 update_github_actions  || warn "GitHub Actions update failed, continuing..."

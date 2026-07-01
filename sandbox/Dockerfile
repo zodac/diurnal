@@ -1,24 +1,41 @@
 # Sandbox image for running Claude Code against the `diurnal` project with
 # --dangerously-skip-permissions, fully isolated from the host.
 #
-# Base gives us a guaranteed JDK 26 (Alpine does not package JDK 26 reliably).
-# On top we add: a NESTED Docker engine (so the project's dev DB / Testcontainers /
-# Playwright all run inside this throwaway container, never touching the host daemon),
-# Maven 3.9, Node 26, and the system libraries Playwright's Chromium needs.
-# Pinned to the Noble (Ubuntu 24.04) variant: Playwright's `--with-deps` installer
-# supports 24.04 but NOT the rolling latest (26.04 "resolute"), and the default tag
-# tracks the latter.
-FROM eclipse-temurin:26.0.1_8-jdk-noble
+# The runtime is a plain Debian 13 (trixie) base. The JDK 26, Maven and Node
+# toolchains are pulled from their official images as multi-stage build stages
+# and the relevant directories copied straight in — so we track upstream image
+# tags (maintained by .github/scripts/update_dependency_versions.sh) instead of
+# hand-rolling tarball / NodeSource downloads. On top we also add: a NESTED
+# Docker engine (so the project's dev DB / Testcontainers / Playwright all run
+# inside this throwaway container, never touching the host daemon) and the
+# system libraries Playwright's Chromium needs.
+#
+# The nested Docker engine is the one toolchain NOT copied from an image: the
+# binaries in the official `docker`/`docker:dind` images are musl-linked (Alpine),
+# so they can't be dropped onto this glibc Debian base — Docker's own Debian APT
+# repo is the portable path, so it stays a normal apt install (see below).
+
+# ── Toolchain source stages (their payload is copied into the Debian base) ────
+# Each of these is only mined for its self-contained toolchain directory; none of
+# their base OS reaches the final image.
+#   JDK 26  — self-contained under /opt/java/openjdk, portable onto glibc Debian.
+#   Maven   — pure Java + shell under /usr/share/maven; the image's own JDK is unused.
+#   Node 26 — installed under /usr/local; the prebuilt binaries are glibc-portable
+#             (the -trixie tag matches this base's glibc exactly).
+FROM eclipse-temurin:26.0.1_8-jdk AS jdk
+FROM maven:3.9.16-eclipse-temurin-26 AS maven
+FROM node:26.4.0-trixie AS node
+
+# ── Runtime base ─────────────────────────────────────────────────────────────
+FROM debian:13.5
 
 ARG UID=1000
 ARG GID=1000
-# TODO: Use muti-stage docker images instead, and update the update script
-ARG MAVEN_VERSION=3.9.16
-ARG NODE_MAJOR=26
 
 ENV DEBIAN_FRONTEND=noninteractive \
+    JAVA_HOME=/opt/java/openjdk \
     MAVEN_HOME=/opt/maven \
-    PATH=/opt/maven/bin:$PATH
+    PATH=/opt/java/openjdk/bin:/opt/maven/bin:$PATH
 
 # ── Base tooling + brand-script tooling ──────────────────────────────────────
 # The brand pipeline (`npm run brand`) needs these:
@@ -34,82 +51,82 @@ ENV DEBIAN_FRONTEND=noninteractive \
 # them the teardown silently no-ops and then falsely reports the port free, so a leftover process can
 # poison the next `mvn -Dall` IT phase with "Port already bound: 8081".
 #
+# fontconfig + tzdata back the copied-in Temurin JDK: the temurin base image normally supplies these
+# (the JDK itself only bundles freetype), so on this bare Debian base we add them explicitly — tzdata
+# so `app.timezone` / TZ date boundaries resolve, fontconfig for the reflective java.desktop paths.
+#
+# curl + gnupg + ca-certificates also bootstrap the Docker APT repo configured further down.
+#
 # Chromium's own shared-library deps are NOT listed here (the package names drift
-# across Ubuntu releases); install them once inside the sandbox with the
+# across Debian releases); install them once inside the sandbox with the
 # version-proof `npx playwright install --with-deps chromium` (see README).
 
-# BEGIN UBUNTU PACKAGES
+# BEGIN DEBIAN PACKAGES
 RUN apt-get update && apt-get install -yqq --no-install-recommends \
-        bash="5.2.21-2ubuntu4" \
-        ca-certificates="20260601~24.04.1" \
-        curl="8.5.0-2ubuntu10.10" \
-        git="1:2.43.0-1ubuntu7.3" \
-        gnupg="2.4.4-2ubuntu17.4" \
-        imagemagick="8:6.9.12.98+dfsg1-5.2build2" \
-        iproute2="6.1.0-1ubuntu6.3" \
-        jq="1.7.1-3ubuntu0.24.04.2" \
-        librsvg2-bin="2.58.0+dfsg-1build1" \
-        lsof="4.95.0-1build3" \
-        optipng="0.7.8+ds-1build2" \
-        python3="3.12.3-0ubuntu2.1" \
-        python3-pip="24.0+dfsg-1ubuntu1.3" \
-        python3-fonttools="4.46.0-1build2" \
-        python3-venv="3.12.3-0ubuntu2.1" \
-        sudo="1.9.15p5-3ubuntu5.24.04.2" \
-        unzip="6.0-28ubuntu4.1" \
+        bash="5.2.37-2+b9" \
+        ca-certificates="20250419" \
+        curl="8.14.1-2+deb13u3" \
+        fontconfig="2.15.0-2.3" \
+        git="1:2.47.3-0+deb13u1" \
+        gnupg="2.4.7-21+deb13u1" \
+        imagemagick="8:7.1.1.43+dfsg1-1+deb13u10" \
+        iproute2="6.15.0-1" \
+        jq="1.7.1-6+deb13u2" \
+        librsvg2-bin="2.60.0+dfsg-1" \
+        lsof="4.99.4+dfsg-2" \
+        optipng="0.7.8+ds-1+b1" \
+        python3="3.13.5-1" \
+        python3-fonttools="4.57.0-1+deb13u1" \
+        python3-pip="25.1.1+dfsg-1" \
+        python3-venv="3.13.5-1" \
+        sudo="1.9.16p2-3+deb13u2" \
+        tzdata="2026b-0+deb13u1" \
+        unzip="6.0-29" \
     && \
     apt-get autoremove && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-# END UBUNTU PACKAGES
+# END DEBIAN PACKAGES
+
+# ── JDK 26 / Maven / Node (copied from the toolchain stages above) ───────────
+# The three toolchains are self-contained directory trees; drop them into the
+# glibc base at the paths JAVA_HOME / MAVEN_HOME / PATH already point at.
+COPY --from=jdk   /opt/java/openjdk /opt/java/openjdk
+COPY --from=maven /usr/share/maven  /opt/maven
+COPY --from=node  /usr/local        /usr/local
 
 # ── Docker engine + compose plugin (the nested daemon) ───────────────────────
+# The base is pinned to Debian, so the repo distro is hardcoded as `debian`; only the
+# release codename is derived (from /etc/os-release, via sed rather than a sourced shell
+# var) so a base point/major bump follows automatically.
 RUN install -m 0755 -d /etc/apt/keyrings \
-    && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc 2>/dev/null \
-       || curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc \
+    && curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc \
     && chmod a+r /etc/apt/keyrings/docker.asc \
-    && . /etc/os-release \
-    && DOCKER_REPO="$ID" \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/${DOCKER_REPO} ${VERSION_CODENAME} stable" \
+    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian $(sed -n 's/^VERSION_CODENAME=//p' /etc/os-release) stable" \
          > /etc/apt/sources.list.d/docker.list
 
-# BEGIN UBUNTU PACKAGES
+# BEGIN DEBIAN PACKAGES
 RUN apt-get update && apt-get install -yqq --no-install-recommends \
-        docker-ce="5:29.6.1-1~ubuntu.24.04~noble" \
-        docker-ce-cli="5:29.6.1-1~ubuntu.24.04~noble" \
-        containerd.io="2.2.5-1~ubuntu.24.04~noble" \
-        docker-buildx-plugin="0.35.0-1~ubuntu.24.04~noble" \
-        docker-compose-plugin="5.2.0-1~ubuntu.24.04~noble" \
+        docker-ce="5:29.6.1-1~debian.13~trixie" \
+        docker-ce-cli="5:29.6.1-1~debian.13~trixie" \
+        containerd.io="2.2.5-1~debian.13~trixie" \
+        docker-buildx-plugin="0.35.0-1~debian.13~trixie" \
+        docker-compose-plugin="5.2.0-1~debian.13~trixie" \
     && \
     apt-get autoremove && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
-# END UBUNTU PACKAGES
-
-# ── Maven ────
-RUN curl -fsSL "https://archive.apache.org/dist/maven/maven-3/${MAVEN_VERSION}/binaries/apache-maven-${MAVEN_VERSION}-bin.tar.gz" \
-      -o /tmp/maven.tar.gz \
-    && tar -xzf /tmp/maven.tar.gz -C /opt \
-    && ln -s "/opt/apache-maven-${MAVEN_VERSION}" /opt/maven \
-    && rm /tmp/maven.tar.gz
-
-# ── Node 26 via NodeSource ───────────────────────────────────────────────────
-# Claude Code itself is installed later, AFTER the `dev` user exists, into a
-# dev-owned npm prefix (see below) so its self-update isn't blocked.
-RUN curl -fsSL "https://deb.nodesource.com/setup_${NODE_MAJOR}.x" | bash - \
-    && apt-get install -y --no-install-recommends nodejs \
-    && rm -rf /var/lib/apt/lists/*
+# END DEBIAN PACKAGES
 
 # ── Non-root user `dev` matching the host UID/GID, with passwordless sudo ────
-# The base image may already ship a user/group at ${UID}/${GID} (Ubuntu's
-# default "ubuntu" user is 1000). Reuse it rather than failing: rename whatever
-# owns the UID/GID to `dev` and point its home at /home/dev.
+# The Debian base ships no user at ${UID}/${GID}, so this normally just creates
+# `dev`. The getent guards keep it robust if a base ever does pre-populate the
+# UID/GID: rename whatever owns them to `dev` and point its home at /home/dev.
 RUN set -eux; \
     if ! getent group "${GID}" >/dev/null; then groupadd -g "${GID}" dev; \
     else groupmod -n dev "$(getent group ${GID} | cut -d: -f1)" || true; fi; \
     if getent passwd "${UID}" >/dev/null; then \
-      OLD="$(getent passwd ${UID} | cut -d: -f1)"; \
-      usermod -l dev -d /home/dev -m -s /bin/bash "$OLD"; \
+      usermod -l dev -d /home/dev -m -s /bin/bash "$(getent passwd ${UID} | cut -d: -f1)"; \
     else \
       useradd -m -u "${UID}" -g "${GID}" -s /bin/bash dev; \
     fi; \

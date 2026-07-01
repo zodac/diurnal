@@ -49,17 +49,17 @@ run() {
   # is closed — the container would otherwise keep running in the daemon. So stop it whenever we leave.
   # Running `docker run` as `… & wait` (not in the foreground) is what lets the trap fire *immediately*
   # on the signal: a foreground command defers traps until it returns, by which point IntelliJ may have
-  # already escalated to SIGKILL. With job control off (a script), the backgrounded client stays in the
+  # already escalated to SIGKILL. With job control off (a script), the background-ed client stays in the
   # foreground process group, so the interactive TTY keeps working.
   #
   # BUT: in a non-interactive shell (job control off — exactly how IntelliJ's Shell Script config and
-  # `bash sandbox.sh` invoke us), POSIX reassigns a backgrounded command's stdin to /dev/null *unless it
+  # `bash sandbox.sh` invoke us), POSIX reassigns a background-ed command's stdin to /dev/null *unless it
   # is explicitly redirected*. Without that explicit redirect, `docker run -it … &` would see a
   # non-terminal stdin and fail with "cannot attach stdin to a TTY-enabled container". So save the real
-  # stdin on fd 3 and feed it back into the backgrounded client with `<&3`, which suppresses the
+  # stdin on fd 3 and feed it back into the background-ed client with `<&3`, which suppresses the
   # /dev/null default and keeps the PTY attached.
   # `-t 10` (not a tighter grace) gives Claude time to finish its atomic rewrite of
-  # ~/.claude/.claude.json on SIGTERM before docker SIGKILLs it; too short a grace
+  # ~/.claude/.claude.json on SIGTERM before docker SIGKILL it; too short a grace
   # interrupts that rename and loses the login/onboarding state (launch.sh restores
   # it from backup as a safety net, but a clean flush is better than relying on it).
   exec 3<&0

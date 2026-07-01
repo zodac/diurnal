@@ -121,9 +121,9 @@ once and caches them client-side, so navigating between months reads from memory
 each time. This matters most behind a reverse proxy / CDN, where every request carries the edge latency. Two
 constants at the top of the calendar script in `src/main/resources/templates/dashboard.html` tune the behaviour:
 
-| Constant          | Default | Description                                                                                       |
-|-------------------|---------|---------------------------------------------------------------------------------------------------|
-| `PREFETCH_RADIUS` | `2`     | Months either side of the visible one to warm in the background (on idle) so prev/next is instant. |
+| Constant          | Default | Description                                                                                         |
+|-------------------|---------|-----------------------------------------------------------------------------------------------------|
+| `PREFETCH_RADIUS` | `2`     | Months either side of the visible one to warm in the background (on idle) so prev/next is instant.  |
 | `CACHE_LIMIT`     | `12`    | Maximum number of resolved months retained in memory; the oldest are evicted (least-recently-used). |
 
 > Keep `CACHE_LIMIT` comfortably above the live window of `2 * PREFETCH_RADIUS + 1` months (5 at the defaults),
