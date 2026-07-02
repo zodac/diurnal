@@ -54,16 +54,7 @@ public class AppLifecycle {
      */
     @SuppressWarnings("unused") // CDI startup observer — invoked by Quarkus, not called directly
     void onStart(@Observes StartupEvent ev) {
-        if (!passwordAuthConfig.enabled() && !oidcEnabled) {
-            throw new IllegalStateException(
-                "Both PASSWORD_AUTH_ENABLED and OIDC_ENABLED are false — "
-                + "at least one authentication method must be enabled.");
-        }
-
-        if (oidcEnabled && oidcIssuerUrl.isBlank()) {
-            throw new IllegalStateException(
-                "OIDC_ENABLED=true but OIDC_ISSUER_URL is not set.");
-        }
+        validateAuthConfig();
 
         // Wall-clock time from JVM launch to now, read from the RuntimeMXBean whose start timestamp is
         // set by the runtime before any application code runs. This captures the true cold start — JVM
@@ -87,5 +78,27 @@ public class AppLifecycle {
             }
         }
         LOGGER.info("=================================================");
+    }
+
+    /**
+     * Fails fast when the authentication configuration is invalid: no auth method enabled, or OIDC
+     * enabled without an issuer URL. Extracted from {@link #onStart(StartupEvent)} so the guards can
+     * be exercised directly without booting the application (the "no auth method" case throws before
+     * startup can complete).
+     *
+     * @throws IllegalStateException if neither password auth nor OIDC is enabled, or if OIDC is
+     *                               enabled but no issuer URL is configured
+     */
+    void validateAuthConfig() {
+        if (!passwordAuthConfig.enabled() && !oidcEnabled) {
+            throw new IllegalStateException(
+                "Both PASSWORD_AUTH_ENABLED and OIDC_ENABLED are false — "
+                + "at least one authentication method must be enabled.");
+        }
+
+        if (oidcEnabled && oidcIssuerUrl.isBlank()) {
+            throw new IllegalStateException(
+                "OIDC_ENABLED=true but OIDC_ISSUER_URL is not set.");
+        }
     }
 }
