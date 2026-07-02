@@ -9,9 +9,9 @@
     "report": "playwright show-report"
   },
   "devDependencies": {
-    "@playwright/test": "^1.49.0",
-    "@types/node": "^25.9.2",
-    "@types/pg": "^8.11.10",
-    "pg": "^8.13.1"
+    "@playwright/test": "1.61.1",
+    "@types/node": "26.1.0",
+    "@types/pg": "8.20.0",
+    "pg": "8.22.0"
   }
 }

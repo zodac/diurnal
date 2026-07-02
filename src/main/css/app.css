@@ -1,6 +1,12 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+ * Tailwind v4 entrypoint. The single `@import` replaces the v3 `@tailwind base/components/utilities`
+ * trio. `@config` keeps the v3-style JavaScript config (tailwind.config.js) as the source of the
+ * `darkMode: 'class'` strategy, the `content` scan globs (templates + Java sources), the `safelist`,
+ * and the semantic colour/font token mapping — so the whole theme still lives in one file and the
+ * JS-lint target stays valid. Path is relative to this file: src/main/css → repo root.
+ */
+@import 'tailwindcss';
+@config '../../../tailwind.config.js';
 
 /*
  * Brand typography — the Nova superfamily (the same family the wordmark is set in).
@@ -227,6 +233,33 @@
     font-family: var(--font-display);
     letter-spacing: -0.01em;
   }
+
+  /*
+   * Placeholder colour. Tailwind v3's Preflight painted input/textarea placeholders in gray-400;
+   * v4's Preflight instead uses 50%-opacity currentColor, which would shift every placeholder to a
+   * washed-out version of the input's text colour. Restore the exact v3 behaviour so search boxes
+   * and form fields look identical to the pre-migration build.
+   */
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af; /* gray-400 — the Tailwind v3 Preflight placeholder colour */
+  }
+
+  /*
+   * Cursor on interactive controls. Tailwind v3's Preflight set `cursor: pointer` on every `button`;
+   * v4's Preflight dropped it (deferring to the browser default of `cursor: default`), so buttons
+   * stopped showing the hand cursor after the migration — the hamburger toggle, the log increment/
+   * decrement controls, the month/year picker arrows, the "Log out" submit button, the Settings
+   * "Edit" button, the preview "(!)" trigger, and the preview-gallery buttons all regressed. Restore
+   * the v3 behaviour in ONE place for every button and role=button (the single source of truth), so
+   * no component needs to re-declare it. `:not(:disabled)` keeps v4's correct default arrow on
+   * disabled controls. Non-button controls that also want a pointer (the colour swatch input, the
+   * selects) still opt in explicitly at their own call sites — Preflight never covered them.
+   */
+  button:not(:disabled),
+  [role="button"]:not(:disabled) {
+    cursor: pointer;
+  }
 }
 
 /*
@@ -260,28 +293,39 @@
   }
 
   /* Buttons ---------------------------------------------------------------- */
-  /* Filled call-to-action (login/register submit, "Add actions" empty states). */
-  .btn-primary {
-    @apply inline-flex items-center justify-center gap-2 bg-brand text-on-brand rounded-lg
-           px-4 py-2 text-sm font-medium hover:bg-brand-hover focus:outline-none focus:ring-2
-           focus:ring-brand-ring focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors;
+  /* The primary brand button — the app's ONE filled-brand action surface: brand fill, brand-hover,
+     a brand-strong pressed state (which lightens toward white in dark mode), a colour transition,
+     and a KEYBOARD-ONLY offset brand focus ring. The ring is `focus-visible` (not `focus`) on
+     purpose, so a mouse click never leaves a lingering ring — only the hover/active colour shift
+     gives mouse feedback, while Tab still shows an accessible ring. Defined once
+     here and shared by EVERY brand button, so the look can never drift apart again (that split — a
+     hand-maintained copy re-declaring the same look — is what let the Tailwind-v4 cursor regression
+     hit some brand buttons but not others). Each shape below adds only its own geometry:
+       • .btn-primary      — rectangular text button (auth submits, "Add actions", gallery Apply);
+       • .icon-btn-primary — circular icon button (modal close, gallery prev/next);
+       • .cal-toolbar-btn / .cal-today-btn — the dashboard calendar's «‹›» toolbar + "Today" buttons.
+         Their GEOMETRY (compact sizing/glyph) still lives in dashboard.html beside the calendar
+         engine, but their brand surface now comes from HERE rather than a hand-kept duplicate.
+     The hand cursor comes from the global `button` base rule (@layer base), not from here. */
+  .btn-primary,
+  .icon-btn-primary,
+  .cal-toolbar-btn,
+  .cal-today-btn {
+    @apply inline-flex items-center justify-center bg-brand text-on-brand hover:bg-brand-hover
+           active:bg-brand-strong focus:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-ring
+           focus-visible:ring-offset-2 dark:focus-visible:ring-offset-gray-900 transition-colors;
   }
-  /* Circular icon button sharing the primary button's brand colours (modal close + gallery
-     prev/next). Keeps every action control on the page visually aligned with .btn-primary. Carries
-     one responsive size (≈0.8x on mobile → full on sm:) so every preview button scales by the same
-     factor and stays consistent across viewports/pages; its glyph scales in lockstep. */
-  .icon-btn-primary {
-    @apply inline-flex items-center justify-center rounded-full bg-brand text-on-brand
-           hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand-ring
-           focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors
-           w-8 h-8 sm:w-10 sm:h-10;
-  }
+  /* Filled call-to-action (login/register submit, "Add actions" empty states, gallery Apply). */
+  .btn-primary { @apply gap-2 rounded-lg px-4 py-2 text-sm font-medium; }
+  /* Circular icon button (modal close + gallery prev/next). One responsive size (≈0.8x on mobile →
+     full on sm:) so every preview button scales by the same factor across viewports; glyph in step. */
+  .icon-btn-primary { @apply rounded-full w-8 h-8 sm:w-10 sm:h-10; }
   .icon-btn-primary svg { @apply w-4 h-4 sm:w-5 sm:h-5; }
   /* Outlined / neutral action (OIDC sign-in). */
   .btn-secondary {
     @apply inline-flex w-full items-center justify-center gap-2 rounded-lg border border-gray-300
            dark:border-gray-600 px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300
-           hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-brand-ring
+           hover:bg-gray-50 dark:hover:bg-gray-700 focus:outline-hidden focus:ring-2 focus:ring-brand-ring
            focus:ring-offset-2 dark:focus:ring-offset-gray-900 transition-colors;
   }
 
@@ -299,7 +343,7 @@
   .form-input {
     @apply rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm
            bg-white dark:bg-gray-700 text-ink
-           focus:outline-none focus:ring-2 focus:ring-brand-ring focus:border-transparent;
+           focus:outline-hidden focus:ring-2 focus:ring-brand-ring focus:border-transparent;
   }
   /* Settings-style select. `max-w-full` + `min-w-0` keep it bounded on narrow screens: a <select>'s
      intrinsic width is its WIDEST <option> (e.g. long timezone names), so without these it overruns
@@ -333,9 +377,9 @@
      translucent fill keeps it legible over any screenshot (light or dark). */
   .preview-info {
     @apply absolute top-1 right-1 z-10 inline-flex items-center justify-center w-6 h-6
-           rounded-full text-white bg-black/55 ring-1 ring-white/70 shadow-sm
+           rounded-full text-white bg-black/55 ring-1 ring-white/70 shadow-xs
            hover:bg-black/75 transition-colors
-           focus:outline-none focus-visible:ring-2 focus-visible:ring-white;
+           focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white;
   }
   /* Field label above an input. */
   .field-label { @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1; }
@@ -349,11 +393,11 @@
   .nav-link-active { @apply text-brand font-medium; }
 
   /* Colour swatches -------------------------------------------------------- */
-  .swatch { @apply inline-block rounded-full flex-shrink-0 border border-black/10; }
+  .swatch { @apply inline-block rounded-full shrink-0 border border-black/10; }
   .swatch-sm { @apply w-3 h-3; }
   .swatch-md { @apply w-4 h-4; }
 
   /* Calendar month/year picker nav arrow (dashboard). Used by both the server-rendered
      overlay and the JS that rebuilds it on year change, so the styling lives in one place. */
-  .cal-nav-btn { @apply px-2 py-1 rounded text-ink-muted hover:bg-surface-muted transition-colors; }
+  .cal-nav-btn { @apply px-2 py-1 rounded-sm text-ink-muted hover:bg-surface-muted transition-colors; }
 }

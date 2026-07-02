@@ -439,9 +439,18 @@ test.describe("Dashboard – Stacked calendar", () => {
         await expect(page.locator(`.d-min-cell[data-date="${other}"]`)).toHaveClass(/d-min-selected/)
 
         // Log out (POST /logout → redirect to /login, which clears the retained day), then log back in.
+        // On mobile the desktop logout button is hidden; open the hamburger menu first (mirrors auth.spec.ts).
         await Promise.all([
             page.waitForURL("/login"),
-            page.locator('form[action="/logout"] button[type="submit"]').first().click(),
+            (async (): Promise<void> => {
+                const hamburger = page.locator('button[aria-label="Toggle menu"]')
+                if (await hamburger.isVisible()) {
+                    await hamburger.click()
+                    await page.locator('#mobile-menu form[action="/logout"] button').click()
+                } else {
+                    await page.locator('form[action="/logout"] button').first().click()
+                }
+            })(),
         ])
         await loginAs(page, testUser)
 

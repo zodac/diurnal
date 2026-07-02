@@ -5,7 +5,7 @@
 <!-- markdownlint-enable MD033 MD041 -->
 
 > *[diurnal](https://www.dictionary.com/browse/diurnal); / daɪˈɜr nl /; adjective*;
-> 
+>
 > "of or relating to a day or each day; daily."
 
 ## Table of contents
@@ -25,6 +25,7 @@
     - [Account](#account)
     - [Preferences](#preferences)
 - [Administrator User](#administrator-users)
+- [Versioning](#versioning)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -275,6 +276,27 @@ The first account to register is an **administrator**. Administrators get two ex
 
 - **Admin → Users**: View and manage user accounts (delete or edit role)
 - **API**: The Swagger UI for the JWT-secured REST API, useful for scripting or integrating Diurnal with other tools.
+
+## Versioning
+
+This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). Generally, if a user must change something it's a **MAJOR**
+update, if they *can* use something new it's a **MINOR**, else it's a **PATCH**.
+
+- **MAJOR**: A change that breaks an existing deployment or integration on upgrade.
+    - Database migration that cannot be applied to an existing database
+    - Incompatible changes to the REST API (`/api/*`) or the public `/logs/events` feed
+    - Removed or renamed configuration options / environment variables
+    - Removal of a user-facing feature that existing users actively rely on
+- **MINOR**: Backwards-compatible new functionality.
+    - Additive database migrations
+    - New REST endpoints or fields, new configuration options (with safe defaults)
+    - New settings, calendar views, links, or pages
+    - Major visual/styling updates, like new branding, re-theming the application, etc.
+- **PATCH**: Backwards-compatible fixes and internal changes.
+    - Bug fixes
+    - Codebase refactoring
+    - Dependency bumps
+    - Minor visual/styling updates and behaviours, like better resizing for mobile views, etc.
 
 ## Contributing
 

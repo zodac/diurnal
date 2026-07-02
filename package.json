@@ -9,6 +9,7 @@
     "brand": "python3 scripts/generate-brand.py && node scripts/generate-favicons.cjs && npm run css"
   },
   "devDependencies": {
-    "tailwindcss": "^3.4.17"
+    "@tailwindcss/cli": "4.3.2",
+    "tailwindcss": "4.3.2"
   }
 }
