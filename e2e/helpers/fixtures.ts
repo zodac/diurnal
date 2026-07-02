@@ -62,7 +62,10 @@ interface Fixtures {
  *   test('my test', async ({ authenticatedPage }) => { ... });
  */
 export const test = base.extend<Fixtures>({
-    testUser: async (_fixtures, use, testInfo) => {
+    // Playwright requires a fixture's first argument to use the object-destructuring pattern; this
+    // fixture depends on no other fixtures, so it destructures nothing (hence the empty-pattern disable).
+    // eslint-disable-next-line no-empty-pattern
+    testUser: async ({}, use, testInfo) => {
         // Derive a deterministic email from the spec file name AND project so each project×spec
         // combination gets its own isolated DB user — required for parallel workers.
         const specName = testInfo.file.replace(/.*\/tests\//, "").replace(".spec.ts", "")
