@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-disable no-console -- CLI build script: progress output to the console is intended */
 /**
  * Regenerates the Settings page preview thumbnails — the scaled-down dashboard screenshots shown
  * for the Theme, Calendar-style, and Font pickers (see settings.html → partials/preview-option.html).
@@ -41,20 +42,20 @@
  * and logs over HTTP (idempotent — safe to re-run), then drives a headless browser to capture each
  * configuration. It does NOT touch the database directly, so it works against any running instance.
  */
-const path = require('path');
-const fs = require('fs');
-const os = require('os');
-const { execFileSync, execSync } = require('child_process');
+const path = require('path')
+const fs = require('fs')
+const os = require('os')
+const { execFileSync, execSync } = require('child_process')
 // Reuse Playwright from the e2e workspace so this script needs no dependencies of its own.
-const { chromium } = require(path.join(__dirname, '..', 'e2e', 'node_modules', 'playwright'));
+const { chromium } = require(path.join(__dirname, '..', 'e2e', 'node_modules', 'playwright'))
 
 
-const BASE = process.env.BASE_URL || 'http://localhost:8081';
-const OUT = path.join(__dirname, '..', 'src', 'main', 'resources', 'META-INF', 'resources', 'img', 'settings');
-const VW = 1200, VH = 820;  // web capture viewport (full-page/element shots ignore the height)
+const BASE = process.env.BASE_URL || 'http://localhost:8081'
+const OUT = path.join(__dirname, '..', 'src', 'main', 'resources', 'META-INF', 'resources', 'img', 'settings')
+const VW = 1200, VH = 820  // web capture viewport (full-page/element shots ignore the height)
 
 // Dedicated demo account — kept separate from real dev data.
-const USER = { email: 'preview-demo@diurnal.local', password: 'preview_demo123', displayName: 'Preview Demo' };
+const USER = { email: 'preview-demo@diurnal.local', password: 'preview_demo123', displayName: 'Preview Demo' }
 
 // The fixed seed: four colourful habits logged on days RELATIVE TO TODAY, so the captured calendar
 // looks identical no matter which calendar date the script is run on (it was previously fixed
@@ -69,139 +70,139 @@ const ACTIONS = [
   { name: 'Read',     colour: '#3b82f6', count: 2, daysAgo: [14, 13, 12, 10, 7, 5, 3, 1] },
   { name: 'Meditate', colour: '#10b981', count: 1, daysAgo: [14, 13, 10, 8, 6, 3, 0] },
   { name: 'Water',    colour: '#f59e0b', count: 3, daysAgo: [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] },
-];
+]
 
-const pad = n => String(n).padStart(2, '0');
+const pad = n => String(n).padStart(2, '0')
 
 // `base` minus `n` calendar days as a UTC `YYYY-MM-DD` string (n may be negative for future days).
 // Date.UTC normalises an out-of-range day-of-month, so this rolls correctly across month/year edges.
 const dateMinusDays = (base, n) => {
-  const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() - n));
-  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
-};
+  const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() - n))
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
+}
 
 // ── Seeding (over HTTP, via the logged-in browser-context cookies) ───────────────────────────────
 
 async function registerDemoUser(ctx) {
   // Idempotent: a 409 (already registered) is expected on re-runs and ignored.
-  await ctx.request.post(BASE + '/api/auth/register', { data: USER }).catch(() => {});
+  await ctx.request.post(`${BASE  }/api/auth/register`, { data: USER }).catch(() => {})
 }
 
 async function login(ctx) {
-  const page = await ctx.newPage();
-  await page.goto(BASE + '/login');
-  await page.fill('input[name="email"]', USER.email);
-  await page.fill('input[name="password"]', USER.password);
-  await Promise.all([page.waitForLoadState('networkidle'), page.click('button[type="submit"]')]);
-  await page.close();
+  const page = await ctx.newPage()
+  await page.goto(`${BASE  }/login`)
+  await page.fill('input[name="email"]', USER.email)
+  await page.fill('input[name="password"]', USER.password)
+  await Promise.all([page.waitForLoadState('networkidle'), page.click('button[type="submit"]')])
+  await page.close()
 }
 
 // Map existing action name -> id by parsing the actions list (rows are `<tr id="action-{uuid}">`).
 async function existingActions(ctx) {
-  const html = await (await ctx.request.get(BASE + '/actions/list')).text();
-  const map = {};
-  const re = /id="action-([0-9a-fA-F-]{36})"[\s\S]*?<span data-dt-view>([^<]+)<\/span>/g;
-  let m;
-  while ((m = re.exec(html))) map[m[2].trim()] = m[1];
-  return map;
+  const html = await (await ctx.request.get(`${BASE  }/actions/list`)).text()
+  const map = {}
+  const re = /id="action-([0-9a-fA-F-]{36})"[\s\S]*?<span data-dt-view>([^<]+)<\/span>/g
+  let m
+  while ((m = re.exec(html))) {map[m[2].trim()] = m[1]}
+  return map
 }
 
 async function ensureAction(ctx, existing, { name, colour }) {
-  if (existing[name]) return existing[name];
-  const res = await ctx.request.post(BASE + '/actions', { form: { name, colour } });
-  const id = (await res.text()).match(/id="action-([0-9a-fA-F-]{36})"/);
-  if (!id) throw new Error(`Could not create or locate action "${name}"`);
-  return id[1];
+  if (existing[name]) {return existing[name]}
+  const res = await ctx.request.post(`${BASE  }/actions`, { form: { name, colour } })
+  const id = (await res.text()).match(/id="action-([0-9a-fA-F-]{36})"/)
+  if (!id) {throw new Error(`Could not create or locate action "${name}"`)}
+  return id[1]
 }
 
 // Keys (`date|colour`) for logs already present in [start, end), so re-runs don't inflate counts.
 async function existingLogKeys(ctx, start, end) {
-  const events = await (await ctx.request.get(`${BASE}/logs/events?start=${start}&end=${end}`)).json();
-  return new Set(events.map(e => `${e.start}|${(e.backgroundColor || '').toLowerCase()}`));
+  const events = await (await ctx.request.get(`${BASE}/logs/events?start=${start}&end=${end}`)).json()
+  return new Set(events.map(e => `${e.start}|${(e.backgroundColor || '').toLowerCase()}`))
 }
 
 async function seed(ctx) {
-  await registerDemoUser(ctx);
-  await login(ctx);
+  await registerDemoUser(ctx)
+  await login(ctx)
 
-  const now = new Date();
+  const now = new Date()
   // The seed window: from the oldest offset through today (the /logs/events `end` is exclusive, so
   // pass today + 1). Covers the whole range even when it straddles a month/year boundary.
-  const maxAgo = Math.max(...ACTIONS.flatMap(a => a.daysAgo));
-  const existing = await existingActions(ctx);
-  const have = await existingLogKeys(ctx, dateMinusDays(now, maxAgo), dateMinusDays(now, -1));
+  const maxAgo = Math.max(...ACTIONS.flatMap(a => a.daysAgo))
+  const existing = await existingActions(ctx)
+  const have = await existingLogKeys(ctx, dateMinusDays(now, maxAgo), dateMinusDays(now, -1))
 
   for (const action of ACTIONS) {
-    const id = await ensureAction(ctx, existing, action);
+    const id = await ensureAction(ctx, existing, action)
     for (const daysAgo of action.daysAgo) {
-      const date = dateMinusDays(now, daysAgo); // offsets are never future, so nothing is skipped
-      if (have.has(`${date}|${action.colour.toLowerCase()}`)) continue; // already logged
+      const date = dateMinusDays(now, daysAgo) // offsets are never future, so nothing is skipped
+      if (have.has(`${date}|${action.colour.toLowerCase()}`)) {continue} // already logged
       for (let i = 0; i < action.count; i++) {
-        await ctx.request.post(`${BASE}/logs/${date}/${id}/increment`);
+        await ctx.request.post(`${BASE}/logs/${date}/${id}/increment`)
       }
     }
   }
-  console.log('seeded demo data');
+  console.log('seeded demo data')
 }
 
 // ── Screenshot capture ───────────────────────────────────────────────────────────────────────────
 
 async function setPrefs(ctx, theme, calendarView, font = 'nova') {
-  const res = await ctx.request.post(BASE + '/settings',
-    { form: { theme, font, pageSize: '10', calendarView, timezone: 'UTC' } });
-  if (!res.ok()) throw new Error('setPrefs failed: ' + res.status());
+  const res = await ctx.request.post(`${BASE  }/settings`,
+    { form: { theme, font, pageSize: '10', calendarView, timezone: 'UTC' } })
+  if (!res.ok()) {throw new Error(`setPrefs failed: ${  res.status()}`)}
 }
 
 // Open the dashboard and wait until the chosen calendar style's activity markers are painted.
 // Caller closes the page.
 async function openDashboard(ctx, calendarView) {
-  const page = await ctx.newPage();
-  await page.goto(BASE + '/', { waitUntil: 'networkidle' });
+  const page = await ctx.newPage()
+  await page.goto(`${BASE  }/`, { waitUntil: 'networkidle' })
   const sel = calendarView === 'full' ? '.d-full-event'
             : calendarView === 'stacked' ? '.d-stk-bar'
-            : '.d-min-dot';
-  await page.waitForSelector(sel, { timeout: 15000 });
-  await page.waitForTimeout(600); // settle fonts/layout
-  return page;
+            : '.d-min-dot'
+  await page.waitForSelector(sel, { timeout: 15000 })
+  await page.waitForTimeout(600) // settle fonts/layout
+  return page
 }
 
 // Playwright only supports PNG and JPEG screenshot types. We capture as PNG (lossless) then convert
 // each buffer to lossless WebP via cwebp, which is typically 25-34% smaller than optipng PNG.
 // cwebp is installed on demand (Debian/Ubuntu) the first time this function is called.
-let _cwebpReady = false;
+let _cwebpReady = false
 function pngToLosslessWebp(pngBuf) {
   if (!_cwebpReady) {
-    try { execFileSync('cwebp', ['-version'], { stdio: 'ignore' }); }
+    try { execFileSync('cwebp', ['-version'], { stdio: 'ignore' }) }
     catch {
-      const sudo = process.getuid && process.getuid() !== 0 ? 'sudo ' : '';
-      console.log('cwebp not found — installing via apt-get…');
-      execSync(`${sudo}apt-get update -qq && ${sudo}apt-get install -y -qq webp`, { stdio: 'inherit' });
+      const sudo = process.getuid && process.getuid() !== 0 ? 'sudo ' : ''
+      console.log('cwebp not found — installing via apt-get…')
+      execSync(`${sudo}apt-get update -qq && ${sudo}apt-get install -y -qq webp`, { stdio: 'inherit' })
     }
-    _cwebpReady = true;
+    _cwebpReady = true
   }
-  const tmp = path.join(os.tmpdir(), `diurnal-preview-${process.pid}-${Date.now()}.png`);
-  fs.writeFileSync(tmp, pngBuf);
+  const tmp = path.join(os.tmpdir(), `diurnal-preview-${process.pid}-${Date.now()}.png`)
+  fs.writeFileSync(tmp, pngBuf)
   try {
     // -lossless: pixel-perfect (no quality loss). -o -: write WebP to stdout.
-    return execFileSync('cwebp', ['-lossless', '-quiet', tmp, '-o', '-'], { maxBuffer: 50 * 1024 * 1024 });
+    return execFileSync('cwebp', ['-lossless', '-quiet', tmp, '-o', '-'], { maxBuffer: 50 * 1024 * 1024 })
   } finally {
-    fs.unlinkSync(tmp);
+    fs.unlinkSync(tmp)
   }
 }
 
 // Read pixel dimensions from a PNG IHDR chunk (big-endian uint32 at offsets 16 and 20).
 function pngSize(buf) {
-  return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) };
+  return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) }
 }
 
 // Theme preview: the WHOLE dashboard page (navbar, heading, calendar, day panel, stats) — fullPage
 // captures the entire scroll height, not just the viewport.
 // Returns the PNG buffer so captureSet can pass it to compositeSystem for compositing.
 async function shotFullPage(page, file) {
-  const pngBuf = await page.screenshot({ fullPage: true });
-  fs.writeFileSync(path.join(OUT, file), pngToLosslessWebp(pngBuf));
-  console.log('wrote', file);
-  return pngBuf; // PNG for compositing — compositeSystem re-encodes the composite
+  const pngBuf = await page.screenshot({ fullPage: true })
+  fs.writeFileSync(path.join(OUT, file), pngToLosslessWebp(pngBuf))
+  console.log('wrote', file)
+  return pngBuf // PNG for compositing — compositeSystem re-encodes the composite
 }
 
 // Calendar-style preview: ONLY the calendar. Every calendar style now shares the #calendar-wrap
@@ -212,21 +213,21 @@ async function shotFullPage(page, file) {
 // pickers' full-size previews are framed identically. An element screenshot captures the whole element
 // even where it overflows the viewport, so it is never cut off.
 async function shotCalendar(page, file) {
-  const pngBuf = await page.locator('#calendar-wrap').screenshot();
-  fs.writeFileSync(path.join(OUT, file), pngToLosslessWebp(pngBuf));
-  console.log('wrote', file);
+  const pngBuf = await page.locator('#calendar-wrap').screenshot()
+  fs.writeFileSync(path.join(OUT, file), pngToLosslessWebp(pngBuf))
+  console.log('wrote', file)
 }
 
 // System theme = diagonal split of the light & dark dashboards (light upper-left, dark lower-right;
 // divider runs corner-to-corner top-right → bottom-left). Receives PNG buffers (captured by
 // shotFullPage) so no file reads are needed. The canvas matches the sources' actual pixel size.
 async function compositeSystem(browser, { lightBuf, darkBuf, out }) {
-  const lightB64 = lightBuf.toString('base64');
-  const darkB64  = darkBuf.toString('base64');
-  const { w: PW, h: PH } = pngSize(lightBuf);
-  const ctx = await browser.newContext({ deviceScaleFactor: 1 });
-  const page = await ctx.newPage();
-  await page.setViewportSize({ width: PW, height: PH });
+  const lightB64 = lightBuf.toString('base64')
+  const darkB64  = darkBuf.toString('base64')
+  const { w: PW, h: PH } = pngSize(lightBuf)
+  const ctx = await browser.newContext({ deviceScaleFactor: 1 })
+  const page = await ctx.newPage()
+  await page.setViewportSize({ width: PW, height: PH })
   await page.setContent(`
     <body style="margin:0">
       <div id="cmp" style="position:relative;width:${PW}px;height:${PH}px;overflow:hidden">
@@ -237,13 +238,13 @@ async function compositeSystem(browser, { lightBuf, darkBuf, out }) {
           <line x1="${PW}" y1="0" x2="0" y2="${PH}" stroke="#6366f1" stroke-width="3"/>
         </svg>
       </div>
-    </body>`);
-  await page.evaluate(() => Promise.all([...document.images].map(i => i.decode().catch(() => {}))));
-  await page.waitForTimeout(200);
-  const compositePng = await (await page.$('#cmp')).screenshot();
-  fs.writeFileSync(path.join(OUT, out), pngToLosslessWebp(compositePng));
-  await ctx.close();
-  console.log('wrote', out);
+    </body>`)
+  await page.evaluate(() => Promise.all([...document.images].map(i => i.decode().catch(() => {}))))
+  await page.waitForTimeout(200)
+  const compositePng = await (await page.$('#cmp')).screenshot()
+  fs.writeFileSync(path.join(OUT, out), pngToLosslessWebp(compositePng))
+  await ctx.close()
+  console.log('wrote', out)
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────────────────────────
@@ -258,55 +259,55 @@ async function compositeSystem(browser, { lightBuf, darkBuf, out }) {
 //   page-nova-full-system   — Theme-system tile (composite of light + dark PNGs)
 async function captureAll(ctx, browser) {
   // Nova, full, light → Theme-light tile; store PNG for system composite
-  await setPrefs(ctx, 'light', 'full', 'nova');
-  const lightPage = await openDashboard(ctx, 'full');
-  const lightBuf = await shotFullPage(lightPage, 'page-nova-full-light.webp');
-  await lightPage.close();
+  await setPrefs(ctx, 'light', 'full', 'nova')
+  const lightPage = await openDashboard(ctx, 'full')
+  const lightBuf = await shotFullPage(lightPage, 'page-nova-full-light.webp')
+  await lightPage.close()
 
   // Nova, full, dark → Theme-dark + Font-nova tiles; store PNG for system composite; cal-full-dark
-  await setPrefs(ctx, 'dark', 'full', 'nova');
-  const darkFullPage = await openDashboard(ctx, 'full');
-  const darkBuf = await shotFullPage(darkFullPage, 'page-nova-full-dark.webp');
-  await shotCalendar(darkFullPage, 'cal-nova-full-dark.webp');
-  await darkFullPage.close();
+  await setPrefs(ctx, 'dark', 'full', 'nova')
+  const darkFullPage = await openDashboard(ctx, 'full')
+  const darkBuf = await shotFullPage(darkFullPage, 'page-nova-full-dark.webp')
+  await shotCalendar(darkFullPage, 'cal-nova-full-dark.webp')
+  await darkFullPage.close()
 
   // Nova, minimal, dark → Calendar-minimal tile
-  await setPrefs(ctx, 'dark', 'minimal', 'nova');
-  const minPage = await openDashboard(ctx, 'minimal');
-  await shotCalendar(minPage, 'cal-nova-minimal-dark.webp');
-  await minPage.close();
+  await setPrefs(ctx, 'dark', 'minimal', 'nova')
+  const minPage = await openDashboard(ctx, 'minimal')
+  await shotCalendar(minPage, 'cal-nova-minimal-dark.webp')
+  await minPage.close()
 
   // Nova, stacked, dark → Calendar-stacked tile
-  await setPrefs(ctx, 'dark', 'stacked', 'nova');
-  const stkPage = await openDashboard(ctx, 'stacked');
-  await shotCalendar(stkPage, 'cal-nova-stacked-dark.webp');
-  await stkPage.close();
+  await setPrefs(ctx, 'dark', 'stacked', 'nova')
+  const stkPage = await openDashboard(ctx, 'stacked')
+  await shotCalendar(stkPage, 'cal-nova-stacked-dark.webp')
+  await stkPage.close()
 
   // Standard, full, dark → Font-standard tile
-  await setPrefs(ctx, 'dark', 'full', 'standard');
-  const stdPage = await openDashboard(ctx, 'full');
-  await shotFullPage(stdPage, 'page-standard-full-dark.webp');
-  await stdPage.close();
+  await setPrefs(ctx, 'dark', 'full', 'standard')
+  const stdPage = await openDashboard(ctx, 'full')
+  await shotFullPage(stdPage, 'page-standard-full-dark.webp')
+  await stdPage.close()
 
   // System composite (light upper-left, dark lower-right) → Theme-system tile
-  await compositeSystem(browser, { lightBuf, darkBuf, out: 'page-nova-full-system.webp' });
+  await compositeSystem(browser, { lightBuf, darkBuf, out: 'page-nova-full-system.webp' })
 }
 
 (async () => {
-  fs.mkdirSync(OUT, { recursive: true });
-  const browser = await chromium.launch();
+  fs.mkdirSync(OUT, { recursive: true })
+  const browser = await chromium.launch()
 
   const ctx = await browser.newContext({
     viewport: { width: VW, height: VH },
     deviceScaleFactor: 2,
     timezoneId: 'UTC',
     colorScheme: 'light',
-  });
-  await seed(ctx);
-  await captureAll(ctx, browser);
-  await ctx.close();
+  })
+  await seed(ctx)
+  await captureAll(ctx, browser)
+  await ctx.close()
 
-  await browser.close();
+  await browser.close()
 
-  console.log('\nDone — review and commit the WebP files in\n  ' + path.relative(path.join(__dirname, '..'), OUT));
-})().catch(e => { console.error(e); process.exit(1); });
+  console.log(`\nDone — review and commit the WebP files in\n  ${  path.relative(path.join(__dirname, '..'), OUT)}`)
+})().catch(e => { console.error(e); process.exit(1) })

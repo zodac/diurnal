@@ -1,9 +1,11 @@
+<!-- markdownlint-disable MD033 MD041 -- centered wordmark banner: intentional inline HTML in place of a text H1 -->
 <p align="center">
   <img src="scripts/assets/wordmark-readme.svg" alt="Diurnal — Make every day count" width="380">
 </p>
+<!-- markdownlint-enable MD033 MD041 -->
 
-> _[diurnal](https://www.dictionary.com/browse/diurnal), / daɪˈɜr nl /, adjective_
-> 
+> *[diurnal](https://www.dictionary.com/browse/diurnal), / daɪˈɜr nl /, adjective*
+>
 > "of or relating to a day or each day; daily."
 
 A personal habit-tracking web app. Log actions against a calendar, then query stats like streaks and frequency.
@@ -22,7 +24,8 @@ Trying to use AI to build this application, with guidance as needed. Expect seve
 
 > **Note on templating:** Quarkus uses **Qute** as its native template engine. It is conceptually identical to Thymeleaf (server-side HTML rendering
 > with Java variables), with a slightly different syntax (`{variable}` instead of`th:text`).
-> HTMX handles dynamic partial updates so there is no need for a JavaScript framework. The dashboard calendar (all styles) is a small hand-rolled vanilla-JS month grid — no calendar library.
+> HTMX handles dynamic partial updates so there is no need for a JavaScript framework. The dashboard
+> calendar (all styles) is a small hand-rolled vanilla-JS month grid — no calendar library.
 
 ## Deployment
 
