@@ -840,7 +840,12 @@ document.addEventListener('DOMContentLoaded', function () {
                     months.push(stepMonth(viewYear, viewMonth, -d));
                     months.push(stepMonth(viewYear, viewMonth,  d));
                 }
-                fetchMonthsSpan(months);
+                var key = monthKey(viewYear, viewMonth);
+                var p = fetchMonthsSpan(months);
+                // The visible grid's leading/trailing cells belong to the ADJACENT months (e.g. Jun 28–30 in
+                // the July grid), so once the neighbours land their dots must be painted in — re-render, but
+                // only if the user is still on the same month (they may have navigated away mid-prefetch).
+                if (p) { p.then(function () { if (monthKey(viewYear, viewMonth) === key) { renderGrid(); } }); }
             });
         }
 

@@ -1,0 +1,67 @@
+# Example Docker Compose file for running Diurnal.
+#
+# Quick start:
+#   1. Copy this file to `docker-compose.yml`
+#   2. Set DB_PASSWORD and SESSION_ENCRYPTION_KEY below (use long, random values)
+#   3. Run: docker compose up -d
+#   4. Open http://localhost:8080 and register the first account (it becomes the administrator)
+#
+# See the README for the full list of environment variables.
+
+services:
+
+  diurnal:
+    image: zodac/diurnal:latest
+    container_name: diurnal
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      # --- Database connection (must match the diurnal-db service below) ---
+      DB_HOST: diurnal-db
+      DB_PORT: 5432
+      DB_NAME: diurnal_db
+      DB_USER: diurnal_user
+      DB_PASSWORD: change-me-strong-password        # <-- CHANGE ME
+
+      # --- Session cookie encryption (must be at least 16 characters, keep secret) ---
+      SESSION_ENCRYPTION_KEY: change-me-to-a-random-32-char-string   # <-- CHANGE ME
+
+      # --- Optional tuning (defaults shown) ---
+      TZ: UTC
+      LOG_LEVEL: INFO
+      ENABLE_REGISTRATION: "true"
+
+      # JWT signing keys are auto-generated into the mounted secrets volume on first start.
+      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
+      JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt-private.pem
+    volumes:
+      # Persists the auto-generated JWT keypair across restarts.
+      - diurnal-secrets:/run/secrets
+    depends_on:
+      diurnal-db:
+        condition: service_healthy
+
+  diurnal-db:
+    image: postgres:18.4-alpine
+    container_name: diurnal-db
+    restart: unless-stopped
+    environment:
+      TZ: UTC
+      POSTGRES_DB: diurnal
+      POSTGRES_USER: diurnal
+      POSTGRES_PASSWORD: change-me-strong-password   # <-- CHANGE ME (match DB_PASSWORD above)
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - diurnal-db-data:/var/lib/postgresql/
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U diurnal -d diurnal" ]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+      start_interval: 5s
+
+volumes:
+  diurnal-db-data:
+  diurnal-secrets:
