@@ -18,8 +18,8 @@
 package net.zodac.diurnal.config;
 
 import io.smallrye.config.ConfigMapping;
-import io.smallrye.config.WithDefault;
 import io.smallrye.config.WithName;
+import java.util.Optional;
 
 /**
  * Typed view over the {@code csrf.*} settings feeding the {@code Content-Security-Policy} header.
@@ -32,9 +32,8 @@ public interface CsrfConfig {
      * Comma-separated list of trusted origins added to the CSP {@code frame-ancestors} directive
      * (in addition to {@code 'self'}). Empty when the app is not behind a reverse proxy.
      *
-     * @return the comma-separated trusted-origins list, defaulting to empty
+     * @return the comma-separated trusted-origins list, or empty when unset
      */
     @WithName("trusted.origins")
-    @WithDefault("")
-    String trustedOrigins();
+    Optional<String> trustedOrigins();
 }

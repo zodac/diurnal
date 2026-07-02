@@ -54,7 +54,7 @@ public class SecurityHeadersFilter {
      */
     @SuppressWarnings("unused") // CDI startup observer — invoked by Quarkus, not called directly
     void onStart(@Observes final StartupEvent ev) {
-        final String csp = buildFrameAncestorsCsp(csrfConfig.trustedOrigins());
+        final String csp = buildFrameAncestorsCsp(csrfConfig.trustedOrigins().orElse(""));
         router.route().order(Integer.MIN_VALUE).handler(ctx -> {
             ctx.response().putHeader("Content-Security-Policy", csp);
             ctx.next();
