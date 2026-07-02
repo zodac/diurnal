@@ -32,9 +32,11 @@ Diurnal is a small, self-hosted web application for tracking daily habits. You d
 log them as you go. Diurnal keeps a running calendar of everything you've logged and turns that history into meaningful statistics: current and
 longest streaks, weekly averages, month-over-month trends, and more.
 
+<!-- markdownlint-disable MD013 MD033 -- centered dashboard screenshot: intentional inline HTML -->
 <p align="center">
   <img src="src/main/resources/META-INF/resources/img/settings/page-nova-full-system.webp" alt="The Diurnal dashboard shown in both light and dark themes" width="600">
 </p>
+<!-- markdownlint-enable MD013 MD033 -->
 
 ## Features
 
@@ -62,11 +64,12 @@ longest streaks, weekly averages, month-over-month trends, and more.
 
 Expand the section below to view screenshots.
 
+<!-- markdownlint-disable MD033 -- screenshot gallery: intentional inline HTML (<br> spacing, <strong> in <summary>) -->
 <details>
 
 <summary><strong>Click to view screenshots</strong></summary>
 
-<br>  
+<br>
 
 |                                                                                                                                                |                                                                                                                                                 |
 |------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -74,13 +77,14 @@ Expand the section below to view screenshots.
 | **Minimal Calendar**<br><img src="src/main/resources/META-INF/resources/img/settings/cal-nova-minimal-dark.webp" alt="Minimal calendar style"> | **Stacked Calendar**<br><img src="src/main/resources/META-INF/resources/img/settings/cal-nova-stacked-dark.webp" alt="Stacked calendar style">  |
 
 </details>
+<!-- markdownlint-enable MD033 -->
 
 ## Deployment
 
 Diurnal is distributed as a Docker image ([`zodac/diurnal`](https://hub.docker.com/r/zodac/diurnal)) and is intended to be run with Docker Compose
 alongside a PostgreSQL container.
 
-1. Get the `Docker Compose` file:
+**1. Get the Docker Compose file:**
 
 Download [`docker-compose-example.yml`](docker-compose-example.yml) from this repository and save it as `docker-compose.yml`:
 
@@ -88,7 +92,7 @@ Download [`docker-compose-example.yml`](docker-compose-example.yml) from this re
 curl -o docker-compose.yml https://raw.githubusercontent.com/zodac/diurnal/master/docker-compose-example.yml
 ```
 
-2. Set your secretsL
+**2. Set your secrets:**
 
 Edit `docker-compose.yml` and change the two required values (in **both** the `diurnal` and `diurnal-db` services where noted):
 
@@ -101,16 +105,16 @@ A quick way to generate a good value:
 openssl rand -base64 32
 ```
 
-3. Start the application:
+**3. Start the application:**
 
 ```bash
 docker compose up -d
 ```
 
-Diurnal will be available at **http://localhost:8080**. The database schema is created automatically on first start, and the JWT signing keypair is
+Diurnal will be available at **<http://localhost:8080>**. The database schema is created automatically on first start, and the JWT signing keypair is
 generated for you.
 
-4. Create your account:
+**4. Create your account:**
 
 Open the app and **register**. The first account created becomes the **administrator**. Once you have your account, you may wish to set
 `ENABLE_REGISTRATION=false` to prevent anyone else from signing up.
@@ -181,6 +185,7 @@ OIDC is disabled by default. When enabled, users can sign in through your identi
 | `OIDC_USER_GROUP`    |                          | IdP group whose members are granted the User role.                                                              |
 | `OIDC_LOGOUT_URL`    |                          | RP-initiated logout URL; OIDC users are redirected here after logging out.                                      |
 
+<!-- markdownlint-disable MD033 -- collapsible example: intentional <strong> inside <summary> -->
 <details>
 <summary><strong>Authelia example</strong></summary>
 
@@ -233,6 +238,7 @@ identity_providers:
 ```
 
 </details>
+<!-- markdownlint-enable MD033 -->
 
 ## User settings
 

@@ -214,40 +214,6 @@
                     </execution>
                 </executions>
             </plugin>
-            <!--
-                Package the repository's VERSION file (repo root, outside src/main/resources) onto the
-                classpath root as /VERSION, so net.zodac.diurnal.web.AppInfo can read the authoritative
-                release version at runtime for the page footer. The Dockerfile copies VERSION into the
-                build context. This runs via copy-resources (which honours <includes>, copying ONLY
-                VERSION) rather than a top-level <resource> so that VERSION's directory — the repo root —
-                is never registered as a Quarkus-watched resource root (see the <resources> note above).
-                Bound to process-resources so it runs in both a normal build and at quarkus:dev startup.
-            -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-resources-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>copy-version-file</id>
-                        <phase>process-resources</phase>
-                        <goals>
-                            <goal>copy-resources</goal>
-                        </goals>
-                        <configuration>
-                            <outputDirectory>${project.build.outputDirectory}</outputDirectory>
-                            <resources>
-                                <resource>
-                                    <filtering>false</filtering>
-                                    <directory>${project.basedir}</directory>
-                                    <includes>
-                                        <include>VERSION</include>
-                                    </includes>
-                                </resource>
-                            </resources>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
             <plugin>
                 <groupId>com.mycila</groupId>
                 <artifactId>license-maven-plugin</artifactId>
@@ -308,6 +274,40 @@
                     <execution>
                         <id>default</id>
                         <phase>prepare-package</phase>
+                    </execution>
+                </executions>
+            </plugin>
+            <!--
+                Package the repository's VERSION file (repo root, outside src/main/resources) onto the
+                classpath root as /VERSION, so net.zodac.diurnal.web.AppInfo can read the authoritative
+                release version at runtime for the page footer. The Dockerfile copies VERSION into the
+                build context. This runs via copy-resources (which honours <includes>, copying ONLY
+                VERSION) rather than a top-level <resource> so that VERSION's directory — the repo root —
+                is never registered as a Quarkus-watched resource root (see the <resources> note above).
+                Bound to process-resources so it runs in both a normal build and at quarkus:dev startup.
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-resources-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>copy-version-file</id>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <phase>process-resources</phase>
+                        <configuration>
+                            <outputDirectory>${project.build.outputDirectory}</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <filtering>false</filtering>
+                                    <directory>${project.basedir}</directory>
+                                    <includes>
+                                        <include>VERSION</include>
+                                    </includes>
+                                </resource>
+                            </resources>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>

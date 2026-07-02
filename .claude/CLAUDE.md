@@ -57,7 +57,7 @@ docker compose logs -f app
 
 > **Always use `docker compose` (v2 plugin), never `docker-compose` (hyphenated).** Only the filenames keep the hyphen.
 
-Dev mode expects PostgreSQL on `localhost:5432` with database/user/password all `diurnal`. Flyway migrations run automatically. Data is ephemeral (
+Dev mode expects PostgreSQL on `localhost:5432` with database `diurnal_db`, user `diurnal_user`, and password `diurnal_password`. Flyway migrations run automatically. Data is ephemeral (
 wiped on container recreate).
 
 > **Tear down the dev environment when finished.** Use `scripts/dev-up.sh` / `scripts/dev-teardown.sh`. Manual: `pkill -f "quarkus:dev"`, then

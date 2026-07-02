@@ -237,13 +237,11 @@
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
   .dark .d-cal-full .d-full-event-title { color: rgb(229, 231, 235); }
-  /* Mobile: hide action name, show only the ×N count badge. */
-  .d-cal-full .d-full-event-count { font-weight: 700; font-size: 0.6rem; color: var(--color-text); display: none; }
+  /* The ×N multiplier, rendered beside the (truncatable) name. flex-shrink:0 so the name — never the count —
+     absorbs any ellipsis truncation. Font size is set inline by the fit routine (fitFullEvents), which in the
+     tightest cells hides the name, then the count, but never the dot. */
+  .d-cal-full .d-full-event-count { font-weight: 700; color: var(--color-text); flex-shrink: 0; }
   .dark .d-cal-full .d-full-event-count { color: rgb(229, 231, 235); }
-  @media (max-width: 639px) {
-    .d-cal-full .d-full-event-title { display: none; }
-    .d-cal-full .d-full-event-count { display: block; }
-  }
 
   /* ── Minimal calendar grid (the toolbar is the shared .cal-toolbar above) ── */
   .d-min-dow-header {
@@ -596,6 +594,18 @@ document.addEventListener('DOMContentLoaded', function () {
         var baselineCache = {};    // weight|size      -> baseline offset from the circle's top edge (CSS px)
         var circleSize = 0;        // the circle's height (constant across cells) — read once
 
+        // `full`-style event fitting (see fitFullEvents). The font is fixed; keep FULL_FONT_PX in sync with
+        // `.d-cal-full .d-full-event`'s font-size (0.7rem) so the width measurements match what's painted.
+        var rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+        var FULL_FONT_PX = 0.70 * rootPx;
+
+        // Natural width (CSS px) of `text` at the given font, reusing the ink canvas. Independent of layout, so
+        // it lets fitFullEvents decide truncation without per-candidate reflows.
+        function measureText(text, cs, fontPx) {
+            inkCtx.font = cs.fontWeight + ' ' + fontPx + 'px ' + cs.fontFamily;
+            return inkCtx.measureText(text).width;
+        }
+
         function inkCentroid(cs, text) {
             var key = cs.fontWeight + '|' + cs.fontSize + '|' + text;
             var c = inkCentroidCache[key];
@@ -869,6 +879,48 @@ document.addEventListener('DOMContentLoaded', function () {
             });
         }
 
+        // Fit each `full`-style event to its cell. A row is `[dot] [name] [×N]`; when "name ×N" is too wide for
+        // the box we degrade in this order, always keeping the dot:
+        //   1. truncate the name (CSS ellipsis) while keeping the count;
+        //   2. if there's no room even for an ellipsised name beside the count, drop the name (dot + count);
+        //   3. if the count alone won't fit, drop it too (dot only).
+        // The font is never shrunk. Widths are measured off-DOM via the ink canvas, so the whole grid is fitted
+        // with a single layout read (the shared cell width) rather than a reflow per row. Idempotent — safe to
+        // re-run (e.g. once the webfont loads, or on resize) against the already-rendered rows.
+        function fitFullEvents() {
+            var rows = grid.querySelectorAll('.d-full-event');
+            if (!rows.length) { return; }
+            var listW = rows[0].parentNode.clientWidth; // .d-full-events content width (identical for every cell)
+            if (!listW) { return; }                      // not laid out yet — leave the CSS base size
+            // Row chrome (see the `.d-full-event*` CSS): margin 2+2, padding 2+2, dot 8, inter-item gap 4.
+            var rowContent      = listW - 8;               // inside the row's margin + padding
+            var textRegionFull  = rowContent - 8 - 8;      // dot + two gaps (dot|name, name|count)
+            var textRegionCount = rowContent - 8 - 4;      // dot + one gap (dot|count)
+            var GAP = 4;
+            var cs = getComputedStyle(rows[0].querySelector('.d-full-event-title'));
+            var ellipsisW = measureText('…', cs, FULL_FONT_PX);
+            rows.forEach(function (ev) {
+                var nameStr  = ev.dataset.fname  || '';
+                var countStr = ev.dataset.fcount || '';
+                var titleEl  = ev.querySelector('.d-full-event-title');
+                var countEl  = ev.querySelector('.d-full-event-count');
+                if (titleEl) { titleEl.style.display = ''; } // reset any prior degradation before re-fitting
+                if (countEl) { countEl.style.display = ''; }
+                var nameW  = nameStr  ? measureText(nameStr,  cs, FULL_FONT_PX) : 0;
+                var countW = countStr ? measureText(countStr, cs, FULL_FONT_PX) : 0;
+                if (nameW + countW + ((nameStr && countStr) ? GAP : 0) <= textRegionFull) {
+                    return; // whole "name ×N" fits — nothing to trim
+                }
+                if (nameStr && textRegionFull - (countStr ? countW + GAP : 0) >= ellipsisW) {
+                    return; // room for an ellipsised name beside the count — CSS handles the truncation
+                }
+                if (titleEl) { titleEl.style.display = 'none'; } // drop the name
+                if (countStr && countW > textRegionCount && countEl) {
+                    countEl.style.display = 'none'; // count won't fit either — dot only
+                }
+            });
+        }
+
         function renderGrid() {
             setCalTitle(titleEl, viewYear, viewMonth);
             grid.innerHTML = '';
@@ -913,19 +965,25 @@ document.addEventListener('DOMContentLoaded', function () {
                         var dot = document.createElement('span');
                         dot.className = 'd-full-event-dot';
                         dot.style.backgroundColor = a.colour;
+                        ev.appendChild(dot);
+                        // The label is "name ×N" (the multiplier is omitted when the count is 1). Split it into
+                        // a truncatable name span and a fixed count span so fitFullEvents can shrink/truncate/
+                        // drop the name independently of the ×N. dataset carries the parts for re-fitting.
+                        var mIdx     = a.label.lastIndexOf(' ×');
+                        var nameStr  = mIdx !== -1 ? a.label.slice(0, mIdx) : a.label;
+                        var countStr = mIdx !== -1 ? a.label.slice(mIdx + 1) : ''; // "×N"
                         var title = document.createElement('span');
                         title.className = 'd-full-event-title';
-                        title.textContent = a.label;
-                        ev.appendChild(dot);
+                        title.textContent = nameStr;
                         ev.appendChild(title);
-                        // Mobile-only count label (e.g. "×3"); omitted when count = 1.
-                        var mIdx = a.label.lastIndexOf(' ×');
-                        if (mIdx !== -1) {
+                        if (countStr) {
                             var count = document.createElement('span');
                             count.className = 'd-full-event-count';
-                            count.textContent = a.label.slice(mIdx + 1);
+                            count.textContent = countStr;
                             ev.appendChild(count);
                         }
+                        ev.dataset.fname  = nameStr;
+                        ev.dataset.fcount = countStr;
                         evList.appendChild(ev);
                     });
                     cell.appendChild(evList);
@@ -971,6 +1029,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 // Measured once the cell is in the DOM, so getComputedStyle resolves the real font/weight.
                 if (dateNum) { centreInk(dateNum, dateInk); }
             }
+            if (calendarView === 'full') { fitFullEvents(); }
         }
 
         fetchAndRender(); // initial month render + dot fetch; shared chrome (below) wires nav/picker/selection
@@ -991,8 +1050,18 @@ document.addEventListener('DOMContentLoaded', function () {
                     var ink = cell.querySelector('.d-min-date-ink');
                     if (circle && ink) { centreInk(circle, ink); }
                 });
+                // The `full` event fit measures text widths off the same font, so re-fit against the real glyphs.
+                fitFullEvents();
             });
         }
+
+        // The `full` event fit is width-dependent, so re-run it when the grid resizes (rotation, window
+        // resize, sidebar toggle). Debounced; a no-op when the current style isn't `full` (no event rows).
+        var refitTimer = null;
+        window.addEventListener('resize', function () {
+            if (refitTimer) { clearTimeout(refitTimer); }
+            refitTimer = setTimeout(function () { if (calendarView === 'full') { fitFullEvents(); } }, 150);
+        });
 
         return {
             currentView:  function () { return { year: viewYear, month: viewMonth }; },
