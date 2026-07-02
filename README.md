@@ -276,8 +276,7 @@ The first account to register is an **administrator**. Administrators get two ex
 
 ## Contributing
 
-Interested in building, testing, or contributing to Diurnal? See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the tech stack, local development
-workflow, build commands, and testing tiers.
+See **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## License
 

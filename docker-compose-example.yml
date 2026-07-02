@@ -48,14 +48,14 @@ services:
     restart: unless-stopped
     environment:
       TZ: UTC
-      POSTGRES_DB: diurnal
-      POSTGRES_USER: diurnal
+      POSTGRES_DB: diurnal_db
+      POSTGRES_USER: diurnal_user
       POSTGRES_PASSWORD: change-me-strong-password   # <-- CHANGE ME (match DB_PASSWORD above)
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - diurnal-db-data:/var/lib/postgresql/
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U diurnal -d diurnal" ]
+      test: [ "CMD-SHELL", "pg_isready -U diurnal_user -d diurnal_db" ]
       interval: 30s
       timeout: 5s
       retries: 5
