@@ -10,6 +10,8 @@ on:
       - 'pom.xml'
       - 'package.json'
       - 'src/**'
+      - '!src/test/**' # test code never reaches the published image (packaged with -DskipTests)
+      - 'VERSION'
   workflow_dispatch: # allows manual trigger
 
 jobs:

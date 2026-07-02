@@ -21,6 +21,8 @@ import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import java.lang.management.ManagementFactory;
+import java.util.Locale;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
 import org.apache.logging.log4j.LogManager;
@@ -62,6 +64,15 @@ public class AppLifecycle {
             throw new IllegalStateException(
                 "OIDC_ENABLED=true but OIDC_ISSUER_URL is not set.");
         }
+
+        // Wall-clock time from JVM launch to now, read from the RuntimeMXBean whose start timestamp is
+        // set by the runtime before any application code runs. This captures the true cold start — JVM
+        // launch, classloading and framework init — not just an in-app stopwatch. It does NOT include
+        // any time before the JVM process was exec'd (container scheduling, image pull); that is not
+        // observable from within the process. Quarkus additionally logs its own "started in X.XXXs"
+        // line (the io.quarkus logger), which is measured from Quarkus bootstrap rather than JVM launch.
+        final double coldStartSeconds = ManagementFactory.getRuntimeMXBean().getUptime() / 1000.0;
+        LOGGER.debug("System cold start: {}s (JVM launch -> ready)", String.format(Locale.ROOT, "%.3f", coldStartSeconds));
 
         LOGGER.info("=================================================");
         LOGGER.info("  Diurnal started");
