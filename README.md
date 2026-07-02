@@ -4,132 +4,275 @@
 </p>
 <!-- markdownlint-enable MD033 MD041 -->
 
-> *[diurnal](https://www.dictionary.com/browse/diurnal), / daɪˈɜr nl /, adjective*
->
-> "of or relating to a day or each day; daily."
+> *[diurnal](https://www.dictionary.com/browse/diurnal); / daɪˈɜr nl /; adjective*; "of or relating to a day or each day; daily."
 
-A personal habit-tracking web app. Log actions against a calendar, then query stats like streaks and frequency.
+## Table of contents
 
-Trying to use AI to build this application, with guidance as needed. Expect several iterations.
+- [Introduction](#introduction)
+- [Features](#features)
+- [Screenshots](#screenshots)
+- [Installation](#installation)
+- [Configuration](#configuration)
+    - [Required](#required)
+    - [Database](#database)
+    - [Application](#application)
+    - [JWT Keys](#jwt-keys)
+    - [Reverse Proxy](#reverse-proxy)
+    - [OIDC](#oidc)
+- [User Settings](#user-settings)
+    - [Account](#account)
+    - [Preferences](#preferences)
+- [Administrator User](#administrator-users)
+- [Contributing](#contributing)
+- [License](#license)
 
-## Stack
+## Introduction
 
-| Layer     | Technology                                                              |
-|-----------|-------------------------------------------------------------------------|
-| Backend   | Quarkus 3 (Java 21), RESTEasy Reactive, Hibernate ORM Panache, Flyway   |
-| UI        | Qute (server-side templates), HTMX, Tailwind CSS (CDN)                  |
-| Auth      | Form-based sessions (web UI); JWT Bearer (REST API / future OIDC)       |
-| Database  | PostgreSQL                                                              |
-| Packaging | Single Docker image — everything in one Quarkus JAR                     |
+Diurnal is a small, self-hosted web application for tracking daily habits. You define **actions** (the things you want to do or avoid each day) and
+log them as you go. Diurnal keeps a running calendar of everything you've logged and turns that history into meaningful statistics: current and
+longest streaks, weekly averages, month-over-month trends, and more.
 
-> **Note on templating:** Quarkus uses **Qute** as its native template engine. It is conceptually identical to Thymeleaf (server-side HTML rendering
-> with Java variables), with a slightly different syntax (`{variable}` instead of`th:text`).
-> HTMX handles dynamic partial updates so there is no need for a JavaScript framework. The dashboard
-> calendar (all styles) is a small hand-rolled vanilla-JS month grid — no calendar library.
+<p align="center">
+  <img src="src/main/resources/META-INF/resources/img/settings/page-nova-full-system.webp" alt="The Diurnal dashboard shown in both light and dark themes" width="600">
+</p>
 
-## Deployment
+## Features
+
+- **User-defined Actions**: Define any habit you want to track, each with its own name and colour
+- **Daily logging**: Increment an action once, or set an exact count for any day
+- **Calendar views**: Your whole history on a calendar, with a choice of view
+    - **Full**: Cell-based calendar, with event text per action
+    - **Minimal**: A coloured dot per action
+    - **Stacked**: Horizontal bars per action
+- **Statistics**: Per-action stats including:
+    - Current streak
+    - Longest streak
+    - Biggest gap
+    - Total unique days
+    - Total count
+    - Weekly average
+    - Best month/year
+    - Comparisons to last month/year
+- **Theming**: Light and dark modes available
+- **Mobile view**: Styled for both web browser and mobile usage
+- **User ManagementAccounts & roles**: Users can be managed by administrators
+- **OIDC**: Can be integrated with an external identity provider (Authelia, Keycloak, etc.)
+
+## Screenshots
+
+Expand the section below to view screenshots.
+
+<details>
+
+<summary><strong>Click to view screenshots</strong></summary>
+
+<br>  
+
+|                                                                                                                                                |                                                                                                                                                 |
+|------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
+| **Dashboard (dark)**<br><img src="src/main/resources/META-INF/resources/img/settings/page-nova-full-dark.webp" alt="Dashboard in dark mode">   | **Dashboard (light)**<br><img src="src/main/resources/META-INF/resources/img/settings/page-nova-full-light.webp" alt="Dashboard in light mode"> |
+| **Minimal Calendar**<br><img src="src/main/resources/META-INF/resources/img/settings/cal-nova-minimal-dark.webp" alt="Minimal calendar style"> | **Stacked Calendar**<br><img src="src/main/resources/META-INF/resources/img/settings/cal-nova-stacked-dark.webp" alt="Stacked calendar style">  |
+
+</details>
+
+## Installation
+
+Diurnal is distributed as a Docker image ([`zodac/diurnal`](https://hub.docker.com/r/zodac/diurnal)) and is intended to be run with Docker Compose
+alongside a PostgreSQL container.
+
+1. Get the `Docker Compose` fileL
+
+Download [`docker-compose-example.yml`](docker-compose-example.yml) from this repository and save it as `docker-compose.yml`:
 
 ```bash
-# 1. Create and edit the environment file
-cp .env.example .env
-$EDITOR .env          # set DB_PASSWORD and SESSION_ENCRYPTION_KEY at minimum
-
-# 2. Build and start. JWT signing keys are generated into secrets/ on first
-#    start if absent — no manual step required.
-docker-compose up -d --build
-
-# View logs
-docker-compose logs -f app
+curl -o docker-compose.yml https://raw.githubusercontent.com/zodac/diurnal/master/docker-compose-example.yml
 ```
 
-The application is served at `http://localhost:${APP_PORT}` (default 8080).
+2. Set your secretsL
 
-## Environment variables
+Edit `docker-compose.yml` and change the two required values (in **both** the `diurnal` and `diurnal-db` services where noted):
 
-### Required in production
+- `DB_PASSWORD`: a strong PostgreSQL password
+- `SESSION_ENCRYPTION_KEY`: a random string of at least 16 characters (32+ recommended) used to encrypt the session cookie
 
-| Variable                 | Description                                                                            |
-|--------------------------|----------------------------------------------------------------------------------------|
-| `DB_PASSWORD`            | PostgreSQL password. No default — compose will refuse to start without it.             |
-| `SESSION_ENCRYPTION_KEY` | Encrypts the session cookie. Must be at least 16 characters. No default in production. |
+A quick way to generate a good value:
+
+```bash
+openssl rand -base64 32
+```
+
+3. Start the application:
+
+```bash
+docker compose up -d
+```
+
+Diurnal will be available at **http://localhost:8080**. The database schema is created automatically on first start, and the JWT signing keypair is
+generated for you.
+
+4. Create your account:
+
+Open the app and **register**. The first account created becomes the **administrator**. Once you have your account, you may wish to set
+`ENABLE_REGISTRATION=false` to prevent anyone else from signing up.
+
+> **Upgrading:** pull the newer image and recreate the container:
+`docker compose pull && docker compose up -d`. Database migrations run automatically on start.
+
+## Configuration
+
+Diurnal is configured entirely through environment variables on the `diurnal` container. Only the first two are required; everything else has a
+sensible default.
+
+### Required
+
+| Variable                 | Description                                                             |
+|--------------------------|-------------------------------------------------------------------------|
+| `DB_PASSWORD`            | PostgreSQL password (must match the password on the database container) |
+| `SESSION_ENCRYPTION_KEY` | Encrypts the session cookie                                             |
 
 ### Database
 
-| Variable      | Default              | Description                                       |
-|---------------|----------------------|---------------------------------------------------|
-| `DB_HOST`     | `localhost`          | PostgreSQL hostname (`db` inside Docker Compose). |
-| `DB_PORT`     | `5432`               | PostgreSQL port.                                  |
-| `DB_NAME`     | `diurnal`            | Database name.                                    |
-| `DB_USER`     | `diurnal`            | Database user.                                    |
-| `DB_PASSWORD` | `diurnal` (dev only) | Database password.                                |
-
-### Session
-
-| Variable                 | Default (dev)                    | Description                                                                           |
-|--------------------------|----------------------------------|---------------------------------------------------------------------------------------|
-| `SESSION_ENCRYPTION_KEY` | `devkey_change_for_production!!` | AES key for the encrypted session cookie. Use a random 32+ char string in production. |
-
-### JWT signing keys (REST API / future OIDC)
-
-Keys are RSA-2048 PEM files. In the production environment they live in `secrets/` (mounted at `/run/secrets/`) and are
-**generated automatically on first start** if absent, then reused on every subsequent start. In the dev environment they are loaded from the
-classpath (`src/main/resources/jwt-keys/`).
-
-| Variable                   | Default (dev)          | Description                                      |
-|----------------------------|------------------------|--------------------------------------------------|
-| `JWT_PUBLIC_KEY_LOCATION`  | `jwt-keys/public.pem`  | Path to PEM public key for token verification.   |
-| `JWT_PRIVATE_KEY_LOCATION` | `jwt-keys/private.pem` | Path to PKCS8 PEM private key for token signing. |
-
-No manual step is required — the app provisions the keypair on first start (see `JwtKeyProvisioner`) and reuses it thereafter. To use a specific
-key (e.g. to share one across multiple replicas), drop your own `private.pem` / `public.pem` into `secrets/` before starting.
+| Variable  | Default        | Description                       |
+|-----------|----------------|-----------------------------------|
+| `DB_HOST` | `diurnal-db`   | Hostname of the PostgreSQL server |
+| `DB_PORT` | `5432`         | PostgreSQL port                   |
+| `DB_NAME` | `diurnal_db`   | Database name                     |
+| `DB_USER` | `diurnal_user` | Database user                     |
 
 ### Application
 
-| Variable   | Default | Description                           |
-|------------|---------|---------------------------------------|
-| `APP_PORT` | `8080`  | Host port the application listens on. |
+| Variable                | Default | Description                                                                     |
+|-------------------------|---------|---------------------------------------------------------------------------------|
+| `TZ`                    | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                    |
+| `LOG_LEVEL`             | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                |
+| `PASSWORD_AUTH_ENABLED` | `true`  | Set to `false` to disable password login entirely (requires OIDC to be enabled) |
+| `ENABLE_REGISTRATION`   | `true`  | Set to `false` to close the `/register` page                                    |
 
-### OIDC (optional — Phase 5)
+### JWT Keys
 
-OIDC is disabled by default. When enabled, the app connects to the provider's discovery endpoint at startup and validates Bearer tokens issued by that
-provider alongside form-session auth.
+The REST API is secured with RSA-2048 JWTs. The keypair is **generated automatically on first start** into the mounted `secrets` volume and reused
+thereafter. Override the locations only if you want to supply your own keys (e.g. to share one keypair across replicas).
 
-| Variable             | Default   | Description                                                                      |
-|----------------------|-----------|----------------------------------------------------------------------------------|
-| `OIDC_ENABLED`       | `false`   | Set to `true` to activate OIDC. The three variables below must also be provided. |
-| `OIDC_ISSUER_URL`    |           | Base URL of the OIDC provider (e.g. `https://auth.example.com`).                 |
-| `OIDC_CLIENT_ID`     | `diurnal` | Client ID registered with the OIDC provider.                                     |
-| `OIDC_CLIENT_SECRET` |           | Client secret for the registered client.                                         |
+| Variable                   | Default                             | Description                               |
+|----------------------------|-------------------------------------|-------------------------------------------|
+| `JWT_PUBLIC_KEY_LOCATION`  | `file:/run/secrets/jwt-public.pem`  | PEM public key used to verify tokens      |
+| `JWT_PRIVATE_KEY_LOCATION` | `file:/run/secrets/jwt-private.pem` | PKCS8 PEM private key used to sign tokens |
 
-**Authelia example** — add to your Authelia `configuration.yml`:
+### Reverse Proxy
+
+| Variable               | Default | Description                                                                                                                           |
+|------------------------|---------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `CSRF_TRUSTED_ORIGINS` |         | Comma-separated list of origins allowed as frame ancestors (needed for Swagger UI behind a proxy), e.g. `https://diurnal.example.com` |
+
+### OIDC
+
+OIDC is disabled by default. When enabled, users can sign in through your identity provider alongside (or instead of) password login. Register
+`{your-base-url}/oidc-callback` as the redirect URI with your IdP.
+
+| Variable             | Default                  | Description                                                                                                     |
+|----------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
+| `OIDC_ENABLED`       | `false`                  | Set to `true` to activate OIDC.                                                                                 |
+| `OIDC_ISSUER_URL`    |                          | Base URL of the OIDC provider (e.g. `https://auth.example.com`).                                                |
+| `OIDC_CLIENT_ID`     | `diurnal`                | Client ID registered with the provider.                                                                         |
+| `OIDC_CLIENT_SECRET` |                          | Client secret for the registered client.                                                                        |
+| `OIDC_PROVIDER_NAME` | `your identity provider` | Name shown on the login button ("Log in with your identity provider").                                          |
+| `OIDC_AUTO_REDIRECT` | `false`                  | If `true`, `/login` redirects straight to the provider (skips the login page).                                  |
+| `OIDC_ADMIN_GROUP`   |                          | IdP group whose members are granted the Administrator role. When set, the IdP is the source of truth for roles. |
+| `OIDC_USER_GROUP`    |                          | IdP group whose members are granted the User role.                                                              |
+| `OIDC_LOGOUT_URL`    |                          | RP-initiated logout URL; OIDC users are redirected here after logging out.                                      |
+
+<details>
+<summary><strong>Authelia example</strong></summary>
+
+Add a client to your Authelia `configuration.yml`:
 
 ```yaml
 identity_providers:
   oidc:
+    authorization_policies:
+      diurnal_auth_policy:
+        default_policy: 'deny'
+        rules:
+          - policy: 'one_factor'
+            subject:
+              - [ "group:diurnal_admins" ]
+              - [ "group:diurnal_users" ]
+    claims_policies:
+      diurnal_claim_policy:
+        id_token: [
+          'alt_emails',
+          'email',
+          'email_verified',
+          'groups',
+          'name',
+          'preferred_username'
+        ]
     clients:
-      - id: diurnal
-        secret: '<bcrypt hash of your OIDC_CLIENT_SECRET>'
-        authorization_policy: one_factor
+      - client_name: Diurnal OIDC Client
+        client_id: 'Diurnal'
+        client_secret: '<hash of OIDC_CLIENT_SECRET>'
+        authorization_policy: 'diurnal_auth_policy'
+        claims_policy: 'diurnal_claim_policy'
+        jwks_uri: 'https://auth.example.com/jwks.json'
+        public: 'false'
+        grant_types:
+          - 'authorization_code'
         redirect_uris:
-          - https://diurnal.example.com/oidc-callback
-        scopes: [ openid, profile, email ]
-        response_types: [ code ]
-        grant_types: [ authorization_code ]
+          - 'https://diurnal.example.com/oauth2/callback/oidc'
+        response_types:
+          - 'code'
+        scopes:
+          - 'email'
+          - 'groups'
+          - 'openid'
+          - 'profile'
+        access_token_signed_response_alg: 'none'
+        userinfo_signed_response_alg: 'none'
+        token_endpoint_auth_method: 'client_secret_post'
+        introspection_endpoint_auth_method: 'client_secret_post'
 ```
 
-## Calendar month cache (frontend tuning)
+</details>
 
-The dashboard calendar (minimal/stacked styles) fetches each month's activity dots from `/logs/minimal-events`
-once and caches them client-side, so navigating between months reads from memory instead of making a round-trip
-each time. This matters most behind a reverse proxy / CDN, where every request carries the edge latency. Two
-constants at the top of the calendar script in `src/main/resources/templates/dashboard.html` tune the behaviour:
+## User settings
 
-| Constant          | Default | Description                                                                                         |
-|-------------------|---------|-----------------------------------------------------------------------------------------------------|
-| `PREFETCH_RADIUS` | `2`     | Months either side of the visible one to warm in the background (on idle) so prev/next is instant.  |
-| `CACHE_LIMIT`     | `12`    | Maximum number of resolved months retained in memory; the oldest are evicted (least-recently-used). |
+Each user can customise Diurnal from the **Settings** page (top-right menu).
 
-> Keep `CACHE_LIMIT` comfortably above the live window of `2 * PREFETCH_RADIUS + 1` months (5 at the defaults),
-> otherwise hopping between adjacent months can evict a month that's still on screen and force a needless refetch.
-> Raise `PREFETCH_RADIUS` for smoother multi-month jumps at the cost of more idle background requests; raise
-> `CACHE_LIMIT` to retain more history at the cost of memory.
+### Account
+
+- **Email**: Your login identity (cannot be changed)
+- **Display name**: The name shown in the app
+
+### Preferences
+
+- **Theme**
+    - System
+    - Light
+    - Dark
+- **Calendar Style**: How the dashboard calendar draws each day (see [screenshots](#screenshots) above)
+    - Full
+    - Minimal
+    - Stacked
+- **Font**
+    - Nova
+    - Standard
+- **Timezone**: The timezone used to decide what "today" is so day boundaries line up with your timezone
+- **Items per page**: Page size for lists (actions, day panel, stats, etc.)
+
+Each theme, calendar, and font option shows a thumbnail and has a full-size preview.
+
+## Administrator Users
+
+The first account to register is an **administrator**. Administrators get two extra sections:
+
+- **Admin → Users**: View and manage user accounts (delete or edit role)
+- **API**: The Swagger UI for the JWT-secured REST API, useful for scripting or integrating Diurnal with other tools.
+
+## Contributing
+
+Interested in building, testing, or contributing to Diurnal? See **[CONTRIBUTING.md](CONTRIBUTING.md)** for the tech stack, local development
+workflow, build commands, and testing tiers.
+
+## License
+
+Diurnal is released under the [BSD Zero Clause License](LICENSE).

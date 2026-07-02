@@ -5,9 +5,9 @@ import { Client } from "pg"
 const DB_CONFIG = {
     host: process.env.TEST_DB_HOST ?? "localhost",
     port: Number(process.env.TEST_DB_PORT ?? 5432),
-    user: process.env.TEST_DB_USER ?? "diurnal",
-    password: process.env.TEST_DB_PASSWORD ?? "diurnal",
-    database: process.env.TEST_DB_NAME ?? "diurnal",
+    user: process.env.TEST_DB_USER ?? "diurnal_user",
+    password: process.env.TEST_DB_PASSWORD ?? "diurnal_password",
+    database: process.env.TEST_DB_NAME ?? "diurnal_db",
 }
 
 /**
