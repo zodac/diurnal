@@ -68,9 +68,11 @@ profile files must stay in `src/main/resources` — the E2E jar runs with `-Dqua
 
 **Port map**: 8080 = production; 8081 = dev mode, `@QuarkusTest`, and the E2E jar (never simultaneous); 8082 = the deployment-smoke stack (isolated
 compose project, coexists with a running prod stack). Under `-Dall`, phase binding is the load-bearing detail — the inherited sortpom plugin re-sorts
-plugins alphabetically, so `exec-maven-plugin` always sorts before `maven-failsafe-plugin`. `*IT` tests run in `integration-test`; **both** the E2E
-run and the deployment-smoke run are bound to `install` (after `verify`), ensuring ITs are confirmed green first. The two `install`-phase execs (
-`e2e-run`, `deployment-smoke`) are order-independent (disjoint ports/DBs, each self-cleaning) since sortpom may reorder executions within a phase.
+plugins alphabetically, so `exec-maven-plugin` always sorts before `maven-failsafe-plugin`. `*IT` tests run in `integration-test`; the E2E run and the
+deployment-smoke run are bound to `install` (after `verify`), ensuring ITs are confirmed green first. Both live in a **single** `install`-phase exec
+(`e2e-then-smoke`) that chains `run-e2e.sh && run-smoke.sh` — smoke runs strictly after (and only if) E2E passes. Ordering is enforced by the `&&`, not
+by phase/declaration order: `install` is the only post-`verify` phase `mvn clean install` runs, and sortpom would reorder two separate execs, so they
+must share one exec. Their stacks use disjoint ports/DBs and each self-cleans, so running back-to-back is safe.
 
 ## Architecture
 
@@ -309,5 +311,6 @@ desync.
   and image-focused (boot/health, non-root JWT key-gen, hashed assets, one persisted round-trip) — feature behaviour belongs in the E2E suite.
 - **Isolation:** dedicated compose project (`-p diurnal-smoke`), ephemeral tmpfs DB, host port **8082**, tmpfs `/run/secrets` (mode 1777) so the
   non-root UID can write the generated keypair. Coexists with a running prod stack.
-- **CI wiring:** the `deployment-smoke` exec in the `-Dall` profile, bound to `install` alongside `e2e-run` (both gated after the `verify` IT check);
-  the image's own HEALTHCHECK drives `up --wait`, so a boot failure fails the build before Playwright starts.
+- **CI wiring:** run by the `e2e-then-smoke` exec in the `-Dall` profile (chained `run-e2e.sh && run-smoke.sh`, bound to `install`, gated after the
+  `verify` IT check) — smoke runs only if E2E passed; the image's own HEALTHCHECK drives `up --wait`, so a boot failure fails the build before
+  Playwright starts.
