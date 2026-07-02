@@ -42,7 +42,6 @@ jobs:
           major="${version%%.*}"
           if [ "${major}" -ge 1 ] 2>/dev/null; then
             echo "should_publish=true" >> "${GITHUB_OUTPUT}"
-            echo "Version ${version} is >= 1.0.0 — the Docker image will be published."
           else
             echo "should_publish=false" >> "${GITHUB_OUTPUT}"
             echo "::notice::Version ${version} is a pre-release (< 1.0.0); the GitHub release will still be created, but the Docker image will not be pushed."
@@ -132,10 +131,7 @@ jobs:
           java-version: '26'
           maven-version: '3.9.16'
 
-      # Bake the release version into the image: quarkus.application.version (shown in the footer) is
-      # the Maven project version, and the image's internal `mvn package` reads this workspace pom.
       - name: Set Maven version from VERSION file
-        if: needs.version.outputs.should_publish == 'true'
         run: mvn versions:set -DnewVersion="${VERSION}" -DgenerateBackupPoms=false
 
       - name: Set up Docker Buildx
