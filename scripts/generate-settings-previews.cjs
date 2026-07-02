@@ -52,7 +52,11 @@ const { chromium } = require(path.join(__dirname, '..', 'e2e', 'node_modules', '
 
 const BASE = process.env.BASE_URL || 'http://localhost:8081'
 const OUT = path.join(__dirname, '..', 'src', 'main', 'resources', 'META-INF', 'resources', 'img', 'settings')
-const VW = 1200, VH = 820  // web capture viewport (full-page/element shots ignore the height)
+// Web capture viewport (full-page/element shots ignore the height). The width is deliberately wide
+// enough that `.page-container` (width:75%, capped at --page-max-width = 1280px) reaches its cap, so
+// the previews show the true widest desktop layout. At a narrower viewport the column shrinks and the
+// day-panel (1/3 of the grid) gets cramped enough to ellipsis-truncate action names like "Exercise".
+const VW = 1728, VH = 820
 
 // Dedicated demo account — kept separate from real dev data.
 const USER = { email: 'preview-demo@diurnal.local', password: 'preview_demo123', displayName: 'Preview Demo' }
