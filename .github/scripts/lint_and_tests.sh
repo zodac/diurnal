@@ -4,12 +4,18 @@
 #
 # Description:     Lints and tests the project using Docker.
 #
-# Usage:           ./lint_and_tests.sh [steps]
+# Usage:           ./lint_and_tests.sh [-v|--verbose] [steps]
 #
 #                  [steps] is an optional comma-separated list of steps to run.
 #                  If omitted, only steps whose relevant files have changed since
 #                  the most recent semver git tag are run. If no tag exists, all
 #                  steps are run. Pass explicit steps to override auto-detection.
+#
+#                  -v, --verbose
+#                    Show each step's full output. Off by default: steps print only a
+#                    pass/fail summary (the long-running java/Maven gate is hidden
+#                    entirely). Turn it on to stream the Maven build live and see every
+#                    linter's output — useful when a run fails and you need the detail.
 #
 #                  Valid steps:
 #                    docker      - Lint the Dockerfiles with hadolint
@@ -22,6 +28,7 @@
 #                    ./lint_and_tests.sh
 #                    ./lint_and_tests.sh docker
 #                    ./lint_and_tests.sh docker,javascript
+#                    ./lint_and_tests.sh -v java
 #
 # Requirements:
 #   - Docker must be installed and available on the system PATH
@@ -48,6 +55,10 @@ HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.14.0-alpine"
 MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.0"
 
 VALID_STEPS=("docker" "java" "javascript" "markdown" "typescript")
+
+# Verbose off by default: steps print only a pass/fail summary and the java/Maven gate is hidden.
+# The -v/--verbose flag (parsed below) flips this to stream/echo every step's full output.
+VERBOSE=false
 
 overall_exit_code=0
 
@@ -87,6 +98,7 @@ run_docker() {
         "${HADOLINT_DOCKER_IMAGE}" \
         hadolint --config code-quality-config/docker/.hadolint.yaml \
         Dockerfile sandbox/Dockerfile 2>&1); then
+        [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
         echo "✅ Dockerfile lint passed"
     else
         echo "${output}"
@@ -97,15 +109,25 @@ run_docker() {
 
 run_java() {
     echo
-    echo "Running the full Java gate (lints + unit + *IT + E2E + deployment-smoke) with [mvn clean install -Dall]"
+    echo "Running the full Java gate with [mvn clean install -Dall]"
     # -Dall drives the CSS build (Node), a managed test DB, the E2E stack and the deployment-smoke image
     # build (all via Docker), so — unlike the other steps — it runs against the host toolchain (JDK +
-    # Maven + Node + Playwright + a Docker daemon) rather than the Node-less Maven Docker image. Output
-    # streams live because the build is long and buffering it would hide progress.
-    if mvn clean install -Dall; then
+    # Maven + Node + Playwright + a Docker daemon) rather than the Node-less Maven Docker image.
+    #
+    # The build is long and its output is enormous, so by default it is hidden and only the pass/fail
+    # summary is printed (matching the other steps). Re-run with -v to stream the full Maven output
+    # live — or run `mvn clean install -Dall` yourself — when a failure needs investigating.
+    if [[ "${VERBOSE}" == true ]]; then
+        if mvn clean install -Dall; then
+            echo "✅ Java lints and tests passed"
+        else
+            echo "❌ Java lints and tests failed"
+            overall_exit_code=1
+        fi
+    elif mvn clean install -Dall >/dev/null 2>&1; then
         echo "✅ Java lints and tests passed"
     else
-        echo "❌ Java lints and tests failed"
+        echo "❌ Java lints and tests failed (re-run with -v, or 'mvn clean install -Dall', for the full output)"
         overall_exit_code=1
     fi
 }
@@ -126,6 +148,7 @@ run_javascript() {
         "${ESLINT_BUILD_IMAGE}" \
         --config code-quality-config/javascript/eslint.config.cjs \
         "tailwind.config.js" "scripts/*.cjs" 2>&1); then
+        [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
         echo "✅ JavaScript lint passed"
     else
         echo "${output}"
@@ -156,6 +179,7 @@ run_typescript() {
             eslint \
             --config ../code-quality-config/typescript/eslint.config.mjs \
             '**/*.ts'" 2>&1); then
+        [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
         echo "✅ TypeScript lint passed"
     else
         echo "${output}"
@@ -175,6 +199,7 @@ run_markdown() {
         --config code-quality-config/markdown/.markdownlint.json \
         "**/*.md" "!code-quality-config/**" "!**/node_modules/**" "!**/target/**" \
         "!.claude/**" "!RELEASE_NOTES.md" "!e2e/playwright-report/**" "!e2e/test-results/**" 2>&1); then
+        [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
         echo "✅ Markdown lint passed"
     else
         echo "${output}"
@@ -261,6 +286,26 @@ detect_changed_steps() {
     [[ "${run_markdown}"   == true ]] && echo "markdown"
     [[ "${run_typescript}" == true ]] && echo "typescript"
 }
+
+# Parse flags (accepted in any position); everything else is collected as the positional steps arg.
+positional=()
+while [[ $# -gt 0 ]]; do
+    case "${1}" in
+    -v | --verbose) VERBOSE=true ;;
+    --) shift; positional+=("$@"); break ;;
+    -*)
+        echo "❌ Unknown option: '${1}'. Supported: -v, --verbose"
+        exit 1
+        ;;
+    *) positional+=("${1}") ;;
+    esac
+    shift
+done
+if [[ ${#positional[@]} -gt 0 ]]; then
+    set -- "${positional[@]}"
+else
+    set --
+fi
 
 # Parse and validate steps
 if [[ $# -eq 0 ]]; then
