@@ -120,9 +120,11 @@ jobs:
           git config user.name "publisher"
           git config user.email "github-actions@github.com"
 
-      # Maven is only needed to bake the version into the image, so it is gated with the image steps.
+      # Maven is always needed: the version-bump step (bump_version.sh) runs `mvn versions:set` on
+      # every release, pre-release or not. Only the image-specific Maven step below is gated. Pinning
+      # it here (rather than relying on the runner's pre-installed Maven) keeps the toolchain
+      # consistent with the `test` job.
       - name: Setup Maven Action
-        if: needs.version.outputs.should_publish == 'true'
         uses: s4u/setup-maven-action@v1.20.0
         with:
           checkout-fetch-depth: 0
@@ -170,6 +172,15 @@ jobs:
       - name: Generate categorised changelog
         run: .github/scripts/generate_changelog.sh "${{ steps.prev_tag.outputs.prev_tag }}"
 
+      # Assemble the release body: optional RELEASE_NOTES.md (if non-empty) + Docker pull line +
+      # the categorised changelog (exported as env.changelog_content by the step above). Exposed as
+      # steps.release_body.outputs.body for the Create GitHub Release step.
+      - name: Build release body
+        id: release_body
+        env:
+          CHANGELOG_CONTENT: ${{ env.changelog_content }}
+        run: .github/scripts/generate_github_release_content.sh "${VERSION}" "${{ steps.prev_tag.outputs.prev_tag }}"
+
       - name: Tag the released version
         run: git tag "${VERSION}"
 
@@ -189,7 +200,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           name: v${{ env.VERSION }}
           tag: ${{ env.VERSION }}
-          body: ${{ env.changelog_content }}
+          body: ${{ steps.release_body.outputs.body }}
           # A sub-1.0.0 version is a pre-release: flag it as such and don't mark it "Latest".
           prerelease: ${{ needs.version.outputs.should_publish != 'true' }}
           makeLatest: ${{ needs.version.outputs.should_publish == 'true' }}
