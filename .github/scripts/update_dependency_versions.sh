@@ -7,6 +7,8 @@
 #                 - Java (major) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
 #                 - Maven (full) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
 #                 - Node (full/major) in Dockerfile, sandbox/Dockerfile
+#                 - Docker image pins in .github/scripts/lint_and_tests.sh
+#                   (maven/node/java atomically; hadolint + markdownlint-cli2 best-effort)
 #                 - Ubuntu packages (# BEGIN/END UBUNTU PACKAGES blocks)
 #                 - Debian packages (# BEGIN/END DEBIAN PACKAGES blocks)
 #                 - Alpine packages (# BEGIN/END ALPINE PACKAGES blocks)
@@ -29,6 +31,13 @@ SANDBOX_DOCKERFILE="./sandbox/Dockerfile"
 POM_XML="./pom.xml"
 WORKFLOWS_DIR=".github/workflows"
 GITMODULES_FILE=".gitmodules"
+LINT_SCRIPT=".github/scripts/lint_and_tests.sh"
+
+# Versions resolved (and confirmed to exist) by update_{java,maven,node}, consumed by
+# update_lint_script for its ATOMIC maven/node/java image bump. Empty = not confirmed this run.
+LINT_JAVA_MAJOR=""
+LINT_MAVEN_VERSION=""
+LINT_NODE_ALPINE=""
 
 # ── Output helpers ────────────────────────────────────────────────────────────
 
@@ -110,6 +119,9 @@ update_java() {
     fi
     echo "  maven:${maven_java_tag} confirmed on Docker Hub"
 
+    # Java major confirmed (jdk tag + combined maven image both exist) → expose for the lint script.
+    LINT_JAVA_MAJOR="${latest_major}"
+
     # ── Apply ──────────────────────────────────────────────────────────────────
 
     # pom.xml
@@ -164,6 +176,9 @@ update_maven() {
         return 0
     fi
     echo "  maven:${docker_tag} confirmed on Docker Hub"
+
+    # Maven version confirmed against the current java major → expose for the lint script.
+    LINT_MAVEN_VERSION="${latest_version}"
 
     # ── Apply ──────────────────────────────────────────────────────────────────
 
@@ -222,6 +237,9 @@ update_node() {
     fi
     echo "  node:${trixie_tag} confirmed on Docker Hub"
 
+    # Node version confirmed (alpine + trixie both exist) → expose for the lint script (uses -alpine).
+    LINT_NODE_ALPINE="${latest_version}"
+
     # ── Apply ──────────────────────────────────────────────────────────────────
 
     # Dockerfile: both node stages use the same alpine tag
@@ -231,6 +249,68 @@ update_node() {
     sed -i "s|FROM node:[0-9.]*-trixie|FROM node:${trixie_tag}|g" "${SANDBOX_DOCKERFILE}"
 
     ok "Node updated → ${latest_version} (major: ${latest_major})"
+}
+
+# ── 3b. lint_and_tests.sh Docker image pins ───────────────────────────────────
+# Keeps the pinned Docker images in .github/scripts/lint_and_tests.sh in sync:
+#   - MAVEN_DOCKER_IMAGE (maven+java combined) and ESLINT_NODE_IMAGE (node) are bumped
+#     ATOMICALLY from the versions resolved above. If ANY of java/maven/node could not be
+#     confirmed this run, NONE of the three are touched — a partial bump could point the
+#     combined maven image or the node image at a tag that was never validated.
+#   - HADOLINT_DOCKER_IMAGE and MARKDOWNLINT_DOCKER_IMAGE are independent best-effort: each is
+#     bumped to the latest GitHub release whose corresponding Docker Hub tag is confirmed to exist.
+
+update_lint_script() {
+    echo
+    echo "🔍 Updating Docker image pins in ${LINT_SCRIPT}..."
+
+    if [[ ! -f "${LINT_SCRIPT}" ]]; then
+        warn "No ${LINT_SCRIPT}, skipping"
+        return 0
+    fi
+
+    # ── maven / node / java (atomic) ──────────────────────────────────────────
+    if [[ -n "${LINT_JAVA_MAJOR}" && -n "${LINT_MAVEN_VERSION}" && -n "${LINT_NODE_ALPINE}" ]]; then
+        local maven_image="maven:${LINT_MAVEN_VERSION}-eclipse-temurin-${LINT_JAVA_MAJOR}"
+        local node_image="node:${LINT_NODE_ALPINE}-alpine"
+        sed -i "s|MAVEN_DOCKER_IMAGE=\"maven:[^\"]*\"|MAVEN_DOCKER_IMAGE=\"${maven_image}\"|" "${LINT_SCRIPT}"
+        sed -i "s|ESLINT_NODE_IMAGE=\"node:[^\"]*\"|ESLINT_NODE_IMAGE=\"${node_image}\"|" "${LINT_SCRIPT}"
+        ok "maven/node/java images → ${maven_image}, ${node_image}"
+    else
+        warn "Skipping maven/node/java image bump (java='${LINT_JAVA_MAJOR}' maven='${LINT_MAVEN_VERSION}' node='${LINT_NODE_ALPINE}'): one or more unresolved, updating none"
+    fi
+
+    # ── hadolint (best-effort) ────────────────────────────────────────────────
+    local hadolint_tag
+    hadolint_tag=$(github_curl "https://api.github.com/repos/hadolint/hadolint/releases/latest" \
+        | jq -r '.tag_name // empty')
+    if [[ -z "${hadolint_tag}" ]]; then
+        warn "Could not fetch hadolint version, skipping"
+    elif ! hub_tag_exists "hadolint/hadolint" "${hadolint_tag}-alpine"; then
+        warn "hadolint/hadolint:${hadolint_tag}-alpine not on Docker Hub, skipping"
+    else
+        sed -i "s|HADOLINT_DOCKER_IMAGE=\"hadolint/hadolint:[^\"]*\"|HADOLINT_DOCKER_IMAGE=\"hadolint/hadolint:${hadolint_tag}-alpine\"|" "${LINT_SCRIPT}"
+        ok "hadolint image → hadolint/hadolint:${hadolint_tag}-alpine"
+    fi
+
+    # ── markdownlint-cli2 (best-effort) ───────────────────────────────────────
+    # markdownlint-cli2 publishes NO GitHub Releases (only git tags), so releases/latest 404s.
+    # Use the tags API and pick the highest vX.Y.Z via sort -V (the API's order is not guaranteed).
+    local mdl_tag
+    mdl_tag=$(github_curl "https://api.github.com/repos/DavidAnson/markdownlint-cli2/tags" \
+        | jq -r '.[].name // empty' \
+        | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+        | sort -V | tail -1)
+    if [[ -z "${mdl_tag}" ]]; then
+        warn "Could not fetch markdownlint-cli2 version, skipping"
+    elif ! hub_tag_exists "davidanson/markdownlint-cli2" "${mdl_tag}"; then
+        warn "davidanson/markdownlint-cli2:${mdl_tag} not on Docker Hub, skipping"
+    else
+        sed -i "s|MARKDOWNLINT_DOCKER_IMAGE=\"davidanson/markdownlint-cli2:[^\"]*\"|MARKDOWNLINT_DOCKER_IMAGE=\"davidanson/markdownlint-cli2:${mdl_tag}\"|" "${LINT_SCRIPT}"
+        ok "markdownlint-cli2 image → davidanson/markdownlint-cli2:${mdl_tag}"
+    fi
+
+    ok "Lint script Docker images processed"
 }
 
 # ── 4. Debian/Ubuntu (apt) packages ───────────────────────────────────────────
@@ -614,13 +694,13 @@ update_parent_pom() {
 # Best-effort: actions that cannot be resolved are warned and left unchanged.
 
 update_github_actions() {
+    echo
+    echo "🔍 Updating GitHub Actions versions..."
+
     if [[ ! -d "${WORKFLOWS_DIR}" ]]; then
         warn "No workflows directory at ${WORKFLOWS_DIR}, skipping"
         return 0
     fi
-
-    echo
-    echo "🔍 Updating GitHub Actions versions..."
 
     # Collect unique action references
     local action_refs=()
@@ -678,6 +758,9 @@ update_parent_pom || warn "Parent POM update failed, continuing..."
 update_java       || warn "Java update failed, continuing..."
 update_maven      || warn "Maven update failed, continuing..."
 update_node       || warn "Node update failed, continuing..."
+
+# After java/maven/node: propagate the resolved (and confirmed) versions into the lint script.
+update_lint_script || warn "Lint script image update failed, continuing..."
 
 update_apt_packages "${DOCKERFILE}"         "UBUNTU" || warn "Ubuntu packages update failed for Dockerfile, continuing..."
 update_apt_packages "${SANDBOX_DOCKERFILE}" "DEBIAN" || warn "Debian packages update failed for sandbox/Dockerfile, continuing..."

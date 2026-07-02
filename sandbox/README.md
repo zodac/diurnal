@@ -145,6 +145,7 @@ Named volumes survive across runs (so you don't re-pull/re-download each time):
 >
 > So the sandbox keeps its **own** known-good snapshot of *both* files under `~/.claude/.sandbox-state/`
 > (`claude.json.bak` + `credentials.json.bak`), managed by `launch.sh`:
+>
 > 1. **On launch**, it restores either file from the snapshot when the live copy is missing/empty/stub
 >    (preferring the snapshot over Claude's stub-prone backups), then snapshots whatever good state exists.
 > 2. **During an interactive session** a lightweight background watcher re-snapshots the healthy live
