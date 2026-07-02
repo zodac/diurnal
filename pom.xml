@@ -378,17 +378,19 @@
                                      deferred to the verify phase (so post-IT teardown still runs)
               post-integration-test – docker compose down (test DB)
               verify               – failsafe GATE: the build fails here if any *IT failed
-              install              – e2e ('e2e-run') AND deployment-smoke ('deployment-smoke'): both
-                                     run ONLY because the build passed the verify gate (ITs confirmed
-                                     green first). 'e2e-run' starts the packaged jar on 8081 and runs the
-                                     Playwright E2E suite (feature coverage on a full JDK). 'deployment-smoke'
-                                     builds the REAL production Docker image, runs an isolated
-                                     app+DB stack on 8082, and runs the black-box smoke suite against it
-                                     — the only tier exercising the packaged distroless/jlink/non-root
-                                     runtime. Each is self-contained (brings up its own deps, tears them
-                                     down via a trap) and exits with Playwright's code, so either having an error
-                                     fails the build. They share `install` but are order-independent, so
-                                     sortpom may run them in either order (see their execution comments).
+              install              – e2e THEN deployment-smoke, chained in one exec ('e2e-then-smoke'):
+                                     runs ONLY because the build passed the verify gate (ITs confirmed
+                                     green first). The single execution runs run-e2e.sh (packaged jar on
+                                     8081, Playwright E2E suite, feature coverage on a full JDK) and then,
+                                     only if it passed (`&&`), run-smoke.sh (builds the REAL production
+                                     Docker image, runs an isolated app+DB stack on 8082, black-box smoke
+                                     suite — the only tier exercising the packaged distroless/jlink/non-root
+                                     runtime). Each script is self-contained (brings up its own deps, tears
+                                     them down via a trap) and exits with Playwright's code, so a failure in
+                                     either tier fails the build. Ordering is enforced by the `&&` inside the
+                                     single exec (NOT by phase/declaration order): the only phase after
+                                     `verify` that `install` runs is `install` itself, and sortpom re-sorts
+                                     executions, so two separate execs could not be ordered — hence one exec.
 
             Why e2e + smoke are in `install`, not `integration-test`: failsafe only raises *IT failures
             in the `verify` phase, so they must run AFTER verify to be gated on the ITs passing.
@@ -464,25 +466,37 @@
                             </execution>
 
                             <!--
-                                Deployment-smoke run, bound to `install` like `e2e-run` and likewise
-                                strictly AFTER the verify-phase failsafe gate (so it runs only once the
-                                ITs are confirmed green). Delegates to e2e/run-smoke.sh, which builds the
-                                REAL production image from the Dockerfile, brings up an isolated full
-                                stack (docker-compose.smoke.yml: app + ephemeral DB) on
-                                ${smoke.http.port}, runs the small black-box smoke suite against it, and
-                                tears the stack down via an EXIT trap. It exits with Playwright's code,
-                                so a smoke failure fails the build. This is the tier — and the ONLY tier
-                                — that exercises the packaged distroless / jlink / non-root runtime;
-                                unit + IT + E2E all run on a full JDK.
+                                E2E then deployment-smoke, in ONE execution, bound to `install` — i.e.
+                                strictly AFTER the verify-phase failsafe gate, so both run only once the
+                                ITs are confirmed green (if they fail, the build stops at verify and this
+                                never runs).
 
-                                This and `e2e-run` are the two exec executions in `install`. sortpom
-                                reorders executions, so their relative order is NOT guaranteed — but they
-                                are deliberately order-independent: disjoint ports (${e2e.http.port} vs
-                                ${smoke.http.port}), disjoint compose projects/DBs, each self-cleaning,
-                                each failing the build on its own. Never make one depend on the other.
+                                Why one execution and not two: the only lifecycle phase after `verify`
+                                that `mvn clean install` runs is `install`, and sortpom re-sorts executions
+                                on every build, so two separate `install`-bound execs have NO guaranteed
+                                order. To make smoke run strictly AFTER e2e we chain them inside a single
+                                shell command (`&&`), where ordering is deterministic and independent of
+                                sortpom. e2e runs first (fail-fast: an E2E failure short-circuits before the
+                                expensive production-image build); smoke runs only if e2e passed.
+
+                                Step 1 — e2e/run-e2e.sh: self-contained; brings up its own test DB, starts
+                                the packaged jar on ${e2e.http.port}, polls /login until ready (max 120s),
+                                runs Playwright, tears the jar + test DB down via an EXIT trap. Feature
+                                coverage on a full JDK.
+
+                                Step 2 — e2e/run-smoke.sh: builds the REAL production image from the
+                                Dockerfile, brings up an isolated full stack (docker-compose.smoke.yml:
+                                app + ephemeral DB) on ${smoke.http.port}, runs the small black-box smoke
+                                suite against it, tears the stack down via an EXIT trap. The ONLY tier that
+                                exercises the packaged distroless / jlink / non-root runtime.
+
+                                Both scripts exit with Playwright's code and `&&` propagates a non-zero
+                                exit, so a failure in either tier fails the build. Ports/compose
+                                projects/DBs are disjoint, so the two stacks never collide even back-to-back.
+                                Args are passed positionally so the Maven properties resolve here, in the POM.
                             -->
                             <execution>
-                                <id>deployment-smoke</id>
+                                <id>e2e-then-smoke</id>
                                 <goals>
                                     <goal>exec</goal>
                                 </goals>
@@ -490,40 +504,8 @@
                                 <configuration>
                                     <executable>bash</executable>
                                     <arguments>
-                                        <argument>${project.basedir}/e2e/run-smoke.sh</argument>
-                                        <argument>${smoke.http.port}</argument>
-                                        <argument>${project.basedir}</argument>
-                                    </arguments>
-                                </configuration>
-                            </execution>
-
-                            <!--
-                                E2E run, bound to `install` — strictly AFTER the verify-phase failsafe
-                                gate, so it runs only once the ITs are confirmed green (if they fail,
-                                the build stops at verify and this never runs). Delegates to
-                                e2e/run-e2e.sh, which is fully self-contained: it brings up its own test
-                                DB, starts the packaged jar on ${e2e.http.port}, polls /login until ready
-                                (max 120s), runs Playwright, and tears the jar + test DB down via an EXIT
-                                trap. The script exits with Playwright's exit code, so an E2E failure
-                                fails the build directly (no separate result-file check needed). It takes
-                                the port / target dir / basedir as arguments so the Maven properties
-                                resolve here, in the POM. It shares the `install` phase with
-                                `deployment-smoke` (below); the two are order-independent (see that
-                                execution's comment), so sortpom re-ordering them is safe.
-                            -->
-                            <execution>
-                                <id>e2e-run</id>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <phase>install</phase>
-                                <configuration>
-                                    <executable>bash</executable>
-                                    <arguments>
-                                        <argument>${project.basedir}/e2e/run-e2e.sh</argument>
-                                        <argument>${e2e.http.port}</argument>
-                                        <argument>${project.build.directory}</argument>
-                                        <argument>${project.basedir}</argument>
+                                        <argument>-c</argument>
+                                        <argument>"${project.basedir}/e2e/run-e2e.sh" "${e2e.http.port}" "${project.build.directory}" "${project.basedir}" &amp;&amp; "${project.basedir}/e2e/run-smoke.sh" "${smoke.http.port}" "${project.basedir}"</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
