@@ -8,7 +8,9 @@ import { test, expect } from "../helpers/fixtures"
 // no need to cover every instance — one per type proves the shared rule reaches it).
 async function expectPointer(locator: Locator): Promise<void> {
     await expect(locator).toBeVisible()
-    const cursor = await locator.evaluate(el => getComputedStyle(el).cursor)
+    // `globalThis` (not a bare `getComputedStyle`) so eslint's no-undef is satisfied without browser
+    // globals in the lint config; at runtime inside the browser it resolves to window.getComputedStyle.
+    const cursor = await locator.evaluate(el => globalThis.getComputedStyle(el).cursor)
     expect(cursor, "interactive control should show the pointer (hand) cursor").toBe("pointer")
 }
 
