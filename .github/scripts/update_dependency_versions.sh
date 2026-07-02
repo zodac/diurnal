@@ -7,6 +7,7 @@
 #                 - Java (major) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
 #                 - Maven (full) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
 #                 - Node (full/major) in Dockerfile, sandbox/Dockerfile
+#                 - npm packages in package.json + e2e/package.json (exact pins, no ^/~ ranges)
 #                 - Docker image pins in .github/scripts/lint_and_tests.sh
 #                   (node when confirmed; hadolint + markdownlint-cli2 best-effort)
 #                 - Ubuntu packages (# BEGIN/END UBUNTU PACKAGES blocks)
@@ -302,6 +303,61 @@ update_lint_script() {
     fi
 
     ok "Lint script Docker images processed"
+}
+
+# ── 3c. npm packages ──────────────────────────────────────────────────────────
+# For each package.json manifest, bumps every dependency/devDependency to the
+# latest version published on the npm registry and writes it as an EXACT pin
+# (no "^"/"~" ranges — explicit versions only). Best-effort per package: a name
+# whose latest version cannot be fetched is warned and left unchanged.
+
+update_npm_packages() {
+    echo
+    echo "🔍 Updating npm packages (exact pinned versions)..."
+
+    local manifests=("./package.json" "./e2e/package.json")
+
+    for manifest in "${manifests[@]}"; do
+        if [[ ! -f "${manifest}" ]]; then
+            warn "No ${manifest}, skipping"
+            continue
+        fi
+        echo "  --- ${manifest}"
+
+        for section in dependencies devDependencies; do
+            local names=()
+            mapfile -t names < <(jq -r --arg s "${section}" '.[$s] // {} | keys[]' "${manifest}")
+            [[ "${#names[@]}" -eq 0 ]] && continue
+
+            for pkg in "${names[@]}"; do
+                # Scoped names (@scope/name) must have the internal '/' encoded as %2f
+                # for the registry path; unscoped names are unaffected.
+                local encoded="${pkg/\//%2f}"
+
+                local latest
+                latest=$(curl_get "https://registry.npmjs.org/${encoded}/latest" | jq -r '.version // empty')
+                if [[ -z "${latest}" ]]; then
+                    warn "Could not fetch latest version for '${pkg}', skipping"
+                    continue
+                fi
+
+                local current
+                current=$(jq -r --arg s "${section}" --arg p "${pkg}" '.[$s][$p]' "${manifest}")
+
+                if [[ "${current}" == "${latest}" ]]; then
+                    echo "    ${pkg}=${latest} (already pinned, up-to-date)"
+                    continue
+                fi
+
+                echo "    ${pkg}: ${current} → ${latest} (exact pin)"
+                jq --arg s "${section}" --arg p "${pkg}" --arg v "${latest}" \
+                    '.[$s][$p] = $v' "${manifest}" > "${manifest}.tmp" \
+                    && mv "${manifest}.tmp" "${manifest}"
+            done
+        done
+
+        ok "npm packages processed in ${manifest}"
+    done
 }
 
 # ── 4. Debian/Ubuntu (apt) packages ───────────────────────────────────────────
@@ -752,6 +808,8 @@ update_node       || warn "Node update failed, continuing..."
 
 # After java/maven/node: propagate the resolved (and confirmed) versions into the lint script.
 update_lint_script || warn "Lint script image update failed, continuing..."
+
+update_npm_packages || warn "npm package update failed, continuing..."
 
 update_apt_packages "${DOCKERFILE}"         "UBUNTU" || warn "Ubuntu packages update failed for Dockerfile, continuing..."
 update_apt_packages "${SANDBOX_DOCKERFILE}" "DEBIAN" || warn "Debian packages update failed for sandbox/Dockerfile, continuing..."
