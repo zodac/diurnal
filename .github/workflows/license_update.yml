@@ -1,0 +1,69 @@
+name: License Year Update
+
+on:
+  schedule:
+    # Run at 00:30 on the first of January every year
+    - cron: '30 0 1 1 *'
+  workflow_dispatch: # allows manual trigger
+
+jobs:
+  update-license:
+    name: License Year Update
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      actions: write
+      contents: write
+      security-events: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 0
+
+      - name: Update license year
+        run: |
+          # Get the current and previous year dynamically
+          CURRENT_YEAR=$(date +%Y)
+          PREVIOUS_YEAR=$((CURRENT_YEAR - 1))
+
+          # Find and replace '<free text> 2024-<previous_year>' with '<free text> 2024-<current_year>'
+          find . -type f -not -path './.git/*' -exec sed -i "s/\(2024-\)\(${PREVIOUS_YEAR}\)/\1${CURRENT_YEAR}/g" {} +
+
+          if [ -z "$(git status --porcelain)" ]; then
+            echo "No changes to commit"
+            echo "has_changes=false" >> $GITHUB_ENV
+          else
+            echo "has_changes=true" >> $GITHUB_ENV
+          fi
+
+      - name: Set up maven
+        uses: s4u/setup-maven-action@v1.20.0
+        if: env.has_changes == 'true'
+        with:
+          checkout-fetch-depth: 0
+          java-distribution: 'temurin'
+          java-version: '26'
+          maven-version: '3.9.16'
+
+      - name: Run linters and unit/integration tests
+        id: application_tests
+        if: env.has_changes == 'true'
+        run: mvn clean install -Dlint -Dtests -Dcss.build.skip=true
+
+      - name: Commit changes
+        id: change_commit
+        if: env.has_changes == 'true'
+        run: |
+          git config user.name github-actions
+          git config user.email "actions@github.com"
+          git add .
+          git commit -m '[CI] Updating licence year'
+
+      - name: Push changes
+        if: env.has_changes == 'true'
+        uses: ad-m/github-push-action@v1.3.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: master

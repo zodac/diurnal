@@ -40,7 +40,7 @@ trap 'echo; echo "❌ Interrupted"; exit 130' INT
 ESLINT_BUILD_IMAGE="local/diurnal-eslint:latest"
 ESLINT_NODE_IMAGE="node:26.4.0-alpine"
 HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.14.0-alpine"
-MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.22.1"
+MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.0"
 MAVEN_DOCKER_IMAGE="maven:3.9.16-eclipse-temurin-26"
 
 VALID_STEPS=("docker" "java" "javascript" "markdown" "typescript")

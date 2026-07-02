@@ -1,0 +1,34 @@
+name: JavaScript & TypeScript CI
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/javascript_typescript.yml'
+      # JavaScript sources linted by the `javascript` step
+      - 'tailwind.config.js'
+      - 'scripts/**/*.cjs'
+      # TypeScript sources linted by the `typescript` step
+      - 'e2e/**/*.ts'
+      - 'e2e/tsconfig.json'
+      - 'e2e/package.json'
+      - 'e2e/package-lock.json'
+  workflow_dispatch: # allows manual trigger
+
+jobs:
+  analyze:
+    name: JavaScript & TypeScript Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      # submodules: the code-quality-config submodule holds the shared eslint configs
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.0
+        with:
+          submodules: true
+
+      - name: Lint JavaScript and TypeScript with ESLint
+        run: .github/scripts/lint_and_tests.sh javascript,typescript

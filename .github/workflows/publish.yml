@@ -1,0 +1,201 @@
+name: Build and Publish Docker Image
+
+# Never scheduled — only a push to an image-affecting file on master, or a manual dispatch.
+on:
+  push:
+    branches: [ master ]
+    # Scope: only files that end up in (or change) the published production image
+    paths:
+      - 'Dockerfile'
+      - 'pom.xml'
+      - 'package.json'
+      - 'src/**'
+  workflow_dispatch: # allows manual trigger
+
+jobs:
+  # Resolve the release version and decide whether the Docker image should be published. A GitHub
+  # release is always created; only the Docker image publish is gated — versions below 1.0.0 are
+  # pre-releases and their image is not pushed.
+  version:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      should_publish: ${{ steps.version.outputs.should_publish }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.0
+
+      - name: Read version and check release eligibility
+        id: version
+        run: |
+          version="$(cat VERSION)"
+          echo "version=${version}" >> "${GITHUB_OUTPUT}"
+          echo "Read version: ${version}"
+
+          # Push the Docker image only for stable releases (>= 1.0.0). Major version 0 == pre-release.
+          major="${version%%.*}"
+          if [ "${major}" -ge 1 ] 2>/dev/null; then
+            echo "should_publish=true" >> "${GITHUB_OUTPUT}"
+            echo "Version ${version} is >= 1.0.0 — the Docker image will be published."
+          else
+            echo "should_publish=false" >> "${GITHUB_OUTPUT}"
+            echo "::notice::Version ${version} is a pre-release (< 1.0.0); the GitHub release will still be created, but the Docker image will not be pushed."
+          fi
+
+  # Full CI gate (lints + unit + IT + E2E + deployment-smoke) before anything is released or published.
+  test:
+    name: Test latest software
+    needs: version
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      # submodules: code-quality-config holds the linter configs used by the -Dall gate.
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6.4.0
+        with:
+          node-version: '26.4.0'
+
+      - name: Setup Maven Action
+        uses: s4u/setup-maven-action@v1.20.0
+        with:
+          checkout-fetch-depth: 0
+          java-distribution: 'temurin'
+          java-version: '26'
+          maven-version: '3.9.16'
+
+      # Node deps: the POM's css-build exec runs `npm run css`; the E2E run uses e2e/ deps + browsers.
+      - name: Install CSS build dependencies
+        run: npm ci
+
+      - name: Install E2E dependencies and browsers
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps
+
+      - name: Run full test and lint gate with Maven
+        run: mvn clean install -Dall
+
+  # Always tag the release, publish a GitHub Release and bump the patch version for the next cycle.
+  # The Docker image is built & pushed only for stable (>= 1.0.0) versions. Runs after `test` is green.
+  publish:
+    name: Publish release
+    needs: [ version, test ]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # push the version-bump commit + release tag, create the GitHub Release
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      SHOULD_PUBLISH: ${{ needs.version.outputs.should_publish }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.0
+        with:
+          fetch-depth: 0 # need full history + tags for the changelog and tagging
+
+      - name: Fetch tags
+        run: git fetch --tags
+
+      - name: Configure git user
+        run: |
+          git config user.name "publisher"
+          git config user.email "github-actions@github.com"
+
+      # Maven is only needed to bake the version into the image, so it is gated with the image steps.
+      - name: Setup Maven Action
+        if: needs.version.outputs.should_publish == 'true'
+        uses: s4u/setup-maven-action@v1.20.0
+        with:
+          checkout-fetch-depth: 0
+          java-distribution: 'temurin'
+          java-version: '26'
+          maven-version: '3.9.16'
+
+      # Bake the release version into the image: quarkus.application.version (shown in the footer) is
+      # the Maven project version, and the image's internal `mvn package` reads this workspace pom.
+      - name: Set Maven version from VERSION file
+        if: needs.version.outputs.should_publish == 'true'
+        run: mvn versions:set -DnewVersion="${VERSION}" -DgenerateBackupPoms=false
+
+      - name: Set up Docker Buildx
+        if: needs.version.outputs.should_publish == 'true'
+        uses: docker/setup-buildx-action@v4.1.0
+
+      - name: Log in to Docker Hub
+        if: needs.version.outputs.should_publish == 'true'
+        uses: docker/login-action@v4.2.0
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        if: needs.version.outputs.should_publish == 'true'
+        uses: docker/build-push-action@v7.3.0
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          cache-from: type=registry,ref=zodac/diurnal:cache
+          cache-to: type=registry,ref=zodac/diurnal:cache,mode=max
+          tags: |
+            zodac/diurnal:${{ env.VERSION }}
+            zodac/diurnal:latest
+
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          # Latest existing tag (empty on the very first release; the changelog script handles that).
+          prev_tag="$(git describe --tags --abbrev=0 2>/dev/null || true)"
+          echo "prev_tag=${prev_tag}" >> "${GITHUB_OUTPUT}"
+
+      - name: Generate categorised changelog
+        run: .github/scripts/generate_changelog.sh "${{ steps.prev_tag.outputs.prev_tag }}"
+
+      - name: Tag the released version
+        run: git tag "${VERSION}"
+
+      - name: Bump patch version in VERSION file for the next cycle
+        run: .github/scripts/bump_version.sh "${VERSION}"
+
+      - name: Push version-bump commit and release tag
+        uses: ad-m/github-push-action@v1.3.0
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          branch: master
+          tags: true
+
+      - name: Create GitHub Release
+        uses: ncipollo/release-action@v1.21.0
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          name: v${{ env.VERSION }}
+          tag: ${{ env.VERSION }}
+          body: ${{ env.changelog_content }}
+          # A sub-1.0.0 version is a pre-release: flag it as such and don't mark it "Latest".
+          prerelease: ${{ needs.version.outputs.should_publish != 'true' }}
+          makeLatest: ${{ needs.version.outputs.should_publish == 'true' }}
+
+      - name: Summary
+        run: |
+          echo "Created GitHub release for version: ${VERSION}"
+          if [ "${SHOULD_PUBLISH}" = "true" ]; then
+            echo "Published Docker image. Pull it using:"
+            echo "  docker pull zodac/diurnal:${VERSION}"
+          else
+            echo "Skipped Docker image publish (pre-release version < 1.0.0)."
+          fi
