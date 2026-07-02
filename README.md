@@ -11,7 +11,7 @@
 - [Introduction](#introduction)
 - [Features](#features)
 - [Screenshots](#screenshots)
-- [Installation](#installation)
+- [Deployment](#deployment)
 - [Configuration](#configuration)
     - [Required](#required)
     - [Database](#database)
@@ -75,12 +75,12 @@ Expand the section below to view screenshots.
 
 </details>
 
-## Installation
+## Deployment
 
 Diurnal is distributed as a Docker image ([`zodac/diurnal`](https://hub.docker.com/r/zodac/diurnal)) and is intended to be run with Docker Compose
 alongside a PostgreSQL container.
 
-1. Get the `Docker Compose` fileL
+1. Get the `Docker Compose` file:
 
 Download [`docker-compose-example.yml`](docker-compose-example.yml) from this repository and save it as `docker-compose.yml`:
 

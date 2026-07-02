@@ -39,6 +39,9 @@ FROM maven:3.9.16-eclipse-temurin-26 AS build
 WORKDIR /build
 COPY pom.xml .
 RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline -q
+# VERSION lives at the repo root (outside src), but the POM packages it onto the classpath so AppInfo
+# can read the release version for the footer at runtime — so it must be present in the build context.
+COPY VERSION .
 COPY src ./src
 # Drop the freshly-compiled stylesheet into the static web root so Quarkus bundles it
 # into quarkus-app and serves it at /css/app.css (overwriting any committed copy).
