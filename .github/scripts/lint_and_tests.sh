@@ -174,7 +174,7 @@ run_markdown() {
         "${MARKDOWNLINT_DOCKER_IMAGE}" \
         --config code-quality-config/markdown/.markdownlint.json \
         "**/*.md" "!code-quality-config/**" "!**/node_modules/**" "!**/target/**" \
-        "!.claude/**" "!RELEASE_NOTES.md" 2>&1); then
+        "!.claude/**" "!RELEASE_NOTES.md" "!e2e/playwright-report/**" "!e2e/test-results/**" 2>&1); then
         echo "✅ Markdown lint passed"
     else
         echo "${output}"
