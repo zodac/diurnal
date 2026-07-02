@@ -117,6 +117,26 @@
             <artifactId>assertj-core</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- Hamcrest matchers are used directly in assertions (rest-assured re-exports them but the
+             analyze gate wants the direct dependency declared). Version managed by the BOM. -->
+        <dependency>
+            <groupId>org.hamcrest</groupId>
+            <artifactId>hamcrest</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <!-- Directly used JUnit APIs (assertions live in -api, @ParameterizedTest/@MethodSource in
+             -params). Pulled in transitively by quarkus-junit5, but declared explicitly so the
+             dependency-analyze lint gate does not flag them as undeclared. Versions come from the BOM. -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-junit</artifactId>
