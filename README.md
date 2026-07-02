@@ -4,7 +4,9 @@
 </p>
 <!-- markdownlint-enable MD033 MD041 -->
 
-> *[diurnal](https://www.dictionary.com/browse/diurnal); / daɪˈɜr nl /; adjective*; "of or relating to a day or each day; daily."
+> *[diurnal](https://www.dictionary.com/browse/diurnal); / daɪˈɜr nl /; adjective*;
+> 
+> "of or relating to a day or each day; daily."
 
 ## Table of contents
 

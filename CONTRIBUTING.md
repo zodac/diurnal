@@ -8,32 +8,29 @@ high-level overview of what Diurnal is and how to deploy it, see the [README](RE
 
 ## Tech stack
 
-| Layer     | Technology                                                            |
-|-----------|-----------------------------------------------------------------------|
-| Backend   | Quarkus 3 (Java 21), RESTEasy Reactive, Hibernate ORM Panache, Flyway |
-| UI        | Qute (server-side templates), HTMX, Tailwind CSS (compiled)           |
-| Auth      | Form-based sessions (web UI); JWT Bearer (REST API); optional OIDC    |
-| Database  | PostgreSQL                                                            |
-| Packaging | Single hardened Docker image (distroless, jlink JRE, non-root)        |
-
-> **On templating:** Quarkus uses **Qute** as its native template engine — conceptually like Thymeleaf (server-side HTML with Java
-> variables) but with `{variable}` syntax. HTMX handles dynamic partial updates, so there is no JavaScript framework. The dashboard
-> calendar (all three styles) is a small hand-rolled vanilla-JS month grid — there is no calendar library.
+| Layer      | Technology                                                     |
+|------------|----------------------------------------------------------------|
+| Backend    | Quarkus, RESTEasy Reactive, Hibernate ORM Panache, Flyway      |
+| UI         | Qute server-side templates), HTMX, Tailwind CSS                |
+| Auth       | Form-based sessions (web UI); JWT Bearer (REST API); OIDC      |
+| Database   | PostgreSQL                                                     |
+| Deployment | Single hardened Docker image (distroless, jlink JRE, non-root) |
 
 ## Prerequisites
 
-- JDK 26
-- Maven (or use the project's `mvnw` if present)
-- Node.js + npm (for the Tailwind CSS build)
-- Docker + Docker Compose v2 (for the dev database and image builds)
-
-> Always use `docker compose` (the v2 plugin), never `docker-compose` (hyphenated).
+- Java 26
+- Maven
+- Node.js + npm
+- Docker + Docker Compose
 
 ## First-time setup
 
 ```bash
 # Fetch the code-quality-config submodule (required for -Dlint / -Dall)
 git submodule update --init
+
+# Install githooks
+.hooks/install_hooks.sh
 
 # Install Node dependencies (required for Maven to build the CSS)
 npm install
@@ -53,11 +50,8 @@ mvn quarkus:dev
 ```
 
 Dev mode expects PostgreSQL on `localhost:5432` with database `diurnal_db`, user `diurnal_user`, and password `diurnal_password`.
-Flyway migrations run automatically. Dev data is ephemeral (wiped on container recreate).
 
 There are helper scripts for the full loop: `scripts/dev-up.sh` and `scripts/dev-teardown.sh`.
-
-> **Always tear down when finished:** `pkill -f "quarkus:dev"`, then `docker compose -f docker-compose.dev.yml down`.
 
 ### Port map
 
@@ -70,7 +64,7 @@ There are helper scripts for the full loop: `scripts/dev-up.sh` and `scripts/dev
 ## CSS build
 
 Tailwind is compiled (not loaded from a CDN). The committed source is `src/main/css/app.css`; it is built into
-`src/main/resources/META-INF/resources/css/app.css` (a git-ignored build artifact).
+`src/main/resources/META-INF/resources/css/app.css`.
 
 ```bash
 npm run css          # one-off build
@@ -78,7 +72,7 @@ npm run css:watch    # rebuild on change (pair with quarkus:dev)
 ```
 
 Every Maven build regenerates the CSS via an `exec-maven-plugin` execution, so `package` / `*IT` / E2E always bundle a fresh
-stylesheet — this needs `node_modules`, hence the one-time `npm install`. Rebuild after any class change in templates or Java, or
+stylesheet. This needs `node_modules`, hence the one-time `npm install`. Rebuild after any class change in templates or Java, or
 Tailwind will purge the class.
 
 ## Building
@@ -110,25 +104,22 @@ mvn test -Dtests -Dtest=MyTestClass
 mvn clean install -Dall
 ```
 
-**All linters currently pass clean** (Checkstyle/PMD/SpotBugs = 0, PITest strength = 100%). Please keep them that way: code must be
-NullAway-annotated (JSpecify `@Nullable`), every public/package method and type carries Javadoc, locals/params are `final`, and
-unit-test assertions carry messages.
+Further code style guidance can be found in [CODE_STYLE.md](./.claude/CODE_STYLE.md).
 
 ## Testing
 
 Diurnal has a four-tier test pyramid:
 
-1. **Unit tests** (`*Test`) — surefire, no database. `mvn test -Dtests`.
-2. **Integration tests** (`*IT`) — extend `IntegrationTestBase`, run against a managed PostgreSQL. Time is frozen to a fixed "today" for determinism.
-3. **E2E tests** — Playwright, in `e2e/`.
+1. **Unit tests**
+2. **Integration tests**
+3. **E2E UI tests**
 
    ```bash
    cd e2e && npm test                                  # against :8080
    cd e2e && BASE_URL=http://localhost:8081 npm test   # against dev / -Dall port
    ```
 
-4. **Deployment-smoke** — the only tier that runs the **actual production Docker image** (distroless, jlink JRE, non-root).
-   Self-contained: builds the image, runs an isolated app+DB stack on `:8082`, runs the smoke specs, and tears it all down.
+4. **Deployment-smoke**
 
    ```bash
    bash e2e/run-smoke.sh 8082 "$(pwd)"
@@ -138,8 +129,8 @@ All four tiers run under `mvn clean install -Dall`.
 
 ## Database migrations
 
-Flyway scripts live in `src/main/resources/db/migration/`, numbered sequentially (`V1__` … `Vn__`). **Never edit an applied
-migration** — always add the next `V{n+1}__` script.
+Flyway scripts live in `src/main/resources/db/migration/`, numbered sequentially (`V1__` → `Vn__`). **Never edit an applied
+migration**, always add the next `V{n+1}__` script.
 
 ## Project layout
 

@@ -540,6 +540,15 @@ document.addEventListener('DOMContentLoaded', function () {
         backfillMonth(dateStr); // back-fill the rest of the month from one bulk request
     }
 
+    // Persist / restore the chosen day for the current WORKING session. sessionStorage is scoped to this
+    // browser tab: it survives in-app navigation (every page is a full load, so this script re-runs and
+    // would otherwise reset to today) but is wiped when the tab/browser closes. It is ALSO cleared on the
+    // login page (see login.html) so a logout — or a different user logging in on the same tab — starts
+    // fresh, tying the retained date to the working session rather than the authentication session.
+    var SELECTED_DATE_KEY = 'diurnal.selectedDate';
+    function rememberSelectedDate(dateStr) { try { sessionStorage.setItem(SELECTED_DATE_KEY, dateStr); } catch (e) {} }
+    function forgetSelectedDate()          { try { sessionStorage.removeItem(SELECTED_DATE_KEY); } catch (e) {} }
+
     // Select a specific day: paint its highlight, switch month if it belongs to an adjacent one, load panel.
     function selectDay(dateStr) {
         var y = parseInt(dateStr.substring(0, 4), 10);
@@ -548,6 +557,7 @@ document.addEventListener('DOMContentLoaded', function () {
         cal.setHighlight(dateStr);
         if (y !== v.year || m !== v.month) { cal.goToMonth(y, m); } // re-applies the highlight on arrival
         loadDayPanel(dateStr);
+        rememberSelectedDate(dateStr);
     }
 
     // Deselect the current day and reset the panel to its prompt. Used when only the MONTH changes
@@ -556,6 +566,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function clearSelection() {
         cal.setHighlight(null);
         if (dayPanel) { dayPanel.style.opacity = ''; dayPanel.innerHTML = dayPanelPlaceholder; }
+        forgetSelectedDate();
     }
 
     // ── Hand-rolled grid (full / minimal / stacked) ──────────────────────────
@@ -1170,8 +1181,16 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     });
 
-    // Pre-select today so the day panel opens immediately, without clicking the calendar.
-    selectDay(today);
+    // Open the day panel immediately, without clicking the calendar. Restore the day chosen earlier this
+    // working session (retained per-tab via sessionStorage) if there is a valid one; otherwise fall back to
+    // today. The format guard is load-bearing: selectedDate is interpolated straight into the
+    // /logs/day/<date> fetch URL, so only a well-formed ISO date is accepted. The regex uses \d\d… rather
+    // than \d{4} on purpose: Qute would read the {4}/{2} quantifiers as template expressions (see the
+    // brace-parsing note in CLAUDE.md) and corrupt the pattern.
+    var ISO_DATE = /^\d\d\d\d-\d\d-\d\d$/;
+    var restoredDate = null;
+    try { restoredDate = sessionStorage.getItem('diurnal.selectedDate'); } catch (e) {}
+    selectDay(ISO_DATE.test(restoredDate) ? restoredDate : today);
 });
 </script>
 {/body}

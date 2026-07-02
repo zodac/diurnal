@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test"
-import { test, expect } from "../helpers/fixtures"
+import { test, expect, loginAs } from "../helpers/fixtures"
 
 // Unique action name for this test run — never archived, so no DB unique-constraint collision
 // across repeated runs or across chromium/mobile-chrome sharing the same user+DB.
@@ -26,6 +26,14 @@ function pastDateStr(daysAgo: number): string {
 function futureDateStr(daysAhead: number): string {
     const d = new Date()
     d.setUTCDate(d.getUTCDate() + daysAhead)
+    return d.toISOString().slice(0, 10)
+}
+
+// Helper: a date guaranteed to be in the current UTC month (so its cell is a primary cell of the
+// rendered month grid) and different from today. Uses the 1st, or the 2nd when today is the 1st.
+function otherDayThisMonth(): string {
+    const d = new Date()
+    d.setUTCDate(d.getUTCDate() === 1 ? 2 : 1)
     return d.toISOString().slice(0, 10)
 }
 
@@ -403,5 +411,43 @@ test.describe("Dashboard – Stacked calendar", () => {
         const originalTitle = await page.locator("#cal-title").textContent()
         await page.locator("#cal-next").click()
         await expect(page.locator("#cal-title")).not.toHaveText(originalTitle ?? "")
+    })
+
+    // The chosen day is retained for the current working session (per-tab sessionStorage): it survives
+    // in-app navigation but resets when the tab closes or the auth session ends (login-page load clears it).
+    test("selected day is retained when navigating away and back within the session", async ({ authenticatedPage: page }) => {
+        const other = otherDayThisMonth()
+
+        await page.goto("/")
+        await page.locator(`.d-min-cell[data-date="${other}"]`).click()
+        await expect(page.locator(`.d-min-cell[data-date="${other}"]`)).toHaveClass(/d-min-selected/)
+
+        // Navigate to another page and back (full page loads — the dashboard script re-runs).
+        await page.goto("/settings")
+        await page.goto("/")
+
+        // The previously chosen day is restored, not reset to today.
+        await expect(page.locator(`.d-min-cell[data-date="${other}"]`)).toHaveClass(/d-min-selected/)
+        await expect(page.locator(`.d-min-cell[data-date="${todayStr()}"]`)).not.toHaveClass(/d-min-selected/)
+    })
+
+    test("selected day resets to today after logout and login", async ({ authenticatedPage: page, testUser }) => {
+        const other = otherDayThisMonth()
+
+        await page.goto("/")
+        await page.locator(`.d-min-cell[data-date="${other}"]`).click()
+        await expect(page.locator(`.d-min-cell[data-date="${other}"]`)).toHaveClass(/d-min-selected/)
+
+        // Log out (POST /logout → redirect to /login, which clears the retained day), then log back in.
+        await Promise.all([
+            page.waitForURL("/login"),
+            page.locator('form[action="/logout"] button[type="submit"]').first().click(),
+        ])
+        await loginAs(page, testUser)
+
+        // Fresh working session: back to the today default, not the previously chosen day.
+        await page.goto("/")
+        await expect(page.locator(`.d-min-cell[data-date="${todayStr()}"]`)).toHaveClass(/d-min-selected/)
+        await expect(page.locator(`.d-min-cell[data-date="${other}"]`)).not.toHaveClass(/d-min-selected/)
     })
 })
