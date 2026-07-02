@@ -1,0 +1,28 @@
+name: Docker CI
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/docker.yml'
+      - 'Dockerfile'
+      - 'sandbox/Dockerfile'
+  workflow_dispatch: # allows manual trigger
+
+jobs:
+  analyze:
+    name: Docker Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      # submodules: the code-quality-config submodule holds the shared hadolint config
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.0
+        with:
+          submodules: true
+
+      - name: Lint Dockerfiles with Hadolint
+        run: .github/scripts/lint_and_tests.sh docker

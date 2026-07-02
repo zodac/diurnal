@@ -1,0 +1,27 @@
+name: Documentation CI
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/documentation.yml'
+      - '**/*.md'
+  workflow_dispatch: # allows manual trigger
+
+jobs:
+  analyze:
+    name: Documentation Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      # submodules: the code-quality-config submodule holds the shared markdownlint config
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.0
+        with:
+          submodules: true
+
+      - name: Lint Markdown with markdownlint-cli2
+        run: .github/scripts/lint_and_tests.sh markdown
