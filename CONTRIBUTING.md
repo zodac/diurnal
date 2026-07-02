@@ -1,8 +1,10 @@
 # Contributing to Diurnal
 
-Thanks for your interest in Diurnal! This document covers everything you need to build, run, and test the application locally. For a high-level overview of what Diurnal is and how to deploy it, see the [README](README.md).
+Thanks for your interest in Diurnal! This document covers everything you need to build, run, and test the application locally. For a
+high-level overview of what Diurnal is and how to deploy it, see the [README](README.md).
 
-> **Code style & architecture:** detailed conventions and architecture notes for contributors live in [`.claude/CLAUDE.md`](.claude/CLAUDE.md). Read it before writing or editing code.
+> **Code style & architecture:** detailed conventions and architecture notes for contributors live in
+> [`.claude/CLAUDE.md`](.claude/CLAUDE.md). Read it before writing or editing code.
 
 ## Tech stack
 
@@ -14,7 +16,9 @@ Thanks for your interest in Diurnal! This document covers everything you need to
 | Database  | PostgreSQL                                                            |
 | Packaging | Single hardened Docker image (distroless, jlink JRE, non-root)        |
 
-> **On templating:** Quarkus uses **Qute** as its native template engine — conceptually like Thymeleaf (server-side HTML with Java variables) but with `{variable}` syntax. HTMX handles dynamic partial updates, so there is no JavaScript framework. The dashboard calendar (all three styles) is a small hand-rolled vanilla-JS month grid — there is no calendar library.
+> **On templating:** Quarkus uses **Qute** as its native template engine — conceptually like Thymeleaf (server-side HTML with Java
+> variables) but with `{variable}` syntax. HTMX handles dynamic partial updates, so there is no JavaScript framework. The dashboard
+> calendar (all three styles) is a small hand-rolled vanilla-JS month grid — there is no calendar library.
 
 ## Prerequisites
 
@@ -48,7 +52,8 @@ npm run css:watch
 mvn quarkus:dev
 ```
 
-Dev mode expects PostgreSQL on `localhost:5432` with database/user/password all `diurnal`. Flyway migrations run automatically. Dev data is ephemeral (wiped on container recreate).
+Dev mode expects PostgreSQL on `localhost:5432` with database `diurnal_db`, user `diurnal_user`, and password `diurnal_password`.
+Flyway migrations run automatically. Dev data is ephemeral (wiped on container recreate).
 
 There are helper scripts for the full loop: `scripts/dev-up.sh` and `scripts/dev-teardown.sh`.
 
@@ -64,14 +69,17 @@ There are helper scripts for the full loop: `scripts/dev-up.sh` and `scripts/dev
 
 ## CSS build
 
-Tailwind is compiled (not loaded from a CDN). The committed source is `src/main/css/app.css`; it is built into `src/main/resources/META-INF/resources/css/app.css` (a git-ignored build artifact).
+Tailwind is compiled (not loaded from a CDN). The committed source is `src/main/css/app.css`; it is built into
+`src/main/resources/META-INF/resources/css/app.css` (a git-ignored build artifact).
 
 ```bash
 npm run css          # one-off build
 npm run css:watch    # rebuild on change (pair with quarkus:dev)
 ```
 
-Every Maven build regenerates the CSS via an `exec-maven-plugin` execution, so `package` / `*IT` / E2E always bundle a fresh stylesheet — this needs `node_modules`, hence the one-time `npm install`. Rebuild after any class change in templates or Java, or Tailwind will purge the class.
+Every Maven build regenerates the CSS via an `exec-maven-plugin` execution, so `package` / `*IT` / E2E always bundle a fresh
+stylesheet — this needs `node_modules`, hence the one-time `npm install`. Rebuild after any class change in templates or Java, or
+Tailwind will purge the class.
 
 ## Building
 
@@ -102,7 +110,9 @@ mvn test -Dtests -Dtest=MyTestClass
 mvn clean install -Dall
 ```
 
-**All linters currently pass clean** (Checkstyle/PMD/SpotBugs = 0, PITest strength = 100%). Please keep them that way: code must be NullAway-annotated (JSpecify `@Nullable`), every public/package method and type carries Javadoc, locals/params are `final`, and unit-test assertions carry messages.
+**All linters currently pass clean** (Checkstyle/PMD/SpotBugs = 0, PITest strength = 100%). Please keep them that way: code must be
+NullAway-annotated (JSpecify `@Nullable`), every public/package method and type carries Javadoc, locals/params are `final`, and
+unit-test assertions carry messages.
 
 ## Testing
 
@@ -111,11 +121,15 @@ Diurnal has a four-tier test pyramid:
 1. **Unit tests** (`*Test`) — surefire, no database. `mvn test -Dtests`.
 2. **Integration tests** (`*IT`) — extend `IntegrationTestBase`, run against a managed PostgreSQL. Time is frozen to a fixed "today" for determinism.
 3. **E2E tests** — Playwright, in `e2e/`.
+
    ```bash
    cd e2e && npm test                                  # against :8080
    cd e2e && BASE_URL=http://localhost:8081 npm test   # against dev / -Dall port
    ```
-4. **Deployment-smoke** — the only tier that runs the **actual production Docker image** (distroless, jlink JRE, non-root). Self-contained: builds the image, runs an isolated app+DB stack on `:8082`, runs the smoke specs, and tears it all down.
+
+4. **Deployment-smoke** — the only tier that runs the **actual production Docker image** (distroless, jlink JRE, non-root).
+   Self-contained: builds the image, runs an isolated app+DB stack on `:8082`, runs the smoke specs, and tears it all down.
+
    ```bash
    bash e2e/run-smoke.sh 8082 "$(pwd)"
    ```
@@ -124,7 +138,8 @@ All four tiers run under `mvn clean install -Dall`.
 
 ## Database migrations
 
-Flyway scripts live in `src/main/resources/db/migration/`, numbered sequentially (`V1__` … `Vn__`). **Never edit an applied migration** — always add the next `V{n+1}__` script.
+Flyway scripts live in `src/main/resources/db/migration/`, numbered sequentially (`V1__` … `Vn__`). **Never edit an applied
+migration** — always add the next `V{n+1}__` script.
 
 ## Project layout
 
@@ -139,7 +154,8 @@ Application code is under `src/main/java/net/zodac/diurnal/`, split by domain:
 | `user`   | `User` entity, user settings, `/api/users/me`                          |
 | `web`    | Top-level page routes (dashboard, login, settings, etc.)               |
 
-See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) for the full architecture reference, including the HTMX partial-response conventions, the record/`*Extensions` split, the CSS colour-token system, and the settings-preview regeneration workflow.
+See [`.claude/CLAUDE.md`](.claude/CLAUDE.md) for the full architecture reference, including the HTMX partial-response conventions,
+the record/`*Extensions` split, the CSS colour-token system, and the settings-preview regeneration workflow.
 
 ## License
 

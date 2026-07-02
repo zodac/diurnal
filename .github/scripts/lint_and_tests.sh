@@ -13,7 +13,7 @@
 #
 #                  Valid steps:
 #                    docker      - Lint the Dockerfiles with hadolint
-#                    java         - Run Java lints and unit tests with Maven
+#                    java         - Run the full Maven gate (mvn clean install -Dall)
 #                    javascript  - Lint JavaScript files with eslint
 #                    markdown    - Lint Markdown files with markdownlint-cli2
 #                    typescript  - Lint TypeScript files with eslint
@@ -27,6 +27,11 @@
 #   - Docker must be installed and available on the system PATH
 #   - The code-quality-config submodule must be checked out
 #     (git submodule update --init) - it holds every linter's CI config
+#   - The `java` step additionally needs the host toolchain the Dockerised steps don't: a JDK + Maven,
+#     Node/npm (the POM css-build exec and the E2E deps), and Playwright browsers
+#     (cd e2e && npx playwright install --with-deps). It runs `mvn clean install -Dall` directly on the
+#     host, not in the Maven Docker image, because -Dall drives Docker itself (the managed test DB, the
+#     E2E stack, and the deployment-smoke image build).
 #
 # Exit Codes:
 #   - 0: All linting and tests passed successfully
@@ -41,7 +46,6 @@ ESLINT_BUILD_IMAGE="local/diurnal-eslint:latest"
 ESLINT_NODE_IMAGE="node:26.4.0-alpine"
 HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.14.0-alpine"
 MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.0"
-MAVEN_DOCKER_IMAGE="maven:3.9.16-eclipse-temurin-26"
 
 VALID_STEPS=("docker" "java" "javascript" "markdown" "typescript")
 
@@ -93,25 +97,15 @@ run_docker() {
 
 run_java() {
     echo
-    echo "Running Java lints and unit tests using [${MAVEN_DOCKER_IMAGE}]"
-    docker pull "${MAVEN_DOCKER_IMAGE}" >/dev/null
-    # Ensure the shared Maven cache exists and is owned by the invoking user before the bind mount,
-    # otherwise Docker auto-creates it as root and the non-root container user cannot write to it.
-    mkdir -p "${HOME}/.m2"
-    # -Dcss.build.skip=true: the Node-less Maven image cannot run the css-build exec (npm run css).
-    # -Dlint -Dtests: linters + surefire unit tests only (no *IT / E2E / deployment-smoke / DB / Docker).
-    if output=$(docker run --rm \
-        -u "$(id -u):$(id -g)" \
-        -v "${PWD}":/app \
-        -v "${HOME}/.m2":/var/maven/.m2 \
-        -w /app \
-        --entrypoint mvn \
-        "${MAVEN_DOCKER_IMAGE}" \
-        -Duser.home=/var/maven clean install -Dlint -Dtests -Dcss.build.skip=true 2>&1); then
-        echo "✅ Java lints and unit tests passed"
+    echo "Running the full Java gate (lints + unit + *IT + E2E + deployment-smoke) with [mvn clean install -Dall]"
+    # -Dall drives the CSS build (Node), a managed test DB, the E2E stack and the deployment-smoke image
+    # build (all via Docker), so — unlike the other steps — it runs against the host toolchain (JDK +
+    # Maven + Node + Playwright + a Docker daemon) rather than the Node-less Maven Docker image. Output
+    # streams live because the build is long and buffering it would hide progress.
+    if mvn clean install -Dall; then
+        echo "✅ Java lints and tests passed"
     else
-        echo "${output}"
-        echo "❌ Java lints and unit tests failed"
+        echo "❌ Java lints and tests failed"
         overall_exit_code=1
     fi
 }
@@ -258,7 +252,6 @@ detect_changed_steps() {
         grep -qE '^[+-][[:space:]]*HADOLINT_DOCKER_IMAGE='                        <<<"${script_diff}" && run_docker=true
         grep -qE '^[+-][[:space:]]*(ESLINT_BUILD_IMAGE|ESLINT_NODE_IMAGE)='       <<<"${script_diff}" && run_javascript=true
         grep -qE '^[+-][[:space:]]*(ESLINT_BUILD_IMAGE|ESLINT_NODE_IMAGE)='       <<<"${script_diff}" && run_typescript=true
-        grep -qE '^[+-][[:space:]]*MAVEN_DOCKER_IMAGE='                           <<<"${script_diff}" && run_java=true
         grep -qE '^[+-][[:space:]]*MARKDOWNLINT_DOCKER_IMAGE='                    <<<"${script_diff}" && run_markdown=true
     fi
 

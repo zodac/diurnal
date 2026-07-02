@@ -1,7 +1,7 @@
-# Single local database for development and testing. One container, one database ("diurnal"),
+# Single local database for development and testing. One container, one database ("diurnal_db"),
 # shared by dev mode and tests. Storage is tmpfs so data is wiped on every recreate.
 #
-#   diurnal-db-dev — ephemeral (tmpfs), port 5432, DB "diurnal". Start it for `mvn quarkus:dev`:
+#   diurnal-db-dev — ephemeral (tmpfs), port 5432, DB "diurnal_db". Start it for `mvn quarkus:dev`:
 #            docker compose -f docker-compose.dev.yml up -d diurnal-db-dev
 #        The `-Dall` Maven profile starts/removes it automatically around the IT test-suite.
 services:
@@ -10,16 +10,16 @@ services:
     container_name: diurnal-db-dev
     hostname: diurnal-db-dev
     environment:
-      POSTGRES_DB: diurnal
-      POSTGRES_USER: diurnal
-      POSTGRES_PASSWORD: diurnal
+      POSTGRES_DB: diurnal_db
+      POSTGRES_USER: diurnal_user
+      POSTGRES_PASSWORD: diurnal_password
       PGDATA: /var/lib/postgresql/data/pgdata
     ports:
       - "5432:5432"
     tmpfs:
       - /var/lib/postgresql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U diurnal -d diurnal"]
+      test: ["CMD-SHELL", "pg_isready -U diurnal_user -d diurnal_db"]
       interval: 5s
       timeout: 3s
       retries: 5

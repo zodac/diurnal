@@ -8,7 +8,7 @@
 #                 - Maven (full) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
 #                 - Node (full/major) in Dockerfile, sandbox/Dockerfile
 #                 - Docker image pins in .github/scripts/lint_and_tests.sh
-#                   (maven/node/java atomically; hadolint + markdownlint-cli2 best-effort)
+#                   (node when confirmed; hadolint + markdownlint-cli2 best-effort)
 #                 - Ubuntu packages (# BEGIN/END UBUNTU PACKAGES blocks)
 #                 - Debian packages (# BEGIN/END DEBIAN PACKAGES blocks)
 #                 - Alpine packages (# BEGIN/END ALPINE PACKAGES blocks)
@@ -33,10 +33,10 @@ WORKFLOWS_DIR=".github/workflows"
 GITMODULES_FILE=".gitmodules"
 LINT_SCRIPT=".github/scripts/lint_and_tests.sh"
 
-# Versions resolved (and confirmed to exist) by update_{java,maven,node}, consumed by
-# update_lint_script for its ATOMIC maven/node/java image bump. Empty = not confirmed this run.
-LINT_JAVA_MAJOR=""
-LINT_MAVEN_VERSION=""
+# Node version resolved (and confirmed to exist) by update_node, consumed by update_lint_script for
+# the ESLINT_NODE_IMAGE bump. Empty = not confirmed this run. (The lint script no longer pins a Maven
+# image — its `java` step runs `mvn clean install -Dall` on the host toolchain — so java/maven versions
+# are no longer exposed here; only the Dockerfiles' maven image is bumped, from update_{java,maven}.)
 LINT_NODE_ALPINE=""
 
 # ── Output helpers ────────────────────────────────────────────────────────────
@@ -119,9 +119,6 @@ update_java() {
     fi
     echo "  maven:${maven_java_tag} confirmed on Docker Hub"
 
-    # Java major confirmed (jdk tag + combined maven image both exist) → expose for the lint script.
-    LINT_JAVA_MAJOR="${latest_major}"
-
     # ── Apply ──────────────────────────────────────────────────────────────────
 
     # pom.xml
@@ -176,9 +173,6 @@ update_maven() {
         return 0
     fi
     echo "  maven:${docker_tag} confirmed on Docker Hub"
-
-    # Maven version confirmed against the current java major → expose for the lint script.
-    LINT_MAVEN_VERSION="${latest_version}"
 
     # ── Apply ──────────────────────────────────────────────────────────────────
 
@@ -253,10 +247,9 @@ update_node() {
 
 # ── 3b. lint_and_tests.sh Docker image pins ───────────────────────────────────
 # Keeps the pinned Docker images in .github/scripts/lint_and_tests.sh in sync:
-#   - MAVEN_DOCKER_IMAGE (maven+java combined) and ESLINT_NODE_IMAGE (node) are bumped
-#     ATOMICALLY from the versions resolved above. If ANY of java/maven/node could not be
-#     confirmed this run, NONE of the three are touched — a partial bump could point the
-#     combined maven image or the node image at a tag that was never validated.
+#   - ESLINT_NODE_IMAGE (node) is bumped from the node version resolved above, only if it was
+#     confirmed this run (an unconfirmed tag must never be pinned). The lint script's `java` step
+#     runs `mvn clean install -Dall` on the host toolchain, so there is no Maven image pin to bump.
 #   - HADOLINT_DOCKER_IMAGE and MARKDOWNLINT_DOCKER_IMAGE are independent best-effort: each is
 #     bumped to the latest GitHub release whose corresponding Docker Hub tag is confirmed to exist.
 
@@ -269,15 +262,13 @@ update_lint_script() {
         return 0
     fi
 
-    # ── maven / node / java (atomic) ──────────────────────────────────────────
-    if [[ -n "${LINT_JAVA_MAJOR}" && -n "${LINT_MAVEN_VERSION}" && -n "${LINT_NODE_ALPINE}" ]]; then
-        local maven_image="maven:${LINT_MAVEN_VERSION}-eclipse-temurin-${LINT_JAVA_MAJOR}"
+    # ── node (eslint image) ───────────────────────────────────────────────────
+    if [[ -n "${LINT_NODE_ALPINE}" ]]; then
         local node_image="node:${LINT_NODE_ALPINE}-alpine"
-        sed -i "s|MAVEN_DOCKER_IMAGE=\"maven:[^\"]*\"|MAVEN_DOCKER_IMAGE=\"${maven_image}\"|" "${LINT_SCRIPT}"
         sed -i "s|ESLINT_NODE_IMAGE=\"node:[^\"]*\"|ESLINT_NODE_IMAGE=\"${node_image}\"|" "${LINT_SCRIPT}"
-        ok "maven/node/java images → ${maven_image}, ${node_image}"
+        ok "node image → ${node_image}"
     else
-        warn "Skipping maven/node/java image bump (java='${LINT_JAVA_MAJOR}' maven='${LINT_MAVEN_VERSION}' node='${LINT_NODE_ALPINE}'): one or more unresolved, updating none"
+        warn "Skipping node image bump (node unresolved this run)"
     fi
 
     # ── hadolint (best-effort) ────────────────────────────────────────────────
