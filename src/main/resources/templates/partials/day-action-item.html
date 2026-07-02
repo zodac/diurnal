@@ -1,11 +1,11 @@
 <div class="day-item flex items-center justify-between px-2 py-2 rounded-lg hover:bg-surface-muted transition-colors">
 
     <div class="flex items-center gap-2 min-w-0 flex-1">
-        <span class="swatch swatch-sm flex-shrink-0" style="background-color: {action.colour}"></span>
+        <span class="swatch swatch-sm shrink-0" style="background-color: {action.colour}"></span>
         <span class="text-sm text-ink truncate">{action.name}</span>
     </div>
 
-    <div class="flex items-center gap-0.5 flex-shrink-0">
+    <div class="flex items-center gap-0.5 shrink-0">
         <!-- Decrement: hidden (not just disabled) at 0, since there is nothing to decrement.
              `invisible` keeps the cell's width so the count stays put. -->
         <button hx-post="/logs/{date}/{action.id}/decrement"
@@ -14,7 +14,7 @@
                 hx-swap="innerHTML"
                 title="Decrease"
                 class="w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
-                       text-ink-muted hover:bg-surface-muted hover:text-ink
+                       text-ink-muted hover:bg-brand hover:text-on-brand active:bg-brand-strong
                        {#if count == 0}invisible{/if}">
             −
         </button>
@@ -29,7 +29,7 @@
                hx-swap="innerHTML"
                class="w-10 h-7 text-center text-sm font-semibold tabular-nums
                       bg-transparent border border-line rounded
-                      hover:border-brand focus:border-brand focus:outline-none
+                      hover:border-brand focus:border-brand focus:outline-hidden
                       {#if count == 0}text-ink-muted{#else}text-ink{/if}">
 
         <!-- Increment: hidden (not just disabled) at the 999 cap, since it can go no higher.
@@ -40,7 +40,7 @@
                 hx-swap="innerHTML"
                 title="Increase"
                 class="w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
-                       text-brand hover:bg-surface-muted
+                       text-brand hover:bg-brand hover:text-on-brand active:bg-brand-strong
                        {#if count >= 999}invisible{/if}">
             +
         </button>

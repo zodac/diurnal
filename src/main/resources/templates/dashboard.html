@@ -52,23 +52,15 @@
   @media (max-width: 460px) {
     .cal-toolbar-btn { padding: 0.25rem 0.25rem; }
   }
-  /* The nav buttons match the app's filled brand buttons (`.btn-primary` / the settings gallery's
-     `.icon-btn-primary`): brand fill, rounded-lg, font-medium, brand-hover, offset brand focus ring —
-     at the compact size the toolbar needs. Brand is constant across light/dark, so no .dark twin. */
+  /* The calendar nav buttons ARE the app's primary brand button — the fill/hover/pressed/focus-ring
+     surface is shared from app.css (`.btn-primary, .icon-btn-primary, .cal-toolbar-btn, …`), so it
+     never drifts from the gallery's «‹›» equivalents. Only the compact toolbar GEOMETRY lives here:
+     font metrics, padding, radius, and a transparent border to reserve the ring's footprint. */
   .cal-toolbar-btn {
     font-size: 0.75rem; font-weight: 500; line-height: 1.2; text-transform: none;
     padding: 0.25rem 0.6rem; border-radius: 0.5rem;
     border: 1px solid transparent;
-    background: var(--color-brand); color: var(--color-on-brand);
-    cursor: pointer; box-shadow: none;
-    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
   }
-  .cal-toolbar-btn:hover { background: var(--color-brand-hover); }
-  /* Brand ring with a surface-coloured gap, mirroring `.btn-primary`'s ring-offset-2. */
-  .cal-toolbar-btn:focus-visible {
-    outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-brand-ring);
-  }
-  .cal-toolbar-btn:active { background: var(--color-brand-strong); }
   /* The "jump to month" button is a .cal-toolbar-btn whose content is the calendar glyph. Flex-centre
      the glyph so it sits dead-centre vertically (an inline svg with a vertical-align baseline tweak
      rides high in the button). The button keeps the same height as the text prev/next buttons
@@ -78,21 +70,15 @@
   /* Match the text buttons' total height: their content box is 1.2em (line-height) tall, so reserve
      that here too (the square 1em glyph alone would leave this button ~2px shorter). */
   .cal-toolbar-glyph { width: 1em; height: 1.2em; }
-  /* The "Today" action sits at the bottom of the month/year picker popup (#cal-pop) — a full-width
-     brand button matching the toolbar buttons' look, separated from the month grid above it. */
+  /* The "Today" action sits at the bottom of the month/year picker popup (#cal-pop) — the same shared
+     primary brand button (surface from app.css), separated from the month grid above it. Only its
+     full-width geometry differs from the toolbar buttons. */
   .cal-today-btn {
     width: 100%; margin-top: 0.5rem;
     font-size: 0.8rem; font-weight: 500; line-height: 1.2; text-transform: none;
     padding: 0.35rem 0.6rem; border-radius: 0.5rem;
     border: 1px solid transparent;
-    background: var(--color-brand); color: var(--color-on-brand);
-    cursor: pointer; transition: background-color 0.15s;
   }
-  .cal-today-btn:hover { background: var(--color-brand-hover); }
-  .cal-today-btn:focus-visible {
-    outline: none; box-shadow: 0 0 0 2px var(--color-surface), 0 0 0 4px var(--color-brand-ring);
-  }
-  .cal-today-btn:active { background: var(--color-brand-strong); }
 
   /* The month/year jump popup is a floating menu OVER the calendar, so it must read as lifted — not as
      part of the grid beneath it (the calendar card is a flat bg-surface / neutral-bordered panel). A
@@ -123,7 +109,7 @@
   .cal-pop-month {
     font-size: 0.8rem; line-height: 1.2; border-radius: 0.375rem;
     padding: 0.375rem 0.5rem; color: var(--color-text);
-    background: transparent; border: 0; cursor: pointer;
+    background: transparent; border: 0;
     transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
   }
   .cal-pop-month:hover { background: var(--color-surface-muted); }
@@ -372,7 +358,7 @@
                 {#for s in recentStats}
                 <div class="stat-tile px-3 py-2 border border-line-subtle
                             flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                    <div class="flex items-center gap-2 min-w-0 sm:w-40 sm:flex-shrink-0">
+                    <div class="flex items-center gap-2 min-w-0 sm:w-40 sm:shrink-0">
                         <span class="swatch swatch-sm" style="background-color: {s.action.colour}"></span>
                         <span class="text-sm font-medium text-ink truncate">{s.action.name}</span>
                     </div>
