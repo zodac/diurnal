@@ -10,7 +10,7 @@
 #
 # Usage:  scripts/dev-up.sh
 set -uo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/.." || exit 1
 
 PORT=8081
 LOG=/tmp/quarkus-dev.log

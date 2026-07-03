@@ -111,7 +111,7 @@ RUN apt-get update && apt-get install -yqq --no-install-recommends \
         docker-ce-cli="5:29.6.1-1~debian.13~trixie" \
         containerd.io="2.2.5-1~debian.13~trixie" \
         docker-buildx-plugin="0.35.0-1~debian.13~trixie" \
-        docker-compose-plugin="5.2.0-1~debian.13~trixie" \
+        docker-compose-plugin="5.3.0-1~debian.13~trixie" \
     && \
     apt-get autoremove && \
     apt-get clean && \

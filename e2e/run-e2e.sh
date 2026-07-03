@@ -29,7 +29,7 @@ COMPOSE_FILE="${BASEDIR}/docker-compose.dev.yml"
 APP_PID=""
 
 cleanup() {
-  if [ -n "${APP_PID}" ]; then kill -9 "${APP_PID}" 2>/dev/null || true; fi
+  if [[ -n "${APP_PID}" ]]; then kill -9 "${APP_PID}" 2>/dev/null || true; fi
   docker compose -f "${COMPOSE_FILE}" rm -sf diurnal-db-dev >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
@@ -50,7 +50,7 @@ for _ in $(seq 1 60); do
   sleep 2
 done
 
-if [ "${READY}" != 1 ]; then
+if [[ "${READY}" != 1 ]]; then
   echo "App failed to start — see ${TARGET_DIR}/app.log"
   exit 1
 fi

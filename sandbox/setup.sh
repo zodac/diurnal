@@ -6,8 +6,8 @@
 # still opens if you're offline.
 set -uo pipefail
 
-STATE_DIR="$HOME/.claude/.sandbox-state"
-mkdir -p "$STATE_DIR"
+STATE_DIR="${HOME}/.claude/.sandbox-state"
+mkdir -p "${STATE_DIR}"
 
 step()  { printf '\033[36m[setup]\033[0m %s\n' "$*"; }
 skip()  { printf '\033[2m[setup] %s (up to date)\033[0m\n' "$*"; }
@@ -24,12 +24,12 @@ else
 fi
 
 # ── 2. npm install — only when package-lock.json changed or node_modules gone ─
-LOCK_HASH_FILE="$STATE_DIR/package-lock.sha"
+LOCK_HASH_FILE="${STATE_DIR}/package-lock.sha"
 CURRENT_LOCK_HASH="$(sha256sum package-lock.json 2>/dev/null | cut -d' ' -f1)"
-if [ ! -d node_modules ] || [ "$CURRENT_LOCK_HASH" != "$(cat "$LOCK_HASH_FILE" 2>/dev/null)" ]; then
+if [[ ! -d node_modules ]] || [[ "${CURRENT_LOCK_HASH}" != "$(cat "${LOCK_HASH_FILE}" 2>/dev/null || true)" ]]; then
   step "running npm install..."
   if npm install --no-audit --no-fund; then
-    echo "$CURRENT_LOCK_HASH" > "$LOCK_HASH_FILE"
+    echo "${CURRENT_LOCK_HASH}" > "${LOCK_HASH_FILE}"
   else
     warn "npm install failed"
   fi
@@ -40,11 +40,11 @@ fi
 # ── 3. Playwright Chromium (+ OS deps) — cached in a persistent volume ───────
 # --with-deps installs the right system libs for this distro (uses sudo, which
 # `dev` has passwordless). Guarded by a marker so it only runs once per volume.
-PW_MARKER="$STATE_DIR/playwright-installed"
-if [ ! -f "$PW_MARKER" ] || [ -z "$(ls -A "${PLAYWRIGHT_BROWSERS_PATH:-$HOME/.cache/ms-playwright}" 2>/dev/null)" ]; then
+PW_MARKER="${STATE_DIR}/playwright-installed"
+if [[ ! -f "${PW_MARKER}" ]] || [[ -z "$(ls -A "${PLAYWRIGHT_BROWSERS_PATH:-${HOME}/.cache/ms-playwright}" 2>/dev/null || true)" ]]; then
   step "installing Playwright Chromium + OS deps (first run only)..."
   if (cd e2e && npx --yes playwright install --with-deps chromium); then
-    touch "$PW_MARKER"
+    touch "${PW_MARKER}"
   else
     warn "playwright install failed"
   fi

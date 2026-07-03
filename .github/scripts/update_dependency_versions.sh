@@ -9,7 +9,9 @@
 #                 - Node (full/major) in Dockerfile, sandbox/Dockerfile
 #                 - npm packages in package.json + e2e/package.json (exact pins, no ^/~ ranges)
 #                 - Docker image pins in .github/scripts/lint_and_tests.sh
-#                   (node when confirmed; hadolint + markdownlint-cli2 best-effort)
+#                   (node when confirmed; hadolint + markdownlint-cli2 + shellcheck best-effort)
+#                   Note: shellcheck installed as an apt/apk package instead (pinned in a
+#                   # BEGIN/END … PACKAGES block) is handled generically by the package updaters.
 #                 - Ubuntu packages (# BEGIN/END UBUNTU PACKAGES blocks)
 #                 - Debian packages (# BEGIN/END DEBIAN PACKAGES blocks)
 #                 - Alpine packages (# BEGIN/END ALPINE PACKAGES blocks)
@@ -25,6 +27,12 @@
 #               1 — hard failure (missing required file)
 # ------------------------------------------------------------------------------
 
+# This script is deliberately best-effort under `set -e`: every external step is a predicate
+# (hub_tag_exists) or is guarded with `|| warn`/`|| true` so one failure never aborts the run
+# (only a missing required file does). That intentional pattern — invoking functions in a
+# condition while `set -e` is active — is exactly what SC2310 flags, so disable it file-wide here.
+# `set -e` is kept on purpose: it still aborts on unexpected failures inside the apply sections.
+# shellcheck disable=SC2310
 set -euo pipefail
 
 DOCKERFILE="./Dockerfile"
@@ -251,8 +259,13 @@ update_node() {
 #   - ESLINT_NODE_IMAGE (node) is bumped from the node version resolved above, only if it was
 #     confirmed this run (an unconfirmed tag must never be pinned). The lint script's `java` step
 #     runs `mvn clean install -Dall` on the host toolchain, so there is no Maven image pin to bump.
-#   - HADOLINT_DOCKER_IMAGE and MARKDOWNLINT_DOCKER_IMAGE are independent best-effort: each is
-#     bumped to the latest GitHub release whose corresponding Docker Hub tag is confirmed to exist.
+#   - HADOLINT_DOCKER_IMAGE, MARKDOWNLINT_DOCKER_IMAGE and SHELLCHECK_DOCKER_IMAGE are independent
+#     best-effort: each is bumped to the latest GitHub release whose corresponding Docker Hub tag is
+#     confirmed to exist.
+#
+# If shellcheck is instead pinned as an apt/apk package (a `shellcheck="<ver>"` line inside a
+# # BEGIN/END … PACKAGES block in a Dockerfile), no work is needed here — update_apt_packages /
+# update_alpine_packages already resolve and bump every package in those blocks generically.
 
 update_lint_script() {
     echo
@@ -302,6 +315,19 @@ update_lint_script() {
         ok "markdownlint-cli2 image → davidanson/markdownlint-cli2:${mdl_tag}"
     fi
 
+    # ── shellcheck (best-effort) ──────────────────────────────────────────────
+    local shellcheck_tag
+    shellcheck_tag=$(github_curl "https://api.github.com/repos/koalaman/shellcheck/releases/latest" \
+        | jq -r '.tag_name // empty')
+    if [[ -z "${shellcheck_tag}" ]]; then
+        warn "Could not fetch shellcheck version, skipping"
+    elif ! hub_tag_exists "koalaman/shellcheck" "${shellcheck_tag}"; then
+        warn "koalaman/shellcheck:${shellcheck_tag} not on Docker Hub, skipping"
+    else
+        sed -i "s|SHELLCHECK_DOCKER_IMAGE=\"koalaman/shellcheck:[^\"]*\"|SHELLCHECK_DOCKER_IMAGE=\"koalaman/shellcheck:${shellcheck_tag}\"|" "${LINT_SCRIPT}"
+        ok "shellcheck image → koalaman/shellcheck:${shellcheck_tag}"
+    fi
+
     ok "Lint script Docker images processed"
 }
 
@@ -326,7 +352,7 @@ update_npm_packages() {
 
         for section in dependencies devDependencies; do
             local names=()
-            mapfile -t names < <(jq -r --arg s "${section}" '.[$s] // {} | keys[]' "${manifest}")
+            mapfile -t names < <(jq -r --arg s "${section}" '.[$s] // {} | keys[]' "${manifest}" || true)
             [[ "${#names[@]}" -eq 0 ]] && continue
 
             for pkg in "${names[@]}"; do
@@ -427,7 +453,7 @@ update_apt_packages() {
 
         local package_names=()
         mapfile -t package_names < <(
-            echo "${package_block}" | grep -oP '^\s*[a-z0-9.+-]+(?==)' | sed 's/^[[:space:]]*//'
+            echo "${package_block}" | grep -oP '^\s*[a-z0-9.+-]+(?==)' | sed 's/^[[:space:]]*//' || true
         )
 
         if [[ "${#package_names[@]}" -eq 0 ]]; then
@@ -445,7 +471,7 @@ update_apt_packages() {
         declare -A apt_versions
         while IFS='=' read -r pkg ver; do
             [[ -n "${pkg}" && -n "${ver}" ]] && apt_versions["${pkg}"]="${ver}"
-        done < <(echo "${versions_raw}" | _parse_apt_candidates)
+        done < <(echo "${versions_raw}" | _parse_apt_candidates || true)
 
         # Detect any package with no Candidate (repo not configured in base image)
         local first_missing=""
@@ -501,7 +527,7 @@ update_apt_packages() {
             declare -A apt_versions
             while IFS='=' read -r pkg ver; do
                 [[ -n "${pkg}" && -n "${ver}" ]] && apt_versions["${pkg}"]="${ver}"
-            done < <(echo "${versions_raw}" | _parse_apt_candidates)
+            done < <(echo "${versions_raw}" | _parse_apt_candidates || true)
         fi
 
         # Clean up temp image regardless of outcome
@@ -583,7 +609,7 @@ update_alpine_packages() {
 
         local package_names=()
         mapfile -t package_names < <(
-            echo "${package_block}" | grep -oP '^\s*[a-z0-9.+-]+(?==)' | sed 's/^[[:space:]]*//'
+            echo "${package_block}" | grep -oP '^\s*[a-z0-9.+-]+(?==)' | sed 's/^[[:space:]]*//' || true
         )
 
         if [[ "${#package_names[@]}" -eq 0 ]]; then
@@ -650,7 +676,7 @@ update_submodules() {
     git submodule update --init --recursive >/dev/null 2>&1 || true
 
     local paths=()
-    mapfile -t paths < <(git config -f "${GITMODULES_FILE}" --get-regexp '\.path$' | awk '{print $2}')
+    mapfile -t paths < <(git config -f "${GITMODULES_FILE}" --get-regexp '\.path$' | awk '{print $2}' || true)
 
     if [[ "${#paths[@]}" -eq 0 ]]; then
         echo "  No submodule paths defined."
@@ -754,7 +780,7 @@ update_github_actions() {
     mapfile -t action_refs < <(
         grep -rh 'uses:' "${WORKFLOWS_DIR}"/*.yml \
             | grep -oP 'uses:\s+\K[a-zA-Z0-9._-]+/[a-zA-Z0-9._-]+@\S+' \
-            | sort -u
+            | sort -u || true
     )
 
     if [[ "${#action_refs[@]}" -eq 0 ]]; then

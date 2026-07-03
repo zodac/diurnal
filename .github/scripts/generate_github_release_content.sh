@@ -21,11 +21,12 @@ PREV_TAG="${2:?PREV_TAG argument is required}"
 
 : "${CHANGELOG_CONTENT:?CHANGELOG_CONTENT is required}"
 
+# shellcheck disable=SC2154  # GITHUB_OUTPUT is provided by the GitHub Actions runner
 {
     echo "body<<EOF"
 
     # Prepend RELEASE_NOTES.md if present and non-empty
-    if [ -s RELEASE_NOTES.md ]; then
+    if [[ -s RELEASE_NOTES.md ]]; then
         echo "Including RELEASE_NOTES.md content" >&2
         cat RELEASE_NOTES.md
         echo

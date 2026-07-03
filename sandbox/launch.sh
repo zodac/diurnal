@@ -25,29 +25,30 @@ set -uo pipefail
 # always has last-good login + tokens to fall back to. Cheap no-op when healthy.
 # (Belt-and-braces with the longer teardown grace in sandbox.sh, which makes the
 # loss less likely in the first place.)
-CCD="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
-CFG="$CCD/.claude.json"
-CRED="$CCD/.credentials.json"
-SNAP="$CCD/.sandbox-state"
-CFG_SNAP="$SNAP/claude.json.bak"
-CRED_SNAP="$SNAP/credentials.json.bak"
+CCD="${CLAUDE_CONFIG_DIR:-${HOME}/.claude}"
+CFG="${CCD}/.claude.json"
+CRED="${CCD}/.credentials.json"
+SNAP="${CCD}/.sandbox-state"
+CFG_SNAP="${SNAP}/claude.json.bak"
+CRED_SNAP="${SNAP}/credentials.json.bak"
 ONBOARDED='"hasCompletedOnboarding"[[:space:]]*:[[:space:]]*true'
-mkdir -p "$SNAP"
+mkdir -p "${SNAP}"
 
-config_ok()  { grep -Eq "$ONBOARDED" "$CFG"  2>/dev/null; }
+config_ok()  { grep -Eq "${ONBOARDED}" "${CFG}"  2>/dev/null; }
 # A healthy credentials file is present and non-trivial (the OAuth token blob is
 # hundreds of bytes; treat an empty or near-empty file as lost).
-cred_ok()    { [ -s "$CRED" ] && grep -q 'claudeAiOauth' "$CRED" 2>/dev/null; }
+cred_ok()    { [[ -s "${CRED}" ]] && grep -q 'claudeAiOauth' "${CRED}" 2>/dev/null; }
 
 # (1a) Restore `.claude.json`: prefer our own (full) snapshot, then fall back to
 #      Claude's own backups (skipping the stubs that lost the onboarding marker).
 if ! config_ok; then
-  if grep -Eq "$ONBOARDED" "$CFG_SNAP" 2>/dev/null; then
-    cp -p "$CFG_SNAP" "$CFG" && echo "[sandbox] restored Claude onboarding from snapshot"
+  if grep -Eq "${ONBOARDED}" "${CFG_SNAP}" 2>/dev/null; then
+    cp -p "${CFG_SNAP}" "${CFG}" && echo "[sandbox] restored Claude onboarding from snapshot"
   else
-    for bak in $(ls -t "$CCD"/backups/.claude.json.backup.* 2>/dev/null); do
-      if grep -Eq "$ONBOARDED" "$bak"; then
-        cp -p "$bak" "$CFG" && echo "[sandbox] restored Claude onboarding from $(basename "$bak")"
+    # shellcheck disable=SC2045  # need newest-first (mtime) order; backup names have no spaces/globs
+    for bak in $(ls -t "${CCD}"/backups/.claude.json.backup.* 2>/dev/null); do
+      if grep -Eq "${ONBOARDED}" "${bak}"; then
+        cp -p "${bak}" "${CFG}" && echo "[sandbox] restored Claude onboarding from $(basename "${bak}")"
         break
       fi
     done
@@ -55,15 +56,15 @@ if ! config_ok; then
 fi
 
 # (1b) Restore `.credentials.json` (the login tokens) from our snapshot.
-if ! cred_ok && [ -s "$CRED_SNAP" ]; then
-  cp -p "$CRED_SNAP" "$CRED" && echo "[sandbox] restored Claude login tokens from snapshot"
+if ! cred_ok && [[ -s "${CRED_SNAP}" ]]; then
+  cp -p "${CRED_SNAP}" "${CRED}" && echo "[sandbox] restored Claude login tokens from snapshot"
 fi
 
 # (2) Snapshot helper: copy any healthy live file to its backup. Only snapshots
 #     healthy files, so a broken live copy never overwrites a good snapshot.
 snapshot_now() {
-  config_ok && cp -p "$CFG"  "$CFG_SNAP"  2>/dev/null
-  cred_ok   && cp -p "$CRED" "$CRED_SNAP" 2>/dev/null
+  config_ok && cp -p "${CFG}"  "${CFG_SNAP}"  2>/dev/null
+  cred_ok   && cp -p "${CRED}" "${CRED_SNAP}" 2>/dev/null
   return 0
 }
 snapshot_now   # immediate: capture whatever good state we already have
@@ -78,11 +79,11 @@ snapshot_now   # immediate: capture whatever good state we already have
 #     watcher is a child of this session; it dies with the container. Gated on
 #     RUN_SETUP (set only for interactive TTY sessions) so quick `run <cmd>`
 #     invocations don't spawn it.
-if [ "${RUN_SETUP:-0}" = "1" ]; then
+if [[ "${RUN_SETUP:-0}" = "1" ]]; then
   ( while sleep 15; do snapshot_now; done ) &
 fi
 
-if [ "${RUN_SETUP:-0}" = "1" ]; then
+if [[ "${RUN_SETUP:-0}" = "1" ]]; then
   /usr/local/bin/sandbox-setup.sh || true
 fi
 

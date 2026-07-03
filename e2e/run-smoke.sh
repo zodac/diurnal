@@ -41,7 +41,7 @@ cleanup() {
   docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" down -v --remove-orphans --timeout 10 >/dev/null 2>&1 || true
   local leftovers
   leftovers="$(docker ps -aq --filter "label=com.docker.compose.project=${PROJECT}" 2>/dev/null || true)"
-  [ -n "${leftovers}" ] && docker rm -f ${leftovers} >/dev/null 2>&1 || true
+  [[ -n "${leftovers}" ]] && echo "${leftovers}" | xargs -r docker rm -f >/dev/null 2>&1 || true
 }
 # EXIT alone is not enough: a SIGINT (Ctrl-C) or SIGTERM (Maven/CI killing the child when the build
 # fails) would skip an EXIT-only trap and leak the stack. Trap the signals to a plain `exit`, which
