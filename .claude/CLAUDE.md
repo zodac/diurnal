@@ -274,7 +274,9 @@ All list views (actions, day-panel, stats) use in-memory pagination: fetch all, 
   audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`) use `Instant.now()` directly (zone-independent, not date-boundary sensitive).
 - `app.timezone` (default `UTC`) feeds `AppClock`; must match `TZ` in `docker-compose.yml`.
 - `LogWebResource.isFuture()` blocks logging for future dates in the user's configured timezone.
-- Action colour defaults to `#6366f1`; invalid hex is silently corrected to the default.
+- Action colour defaults to `#64748b` (a neutral slate, deliberately *not* the brand indigo `#6366f1` — a
+  brand-coloured dot would vanish into the full calendar's brand-filled "today" cell); invalid hex is
+  silently corrected to the default.
 - Dark-mode checkbox: hidden `<input value="false">` + real `<input value="true">`. Checked posts `["false","true"]`; unchecked posts `["false"]`.
   `updateSettings` checks for `"true"` in the list.
 - `password.auth.enabled=false` disables register (404) and skips `PasswordIdentityProvider`. `AppLifecycle` enforces at least one auth mechanism at
