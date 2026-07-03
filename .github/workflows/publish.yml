@@ -90,7 +90,7 @@ jobs:
       # Delegates to the shared script's `java` step (mvn clean install -Dall) so the full gate lives in
       # one place. Needs the host toolchain set up above: JDK+Maven, Node deps, Playwright, and Docker.
       - name: Run full test and lint gate
-        run: .github/scripts/lint_and_tests.sh java
+        run: .github/scripts/lint_and_tests.sh
 
   # Always tag the release, publish a GitHub Release and bump the patch version for the next cycle.
   # The Docker image is built & pushed only for stable (>= 1.0.0) versions. Runs after `test` is green.
