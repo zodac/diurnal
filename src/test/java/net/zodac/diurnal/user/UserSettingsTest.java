@@ -87,6 +87,31 @@ class UserSettingsTest {
             .contains(UserSettings.DEFAULT_PAGE_SIZE);
     }
 
+    // ── Theme sanitisation ─────────────────────────────────────────────────────
+
+    @ParameterizedTest
+    @ValueSource(strings = {"system", "light", "dark"})
+    void sanitiseTheme_validValues_passedThrough(final String theme) {
+        assertThat(UserSettings.sanitiseTheme(theme))
+            .as("unexpected value")
+            .isEqualTo(theme);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"midnight", "solarized", "", "System", "Dark", "none", "blue"})
+    void sanitiseTheme_invalidValues_returnsDefault(final String theme) {
+        assertThat(UserSettings.sanitiseTheme(theme))
+            .as("unexpected value")
+            .isEqualTo(UserSettings.DEFAULT_THEME);
+    }
+
+    @Test
+    void sanitiseTheme_null_returnsDefault() {
+        assertThat(UserSettings.sanitiseTheme(null))
+            .as("unexpected value")
+            .isEqualTo(UserSettings.DEFAULT_THEME);
+    }
+
     // ── Calendar view sanitisation ─────────────────────────────────────────────
 
     @ParameterizedTest
@@ -101,6 +126,13 @@ class UserSettingsTest {
     @ValueSource(strings = {"grid", "compact", "", "FULL", "Minimal", "none", "list"})
     void sanitiseCalendarView_invalidValues_returnsDefault(final String view) {
         assertThat(UserSettings.sanitiseCalendarView(view))
+            .as("unexpected value")
+            .isEqualTo(UserSettings.DEFAULT_CALENDAR_VIEW);
+    }
+
+    @Test
+    void sanitiseCalendarView_null_returnsDefault() {
+        assertThat(UserSettings.sanitiseCalendarView(null))
             .as("unexpected value")
             .isEqualTo(UserSettings.DEFAULT_CALENDAR_VIEW);
     }
@@ -140,6 +172,13 @@ class UserSettingsTest {
     @ValueSource(strings = {"serif", "system", "", "Nova", "Standard", "none", "mono"})
     void sanitiseFont_invalidValues_returnsDefault(final String font) {
         assertThat(UserSettings.sanitiseFont(font))
+            .as("unexpected value")
+            .isEqualTo(UserSettings.DEFAULT_FONT);
+    }
+
+    @Test
+    void sanitiseFont_null_returnsDefault() {
+        assertThat(UserSettings.sanitiseFont(null))
             .as("unexpected value")
             .isEqualTo(UserSettings.DEFAULT_FONT);
     }

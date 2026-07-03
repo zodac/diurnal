@@ -39,10 +39,10 @@ function otherDayThisMonth(): string {
 
 // Calendar style is chosen from a preview tile backed by a hidden radio. Tests share one user, so
 // the target value may already be selected — we set the radio and always dispatch `change` so the
-// htmx auto-save POST fires regardless, then await it (the page must be on /settings).
+// htmx auto-save PATCH fires regardless, then await it (the page must be on /settings).
 async function setCalendarView(page: Page, value: string): Promise<void> {
     await Promise.all([
-        page.waitForResponse(r => r.url().includes("/settings") && r.request().method() === "POST"),
+        page.waitForResponse(r => r.url().includes("/settings/calendar-view") && r.request().method() === "PATCH"),
         page.locator(`input[name="calendarView"][value="${value}"]`).evaluate(
             (el: HTMLInputElement) => {
                 el.checked = true

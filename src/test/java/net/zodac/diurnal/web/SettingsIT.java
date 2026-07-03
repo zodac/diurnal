@@ -72,14 +72,12 @@ class SettingsIT extends IntegrationTestBase {
                 .then().statusCode(422);
     }
 
-    // ── POST /settings ────────────────────────────────────────────────────────
+    // ── PATCH /settings/theme ────────────────────────────────────────────────────
 
     @Test
-    void updateSettings_htmxRequest_returns204AndPersists() {
+    void updateTheme_returns204AndPersists() {
         given().formParam("theme", "dark")
-                .formParam("pageSize", "10")
-                .header("HX-Request", "true")
-                .post("/settings")
+                .patch("/settings/theme")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
@@ -88,23 +86,10 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateSettings_themeDark_persists() {
-        given().formParam("theme", "dark")
-                .formParam("pageSize", "10")
-                .post("/settings")
-                .then().statusCode(200);
-
-        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
-            .as("unexpected value")
-            .isEqualTo("dark"));
-    }
-
-    @Test
-    void updateSettings_themeLight_persists() {
+    void updateTheme_light_persists() {
         given().formParam("theme", "light")
-                .formParam("pageSize", "10")
-                .post("/settings")
-                .then().statusCode(200);
+                .patch("/settings/theme")
+                .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
             .as("unexpected value")
@@ -112,13 +97,12 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateSettings_themeSystem_persists() {
-        given().formParam("theme", "dark").formParam("pageSize", "10").post("/settings");
+    void updateTheme_system_persists() {
+        given().formParam("theme", "dark").patch("/settings/theme");
 
         given().formParam("theme", "system")
-                .formParam("pageSize", "10")
-                .post("/settings")
-                .then().statusCode(200);
+                .patch("/settings/theme")
+                .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
             .as("unexpected value")
@@ -126,11 +110,13 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateSettings_invalidTheme_fallsBackToSystem() {
+    void updateTheme_invalid_fallsBackToSystem() {
+        // Move off the default first so the fallback is proven, not merely the unchanged state.
+        given().formParam("theme", "dark").patch("/settings/theme");
+
         given().formParam("theme", "midnight")
-                .formParam("pageSize", "10")
-                .post("/settings")
-                .then().statusCode(200);
+                .patch("/settings/theme")
+                .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
             .as("unexpected value")
@@ -138,11 +124,77 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateSettings_validPageSize_persists() {
-        given().formParam("theme", "system")
-                .formParam("pageSize", "25")
-                .post("/settings")
-                .then().statusCode(200);
+    void updateTheme_missingParam_fallsBackToSystem() {
+        given().formParam("theme", "dark").patch("/settings/theme");
+
+        given().patch("/settings/theme")
+                .then().statusCode(204);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
+            .as("unexpected value")
+            .isEqualTo("system"));
+    }
+
+    @Test
+    void updateTheme_leavesOtherSettingsUntouched() {
+        // The whole point of per-setting endpoints: changing theme must not touch page size.
+        given().formParam("pageSize", "25").patch("/settings/page-size").then().statusCode(204);
+
+        given().formParam("theme", "dark").patch("/settings/theme").then().statusCode(204);
+
+        runInTx(() -> {
+            final User user = User.findByEmail(PRIMARY).orElseThrow();
+            assertThat(user.theme).as("theme updated").isEqualTo("dark");
+            assertThat(user.pageSize).as("page size preserved").isEqualTo(25);
+        });
+    }
+
+    // ── PATCH /settings/font ─────────────────────────────────────────────────────
+
+    @Test
+    void updateFont_standard_persists() {
+        given().formParam("font", "standard")
+                .patch("/settings/font")
+                .then().statusCode(204);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().font)
+            .as("unexpected value")
+            .isEqualTo("standard"));
+    }
+
+    @Test
+    void updateFont_nova_persists() {
+        given().formParam("font", "standard").patch("/settings/font");
+
+        given().formParam("font", "nova")
+                .patch("/settings/font")
+                .then().statusCode(204);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().font)
+            .as("unexpected value")
+            .isEqualTo("nova"));
+    }
+
+    @Test
+    void updateFont_invalid_fallsBackToNova() {
+        given().formParam("font", "standard").patch("/settings/font");
+
+        given().formParam("font", "comic")
+                .patch("/settings/font")
+                .then().statusCode(204);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().font)
+            .as("unexpected value")
+            .isEqualTo("nova"));
+    }
+
+    // ── PATCH /settings/page-size ────────────────────────────────────────────────
+
+    @Test
+    void updatePageSize_valid_persists() {
+        given().formParam("pageSize", "25")
+                .patch("/settings/page-size")
+                .then().statusCode(204);
 
         final User user = User.findByEmail(PRIMARY).orElseThrow();
         assertThat(user.pageSize)
@@ -151,12 +203,13 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateSettings_minimumPageSize_persists() {
+    void updatePageSize_minimum_persists() {
         // 5 is the smallest allow-listed option (added so it fits better with most calendars).
-        given().formParam("theme", "system")
-                .formParam("pageSize", "5")
-                .post("/settings")
-                .then().statusCode(200);
+        given().formParam("pageSize", "25").patch("/settings/page-size");
+
+        given().formParam("pageSize", "5")
+                .patch("/settings/page-size")
+                .then().statusCode(204);
 
         final User user = User.findByEmail(PRIMARY).orElseThrow();
         assertThat(user.pageSize)
@@ -165,12 +218,13 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateSettings_invalidPageSize_fallsBackToDefault() {
+    void updatePageSize_invalid_fallsBackToDefault() {
         // 7 is not in the allow-list {5,10,25,50,100}
-        given().formParam("theme", "system")
-                .formParam("pageSize", "7")
-                .post("/settings")
-                .then().statusCode(200);
+        given().formParam("pageSize", "25").patch("/settings/page-size");
+
+        given().formParam("pageSize", "7")
+                .patch("/settings/page-size")
+                .then().statusCode(204);
 
         final User user = User.findByEmail(PRIMARY).orElseThrow();
         assertThat(user.pageSize)
@@ -179,11 +233,12 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateSettings_tamperedPageSize_fallsBackToDefault() {
-        given().formParam("theme", "system")
-                .formParam("pageSize", "999")
-                .post("/settings")
-                .then().statusCode(200);
+    void updatePageSize_tampered_fallsBackToDefault() {
+        given().formParam("pageSize", "25").patch("/settings/page-size");
+
+        given().formParam("pageSize", "999")
+                .patch("/settings/page-size")
+                .then().statusCode(204);
 
         final User user = User.findByEmail(PRIMARY).orElseThrow();
         assertThat(user.pageSize)
@@ -192,31 +247,27 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateSettings_pageSizeOptions_includes50And100() {
-        given().formParam("theme", "system")
-                .formParam("pageSize", "50")
-                .post("/settings").then().statusCode(200);
+    void updatePageSize_options_include50And100() {
+        given().formParam("pageSize", "50")
+                .patch("/settings/page-size").then().statusCode(204);
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
             .as("unexpected value")
             .isEqualTo(50));
 
-        given().formParam("theme", "system")
-                .formParam("pageSize", "100")
-                .post("/settings").then().statusCode(200);
+        given().formParam("pageSize", "100")
+                .patch("/settings/page-size").then().statusCode(204);
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
             .as("unexpected value")
             .isEqualTo(100));
     }
 
-    // ── calendarView ──────────────────────────────────────────────────────────
+    // ── PATCH /settings/calendar-view ────────────────────────────────────────────
 
     @Test
-    void updateSettings_calendarViewMinimal_persists() {
-        given().formParam("theme", "system")
-                .formParam("pageSize", "10")
-                .formParam("calendarView", "minimal")
-                .post("/settings")
-                .then().statusCode(200);
+    void updateCalendarView_minimal_persists() {
+        given().formParam("calendarView", "minimal")
+                .patch("/settings/calendar-view")
+                .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
             .as("unexpected value")
@@ -224,15 +275,12 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateSettings_calendarViewFull_persists() {
-        given().formParam("theme", "system").formParam("pageSize", "10")
-                .formParam("calendarView", "minimal").post("/settings");
+    void updateCalendarView_full_persists() {
+        given().formParam("calendarView", "minimal").patch("/settings/calendar-view");
 
-        given().formParam("theme", "system")
-                .formParam("pageSize", "10")
-                .formParam("calendarView", "full")
-                .post("/settings")
-                .then().statusCode(200);
+        given().formParam("calendarView", "full")
+                .patch("/settings/calendar-view")
+                .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
             .as("unexpected value")
@@ -240,12 +288,10 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateSettings_calendarViewStacked_persists() {
-        given().formParam("theme", "system")
-                .formParam("pageSize", "10")
-                .formParam("calendarView", "stacked")
-                .post("/settings")
-                .then().statusCode(200);
+    void updateCalendarView_stacked_persists() {
+        given().formParam("calendarView", "stacked")
+                .patch("/settings/calendar-view")
+                .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
             .as("unexpected value")
@@ -253,26 +299,25 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateSettings_invalidCalendarView_fallsBackToDefault() {
-        given().formParam("theme", "system")
-                .formParam("pageSize", "10")
-                .formParam("calendarView", "grid")
-                .post("/settings")
-                .then().statusCode(200);
+    void updateCalendarView_invalid_fallsBackToDefault() {
+        given().formParam("calendarView", "minimal").patch("/settings/calendar-view");
+
+        given().formParam("calendarView", "grid")
+                .patch("/settings/calendar-view")
+                .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
             .as("unexpected value")
             .isEqualTo("full"));
     }
 
-    // ── timezone ────────────────────────────────────────────────────────────────
+    // ── PATCH /settings/timezone ──────────────────────────────────────────────────
 
     @Test
-    void updateSettings_offeredTimezone_persists() {
-        given().formParam("theme", "system").formParam("pageSize", "10")
-                .formParam("timezone", "Pacific/Auckland")
-                .post("/settings")
-                .then().statusCode(200);
+    void updateTimezone_offered_persists() {
+        given().formParam("timezone", "Pacific/Auckland")
+                .patch("/settings/timezone")
+                .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().timezone)
             .as("unexpected value")
@@ -280,15 +325,13 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateSettings_blankTimezone_clearsToServerDefault() {
+    void updateTimezone_blank_clearsToServerDefault() {
         // First set a zone, then submit blank ("Server default") to confirm it clears to null.
-        given().formParam("theme", "system").formParam("pageSize", "10")
-                .formParam("timezone", "UTC").post("/settings").then().statusCode(200);
+        given().formParam("timezone", "UTC").patch("/settings/timezone").then().statusCode(204);
 
-        given().formParam("theme", "system").formParam("pageSize", "10")
-                .formParam("timezone", "")
-                .post("/settings")
-                .then().statusCode(200);
+        given().formParam("timezone", "")
+                .patch("/settings/timezone")
+                .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().timezone)
             .as("expected null")
@@ -296,11 +339,12 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateSettings_unofferedTimezone_fallsBackToServerDefault() {
-        given().formParam("theme", "system").formParam("pageSize", "10")
-                .formParam("timezone", "Mars/Phobos")
-                .post("/settings")
-                .then().statusCode(200);
+    void updateTimezone_unoffered_fallsBackToServerDefault() {
+        given().formParam("timezone", "UTC").patch("/settings/timezone");
+
+        given().formParam("timezone", "Mars/Phobos")
+                .patch("/settings/timezone")
+                .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().timezone)
             .as("expected null")

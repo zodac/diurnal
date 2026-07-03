@@ -6,6 +6,10 @@
 `http://127.0.0.1:8080` as placeholder values. Never use production hostnames, LAN addresses (`192.168.*`, `10.*`,
 `172.16–31.*`), or any other real hostname.
 
+> **Never overwrite `RELEASE_NOTES.md` or `VERSION` unless explicitly asked.** These are hand-authored release
+artefacts owned by the maintainer — leave them untouched (even if they appear modified in the working tree) unless the
+request explicitly says to update them.
+
 ## Commands
 
 ```bash

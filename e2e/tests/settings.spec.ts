@@ -1,13 +1,13 @@
 import type { Page } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
 
-// Preferences auto-save via an HTMX POST to /settings fired on the control's `change` event. That
-// POST is asynchronous, so a test MUST wait for it to finish before reloading/navigating —
-// otherwise the reload races the save and reads the stale value (the root cause of the previous
-// flakiness).
+// Each preference auto-saves via its own HTMX PATCH to /settings/<name> (e.g. /settings/theme,
+// /settings/page-size) fired on the control's `change` event. That PATCH is asynchronous, so a test
+// MUST wait for it to finish before reloading/navigating — otherwise the reload races the save and
+// reads the stale value (the root cause of the previous flakiness).
 async function waitForSave(page: Page, action: Promise<unknown>): Promise<void> {
     await Promise.all([
-        page.waitForResponse(r => r.url().endsWith("/settings") && r.request().method() === "POST"),
+        page.waitForResponse(r => r.url().includes("/settings/") && r.request().method() === "PATCH"),
         action,
     ])
 }
