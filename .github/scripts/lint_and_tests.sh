@@ -285,7 +285,12 @@ detect_changed_steps() {
         } | sort -u || true
     )
 
-    # Suppress the java step if the only changes are comments
+    # Suppress the java step if the only changes are comments, or a bump of the project's own
+    # <version> in pom.xml. The release pipeline always advances that version to the next -SNAPSHOT
+    # right after a release, so an unfiltered pom.xml change would flag a build on every release.
+    # The project version is the sole top-level (4-space-indented) <version> in pom.xml; the
+    # 8-space-indented parent <version> and any dependency/property version are NOT stripped, so a
+    # genuine dependency or parent bump still triggers the build.
     if [[ "${run_java}" == true ]]; then
         local non_comment_diff
         non_comment_diff=$(
@@ -295,11 +300,12 @@ detect_changed_steps() {
                 git diff --cached -- "${java_changed_files[@]}" 2>/dev/null
             } | grep '^[+-]' | grep -v '^---\|^+++' \
               | grep -vE '^[+-][[:space:]]*(//|/\*\*?|\*|<!--|-->)' \
+              | grep -vE '^[+-]    <version>[^<]*</version>[[:space:]]*$' \
               | grep -vE '^[+-][[:space:]]*$'
         )
         if [[ -z "${non_comment_diff}" ]]; then
             run_java=false
-            echo "Skipping java: only comment changes detected" >&2
+            echo "Skipping java: only comment or project version-bump changes detected" >&2
         fi
     fi
 
