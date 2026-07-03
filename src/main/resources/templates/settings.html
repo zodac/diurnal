@@ -55,18 +55,25 @@
                             <p class="text-sm text-ink">{email}</p>
                         </div>
 
-                        <!-- Display Name -->
+                        <!-- Display Name. The view/edit states borrow the data-table conventions
+                             (`.dt-btn` actions, an Edit control revealed only on hover/focus, and a
+                             fixed-height edit state ringed in the edit colour) without being a real
+                             `<table>` row — mirroring the day-panel `.day-item`. `.settings-field`
+                             gives both states the same height so entering edit mode never resizes the
+                             row; `px-2 -mx-2` lets the hover background / edit ring bleed into the
+                             padding while the text stays aligned with the Email value above. -->
                         <div>
                             <label class="field-label-caps">Display Name</label>
 
                             <!-- Read mode -->
-                            <div id="display-name-view" class="flex items-center justify-between">
-                                <p id="display-name-text" class="text-sm text-ink">{displayName}</p>
-                                <button type="button"
-                                        onclick="startEditDisplayName()"
-                                        class="text-sm font-medium text-brand hover:underline">
-                                    Edit
-                                </button>
+                            <div id="display-name-view"
+                                 class="settings-field flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg hover:bg-surface-muted">
+                                <p id="display-name-text" class="text-sm text-ink truncate">{displayName}</p>
+                                <div class="dt-actions settings-field-actions">
+                                    <button type="button"
+                                            onclick="startEditDisplayName()"
+                                            class="dt-btn dt-btn-edit">Edit</button>
+                                </div>
                             </div>
 
                             <!-- Edit mode (hidden by default). Its own form, posting to a different
@@ -75,23 +82,21 @@
                                   class="hidden"
                                   hx-post="/settings/display-name"
                                   hx-swap="none">
-                                <div class="flex items-center gap-2">
+                                <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
                                     <input type="text"
                                            id="displayName"
                                            name="displayName"
                                            value="{displayName}"
                                            required
                                            maxlength="255"
-                                           class="form-input flex-1 min-w-0">
-                                    <button type="submit"
-                                            class="btn-primary shrink-0">
-                                        Save
-                                    </button>
-                                    <button type="button"
-                                            onclick="cancelEditDisplayName()"
-                                            class="text-sm font-medium text-ink-muted hover:text-ink shrink-0">
-                                        Cancel
-                                    </button>
+                                           class="dt-text-input flex-1 min-w-0 h-7">
+                                    <div class="dt-actions">
+                                        <button type="submit"
+                                                class="dt-btn dt-btn-save">Save</button>
+                                        <button type="button"
+                                                onclick="cancelEditDisplayName()"
+                                                class="dt-btn dt-btn-cancel">Cancel</button>
+                                    </div>
                                 </div>
                             </form>
                         </div>
