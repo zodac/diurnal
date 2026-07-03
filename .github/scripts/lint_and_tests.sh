@@ -229,12 +229,15 @@ run_shellcheck() {
     fi
     docker pull "${SHELLCHECK_DOCKER_IMAGE}" >/dev/null
     # Unlike the other linters, shellcheck has no `--config` flag: it auto-discovers a `.shellcheckrc`
-    # by walking up from each checked file. Overlay the submodule's shared config at the repo root
-    # (/app, the container's working dir) with a read-only bind mount so every file picks it up.
+    # by walking up from each checked file. Overlay the submodule's shared config so every file picks
+    # it up — but mount the repo into a *subdirectory* (/app/repo) and place the config at its parent
+    # (/app/.shellcheckrc). shellcheck walks up from /app/repo/<file> and finds it. Crucially, the
+    # overlay's mount point (/app/.shellcheckrc) then lives in a container-internal dir, NOT inside a
+    # host bind mount, so Docker no longer creates a stray empty .shellcheckrc in the host repo root.
     if output=$(docker run --rm \
-        -v "${PWD}":/app \
+        -v "${PWD}":/app/repo \
         -v "${PWD}/code-quality-config/shellscript/.shellcheckrc":/app/.shellcheckrc:ro \
-        -w /app \
+        -w /app/repo \
         "${SHELLCHECK_DOCKER_IMAGE}" \
         "${files[@]}" 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
