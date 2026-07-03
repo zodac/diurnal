@@ -9,7 +9,7 @@
 #                 - Node (full/major) in Dockerfile, sandbox/Dockerfile
 #                 - npm packages in package.json + e2e/package.json (exact pins, no ^/~ ranges)
 #                 - Docker image pins in .github/scripts/lint_and_tests.sh
-#                   (node when confirmed; hadolint + markdownlint-cli2 + shellcheck best-effort)
+#                   (node when confirmed; hadolint + markdownlint-cli2 + shellcheck + grype best-effort)
 #                   Note: shellcheck installed as an apt/apk package instead (pinned in a
 #                   # BEGIN/END … PACKAGES block) is handled generically by the package updaters.
 #                 - Ubuntu packages (# BEGIN/END UBUNTU PACKAGES blocks)
@@ -259,9 +259,9 @@ update_node() {
 #   - ESLINT_NODE_IMAGE (node) is bumped from the node version resolved above, only if it was
 #     confirmed this run (an unconfirmed tag must never be pinned). The lint script's `java` step
 #     runs `mvn clean install -Dall` on the host toolchain, so there is no Maven image pin to bump.
-#   - HADOLINT_DOCKER_IMAGE, MARKDOWNLINT_DOCKER_IMAGE and SHELLCHECK_DOCKER_IMAGE are independent
-#     best-effort: each is bumped to the latest GitHub release whose corresponding Docker Hub tag is
-#     confirmed to exist.
+#   - HADOLINT_DOCKER_IMAGE, MARKDOWNLINT_DOCKER_IMAGE, SHELLCHECK_DOCKER_IMAGE and GRYPE_DOCKER_IMAGE
+#     are independent best-effort: each is bumped to the latest GitHub release whose corresponding
+#     Docker Hub tag is confirmed to exist.
 #
 # If shellcheck is instead pinned as an apt/apk package (a `shellcheck="<ver>"` line inside a
 # # BEGIN/END … PACKAGES block in a Dockerfile), no work is needed here — update_apt_packages /
@@ -326,6 +326,22 @@ update_lint_script() {
     else
         sed -i "s|SHELLCHECK_DOCKER_IMAGE=\"koalaman/shellcheck:[^\"]*\"|SHELLCHECK_DOCKER_IMAGE=\"koalaman/shellcheck:${shellcheck_tag}\"|" "${LINT_SCRIPT}"
         ok "shellcheck image → koalaman/shellcheck:${shellcheck_tag}"
+    fi
+
+    # ── grype (best-effort) ───────────────────────────────────────────────────
+    # The grype step scans the built runtime image; keep the scanner pinned to its latest release
+    # whose Docker Hub tag is confirmed. DIURNAL_RUNTIME_IMAGE is our own build tag, not a pin — it
+    # is never bumped here.
+    local grype_tag
+    grype_tag=$(github_curl "https://api.github.com/repos/anchore/grype/releases/latest" \
+        | jq -r '.tag_name // empty')
+    if [[ -z "${grype_tag}" ]]; then
+        warn "Could not fetch grype version, skipping"
+    elif ! hub_tag_exists "anchore/grype" "${grype_tag}"; then
+        warn "anchore/grype:${grype_tag} not on Docker Hub, skipping"
+    else
+        sed -i "s|GRYPE_DOCKER_IMAGE=\"anchore/grype:[^\"]*\"|GRYPE_DOCKER_IMAGE=\"anchore/grype:${grype_tag}\"|" "${LINT_SCRIPT}"
+        ok "grype image → anchore/grype:${grype_tag}"
     fi
 
     ok "Lint script Docker images processed"
