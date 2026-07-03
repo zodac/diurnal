@@ -1,16 +1,1 @@
-# grype configuration - ignoring 'won't fix' issues
-ignore:
-  # libc6
-  - vulnerability: CVE-2010-4756
-  - vulnerability: CVE-2018-20796
-  - vulnerability: CVE-2019-9192
-  - vulnerability: CVE-2019-1010022
-  - vulnerability: CVE-2019-1010023
-  - vulnerability: CVE-2019-1010024
-  - vulnerability: CVE-2019-1010025
-  - vulnerability: CVE-2026-5435
-  - vulnerability: CVE-2026-5450
-  - vulnerability: CVE-2026-5928
-  - vulnerability: CVE-2026-6238
-  # zlib1g
-  - vulnerability: CVE-2026-27171
+# grype configuration, project-specific. Should run in addition to code-quality-config/docker/.grype.yaml

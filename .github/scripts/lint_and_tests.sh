@@ -19,6 +19,7 @@
 #
 #                  Valid steps:
 #                    - docker      Lint the Dockerfiles with hadolint
+#                    - grype       Build the runtime image and scan it for CVEs with grype
 #                    - java        Run the full Maven gate (mvn clean install -Dall)
 #                    - javascript  Lint JavaScript files with eslint
 #                    - markdown    Lint Markdown files with markdownlint-cli2
@@ -30,6 +31,7 @@
 #                    ./lint_and_tests.sh docker
 #                    ./lint_and_tests.sh docker,javascript
 #                    ./lint_and_tests.sh -v java
+#                    ./lint_and_tests.sh grype
 #
 # Requirements:
 #   - Docker must be installed and available on the system PATH
@@ -40,6 +42,9 @@
 #     (cd e2e && npx playwright install --with-deps). It runs `mvn clean install -Dall` directly on the
 #     host, not in the Maven Docker image, because -Dall drives Docker itself (the managed test DB, the
 #     E2E stack, and the deployment-smoke image build).
+#   - The `grype` step builds the production runtime image and scans it, so it needs a Docker daemon
+#     the current user can build with; the scan runs from the grype image with the Docker
+#     socket mounted so it can read that just-built local image.
 #
 # Exit Codes:
 #   - 0: All linting and tests passed successfully
@@ -52,11 +57,23 @@ trap 'echo; echo "❌ Interrupted"; exit 130' INT
 
 ESLINT_BUILD_IMAGE="local/diurnal-eslint:latest"
 ESLINT_NODE_IMAGE="node:26.4.0-alpine"
+GRYPE_DOCKER_IMAGE="anchore/grype:v0.115.0"
 HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.14.0-alpine"
 MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.0"
 SHELLCHECK_DOCKER_IMAGE="koalaman/shellcheck:v0.11.0"
 
-VALID_STEPS=("docker" "java" "javascript" "markdown" "shellcheck" "typescript")
+# The runtime image the grype step builds and scans (the same final stage the published image uses).
+DIURNAL_RUNTIME_IMAGE="zodac/diurnal:latest"
+
+# Named Docker volume that persists grype's vulnerability DB between runs (mounted into the scanner
+# and pointed at by GRYPE_DB_CACHE_DIR). Without it every `docker run --rm` re-downloads the ~1.6GB
+# DB; grype only re-pulls when the cached copy is stale, so warm runs skip the download. A named
+# volume (vs. a host bind mount) keeps the root-owned DB files out of the working tree entirely — so
+# nothing to .gitignore — and lets Docker manage its lifecycle. It is auto-created on first use;
+# remove it with `docker volume rm ${GRYPE_DB_CACHE_VOLUME}`.
+GRYPE_DB_CACHE_VOLUME="${GRYPE_DB_CACHE_VOLUME:-diurnal-grype-db}"
+
+VALID_STEPS=("docker" "grype" "java" "javascript" "markdown" "shellcheck" "typescript")
 
 # Verbose off by default: steps print only a pass/fail summary and the java/Maven gate is hidden.
 # The -v/--verbose flag (parsed below) flips this to stream/echo every step's full output.
@@ -111,6 +128,79 @@ run_docker() {
     else
         echo "${output}"
         echo "❌ Dockerfile lint failed"
+        overall_exit_code=1
+    fi
+}
+
+run_grype() {
+    echo
+    echo "Building [${DIURNAL_RUNTIME_IMAGE}] and scanning it with Grype [${GRYPE_DOCKER_IMAGE}]"
+
+    # Build the production runtime image from the same multi-stage Dockerfile the published image uses,
+    # so Grype scans exactly what ships: the distroless base OS packages, the jlink JRE, the busybox
+    # wget binary and the Quarkus app's bundled Java dependency jars. The css/icons build stages only
+    # export app.css / the favicons — their Node and ImageMagick toolchains never reach this image — so
+    # a package.json / JS-dependency change alters nothing here and is deliberately NOT a grype trigger.
+    #
+    # The grype run reads the just-built local image via the mounted Docker socket, and the repo as the
+    # working dir so the two -c config paths resolve. Order is load-bearing: across multiple -c files
+    # grype lets the FIRST file win every scalar key (verified empirically — later files do NOT override
+    # earlier scalars), while ignore lists from all files are appended. So the project-level .grype.yaml
+    # is passed FIRST (its log level / fail-on-severity / etc. take precedence), and the shared
+    # code-quality-config submodule config SECOND to supply the common won't-fix ignore list plus any
+    # scalar the project doesn't set. The vulnerability DB is persisted in a named Docker volume (mounted
+    # at /grype-db, pointed at by GRYPE_DB_CACHE_DIR) so it survives the --rm and is not re-downloaded
+    # every run — grype only
+    # re-pulls it when the cached copy is stale. The volume is auto-created by `docker run -v` on first
+    # use; nothing lands in the working tree.
+    local build_cmd=(docker build -t "${DIURNAL_RUNTIME_IMAGE}" -f Dockerfile .)
+    local grype_cmd=(docker run --rm
+        -v /var/run/docker.sock:/var/run/docker.sock
+        -v "${PWD}":/app
+        -v "${GRYPE_DB_CACHE_VOLUME}":/grype-db
+        -e GRYPE_DB_CACHE_DIR=/grype-db
+        -w /app
+        "${GRYPE_DOCKER_IMAGE}"
+        -c .grype.yaml
+        -c code-quality-config/docker/.grype.yaml
+        "${DIURNAL_RUNTIME_IMAGE}")
+
+    # Verbose streams the build and scan live (the scan is slow and, on a cold DB, downloads ~1.6GB —
+    # so live progress matters); non-verbose captures each and prints only on failure. Both paths share
+    # the command arrays above so the invocation is defined once.
+    if [[ "${VERBOSE}" == true ]]; then
+        echo "→ Building ${DIURNAL_RUNTIME_IMAGE}"
+        if ! "${build_cmd[@]}"; then
+            echo "❌ Grype scan failed (could not build ${DIURNAL_RUNTIME_IMAGE})"
+            overall_exit_code=1
+            return
+        fi
+        docker pull "${GRYPE_DOCKER_IMAGE}" >/dev/null
+        echo "→ Starting Grype scan on ${DIURNAL_RUNTIME_IMAGE}"
+        if "${grype_cmd[@]}"; then
+            echo "✅ Grype scan passed"
+        else
+            echo "❌ Grype scan failed"
+            overall_exit_code=1
+        fi
+        return
+    fi
+
+    local build_output
+    if ! build_output=$("${build_cmd[@]}" 2>&1); then
+        echo "${build_output}" | tail -30
+        echo "❌ Grype scan failed (could not build ${DIURNAL_RUNTIME_IMAGE})"
+        overall_exit_code=1
+        return
+    fi
+
+    docker pull "${GRYPE_DOCKER_IMAGE}" >/dev/null
+
+    if output=$("${grype_cmd[@]}" 2>&1); then
+        echo "✅ Grype scan passed"
+    else
+        echo "${output}"
+        echo "❌ Grype scan failed"
         overall_exit_code=1
     fi
 }
@@ -261,13 +351,18 @@ detect_changed_steps() {
 
     echo "Checking changes since tag [${latest_tag}]..." >&2
 
-    local run_docker=false run_java=false run_javascript=false run_markdown=false run_shellcheck=false run_typescript=false
+    local run_docker=false run_grype=false run_java=false run_javascript=false run_markdown=false run_shellcheck=false run_typescript=false
     local java_changed_files=()
     local file
 
     while IFS= read -r file; do
         [[ -z "${file}" ]] && continue
         [[ "${file}" == "Dockerfile" || "${file}" =~ ^sandbox/Dockerfile || "${file}" == ".dockerignore" || "${file}" =~ ^docker-compose || "${file}" =~ ^code-quality-config/docker/ ]] && run_docker=true
+        # Grype re-scans when the contents of the runtime image change: the runtime Dockerfile (base
+        # images, package pins, copy layout), the build context filter, or the ignore list itself. The
+        # pom.xml path (bundled Java deps) is handled below with the same version-bump suppression as
+        # java; sandbox/Dockerfile and docker-compose don't affect the published runtime image.
+        [[ "${file}" == "Dockerfile" || "${file}" == ".dockerignore" || "${file}" == ".grype.yaml" ]] && run_grype=true
         if [[ "${file}" =~ ^src/ || "${file}" == "pom.xml" || "${file}" =~ ^code-quality-config/java/ ]]; then
             run_java=true
             java_changed_files+=("${file}")
@@ -309,6 +404,25 @@ detect_changed_steps() {
         fi
     fi
 
+    # The runtime image bundles the app's Java dependency jars, so a genuine pom.xml dependency or
+    # parent bump must re-scan the image. Reuse the java filter (scoped to pom.xml only, since src/
+    # changes don't alter the dependency set): ignore comment-only edits and a project <version> bump
+    # (which rebuilds the image but changes no dependency). Runs regardless of run_java's outcome.
+    if printf '%s\n' "${java_changed_files[@]}" | grep -qxF 'pom.xml'; then
+        local pom_diff
+        pom_diff=$(
+            {
+                git diff "${latest_tag}..HEAD" -- pom.xml 2>/dev/null
+                git diff -- pom.xml 2>/dev/null
+                git diff --cached -- pom.xml 2>/dev/null
+            } | grep '^[+-]' | grep -v '^---\|^+++' \
+              | grep -vE '^[+-][[:space:]]*(//|/\*\*?|\*|<!--|-->)' \
+              | grep -vE '^[+-]    <version>[^<]*</version>[[:space:]]*$' \
+              | grep -vE '^[+-][[:space:]]*$'
+        )
+        [[ -n "${pom_diff}" ]] && run_grype=true
+    fi
+
     # A bump to any docker image pinned in this script must re-trigger the matching step,
     # since the image change won't otherwise show up in the file-path detection above.
     # Runs after the comment-only suppress so an image change can re-enable a suppressed step.
@@ -323,6 +437,7 @@ detect_changed_steps() {
     )
     if [[ -n "${script_diff}" ]]; then
         grep -qE '^[+-][[:space:]]*HADOLINT_DOCKER_IMAGE='                        <<<"${script_diff}" && run_docker=true
+        grep -qE '^[+-][[:space:]]*(GRYPE_DOCKER_IMAGE|DIURNAL_RUNTIME_IMAGE)='   <<<"${script_diff}" && run_grype=true
         grep -qE '^[+-][[:space:]]*(ESLINT_BUILD_IMAGE|ESLINT_NODE_IMAGE)='       <<<"${script_diff}" && run_javascript=true
         grep -qE '^[+-][[:space:]]*(ESLINT_BUILD_IMAGE|ESLINT_NODE_IMAGE)='       <<<"${script_diff}" && run_typescript=true
         grep -qE '^[+-][[:space:]]*MARKDOWNLINT_DOCKER_IMAGE='                    <<<"${script_diff}" && run_markdown=true
@@ -330,6 +445,7 @@ detect_changed_steps() {
     fi
 
     [[ "${run_docker}"     == true ]] && echo "docker"
+    [[ "${run_grype}"      == true ]] && echo "grype"
     [[ "${run_java}"       == true ]] && echo "java"
     [[ "${run_javascript}" == true ]] && echo "javascript"
     [[ "${run_markdown}"   == true ]] && echo "markdown"
@@ -383,6 +499,7 @@ fi
 for step in "${steps[@]}"; do
     case "${step}" in
     docker) run_docker ;;
+    grype) run_grype ;;
     java) run_java ;;
     javascript) run_javascript ;;
     markdown) run_markdown ;;

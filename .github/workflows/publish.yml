@@ -11,6 +11,7 @@ on:
       - 'package.json'
       - 'src/**'
       - '!src/test/**' # test code never reaches the published image (packaged with -DskipTests)
+      - 'tailwind.config.js'
       - 'VERSION'
   workflow_dispatch: # allows manual trigger
 
