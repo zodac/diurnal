@@ -230,10 +230,10 @@ test.describe("Dashboard", () => {
         await page.goto("/")
         await page.locator("#cal-jump").click()
         const yearLabel = page.locator(".cal-pop-year")
-        const originalYear = await yearLabel.textContent()
+        const originalYear = await yearLabel.inputValue()
 
         await page.locator('button[data-y="1"]').click()
-        await expect(yearLabel).not.toHaveText(originalYear ?? "")
+        await expect(yearLabel).not.toHaveValue(originalYear)
     })
 
     test("stats summary card is hidden when no actions are logged", async ({ page }) => {
