@@ -30,6 +30,17 @@ module.exports = {
         sans: ['var(--font-body)'],
         display: ['var(--font-display)'],
       },
+      // Corner-rounding override — a global 40% reduction (each step = 60% of Tailwind's default)
+      // so cards/buttons/inputs read a touch crisper. Applies to every `rounded-*` utility used in
+      // the app (DEFAULT/`rounded`, sm, lg, xl, 2xl); `rounded-full` is deliberately left at its
+      // default so circular chrome (swatches, dots, avatars, icon buttons) stays truly round.
+      borderRadius: {
+        DEFAULT: '0.15rem', // bare `rounded` (0.25rem → 0.15rem); emitted as a literal, so must be set here
+        sm: '0.15rem', //  0.25rem → 0.15rem
+        lg: '0.3rem', //   0.5rem  → 0.3rem
+        xl: '0.45rem', //  0.75rem → 0.45rem
+        '2xl': '0.6rem', // 1rem    → 0.6rem
+      },
       // Semantic colour tokens — backed by the CSS variables defined in app.css, so a
       // colour is changed in ONE place (and auto-adapts to dark mode without a `dark:`
       // variant). New markup should prefer these (e.g. `bg-surface`, `text-muted`).
