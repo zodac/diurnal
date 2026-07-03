@@ -47,7 +47,7 @@ public class Action extends PanacheEntityBase {
     public String name;
 
     @Column(nullable = false, length = 7)
-    public String colour = "#6366f1";
+    public String colour = "#64748b";
 
     @Column(nullable = false)
     public boolean archived;

@@ -90,7 +90,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         given().formParam("name", "Swimming").formParam("colour", "not-a-colour")
             .post("/actions")
             .then().statusCode(200)
-            .body(containsString("#6366f1"));
+            .body(containsString("#64748b"));
     }
 
     @Test

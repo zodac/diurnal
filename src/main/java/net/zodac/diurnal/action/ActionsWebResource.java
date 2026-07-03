@@ -179,7 +179,7 @@ public class ActionsWebResource {
     @Transactional
     public Response createAction(
             @FormParam("name") final String name,
-            @FormParam("colour") @DefaultValue("#6366f1") final String colour) {
+            @FormParam("colour") @DefaultValue("#64748b") final String colour) {
 
         if (name == null || name.isBlank()) {
             return errorResponse("Action name cannot be empty.");
@@ -212,7 +212,7 @@ public class ActionsWebResource {
     public Response updateAction(
             @PathParam("id") final UUID id,
             @FormParam("name") final String name,
-            @FormParam("colour") @DefaultValue("#6366f1") final String colour) {
+            @FormParam("colour") @DefaultValue("#64748b") final String colour) {
 
         final Action action = findOwnedAction(id);
         if (action == null) {
@@ -282,6 +282,6 @@ public class ActionsWebResource {
         if (colour != null && colour.matches("^#[0-9a-fA-F]{6}$")) {
             return colour;
         }
-        return "#6366f1";
+        return "#64748b";
     }
 }
