@@ -30,9 +30,16 @@
      class="hidden absolute z-50 mt-1 p-3"
      style="width:220px">
     <div class="flex items-center justify-between mb-2">
-        <button type="button" data-y="-1" class="cal-nav-btn">‹</button>
-        <span class="cal-pop-year text-sm font-semibold text-ink"></span>
-        <button type="button" data-y="1" class="cal-nav-btn">›</button>
+        <button type="button" data-y="-1" class="cal-nav-btn" title="Previous year" aria-label="Previous year">‹</button>
+        {! Editable year — same interaction as the day panel's count input (type a value; commits on
+           change/Enter). The ‹ › steppers still nudge it. Changing the year only repaints the picker's
+           month grid; navigation happens when a month is picked. !}
+        <input type="text" inputmode="numeric" maxlength="4"
+               class="cal-pop-year w-14 h-7 text-center text-sm font-semibold tabular-nums text-ink
+                      bg-transparent border border-line rounded
+                      hover:border-brand focus:border-brand focus:outline-hidden"
+               aria-label="Jump to year">
+        <button type="button" data-y="1" class="cal-nav-btn" title="Next year" aria-label="Next year">›</button>
     </div>
     <div class="cal-pop-months grid grid-cols-3 gap-1"></div>
     <button id="cal-today" type="button" class="cal-today-btn">Today</button>
