@@ -30,7 +30,7 @@ import jakarta.ws.rs.CookieParam;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
-import jakarta.ws.rs.HeaderParam;
+import jakarta.ws.rs.PATCH;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.Consumer;
 import net.zodac.diurnal.auth.RoleAssigner;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
@@ -386,38 +387,83 @@ public class WebResource {
     @Transactional
     public TemplateInstance settingsPage() {
         final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
-        return settingsView(user, false);
+        return settingsView(user);
+    }
+
+    // ── Preferences ────────────────────────────────────────────────────────
+    //
+    // Each preference is its own PATCH endpoint so updating one never touches the others (a partial
+    // update, not a whole-object replace). The client posts only the changed control on its `change`
+    // event and shows the saved indicator via {@code htmx:afterRequest}; every endpoint returns
+    // {@code 204}. All values are sanitised against their allow-list, so an unoffered/absent value
+    // falls back to the setting's default (timezone → server default).
+
+    /**
+     * Updates the current user's theme to the sanitised {@code theme}. Returns {@code 204}.
+     */
+    @PATCH
+    @Path("settings/theme")
+    @RolesAllowed("user")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Transactional
+    public Response updateTheme(@FormParam("theme") final String theme) {
+        return updateSetting(user -> user.theme = UserSettings.sanitiseTheme(theme));
     }
 
     /**
-     * Persists the user's sanitised display preferences. Returns {@code 204} for HTMX requests
-     * (the client shows the saved indicator via {@code htmx:afterRequest}); re-renders the full
-     * settings page for plain form submissions without JavaScript.
+     * Updates the current user's font to the sanitised {@code font}. Returns {@code 204}.
      */
-    @POST
-    @Path("settings")
+    @PATCH
+    @Path("settings/font")
     @RolesAllowed("user")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    @Produces(MediaType.TEXT_HTML)
     @Transactional
-    public Response updateSettings(
-            @FormParam("theme") @DefaultValue("system") final String theme,
-            @FormParam("font") @DefaultValue("nova") final String font,
-            @FormParam("pageSize") @DefaultValue("10") final int pageSize,
-            @FormParam("calendarView") @DefaultValue("full") final String calendarView,
-            @FormParam("timezone") @DefaultValue("") final String timezone,
-            @HeaderParam("HX-Request") final String hxRequest) {
+    public Response updateFont(@FormParam("font") final String font) {
+        return updateSetting(user -> user.font = UserSettings.sanitiseFont(font));
+    }
+
+    /**
+     * Updates the current user's calendar view to the sanitised {@code calendarView}. Returns {@code 204}.
+     */
+    @PATCH
+    @Path("settings/calendar-view")
+    @RolesAllowed("user")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Transactional
+    public Response updateCalendarView(@FormParam("calendarView") final String calendarView) {
+        return updateSetting(user -> user.calendarView = UserSettings.sanitiseCalendarView(calendarView));
+    }
+
+    /**
+     * Updates the current user's timezone to the sanitised {@code timezone} (blank or unoffered →
+     * server default). Returns {@code 204}.
+     */
+    @PATCH
+    @Path("settings/timezone")
+    @RolesAllowed("user")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Transactional
+    public Response updateTimezone(@FormParam("timezone") final String timezone) {
+        return updateSetting(user -> user.timezone = UserSettings.sanitiseTimezone(timezone));
+    }
+
+    /**
+     * Updates the current user's page size to the sanitised {@code pageSize}. Returns {@code 204}.
+     */
+    @PATCH
+    @Path("settings/page-size")
+    @RolesAllowed("user")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Transactional
+    public Response updatePageSize(@FormParam("pageSize") final int pageSize) {
+        return updateSetting(user -> user.pageSize = UserSettings.sanitisePageSize(pageSize));
+    }
+
+    private Response updateSetting(final Consumer<User> mutator) {
         final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
-        user.theme = UserSettings.sanitiseTheme(theme);
-        user.font = UserSettings.sanitiseFont(font);
-        user.pageSize = UserSettings.sanitisePageSize(pageSize);
-        user.calendarView = UserSettings.sanitiseCalendarView(calendarView);
-        user.timezone = UserSettings.sanitiseTimezone(timezone);
+        mutator.accept(user);
         user.persist();
-        if (hxRequest != null) {
-            return Response.noContent().build();
-        }
-        return Response.ok(settingsView(user, true)).build();
+        return Response.noContent().build();
     }
 
     /**
@@ -438,7 +484,7 @@ public class WebResource {
         return Response.ok().build();
     }
 
-    private TemplateInstance settingsView(final User user, final boolean saved) {
+    private TemplateInstance settingsView(final User user) {
         return settingsTemplate
                 .data("email", user.email)
                 .data("displayName", user.displayName)
@@ -452,8 +498,7 @@ public class WebResource {
                 .data("calendarView", user.calendarView)
                 .data("calendarViewOptions", UserSettings.CALENDAR_VIEW_OPTIONS)
                 .data("timezoneChoices",
-                        UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone))
-                .data("saved", saved);
+                        UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone));
     }
 
     // ── Dashboard (protected) ──────────────────────────────────────────────

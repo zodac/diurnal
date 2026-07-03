@@ -10,136 +10,179 @@
     <main class="page-container px-4 py-8">
         <h2 class="text-2xl font-semibold mb-1 text-ink">Settings</h2>
         <p class="text-sm text-ink-muted mb-6">
-            Manage your account preferences and application settings.
+            Manage your account preferences and appearance.
         </p>
 
-        <!-- Account section -->
-        <div class="card p-4 mb-6">
-            <div class="flex items-center justify-between mb-4">
-                <h3 class="card-title">Account</h3>
-                <span id="account-saved"
-                      class="text-xs text-success opacity-0 transition-opacity duration-300">
-                    Saved
-                </span>
-            </div>
+        <!-- Two-column settings layout (flex, not grid). On desktop the left column stacks Account
+             (top) then Preferences (below); the taller Appearance picker card fills the right column.
+             Flex columns (rather than a grid) let each column pack its cards flush from the top
+             independently — a grid would stretch the short left cards to the tall Appearance card's
+             row height, leaving a gap under Account.
 
-            <div class="space-y-4">
-                <!-- Email (read-only) -->
-                <div>
-                    <label class="field-label-caps">Email</label>
-                    <p class="text-sm text-ink">{email}</p>
-                </div>
+             On MOBILE the order must be Account → Appearance → Preferences. Because Account and
+             Preferences are grouped in the left-column wrapper (needed for the desktop column), that
+             wrapper is `display:contents` below `lg` (`contents lg:flex…`): its box disappears on
+             mobile so Account and Preferences become direct flex items of THIS container alongside
+             Appearance, and `order-last` on Preferences drops it to the end — giving Account,
+             Appearance, Preferences. At `lg` the wrapper is a real flex column again and the order
+             resets, so the desktop layout is unchanged.
 
-                <!-- Display Name -->
-                <div>
-                    <label class="field-label-caps">Display Name</label>
+             Each preference control saves ITSELF via its own PATCH endpoint (see the hx-patch on the
+             radiogroups below and on the two selects in partials/select-field): updating one setting
+             no longer touches the others, so there is no wrapper form and no shared/scoped trigger.
+             This wrapper is just the layout container (and the delegation point for the "Saved"
+             indicator in the script below). -->
+        <div id="prefs-form" class="flex flex-col lg:flex-row gap-6 lg:items-start">
 
-                    <!-- Read mode -->
-                    <div id="display-name-view" class="flex items-center justify-between">
-                        <p id="display-name-text" class="text-sm text-ink">{displayName}</p>
-                        <button type="button"
-                                onclick="startEditDisplayName()"
-                                class="text-sm font-medium text-brand hover:underline">
-                            Edit
-                        </button>
+            <!-- Left column on desktop; on mobile `display:contents` so its cards join the outer
+                 flex flow (see the layout comment above). -->
+            <div class="contents lg:flex lg:flex-col lg:gap-6 lg:flex-1 lg:min-w-0">
+
+                <!-- Account -->
+                <div class="card p-4">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="card-title">Account</h3>
+                        <span id="account-saved"
+                              class="text-xs text-success opacity-0 transition-opacity duration-300">
+                            Saved
+                        </span>
                     </div>
 
-                    <!-- Edit mode (hidden by default) -->
-                    <form id="account-form"
-                          class="hidden"
-                          hx-post="/settings/display-name"
-                          hx-swap="none">
-                        <div class="flex items-center gap-2">
-                            <input type="text"
-                                   id="displayName"
-                                   name="displayName"
-                                   value="{displayName}"
-                                   required
-                                   maxlength="255"
-                                   class="form-input flex-1 min-w-0">
-                            <button type="submit"
-                                    class="btn-primary shrink-0">
-                                Save
-                            </button>
-                            <button type="button"
-                                    onclick="cancelEditDisplayName()"
-                                    class="text-sm font-medium text-ink-muted hover:text-ink shrink-0">
-                                Cancel
-                            </button>
+                    <div class="space-y-4">
+                        <!-- Email (read-only) -->
+                        <div>
+                            <label class="field-label-caps">Email</label>
+                            <p class="text-sm text-ink">{email}</p>
                         </div>
-                    </form>
+
+                        <!-- Display Name -->
+                        <div>
+                            <label class="field-label-caps">Display Name</label>
+
+                            <!-- Read mode -->
+                            <div id="display-name-view" class="flex items-center justify-between">
+                                <p id="display-name-text" class="text-sm text-ink">{displayName}</p>
+                                <button type="button"
+                                        onclick="startEditDisplayName()"
+                                        class="text-sm font-medium text-brand hover:underline">
+                                    Edit
+                                </button>
+                            </div>
+
+                            <!-- Edit mode (hidden by default). Its own form, posting to a different
+                                 endpoint — kept intact by wrapping the prefs area in a <div>. -->
+                            <form id="account-form"
+                                  class="hidden"
+                                  hx-post="/settings/display-name"
+                                  hx-swap="none">
+                                <div class="flex items-center gap-2">
+                                    <input type="text"
+                                           id="displayName"
+                                           name="displayName"
+                                           value="{displayName}"
+                                           required
+                                           maxlength="255"
+                                           class="form-input flex-1 min-w-0">
+                                    <button type="submit"
+                                            class="btn-primary shrink-0">
+                                        Save
+                                    </button>
+                                    <button type="button"
+                                            onclick="cancelEditDisplayName()"
+                                            class="text-sm font-medium text-ink-muted hover:text-ink shrink-0">
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Preferences. order-last drops it below Appearance on mobile (where the
+                     left-column wrapper is display:contents); lg:order-none restores desktop order. -->
+                <div class="card p-4 order-last lg:order-none">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="card-title">Preferences</h3>
+                        <span data-saved
+                              class="text-xs text-success opacity-0 transition-opacity duration-300">
+                            Saved
+                        </span>
+                    </div>
+
+                    <!-- Timezone -->
+                    {#include partials/select-field id="timezone" label="Timezone" endpoint="/settings/timezone" border=true}
+                        {#options}
+                        {#for choice in timezoneChoices}
+                        <option value="{choice.value}" {#if choice.selected}selected{/if}>{choice.label}</option>
+                        {/for}
+                        {/options}
+                    {/include}
+
+                    <!-- Items per page -->
+                    {#include partials/select-field id="pageSize" label="Items per page" endpoint="/settings/page-size" border=false}
+                        {#options}
+                        {#for option in pageSizeOptions}
+                        <option value="{option}" {#if option == pageSize}selected{/if}>{option}</option>
+                        {/for}
+                        {/options}
+                    {/include}
                 </div>
             </div>
-        </div>
 
-        <!-- Preferences -->
-        <div class="card p-4">
-            <div class="flex items-center justify-between mb-4">
-                <div>
-                    <h3 class="card-title">Preferences</h3>
-                    <p class="help-text mt-0.5">Changes are saved automatically.</p>
+            <!-- Right column: Appearance (fills the freed horizontal space). -->
+            <div class="card p-4 lg:flex-1 lg:min-w-0">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="card-title">Appearance</h3>
+                            <p class="help-text mt-0.5">Changes are saved automatically.</p>
+                        </div>
+                        <span data-saved
+                              class="text-xs text-success opacity-0 transition-opacity duration-300">
+                            Saved
+                        </span>
+                    </div>
+
+                    <div class="space-y-6">
+                        <!-- Theme. Pickers fill the card width now (no max-w-md) so the freed
+                             horizontal space in the right column is used. -->
+                        <div class="pb-4 border-b border-line">
+                            <span class="block text-sm font-medium text-ink mb-3">Theme</span>
+                            <!-- hx-include self: htmx doesn't auto-serialize a <div>'s descendant
+                                 inputs (only a <form>/named field does), so include this group to
+                                 send the checked radio's value. -->
+                            <div id="theme-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Theme"
+                                 hx-patch="/settings/theme" hx-trigger="change" hx-swap="none" hx-include="#theme-options">
+                                {#include partials/preview-option group="theme" value="system" current=theme imgBase="page-nova-full-system" label="System" title="System theme" alt="Dashboard split diagonally between light and dark themes" /}
+                                {#include partials/preview-option group="theme" value="light"  current=theme imgBase="page-nova-full-light"  label="Light"  title="Light theme"  alt="Dashboard in light mode" /}
+                                {#include partials/preview-option group="theme" value="dark"   current=theme imgBase="page-nova-full-dark"   label="Dark"   title="Dark theme"   alt="Dashboard in dark mode" /}
+                            </div>
+                        </div>
+
+                        <!-- Calendar style -->
+                        <div class="pb-4 border-b border-line">
+                            <span class="block text-sm font-medium text-ink mb-3">Calendar style</span>
+                            <div id="calendar-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Calendar style"
+                                 hx-patch="/settings/calendar-view" hx-trigger="change" hx-swap="none" hx-include="#calendar-options">
+                                {#include partials/preview-option group="calendarView" value="full"    current=calendarView imgBase="cal-nova-full-dark"    label="Full"    title="Full calendar"    alt="Dashboard calendar showing events as text" /}
+                                {#include partials/preview-option group="calendarView" value="minimal" current=calendarView imgBase="cal-nova-minimal-dark" label="Minimal" title="Minimal calendar" alt="Dashboard calendar showing a coloured dot per action" /}
+                                {#include partials/preview-option group="calendarView" value="stacked" current=calendarView imgBase="cal-nova-stacked-dark" label="Stacked" title="Stacked calendar" alt="Dashboard calendar showing horizontal bars per action" /}
+                            </div>
+                        </div>
+
+                        <!-- Font. grid-cols-3 (not -2) keeps each tile the SAME size as the
+                             theme/calendar pickers even though there are only two — the third column
+                             is simply left empty. Last block in the card, so no bottom divider. -->
+                        <div>
+                            <span class="block text-sm font-medium text-ink mb-3">Font</span>
+                            <div id="font-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Font"
+                                 hx-patch="/settings/font" hx-trigger="change" hx-swap="none" hx-include="#font-options">
+                                {#include partials/preview-option group="font" value="nova"     current=font imgBase="page-nova-full-dark"     label="Nova"     title="Nova font"     alt="Dashboard shown in the Nova font" /}
+                                {#include partials/preview-option group="font" value="standard" current=font imgBase="page-standard-full-dark" label="Standard" title="Standard font" alt="Dashboard shown in the standard system font" /}
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <span id="prefs-saved"
-                      class="text-xs text-success opacity-0 transition-opacity duration-300">
-                    Saved
-                </span>
             </div>
-
-            <form id="prefs-form"
-                  method="post" action="/settings"
-                  hx-post="/settings"
-                  hx-trigger="change"
-                  hx-swap="none"
-                  class="space-y-6">
-                <!-- Theme -->
-                <div class="py-4 border-b border-line">
-                    <span class="block text-sm font-medium text-ink mb-3">Theme</span>
-                    <div id="theme-options" class="grid grid-cols-3 gap-3 max-w-md" role="radiogroup" aria-label="Theme">
-                        {#include partials/preview-option group="theme" value="system" current=theme imgBase="page-nova-full-system" label="System" title="System theme" alt="Dashboard split diagonally between light and dark themes" /}
-                        {#include partials/preview-option group="theme" value="light"  current=theme imgBase="page-nova-full-light"  label="Light"  title="Light theme"  alt="Dashboard in light mode" /}
-                        {#include partials/preview-option group="theme" value="dark"   current=theme imgBase="page-nova-full-dark"   label="Dark"   title="Dark theme"   alt="Dashboard in dark mode" /}
-                    </div>
-                </div>
-
-                <!-- Calendar style -->
-                <div class="py-4 border-b border-line">
-                    <span class="block text-sm font-medium text-ink mb-3">Calendar style</span>
-                    <div id="calendar-options" class="grid grid-cols-3 gap-3 max-w-md" role="radiogroup" aria-label="Calendar style">
-                        {#include partials/preview-option group="calendarView" value="full"    current=calendarView imgBase="cal-nova-full-dark"    label="Full"    title="Full calendar"    alt="Dashboard calendar showing events as text" /}
-                        {#include partials/preview-option group="calendarView" value="minimal" current=calendarView imgBase="cal-nova-minimal-dark" label="Minimal" title="Minimal calendar" alt="Dashboard calendar showing a coloured dot per action" /}
-                        {#include partials/preview-option group="calendarView" value="stacked" current=calendarView imgBase="cal-nova-stacked-dark" label="Stacked" title="Stacked calendar" alt="Dashboard calendar showing horizontal bars per action" /}
-                    </div>
-                </div>
-
-                <!-- Font -->
-                <div class="py-4 border-b border-line">
-                    <span class="block text-sm font-medium text-ink mb-3">Font</span>
-                    <!-- grid-cols-3 (not -2) keeps each tile the SAME size as the theme/calendar pickers
-                         even though there are only two — the third column is simply left empty. -->
-                    <div id="font-options" class="grid grid-cols-3 gap-3 max-w-md" role="radiogroup" aria-label="Font">
-                        {#include partials/preview-option group="font" value="nova"     current=font imgBase="page-nova-full-dark"     label="Nova"     title="Nova font"     alt="Dashboard shown in the Nova font" /}
-                        {#include partials/preview-option group="font" value="standard" current=font imgBase="page-standard-full-dark" label="Standard" title="Standard font" alt="Dashboard shown in the standard system font" /}
-                    </div>
-                </div>
-
-                <!-- Timezone -->
-                {#include partials/select-field id="timezone" label="Timezone" border=true}
-                    {#options}
-                    {#for choice in timezoneChoices}
-                    <option value="{choice.value}" {#if choice.selected}selected{/if}>{choice.label}</option>
-                    {/for}
-                    {/options}
-                {/include}
-
-                <!-- Items per page -->
-                {#include partials/select-field id="pageSize" label="Items per page" border=false}
-                    {#options}
-                    {#for option in pageSizeOptions}
-                    <option value="{option}" {#if option == pageSize}selected{/if}>{option}</option>
-                    {/for}
-                    {/options}
-                {/include}
-            </form>
         </div>
 
         <!-- Full-size preview overlay (opened by the (!) icon on a preview tile). Acts as a
@@ -230,8 +273,19 @@
                 }
             });
 
+            // Each preference control PATCHes itself, so flash the "Saved" indicator on the card
+            // that owns whichever control just saved. e.detail.elt is the element that issued the
+            // request (a radiogroup div or a <select>); its .card is the one to flash. The account
+            // display-name save (a different endpoint) also bubbles here, but its card has no
+            // [data-saved] — it flashes #account-saved itself — so it is ignored.
             document.getElementById('prefs-form').addEventListener('htmx:afterRequest', function (e) {
-                if (e.detail.successful) showSaved('prefs-saved');
+                if (!e.detail.successful) return;
+                var card = e.detail.elt.closest('.card');
+                var indicator = card ? card.querySelector('[data-saved]') : null;
+                if (indicator) {
+                    indicator.classList.add('opacity-100');
+                    setTimeout(function () { indicator.classList.remove('opacity-100'); }, 2000);
+                }
             });
 
             // Cross-fade into the chosen theme using the shared applyTheme helper (layout.html).
@@ -342,7 +396,7 @@
                 var radio = previewTiles[previewIndex].querySelector('input[type="radio"]');
                 if (radio && !radio.checked) {
                     radio.checked = true;
-                    // Bubbles so the prefs-form's change-trigger saves it and the theme listener applies it.
+                    // Bubbles to the radiogroup's hx-patch (which saves it) and the theme listener (which applies it).
                     radio.dispatchEvent(new Event('change', { bubbles: true }));
                 }
                 closePreview();

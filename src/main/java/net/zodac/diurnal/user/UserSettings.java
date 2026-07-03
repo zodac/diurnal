@@ -78,22 +78,24 @@ public record UserSettings(String theme, int pageSize) {
     /**
      * Returns the requested theme if it is an allowed option, else the default.
      */
-    public static String sanitiseTheme(final String requested) {
-        return THEME_OPTIONS.contains(requested) ? requested : DEFAULT_THEME;
+    public static String sanitiseTheme(@Nullable final String requested) {
+        // The allow-lists are List.of(...) (immutable), whose contains(null) throws NPE — so guard
+        // null explicitly. null (an absent form param on a per-setting PATCH) → the default.
+        return requested != null && THEME_OPTIONS.contains(requested) ? requested : DEFAULT_THEME;
     }
 
     /**
      * Returns the requested calendar view if it is an allowed option, else the default.
      */
-    public static String sanitiseCalendarView(final String requested) {
-        return CALENDAR_VIEW_OPTIONS.contains(requested) ? requested : DEFAULT_CALENDAR_VIEW;
+    public static String sanitiseCalendarView(@Nullable final String requested) {
+        return requested != null && CALENDAR_VIEW_OPTIONS.contains(requested) ? requested : DEFAULT_CALENDAR_VIEW;
     }
 
     /**
      * Returns the requested font if it is an allowed option, else the default.
      */
-    public static String sanitiseFont(final String requested) {
-        return FONT_OPTIONS.contains(requested) ? requested : DEFAULT_FONT;
+    public static String sanitiseFont(@Nullable final String requested) {
+        return requested != null && FONT_OPTIONS.contains(requested) ? requested : DEFAULT_FONT;
     }
 
     /**

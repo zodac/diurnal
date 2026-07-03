@@ -8,16 +8,18 @@
   dropdown rows via this partial instead of hand-rolling the divs/classes.
 
   Params (all required):
-    id     - the select's id AND form field name
-    label  - the visible field label
-    border - true to add a bottom divider (between rows), false on the last row
+    id       - the select's id AND form field name (the PATCH endpoint reads this @FormParam)
+    label    - the visible field label
+    endpoint - the hx-patch URL; the select auto-saves its own value on change (204, no swap)
+    border   - true to add a bottom divider (between rows), false on the last row
 !}
 <div class="flex items-center justify-between py-4{#if border} border-b border-line{/if}">
     <div class="shrink-0">
         <label for="{id}" class="block text-sm font-medium text-ink">{label}</label>
     </div>
     <div class="ml-4 flex items-center min-w-0">
-        <select id="{id}" name="{id}" class="form-select">
+        <select id="{id}" name="{id}" class="form-select"
+                hx-patch="{endpoint}" hx-trigger="change" hx-swap="none">
             {#insert options /}
         </select>
     </div>
