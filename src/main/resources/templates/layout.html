@@ -226,8 +226,13 @@
         .dt-text-input { font-size: .875rem; border: 1px solid var(--color-input-border); border-radius: .5rem;
             padding: .25rem .5rem; background: var(--color-input-bg); color: var(--color-text); }
         .dt-text-input:focus { outline: none; box-shadow: 0 0 0 2px var(--color-brand-ring); border-color: transparent; }
-        .dt-color-input { width: 1.5rem; height: 1.5rem; border-radius: 9999px; border: 0; padding: 0;
+        .dt-color-input { width: 1rem; height: 1rem; border-radius: 9999px; border: 0; padding: 0;
             background: transparent; cursor: pointer; flex-shrink: 0; }
+        /* Native colour inputs render a rectangular inner swatch; round it so the picker stays a
+           circle (matching the read-mode .swatch) instead of flipping to a box in edit mode. */
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: 1px solid rgba(0, 0, 0, .1); border-radius: 9999px; }
+        input[type="color"]::-moz-color-swatch { border: 1px solid rgba(0, 0, 0, .1); border-radius: 9999px; }
         .dt-select { font-size: .75rem; border: 1px solid var(--color-input-border); border-radius: .375rem;
             background: var(--color-input-bg); color: var(--color-text); padding: .25rem 1.5rem .25rem .5rem; cursor: pointer; }
         .dt-select:focus { outline: none; box-shadow: 0 0 0 1px var(--color-brand-ring); }
