@@ -59,7 +59,7 @@ const OUT = path.join(__dirname, '..', 'src', 'main', 'resources', 'META-INF', '
 const VW = 1728, VH = 820
 
 // Dedicated demo account — kept separate from real dev data.
-const USER = { email: 'preview-demo@diurnal.local', password: 'preview_demo123', displayName: 'Preview Demo' }
+const USER = { email: 'preview-demo@diurnal.local', password: 'preview_demo123', displayName: 'Test User' }
 
 // The fixed seed: four colourful habits logged on days RELATIVE TO TODAY, so the captured calendar
 // looks identical no matter which calendar date the script is run on (it was previously fixed
