@@ -216,6 +216,19 @@
            prevents wrapping content from expanding the row and shifting the page scroll. */
         .day-item-confirm { height: 2.75rem; overflow: hidden; box-shadow: inset 0 0 0 1px var(--color-ring-confirm); }
 
+        /* Settings "Display name" field — a lone editable field that borrows the data-table
+           conventions (dt-btn actions, an Edit control revealed on hover/focus, and a fixed-size
+           edit state ringed in the edit colour) without being a real table row, mirroring the
+           .day-item above. Only min-height / box-shadow are set here — never `display` — so
+           Tailwind's `.hidden` (earlier in the cascade) still wins when the view/edit states are
+           toggled (same reasoning as the .dt-actions note above). The view and edit states share
+           the same min-height, so entering edit mode never changes the row's size. */
+        .settings-field { min-height: 2.25rem; }
+        .settings-field-actions { opacity: 0; pointer-events: none; transition: opacity .15s; }
+        .settings-field:hover .settings-field-actions,
+        .settings-field:focus-within .settings-field-actions { opacity: 1; pointer-events: auto; }
+        .settings-field-edit { box-shadow: inset 0 0 0 1px var(--color-ring-edit); }
+
         /* Role/status badge */
         .dt-badge { font-size: .75rem; font-weight: 500; color: var(--color-text-muted); }
         .dt-badge-admin { color: var(--color-brand); }
