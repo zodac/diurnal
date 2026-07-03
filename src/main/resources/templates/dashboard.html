@@ -1114,25 +1114,34 @@ document.addEventListener('DOMContentLoaded', function () {
     var yearLabel  = pop.querySelector('.cal-pop-year');
     var monthsGrid = pop.querySelector('.cal-pop-months');
 
+    // Build the 12 month buttons ONCE; renderPicker only repaints their state + the year field.
+    // Rebuilding them on every render would destroy the button a user is mid-click on: the editable
+    // year commits on blur, which fires exactly as the pointer goes down on a month, so an innerHTML
+    // rebuild there would detach the button and swallow the click. Each handler reads pickerYear at
+    // click time, so typing a year then clicking a month navigates to the typed year.
+    var monthButtons = CAL_MONTHS_ABBR.map(function (name, i) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.textContent = name;
+        b.className = 'cal-pop-month';
+        b.addEventListener('click', function () {
+            clearSelection(); // picked a month, not a day → drop the previous selection
+            cal.goToMonth(pickerYear, i);
+            closePop();
+        });
+        monthsGrid.appendChild(b);
+        return b;
+    });
+
     function renderPicker() {
-        yearLabel.textContent = pickerYear;
+        yearLabel.value = pickerYear;
         var v = cal.currentView();
-        monthsGrid.innerHTML = '';
-        CAL_MONTHS_ABBR.forEach(function (name, i) {
-            var b = document.createElement('button');
-            b.type = 'button';
-            b.textContent = name;
+        monthButtons.forEach(function (b, i) {
             var isToday    = (pickerYear === todayYear && i === todayMonth); // solid "today" fill
             var isSelected = (pickerYear === v.year && i === v.month);       // brand selection ring
             b.className = 'cal-pop-month'
                 + (isToday ? ' cal-pop-month-today' : '')
                 + (isSelected ? ' cal-pop-month-selected' : '');
-            b.addEventListener('click', function () {
-                clearSelection(); // picked a month, not a day → drop the previous selection
-                cal.goToMonth(pickerYear, i);
-                closePop();
-            });
-            monthsGrid.appendChild(b);
         });
     }
 
@@ -1141,6 +1150,20 @@ document.addEventListener('DOMContentLoaded', function () {
             pickerYear += parseInt(btn.dataset.y, 10);
             renderPicker();
         });
+    });
+
+    // The year is a typeable field (mirrors the day panel's editable count). Commit on change/Enter:
+    // parse, clamp to a sane range, then repaint the month grid for the new year. renderPicker resets
+    // the input to the clamped value, so a bad/blank entry silently reverts. Editing the year only
+    // moves the picker; the calendar navigates when a month is clicked.
+    function commitYear() {
+        var y = parseInt(yearLabel.value, 10);
+        if (!isNaN(y)) { pickerYear = Math.max(1, Math.min(9999, y)); }
+        renderPicker();
+    }
+    yearLabel.addEventListener('change', commitYear);
+    yearLabel.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); commitYear(); }
     });
 
     function openPop(anchor) {
