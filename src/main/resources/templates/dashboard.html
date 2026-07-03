@@ -196,6 +196,9 @@
   /* Other-month days are faded by lowering the whole top row's opacity — the widget's own mechanism
      (the number colour itself is unchanged), so it reads identically in light and dark. */
   .d-cal-full .d-min-cell.d-min-other .d-full-top { opacity: 0.3; }
+  /* …and the day's logged events are dimmed too (same opacity mechanism, so it reads identically in
+     light and dark) — differentiating prev/next-month entries from the current month's. */
+  .d-cal-full .d-min-cell.d-min-other .d-full-events { opacity: 0.4; }
 
   /* Today fills the whole cell with brand; its number flips to on-brand. A selected (non-today) cell
      takes the shared brand ring + brand number; a selected today layers the contained inset ring so the
@@ -294,6 +297,8 @@
   .d-min-dot {
     width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
   }
+  /* Prev/next-month dots are dimmed to match the faded date number (container opacity → same in both modes). */
+  .d-min-cell.d-min-other .d-min-dots { opacity: 0.4; }
 
   /* ── Stacked calendar (horizontal bars instead of dots) ─────────────── */
   /* Fixed-height bar column — always reserves the same vertical space (4 bars × 3.3px + 3 gaps × 2px = 19.2px) */
@@ -306,6 +311,8 @@
   .d-stk-bar {
     height: 3.3px; width: 80%; border-radius: 1099px; flex-shrink: 0;
   }
+  /* Prev/next-month bars are dimmed to match the faded date number (container opacity → same in both modes). */
+  .d-min-cell.d-min-other .d-stk-bars { opacity: 0.4; }
 </style>
 {/head}
 
