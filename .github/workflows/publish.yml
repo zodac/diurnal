@@ -136,11 +136,11 @@ jobs:
 
       - name: Set up Docker Buildx
         if: needs.version.outputs.should_publish == 'true'
-        uses: docker/setup-buildx-action@v4.1.0
+        uses: docker/setup-buildx-action@v4.2.0
 
       - name: Log in to Docker Hub
         if: needs.version.outputs.should_publish == 'true'
-        uses: docker/login-action@v4.2.0
+        uses: docker/login-action@v4.3.0
         with:
           username: ${{ vars.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}

@@ -1,0 +1,26 @@
+name: ShellCheck CI
+
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/shellcheck.yml'
+      - '**/*.sh'
+  workflow_dispatch: # allows manual trigger
+
+jobs:
+  analyze:
+    name: Shell Script Analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+
+    steps:
+      # No submodules needed: shellcheck ships its own defaults and reads a repo-root
+      # .shellcheckrc if present, so the code-quality-config submodule is not required.
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.0
+
+      - name: Lint shell scripts with ShellCheck
+        run: .github/scripts/lint_and_tests.sh shellcheck

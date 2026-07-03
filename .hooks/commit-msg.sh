@@ -5,7 +5,7 @@ commit_file="${1}"
 line_number=0
 error_found=0
 
-while IFS= read -r line || [ -n "${line}" ]; do
+while IFS= read -r line || [[ -n "${line}" ]]; do
 	line_number=$((line_number + 1))
 
 	# Allow empty lines

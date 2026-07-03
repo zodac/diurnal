@@ -15,7 +15,7 @@ dockerd \
 tries=0
 until docker info >/dev/null 2>&1; do
   tries=$((tries + 1))
-  if [ "$tries" -gt 60 ]; then
+  if [[ "${tries}" -gt 60 ]]; then
     echo "[sandbox] dockerd failed to start; last log lines:" >&2
     tail -n 30 /var/log/dockerd.log >&2 || true
     exit 1
@@ -33,16 +33,16 @@ chown dev:dev /home/dev/.claude /home/dev/.cache /home/dev/.cache/ms-playwright 
 # ── Drop to the unprivileged user for the actual work ────────────────────────
 # If no command was given, start an interactive Claude session with permissions
 # skipped (safe: the sandbox is disposable and only /work is mounted from host).
-if [ "$#" -eq 0 ]; then
+if [[ "$#" -eq 0 ]]; then
   set -- claude --dangerously-skip-permissions
 fi
 
 # Run the per-open setup only for interactive sessions (a TTY on stdin), so quick
 # scripted `./sandbox.sh run <cmd>` invocations aren't slowed by the setup checks.
-if [ -t 0 ]; then RUN_SETUP=1; else RUN_SETUP=0; fi
+if [[ -t 0 ]]; then RUN_SETUP=1; else RUN_SETUP=0; fi
 export RUN_SETUP
 
 cd /work
 exec sudo -u dev \
   --preserve-env=ANTHROPIC_API_KEY,CLAUDE_CONFIG_DIR,PLAYWRIGHT_BROWSERS_PATH,RUN_SETUP \
-  HOME=/home/dev PATH="$PATH" /usr/local/bin/sandbox-launch.sh "$@"
+  HOME=/home/dev PATH="${PATH}" /usr/local/bin/sandbox-launch.sh "$@"

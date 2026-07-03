@@ -3,7 +3,7 @@
 trap 'echo; exit 130' INT
 
 current_branch=$(git rev-parse --abbrev-ref HEAD)
-if [ "${current_branch}" != "master" ]; then
+if [[ "${current_branch}" != "master" ]]; then
   echo "Skipping pre-commit checks (branch: ${current_branch})"
   exit 0
 fi

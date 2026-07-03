@@ -18,11 +18,12 @@
 #                    linter's output — useful when a run fails and you need the detail.
 #
 #                  Valid steps:
-#                    docker      - Lint the Dockerfiles with hadolint
-#                    java         - Run the full Maven gate (mvn clean install -Dall)
-#                    javascript  - Lint JavaScript files with eslint
-#                    markdown    - Lint Markdown files with markdownlint-cli2
-#                    typescript  - Lint TypeScript files with eslint
+#                    - docker      Lint the Dockerfiles with hadolint
+#                    - java        Run the full Maven gate (mvn clean install -Dall)
+#                    - javascript  Lint JavaScript files with eslint
+#                    - markdown    Lint Markdown files with markdownlint-cli2
+#                    - shellcheck  Lint shell scripts (*.sh) with shellcheck
+#                    - typescript  Lint TypeScript files with eslint
 #
 #                  Examples:
 #                    ./lint_and_tests.sh
@@ -34,7 +35,7 @@
 #   - Docker must be installed and available on the system PATH
 #   - The code-quality-config submodule must be checked out
 #     (git submodule update --init) - it holds every linter's CI config
-#   - The `java` step additionally needs the host toolchain the Dockerised steps don't: a JDK + Maven,
+#   - The `java` step additionally needs the host toolchain the Docker steps don't: a JDK + Maven,
 #     Node/npm (the POM css-build exec and the E2E deps), and Playwright browsers
 #     (cd e2e && npx playwright install --with-deps). It runs `mvn clean install -Dall` directly on the
 #     host, not in the Maven Docker image, because -Dall drives Docker itself (the managed test DB, the
@@ -53,14 +54,21 @@ ESLINT_BUILD_IMAGE="local/diurnal-eslint:latest"
 ESLINT_NODE_IMAGE="node:26.4.0-alpine"
 HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.14.0-alpine"
 MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.0"
+SHELLCHECK_DOCKER_IMAGE="koalaman/shellcheck:v0.11.0"
 
-VALID_STEPS=("docker" "java" "javascript" "markdown" "typescript")
+VALID_STEPS=("docker" "java" "javascript" "markdown" "shellcheck" "typescript")
 
 # Verbose off by default: steps print only a pass/fail summary and the java/Maven gate is hidden.
 # The -v/--verbose flag (parsed below) flips this to stream/echo every step's full output.
 VERBOSE=false
 
 overall_exit_code=0
+
+# Host UID/GID, resolved once, for the `-u` flag of the eslint-based steps (so files the container
+# writes are owned by the host user). Assigned separately from use so the command's exit status is
+# not masked (SC2312).
+HOST_UID="$(id -u)"
+HOST_GID="$(id -g)"
 
 # The eslint image is shared by the javascript and typescript steps. It installs eslint plus the
 # TypeScript plugins referenced by code-quality-config/typescript/eslint.config.mjs into the root
@@ -140,7 +148,7 @@ run_javascript() {
         return
     fi
     if output=$(docker run --rm \
-        -u "$(id -u):$(id -g)" \
+        -u "${HOST_UID}:${HOST_GID}" \
         -e HOME=/tmp \
         -v "${PWD}":/app \
         -w /app \
@@ -168,7 +176,7 @@ run_typescript() {
     # for the type-checker to resolve imports. eslint is run from within e2e so it picks up
     # e2e/tsconfig.json and e2e/node_modules; the config path is relative to that dir.
     if output=$(docker run --rm \
-        -u "$(id -u):$(id -g)" \
+        -u "${HOST_UID}:${HOST_GID}" \
         -e HOME=/tmp \
         -e npm_config_cache=/tmp/.npm \
         -v "${PWD}":/app \
@@ -208,6 +216,36 @@ run_markdown() {
     fi
 }
 
+run_shellcheck() {
+    echo
+    echo "Running shell script lint using [${SHELLCHECK_DOCKER_IMAGE}]"
+    # Lint every tracked *.sh file. `git ls-files` naturally excludes the code-quality-config
+    # submodule (its files belong to that repo) and any node_modules/target build output.
+    local files=()
+    mapfile -t files < <(git ls-files '*.sh' || true)
+    if [[ "${#files[@]}" -eq 0 ]]; then
+        echo "✅ Shell script lint passed (no shell scripts found)"
+        return
+    fi
+    docker pull "${SHELLCHECK_DOCKER_IMAGE}" >/dev/null
+    # Unlike the other linters, shellcheck has no `--config` flag: it auto-discovers a `.shellcheckrc`
+    # by walking up from each checked file. Overlay the submodule's shared config at the repo root
+    # (/app, the container's working dir) with a read-only bind mount so every file picks it up.
+    if output=$(docker run --rm \
+        -v "${PWD}":/app \
+        -v "${PWD}/code-quality-config/shellscript/.shellcheckrc":/app/.shellcheckrc:ro \
+        -w /app \
+        "${SHELLCHECK_DOCKER_IMAGE}" \
+        "${files[@]}" 2>&1); then
+        [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
+        echo "✅ Shell script lint passed"
+    else
+        echo "${output}"
+        echo "❌ Shell script lint failed"
+        overall_exit_code=1
+    fi
+}
+
 detect_changed_steps() {
     local latest_tag
     latest_tag=$(git tag --sort=-version:refname 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
@@ -220,7 +258,7 @@ detect_changed_steps() {
 
     echo "Checking changes since tag [${latest_tag}]..." >&2
 
-    local run_docker=false run_java=false run_javascript=false run_markdown=false run_typescript=false
+    local run_docker=false run_java=false run_javascript=false run_markdown=false run_shellcheck=false run_typescript=false
     local java_changed_files=()
     local file
 
@@ -234,13 +272,14 @@ detect_changed_steps() {
         [[ "${file}" == "tailwind.config.js" || "${file}" =~ ^scripts/.*\.cjs$ || "${file}" =~ ^code-quality-config/javascript/ ]] && run_javascript=true
         [[ "${file}" =~ ^e2e/.*\.ts$ || "${file}" =~ ^e2e/tsconfig\.json$ || "${file}" =~ ^e2e/package(-lock)?\.json$ || "${file}" =~ ^code-quality-config/typescript/ ]] && run_typescript=true
         [[ "${file}" =~ \.md$ || "${file}" =~ ^code-quality-config/markdown/ ]] && run_markdown=true
+        [[ "${file}" =~ \.sh$ || "${file}" =~ ^code-quality-config/shellscript/ ]] && run_shellcheck=true
     done < <(
         {
-            git diff --name-only "${latest_tag}..HEAD"
-            git diff --name-only
-            git diff --name-only --cached
-            git ls-files --others --exclude-standard
-        } | sort -u
+            git diff --name-only "${latest_tag}..HEAD" || true
+            git diff --name-only || true
+            git diff --name-only --cached || true
+            git ls-files --others --exclude-standard || true
+        } | sort -u || true
     )
 
     # Suppress the java step if the only changes are comments
@@ -278,12 +317,14 @@ detect_changed_steps() {
         grep -qE '^[+-][[:space:]]*(ESLINT_BUILD_IMAGE|ESLINT_NODE_IMAGE)='       <<<"${script_diff}" && run_javascript=true
         grep -qE '^[+-][[:space:]]*(ESLINT_BUILD_IMAGE|ESLINT_NODE_IMAGE)='       <<<"${script_diff}" && run_typescript=true
         grep -qE '^[+-][[:space:]]*MARKDOWNLINT_DOCKER_IMAGE='                    <<<"${script_diff}" && run_markdown=true
+        grep -qE '^[+-][[:space:]]*SHELLCHECK_DOCKER_IMAGE='                      <<<"${script_diff}" && run_shellcheck=true
     fi
 
     [[ "${run_docker}"     == true ]] && echo "docker"
     [[ "${run_java}"       == true ]] && echo "java"
     [[ "${run_javascript}" == true ]] && echo "javascript"
     [[ "${run_markdown}"   == true ]] && echo "markdown"
+    [[ "${run_shellcheck}" == true ]] && echo "shellcheck"
     [[ "${run_typescript}" == true ]] && echo "typescript"
 }
 
@@ -309,7 +350,7 @@ fi
 
 # Parse and validate steps
 if [[ $# -eq 0 ]]; then
-    mapfile -t steps < <(detect_changed_steps)
+    mapfile -t steps < <(detect_changed_steps || true)
     if [[ ${#steps[@]} -eq 0 ]]; then
         echo "No relevant changes detected since last tag; nothing to run"
         exit 0
@@ -319,7 +360,7 @@ else
     IFS=',' read -ra steps <<<"${1}"
     for step in "${steps[@]}"; do
         pattern=" ${step} "
-        if [[ ! " ${VALID_STEPS[*]} " =~ $pattern ]]; then
+        if [[ ! " ${VALID_STEPS[*]} " =~ ${pattern} ]]; then
             echo "❌ Unknown step: '${step}'. Valid steps: $(
                 IFS=', '
                 echo "${VALID_STEPS[*]}"
@@ -336,7 +377,9 @@ for step in "${steps[@]}"; do
     java) run_java ;;
     javascript) run_javascript ;;
     markdown) run_markdown ;;
+    shellcheck) run_shellcheck ;;
     typescript) run_typescript ;;
+    *) ;; # unreachable: steps are validated against VALID_STEPS above
     esac
 done
 

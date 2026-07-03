@@ -16,33 +16,36 @@ set -euo pipefail
 IMAGE="diurnal-sandbox"
 # This script lives in <project>/sandbox/, so the project root is its parent dir.
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="${PROJECT_DIR:-$(dirname "$HERE")}"
+PROJECT_DIR="${PROJECT_DIR:-$(dirname "${HERE}")}"
 # Git Bash on Windows resolves paths as /c/Users/... but Docker Desktop needs C:\Users\...
 if command -v cygpath &>/dev/null; then
-  HERE="$(cygpath -w "$HERE")"
-  PROJECT_DIR="$(cygpath -w "$PROJECT_DIR")"
+  HERE="$(cygpath -w "${HERE}")"
+  PROJECT_DIR="$(cygpath -w "${PROJECT_DIR}")"
 fi
 
 build() {
-  docker build -t "$IMAGE" \
-    --build-arg UID="$(id -u)" \
-    --build-arg GID="$(id -g)" \
-    "$HERE"
+  local uid gid
+  uid="$(id -u)"
+  gid="$(id -g)"
+  docker build -t "${IMAGE}" \
+    --build-arg UID="${uid}" \
+    --build-arg GID="${gid}" \
+    "${HERE}"
 }
 
 run() {
-  if [ ! -d "$PROJECT_DIR" ]; then
-    echo "Project directory not found: $PROJECT_DIR" >&2
+  if [[ ! -d "${PROJECT_DIR}" ]]; then
+    echo "Project directory not found: ${PROJECT_DIR}" >&2
     exit 1
   fi
 
   # Always (re)build before launching so every session runs the latest image. Docker's layer
   # cache makes this a near-instant no-op when nothing in the build context has changed.
-  echo "[sandbox] building $IMAGE before launch..." >&2
+  echo "[sandbox] building ${IMAGE} before launch..." >&2
   build
   # Allocate a TTY only when attached to one (so scripted `run` invocations work too).
   local tty=()
-  if [ -t 0 ] && [ -t 1 ]; then tty=(-it); else tty=(-i); fi
+  if [[ -t 0 ]] && [[ -t 1 ]]; then tty=(-it); else tty=(-i); fi
 
   # Tie the container's lifetime to THIS launcher. `docker run --rm` removes the container only when it
   # *exits*; if the client is killed — IntelliJ stops the run configuration, or the terminal/console
@@ -72,19 +75,21 @@ run() {
     --name diurnal-sandbox \
     --privileged \
     --hostname diurnal-sandbox \
-    -v "$PROJECT_DIR":/work \
+    -v "${PROJECT_DIR}":/work \
     -v diurnal-sandbox-docker:/var/lib/docker \
     -v diurnal-sandbox-claude:/home/dev/.claude \
     -v diurnal-sandbox-pw:/home/dev/.cache/ms-playwright \
     -p 8071:8081 \
-    "$IMAGE" "$@" <&3 &
+    "${IMAGE}" "$@" <&3 &
   wait $!
 }
 
 stop() {
   # `docker stop` triggers the running launcher's --rm + trap teardown (nested dockerd and everything it
   # spun up dies with the container). A no-op if nothing is running.
-  if [ -n "$(docker ps -q -f name='^diurnal-sandbox$')" ]; then
+  local running
+  running="$(docker ps -q -f name='^diurnal-sandbox$')"
+  if [[ -n "${running}" ]]; then
     docker stop -t 10 diurnal-sandbox >/dev/null && echo "Stopped diurnal-sandbox."
   else
     echo "No running diurnal-sandbox container."

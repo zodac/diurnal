@@ -52,5 +52,6 @@ if git diff --cached --quiet; then
     echo "No changes to commit"
 else
     git commit -m "[CI] Prepare next version: ${next_version}"
+    # shellcheck disable=SC2154  # GITHUB_ENV is provided by the GitHub Actions runner
     echo "has_changes=true" >>"${GITHUB_ENV}"
 fi
