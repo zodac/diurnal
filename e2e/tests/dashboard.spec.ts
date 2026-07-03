@@ -156,6 +156,48 @@ test.describe("Dashboard", () => {
         await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-full-event`)).toHaveCount(Math.max(eventsBefore + 1, 1), { timeout: 5000 })
     })
 
+    test("full view: an action logged on the 1st is not duplicated after refetching the previous month", async ({ authenticatedPage: page }) => {
+        // Regression: the `full` calendar feed fetched each month with an INCLUSIVE `end` set to the 1st of
+        // the *next* month, so the 1st of every month was returned by BOTH its own month's range and the
+        // preceding month's. The full-view merge APPENDS one entry per event per date, so once the preceding
+        // month was fetched via the unguarded single-month path (navigation onto it, or a log-triggered
+        // force-refresh while viewing it), the current month's 1st gained a duplicate copy — the same action
+        // rendered twice (each count 1, so no "×N"). Fixed by ending each fetch on the month's own last day
+        // (dashboard.html `monthEnd`). See the July-1 double-render bug.
+        const now = new Date()
+        const first = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString().slice(0, 10)
+        const prevFirst = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1)).toISOString().slice(0, 10)
+
+        await page.goto("/")
+
+        // Ensure DashAction has a log on the 1st of the current month, so its cell holds exactly one event.
+        const firstEvent = page.locator(`.d-min-cell[data-date="${first}"] .d-full-event`).filter({ hasText: "DashAction" })
+        await page.locator(`.d-min-cell[data-date="${first}"]`).click()
+        if ((await firstEvent.count()) === 0) {
+            await Promise.all([
+                page.waitForResponse(r => r.url().includes("/logs/events")),
+                page.locator("#day-panel").getByTitle("Increase").first().click(),
+            ])
+        }
+        await expect(firstEvent).toHaveCount(1, { timeout: 5000 })
+
+        // Go to the previous month and log there. The mutation force-refreshes the *previous* month, whose
+        // range (pre-fix) overran into the 1st of the current month and re-appended its event.
+        await Promise.all([
+            page.waitForResponse(r => r.url().includes("/logs/events")),
+            page.locator("#cal-prev").click(),
+        ])
+        await page.locator(`.d-min-cell[data-date="${prevFirst}"]`).click()
+        await Promise.all([
+            page.waitForResponse(r => r.url().includes("/logs/events")), // the force-refresh of the previous month
+            page.locator("#day-panel").getByTitle("Increase").first().click(),
+        ])
+
+        // Back to the current month (served from cache) — the 1st must still show exactly one event, not two.
+        await page.locator("#cal-next").click()
+        await expect(firstEvent).toHaveCount(1, { timeout: 5000 })
+    })
+
     test('future date shows "future" message with no +/− buttons', async ({ authenticatedPage: page }) => {
         await page.goto("/")
         // Click a deterministic future date. A 2-day offset is always within the current month grid

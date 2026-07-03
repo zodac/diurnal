@@ -693,6 +693,13 @@ document.addEventListener('DOMContentLoaded', function () {
             return [y, m];
         }
 
+        // Last calendar day of the given year/month as an ISO date string. The feeds treat `end` as INCLUSIVE
+        // (`logDate <= end`), so a month's fetch must end on its own last day. Using the 1st of the NEXT
+        // month here would pull that day into this month's response, and since the `full` merge APPENDS
+        // per date, the 1st of every month would then be double-appended by both its own month's fetch and
+        // the preceding month's — rendering the same action twice. (day 0 of the next month = last of this.)
+        function monthEnd(y, m) { return y + '-' + pad2(m + 1) + '-' + pad2(new Date(Date.UTC(y, m + 1, 0)).getUTCDate()); }
+
         // Mark a month as most-recently-used (moves it to the end of `lru`).
         function touch(key) {
             var i = lru.indexOf(key);
@@ -734,8 +741,7 @@ document.addEventListener('DOMContentLoaded', function () {
             touch(key);                                            // record access (also on cache hits)
             if (monthPromises[key] && !force) { return monthPromises[key]; } // already in-flight or resolved
             var start = y + '-' + pad2(m + 1) + '-01';
-            var nx  = stepMonth(y, m, 1);
-            var end = nx[0] + '-' + pad2(nx[1] + 1) + '-01';
+            var end   = monthEnd(y, m);
             // Each style is fed by the endpoint shaped for it, normalised into a uniform
             // `dayData[date] = [{ colour, label }]` so renderGrid stays feed-agnostic:
             //   • full           → /logs/events: the public, UNCAPPED feed (one event per logged action,
@@ -795,8 +801,7 @@ document.addEventListener('DOMContentLoaded', function () {
             var ordered = pending.slice().sort(function (a, b) { return (a[0] - b[0]) || (a[1] - b[1]); });
             var first = ordered[0], last = ordered[ordered.length - 1];
             var start = first[0] + '-' + pad2(first[1] + 1) + '-01';
-            var after = stepMonth(last[0], last[1], 1);
-            var end   = after[0] + '-' + pad2(after[1] + 1) + '-01';
+            var end   = monthEnd(last[0], last[1]);
 
             var pendingKeys = {};
             pending.forEach(function (ym) { pendingKeys[monthKey(ym[0], ym[1])] = true; });
