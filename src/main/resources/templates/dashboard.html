@@ -358,8 +358,9 @@
 
         </div>
 
-        <!-- Stats quick-link (hidden until there are logged actions) -->
-        {#if !recentStats.isEmpty()}
+        <!-- Stats quick-link (hidden until there are logged actions, or when the user has turned the
+             stats summary off in Settings) -->
+        {#if showStatsSummary && !recentStats.isEmpty()}
         <div class="card p-4">
             <div class="flex flex-col gap-3">
                 {#for s in recentStats}

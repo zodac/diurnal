@@ -15,17 +15,13 @@ async function waitForSave(page: Page, action: Promise<unknown>): Promise<void> 
 // Theme and calendar style are chosen from preview tiles backed by hidden radio inputs. Tests in
 // a spec share one user, so a value may already be selected; we check the radio and always dispatch
 // `change` so the htmx save fires regardless (mirroring how Playwright's selectOption behaved on the
-// old <select>). page size is still a real <select>, selected via selectOption.
+// old <select>). Page size is now preset pills + a number field, driven directly in each test.
 async function selectTile(page: Page, name: string, value: string): Promise<void> {
     await waitForSave(page, page.locator(`input[name="${name}"][value="${value}"]`).evaluate(
         (el: HTMLInputElement) => {
             el.checked = true
             el.dispatchEvent(new Event("change", { bubbles: true }))
         }))
-}
-
-async function selectOption(page: Page, selector: string, value: string): Promise<void> {
-    await waitForSave(page, page.selectOption(selector, value))
 }
 
 // Open the Display Name field's edit mode by its Edit button. The button is scoped to
@@ -84,19 +80,48 @@ test.describe("Settings page", () => {
         expect(labels).toEqual(["System", "Light", "Dark"])
     })
 
-    test("change page size to 25 persists and affects action list", async ({ authenticatedPage: page }) => {
+    test("change page size to 25 via preset pill persists", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
-        await selectOption(page, 'select[name="pageSize"]', "25")
+        await waitForSave(page, page.locator('.page-size-pill[data-value="25"]').click())
 
         await page.goto("/settings")
-        await expect(page.locator('select[name="pageSize"]')).toHaveValue("25")
+        await expect(page.locator("#pageSize")).toHaveValue("25")
     })
 
-    test("page size select only offers valid options", async ({ authenticatedPage: page }) => {
+    test("page size offers preset pills for the standard options", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
-        const options = await page.locator('select[name="pageSize"] option').allTextContents()
-        expect(options.map(Number)).toEqual(expect.arrayContaining([5, 10, 25, 50, 100]))
-        expect(options).toHaveLength(5)
+        const values = await page.locator(".page-size-pill").evaluateAll(pills =>
+            pills.map(p => (p as HTMLElement).dataset.value))
+        expect(values).toEqual(["5", "10", "25", "50", "100"])
+    })
+
+    test("entering an invalid page size is rejected, shows an error, and keeps the previous value", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        // Establish a known-good value first (25 via its preset pill).
+        await waitForSave(page, page.locator('.page-size-pill[data-value="25"]').click())
+
+        // The Preferences card's status indicator (shared with the "Saved" flash).
+        const indicator = page.locator(".card", { has: page.locator("#page-size-row") }).locator("[data-saved]")
+        const field = page.locator("#pageSize")
+
+        // Type an out-of-range value and commit it (blur fires the change → save).
+        await field.fill("0")
+        await Promise.all([
+            page.waitForResponse(r =>
+                r.url().includes("/settings/page-size")
+                && r.request().method() === "PATCH"
+                && r.status() === 422),
+            field.blur(),
+        ])
+
+        // The error is shown in red and states the valid range; the field reverts to the last good value.
+        await expect(indicator).toHaveClass(/text-danger/)
+        await expect(indicator).toContainText(/between 1 and 100/)
+        await expect(field).toHaveValue("25")
+
+        // And the rejected value was never persisted.
+        await page.goto("/settings")
+        await expect(page.locator("#pageSize")).toHaveValue("25")
     })
 
     test("settings page shows account display name and email", async ({ authenticatedPage: page, testUser }) => {

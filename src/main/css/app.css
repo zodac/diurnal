@@ -388,6 +388,34 @@
   /* Muted helper / caption text. */
   .help-text { @apply text-xs text-ink-muted; }
 
+  /* Items-per-page control: one-click preset pills + a compact −/+ stepper. Every interaction is a
+     discrete commit that saves instantly, matching the auto-save model of the other preference
+     controls (no blur-to-commit, no Save button). */
+  .page-size-pill {
+    @apply px-2.5 py-1 rounded-md text-xs font-medium border border-line bg-surface text-ink-muted
+           cursor-pointer transition-colors hover:bg-surface-muted hover:text-ink
+           focus:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-ring;
+  }
+  /* Active pill = the preset matching the current value (brand-filled). */
+  .page-size-pill-active {
+    @apply bg-brand border-brand text-on-brand hover:bg-brand hover:text-on-brand;
+  }
+  .page-size-stepper { @apply inline-flex items-stretch rounded-lg border border-line overflow-hidden; }
+  .page-size-stepper-btn {
+    @apply px-2.5 flex items-center justify-center text-ink-muted cursor-pointer transition-colors
+           hover:bg-surface-muted hover:text-ink
+           focus:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-ring focus-visible:z-10;
+  }
+  /* The stepper's editable value. Native spin buttons are hidden — the ± buttons replace them. */
+  .page-size-value {
+    @apply w-11 text-center text-sm font-medium text-ink bg-transparent border-x border-line
+           focus:outline-hidden focus:ring-2 focus:ring-brand-ring focus:z-10;
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .page-size-value::-webkit-inner-spin-button,
+  .page-size-value::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
   /* Navigation links ------------------------------------------------------- */
   .nav-link { @apply text-ink-muted hover:text-gray-900 dark:hover:text-white transition-colors; }
   .nav-link-active { @apply text-brand font-medium; }

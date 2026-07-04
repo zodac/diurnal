@@ -217,14 +217,73 @@
                         {/options}
                     {/include}
 
-                    <!-- Items per page -->
-                    {#include partials/select-field id="pageSize" label="Items per page" endpoint="/settings/page-size" border=false}
+                    <!-- Show stats summary. A toggle switch: the hidden "false" input always posts, and
+                         the checkbox posts an additional "true" only when ticked, so the endpoint reads
+                         the setting as on iff the posted values contain "true". hx-include scopes the
+                         PATCH to this row so BOTH inputs are sent. -->
+                    <div id="stats-summary-row" class="flex items-center justify-between py-4 border-b border-line">
+                        <div class="shrink-0 pr-4">
+                            <label for="showStatsSummary" class="block text-sm font-medium text-ink">Show stats summary</label>
+                            <p class="help-text mt-0.5">Show a summary of the top 3 stats on the dashboard.</p>
+                        </div>
+                        <div class="ml-4 flex items-center shrink-0">
+                            <input type="hidden" name="showStatsSummary" value="false">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="showStatsSummary" name="showStatsSummary" value="true"
+                                       class="sr-only peer"
+                                       {#if showStatsSummary}checked{/if}
+                                       hx-patch="/settings/show-stats-summary" hx-trigger="change" hx-swap="none"
+                                       hx-include="#stats-summary-row">
+                                <span class="block w-11 h-6 rounded-full bg-surface-muted border border-line transition-colors
+                                             peer-checked:bg-brand peer-checked:border-brand
+                                             after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5
+                                             after:rounded-full after:bg-white after:shadow after:transition-transform
+                                             peer-checked:after:translate-x-5"></span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Decimal places -->
+                    {#include partials/select-field id="decimalPlaces" label="Decimal places" endpoint="/settings/decimal-places" border=true}
                         {#options}
-                        {#for option in pageSizeOptions}
-                        <option value="{option}" {#if option == pageSize}selected{/if}>{option}</option>
+                        {#for option in decimalPlacesOptions}
+                        <option value="{option}" {#if option == decimalPlaces}selected{/if}>{option}</option>
                         {/for}
                         {/options}
                     {/include}
+
+                    <!-- Items per page. Presets are the primary one-click selection; the −/+ stepper
+                         fine-tunes by one. Every control writes the same `pageSize` number field and
+                         saves instantly on a custom `save` event (fired by the script below), so there
+                         is no blur-to-commit and no Save button — it auto-saves like the other controls.
+                         The `save` event (not `change`) carries the PATCH so the field's own change
+                         handler can normalise + re-fire without recursing. -->
+                    <div id="page-size-row" class="py-4">
+                        <div class="flex items-center justify-between gap-4">
+                            <label for="pageSize" class="block text-sm font-medium text-ink shrink-0">Items per page</label>
+                            <div class="page-size-stepper shrink-0">
+                                <button type="button" id="pageSizeMinus" class="page-size-stepper-btn" aria-label="Fewer items per page">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
+                                    </svg>
+                                </button>
+                                <input type="number" id="pageSize" name="pageSize" min="1" max="100" value="{pageSize}"
+                                       inputmode="numeric" aria-label="Items per page" class="page-size-value"
+                                       hx-patch="/settings/page-size" hx-trigger="save" hx-swap="none">
+                                <button type="button" id="pageSizePlus" class="page-size-stepper-btn" aria-label="More items per page">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Preset quick-picks. Wrap on narrow screens for mobile compactness. -->
+                        <div id="pageSizePresets" class="mt-3 flex flex-wrap gap-1.5">
+                            {#for option in pageSizeOptions}
+                            <button type="button" class="page-size-pill" data-value="{option}" aria-pressed="false">{option}</button>
+                            {/for}
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -233,7 +292,6 @@
                     <div class="flex items-center justify-between mb-4">
                         <div>
                             <h3 class="card-title">Appearance</h3>
-                            <p class="help-text mt-0.5">Changes are saved automatically.</p>
                         </div>
                         <span data-saved
                               class="text-xs text-success opacity-0 transition-opacity duration-300">
@@ -462,19 +520,32 @@
                 }
             });
 
-            // Each preference control PATCHes itself, so flash the "Saved" indicator on the card
-            // that owns whichever control just saved. e.detail.elt is the element that issued the
-            // request (a radiogroup div or a <select>); its .card is the one to flash. The account
+            // Each preference control PATCHes itself, so update the status indicator on the card that
+            // owns whichever control just saved. e.detail.elt is the element that issued the request
+            // (a radiogroup div, a <select>, a checkbox or the items-per-page field); its .card is the
+            // one to flash. On success it shows a green "Saved"; on a rejected value (e.g. an
+            // out-of-range items-per-page → 422) it shows the server's message in red. The account
             // display-name save (a different endpoint) also bubbles here, but its card has no
-            // [data-saved] — it flashes #account-saved itself — so it is ignored.
+            // [data-saved] — it flashes #account-status itself — so it is ignored.
             document.getElementById('prefs-form').addEventListener('htmx:afterRequest', function (e) {
-                if (!e.detail.successful) return;
                 var card = e.detail.elt.closest('.card');
                 var indicator = card ? card.querySelector('[data-saved]') : null;
-                if (indicator) {
-                    indicator.classList.add('opacity-100');
-                    setTimeout(function () { indicator.classList.remove('opacity-100'); }, 2000);
+                if (!indicator) return;
+                clearTimeout(indicator._hideTimer);
+                if (e.detail.successful) {
+                    indicator.textContent = 'Saved';
+                    indicator.classList.remove('text-danger');
+                    indicator.classList.add('text-success');
+                } else {
+                    indicator.textContent = e.detail.xhr.responseText || 'Could not save';
+                    indicator.classList.remove('text-success');
+                    indicator.classList.add('text-danger');
                 }
+                indicator.classList.add('opacity-100');
+                // Errors linger a little longer than the "Saved" confirmation so they can be read.
+                indicator._hideTimer = setTimeout(function () {
+                    indicator.classList.remove('opacity-100');
+                }, e.detail.successful ? 2000 : 4000);
             });
 
             // Cross-fade into the chosen theme using the shared applyTheme helper (layout.html).
@@ -626,6 +697,75 @@
                 else if (e.key === 'ArrowLeft') previewStep(-1);
                 else if (e.key === 'ArrowRight') previewStep(1);
             });
+
+            // Items-per-page: preset pills (coarse, one-click) + a −/+ stepper (fine, ±1) both drive the
+            // same `pageSize` number field. Every interaction saves instantly via the field's custom
+            // `save` event — no blur-to-commit, no Save button.
+            //
+            // The pills and ± stepper are bounded controls: they can only ever produce a value in
+            // [MIN, MAX], so they always succeed. Direct typing, however, can be invalid (0, -1, 250,
+            // non-numeric): that raw value is sent as-is and the server REJECTS it (422). On rejection
+            // the field is reverted to the last accepted value and the card shows the error in red (the
+            // shared prefs handler above); it is never silently coerced.
+            (function () {
+                var field   = document.getElementById('pageSize');
+                var minus   = document.getElementById('pageSizeMinus');
+                var plus    = document.getElementById('pageSizePlus');
+                var presets = document.getElementById('pageSizePresets');
+                var MIN = 1;
+                var MAX = 100;
+                // The last value the server accepted — the value to restore if a typed entry is rejected.
+                var lastGood = field.value;
+
+                function clamp(n) {
+                    if (isNaN(n) || n < MIN) { return MIN; }
+                    if (n > MAX) { return MAX; }
+                    return n;
+                }
+
+                // Highlight the preset pill matching the current value (none, if it is a custom value).
+                function syncPills() {
+                    var val = parseInt(field.value, 10);
+                    presets.querySelectorAll('.page-size-pill').forEach(function (pill) {
+                        var active = parseInt(pill.dataset.value, 10) === val;
+                        pill.classList.toggle('page-size-pill-active', active);
+                        pill.setAttribute('aria-pressed', active ? 'true' : 'false');
+                    });
+                }
+
+                // Bounded controls (pills, ±): the value is clamped into range, so it always validates.
+                function setValid(n) {
+                    field.value = clamp(n);
+                    syncPills();
+                    htmx.trigger(field, 'save');
+                }
+
+                minus.addEventListener('click', function () { setValid(parseInt(field.value, 10) - 1); });
+                plus.addEventListener('click',  function () { setValid(parseInt(field.value, 10) + 1); });
+                presets.addEventListener('click', function (e) {
+                    var pill = e.target.closest('.page-size-pill');
+                    if (pill) { setValid(parseInt(pill.dataset.value, 10)); }
+                });
+                // Direct typing / native arrow keys: send the RAW value (no clamping) so the server
+                // validates it. The `save` event (not `change`) carries the PATCH, so this handler is
+                // not re-entered by the save itself.
+                field.addEventListener('change', function () {
+                    syncPills();
+                    htmx.trigger(field, 'save');
+                });
+                // Save result: remember an accepted value, or revert to the last accepted one on
+                // rejection (the red error message is shown by the shared prefs handler above).
+                field.addEventListener('htmx:afterRequest', function (e) {
+                    if (e.detail.successful) {
+                        lastGood = field.value;
+                    } else {
+                        field.value = lastGood;
+                    }
+                    syncPills();
+                });
+
+                syncPills();
+            })();
 
             // Assign src from data-src for all preview thumbnails so fetches are deferred until
             // after the page renders. decode() is called so the lightbox open is flash-free.

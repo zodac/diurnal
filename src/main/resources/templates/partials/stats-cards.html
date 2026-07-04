@@ -15,7 +15,7 @@
             {#include partials/stat-tile label='Biggest gap' value=s.longestGap sub=s.longestGapUnit subNum=false /}
             {#include partials/stat-tile label='Total days' value=s.totalDays sub=s.totalDaysUnit subNum=false /}
             {#include partials/stat-tile label='Total count' value=s.totalCount sub='all time' subNum=false /}
-            {#include partials/stat-tile label='Weekly average' value=s.weeklyAverage sub='days / week' subNum=false /}
+            {#include partials/stat-tile label='Weekly average' value=s.weeklyAverage(decimalPlaces) sub='days / week' subNum=false /}
 
             <!-- Last performed: smaller value styling than the numeric tiles. lastLabel is a date
                  (left ungrouped); sinceLabel carries a day count, so it gets `.js-num`. -->

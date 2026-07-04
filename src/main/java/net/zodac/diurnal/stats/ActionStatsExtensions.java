@@ -122,19 +122,37 @@ public final class ActionStatsExtensions {
     }
 
     /**
-     * The average number of active days per week since the action was first performed.
+     * The average number of active days per week since the action was first performed, rendered to
+     * the given number of decimal places. A zero average is simplified to a plain {@code "0"} (no
+     * trailing decimals) regardless of {@code decimalPlaces}.
      *
-     * @param stats the statistics to inspect
-     * @return the weekly average, to one decimal place
+     * @param stats         the statistics to inspect
+     * @param decimalPlaces the number of decimal places to render (the user's preference)
+     * @return the weekly average as a display string
      */
     @TemplateExtension
-    public static String weeklyAverage(final ActionStats stats) {
+    public static String weeklyAverage(final ActionStats stats, final int decimalPlaces) {
         final LocalDate firstPerformed = stats.firstPerformed();
         if (firstPerformed == null) {
-            return "0.0";
+            return formatDecimal(0.0, decimalPlaces);
         }
         final long weeks = Math.max(1L, ChronoUnit.WEEKS.between(firstPerformed, stats.today()));
-        return String.format(Locale.ENGLISH, "%.1f", (double) stats.totalDays() / weeks);
+        return formatDecimal((double) stats.totalDays() / weeks, decimalPlaces);
+    }
+
+    /**
+     * Formats a fractional stat value to {@code decimalPlaces} decimals, simplifying an exact zero to
+     * a plain {@code "0"} so an empty average reads as {@code "0"} rather than {@code "0.0"}.
+     *
+     * @param value         the value to format
+     * @param decimalPlaces the number of decimal places to render
+     * @return the formatted value
+     */
+    static String formatDecimal(final double value, final int decimalPlaces) {
+        if (value == 0.0) {
+            return "0";
+        }
+        return String.format(Locale.ENGLISH, "%." + decimalPlaces + "f", value);
     }
 
     // ── Singular-aware day/streak labels ──────────────────────────────────

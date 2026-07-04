@@ -82,6 +82,14 @@ public class User extends PanacheEntityBase {
     @Column(name = "page_size", nullable = false)
     public int pageSize = UserSettings.DEFAULT_PAGE_SIZE;
 
+    // Whether the dashboard renders the per-action stats-summary strip.
+    @Column(name = "show_stats_summary", nullable = false)
+    public boolean showStatsSummary = UserSettings.DEFAULT_SHOW_STATS_SUMMARY;
+
+    // Number of decimal places used to render fractional stats (e.g. the weekly average).
+    @Column(name = "decimal_places", nullable = false)
+    public int decimalPlaces = UserSettings.DEFAULT_DECIMAL_PLACES;
+
     @Column(name = "calendar_view", nullable = false)
     public String calendarView = UserSettings.DEFAULT_CALENDAR_VIEW;
 

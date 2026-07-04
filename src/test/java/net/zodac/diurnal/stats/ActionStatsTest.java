@@ -170,18 +170,27 @@ class ActionStatsTest {
     // ── weeklyAverage ─────────────────────────────────────────────────────────
 
     @Test
-    void weeklyAverage_nullFirstPerformed_returnsZero() {
+    void weeklyAverage_nullFirstPerformed_returnsPlainZero() {
+        // A zero average is simplified to a plain "0" (no trailing decimals) regardless of preference.
         final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.weeklyAverage(s))
+        assertThat(ActionStatsExtensions.weeklyAverage(s, 1))
             .as("unexpected value")
-            .isEqualTo("0.0");
+            .isEqualTo("0");
+    }
+
+    @Test
+    void weeklyAverage_zeroAverage_ignoresDecimalPlaces() {
+        final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.weeklyAverage(s, 3))
+            .as("a zero average is always plain '0'")
+            .isEqualTo("0");
     }
 
     @Test
     void weeklyAverage_oneOccurrenceInOneWeek_returnsOnePointZero() {
         // first = today-7, span = 1 week, totalDays=1 → 1/1 = 1.0
         final ActionStats s = stats(1, 1, TODAY.minusDays(7), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.weeklyAverage(s))
+        assertThat(ActionStatsExtensions.weeklyAverage(s, 1))
             .as("unexpected value")
             .isEqualTo("1.0");
     }
@@ -191,7 +200,7 @@ class ActionStatsTest {
         // first = today-7, span = 1 week, totalDays=7 → 7/1 = 7.0
         // WEEKS.between(today-7, today) = 1; 7 days / 1 week = 7.0
         final ActionStats s = stats(7, 7, TODAY.minusDays(7), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.weeklyAverage(s))
+        assertThat(ActionStatsExtensions.weeklyAverage(s, 1))
             .as("unexpected value")
             .isEqualTo("7.0");
     }
@@ -200,9 +209,27 @@ class ActionStatsTest {
     void weeklyAverage_sevenOccurrencesInTwoWeeks_returnsThreePointFive() {
         // first = today-14, span = 2 weeks, totalDays=7 → 7/2 = 3.5
         final ActionStats s = stats(7, 7, TODAY.minusDays(14), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.weeklyAverage(s))
+        assertThat(ActionStatsExtensions.weeklyAverage(s, 1))
             .as("unexpected value")
             .isEqualTo("3.5");
+    }
+
+    @Test
+    void weeklyAverage_twoDecimalPlaces_rendersTwoDecimals() {
+        // first = today-14, span = 2 weeks, totalDays=7 → 7/2 = 3.5 → "3.50" at 2 places
+        final ActionStats s = stats(7, 7, TODAY.minusDays(14), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.weeklyAverage(s, 2))
+            .as("unexpected value")
+            .isEqualTo("3.50");
+    }
+
+    @Test
+    void weeklyAverage_zeroDecimalPlaces_roundsToWholeNumber() {
+        // first = today-14, span = 2 weeks, totalDays=7 → 3.5 → "4" rounded to 0 places
+        final ActionStats s = stats(7, 7, TODAY.minusDays(14), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.weeklyAverage(s, 0))
+            .as("unexpected value")
+            .isEqualTo("4");
     }
 
     // ── streak / day labels (singular-aware) ───────────────────────────────────

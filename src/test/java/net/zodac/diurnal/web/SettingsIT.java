@@ -316,10 +316,8 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updatePageSize_invalid_fallsBackToDefault() {
-        // 7 is not in the allow-list {5,10,25,50,100}
-        given().formParam("pageSize", "25").patch("/settings/page-size");
-
+    void updatePageSize_customValue_persists() {
+        // 7 is not a preset, but any value in [1, 100] is now accepted as a custom page size.
         given().formParam("pageSize", "7")
                 .patch("/settings/page-size")
                 .then().statusCode(204);
@@ -327,21 +325,115 @@ class SettingsIT extends IntegrationTestBase {
         final User user = User.findByEmail(PRIMARY).orElseThrow();
         assertThat(user.pageSize)
             .as("unexpected value")
-            .isEqualTo(UserSettings.DEFAULT_PAGE_SIZE);
+            .isEqualTo(7);
     }
 
     @Test
-    void updatePageSize_tampered_fallsBackToDefault() {
+    void updatePageSize_aboveRange_rejectedAndValueUnchanged() {
         given().formParam("pageSize", "25").patch("/settings/page-size");
 
         given().formParam("pageSize", "999")
                 .patch("/settings/page-size")
+                .then().statusCode(422)
+                .body(containsString("100"));
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
+            .as("a rejected value must not change the stored page size")
+            .isEqualTo(25));
+    }
+
+    @Test
+    void updatePageSize_belowRange_rejectedAndValueUnchanged() {
+        given().formParam("pageSize", "25").patch("/settings/page-size");
+
+        given().formParam("pageSize", "0")
+                .patch("/settings/page-size")
+                .then().statusCode(422);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
+            .as("a rejected value must not change the stored page size")
+            .isEqualTo(25));
+    }
+
+    @Test
+    void updatePageSize_negative_rejectedAndValueUnchanged() {
+        given().formParam("pageSize", "25").patch("/settings/page-size");
+
+        given().formParam("pageSize", "-1")
+                .patch("/settings/page-size")
+                .then().statusCode(422);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
+            .as("a negative value must not change the stored page size")
+            .isEqualTo(25));
+    }
+
+    @Test
+    void updatePageSize_nonNumeric_rejectedAndValueUnchanged() {
+        given().formParam("pageSize", "25").patch("/settings/page-size");
+
+        given().formParam("pageSize", "lots")
+                .patch("/settings/page-size")
+                .then().statusCode(422);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
+            .as("a non-numeric value must not change the stored page size")
+            .isEqualTo(25));
+    }
+
+    // ── PATCH /settings/decimal-places ───────────────────────────────────────────
+
+    @Test
+    void updateDecimalPlaces_valid_persists() {
+        given().formParam("decimalPlaces", "2")
+                .patch("/settings/decimal-places")
                 .then().statusCode(204);
 
-        final User user = User.findByEmail(PRIMARY).orElseThrow();
-        assertThat(user.pageSize)
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().decimalPlaces)
             .as("unexpected value")
-            .isEqualTo(UserSettings.DEFAULT_PAGE_SIZE);
+            .isEqualTo(2));
+    }
+
+    @Test
+    void updateDecimalPlaces_invalid_fallsBackToDefault() {
+        given().formParam("decimalPlaces", "2").patch("/settings/decimal-places");
+
+        given().formParam("decimalPlaces", "9")
+                .patch("/settings/decimal-places")
+                .then().statusCode(204);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().decimalPlaces)
+            .as("unexpected value")
+            .isEqualTo(UserSettings.DEFAULT_DECIMAL_PLACES));
+    }
+
+    // ── PATCH /settings/show-stats-summary ───────────────────────────────────────
+
+    @Test
+    void updateShowStatsSummary_unticked_disables() {
+        // An unticked checkbox posts only the hidden "false"; the setting turns off.
+        given().formParam("showStatsSummary", "false")
+                .patch("/settings/show-stats-summary")
+                .then().statusCode(204);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().showStatsSummary)
+            .as("stats summary should be disabled")
+            .isFalse());
+    }
+
+    @Test
+    void updateShowStatsSummary_ticked_enables() {
+        // First disable, then re-enable: a ticked checkbox posts "false" AND "true".
+        given().formParam("showStatsSummary", "false").patch("/settings/show-stats-summary");
+
+        given().formParam("showStatsSummary", "false")
+                .formParam("showStatsSummary", "true")
+                .patch("/settings/show-stats-summary")
+                .then().statusCode(204);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().showStatsSummary)
+            .as("stats summary should be enabled")
+            .isTrue());
     }
 
     @Test

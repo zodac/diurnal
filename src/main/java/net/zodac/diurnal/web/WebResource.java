@@ -448,15 +448,51 @@ public class WebResource {
     }
 
     /**
-     * Updates the current user's page size to the sanitised {@code pageSize}. Returns {@code 204}.
+     * Updates the current user's page size. Unlike the other preferences, an out-of-range or
+     * non-numeric value is rejected with {@code 422} (and the {@link UserSettings#PAGE_SIZE_RANGE_MESSAGE}
+     * body) rather than coerced, so the client can show an error and keep the previous value. A valid
+     * value persists and returns {@code 204}.
      */
     @PATCH
     @Path("settings/page-size")
     @RolesAllowed("user")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
-    public Response updatePageSize(@FormParam("pageSize") final int pageSize) {
-        return updateSetting(user -> user.pageSize = UserSettings.sanitisePageSize(pageSize));
+    public Response updatePageSize(@FormParam("pageSize") final String pageSize) {
+        final Integer parsed = UserSettings.parsePageSize(pageSize);
+        if (parsed == null) {
+            return Response.status(422).entity(UserSettings.PAGE_SIZE_RANGE_MESSAGE).build();
+        }
+        final int value = parsed;
+        return updateSetting(user -> user.pageSize = value);
+    }
+
+    /**
+     * Updates the current user's decimal-place preference to the sanitised {@code decimalPlaces}.
+     * Returns {@code 204}.
+     */
+    @PATCH
+    @Path("settings/decimal-places")
+    @RolesAllowed("user")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Transactional
+    public Response updateDecimalPlaces(@FormParam("decimalPlaces") final int decimalPlaces) {
+        return updateSetting(user -> user.decimalPlaces = UserSettings.sanitiseDecimalPlaces(decimalPlaces));
+    }
+
+    /**
+     * Toggles whether the dashboard shows the stats-summary strip. The checkbox posts a hidden
+     * {@code "false"} plus (when ticked) {@code "true"}, so the setting is on iff the values contain
+     * {@code "true"}. Returns {@code 204}.
+     */
+    @PATCH
+    @Path("settings/show-stats-summary")
+    @RolesAllowed("user")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Transactional
+    public Response updateShowStatsSummary(@FormParam("showStatsSummary") final List<String> showStatsSummary) {
+        final boolean show = showStatsSummary != null && showStatsSummary.contains("true");
+        return updateSetting(user -> user.showStatsSummary = show);
     }
 
     private Response updateSetting(final Consumer<User> mutator) {
@@ -533,6 +569,9 @@ public class WebResource {
                 .data("isAdmin", user.isAdmin())
                 .data("pageSize", user.pageSize)
                 .data("pageSizeOptions", UserSettings.PAGE_SIZE_OPTIONS)
+                .data("showStatsSummary", user.showStatsSummary)
+                .data("decimalPlaces", user.decimalPlaces)
+                .data("decimalPlacesOptions", UserSettings.DECIMAL_PLACES_OPTIONS)
                 .data("themeOptions", UserSettings.THEME_OPTIONS)
                 .data("fontOptions", UserSettings.FONT_OPTIONS)
                 .data("calendarView", user.calendarView)
@@ -562,6 +601,7 @@ public class WebResource {
                 .data("isAdmin", user.isAdmin())
                 .data("calendarView", user.calendarView)
                 .data("today", clock.today(clock.zoneFor(user.timezone)).toString())
+                .data("showStatsSummary", user.showStatsSummary)
                 .data("recentStats", recentStats);
     }
 }
