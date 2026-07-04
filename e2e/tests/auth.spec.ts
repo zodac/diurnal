@@ -25,15 +25,24 @@ test.describe("Authentication", () => {
         await expect(page.locator("header")).toContainText(USER.displayName)
     })
 
-    test("login with wrong password stays on login page and shows error", async ({ page }) => {
+    test("login with wrong password shows an inline error without reloading or clearing fields", async ({ page }) => {
         await page.goto("/login")
         await page.fill('input[name="email"]', USER.email)
         await page.fill('input[name="password"]', "wrong_password")
-        await page.click('button[type="submit"]')
 
-        await expect(page).toHaveURL(/\/login/)
-        // Quarkus form auth redirects to /login?error on failure
-        await expect(page.locator("body")).toContainText(/invalid|error/i)
+        // The form is posted via fetch (data-ajax-submit): a failed attempt surfaces an inline error
+        // and lets the user amend and retry — no full-page reload, so the typed values survive.
+        await page.click('button[type="submit"]')
+        await expect(page.locator("[data-form-errors]")).toContainText(/invalid email or password/i)
+        await expect(page).toHaveURL(/\/login$/)
+        await expect(page.locator('input[name="email"]')).toHaveValue(USER.email)
+        await expect(page.locator('input[name="password"]')).toHaveValue("wrong_password")
+
+        // A minor change (the correct password) then succeeds from the same page.
+        await page.fill('input[name="password"]', USER.password)
+        await page.click('button[type="submit"]')
+        await expect(page).toHaveURL("/")
+        await expect(page.locator("header")).toContainText(USER.displayName)
     })
 
     test("logout clears session and redirects to login", async ({ page }) => {
