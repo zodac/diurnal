@@ -32,8 +32,23 @@ public record UserSettings(String theme, int pageSize) {
     public static final int DEFAULT_PAGE_SIZE = 5;
     public static final String DEFAULT_THEME = "system";
 
+    // Presets offered in the picker; a user may also enter any value in [MIN_PAGE_SIZE, MAX_PAGE_SIZE].
     public static final List<Integer> PAGE_SIZE_OPTIONS = List.of(5, 10, 25, 50, 100);
+    public static final int MIN_PAGE_SIZE = 1;
+    public static final int MAX_PAGE_SIZE = 100;
+    // User-facing rejection message when an out-of-range or non-numeric page size is submitted.
+    public static final String PAGE_SIZE_RANGE_MESSAGE =
+            "Items per page must be a whole number between " + MIN_PAGE_SIZE + " and " + MAX_PAGE_SIZE + ".";
     public static final List<String> THEME_OPTIONS = List.of("system", "light", "dark");
+
+    // Whether the dashboard renders the per-action stats-summary strip.
+    public static final boolean DEFAULT_SHOW_STATS_SUMMARY = true;
+
+    // Number of decimal places used to render fractional stats (e.g. the weekly average).
+    public static final int DEFAULT_DECIMAL_PLACES = 1;
+    public static final int MIN_DECIMAL_PLACES = 0;
+    public static final int MAX_DECIMAL_PLACES = 3;
+    public static final List<Integer> DECIMAL_PLACES_OPTIONS = List.of(0, 1, 2, 3);
 
     public static final String DEFAULT_CALENDAR_VIEW = "full";
     public static final List<String> CALENDAR_VIEW_OPTIONS = List.of("full", "minimal", "stacked");
@@ -69,10 +84,40 @@ public record UserSettings(String theme, int pageSize) {
     }
 
     /**
-     * Returns the requested page size if it is an allowed option, else the default.
+     * Whether the given page size is within the accepted range
+     * ({@link #MIN_PAGE_SIZE}–{@link #MAX_PAGE_SIZE}).
      */
-    public static int sanitisePageSize(final int requested) {
-        return PAGE_SIZE_OPTIONS.contains(requested) ? requested : DEFAULT_PAGE_SIZE;
+    public static boolean isValidPageSize(final int value) {
+        return value >= MIN_PAGE_SIZE && value <= MAX_PAGE_SIZE;
+    }
+
+    /**
+     * Parses a submitted page size, returning the value only if it is a whole number within the
+     * accepted range ({@link #MIN_PAGE_SIZE}–{@link #MAX_PAGE_SIZE}), else {@code null}. Unlike the
+     * other preferences, an invalid page size is rejected (not coerced to a default) so the caller can
+     * surface an error and retain the user's previous value.
+     *
+     * @param raw the raw submitted value (may be {@code null}, blank, non-numeric or out of range)
+     * @return the valid page size, or {@code null} if the input is not acceptable
+     */
+    public static @Nullable Integer parsePageSize(@Nullable final String raw) {
+        if (raw == null) {
+            return null;
+        }
+        try {
+            final int value = Integer.parseInt(raw.strip());
+            return isValidPageSize(value) ? value : null;
+        } catch (final NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Returns the requested decimal-place count if it is within the accepted range
+     * ({@link #MIN_DECIMAL_PLACES}–{@link #MAX_DECIMAL_PLACES}), else the default.
+     */
+    public static int sanitiseDecimalPlaces(final int requested) {
+        return requested >= MIN_DECIMAL_PLACES && requested <= MAX_DECIMAL_PLACES ? requested : DEFAULT_DECIMAL_PLACES;
     }
 
     /**

@@ -30,38 +30,55 @@ class UserSettingsTest {
     private static final java.time.Instant NOW =
             java.time.LocalDate.of(2026, 6, 15).atTime(12, 0).toInstant(java.time.ZoneOffset.UTC);
 
-    // ── Valid page sizes (allowed through unchanged) ───────────────────────────
+    // ── Valid page sizes (any whole number in [1, 100] is accepted, presets and custom alike) ──
 
     @ParameterizedTest
-    @ValueSource(ints = {5, 10, 25, 50, 100})
-    void sanitisePageSize_validValues_passedThrough(final int size) {
-        assertThat(UserSettings.sanitisePageSize(size))
-            .as("unexpected value")
-            .isEqualTo(size);
+    @ValueSource(ints = {1, 5, 7, 9, 10, 11, 24, 25, 33, 49, 50, 99, 100})
+    void isValidPageSize_inRange_returnsTrue(final int size) {
+        assertThat(UserSettings.isValidPageSize(size))
+            .as("expected value to be accepted")
+            .isTrue();
     }
 
-    // ── Invalid page sizes (all fall back to default of 10) ──────────────────
+    @ParameterizedTest
+    @ValueSource(ints = {0, 101, 200, -1, -100, Integer.MAX_VALUE, Integer.MIN_VALUE})
+    void isValidPageSize_outOfRange_returnsFalse(final int size) {
+        assertThat(UserSettings.isValidPageSize(size))
+            .as("expected value to be rejected")
+            .isFalse();
+    }
+
+    // ── parsePageSize: accepts an in-range whole number, rejects everything else with null ─────
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 1, 9, 11, 24, 26, 49, 51, 99, 101, 200, -1, -100})
-    void sanitisePageSize_invalidValues_returnsDefault(final int size) {
-        assertThat(UserSettings.sanitisePageSize(size))
+    @ValueSource(strings = {"1", "5", "7", "100", " 25 ", "050"})
+    void parsePageSize_validValues_returnParsedInt(final String raw) {
+        assertThat(UserSettings.parsePageSize(raw))
             .as("unexpected value")
-            .isEqualTo(UserSettings.DEFAULT_PAGE_SIZE);
+            .isEqualTo(Integer.parseInt(raw.strip()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "-1", "101", "999", "1.5", "abc", "", "   ", "5px", "0x10"})
+    void parsePageSize_invalidValues_returnNull(final String raw) {
+        assertThat(UserSettings.parsePageSize(raw))
+            .as("expected an invalid page size to be rejected")
+            .isNull();
     }
 
     @Test
-    void sanitisePageSize_maxInt_returnsDefault() {
-        assertThat(UserSettings.sanitisePageSize(Integer.MAX_VALUE))
-            .as("unexpected value")
-            .isEqualTo(UserSettings.DEFAULT_PAGE_SIZE);
+    void parsePageSize_null_returnsNull() {
+        assertThat(UserSettings.parsePageSize(null))
+            .as("expected null input to be rejected")
+            .isNull();
     }
 
     @Test
-    void sanitisePageSize_minInt_returnsDefault() {
-        assertThat(UserSettings.sanitisePageSize(Integer.MIN_VALUE))
-            .as("unexpected value")
-            .isEqualTo(UserSettings.DEFAULT_PAGE_SIZE);
+    void pageSizeRangeMessage_statesTheRange() {
+        assertThat(UserSettings.PAGE_SIZE_RANGE_MESSAGE)
+            .as("the rejection message should state the accepted range")
+            .contains("1")
+            .contains("100");
     }
 
     // ── Constants ─────────────────────────────────────────────────────────────
@@ -85,6 +102,59 @@ class UserSettingsTest {
         assertThat(UserSettings.PAGE_SIZE_OPTIONS)
             .as("options must include the default page size")
             .contains(UserSettings.DEFAULT_PAGE_SIZE);
+    }
+
+    // ── Decimal places sanitisation ────────────────────────────────────────────
+
+    @ParameterizedTest
+    @ValueSource(ints = {0, 1, 2, 3})
+    void sanitiseDecimalPlaces_validValues_passedThrough(final int places) {
+        assertThat(UserSettings.sanitiseDecimalPlaces(places))
+            .as("unexpected value")
+            .isEqualTo(places);
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {-1, 4, 5, 10, 100, -100})
+    void sanitiseDecimalPlaces_invalidValues_returnsDefault(final int places) {
+        assertThat(UserSettings.sanitiseDecimalPlaces(places))
+            .as("unexpected value")
+            .isEqualTo(UserSettings.DEFAULT_DECIMAL_PLACES);
+    }
+
+    @Test
+    void sanitiseDecimalPlaces_maxInt_returnsDefault() {
+        assertThat(UserSettings.sanitiseDecimalPlaces(Integer.MAX_VALUE))
+            .as("unexpected value")
+            .isEqualTo(UserSettings.DEFAULT_DECIMAL_PLACES);
+    }
+
+    @Test
+    void sanitiseDecimalPlaces_minInt_returnsDefault() {
+        assertThat(UserSettings.sanitiseDecimalPlaces(Integer.MIN_VALUE))
+            .as("unexpected value")
+            .isEqualTo(UserSettings.DEFAULT_DECIMAL_PLACES);
+    }
+
+    @Test
+    void defaultDecimalPlaces_isOne() {
+        assertThat(UserSettings.DEFAULT_DECIMAL_PLACES)
+            .as("unexpected value")
+            .isEqualTo(1);
+    }
+
+    @Test
+    void decimalPlacesOptions_containsExactlyFourValues() {
+        assertThat(UserSettings.DECIMAL_PLACES_OPTIONS.size())
+            .as("unexpected value")
+            .isEqualTo(4);
+    }
+
+    @Test
+    void decimalPlacesOptions_defaultIsIncluded() {
+        assertThat(UserSettings.DECIMAL_PLACES_OPTIONS)
+            .as("options must include the default decimal-place count")
+            .contains(UserSettings.DEFAULT_DECIMAL_PLACES);
     }
 
     // ── Theme sanitisation ─────────────────────────────────────────────────────
