@@ -103,7 +103,7 @@ Under `src/main/java/net/zodac/diurnal/`:
 |----------|-------------------------------------------------------------------------------------------------------------------|
 | `action` | `Action` entity + `ActionsWebResource` (CRUD for user-defined habits)                                             |
 | `log`    | `ActionLog` entity + `LogWebResource` (increment/decrement per day) + `CalendarResource` (`/logs/events` feed)    |
-| `stats`  | `StatsService` + `ActionStats` (data record) + `ActionStatsExtensions` (template extensions) + `StatsWebResource` |
+| `stats`  | `StatsService` + `ActionStats` (data record) + `ActionStatsExtensions` (template extensions) + `ActionStatField` (Stats-page tile catalogue) + `StatTile` (tile view-model) + `StatsWebResource` |
 | `auth`   | `AuthResource` (register/login → JWT), `TokenService`, `PasswordIdentityProvider`, `TrustedIdentityProvider`      |
 | `user`   | `User` entity, `UserResource` (`/api/users/me`), `UserSettings`                                                   |
 | `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings, theme toggle)            |
@@ -148,6 +148,32 @@ parameter. Template-facing methods are annotated `@io.quarkus.qute.TemplateExten
 **When a record grows branching instance logic called by a template** (watch for `@SuppressWarnings("unused")`), move it to a `<Type>Extensions` class
 and add a unit test. Exceptions: pure-data records, factory methods (`from`/`of`), and static validators/sanitisers.
 
+### User-configurable Stats-page tiles (`ActionStatField`)
+
+The Stats page (`partials/stats-cards.html`) renders one tile per **enabled** stat, in the user's chosen order — the "Action stats"
+setting (`User.statsFields`). It is stored as a **`jsonb` array of `StatFieldPref` `{key, enabled}`** (`user.StatFieldPref`, mapped
+via `@JdbcTypeCode(SqlTypes.JSON)`), holding **every** field in the user's arranged order — so a field's position is stable whether
+it is shown or hidden (`NULL` = never customised → all fields, default order). This is a **display preference only**:
+`StatsService`/`ActionStats` always compute every statistic regardless.
+
+`net.zodac.diurnal.stats.ActionStatField` is the **single source of truth** for the tile catalogue (declaration order = default
+order); each constant also carries a `description()` shown as the picker tooltip. `ActionStatsExtensions.tiles(stats, fields,
+decimalPlaces)` (a `@TemplateExtension`) maps each enabled field to a `StatTile`, reusing the existing derived-label methods.
+`LAST_PERFORMED` is `mandatory` (always rendered, only reorderable). Helpers all take/return `List<StatFieldPref>`:
+`displayFields(stored)` → enabled fields to render; `choices(stored)` → every field (key/label/description/selected/mandatory) in
+arranged order for the picker; `encode(order, enabledKeys)` → the arrangement to persist from a submission. The settings picker is a
+single **Pointer Events** handler (mouse + touch, no library): a drag from the row **handle** reorders; a **short press** anywhere
+else on a row toggles its (visual-only, `pointer-events-none`) checkbox; the description tooltip shows on **hover** (desktop, CSS
+`group-hover`) or a **long press** of the text (touch, `.tip-open`). It posts every row's `statsOrder` plus the ticked
+`statsEnabled` to `PATCH /settings/stats-fields`.
+
+> A new stat's `ActionStatField` constant must also supply a `description()` (the constructor requires it) — it becomes the picker
+> tooltip.
+
+> **Any newly-computed stat that should be user-visible on the Stats page MUST be registered as an `ActionStatField` constant AND
+> given a `StatTile` mapping in `ActionStatsExtensions.tiles(...)`** (plus a case in its `switch`, which is exhaustive over the enum
+> so the compiler flags omissions). Without both it will never appear in the picker or on the page.
+
 ### CSS build & colour tokens
 
 Tailwind is compiled (not CDN). `src/main/css/app.css` (the committed source) is built into `src/main/resources/META-INF/resources/css/app.css` (the
@@ -175,7 +201,16 @@ Extra tokens consumed as `var(--color-*)` in inline CSS: `--color-brand-strong`/
 `--color-text-strong`/`-faint`, `--color-input-bg`/`-border`, `--color-banner-{error,success,warning}-{bg,border,text}`.
 
 Component classes in `app.css @layer components`: `.btn-primary`, `.btn-secondary`, `.card`, `.stat-tile`, `.form-input`, `.form-select`,
-`.field-label`, `.field-label-caps`, `.help-text`, `.nav-link`/`.nav-link-active`, `.swatch`/`.swatch-sm`/`.swatch-md`.
+`.field-label`, `.field-label-caps`, `.help-text`, `.nav-link`/`.nav-link-active`, `.swatch`/`.swatch-sm`/`.swatch-md`, `.app-tooltip`.
+
+**Tooltips**: the app's single tooltip style is `.app-tooltip` (theme-matched: `bg-surface`/`text-ink`/`border-line` + shadow), rendered
+via **`partials/tooltip.html`** (`text`/`pos`/`align` params). Put it inside a host with `group relative` (and an `aria-label`, since the
+bubble is `aria-hidden`); it reveals on **hover** (desktop, CSS `.group:hover > .app-tooltip`) or a **long press** (touch) via the global
+handler in `layout.html`, which adds `.tip-open` to the host and swallows the press's click. Icon buttons across the app (calendar
+toolbar, day-panel +/−/erase, colour pickers, navbar) use this instead of a native `title=`. The Action-stats picker manages its OWN
+hosts (they also drag/toggle) in its own script, so the global handler skips `#stats-fields-list`. **Never use a native `title=` for a
+hover tooltip** — use this component so styling + the touch long-press stay consistent; edge buttons pass `align="left"`/`"right"` so
+the bubble can't push the page sideways.
 
 ### Shared data-table styling (`.dt-*`)
 
@@ -292,7 +327,19 @@ All list views (actions, day-panel, stats) use in-memory pagination: fetch all, 
 
 ### Database migrations
 
-Flyway scripts in `src/main/resources/db/migration/`, sequential (`V1__` through `V13__`). Never edit an applied migration; always add `V{n+1}__`.
+Flyway scripts in `src/main/resources/db/migration/`, sequential (`V1__`, `V2__`, …).
+
+> **NEVER modify an existing migration file — not the SQL, not even a comment or a whitespace. This is
+> absolute: it applies to brand-new/uncommitted migrations, to "minor" tweaks, to fixing a typo, and to
+> reverting a change you just made. ALWAYS express any change — including a reversion — as a NEW
+> `V{n+1}__` file.**
+>
+> Flyway records a checksum of every applied migration and validates it at every startup. The instant a
+> migration file's bytes change after it has been applied to *any* database (including a local/dev one
+> that has already run it), that database fails to boot with a `Migration checksum mismatch` — recovering
+> then requires a manual `flyway repair` or hand-editing `flyway_schema_history`. To change a column you
+> already shipped in `V{n}`, add `V{n+1}` with the `ALTER`. To undo `V{n}`, add `V{n+1}` that reverses it.
+> Treat every migration file as immutable the moment it exists.
 
 ### Testing conventions
 

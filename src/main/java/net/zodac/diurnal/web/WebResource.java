@@ -49,6 +49,7 @@ import net.zodac.diurnal.auth.RoleAssigner;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.config.RegistrationConfig;
+import net.zodac.diurnal.stats.ActionStatField;
 import net.zodac.diurnal.stats.StatsService;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
@@ -481,6 +482,26 @@ public class WebResource {
     }
 
     /**
+     * Updates which per-action stats show on the Stats page, and in what order. The client posts EVERY
+     * row's key in its (drag-arranged) DOM order as {@code statsOrder}, plus the ticked subset as
+     * {@code statsEnabled}; these are encoded into the stored arrangement (disabled fields kept in
+     * place, {@code last-performed} forced enabled). A display-only preference — it never affects how
+     * statistics are computed. Returns {@code 204}.
+     */
+    @PATCH
+    @Path("settings/stats-fields")
+    @RolesAllowed("user")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Transactional
+    public Response updateStatsFields(
+            @FormParam("statsOrder")   final List<String> statsOrder,
+            @FormParam("statsEnabled") final List<String> statsEnabled) {
+        final List<String> order = statsOrder == null ? List.of() : statsOrder;
+        final List<String> enabled = statsEnabled == null ? List.of() : statsEnabled;
+        return updateSetting(user -> user.statsFields = ActionStatField.encode(order, enabled));
+    }
+
+    /**
      * Toggles whether the dashboard shows the stats-summary strip. The checkbox posts a hidden
      * {@code "false"} plus (when ticked) {@code "true"}, so the setting is on iff the values contain
      * {@code "true"}. Returns {@code 204}.
@@ -576,6 +597,7 @@ public class WebResource {
                 .data("fontOptions", UserSettings.FONT_OPTIONS)
                 .data("calendarView", user.calendarView)
                 .data("calendarViewOptions", UserSettings.CALENDAR_VIEW_OPTIONS)
+                .data("statsFieldChoices", ActionStatField.choices(user.statsFields))
                 .data("timezoneChoices",
                         UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone));
     }

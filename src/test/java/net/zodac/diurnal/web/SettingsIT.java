@@ -26,6 +26,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.user.StatFieldPref;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.user.UserSettings;
 import org.junit.jupiter.api.Test;
@@ -157,6 +158,16 @@ class SettingsIT extends IntegrationTestBase {
         given().get("/settings")
                 .then().statusCode(200)
                 .body(containsString("id=\"password-view\""));
+    }
+
+    @Test
+    void settingsPage_showsActionStatsPicker() {
+        // The drag-orderable "Action stats" list and its mandatory last-performed row render.
+        given().get("/settings")
+                .then().statusCode(200)
+                .body(containsString("id=\"stats-fields-list\""))
+                .body(containsString("id=\"stats-field-last-performed\""))
+                .body(containsString("Always shown"));
     }
 
     @Test
@@ -539,5 +550,81 @@ class SettingsIT extends IntegrationTestBase {
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().timezone)
             .as("expected null")
             .isNull());
+    }
+
+    // ── PATCH /settings/stats-fields ─────────────────────────────────────────────
+
+    @Test
+    void updateStatsFields_persistsArrangementWithDisabledInPlace() {
+        // statsOrder carries every row's key in the arranged order; statsEnabled is the ticked subset.
+        // total-days is present but unticked → stored disabled IN PLACE, not dropped.
+        given().formParam("statsOrder", "best-year", "total-days", "current-streak", "last-performed")
+                .formParam("statsEnabled", "best-year", "current-streak")
+                .patch("/settings/stats-fields")
+                .then().statusCode(204);
+
+        runInTx(() -> {
+            assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
+                .as("arranged order preserved")
+                .isNotNull()
+                .extracting(StatFieldPref::key)
+                .startsWith("best-year", "total-days", "current-streak");
+            assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
+                .as("disabled stat kept in place, unticked")
+                .isNotNull()
+                .contains(new StatFieldPref("total-days", false));
+        });
+    }
+
+    @Test
+    void updateStatsFields_forcesLastPerformedEnabled() {
+        // last-performed is arranged but NOT ticked (its checkbox is disabled in the UI) — it must
+        // still be stored enabled.
+        given().formParam("statsOrder", "last-performed", "current-streak")
+                .formParam("statsEnabled", "current-streak")
+                .patch("/settings/stats-fields")
+                .then().statusCode(204);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
+            .as("mandatory last-performed stored enabled")
+            .contains(new StatFieldPref("last-performed", true)));
+    }
+
+    @Test
+    void updateStatsFields_emptySubmission_storesAllEnabled() {
+        given().patch("/settings/stats-fields")
+                .then().statusCode(204);
+
+        runInTx(() -> {
+            assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
+                .as("an empty submission resets to every field, all enabled, in default order")
+                .isNotNull()
+                .containsExactly(
+                    new StatFieldPref("current-streak", true), new StatFieldPref("longest-streak", true),
+                    new StatFieldPref("biggest-gap", true), new StatFieldPref("total-days", true),
+                    new StatFieldPref("total-count", true), new StatFieldPref("weekly-average", true),
+                    new StatFieldPref("last-performed", true), new StatFieldPref("vs-last-month", true),
+                    new StatFieldPref("vs-last-year", true), new StatFieldPref("best-month", true),
+                    new StatFieldPref("best-year", true));
+        });
+    }
+
+    @Test
+    void updateStatsFields_leavesOtherSettingsUntouched() {
+        given().formParam("theme", "dark").patch("/settings/theme").then().statusCode(204);
+
+        given().formParam("statsOrder", "current-streak", "last-performed")
+                .formParam("statsEnabled", "current-streak")
+                .patch("/settings/stats-fields").then().statusCode(204);
+
+        runInTx(() -> {
+            final User user = User.findByEmail(PRIMARY).orElseThrow();
+            assertThat(user.statsFields)
+                .as("stats fields updated")
+                .isNotNull()
+                .extracting(StatFieldPref::key)
+                .startsWith("current-streak");
+            assertThat(user.theme).as("theme preserved").isEqualTo("dark");
+        });
     }
 }

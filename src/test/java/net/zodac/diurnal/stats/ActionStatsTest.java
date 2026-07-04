@@ -20,6 +20,7 @@ package net.zodac.diurnal.stats;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
+import java.util.List;
 import net.zodac.diurnal.action.Action;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
@@ -434,5 +435,76 @@ class ActionStatsTest {
         assertThat(ActionStatsExtensions.yearContext(s))
             .as("unexpected value")
             .isEqualTo("10 this year · 4 last year");
+    }
+
+    // ── tiles ──────────────────────────────────────────────────────────────────
+
+    @Test
+    void tiles_rendersInGivenFieldOrder() {
+        final ActionStats s = stats(1, 3, TODAY, TODAY, 4, 6, 5, 2, 0, 0, "—", 0, "—", 0);
+
+        final List<StatTile> tiles = ActionStatsExtensions.tiles(
+            s, List.of(ActionStatField.TOTAL_COUNT, ActionStatField.CURRENT_STREAK), 1);
+
+        assertThat(tiles)
+            .as("tiles render in the supplied field order")
+            .extracting(StatTile::label)
+            .containsExactly("Total count", "Current streak");
+    }
+
+    @Test
+    void tiles_numericTile_carriesValueUnitAndDefaultClass() {
+        final ActionStats s = stats(1, 3, TODAY, TODAY, 1, 6, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.CURRENT_STREAK), 1).getFirst();
+
+        assertThat(tile.value()).as("current streak value").isEqualTo("1");
+        assertThat(tile.sub()).as("singular unit for a streak of one").isEqualTo("day");
+        assertThat(tile.subNum()).as("a unit word is not a locale-grouped number").isFalse();
+        assertThat(tile.valueClass()).as("numeric tiles use the default ink colour").isEqualTo("text-ink");
+        assertThat(tile.date()).as("a streak is not a date tile").isFalse();
+    }
+
+    @Test
+    void tiles_weeklyAverage_honoursDecimalPlaces() {
+        // 3 distinct days over exactly 2 weeks → 1.5 per week; rendered to 2 dp.
+        final ActionStats s = statsG(3, 3, TODAY.minusWeeks(2), TODAY, 0, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.WEEKLY_AVERAGE), 2).getFirst();
+
+        assertThat(tile.value()).as("weekly average uses the passed decimal-place count").isEqualTo("1.50");
+    }
+
+    @Test
+    void tiles_lastPerformed_isDateTileWithSinceSub() {
+        final ActionStats s = stats(2, 4, TODAY.minusDays(3), TODAY.minusDays(3), 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.LAST_PERFORMED), 1).getFirst();
+
+        assertThat(tile.date()).as("last-performed renders with the smaller date styling").isTrue();
+        assertThat(tile.value()).as("value is the formatted date").isEqualTo("12 Jun 2025");
+        assertThat(tile.sub()).as("sub is the relative label").isEqualTo("3 days ago");
+        assertThat(tile.subNum()).as("the relative label carries a day count").isTrue();
+    }
+
+    @Test
+    void tiles_trendTile_carriesTrendColourClass() {
+        final ActionStats s = stats(2, 7, TODAY, TODAY, 0, 0, 5, 2, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.VS_LAST_MONTH), 1).getFirst();
+
+        assertThat(tile.value()).as("upward month trend").isEqualTo("+3");
+        assertThat(tile.valueClass()).as("upward trend is green").isEqualTo("text-green-600");
+        assertThat(tile.sub()).as("sub carries the month context").isEqualTo("5 this month · 2 last month");
+        assertThat(tile.subNum()).as("context carries locale-groupable counts").isTrue();
+    }
+
+    @Test
+    void tiles_emptyFieldList_rendersNoTiles() {
+        final ActionStats s = stats(2, 7, TODAY, TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        assertThat(ActionStatsExtensions.tiles(s, List.of(), 1))
+            .as("no selected fields → no tiles")
+            .isEmpty();
     }
 }

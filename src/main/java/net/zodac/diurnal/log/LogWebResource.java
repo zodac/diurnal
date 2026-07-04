@@ -73,8 +73,10 @@ public class LogWebResource {
     @Location("partials/day-action-item-confirm-delete")
     Template dayActionItemConfirmDeleteTemplate;
 
-    @Inject SecurityIdentity identity;
-    @Inject AppClock clock;
+    @Inject
+    SecurityIdentity identity;
+    @Inject
+    AppClock clock;
 
     // ── Day panel ──────────────────────────────────────────────────────────
 
@@ -106,9 +108,9 @@ public class LogWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance dayList(
-            @PathParam("date") final LocalDate date,
-            @QueryParam("page") @DefaultValue("1") final int pageNum,
-            @QueryParam("q") @DefaultValue("") final String searchTerm) {
+        @PathParam("date") final LocalDate date,
+        @QueryParam("page") @DefaultValue("1") final int pageNum,
+        @QueryParam("q") @DefaultValue("") final String searchTerm) {
         final User user = currentUser();
         final var page = getActions(user.id, date, pageNum, searchTerm, user.pageSize);
         return dayActionsListTemplate.data("date", date, "page", page);
@@ -125,7 +127,7 @@ public class LogWebResource {
      *
      * @param month the month to render, as {@code yyyy-MM}
      * @return {@code 200} with a JSON object mapping each {@code yyyy-MM-dd} to its day-panel HTML, or
-     *         {@code 400} when {@code month} is not a valid {@code yyyy-MM}
+     * {@code 400} when {@code month} is not a valid {@code yyyy-MM}
      */
     @GET
     @Path("/month/{month}")
@@ -146,22 +148,22 @@ public class LogWebResource {
         // Fetch the action list and the month's logs ONCE, then page each day from memory.
         final List<Action> all = Action.findActiveByUser(user.id);
         final Map<LocalDate, Map<UUID, Integer>> countsByDate = ActionLog.findByUserAndRange(user.id, start, end)
-                .stream()
-                .collect(Collectors.groupingBy(
-                        log -> log.logDate,
-                        Collectors.toMap(log -> log.actionId, log -> log.count)));
+            .stream()
+            .collect(Collectors.groupingBy(
+                log -> log.logDate,
+                Collectors.toMap(log -> log.actionId, log -> log.count)));
 
         final Map<String, String> panels = new LinkedHashMap<>();
         for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
             final boolean future = isFuture(date, user);
             final var page = future ? null : paginate(all, countsByDate.getOrDefault(date, Map.of()), 1, "", user.pageSize);
             panels.put(date.toString(), dayPanelTemplate
-                    .data("date", date)
-                    .data("dateLabel", date.format(DAY_LABEL))
-                    .data("theme", user.theme)
-                    .data("future", future)
-                    .data("page", page)
-                    .render());
+                .data("date", date)
+                .data("dateLabel", date.format(DAY_LABEL))
+                .data("theme", user.theme)
+                .data("future", future)
+                .data("page", page)
+                .render());
         }
         return Response.ok(panels).build();
     }
@@ -182,13 +184,13 @@ public class LogWebResource {
     private static PaginatedDayActions paginate(final List<Action> all, final Map<UUID, Integer> counts,
                                                 final int pageNum, final String searchTerm, final int pageSize) {
         final var filtered = all.stream()
-                .filter(a -> searchTerm == null || searchTerm.isBlank()
-                        || a.name.toLowerCase(Locale.ROOT).contains(searchTerm.toLowerCase(Locale.ROOT)))
-                .map(a -> new DayActionStatus(a, counts.getOrDefault(a.id, 0)))
-                // Highest count first; equal counts (including 0) keep the DB's alphabetical
-                // order, since `all` arrives sorted by name and sorted() is stable.
-                .sorted(Comparator.comparingInt(DayActionStatus::count).reversed())
-                .toList();
+            .filter(a -> searchTerm == null || searchTerm.isBlank()
+                || a.name.toLowerCase(Locale.ROOT).contains(searchTerm.toLowerCase(Locale.ROOT)))
+            .map(a -> new DayActionStatus(a, counts.getOrDefault(a.id, 0)))
+            // Highest count first; equal counts (including 0) keep the DB's alphabetical
+            // order, since `all` arrives sorted by name and sorted() is stable.
+            .sorted(Comparator.comparingInt(DayActionStatus::count).reversed())
+            .toList();
 
         final int totalCount = filtered.size();
         final int totalPages = (totalCount + pageSize - 1) / pageSize;
@@ -196,9 +198,9 @@ public class LogWebResource {
         final int skip = (actualPage - 1) * pageSize;
 
         final var items = filtered.stream()
-                .skip(skip)
-                .limit(pageSize)
-                .toList();
+            .skip(skip)
+            .limit(pageSize)
+            .toList();
 
         final int fillers = totalPages > 1 ? Math.max(0, pageSize - items.size()) : 0;
         final List<Integer> fillerRows = IntStream.range(0, fillers).boxed().toList();
@@ -217,8 +219,8 @@ public class LogWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response dayActionItem(
-            @PathParam("date") final LocalDate date,
-            @PathParam("actionId") final UUID actionId) {
+        @PathParam("date") final LocalDate date,
+        @PathParam("actionId") final UUID actionId) {
 
         final User user = currentUser();
         final Action action = ownedAction(user, actionId);
@@ -238,8 +240,8 @@ public class LogWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response confirmDeleteEntry(
-            @PathParam("date") final LocalDate date,
-            @PathParam("actionId") final UUID actionId) {
+        @PathParam("date") final LocalDate date,
+        @PathParam("actionId") final UUID actionId) {
 
         final User user = currentUser();
         final Action action = ownedAction(user, actionId);
@@ -258,8 +260,8 @@ public class LogWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response deleteEntry(
-            @PathParam("date") final LocalDate date,
-            @PathParam("actionId") final UUID actionId) {
+        @PathParam("date") final LocalDate date,
+        @PathParam("actionId") final UUID actionId) {
 
         final User user = currentUser();
         if (isFuture(date, user)) {
@@ -291,9 +293,9 @@ public class LogWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response increment(
-            @PathParam("date") final LocalDate date,
-            @PathParam("actionId") final UUID actionId,
-            @DefaultValue("1") @FormParam("amount") final int amount) {
+        @PathParam("date") final LocalDate date,
+        @PathParam("actionId") final UUID actionId,
+        @DefaultValue("1") @FormParam("amount") final int amount) {
 
         final User user = currentUser();
         if (isFuture(date, user)) {
@@ -309,14 +311,14 @@ public class LogWebResource {
 
         ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
         if (entry == null) {
-            if (delta <= 0) {
+            if (delta == 0) {
                 return Response.ok(item(date, action, 0)).build();
             }
             entry = new ActionLog();
-            entry.userId   = user.id;
+            entry.userId = user.id;
             entry.actionId = actionId;
-            entry.logDate  = date;
-            entry.count    = Math.min(delta, ActionLog.MAX_DAILY_COUNT);
+            entry.logDate = date;
+            entry.count = Math.min(delta, ActionLog.MAX_DAILY_COUNT);
             entry.persist();
             return Response.ok(item(date, action, entry.count)).build();
         }
@@ -338,9 +340,9 @@ public class LogWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response decrement(
-            @PathParam("date") final LocalDate date,
-            @PathParam("actionId") final UUID actionId,
-            @DefaultValue("1") @FormParam("amount") final int amount) {
+        @PathParam("date") final LocalDate date,
+        @PathParam("actionId") final UUID actionId,
+        @DefaultValue("1") @FormParam("amount") final int amount) {
 
         final User user = currentUser();
         if (isFuture(date, user)) {
@@ -382,9 +384,9 @@ public class LogWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response updateCount(
-            @PathParam("date") final LocalDate date,
-            @PathParam("actionId") final UUID actionId,
-            @DefaultValue("0") @FormParam("count") final int requestedCount) {
+        @PathParam("date") final LocalDate date,
+        @PathParam("actionId") final UUID actionId,
+        @DefaultValue("0") @FormParam("count") final int requestedCount) {
 
         final User user = currentUser();
         if (isFuture(date, user)) {
@@ -408,15 +410,13 @@ public class LogWebResource {
 
         if (entry == null) {
             entry = new ActionLog();
-            entry.userId   = user.id;
+            entry.userId = user.id;
             entry.actionId = actionId;
-            entry.logDate  = date;
-            entry.count    = newCount;
-            entry.persist();
-        } else {
-            entry.count = newCount;
-            entry.persist();
+            entry.logDate = date;
         }
+
+        entry.count = newCount;
+        entry.persist();
 
         return Response.ok(item(date, action, newCount)).build();
     }
@@ -439,12 +439,13 @@ public class LogWebResource {
 
     private Action ownedAction(final User user, final UUID actionId) {
         return Action.<Action>find("id = ?1 and userId = ?2 and archived = false", actionId, user.id)
-                .firstResult();
+            .firstResult();
     }
 
     /**
      * An action paired with its count for a given day (0 when not yet logged).
      */
     public record DayActionStatus(Action action, int count) {
+
     }
 }
