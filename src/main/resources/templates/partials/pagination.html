@@ -8,6 +8,9 @@
     extraQuery — optional pre-encoded query suffix, e.g. "&q=foo" (pass "" when unused)
     alwaysShow — true to render the footer even on a single page (real .dt-tables do this);
                  false to only render it when there's more than one page (read-only lists)
+    borderless — true to drop the top border/divider (for a grid of standalone cards, not a
+                 clipped `.dt-table`, where a full-width rule above the footer reads as stray);
+                 false/omitted keeps the default table divider
 
   The "Showing" counter exposes #showing-shown / #showing-total so surgical (HTMX 204)
   row removals can keep the count in sync without re-rendering the whole list.
@@ -27,7 +30,7 @@
   more than one page.
 !}
 {#if alwaysShow || page.totalPages > 1}
-<div class="dt-pagination">
+<div class="dt-pagination{#if borderless} dt-pagination--borderless{/if}">
     <p>Showing <span id="showing-shown">{page.items.size}</span> of <span id="showing-total">{page.totalCount}</span></p>
     {#if page.totalPages > 1}
     <div class="flex gap-2">
