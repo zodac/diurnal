@@ -28,6 +28,16 @@ async function selectOption(page: Page, selector: string, value: string): Promis
     await waitForSave(page, page.selectOption(selector, value))
 }
 
+// Open the Display Name field's edit mode by its Edit button. The button is scoped to
+// #display-name-view because the Account card now also has a Password field with its own Edit
+// button. It is revealed only on hover (opacity + pointer-events), and Playwright runs its
+// pre-click hit-test *before* moving the mouse, so a plain .click() can deadlock on the container
+// ("<div id=display-name-view> intercepts pointer events"). dispatchEvent fires the button's
+// onclick (startEditDisplayName) directly — exactly the behaviour under test — with no hit-test.
+async function clickDisplayNameEdit(page: Page): Promise<void> {
+    await page.locator("#display-name-view").getByRole("button", { name: "Edit" }).dispatchEvent("click")
+}
+
 test.describe("Settings page", () => {
     test("select dark theme persists across reload", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
@@ -100,12 +110,12 @@ test.describe("Settings page", () => {
     test("display name is read-only by default with an Edit button", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
         await expect(page.locator("#account-form")).toBeHidden()
-        await expect(page.getByRole("button", { name: "Edit" })).toBeVisible()
+        await expect(page.locator("#display-name-view").getByRole("button", { name: "Edit" })).toBeVisible()
     })
 
     test("clicking Edit shows the input with Save and Cancel buttons", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
-        await page.getByRole("button", { name: "Edit" }).click()
+        await clickDisplayNameEdit(page)
         await expect(page.locator("#account-form")).toBeVisible()
         await expect(page.locator("#display-name-view")).toBeHidden()
         await expect(page.getByRole("button", { name: "Save" })).toBeVisible()
@@ -117,7 +127,7 @@ test.describe("Settings page", () => {
         // Capture the current name before editing — it may differ from testUser.displayName if a
         // previous test run changed it. Cancel must restore exactly what was there before.
         const nameBefore = await page.locator("#display-name-text").textContent() ?? ""
-        await page.getByRole("button", { name: "Edit" }).click()
+        await clickDisplayNameEdit(page)
         await page.fill('input[name="displayName"]', "Should Not Save")
         await page.getByRole("button", { name: "Cancel" }).click()
         await expect(page.locator("#account-form")).toBeHidden()
@@ -126,7 +136,7 @@ test.describe("Settings page", () => {
 
     test("update display name persists across reload", async ({ authenticatedPage: page, testUser }) => {
         await page.goto("/settings")
-        await page.getByRole("button", { name: "Edit" }).click()
+        await clickDisplayNameEdit(page)
         await page.fill('input[name="displayName"]', "Updated Name")
         await Promise.all([
             page.waitForResponse(r => r.url().includes("/settings/display-name") && r.request().method() === "POST"),
@@ -139,7 +149,7 @@ test.describe("Settings page", () => {
 
         // Restore the original display name so subsequent viewports (e.g. mobile-chrome)
         // see the expected testUser.displayName rather than this test's intermediate value.
-        await page.getByRole("button", { name: "Edit" }).click()
+        await clickDisplayNameEdit(page)
         await page.fill('input[name="displayName"]', testUser.displayName)
         await Promise.all([
             page.waitForResponse(r => r.url().includes("/settings/display-name") && r.request().method() === "POST"),

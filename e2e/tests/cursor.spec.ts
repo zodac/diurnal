@@ -66,7 +66,7 @@ test.describe("Cursor — interactive controls show the pointer", () => {
     // Type: a plain in-content action <button> (Settings → Edit display name).
     test("settings Edit display-name button", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
-        await expectPointer(page.getByRole("button", { name: "Edit" }))
+        await expectPointer(page.locator("#display-name-view").getByRole("button", { name: "Edit" }))
     })
 
     // Type: the "(!)" preview-open trigger on a settings preview tile.

@@ -228,6 +228,12 @@
         .settings-field:hover .settings-field-actions,
         .settings-field:focus-within .settings-field-actions { opacity: 1; pointer-events: auto; }
         .settings-field-edit { box-shadow: inset 0 0 0 1px var(--color-ring-edit); }
+        /* Reveal (eye) toggle used by the Password field's view/edit/confirm states. Same faint→brand
+           treatment as .dt-btn-edit, so it sits quietly next to the value until hovered. Colours are
+           tokens that already flip in dark mode. */
+        .settings-eye { display: inline-flex; align-items: center; justify-content: center; color: var(--color-text-faint);
+            background: none; border: 0; padding: 0; cursor: pointer; transition: color .15s; }
+        .settings-eye:hover { color: var(--color-brand); }
 
         /* Role/status badge */
         .dt-badge { font-size: .75rem; font-weight: 500; color: var(--color-text-muted); }

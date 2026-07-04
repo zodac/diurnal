@@ -19,6 +19,8 @@ package net.zodac.diurnal.web;
 
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
@@ -27,6 +29,7 @@ import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.user.UserSettings;
 import org.junit.jupiter.api.Test;
+import org.mindrot.jbcrypt.BCrypt;
 
 @QuarkusTest
 @TestSecurity(user = "settings-it@lt.test", roles = "user")
@@ -34,12 +37,24 @@ import org.junit.jupiter.api.Test;
 class SettingsIT extends IntegrationTestBase {
 
     static final String PRIMARY = "settings-it@lt.test";
+    // A second, OIDC-provisioned account (no password hash) used to prove the password field is
+    // hidden and its endpoint refused for accounts whose auth is managed by an identity provider.
+    static final String OIDC_USER = "settings-oidc-it@lt.test";
 
     UUID primaryId;
+    UUID oidcId;
 
     @Override
     protected void createDbState() {
         primaryId = newUser(PRIMARY, "Settings User").id;
+
+        final User oidc = new User();
+        oidc.email = OIDC_USER;
+        oidc.displayName = "OIDC User";
+        oidc.oidcSubject = "oidc-subject-123";
+        oidc.oidcIssuer = "https://diurnal.example.com";
+        oidc.persist();
+        oidcId = oidc.id;
     }
 
     // ── POST /settings/display-name ──────────────────────────────────────────
@@ -70,6 +85,89 @@ class SettingsIT extends IntegrationTestBase {
     void updateDisplayName_missingParam_returns422() {
         given().post("/settings/display-name")
                 .then().statusCode(422);
+    }
+
+    // ── POST /settings/password (local account) ──────────────────────────────
+
+    @Test
+    void updatePassword_matchingConfirmation_persistsNewHash() {
+        given().formParam("newPassword", "new_secret_123")
+                .formParam("confirmPassword", "new_secret_123")
+                .post("/settings/password")
+                .then().statusCode(200);
+
+        runInTx(() -> {
+            final String hash = User.findByEmail(PRIMARY).orElseThrow().passwordHash;
+            assertThat(BCrypt.checkpw("new_secret_123", hash))
+                .as("new password should verify against the stored hash")
+                .isTrue();
+            assertThat(BCrypt.checkpw(TEST_PASSWORD, hash))
+                .as("old password should no longer verify")
+                .isFalse();
+        });
+    }
+
+    @Test
+    void updatePassword_mismatchedConfirmation_returns422AndKeepsOldHash() {
+        given().formParam("newPassword", "new_secret_123")
+                .formParam("confirmPassword", "different_456")
+                .post("/settings/password")
+                .then().statusCode(422);
+
+        runInTx(() -> assertThat(BCrypt.checkpw(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
+            .as("old password must be unchanged after a mismatch")
+            .isTrue());
+    }
+
+    @Test
+    void updatePassword_emptyNewPassword_returns422AndKeepsOldHash() {
+        given().formParam("newPassword", "")
+                .formParam("confirmPassword", "")
+                .post("/settings/password")
+                .then().statusCode(422);
+
+        runInTx(() -> assertThat(BCrypt.checkpw(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
+            .as("old password must be unchanged when the new password is empty")
+            .isTrue());
+    }
+
+    @Test
+    void updatePassword_missingParams_returns422() {
+        given().post("/settings/password")
+                .then().statusCode(422);
+    }
+
+    @Test
+    @TestSecurity(user = OIDC_USER, roles = "user")
+    void updatePassword_oidcAccount_returns403AndSetsNoPassword() {
+        given().formParam("newPassword", "new_secret_123")
+                .formParam("confirmPassword", "new_secret_123")
+                .post("/settings/password")
+                .then().statusCode(403);
+
+        runInTx(() -> assertThat(User.findByEmail(OIDC_USER).orElseThrow().passwordHash)
+            .as("an OIDC account must never gain a password")
+            .isNull());
+    }
+
+    // ── GET /settings — password field visibility ────────────────────────────
+
+    @Test
+    void settingsPage_localAccount_showsPasswordField() {
+        given().get("/settings")
+                .then().statusCode(200)
+                .body(containsString("id=\"password-view\""));
+    }
+
+    @Test
+    @TestSecurity(user = OIDC_USER, roles = "user")
+    void settingsPage_oidcAccount_showsProviderNoteNotPasswordField() {
+        // Assert only the stable prefix: the trailing provider name comes from OIDC_PROVIDER_NAME and
+        // varies by environment (default "your identity provider", but e.g. "Authelia" when configured).
+        given().get("/settings")
+                .then().statusCode(200)
+                .body(containsString("User authentication is managed by"))
+                .body(not(containsString("id=\"password-view\"")));
     }
 
     // ── PATCH /settings/theme ────────────────────────────────────────────────────

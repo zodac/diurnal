@@ -484,10 +484,50 @@ public class WebResource {
         return Response.ok().build();
     }
 
+    /**
+     * Changes the current (local) user's password. The new password is entered and then re-entered to
+     * confirm (the client drives that two-step flow), so both values arrive here: {@code newPassword}
+     * and its {@code confirmPassword}. Returns {@code 422} when the new password is empty or the two do
+     * not match, {@code 403} for a non-local (OIDC-only) account or when password auth is disabled, and
+     * {@code 200} once the new hash is persisted.
+     */
+    @POST
+    @Path("settings/password")
+    @RolesAllowed("user")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Transactional
+    public Response updatePassword(
+            @FormParam("newPassword")     final String newPassword,
+            @FormParam("confirmPassword") final String confirmPassword) {
+        final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        // Only local accounts have a password to change; OIDC-only users (and deployments with password
+        // auth switched off entirely) have none. The UI already hides the field for them — this guards
+        // the endpoint directly.
+        if (!passwordAuthConfig.enabled() || user.passwordHash == null || user.passwordHash.isBlank()) {
+            return Response.status(Response.Status.FORBIDDEN).build();
+        }
+        // The only validation: a password cannot be empty, and the re-entered confirmation must match.
+        if (newPassword == null || newPassword.isEmpty() || !newPassword.equals(confirmPassword)) {
+            return Response.status(422).build();
+        }
+        user.passwordHash = BCrypt.hashpw(newPassword, BCrypt.gensalt(12));
+        user.persist();
+        LOGGER.info("Password changed for user: {}", user.email);
+        return Response.ok().build();
+    }
+
     private TemplateInstance settingsView(final User user) {
         return settingsTemplate
                 .data("email", user.email)
                 .data("displayName", user.displayName)
+                // Local accounts (a password hash present) can change their password; OIDC-only accounts
+                // — and any deployment with password auth disabled — cannot, so the field is hidden.
+                .data("canChangePassword",
+                        passwordAuthConfig.enabled() && user.passwordHash != null && !user.passwordHash.isBlank())
+                // OIDC-only accounts have no password at all; instead of the password field the Account
+                // card shows a note that their authentication is managed by the identity provider.
+                .data("isOidcUser", user.oidcSubject != null && !user.oidcSubject.isBlank())
+                .data("oidcProviderName", oidcConfig.providerName())
                 .data("theme", user.theme)
                 .data("font", user.font)
                 .data("isAdmin", user.isAdmin())
