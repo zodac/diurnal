@@ -271,6 +271,33 @@
  * primary button references it directly (it no longer needs to dodge a dark-mode lightening).
  */
 @layer components {
+  /* Tooltip ---------------------------------------------------------------- */
+  /* Themed hover / long-press tooltip bubble — the app's single tooltip style (Action-stats picker,
+     and any future tooltip). Matches the theme (surface background + ink text) with a border and
+     shadow so it floats clearly above same-coloured content, in BOTH light and dark. The host element
+     carries `.group`; the bubble is a direct child, revealed on hover (desktop) or when the host also
+     has `.tip-open` (the touch long-press equivalent, toggled in JS). Only the bubble's LOOK +
+     hidden/reveal live here — each call site adds its own edge / width / offset utilities. */
+  .app-tooltip {
+    @apply pointer-events-none absolute z-30 rounded-md bg-surface
+           px-2.5 py-1.5 text-xs font-normal leading-snug text-ink
+           opacity-0 invisible transition-opacity duration-150;
+    /* A brand-tinted rim + lift so the bubble reads as a distinct floating popover, not another row —
+       the same idea as the dashboard date-picker popup (#cal-pop), a touch softer (no full brand
+       ring). The brand border is what actually separates it from the neutral, `border-line` rows. */
+    border: 1px solid var(--color-brand);
+    box-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.28), 0 2px 6px -4px rgb(0 0 0 / 0.16);
+  }
+  /* On the dark surface a drop shadow barely registers, so lean on the brand border and add a soft
+     brand ring (subtler than the date picker's full-strength one) plus a deeper shadow to lift it. */
+  .dark .app-tooltip {
+    box-shadow: 0 0 0 1px var(--color-brand-subtle), 0 10px 22px -6px rgb(0 0 0 / 0.55);
+  }
+  .group:hover > .app-tooltip,
+  .group.tip-open > .app-tooltip {
+    @apply opacity-100 visible;
+  }
+
   /* Page column ------------------------------------------------------------ */
   /* The single shared content column for every page's <main> (Dashboard, Actions, Stats,
      Admin, API, Settings) — so pages no longer "snap" to different widths as you navigate.

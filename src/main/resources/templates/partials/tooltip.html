@@ -1,0 +1,14 @@
+{!
+  Shared themed tooltip — the app's single tooltip style (`.app-tooltip` in app.css). Place INSIDE a
+  host element that carries `group relative` (an icon button, or a wrapper around a control that can't
+  hold children, e.g. an <input>). It reveals on hover; the Action-stats picker additionally toggles
+  `.tip-open` for a mobile long-press. The host should ALSO carry an `aria-label` (this bubble is
+  decorative — `aria-hidden`), so icon-only controls keep an accessible name.
+  Params:
+    text  — the tooltip text (required)
+    pos   — 'top' (default) | 'bottom': which side of the host the bubble sits on
+    align — 'center' (default) | 'left' | 'right': horizontal anchor. Use left/right for edge buttons
+            so the bubble grows inward and can never push the page sideways.
+!}
+<span aria-hidden="true"
+      class="app-tooltip w-max max-w-[16rem]{#if pos == 'bottom'} top-full mt-1.5{#else} bottom-full mb-1.5{/if}{#if align == 'left'} left-0{#else if align == 'right'} right-0{#else} left-1/2 -translate-x-1/2{/if}">{text}</span>

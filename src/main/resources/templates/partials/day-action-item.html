@@ -12,11 +12,11 @@
                 hx-vals='{"amount": 1}'
                 hx-target="#log-{date}-{action.id}"
                 hx-swap="innerHTML"
-                title="Decrease"
-                class="w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
+                aria-label="Decrease"
+                class="group relative w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
                        text-ink-muted hover:bg-brand hover:text-on-brand active:bg-brand-strong
                        {#if count == 0}invisible{/if}">
-            −
+            −{#include partials/tooltip text="Decrease" pos="top" align="center" /}
         </button>
 
         <!-- Count (editable) -->
@@ -38,11 +38,11 @@
                 hx-vals='{"amount": 1}'
                 hx-target="#log-{date}-{action.id}"
                 hx-swap="innerHTML"
-                title="Increase"
-                class="w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
+                aria-label="Increase"
+                class="group relative w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
                        text-brand hover:bg-brand hover:text-on-brand active:bg-brand-strong
                        {#if count >= 999}invisible{/if}">
-            +
+            +{#include partials/tooltip text="Increase" pos="top" align="center" /}
         </button>
 
         <!-- Delete entry: wrapped in .dt-actions so the button gets the same min-width as the
@@ -52,9 +52,9 @@
             <button hx-get="/logs/{date}/{action.id}/confirm-delete"
                     hx-target="#log-{date}-{action.id}"
                     hx-swap="innerHTML"
-                    title="Erase this action's entries"
-                    class="dt-btn dt-btn-delete {#if count == 0}invisible{#else}day-item-delete{/if}">
-                Erase
+                    aria-label="Erase this action's entries"
+                    class="group relative dt-btn dt-btn-delete {#if count == 0}invisible{#else}day-item-delete{/if}">
+                Erase{#include partials/tooltip text="Erase this action's entries" pos="top" align="right" /}
             </button>
         </div>
     </div>

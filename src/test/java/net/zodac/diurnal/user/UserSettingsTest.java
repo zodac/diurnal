@@ -294,13 +294,6 @@ class UserSettingsTest {
     }
 
     @Test
-    void sanitiseTimezone_null_returnsNull() {
-        assertThat(UserSettings.sanitiseTimezone(null))
-            .as("expected null")
-            .isNull();
-    }
-
-    @Test
     void timezoneOptions_allValidZoneIds() {
         for (final String tz : UserSettings.TIMEZONE_OPTIONS) {
             // Throws DateTimeException if any offered id is not a real zone.

@@ -127,7 +127,7 @@ run_docker() {
         echo "✅ Dockerfile lint passed"
     else
         echo "${output}"
-        echo "❌ Dockerfile lint failed"
+        echo "❌ Dockerfile lint failed: re-run 'lint_and_tests.sh -v docker' for the full output"
         overall_exit_code=1
     fi
 }
@@ -180,7 +180,7 @@ run_grype() {
         if "${grype_cmd[@]}"; then
             echo "✅ Grype scan passed"
         else
-            echo "❌ Grype scan failed"
+            echo "❌ Grype scan failed: re-run 'lint_and_tests.sh -v grype' for the full output"
             overall_exit_code=1
         fi
         return
@@ -200,7 +200,7 @@ run_grype() {
         echo "✅ Grype scan passed"
     else
         echo "${output}"
-        echo "❌ Grype scan failed"
+        echo "❌ Grype scan failed: re-run 'lint_and_tests.sh -v grype' for the full output"
         overall_exit_code=1
     fi
 }
@@ -225,7 +225,7 @@ run_java() {
     elif mvn clean install -Dall >/dev/null 2>&1; then
         echo "✅ Java lints and tests passed"
     else
-        echo "❌ Java lints and tests failed (re-run with -v, or 'mvn clean install -Dall', for the full output)"
+        echo "❌ Java lints and tests failed: re-run 'lint_and_tests.sh -v java' for the full output"
         overall_exit_code=1
     fi
 }
@@ -250,7 +250,7 @@ run_javascript() {
         echo "✅ JavaScript lint passed"
     else
         echo "${output}"
-        echo "❌ JavaScript lint failed"
+        echo "❌ JavaScript lint failed: re-run 'lint_and_tests.sh -v javascript' for the full output"
         overall_exit_code=1
     fi
 }
@@ -281,7 +281,7 @@ run_typescript() {
         echo "✅ TypeScript lint passed"
     else
         echo "${output}"
-        echo "❌ TypeScript lint failed"
+        echo "❌ TypeScript lint failed: re-run 'lint_and_tests.sh -v typescript' for the full output"
         overall_exit_code=1
     fi
 }
@@ -301,7 +301,7 @@ run_markdown() {
         echo "✅ Markdown lint passed"
     else
         echo "${output}"
-        echo "❌ Markdown lint failed"
+        echo "❌ Markdown lint failed: re-run 'lint_and_tests.sh -v markdown' for the full output"
         overall_exit_code=1
     fi
 }
@@ -334,7 +334,7 @@ run_shellcheck() {
         echo "✅ Shell script lint passed"
     else
         echo "${output}"
-        echo "❌ Shell script lint failed"
+        echo "❌ Shell script lint failed: re-run 'lint_and_tests.sh -v shellcheck' for the full output"
         overall_exit_code=1
     fi
 }
@@ -511,6 +511,6 @@ done
 
 if [[ "${overall_exit_code}" -ne 0 ]]; then
     echo
-    echo "❌ One or more steps failed"
+    echo "❌ One or more steps failed: re-run 'lint_and_tests.sh -v [steps]' for the full output"
     exit 1
 fi

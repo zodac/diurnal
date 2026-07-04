@@ -67,6 +67,7 @@ public class StatsWebResource {
                 .data("isAdmin", user.isAdmin())
                 .data("hasActions", !Action.findActiveByUser(user.id).isEmpty())
                 .data("decimalPlaces", user.decimalPlaces)
+                .data("statsFields", ActionStatField.displayFields(user.statsFields))
                 .data("page", getStatsPage(user.id, pageNum, user.pageSize));
     }
 
@@ -81,6 +82,7 @@ public class StatsWebResource {
         final User user = currentUser();
         return statsCardsTemplate
                 .data("decimalPlaces", user.decimalPlaces)
+                .data("statsFields", ActionStatField.displayFields(user.statsFields))
                 .data("page", getStatsPage(user.id, pageNum, user.pageSize));
     }
 

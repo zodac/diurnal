@@ -223,8 +223,8 @@
                          PATCH to this row so BOTH inputs are sent. -->
                     <div id="stats-summary-row" class="flex items-center justify-between py-4 border-b border-line">
                         <div class="shrink-0 pr-4">
-                            <label for="showStatsSummary" class="block text-sm font-medium text-ink">Show stats summary</label>
-                            <p class="help-text mt-0.5">Show a summary of the top 3 stats on the dashboard.</p>
+                            <label for="showStatsSummary" class="block text-sm font-medium text-ink">Statistics Summary</label>
+                            <p class="help-text mt-0.5">Show top 3 stats on the dashboard.</p>
                         </div>
                         <div class="ml-4 flex items-center shrink-0">
                             <input type="hidden" name="showStatsSummary" value="false">
@@ -284,6 +284,81 @@
                             {/for}
                         </div>
                     </div>
+                </div>
+
+                <!-- Action stats. A drag-orderable list choosing WHICH per-action stats show on the
+                     Stats page and in what order — a display preference only; every stat is still
+                     computed in the backend. The list holds EVERY stat in the user's arranged order;
+                     enabled ones render on /stats in that order. Reordering is Pointer Events (mouse +
+                     touch, no library). Each row posts a hidden `statsOrder` (full arrangement) and a
+                     `statsEnabled` checkbox (ticked = shown); disabling therefore never moves a row.
+                     "Last performed" is mandatory (disabled+checked) — the server forces it enabled.
+                     order-last drops it below Appearance on mobile; lg:order-none restores desktop. -->
+                <div class="card p-4 order-last lg:order-none">
+                    <div class="flex items-center justify-between mb-4">
+                        <div>
+                            <h3 class="card-title">Statistics</h3>
+                            <p class="help-text mt-0.5">Choose and order the stats shown for actions.</p>
+                        </div>
+                        <span data-saved
+                              class="text-xs text-success opacity-0 transition-opacity duration-300">
+                            Saved
+                        </span>
+                    </div>
+
+                    <!-- The container owns the PATCH: it fires on any checkbox `change` and on the
+                         custom `reorder` event dispatched after a drag, including its descendant inputs
+                         in DOM order — every row's hidden `statsOrder` (so the full arrangement,
+                         including hidden stats, is captured) plus the ticked `statsEnabled` checkboxes.
+                         Disabling a stat therefore never moves it: only its checkbox state changes. -->
+                    <ul id="stats-fields-list" class="space-y-1"
+                        hx-patch="/settings/stats-fields" hx-trigger="change, reorder"
+                        hx-include="#stats-fields-list" hx-swap="none">
+                        {#for choice in statsFieldChoices}
+                        <li class="stats-field-row relative flex items-center gap-3 rounded-lg border border-line px-3 py-2 bg-surface select-none{#if !choice.mandatory} cursor-pointer{/if}"
+                            data-key="{choice.key}">
+                            <!-- Drag handle: the only drag-initiating region (touch-none keeps a touch
+                                 drag from scrolling the page). Pointer Events drive the reorder, so this
+                                 works with mouse AND touch. -->
+                            <span class="stats-field-handle shrink-0 cursor-grab text-ink-muted touch-none" aria-hidden="true">
+                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 8h16M4 16h16" />
+                                </svg>
+                            </span>
+                            <!-- Always posts, and moves with the row → captures the full arrangement. -->
+                            <input type="hidden" name="statsOrder" value="{choice.key}">
+                            <!-- Visual only (pointer-events-none) so it never toggles on its own: a SHORT
+                                 press anywhere on the row except the handle flips it via the script below,
+                                 which dispatches a change event so the htmx PATCH still fires. Keyboard
+                                 (space) toggles it natively. -->
+                            <input type="checkbox" id="stats-field-{choice.key}" name="statsEnabled" value="{choice.key}"
+                                   class="shrink-0 accent-brand pointer-events-none"
+                                   aria-labelledby="stats-field-label-{choice.key}"
+                                   aria-describedby="stats-field-desc-{choice.key}"
+                                   {#if choice.selected}checked{/if}{#if choice.mandatory} disabled{/if}>
+                            <!-- Text: hover (desktop) or long-press (touch) reveals the description
+                                 tooltip. `group` scopes the hover; `.tip-open` (added by the script on a
+                                 long press) is the touch equivalent. The tooltip sits OUTSIDE the
+                                 truncating span so the ellipsis overflow never clips it, and is capped to
+                                 the label width on mobile so it can't push the page sideways. -->
+                            <!-- w-fit (not flex-1) so the hover/long-press target is only the text glyphs,
+                                 not the empty row space to its right (which still toggles, via the row).
+                                 NOT `relative`: the tooltip is positioned against the ROW (li.relative) so
+                                 that on mobile it can be viewport-centred at 95vw (the row is centred in
+                                 the viewport) rather than pinned to this narrow text box. -->
+                            <span class="stats-field-label group w-fit max-w-full min-w-0 text-sm">
+                                <span id="stats-field-label-{choice.key}" class="block truncate text-ink">{choice.label}</span>
+                                <!-- .app-tooltip = the shared themed bubble; positioning/width per call site:
+                                     mobile → centred on the viewport at 95vw; sm+ → anchored, content width. -->
+                                <span id="stats-field-desc-{choice.key}" role="tooltip"
+                                      class="app-tooltip bottom-full mb-1.5 left-1/2 -translate-x-1/2 w-[95vw] max-w-[95vw] sm:left-0 sm:translate-x-0 sm:w-max sm:max-w-sm">{choice.description}</span>
+                            </span>
+                            {#if choice.mandatory}
+                            <span class="shrink-0 text-xs text-ink-muted ml-auto">Always shown</span>
+                            {/if}
+                        </li>
+                        {/for}
+                    </ul>
                 </div>
             </div>
 
@@ -773,6 +848,122 @@
                 if (el.dataset.src) el.src = el.dataset.src;
                 if (el.decode) el.decode().catch(function () {});
             });
+
+            // ── Action stats: reorder (handle) + toggle (short press) + tooltip (hover / long press) ──
+            // One handler owns the whole list, so the three gestures never collide:
+            //   • Reorder — a drag that STARTS on the handle (Pointer Events, so it works with mouse AND
+            //     touch; the native HTML5 drag-and-drop API never fires on touch). Releasing after a move
+            //     dispatches the custom `reorder` event that drives the list's htmx PATCH.
+            //   • Toggle — a SHORT press anywhere on a row EXCEPT the handle flips that row's (visual-only,
+            //     pointer-events-none) checkbox and dispatches a `change`, so the same PATCH fires. The
+            //     shared #prefs-form handler flashes "Saved". Because the PATCH sends every row's hidden
+            //     `statsOrder`, disabling a stat keeps its position; only reordering changes it.
+            //   • Tooltip — the description shows on hover (desktop, pure CSS via `group-hover`) or on a
+            //     LONG press of the text (touch, adding `.tip-open`). A long press opens the tooltip WITHOUT
+            //     toggling or reordering.
+            // Shared `suppressClick` guarantees a completed drag or a long-press never becomes a toggle.
+            (function () {
+                var list = document.getElementById('stats-fields-list');
+                if (!list) return;
+
+                var LONG_PRESS_MS = 500;
+                var dragged = null;        // row being reordered (drag started on its handle)
+                var moved = false;         // whether that drag actually moved a row
+                var tipTimer = null;       // pending long-press-to-open-tooltip timer
+                var suppressClick = false; // set by a drag or a long-press so the next click won't toggle
+
+                // The sibling the dragged row should sit BEFORE for a pointer at height y — the first
+                // row whose vertical midpoint is below y. null → past the last row (append).
+                function referenceRow(y) {
+                    var rows = list.querySelectorAll('.stats-field-row');
+                    for (var i = 0; i < rows.length; i++) {
+                        if (rows[i] === dragged) continue;
+                        var rect = rows[i].getBoundingClientRect();
+                        if (y < rect.top + rect.height / 2) return rows[i];
+                    }
+                    return null;
+                }
+
+                function closeTips() {
+                    list.querySelectorAll('.stats-field-label.tip-open').forEach(function (el) {
+                        el.classList.remove('tip-open');
+                    });
+                }
+
+                list.addEventListener('pointerdown', function (e) {
+                    suppressClick = false;
+                    var handle = e.target.closest('.stats-field-handle');
+                    if (handle) {
+                        var row = handle.closest('.stats-field-row');
+                        if (!row) return;
+                        e.preventDefault();
+                        dragged = row;
+                        moved = false;
+                        row.classList.add('opacity-50');
+                        // Capture so pointermove/up keep firing even if the pointer leaves the handle.
+                        handle.setPointerCapture(e.pointerId);
+                        return;
+                    }
+                    // Otherwise arm a long-press on the text → its description tooltip.
+                    var label = e.target.closest('.stats-field-label');
+                    if (!label) return;
+                    tipTimer = setTimeout(function () {
+                        tipTimer = null;
+                        suppressClick = true;   // this press is a long-press: swallow the toggle click
+                        closeTips();
+                        label.classList.add('tip-open');
+                    }, LONG_PRESS_MS);
+                });
+
+                list.addEventListener('pointermove', function (e) {
+                    if (dragged) {
+                        e.preventDefault();
+                        moved = true;
+                        var before = referenceRow(e.clientY);
+                        if (before !== dragged) list.insertBefore(dragged, before);
+                        return;
+                    }
+                    // Any movement means a scroll/drag, not a long press.
+                    if (tipTimer) { clearTimeout(tipTimer); tipTimer = null; }
+                });
+
+                function endPress() {
+                    if (dragged) {
+                        dragged.classList.remove('opacity-50');
+                        dragged = null;
+                        if (moved) {
+                            suppressClick = true;   // a completed drag must not also toggle
+                            list.dispatchEvent(new CustomEvent('reorder', { bubbles: true }));
+                        }
+                        return;
+                    }
+                    if (tipTimer) { clearTimeout(tipTimer); tipTimer = null; }
+                }
+                list.addEventListener('pointerup', endPress);
+                list.addEventListener('pointercancel', endPress);
+
+                list.addEventListener('click', function (e) {
+                    if (e.detail === 0) return;                       // keyboard (space) → native toggle
+                    if (e.target.closest('.stats-field-handle')) return;
+                    if (suppressClick) { suppressClick = false; return; }
+                    var row = e.target.closest('.stats-field-row');
+                    if (!row) return;
+                    var checkbox = row.querySelector('input[type="checkbox"]');
+                    if (!checkbox || checkbox.disabled) return;      // mandatory ("Always shown")
+                    checkbox.checked = !checkbox.checked;
+                    checkbox.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+
+                // Stop the native long-press / right-click menu on the text from fighting the tooltip.
+                list.addEventListener('contextmenu', function (e) {
+                    if (e.target.closest('.stats-field-label')) e.preventDefault();
+                });
+
+                // On touch (no hover-out) a press outside an open tooltip dismisses it.
+                document.addEventListener('pointerdown', function (e) {
+                    if (!e.target.closest('.stats-field-label.tip-open')) closeTips();
+                });
+            })();
         </script>
     </main>
 

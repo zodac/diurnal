@@ -21,11 +21,14 @@
                   hx-swap="afterbegin"
                   hx-on::after-request="if(event.detail.xhr.status===200) { document.getElementById('action-error').innerHTML=''; this.reset(); var er=document.getElementById('actions-empty-row'); if(er) er.remove(); var sh=document.getElementById('showing-shown'); var tot=document.getElementById('showing-total'); if(sh) sh.textContent=parseInt(sh.textContent,10)+1; if(tot) tot.textContent=parseInt(tot.textContent,10)+1; var section=document.getElementById('actions-section'); if(section) { section.dataset.total=parseInt(section.dataset.total,10)+1; section.classList.remove('hidden'); } } else if(event.detail.xhr.status===409) { document.getElementById('action-error').innerHTML=event.detail.xhr.responseText; }"
                   class="flex items-center gap-3">
-                <input type="color"
-                       name="colour"
-                       value="#64748b"
-                       class="w-9 h-9 rounded-full border border-line cursor-pointer p-0.5 shrink-0 bg-surface"
-                       title="Pick a colour">
+                <span class="group relative inline-flex shrink-0">
+                    <input type="color"
+                           name="colour"
+                           value="#64748b"
+                           class="w-9 h-9 rounded-full border border-line cursor-pointer p-0.5 bg-surface"
+                           aria-label="Pick a colour">
+                    {#include partials/tooltip text="Pick a colour" pos="bottom" align="left" /}
+                </span>
                 <input type="text"
                        name="name"
                        placeholder="Action name"

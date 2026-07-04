@@ -2,8 +2,13 @@
     <td class="dt-cell">
         <!-- Colour: swatch in view, picker in edit (associated with the edit form below). -->
         <span data-dt-view class="swatch swatch-md" style="background-color: {action.colour}"></span>
-        <input data-dt-edit type="color" name="colour" value="{action.colour}"
-               form="action-form-{action.id}" class="hidden dt-color-input" title="Pick a colour">
+        <!-- The tooltip can't live on the <input>, so data-dt-edit + hidden move to this wrapper (it is
+             what dtStartEdit/dtCancelEdit show/hide); the input inside is always visible within it. -->
+        <span data-dt-edit class="group relative hidden inline-flex">
+            <input type="color" name="colour" value="{action.colour}"
+                   form="action-form-{action.id}" class="dt-color-input" aria-label="Pick a colour">
+            {#include partials/tooltip text="Pick a colour" pos="bottom" align="left" /}
+        </span>
     </td>
     <td class="dt-cell font-medium">
         <span data-dt-view>{action.name}</span>

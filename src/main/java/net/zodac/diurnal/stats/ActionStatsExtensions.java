@@ -21,6 +21,7 @@ import io.quarkus.qute.TemplateExtension;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Locale;
 
 /**
@@ -37,13 +38,11 @@ import java.util.Locale;
  */
 public final class ActionStatsExtensions {
 
-    private static final DateTimeFormatter DATE_FMT  =
-            DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
-    private static final DateTimeFormatter DATE_FMT_NO_YEAR =
-            DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH);
+    private static final DateTimeFormatter DATE_FMT  = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
+    private static final DateTimeFormatter DATE_FMT_NO_YEAR = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH);
 
     private ActionStatsExtensions() {
-        // Static helpers only.
+
     }
 
     // ── Predicates (also used from StatsService) ──────────────────────────
@@ -66,6 +65,52 @@ public final class ActionStatsExtensions {
      */
     public static boolean performedThisMonth(final ActionStats stats) {
         return stats.thisMonthCount() > 0;
+    }
+
+    // ── Stats-page tiles (user-configurable display) ──────────────────────
+
+    /**
+     * Builds the ordered list of Stats-page tiles for this action, one per selected
+     * {@link ActionStatField}, in the caller-supplied order. Every value reuses the existing derived
+     * labels below, so the display preference never affects how the statistics are computed — only
+     * which tiles are rendered and in what order.
+     *
+     * <p>Called from {@code partials/stats-cards} as {@code {s.tiles(statsFields, decimalPlaces)}}.
+     *
+     * @param stats         the statistics to render
+     * @param fields        the ordered fields the user has chosen to display
+     * @param decimalPlaces the user's decimal-place preference (for the weekly average)
+     * @return the ordered tiles to render
+     */
+    @TemplateExtension
+    public static List<StatTile> tiles(final ActionStats stats, final List<ActionStatField> fields, final int decimalPlaces) {
+        return fields.stream()
+                .map(field -> tile(stats, field, decimalPlaces))
+                .toList();
+    }
+
+    private static StatTile tile(final ActionStats stats, final ActionStatField field, final int decimalPlaces) {
+        return switch (field) {
+            case CURRENT_STREAK -> numeric(field, Integer.toString(stats.currentStreak()), currentStreakUnit(stats));
+            case LONGEST_STREAK -> numeric(field, Integer.toString(stats.longestStreak()), longestStreakUnit(stats));
+            case BIGGEST_GAP    -> numeric(field, Integer.toString(stats.longestGap()), longestGapUnit(stats));
+            case TOTAL_DAYS     -> numeric(field, Integer.toString(stats.totalDays()), totalDaysUnit(stats));
+            case TOTAL_COUNT    -> numeric(field, Long.toString(stats.totalCount()), "all time");
+            case WEEKLY_AVERAGE -> numeric(field, weeklyAverage(stats, decimalPlaces), "days / week");
+            case LAST_PERFORMED -> new StatTile(field.label(), lastLabel(stats), sinceLabel(stats), true, "text-ink", true);
+            case VS_LAST_MONTH  -> trendTile(field, monthTrend(stats), monthContext(stats), monthTrendClass(stats));
+            case VS_LAST_YEAR   -> trendTile(field, yearTrend(stats), yearContext(stats), yearTrendClass(stats));
+            case BEST_MONTH     -> numeric(field, Long.toString(stats.bestMonthCount()), stats.bestMonthLabel());
+            case BEST_YEAR      -> numeric(field, Long.toString(stats.bestYearCount()), stats.bestYearLabel());
+        };
+    }
+
+    private static StatTile numeric(final ActionStatField field, final String value, final String sub) {
+        return new StatTile(field.label(), value, sub, false, "text-ink", false);
+    }
+
+    private static StatTile trendTile(final ActionStatField field, final String value, final String sub, final String valueClass) {
+        return new StatTile(field.label(), value, sub, true, valueClass, false);
     }
 
     // ── Date labels ───────────────────────────────────────────────────────
@@ -152,7 +197,9 @@ public final class ActionStatsExtensions {
         if (value == 0.0) {
             return "0";
         }
-        return String.format(Locale.ENGLISH, "%." + decimalPlaces + "f", value);
+
+        final String format = "%." + decimalPlaces + "f";
+        return String.format(Locale.ENGLISH, format, value);
     }
 
     // ── Singular-aware day/streak labels ──────────────────────────────────

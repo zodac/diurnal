@@ -492,5 +492,64 @@
         document.body.addEventListener('htmx:afterSwap', function (e) { window.Diurnal.formatNumbers(e.target); });
     })();
     </script>
+
+    <script>
+    // ── Global tooltip long-press (touch) ─────────────────────────────────────────
+    // Desktop reveals `.app-tooltip` on hover (CSS). Touch has no hover, so a LONG press on any tooltip
+    // host — an element with a direct-child `.app-tooltip` (see partials/tooltip.html) — opens it by
+    // adding `.tip-open` (the same class the CSS reveal keys on), and swallows the click the press would
+    // otherwise fire (navigation, htmx, opening the colour picker…). A press elsewhere dismisses it.
+    // The Action-stats picker manages its OWN hosts (they also drag/toggle), so #stats-fields-list is
+    // skipped here. Mouse is left to hover.
+    (function () {
+        var LONG_PRESS_MS = 500;
+        var timer = null;
+        var openHost = null;
+        var suppressClick = false;
+
+        // The nearest ancestor (or self) whose DIRECT child is an `.app-tooltip` — i.e. the host.
+        function hostOf(el) {
+            while (el && el.nodeType === 1) {
+                if (el.querySelector(':scope > .app-tooltip')) return el;
+                el = el.parentElement;
+            }
+            return null;
+        }
+        function closeTip() {
+            if (openHost) { openHost.classList.remove('tip-open'); openHost = null; }
+        }
+
+        document.addEventListener('pointerdown', function (e) {
+            if (e.pointerType === 'mouse') return;               // mouse uses hover
+            suppressClick = false;
+            if (openHost && !openHost.contains(e.target)) closeTip();   // tap outside dismisses
+            if (e.target.closest('#stats-fields-list')) return;  // handled by the stats-picker script
+            var host = hostOf(e.target);
+            if (!host) return;
+            timer = setTimeout(function () {
+                timer = null;
+                suppressClick = true;
+                closeTip();
+                host.classList.add('tip-open');
+                openHost = host;
+            }, LONG_PRESS_MS);
+        }, true);
+
+        function cancel() { if (timer) { clearTimeout(timer); timer = null; } }
+        document.addEventListener('pointermove', cancel, true);
+        document.addEventListener('pointerup', cancel, true);
+        document.addEventListener('pointercancel', cancel, true);
+
+        // Swallow the click a long-press would otherwise trigger. Capture + stopImmediatePropagation so
+        // it never reaches the element's own (htmx / link / colour-input) handler.
+        document.addEventListener('click', function (e) {
+            if (!suppressClick) return;
+            suppressClick = false;
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+        }, true);
+    })();
+    </script>
 </body>
 </html>

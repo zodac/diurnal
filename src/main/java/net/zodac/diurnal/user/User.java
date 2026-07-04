@@ -26,9 +26,12 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -92,6 +95,16 @@ public class User extends PanacheEntityBase {
 
     @Column(name = "calendar_view", nullable = false)
     public String calendarView = UserSettings.DEFAULT_CALENDAR_VIEW;
+
+    // User-configurable "Action stats" display preference: the full, ordered arrangement of every
+    // stat (its ActionStatField key + enabled flag) selecting which per-action stats show on the Stats
+    // page and in what order. Stored as a jsonb array of StatFieldPref, so a field keeps its position
+    // whether shown or hidden. NULL = never customised (render every stat in the default order).
+    // Display-only; StatsService always computes the full set. Parsed via
+    // ActionStatField.displayFields(...) / choices(...).
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "stats_fields", columnDefinition = "jsonb")
+    public @Nullable List<StatFieldPref> statsFields;
 
     // Per-user timezone override (IANA id). NULL = use the server default (app.timezone),
     // so "today" / streak / future-log boundaries follow the user's own clock.
