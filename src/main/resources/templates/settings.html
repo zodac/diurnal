@@ -42,17 +42,26 @@
                 <div class="card p-4">
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="card-title">Account</h3>
-                        <span id="account-saved"
+                        <!-- Shared status indicator for the Account card: shows the green "Saved"
+                             confirmation OR a red validation error (password change) in the SAME spot,
+                             so an error never shifts the layout. Colour + text are set by
+                             showAccountStatus() in the script below. -->
+                        <span id="account-status"
                               class="text-xs text-success opacity-0 transition-opacity duration-300">
                             Saved
                         </span>
                     </div>
 
                     <div class="space-y-4">
-                        <!-- Email (read-only) -->
+                        <!-- Email (read-only). The value sits in a `.settings-field` row (same
+                             min-height + vertical centring as the Display Name / Password rows below)
+                             so all three value rows are the same height and the vertical rhythm between
+                             every field is equal. -->
                         <div>
                             <label class="field-label-caps">Email</label>
-                            <p class="text-sm text-ink">{email}</p>
+                            <div class="settings-field flex items-center">
+                                <p class="text-sm text-ink">{email}</p>
+                            </div>
                         </div>
 
                         <!-- Display Name. The view/edit states borrow the data-table conventions
@@ -100,6 +109,91 @@
                                 </div>
                             </form>
                         </div>
+
+                        <!-- Password (local accounts only). Mirrors the Display Name field's
+                             view/edit chrome (hover-revealed Edit, fixed-height ringed edit state) so
+                             switching modes never resizes the row. Changing the password is a two-step
+                             flow that keeps every control in the SAME place:
+                               1. hover → Edit appears; 2. Edit → the value becomes an editable input
+                               with Save/Cancel; 3. Save validates only that it is non-empty; 4. on
+                               success the input is replaced IN PLACE by a "confirm" input asking for the
+                               password again — only a matching re-entry actually persists the change.
+                             Each input hides its value and carries an eye/reveal toggle.
+                             NOTE: passwords are stored only as BCrypt hashes and cannot be recovered, so
+                             the resting view shows a fixed placeholder — there is no real password to
+                             reveal there, so the read row has no eye toggle (the reveal on the edit and
+                             confirm inputs below works normally, as those hold a real value). -->
+                        {#if canChangePassword}
+                        <div>
+                            <label class="field-label-caps">Password</label>
+
+                            <!-- Read mode: fixed masked placeholder + Edit (no reveal — nothing to show). -->
+                            <div id="password-view"
+                                 class="settings-field flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg hover:bg-surface-muted">
+                                <span class="text-sm text-ink tracking-widest select-none">••••••••••</span>
+                                <div class="dt-actions settings-field-actions">
+                                    <button type="button"
+                                            onclick="startEditPassword()"
+                                            class="dt-btn dt-btn-edit">Edit</button>
+                                </div>
+                            </div>
+
+                            <!-- Step 1: enter the new password. Purely client-side (validated non-empty)
+                                 before swapping to the confirm step — nothing is sent to the server until
+                                 the re-entry is confirmed. -->
+                            <form id="password-new-form" class="hidden" onsubmit="return submitNewPassword(event)">
+                                <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
+                                    <input type="password"
+                                           id="newPassword"
+                                           autocomplete="new-password"
+                                           placeholder="New password"
+                                           maxlength="255"
+                                           class="dt-text-input flex-1 min-w-0 h-7">
+                                    <button type="button" onclick="toggleReveal('newPassword', this)"
+                                            aria-label="Show password" class="settings-eye">
+                                        {#include partials/eye-icons /}
+                                    </button>
+                                    <div class="dt-actions">
+                                        <button type="submit" class="dt-btn dt-btn-save">Save</button>
+                                        <button type="button" onclick="cancelEditPassword()"
+                                                class="dt-btn dt-btn-cancel">Cancel</button>
+                                    </div>
+                                </div>
+                            </form>
+
+                            <!-- Step 2: re-enter to confirm. Posts both values; the server persists only
+                                 on a match, else 422 → red error (field is NOT cleared). newPassword rides
+                                 along in a hidden field carried over from step 1. -->
+                            <form id="password-confirm-form" class="hidden"
+                                  hx-post="/settings/password" hx-swap="none">
+                                <input type="hidden" id="pendingPassword" name="newPassword">
+                                <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
+                                    <input type="password"
+                                           id="confirmPassword"
+                                           name="confirmPassword"
+                                           autocomplete="new-password"
+                                           placeholder="Re-enter new password"
+                                           maxlength="255"
+                                           class="dt-text-input flex-1 min-w-0 h-7">
+                                    <button type="button" onclick="toggleReveal('confirmPassword', this)"
+                                            aria-label="Show password" class="settings-eye">
+                                        {#include partials/eye-icons /}
+                                    </button>
+                                    <div class="dt-actions">
+                                        <button type="submit" class="dt-btn dt-btn-save">Save</button>
+                                        <button type="button" onclick="cancelEditPassword()"
+                                                class="dt-btn dt-btn-cancel">Cancel</button>
+                                    </div>
+                                </div>
+                            </form>
+                        </div>
+                        {#else if isOidcUser}
+                        <!-- OIDC-only account: no password exists to view or change. -->
+                        <div>
+                            <label class="field-label-caps">Password</label>
+                            <p class="text-sm text-ink-muted">User authentication is managed by {oidcProviderName}.</p>
+                        </div>
+                        {/if}
                     </div>
                 </div>
 
@@ -243,10 +337,16 @@
         </div>
 
         <script>
-            function showSaved(indicatorId) {
-                var el = document.getElementById(indicatorId);
+            // Account card status line: green "Saved" or a red error, shown in the SAME header slot so
+            // an error never nudges the layout. Colour + text are set here per call.
+            function showAccountStatus(message, isError) {
+                var el = document.getElementById('account-status');
+                el.textContent = message;
+                el.classList.toggle('text-success', !isError);
+                el.classList.toggle('text-danger', isError);
                 el.classList.add('opacity-100');
-                setTimeout(function () { el.classList.remove('opacity-100'); }, 2000);
+                clearTimeout(el._hideTimer);
+                el._hideTimer = setTimeout(function () { el.classList.remove('opacity-100'); }, 2000);
             }
 
             function startEditDisplayName() {
@@ -274,7 +374,91 @@
                     var navMobile = document.getElementById('nav-display-name-mobile');
                     if (navMobile) navMobile.textContent = newName;
                     cancelEditDisplayName();
-                    showSaved('account-saved');
+                    showAccountStatus('Saved', false);
+                }
+            });
+
+            // ── Password change ──────────────────────────────────────────────
+            // A two-step in-place flow that never moves the surrounding controls: view → enter new
+            // password (step 1) → re-enter to confirm (step 2). Steps 1 and 2 occupy the exact same
+            // slot as the read-mode value (all three share `.settings-field`), so nothing reflows.
+
+            var passwordEls = {
+                view:    document.getElementById('password-view'),
+                newForm: document.getElementById('password-new-form'),
+                confirm: document.getElementById('password-confirm-form')
+            };
+
+            // Reset an input to hidden (type=password), clear its value, and restore its eye toggle to
+            // the "reveal" icon.
+            function resetRevealInput(input) {
+                if (!input) return;
+                input.value = '';
+                input.type = 'password';
+                var btn = input.parentElement.querySelector('.settings-eye');
+                if (btn) setEyeState(btn, false);
+            }
+
+            // Point an eye toggle at the correct icon: `revealed` true shows the slashed eye (click to
+            // hide), false shows the plain eye (click to reveal).
+            function setEyeState(btn, revealed) {
+                btn.querySelector('[data-eye-show]').classList.toggle('hidden', revealed);
+                btn.querySelector('[data-eye-hide]').classList.toggle('hidden', !revealed);
+            }
+
+            // Toggle an input between password/text and flip its eye icon to match.
+            function toggleReveal(inputId, btn) {
+                var input = document.getElementById(inputId);
+                var revealed = input.type === 'password';
+                input.type = revealed ? 'text' : 'password';
+                setEyeState(btn, revealed);
+            }
+
+            function startEditPassword() {
+                passwordEls.view.classList.add('hidden');
+                passwordEls.confirm.classList.add('hidden');
+                passwordEls.newForm.classList.remove('hidden');
+                var input = document.getElementById('newPassword');
+                resetRevealInput(input);
+                input.focus();
+            }
+
+            // Cancel from either step: clear everything and return to the read view.
+            function cancelEditPassword() {
+                passwordEls.newForm.classList.add('hidden');
+                passwordEls.confirm.classList.add('hidden');
+                passwordEls.view.classList.remove('hidden');
+                resetRevealInput(document.getElementById('newPassword'));
+                resetRevealInput(document.getElementById('confirmPassword'));
+                document.getElementById('pendingPassword').value = '';
+            }
+
+            // Step 1 → 2: validate non-empty (the only rule), stash the value for the confirm POST, then
+            // swap the input for the confirm input in the same slot.
+            function submitNewPassword(event) {
+                event.preventDefault();
+                var value = document.getElementById('newPassword').value;
+                if (value.length === 0) {
+                    showAccountStatus('Password cannot be empty', true);
+                    return false;
+                }
+                document.getElementById('pendingPassword').value = value;
+                passwordEls.newForm.classList.add('hidden');
+                passwordEls.confirm.classList.remove('hidden');
+                var input = document.getElementById('confirmPassword');
+                resetRevealInput(input);
+                input.focus();
+                return false;
+            }
+
+            // Step 2 result: on success return to the read view and flash "Saved"; on failure (mismatch)
+            // show a red error and leave the field untouched so the user can correct it.
+            passwordEls.confirm.addEventListener('htmx:afterRequest', function (e) {
+                if (e.detail.successful) {
+                    cancelEditPassword();
+                    showAccountStatus('Saved', false);
+                } else {
+                    showAccountStatus('Passwords do not match', true);
                 }
             });
 
