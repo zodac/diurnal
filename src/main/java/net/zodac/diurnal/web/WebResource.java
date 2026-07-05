@@ -67,6 +67,12 @@ public class WebResource {
 
     private static final Logger LOGGER = LogManager.getLogger(WebResource.class);
 
+    // Password-change error bodies. Returned to (and matched by) the settings client so it can route the
+    // user back to the correct step: a wrong current password → back to step 1; a mismatch → stay on the
+    // confirm step. Kept in sync with the checks in settings.html's password-change script.
+    private static final String CURRENT_PASSWORD_ERROR = "Current password is incorrect";
+    private static final String NEW_PASSWORD_ERROR = "Passwords do not match";
+
     @Inject
     @Location("login")
     Template loginTemplate;
@@ -542,11 +548,14 @@ public class WebResource {
     }
 
     /**
-     * Changes the current (local) user's password. The new password is entered and then re-entered to
-     * confirm (the client drives that two-step flow), so both values arrive here: {@code newPassword}
-     * and its {@code confirmPassword}. Returns {@code 422} when the new password is empty or the two do
-     * not match, {@code 403} for a non-local (OIDC-only) account or when password auth is disabled, and
-     * {@code 200} once the new hash is persisted.
+     * Changes the current (local) user's password. To defend against a hijacked session silently taking
+     * over the account, the caller must prove knowledge of the existing password: the flow first asks for
+     * the {@code currentPassword}, then the new password entered and re-entered to confirm ({@code
+     * newPassword} + {@code confirmPassword}). All three values arrive here. Returns {@code 422} when the
+     * current password does not match (body {@link #CURRENT_PASSWORD_ERROR}) or when the new password is
+     * empty or the two copies do not match (body {@link #NEW_PASSWORD_ERROR}), {@code 403} for a non-local
+     * (OIDC-only) account or when password auth is disabled, and {@code 200} once the new hash is
+     * persisted. The response body drives which step the client returns the user to.
      */
     @POST
     @Path("settings/password")
@@ -554,6 +563,7 @@ public class WebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updatePassword(
+            @FormParam("currentPassword") final String currentPassword,
             @FormParam("newPassword")     final String newPassword,
             @FormParam("confirmPassword") final String confirmPassword) {
         final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
@@ -563,14 +573,64 @@ public class WebResource {
         if (!passwordAuthConfig.enabled() || user.passwordHash == null || user.passwordHash.isBlank()) {
             return Response.status(Response.Status.FORBIDDEN).build();
         }
-        // The only validation: a password cannot be empty, and the re-entered confirmation must match.
+        // The caller must know the current password — this is what stops a hijacked session from silently
+        // resetting it. Checked before the new-password rules so a wrong current password is reported (and
+        // the client sent back to the first step) regardless of the new/confirm values. The client also
+        // verifies this up front via verifyCurrentPassword, but that is only a UX aid: this is the
+        // authoritative check on the mutating request.
+        if (!currentPasswordMatches(user.passwordHash, currentPassword)) {
+            return Response.status(422).entity(CURRENT_PASSWORD_ERROR).build();
+        }
+        // The new password cannot be empty, and the re-entered confirmation must match.
         if (newPassword == null || newPassword.isEmpty() || !newPassword.equals(confirmPassword)) {
-            return Response.status(422).build();
+            return Response.status(422).entity(NEW_PASSWORD_ERROR).build();
         }
         user.passwordHash = BCrypt.hashpw(newPassword, BCrypt.gensalt(12));
         user.persist();
         LOGGER.info("Password changed for user: {}", user.email);
         return Response.ok().build();
+    }
+
+    /**
+     * Verifies the current (local) user's existing password without changing anything, so the settings
+     * client can confirm step 1 of the password-change flow before asking for the new password. Returns
+     * {@code 204} when it matches, {@code 422} when it does not (or is empty, body
+     * {@link #CURRENT_PASSWORD_ERROR}), and {@code 403} for a non-local (OIDC-only) account or when
+     * password auth is disabled. This is a UX aid only — {@link #updatePassword} re-verifies the current
+     * password authoritatively on the mutating request.
+     *
+     * @param currentPassword the password to check against the stored hash
+     * @return the verification outcome as an empty response
+     */
+    @POST
+    @Path("settings/password/verify")
+    @RolesAllowed("user")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Transactional
+    public Response verifyCurrentPassword(@FormParam("currentPassword") final String currentPassword) {
+        final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        // Only local accounts have a password to verify; mirror updatePassword's guard exactly.
+        if (!passwordAuthConfig.enabled() || user.passwordHash == null || user.passwordHash.isBlank()) {
+            return Response.status(Response.Status.FORBIDDEN).build();
+        }
+        if (!currentPasswordMatches(user.passwordHash, currentPassword)) {
+            return Response.status(422).entity(CURRENT_PASSWORD_ERROR).build();
+        }
+        return Response.noContent().build();
+    }
+
+    /**
+     * Whether the supplied plaintext matches a stored password hash. Empty or {@code null} plaintext never
+     * matches — and short-circuits before the (deliberately slow) BCrypt comparison. Callers pass the
+     * user's already-established non-blank hash.
+     *
+     * @param passwordHash    the stored BCrypt hash to compare against
+     * @param currentPassword the plaintext to check
+     * @return {@code true} iff {@code currentPassword} is non-empty and verifies against {@code passwordHash}
+     */
+    private static boolean currentPasswordMatches(final String passwordHash, final String currentPassword) {
+        return currentPassword != null && !currentPassword.isEmpty()
+                && BCrypt.checkpw(currentPassword, passwordHash);
     }
 
     private TemplateInstance settingsView(final User user) {

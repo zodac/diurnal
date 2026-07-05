@@ -122,7 +122,10 @@
                              NOTE: passwords are stored only as BCrypt hashes and cannot be recovered, so
                              the resting view shows a fixed placeholder — there is no real password to
                              reveal there, so the read row has no eye toggle (the reveal on the edit and
-                             confirm inputs below works normally, as those hold a real value). -->
+                             confirm inputs below works normally, as those hold a real value).
+                             SECURITY: the change now starts by asking for the CURRENT password, so a
+                             hijacked session cannot silently reset it. Each of the three steps (current →
+                             new → re-enter) occupies the SAME slot, so the row never grows or reflows. -->
                         {#if canChangePassword}
                         <div>
                             <label class="field-label-caps">Password</label>
@@ -138,7 +141,34 @@
                                 </div>
                             </div>
 
-                            <!-- Step 1: enter the new password. Purely client-side (validated non-empty)
+                            <!-- Step 1: enter the CURRENT password. Verified server-side the moment the user
+                                 clicks Next (hx-post below) — a wrong value keeps them here with an inline
+                                 error rather than letting them fill in the new password for nothing. The
+                                 value rides along in a hidden field to the final POST, which re-verifies it
+                                 authoritatively (the verify call is only a UX aid). -->
+                            <form id="password-current-form" class="hidden"
+                                  hx-post="/settings/password/verify" hx-swap="none">
+                                <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
+                                    <input type="password"
+                                           id="currentPassword"
+                                           name="currentPassword"
+                                           autocomplete="current-password"
+                                           placeholder="Current password"
+                                           maxlength="255"
+                                           class="dt-text-input flex-1 min-w-0 h-7">
+                                    <button type="button" onclick="toggleReveal('currentPassword', this)"
+                                            aria-label="Show password" class="settings-eye">
+                                        {#include partials/eye-icons /}
+                                    </button>
+                                    <div class="dt-actions">
+                                        <button type="submit" class="dt-btn dt-btn-save">Next</button>
+                                        <button type="button" onclick="cancelEditPassword()"
+                                                class="dt-btn dt-btn-cancel">Cancel</button>
+                                    </div>
+                                </div>
+                            </form>
+
+                            <!-- Step 2: enter the new password. Purely client-side (validated non-empty)
                                  before swapping to the confirm step — nothing is sent to the server until
                                  the re-entry is confirmed. -->
                             <form id="password-new-form" class="hidden" onsubmit="return submitNewPassword(event)">
@@ -154,18 +184,20 @@
                                         {#include partials/eye-icons /}
                                     </button>
                                     <div class="dt-actions">
-                                        <button type="submit" class="dt-btn dt-btn-save">Save</button>
+                                        <button type="submit" class="dt-btn dt-btn-save">Next</button>
                                         <button type="button" onclick="cancelEditPassword()"
                                                 class="dt-btn dt-btn-cancel">Cancel</button>
                                     </div>
                                 </div>
                             </form>
 
-                            <!-- Step 2: re-enter to confirm. Posts both values; the server persists only
-                                 on a match, else 422 → red error (field is NOT cleared). newPassword rides
-                                 along in a hidden field carried over from step 1. -->
+                            <!-- Step 3: re-enter to confirm. Posts all three values; the server verifies the
+                                 current password and the match, persisting only when both hold, else 422 →
+                                 red error (field is NOT cleared). The current and new passwords ride along
+                                 in hidden fields carried over from steps 1 and 2. -->
                             <form id="password-confirm-form" class="hidden"
                                   hx-post="/settings/password" hx-swap="none">
+                                <input type="hidden" id="pendingCurrent" name="currentPassword">
                                 <input type="hidden" id="pendingPassword" name="newPassword">
                                 <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
                                     <input type="password"
@@ -512,14 +544,17 @@
             });
 
             // ── Password change ──────────────────────────────────────────────
-            // A two-step in-place flow that never moves the surrounding controls: view → enter new
-            // password (step 1) → re-enter to confirm (step 2). Steps 1 and 2 occupy the exact same
-            // slot as the read-mode value (all three share `.settings-field`), so nothing reflows.
+            // A three-step in-place flow that never moves the surrounding controls: view → enter the
+            // CURRENT password (step 1) → enter the new password (step 2) → re-enter to confirm (step 3).
+            // Every step occupies the exact same slot as the read-mode value (all share `.settings-field`),
+            // so the row never grows or reflows. The current password is required so a hijacked session
+            // cannot silently reset it; the server verifies it on the final POST.
 
             var passwordEls = {
-                view:    document.getElementById('password-view'),
-                newForm: document.getElementById('password-new-form'),
-                confirm: document.getElementById('password-confirm-form')
+                view:       document.getElementById('password-view'),
+                currentForm: document.getElementById('password-current-form'),
+                newForm:    document.getElementById('password-new-form'),
+                confirm:    document.getElementById('password-confirm-form')
             };
 
             // Reset an input to hidden (type=password), clear its value, and restore its eye toggle to
@@ -547,26 +582,61 @@
                 setEyeState(btn, revealed);
             }
 
-            function startEditPassword() {
+            // Show step 1 (current password) and hide the other password states. Used both when opening
+            // the editor and (belt-and-braces) if the final POST ever rejects the current password.
+            function showCurrentStep() {
                 passwordEls.view.classList.add('hidden');
+                passwordEls.newForm.classList.add('hidden');
                 passwordEls.confirm.classList.add('hidden');
+                passwordEls.currentForm.classList.remove('hidden');
+                var input = document.getElementById('currentPassword');
+                resetRevealInput(input);
+                input.focus();
+            }
+
+            function startEditPassword() {
+                showCurrentStep();
+            }
+
+            // Cancel from any step: clear everything (including the stashed values) and return to the read
+            // view.
+            function cancelEditPassword() {
+                passwordEls.currentForm.classList.add('hidden');
+                passwordEls.newForm.classList.add('hidden');
+                passwordEls.confirm.classList.add('hidden');
+                passwordEls.view.classList.remove('hidden');
+                resetRevealInput(document.getElementById('currentPassword'));
+                resetRevealInput(document.getElementById('newPassword'));
+                resetRevealInput(document.getElementById('confirmPassword'));
+                document.getElementById('pendingCurrent').value = '';
+                document.getElementById('pendingPassword').value = '';
+            }
+
+            // Step 1 → 2, run only once the server has confirmed the current password: stash it for the
+            // final POST and swap to the new-password input in the same slot.
+            function advanceToNewPassword() {
+                document.getElementById('pendingCurrent').value = document.getElementById('currentPassword').value;
+                passwordEls.currentForm.classList.add('hidden');
                 passwordEls.newForm.classList.remove('hidden');
                 var input = document.getElementById('newPassword');
                 resetRevealInput(input);
                 input.focus();
             }
 
-            // Cancel from either step: clear everything and return to the read view.
-            function cancelEditPassword() {
-                passwordEls.newForm.classList.add('hidden');
-                passwordEls.confirm.classList.add('hidden');
-                passwordEls.view.classList.remove('hidden');
-                resetRevealInput(document.getElementById('newPassword'));
-                resetRevealInput(document.getElementById('confirmPassword'));
-                document.getElementById('pendingPassword').value = '';
-            }
+            // The Next button on step 1 posts the current password to /settings/password/verify (hx-post).
+            // Advancing to step 2 is gated on that check succeeding: a wrong (or empty) password keeps the
+            // user here with an inline error, so they never fill in the new password for nothing. This is
+            // only a UX aid — updatePassword re-verifies the current password authoritatively on the final
+            // POST (the password could change between steps, and a client could skip this call entirely).
+            passwordEls.currentForm.addEventListener('htmx:afterRequest', function (e) {
+                if (e.detail.successful) {
+                    advanceToNewPassword();
+                } else {
+                    showAccountStatus(e.detail.xhr.responseText || 'Current password is incorrect', true);
+                }
+            });
 
-            // Step 1 → 2: validate non-empty (the only rule), stash the value for the confirm POST, then
+            // Step 2 → 3: validate non-empty (the only rule), stash the value for the confirm POST, then
             // swap the input for the confirm input in the same slot.
             function submitNewPassword(event) {
                 event.preventDefault();
@@ -584,14 +654,20 @@
                 return false;
             }
 
-            // Step 2 result: on success return to the read view and flash "Saved"; on failure (mismatch)
-            // show a red error and leave the field untouched so the user can correct it.
+            // Step 3 result: on success return to the read view and flash "Saved". On failure show the
+            // server's message in red; a wrong CURRENT password can't be fixed from the confirm step, so
+            // send the user back to step 1 (matched by the server's "current password" wording). A simple
+            // mismatch is corrected in place, so the confirm field is left untouched.
             passwordEls.confirm.addEventListener('htmx:afterRequest', function (e) {
                 if (e.detail.successful) {
                     cancelEditPassword();
                     showAccountStatus('Saved', false);
-                } else {
-                    showAccountStatus('Passwords do not match', true);
+                    return;
+                }
+                var msg = e.detail.xhr.responseText || 'Passwords do not match';
+                showAccountStatus(msg, true);
+                if (/current password/i.test(msg)) {
+                    showCurrentStep();
                 }
             });
 
