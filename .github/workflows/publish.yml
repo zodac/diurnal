@@ -82,11 +82,27 @@ jobs:
       - name: Install CSS build dependencies
         run: npm ci
 
+      # Cache the downloaded Playwright browser binaries (the slow part). Keyed on the E2E lockfile so a
+      # Playwright version bump invalidates it. OS-level deps (`--with-deps`) are NOT cached, so on a hit
+      # we still run `install-deps` below.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ hashFiles('e2e/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
       - name: Install E2E dependencies and browsers
         working-directory: e2e
         run: |
           npm ci
-          npx playwright install --with-deps
+          if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
+            npx playwright install-deps
+          else
+            npx playwright install --with-deps
+          fi
 
       # Executes the full gate one place.
       # Needs the host toolchain set up above: JDK+Maven, Node deps, Playwright, and Docker.
