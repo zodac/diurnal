@@ -27,7 +27,10 @@ import static org.hamcrest.Matchers.not;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
+import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
@@ -285,6 +288,27 @@ class WebResourceIT extends IntegrationTestBase {
                 .then().statusCode(200)
                 .contentType(containsString("text/html"))
                 .body(containsString("Web User"));
+    }
+
+    @Test
+    @TestSecurity(user = "web-it@lt.test", roles = "user")
+    void dashboard_withLoggedAction_showsTopThreeEnabledStatTiles() {
+        // Seed a logged action so the stats-summary card renders. With the default (never-customised)
+        // "Action stats" preference, the top three enabled fields are the first three declared:
+        // Current streak, Longest streak, Biggest gap — and NOT any lower-ranked field (e.g. Total
+        // count), confirming the summary now honours the Statistics setting rather than a fixed trio.
+        final UUID userId = User.findByEmail("web-it@lt.test").orElseThrow().id;
+        final Action action = newAction(userId, "Meditate");
+        newLog(userId, action.id, FIXED_TODAY, 1);
+
+        given().get("/")
+                .then().statusCode(200)
+                .body(containsString("Meditate"))
+                .body(allOf(
+                        containsString("Current streak"),
+                        containsString("Longest streak"),
+                        containsString("Biggest gap"),
+                        not(containsString("Total count"))));
     }
 
     @Test

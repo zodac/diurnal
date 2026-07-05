@@ -605,7 +605,9 @@ public class WebResource {
     // ── Dashboard (protected) ──────────────────────────────────────────────
 
     /**
-     * Renders the dashboard with the user's calendar and three most-recent action stats.
+     * Renders the dashboard with the user's calendar and three most-recent action stats. Each summary
+     * tile row shows the user's top three enabled "Action stats" (the same display preference that
+     * drives the Stats page), in their chosen order.
      */
     @GET
     @Path("/")
@@ -615,6 +617,10 @@ public class WebResource {
     public TemplateInstance dashboard() {
         final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
         final List<?> recentStats = statsService.forMostRecent(user.id, 3);
+        final List<ActionStatField> summaryFields = ActionStatField.displayFields(user.statsFields)
+                .stream()
+                .limit(3)
+                .toList();
         return dashboardTemplate
                 .data("email", user.email)
                 .data("displayName", user.displayName)
@@ -624,6 +630,8 @@ public class WebResource {
                 .data("calendarView", user.calendarView)
                 .data("today", clock.today(clock.zoneFor(user.timezone)).toString())
                 .data("showStatsSummary", user.showStatsSummary)
+                .data("decimalPlaces", user.decimalPlaces)
+                .data("summaryFields", summaryFields)
                 .data("recentStats", recentStats);
     }
 }

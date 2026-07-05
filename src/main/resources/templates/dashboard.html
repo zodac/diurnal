@@ -370,25 +370,19 @@
                         <span class="swatch swatch-sm" style="background-color: {s.action.colour}"></span>
                         <span class="text-sm font-medium text-ink truncate">{s.action.name}</span>
                     </div>
-                    {! Mobile squeezes three columns into the card width, so the type is reduced a step
+                    {! Mirrors the Stats page: the tiles shown are the user's top three enabled "Action
+                       stats" (summaryFields), in their chosen order. The backend always computes every
+                       statistic; the display preference only selects which tiles appear here.
+                       Mobile squeezes three columns into the card width, so the type is reduced a step
                        (text-[0.65rem]/text-xs) and the gap tightened here; sm: restores the larger sizes. !}
                     <dl class="grid grid-cols-3 gap-2 sm:gap-4 min-w-0 sm:flex-1">
+                        {#for tile in s.tiles(summaryFields, decimalPlaces)}
                         <div>
-                            {! latestLabel is a date (ungrouped); sinceLabel carries a day count. !}
-                            <dt class="help-text text-[0.65rem] sm:text-xs">Latest</dt>
-                            <dd class="text-xs sm:text-sm font-semibold text-ink">{s.latestLabel}</dd>
-                            <dd class="js-num help-text text-[0.65rem] sm:text-xs">{s.sinceLabel}</dd>
+                            <dt class="help-text text-[0.65rem] sm:text-xs">{tile.label}</dt>
+                            <dd class="text-xs sm:text-sm font-semibold {tile.valueClass ?: 'text-ink'}{#if !tile.date} js-num{/if}">{tile.value}</dd>
+                            {#if tile.sub}<dd class="help-text text-[0.65rem] sm:text-xs{#if tile.subNum || tile.date} js-num{/if}">{tile.sub}</dd>{/if}
                         </div>
-                        <div>
-                            <dt class="help-text text-[0.65rem] sm:text-xs">Monthly trend</dt>
-                            <dd class="js-num text-xs sm:text-sm font-semibold {s.monthTrendClass}">{s.monthTrend}</dd>
-                            <dd class="js-num help-text text-[0.65rem] sm:text-xs">{s.thisMonthContext}</dd>
-                        </div>
-                        <div>
-                            <dt class="help-text text-[0.65rem] sm:text-xs">Streak</dt>
-                            <dd class="js-num text-xs sm:text-sm font-semibold text-ink">{s.currentStreakLabel}</dd>
-                            <dd class="js-num help-text text-[0.65rem] sm:text-xs">Best: {s.longestStreakLabel}</dd>
-                        </div>
+                        {/for}
                     </dl>
                 </div>
                 {/for}
