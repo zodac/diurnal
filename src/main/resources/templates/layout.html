@@ -228,6 +228,16 @@
         .settings-field:hover .settings-field-actions,
         .settings-field:focus-within .settings-field-actions { opacity: 1; pointer-events: auto; }
         .settings-field-edit { box-shadow: inset 0 0 0 1px var(--color-ring-edit); }
+
+        /* Touch devices have no reliable hover, so the hover-gated action reveals above (table
+           Edit/Delete, the day-panel Erase, the Settings Edit) would need an extra tap to surface.
+           Key off `(hover: none)` — the pointer's hover *capability*, NOT viewport width — so these
+           stay always-visible on phones/tablets while a narrow desktop window keeps the reveal. */
+        @media (hover: none) {
+            .dt-row [data-dt-view].dt-actions,
+            .day-item-delete,
+            .settings-field-actions { opacity: 1; pointer-events: auto; }
+        }
         /* Reveal (eye) toggle used by the Password field's view/edit/confirm states. Same faint→brand
            treatment as .dt-btn-edit, so it sits quietly next to the value until hovered. Colours are
            tokens that already flip in dark mode. */
