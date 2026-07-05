@@ -89,7 +89,7 @@ alongside a PostgreSQL container.
 
 **1. Get the Docker Compose file:**
 
-Download [`docker-compose-example.yml`](./doc/docker-compose-example.yml) from this repository and save it as `docker-compose.yml`:
+Download [`docker-compose-example.yml`](doc/docker-compose.example.yml) from this repository and save it as `docker-compose.yml`:
 
 ```bash
 curl -o docker-compose.yml https://raw.githubusercontent.com/zodac/diurnal/master/doc/docker-compose-example.yml
