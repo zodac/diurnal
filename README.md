@@ -4,7 +4,7 @@
 </p>
 <!-- markdownlint-enable MD033 MD041 -->
 
-> *[diurnal](https://www.dictionary.com/browse/diurnal); / daɪˈɜr nl /; adjective*
+> *[diurnal](https://www.dictionary.com/browse/diurnal), / daɪˈɜr nl /, adjective*
 >
 > "of or relating to a day or each day; daily"
 
@@ -14,7 +14,7 @@
 - [Features](#features)
 - [Screenshots](#screenshots)
 - [Deployment](#deployment)
-- [Configuration](#configuration)
+- [Environment Variables](#environment-variables)
     - [Required](#required)
     - [Database](#database)
     - [Application](#application)
@@ -89,10 +89,10 @@ alongside a PostgreSQL container.
 
 **1. Get the Docker Compose file:**
 
-Download [`docker-compose-example.yml`](docker-compose-example.yml) from this repository and save it as `docker-compose.yml`:
+Download [`docker-compose-example.yml`](./doc/docker-compose-example.yml) from this repository and save it as `docker-compose.yml`:
 
 ```bash
-curl -o docker-compose.yml https://raw.githubusercontent.com/zodac/diurnal/master/docker-compose-example.yml
+curl -o docker-compose.yml https://raw.githubusercontent.com/zodac/diurnal/master/doc/docker-compose-example.yml
 ```
 
 **2. Set your secrets:**
@@ -122,10 +122,8 @@ generated for you.
 Open the app and **register**. The first account created becomes the **administrator**. Once you have your account, you may wish to set
 `ENABLE_REGISTRATION=false` to prevent anyone else from signing up.
 
-> **Upgrading:** pull the newer image and recreate the container:
-`docker compose pull && docker compose up -d`. Database migrations run automatically on start.
 
-## Configuration
+## Environment Variables
 
 Diurnal is configured entirely through environment variables on the `diurnal` container. Only the first two are required; everything else has a
 sensible default.
@@ -164,12 +162,6 @@ thereafter. Override the locations only if you want to supply your own keys (e.g
 |----------------------------|-------------------------------------|-------------------------------------------|
 | `JWT_PUBLIC_KEY_LOCATION`  | `file:/run/secrets/jwt-public.pem`  | PEM public key used to verify tokens      |
 | `JWT_PRIVATE_KEY_LOCATION` | `file:/run/secrets/jwt-private.pem` | PKCS8 PEM private key used to sign tokens |
-
-### Reverse Proxy
-
-| Variable               | Default | Description                                                                                                                           |
-|------------------------|---------|---------------------------------------------------------------------------------------------------------------------------------------|
-| `CSRF_TRUSTED_ORIGINS` |         | Comma-separated list of origins allowed as frame ancestors (needed for Swagger UI behind a proxy), e.g. `https://diurnal.example.com` |
 
 ### OIDC
 

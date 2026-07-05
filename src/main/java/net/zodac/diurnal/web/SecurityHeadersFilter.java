@@ -22,64 +22,39 @@ import io.vertx.ext.web.Router;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
-import java.util.Arrays;
-import java.util.stream.Collectors;
-import net.zodac.diurnal.config.CsrfConfig;
 
 /**
  * Adds a {@code Content-Security-Policy} header to every HTTP response.
  *
- * <p>The {@code frame-ancestors} directive controls which origins may embed this application in a
- * frame. {@code 'self'} is always included; additional origins are read from
- * {@code csrf.trusted.origins} (env: {@code CSRF_TRUSTED_ORIGINS}), comma-separated.
+ * <p>The {@code frame-ancestors 'self'} directive prevents any other origin from embedding this
+ * application in a frame (anti-clickjacking), while still allowing the app to frame its own
+ * same-origin pages — notably the in-app Swagger UI iframe ({@code <iframe src="/api">}), which is
+ * always same-origin and so covered by {@code 'self'} in every deployment (dev, direct, or behind a
+ * reverse proxy). No configuration is required.
  *
- * <p>Set {@code CSRF_TRUSTED_ORIGINS} when the app is accessed through a reverse proxy so that
- * the Swagger UI iframe loads correctly, e.g.
- * {@code CSRF_TRUSTED_ORIGINS=https://diurnal.example.com,http://127.0.0.1:8080}.
+ * <p>This is <strong>not</strong> a CSRF control — it does not stop a cross-site request from being
+ * sent, only which origins may frame the page. Request-origin validation for state-changing requests
+ * is handled separately by {@link CsrfProtectionFilter}.
  */
 @ApplicationScoped
 public class SecurityHeadersFilter {
 
+    private static final String CONTENT_SECURITY_POLICY = "frame-ancestors 'self'";
+
     @Inject
     Router router;
 
-    @Inject
-    CsrfConfig csrfConfig;
-
     /**
-     * Registers a top-priority Vert.x route that adds the {@code Content-Security-Policy} header
-     * (built from {@link CsrfConfig#trustedOrigins()}) to every HTTP response.
+     * Registers a top-priority Vert.x route that adds the {@code Content-Security-Policy} header to
+     * every HTTP response.
      *
      * @param ev the application startup event that triggers route registration
      */
     @SuppressWarnings("unused") // CDI startup observer — invoked by Quarkus, not called directly
     void onStart(@Observes final StartupEvent ev) {
-        final String csp = buildFrameAncestorsCsp(csrfConfig.trustedOrigins().orElse(""));
         router.route().order(Integer.MIN_VALUE).handler(ctx -> {
-            ctx.response().putHeader("Content-Security-Policy", csp);
+            ctx.response().putHeader("Content-Security-Policy", CONTENT_SECURITY_POLICY);
             ctx.next();
         });
-    }
-
-    /**
-     * Builds the {@code frame-ancestors} CSP directive value from a comma-separated origin list.
-     *
-     * <p>{@code 'self'} is always the first source. Each entry in {@code csrfTrustedOrigins} is
-     * stripped of surrounding whitespace; blank entries (e.g. from a trailing comma) are dropped.
-     * If no origins remain after filtering, only {@code 'self'} is emitted.
-     *
-     * @param csrfTrustedOrigins comma-separated origins to permit as frame ancestors; may be blank
-     * @return the full {@code frame-ancestors} directive,
-     *         e.g. {@code frame-ancestors 'self' https://example.com}
-     */
-    static String buildFrameAncestorsCsp(final String csrfTrustedOrigins) {
-        if (csrfTrustedOrigins.isBlank()) {
-            return "frame-ancestors 'self'";
-        }
-        final String origins = Arrays.stream(csrfTrustedOrigins.split(","))
-            .map(String::strip)
-            .filter(s -> !s.isEmpty())
-            .collect(Collectors.joining(" "));
-        return origins.isEmpty() ? "frame-ancestors 'self'" : "frame-ancestors 'self' " + origins;
     }
 }
