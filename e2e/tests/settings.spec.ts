@@ -34,6 +34,12 @@ async function clickDisplayNameEdit(page: Page): Promise<void> {
     await page.locator("#display-name-view").getByRole("button", { name: "Edit" }).dispatchEvent("click")
 }
 
+// Open the Password field's edit mode. Same hover-reveal caveat as the Display Name Edit button, so
+// fire the onclick (startEditPassword) directly rather than hit-testing a hover-hidden button.
+async function clickPasswordEdit(page: Page): Promise<void> {
+    await page.locator("#password-view").getByRole("button", { name: "Edit" }).dispatchEvent("click")
+}
+
 test.describe("Settings page", () => {
     test("select dark theme persists across reload", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
@@ -187,6 +193,96 @@ test.describe("Settings page", () => {
         await page.goto("/settings")
         await expect(page.locator('input[name="email"]')).toHaveCount(0)
         await expect(page.locator("body")).toContainText(testUser.email)
+    })
+
+    // Advance step 1 → 2: the current password is verified server-side, so Next only advances once
+    // /settings/password/verify accepts it. Waits on the new-password step becoming visible.
+    async function passwordStep1Next(page: Page, currentPassword: string): Promise<void> {
+        await page.fill("#currentPassword", currentPassword)
+        await page.locator("#password-current-form").getByRole("button", { name: "Next" }).click()
+        await expect(page.locator("#password-new-form")).toBeVisible()
+    }
+
+    // A path-exact match for the final (mutating) POST, since /settings/password/verify shares the prefix.
+    function isPasswordCommit(url: string): boolean {
+        return new URL(url).pathname === "/settings/password"
+    }
+
+    // The password change starts by asking for the CURRENT password (a hijacked session cannot silently
+    // reset it), then walks new → re-enter, each step in the same slot so the row never reflows.
+    test("password change asks for current password first, then new and confirm, in one slot", async ({ authenticatedPage: page, testUser }) => {
+        await page.goto("/settings")
+        await clickPasswordEdit(page)
+
+        // Step 1: the current password, before anything else is offered.
+        await expect(page.locator("#password-current-form")).toBeVisible()
+        await expect(page.locator("#password-new-form")).toBeHidden()
+        await expect(page.locator("#password-confirm-form")).toBeHidden()
+        await passwordStep1Next(page, testUser.password)
+
+        // Step 2: the new password takes the same slot; the current-password input is gone.
+        await expect(page.locator("#password-current-form")).toBeHidden()
+        await page.fill("#newPassword", "brand_new_secret")
+        await page.locator("#password-new-form").getByRole("button", { name: "Next" }).click()
+
+        // Step 3: re-enter, again in the same slot.
+        await expect(page.locator("#password-new-form")).toBeHidden()
+        await expect(page.locator("#password-confirm-form")).toBeVisible()
+
+        // Cancel returns to the read view without saving.
+        await page.locator("#password-confirm-form").getByRole("button", { name: "Cancel" }).click()
+        await expect(page.locator("#password-view")).toBeVisible()
+        await expect(page.locator("#password-confirm-form")).toBeHidden()
+    })
+
+    test("a wrong current password is rejected at step 1 without advancing", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        await clickPasswordEdit(page)
+
+        // The Next click posts to /settings/password/verify, which rejects the wrong current password.
+        await page.fill("#currentPassword", "definitely-not-the-password")
+        await Promise.all([
+            page.waitForResponse(r => r.url().includes("/settings/password/verify")
+                && r.request().method() === "POST" && r.status() === 422),
+            page.locator("#password-current-form").getByRole("button", { name: "Next" }).click(),
+        ])
+
+        // The user never leaves step 1 — the new-password step is never offered, and nothing was saved.
+        await expect(page.locator("#password-current-form")).toBeVisible()
+        await expect(page.locator("#password-new-form")).toBeHidden()
+        await expect(page.locator("#password-confirm-form")).toBeHidden()
+    })
+
+    test("changing the password with the correct current password persists, then restores it", async ({ authenticatedPage: page, testUser }) => {
+        const newPassword = "e2e_rotated_secret_1"
+
+        // Rotate the password using the real current one.
+        await page.goto("/settings")
+        await clickPasswordEdit(page)
+        await passwordStep1Next(page, testUser.password)
+        await page.fill("#newPassword", newPassword)
+        await page.locator("#password-new-form").getByRole("button", { name: "Next" }).click()
+        await page.fill("#confirmPassword", newPassword)
+        await Promise.all([
+            page.waitForResponse(r => isPasswordCommit(r.url())
+                && r.request().method() === "POST" && r.status() === 200),
+            page.locator("#password-confirm-form").getByRole("button", { name: "Save" }).click(),
+        ])
+        await expect(page.locator("#password-view")).toBeVisible()
+
+        // Restore the original password so the shared fixture user still logs in for later tests. The
+        // step-1 verify here also proves the just-rotated password is now the accepted "current" one.
+        await clickPasswordEdit(page)
+        await passwordStep1Next(page, newPassword)
+        await page.fill("#newPassword", testUser.password)
+        await page.locator("#password-new-form").getByRole("button", { name: "Next" }).click()
+        await page.fill("#confirmPassword", testUser.password)
+        await Promise.all([
+            page.waitForResponse(r => isPasswordCommit(r.url())
+                && r.request().method() === "POST" && r.status() === 200),
+            page.locator("#password-confirm-form").getByRole("button", { name: "Save" }).click(),
+        ])
+        await expect(page.locator("#password-view")).toBeVisible()
     })
 
     test("calendar style picker offers exactly Full, Minimal, and Stacked tiles", async ({ authenticatedPage: page }) => {

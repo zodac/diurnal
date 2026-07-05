@@ -92,7 +92,8 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updatePassword_matchingConfirmation_persistsNewHash() {
-        given().formParam("newPassword", "new_secret_123")
+        given().formParam("currentPassword", TEST_PASSWORD)
+                .formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "new_secret_123")
                 .post("/settings/password")
                 .then().statusCode(200);
@@ -109,8 +110,34 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updatePassword_mismatchedConfirmation_returns422AndKeepsOldHash() {
+    void updatePassword_wrongCurrentPassword_returns422AndKeepsOldHash() {
+        given().formParam("currentPassword", "not_the_current_password")
+                .formParam("newPassword", "new_secret_123")
+                .formParam("confirmPassword", "new_secret_123")
+                .post("/settings/password")
+                .then().statusCode(422);
+
+        runInTx(() -> assertThat(BCrypt.checkpw(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
+            .as("old password must be unchanged when the current password is wrong")
+            .isTrue());
+    }
+
+    @Test
+    void updatePassword_missingCurrentPassword_returns422AndKeepsOldHash() {
         given().formParam("newPassword", "new_secret_123")
+                .formParam("confirmPassword", "new_secret_123")
+                .post("/settings/password")
+                .then().statusCode(422);
+
+        runInTx(() -> assertThat(BCrypt.checkpw(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
+            .as("old password must be unchanged when the current password is missing")
+            .isTrue());
+    }
+
+    @Test
+    void updatePassword_mismatchedConfirmation_returns422AndKeepsOldHash() {
+        given().formParam("currentPassword", TEST_PASSWORD)
+                .formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "different_456")
                 .post("/settings/password")
                 .then().statusCode(422);
@@ -122,7 +149,8 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updatePassword_emptyNewPassword_returns422AndKeepsOldHash() {
-        given().formParam("newPassword", "")
+        given().formParam("currentPassword", TEST_PASSWORD)
+                .formParam("newPassword", "")
                 .formParam("confirmPassword", "")
                 .post("/settings/password")
                 .then().statusCode(422);
@@ -136,6 +164,43 @@ class SettingsIT extends IntegrationTestBase {
     void updatePassword_missingParams_returns422() {
         given().post("/settings/password")
                 .then().statusCode(422);
+    }
+
+    // ── POST /settings/password/verify (step-1 current-password check) ────────
+
+    @Test
+    void verifyCurrentPassword_correct_returns204() {
+        given().formParam("currentPassword", TEST_PASSWORD)
+                .post("/settings/password/verify")
+                .then().statusCode(204);
+    }
+
+    @Test
+    void verifyCurrentPassword_wrong_returns422() {
+        given().formParam("currentPassword", "not_the_current_password")
+                .post("/settings/password/verify")
+                .then().statusCode(422);
+    }
+
+    @Test
+    void verifyCurrentPassword_empty_returns422() {
+        given().formParam("currentPassword", "")
+                .post("/settings/password/verify")
+                .then().statusCode(422);
+    }
+
+    @Test
+    void verifyCurrentPassword_missingParam_returns422() {
+        given().post("/settings/password/verify")
+                .then().statusCode(422);
+    }
+
+    @Test
+    @TestSecurity(user = OIDC_USER, roles = "user")
+    void verifyCurrentPassword_oidcAccount_returns403() {
+        given().formParam("currentPassword", "anything")
+                .post("/settings/password/verify")
+                .then().statusCode(403);
     }
 
     @Test
