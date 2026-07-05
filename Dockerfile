@@ -63,6 +63,7 @@ COPY --from=icons /icons/src/main/resources/META-INF/resources/img/apple-touch-i
 # then served `immutable` (application.properties). A non-Docker `mvn package` skips this and keeps
 # the un-hashed app.css default. The hash is folded straight into the rename (no intermediate shell
 # var) and read back from the glob for the config line — after the mv, only the hashed file matches.
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN cd src/main/resources/META-INF/resources/css \
     && mv app.css "app.$(sha256sum app.css | cut -c1-12).css" \
     && printf '\napp.assets.css-file=%s\n' app.*.css \
