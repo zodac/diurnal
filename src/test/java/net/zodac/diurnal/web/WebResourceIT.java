@@ -297,9 +297,11 @@ class WebResourceIT extends IntegrationTestBase {
         // "Action stats" preference, the top three enabled fields are the first three declared:
         // Current streak, Longest streak, Biggest gap — and NOT any lower-ranked field (e.g. Total
         // count), confirming the summary now honours the Statistics setting rather than a fixed trio.
-        final UUID userId = User.findByEmail("web-it@lt.test").orElseThrow().id;
-        final Action action = newAction(userId, "Meditate");
-        newLog(userId, action.id, FIXED_TODAY, 1);
+        runInTx(() -> {
+            final UUID userId = User.findByEmail("web-it@lt.test").orElseThrow().id;
+            final Action action = newAction(userId, "Meditate");
+            newLog(userId, action.id, FIXED_TODAY, 1);
+        });
 
         given().get("/")
                 .then().statusCode(200)

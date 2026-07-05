@@ -24,6 +24,12 @@
     </properties>
 
     <dependencies>
+        <!-- Used directly for the jsonb column mapping on User.statsFields (@JdbcTypeCode +
+             SqlTypes.JSON). Version is managed by the Quarkus BOM. -->
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-core</artifactId>
+        </dependency>
         <!-- Password hashing -->
         <dependency>
             <groupId>org.mindrot</groupId>
@@ -47,12 +53,6 @@
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-hibernate-orm-panache</artifactId>
-        </dependency>
-        <!-- Used directly for the jsonb column mapping on User.statsFields (@JdbcTypeCode +
-             SqlTypes.JSON). Version is managed by the Quarkus BOM. -->
-        <dependency>
-            <groupId>org.hibernate.orm</groupId>
-            <artifactId>hibernate-core</artifactId>
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>

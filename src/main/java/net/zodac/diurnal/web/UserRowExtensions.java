@@ -31,7 +31,7 @@ import net.zodac.diurnal.user.User;
 public final class UserRowExtensions {
 
     private UserRowExtensions() {
-        // Static template-extension methods only.
+
     }
 
     /**

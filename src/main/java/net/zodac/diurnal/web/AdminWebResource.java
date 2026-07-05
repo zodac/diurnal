@@ -232,6 +232,7 @@ public class AdminWebResource {
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private record PaginatedUsers(List<UserRow> items, long totalCount, int totalPages, int currentPage) {
+
     }
 
     private PaginatedUsers getUsersPage(final int pageNum, final int pageSize) {

@@ -71,7 +71,7 @@ test.describe("deployment smoke", () => {
         // Log it once today via the dashboard day panel; the event then appears on today's cell.
         const today = todayStr()
         await page.goto("/")
-        const increment = page.locator("#day-panel").getByTitle("Increase").first()
+        const increment = page.locator("#day-panel").getByLabel("Increase").first()
         await Promise.all([
             page.waitForResponse(r => r.url().includes("/logs/") && r.request().method() === "POST"),
             increment.click(),
