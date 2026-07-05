@@ -37,6 +37,10 @@ ENV DEBIAN_FRONTEND=noninteractive \
     MAVEN_HOME=/opt/maven \
     PATH=/opt/java/openjdk/bin:/opt/maven/bin:$PATH
 
+# pipefail for every RUN in this stage so a failure in the middle of a `getent … | cut` pipe (or any
+# other) aborts the layer instead of being masked by the pipe's last command (debian base has bash).
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 # ── Base tooling + brand-script tooling ──────────────────────────────────────
 # The brand pipeline (`npm run brand`) needs these:
 #   - python3 + python3-fonttools  → scripts/generate-brand.py (reads NovaFlat-Book.ttf and renders
@@ -128,7 +132,7 @@ RUN set -eux; \
     if getent passwd "${UID}" >/dev/null; then \
       usermod -l dev -d /home/dev -m -s /bin/bash "$(getent passwd ${UID} | cut -d: -f1)"; \
     else \
-      useradd -m -u "${UID}" -g "${GID}" -s /bin/bash dev; \
+      useradd -l -m -u "${UID}" -g "${GID}" -s /bin/bash dev; \
     fi; \
     usermod -aG docker dev; \
     echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev; \
@@ -141,10 +145,12 @@ RUN set -eux; \
 # point npm's global prefix at a dev-owned dir (persisted in the image layer,
 # baked via .npmrc so it needs no runtime env) and install AS dev, so updates
 # write without sudo. The prefix's bin dir goes on PATH for both build & runtime.
+# runuser (util-linux) drops to `dev` for the install without invoking sudo (hadolint DL3004); like
+# `sudo -H` it resets HOME to /home/dev, so npm writes its config to the dev-owned ~/.npmrc.
 ENV PATH=/home/dev/.npm-global/bin:$PATH
 RUN install -d -o dev -g dev /home/dev/.npm-global \
-    && sudo -u dev -H npm config set prefix /home/dev/.npm-global \
-    && sudo -u dev -H npm install -g @anthropic-ai/claude-code
+    && runuser -u dev -- npm config set prefix /home/dev/.npm-global \
+    && runuser -u dev -- npm install -g @anthropic-ai/claude-code
 
 # Let Playwright manage its own Chromium (cached under $HOME, persisted via volume).
 ENV PLAYWRIGHT_BROWSERS_PATH=/home/dev/.cache/ms-playwright

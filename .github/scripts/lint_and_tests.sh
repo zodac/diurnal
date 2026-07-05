@@ -126,7 +126,7 @@ run_docker() {
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
         echo "✅ Dockerfile lint passed"
     else
-        echo "${output}"
+        echo "${output}" | jq .
         echo "❌ Dockerfile lint failed: re-run 'lint_and_tests.sh -v docker' for the full output"
         overall_exit_code=1
     fi
