@@ -8,14 +8,20 @@
 #
 # See the README for the full list of environment variables.
 
+networks:
+  diurnal:
+    name: diurnal
+    driver: bridge
+
 services:
 
   diurnal:
     image: zodac/diurnal:latest
     container_name: diurnal
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
+    hostname: diurnal
+    depends_on:
+      diurnal-db:
+        condition: service_healthy
     environment:
       # --- Database connection (must match the diurnal-db service below) ---
       DB_HOST: diurnal-db
@@ -23,37 +29,31 @@ services:
       DB_NAME: diurnal_db
       DB_USER: diurnal_user
       DB_PASSWORD: change-me-strong-password        # <-- CHANGE ME
-
-      # --- Session cookie encryption (must be at least 16 characters, keep secret) ---
       SESSION_ENCRYPTION_KEY: change-me-to-a-random-32-char-string   # <-- CHANGE ME
-
-      # --- Optional tuning (defaults shown) ---
       TZ: UTC
       LOG_LEVEL: INFO
       ENABLE_REGISTRATION: "true"
-
-      # JWT signing keys are auto-generated into the mounted secrets volume on first start.
       JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
       JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt-private.pem
+    networks:
+      - diurnal
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
     volumes:
       # Persists the auto-generated JWT keypair across restarts.
-      - diurnal-secrets:/run/secrets
-    depends_on:
-      diurnal-db:
-        condition: service_healthy
+      - diurnal_secrets:/run/secrets
 
   diurnal-db:
     image: postgres:18.4-alpine
     container_name: diurnal-db
-    restart: unless-stopped
+    hostname: diurnal-db
     environment:
       TZ: UTC
       POSTGRES_DB: diurnal_db
       POSTGRES_USER: diurnal_user
       POSTGRES_PASSWORD: change-me-strong-password   # <-- CHANGE ME (match DB_PASSWORD above)
       PGDATA: /var/lib/postgresql/data/pgdata
-    volumes:
-      - diurnal-db-data:/var/lib/postgresql/
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U diurnal_user -d diurnal_db" ]
       interval: 30s
@@ -61,7 +61,14 @@ services:
       retries: 5
       start_period: 5s
       start_interval: 5s
+    networks:
+      - diurnal
+    restart: unless-stopped
+    volumes:
+      - diurnal-db_data:/var/lib/postgresql/
 
 volumes:
-  diurnal-db-data:
-  diurnal-secrets:
+  diurnal-db_data:
+    name: diurnal-db_data
+  diurnal_secrets:
+    name: diurnal_secrets

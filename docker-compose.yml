@@ -41,7 +41,6 @@ services:
       OIDC_ADMIN_GROUP: ${OIDC_ADMIN_GROUP:-diurnal-admins}
       OIDC_USER_GROUP: ${OIDC_USER_GROUP:-diurnal-users}
       OIDC_LOGOUT_URL: ${OIDC_LOGOUT_URL}
-      CSRF_TRUSTED_ORIGINS: ${CSRF_TRUSTED_ORIGINS:-*}
     networks:
       - diurnal
     volumes:

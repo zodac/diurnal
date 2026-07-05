@@ -35,7 +35,6 @@ services:
       # real non-root key-generation path that a production deployment relies on.
       JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
       JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt-private.pem
-      CSRF_TRUSTED_ORIGINS: "*"
       OIDC_ENABLED: "false"
     tmpfs:
       # World-writable (mode 1777) so non-root UID 65532 can write the generated keypair.
