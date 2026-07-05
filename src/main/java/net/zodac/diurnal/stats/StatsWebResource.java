@@ -89,6 +89,7 @@ public class StatsWebResource {
     // Only actions with at least one logged entry are returned by forAllActiveActions;
     // pagination slices that filtered list into pages of PAGE_SIZE.
     private record PaginatedStats(List<ActionStats> items, int totalCount, int totalPages, int currentPage) {
+
     }
 
     private PaginatedStats getStatsPage(final UUID userId, final int pageNum, final int pageSize) {

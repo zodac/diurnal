@@ -37,8 +37,13 @@ import org.jspecify.annotations.Nullable;
 /**
  * A registered account — password-based or OIDC-provisioned — plus its per-user preferences.
  */
+// A JPA active-record entity: its "fields" are almost all @Column mappings to the single `users`
+// table, so a wide flat set is inherent to the persistence mapping rather than a design smell. The
+// shared PMD ruleset already excludes every sibling size rule (GodClass, TooManyMethods,
+// ExcessivePublicCount, ExcessiveImports); TooManyFields is suppressed here in the same spirit.
 @Entity
 @Table(name = "users")
+@SuppressWarnings("PMD.TooManyFields")
 public class User extends PanacheEntityBase {
 
     public static final String ROLE_ADMIN = "admin";

@@ -19,6 +19,7 @@ package net.zodac.diurnal.stats;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Arrays;
 import java.util.List;
 import net.zodac.diurnal.stats.ActionStatField.Choice;
 import net.zodac.diurnal.user.StatFieldPref;
@@ -215,6 +216,26 @@ class ActionStatFieldTest {
         assertThat(ActionStatField.displayFields(encoded))
             .as("only enabled fields render, in order; disabled total-days omitted")
             .startsWith(ActionStatField.BEST_YEAR, ActionStatField.CURRENT_STREAK);
+    }
+
+    @Test
+    void encode_partialSubmission_appendsEveryOmittedFieldExactlyOnce() {
+        // Only two fields submitted, so the encoder must APPEND every other field (enabled) via the
+        // second loop — each field present exactly once, no omissions and no duplicates. This pins the
+        // append loop's guard directly at the encode level (the choices()/displayFields() re-parse would
+        // otherwise mask a dropped field, so the other encode tests don't detect it).
+        final List<StatFieldPref> encoded = ActionStatField.encode(
+            List.of("current-streak", "best-year"),
+            List.of("current-streak"));
+
+        assertThat(encoded)
+            .as("every field stored exactly once; omitted fields appended, none duplicated")
+            .extracting(StatFieldPref::key)
+            .containsExactlyInAnyOrderElementsOf(
+                Arrays.stream(ActionStatField.values()).map(ActionStatField::key).toList());
+        assertThat(encoded)
+            .as("an omitted field is appended, enabled")
+            .contains(new StatFieldPref("biggest-gap", true));
     }
 
     @Test

@@ -147,6 +147,7 @@ public enum ActionStatField {
      * state, used internally to build both the render list and the picker rows.
      */
     private record Entry(ActionStatField field, boolean enabled) {
+
     }
 
     /**

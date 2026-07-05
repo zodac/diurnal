@@ -102,6 +102,7 @@ public class ActionsWebResource {
     }
 
     private record PaginatedActions(List<Action> items, int totalCount, int totalPages, int currentPage) {
+
     }
 
     private PaginatedActions getActions(final UUID userId, final int pageNum, final String searchTerm, final int pageSize) {

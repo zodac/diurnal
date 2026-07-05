@@ -40,6 +40,7 @@ public final class ActionStatsExtensions {
 
     private static final DateTimeFormatter DATE_FMT  = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter DATE_FMT_NO_YEAR = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH);
+    private static final double ZERO = 0.0;
 
     private ActionStatsExtensions() {
 
@@ -194,7 +195,7 @@ public final class ActionStatsExtensions {
      * @return the formatted value
      */
     static String formatDecimal(final double value, final int decimalPlaces) {
-        if (value == 0.0) {
+        if (value == ZERO) {
             return "0";
         }
 

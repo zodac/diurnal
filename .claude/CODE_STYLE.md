@@ -47,6 +47,44 @@ private static String plural(final long count, final String unit) { ...}
 private static String plural(final long count, final String unit) { ...}
 ```
 
+### Private constructors carry no comment
+
+A `private` constructor used only to prevent instantiation (utility / `*Extensions` classes) must have an **empty body with no comment** — not even a `// prevent instantiation` note. Keep a blank line between the braces.
+
+❌ **Wrong:**
+
+```java
+private ActionStatsExtensions() {
+    // Prevent instantiation
+}
+```
+
+✅ **Right:**
+
+```java
+private ActionStatsExtensions() {
+
+}
+```
+
+### Private records keep a blank line between the braces
+
+A `private record` with no body must be written with a **blank line between its opening and closing brace** — never a collapsed `{}` or `{ }`.
+
+❌ **Wrong:**
+
+```java
+private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages, int currentPage, List<Integer> fillerRows) {}
+```
+
+✅ **Right:**
+
+```java
+private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages, int currentPage, List<Integer> fillerRows) {
+
+}
+```
+
 ### AssertJ assertions must be fluent-chained across multiple lines
 
 Place `assertThat(...)` and **each** chained call on its own line. Continuation lines are indented **4 spaces**; the terminating `;` stays on the final chained call.

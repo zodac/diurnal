@@ -17,3 +17,7 @@ Allowing users to update their own password.
 ### Display Name Editing
 
 Updating the UI element/behaviour for editing the user's display name to match other editable fields.
+
+### Stats Selection and Ordering
+
+Added a user setting to specify which stats for actions should be shown, and in which order.

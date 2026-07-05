@@ -127,7 +127,7 @@ public class LogWebResource {
      *
      * @param month the month to render, as {@code yyyy-MM}
      * @return {@code 200} with a JSON object mapping each {@code yyyy-MM-dd} to its day-panel HTML, or
-     * {@code 400} when {@code month} is not a valid {@code yyyy-MM}
+     *     {@code 400} when {@code month} is not a valid {@code yyyy-MM}
      */
     @GET
     @Path("/month/{month}")
@@ -170,8 +170,8 @@ public class LogWebResource {
 
     // fillerRows: blank rows that keep every paginated page the height of a full page.
     // Only populated when there is more than one page; a single short page keeps its natural height.
-    private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages,
-                                       int currentPage, List<Integer> fillerRows) {
+    private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages, int currentPage, List<Integer> fillerRows) {
+
     }
 
     private PaginatedDayActions getActions(final UUID userId, final LocalDate date, final int pageNum, final String searchTerm, final int pageSize) {

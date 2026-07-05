@@ -44,7 +44,7 @@ test.describe("Cursor — interactive controls show the pointer", () => {
         })
         await page.goto("/")
         await expect(page.locator("#day-panel")).not.toContainText("Click a day to log actions")
-        await expectPointer(page.locator("#day-panel").getByTitle("Increase").first())
+        await expectPointer(page.locator("#day-panel").getByLabel("Increase").first())
     })
 
     // Type: the month/year jump-picker arrows (.cal-nav-btn) inside the calendar popup.
