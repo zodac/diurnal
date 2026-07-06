@@ -153,4 +153,26 @@ public class AppInfo {
     public String getJsFile() {
         return appConfig.jsFile();
     }
+
+    /**
+     * The content-hashed shared application script filename (e.g. {@code app.9f3a1c2b4d5e.js}),
+     * referenced by {@code layout.html} as {@code /js/{jsAppFile}} so each deploy busts client and
+     * reverse-proxy caches without serving a stale script.
+     *
+     * @return the shared-script filename served under {@code /js/}
+     */
+    public String getJsAppFile() {
+        return appConfig.jsAppFile();
+    }
+
+    /**
+     * The content-hashed dashboard calendar script filename (e.g. {@code dashboard.9f3a1c2b4d5e.js}),
+     * referenced by {@code dashboard.html} as {@code /js/{jsDashboardFile}} so each deploy busts client
+     * and reverse-proxy caches without serving a stale script.
+     *
+     * @return the dashboard-script filename served under {@code /js/}
+     */
+    public String getJsDashboardFile() {
+        return appConfig.jsDashboardFile();
+    }
 }

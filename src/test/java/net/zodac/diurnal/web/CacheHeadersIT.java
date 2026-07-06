@@ -54,6 +54,17 @@ class CacheHeadersIT extends IntegrationTestBase {
     }
 
     @Test
+    void sharedScript_isCachedImmutablyForAYear() {
+        // The extracted shared behaviour (app.js), like the stylesheet, is served under a content-hashed
+        // filename in the image, so its /js/ URL is cached a year as immutable (same filter covers htmx +
+        // the dashboard engine). Dev serves the un-hashed app.js, but under the same immutable filter here.
+        given().get("/js/app.js")
+                .then().statusCode(200)
+                .header("Cache-Control", containsString("immutable"))
+                .header("Cache-Control", containsString("max-age=31536000"));
+    }
+
+    @Test
     void staticImageAsset_hasOneDayCacheCeilingNotImmutable() {
         // Stable-URL assets (no content hash) must NOT be immutable — a redeploy reuses the URL, so a
         // one-day ceiling bounds how long a changed image/font can be served stale.

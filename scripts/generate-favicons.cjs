@@ -26,7 +26,7 @@
  *                        kept as standalone files (the SVG covers crisp desktop rendering already).
  *   img/apple-touch-icon.png 180x180 — iOS "add to home screen" / bookmark thumbnail
  *   img/icon-192.png     192x192 — load-bearing: Chromium-on-Android (Chrome/Opera) picks the widest PNG
- *                        <link rel=icon> ≤192 for the tab; without it Opera mobile shows a globe.
+ *                        <link rel=icon> ≤192 for the tab; without it Opera Mobile shows a globe.
  *   img/icon-512.png     512x512 — web-manifest PWA icon (paired with 192 per Chromium installability).
  * The favicon.svg itself (the vector icon, used by desktop browsers) is committed, not produced here.
  * The transparent background of the SVG is preserved in every raster output.

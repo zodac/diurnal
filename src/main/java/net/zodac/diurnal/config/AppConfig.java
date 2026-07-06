@@ -75,4 +75,26 @@ public interface AppConfig {
     @WithName("assets.js-file")
     @WithDefault("htmx.min.js")
     String jsFile();
+
+    /**
+     * Filename of the shared application script served under {@code /js/} (the behaviour extracted from
+     * {@code layout.html} and loaded on every page). Content-hashed at image-build time so each
+     * deployment serves a fresh URL; defaults to the un-hashed {@code app.js} in dev.
+     *
+     * @return the served shared-script filename
+     */
+    @WithName("assets.js-app-file")
+    @WithDefault("app.js")
+    String jsAppFile();
+
+    /**
+     * Filename of the dashboard calendar script served under {@code /js/} (the engine extracted from
+     * {@code dashboard.html} and loaded only on the dashboard). Content-hashed at image-build time so
+     * each deployment serves a fresh URL; defaults to the un-hashed {@code dashboard.js} in dev.
+     *
+     * @return the served dashboard-script filename
+     */
+    @WithName("assets.js-dashboard-file")
+    @WithDefault("dashboard.js")
+    String jsDashboardFile();
 }
