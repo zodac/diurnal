@@ -45,6 +45,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Consumer;
+import net.zodac.diurnal.auth.PasswordConstraints;
+import net.zodac.diurnal.auth.Passwords;
 import net.zodac.diurnal.auth.RoleAssigner;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
@@ -57,7 +59,6 @@ import net.zodac.diurnal.user.UserSettings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.mindrot.jbcrypt.BCrypt;
 
 /**
  * Serves the top-level web UI pages: login, register, logout, settings and the dashboard.
@@ -72,6 +73,8 @@ public class WebResource {
     // confirm step. Kept in sync with the checks in settings.html's password-change script.
     private static final String CURRENT_PASSWORD_ERROR = "Current password is incorrect";
     private static final String NEW_PASSWORD_ERROR = "Passwords do not match";
+    private static final String NEW_PASSWORD_TOO_LONG_ERROR =
+            "Password must be at most " + PasswordConstraints.MAX_LENGTH + " characters";
 
     @Inject
     @Location("login")
@@ -282,7 +285,7 @@ public class WebResource {
         final User user = new User();
         user.email = normalised;
         user.displayName = displayNameValue.strip();
-        user.passwordHash = BCrypt.hashpw(passwordValue, BCrypt.gensalt(12));
+        user.passwordHash = Passwords.hash(passwordValue);
         user.role = roleAssigner.roleForNewUser();
         user.persist();
 
@@ -316,8 +319,8 @@ public class WebResource {
             errors.add("Email must contain an @ symbol.");
         }
 
-        if (password.length() > User.MAX_PASSWORD_LENGTH) {
-            errors.add("Password must be at most " + User.MAX_PASSWORD_LENGTH + " characters.");
+        if (password.length() > PasswordConstraints.MAX_LENGTH) {
+            errors.add("Password must be at most " + PasswordConstraints.MAX_LENGTH + " characters.");
         }
 
         if (!password.isEmpty() && !confirmPassword.isEmpty() && !password.equals(confirmPassword)) {
@@ -341,7 +344,8 @@ public class WebResource {
                 .data("registrationDisabled", false)
                 .data("theme", "system")
                 .data("font", "nova")
-                .data("maxPasswordLength", User.MAX_PASSWORD_LENGTH);
+                .data("maxPasswordLength", PasswordConstraints.MAX_LENGTH)
+                .data("passwordConstraints", PasswordConstraints.all());
     }
 
     private TemplateInstance renderRegisterDisabled() {
@@ -585,7 +589,12 @@ public class WebResource {
         if (newPassword == null || newPassword.isEmpty() || !newPassword.equals(confirmPassword)) {
             return Response.status(422).entity(NEW_PASSWORD_ERROR).build();
         }
-        user.passwordHash = BCrypt.hashpw(newPassword, BCrypt.gensalt(12));
+        // Reject anything past BCrypt's 72-byte ceiling rather than silently truncating it — mirrors the
+        // registration guard so the new password is capped identically however the account was created.
+        if (newPassword.length() > PasswordConstraints.MAX_LENGTH) {
+            return Response.status(422).entity(NEW_PASSWORD_TOO_LONG_ERROR).build();
+        }
+        user.passwordHash = Passwords.hash(newPassword);
         user.persist();
         LOGGER.info("Password changed for user: {}", user.email);
         return Response.ok().build();
@@ -630,7 +639,7 @@ public class WebResource {
      */
     private static boolean currentPasswordMatches(final String passwordHash, final String currentPassword) {
         return currentPassword != null && !currentPassword.isEmpty()
-                && BCrypt.checkpw(currentPassword, passwordHash);
+                && Passwords.matches(currentPassword, passwordHash);
     }
 
     private TemplateInstance settingsView(final User user) {
@@ -644,6 +653,8 @@ public class WebResource {
                 // OIDC-only accounts have no password at all; instead of the password field the Account
                 // card shows a note that their authentication is managed by the identity provider.
                 .data("isOidcUser", user.oidcSubject != null && !user.oidcSubject.isBlank())
+                .data("maxPasswordLength", PasswordConstraints.MAX_LENGTH)
+                .data("passwordConstraints", PasswordConstraints.all())
                 .data("oidcProviderName", oidcConfig.providerName())
                 .data("theme", user.theme)
                 .data("font", user.font)

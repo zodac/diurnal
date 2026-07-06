@@ -46,7 +46,10 @@
             </div>
             {#include partials/form-field id="email" name="email" label="Email" type="email" required=true autocomplete="email" maxlength="" value=email /}
             {#include partials/form-field id="displayName" name="displayName" label="Display name" type="text" required=true autocomplete="name" maxlength="" value=displayName /}
-            {#include partials/form-field id="password" name="password" label="Password" type="password" required=true autocomplete="new-password" maxlength=maxPasswordLength value=password /}
+            <div class="relative">
+                {#include partials/form-field id="password" name="password" label="Password" type="password" required=true autocomplete="new-password" maxlength=maxPasswordLength value=password /}
+                {#include partials/password-constraints for="password" /}
+            </div>
             {#include partials/form-field id="confirmPassword" name="confirmPassword" label="Confirm password" type="password" required=true autocomplete="new-password" maxlength=maxPasswordLength value=confirmPassword /}
             <button type="submit" class="btn-primary w-full">
                 Create account

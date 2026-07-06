@@ -154,7 +154,7 @@
                                            name="currentPassword"
                                            autocomplete="current-password"
                                            placeholder="Current password"
-                                           maxlength="255"
+                                           maxlength="{maxPasswordLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" onclick="toggleReveal('currentPassword', this)"
                                             aria-label="Show password" class="settings-eye">
@@ -171,13 +171,13 @@
                             <!-- Step 2: enter the new password. Purely client-side (validated non-empty)
                                  before swapping to the confirm step — nothing is sent to the server until
                                  the re-entry is confirmed. -->
-                            <form id="password-new-form" class="hidden" onsubmit="return submitNewPassword(event)">
+                            <form id="password-new-form" class="hidden relative" onsubmit="return submitNewPassword(event)">
                                 <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
                                     <input type="password"
                                            id="newPassword"
                                            autocomplete="new-password"
                                            placeholder="New password"
-                                           maxlength="255"
+                                           maxlength="{maxPasswordLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" onclick="toggleReveal('newPassword', this)"
                                             aria-label="Show password" class="settings-eye">
@@ -189,6 +189,7 @@
                                                 class="dt-btn dt-btn-cancel">Cancel</button>
                                     </div>
                                 </div>
+                                {#include partials/password-constraints for="newPassword" /}
                             </form>
 
                             <!-- Step 3: re-enter to confirm. Posts all three values; the server verifies the
@@ -205,7 +206,7 @@
                                            name="confirmPassword"
                                            autocomplete="new-password"
                                            placeholder="Re-enter new password"
-                                           maxlength="255"
+                                           maxlength="{maxPasswordLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" onclick="toggleReveal('confirmPassword', this)"
                                             aria-label="Show password" class="settings-eye">
