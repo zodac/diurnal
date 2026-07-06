@@ -65,4 +65,14 @@ public interface AppConfig {
     @WithName("assets.css-file")
     @WithDefault("app.css")
     String cssFile();
+
+    /**
+     * Filename of the self-hosted htmx script served under {@code /js/}. Content-hashed at image-build
+     * time so each deployment serves a fresh URL; defaults to the un-hashed {@code htmx.min.js} in dev.
+     *
+     * @return the served script filename
+     */
+    @WithName("assets.js-file")
+    @WithDefault("htmx.min.js")
+    String jsFile();
 }

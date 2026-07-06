@@ -218,6 +218,32 @@
                             </arguments>
                         </configuration>
                     </execution>
+                    <!--
+                        Copy the pinned third-party browser libraries (currently just htmx) out of
+                        node_modules into resources/js — the JS counterpart of `css-build`, same
+                        generate-resources binding and same rationale: the copied files are .gitignored
+                        build artifacts regenerated every build, so no vendored file is committed and
+                        `update_dependency_versions.sh` bumps the libraries via their package.json pins.
+                        Gated by the same ${css.build.skip}: Docker performs this in the `css` stage
+                        (which has the Node toolchain) and copies the output into the build stage, so the
+                        Node-less Maven image skips it. See scripts/vendor-assets.cjs.
+                    -->
+                    <execution>
+                        <id>vendor-assets</id>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <phase>generate-resources</phase>
+                        <configuration>
+                            <skip>${css.build.skip}</skip>
+                            <workingDirectory>${project.basedir}</workingDirectory>
+                            <executable>npm</executable>
+                            <arguments>
+                                <argument>run</argument>
+                                <argument>vendor</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
