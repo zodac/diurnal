@@ -146,12 +146,12 @@ sensible default.
 
 ### Application
 
-| Variable                | Default | Description                                                                     |
-|-------------------------|---------|---------------------------------------------------------------------------------|
-| `TZ`                    | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                    |
-| `LOG_LEVEL`             | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                |
-| `PASSWORD_AUTH_ENABLED` | `true`  | Set to `false` to disable password login entirely (requires OIDC to be enabled) |
-| `ENABLE_REGISTRATION`   | `true`  | Set to `false` to close the `/register` page                                    |
+| Variable                   | Default | Description                                                                     |
+|----------------------------|---------|---------------------------------------------------------------------------------|
+| `TZ`                       | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                    |
+| `LOG_LEVEL`                | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                |
+| `PASSWORD_AUTH_ENABLED`    | `true`  | Set to `false` to disable password login entirely (requires OIDC to be enabled) |
+| `ENABLE_REGISTRATION`      | `true`  | Set to `false` to close the `/register` page                                    |
 
 ### JWT Keys
 
@@ -163,22 +163,28 @@ thereafter. Override the locations only if you want to supply your own keys (e.g
 | `JWT_PUBLIC_KEY_LOCATION`  | `file:/run/secrets/jwt-public.pem`  | PEM public key used to verify tokens      |
 | `JWT_PRIVATE_KEY_LOCATION` | `file:/run/secrets/jwt-private.pem` | PKCS8 PEM private key used to sign tokens |
 
+### Reverse Proxy
+
+| Variable                    | Default | Description                                          |
+|-----------------------------|---------|------------------------------------------------------|
+| `TRUST_X_FORWARDED_HEADERS` | `true`  | Trust `X-Forwarded-*` headers from the reverse proxy |
+
 ### OIDC
 
 OIDC is disabled by default. When enabled, users can sign in through your identity provider alongside (or instead of) password login. Register
 `{your-base-url}/oidc-callback` as the redirect URI with your IdP.
 
-| Variable             | Default                  | Description                                                                                                     |
-|----------------------|--------------------------|-----------------------------------------------------------------------------------------------------------------|
-| `OIDC_ENABLED`       | `false`                  | Set to `true` to activate OIDC.                                                                                 |
-| `OIDC_ISSUER_URL`    |                          | Base URL of the OIDC provider (e.g. `https://auth.example.com`).                                                |
-| `OIDC_CLIENT_ID`     | `diurnal`                | Client ID registered with the provider.                                                                         |
-| `OIDC_CLIENT_SECRET` |                          | Client secret for the registered client.                                                                        |
-| `OIDC_PROVIDER_NAME` | `your identity provider` | Name shown on the login button ("Log in with your identity provider").                                          |
-| `OIDC_AUTO_REDIRECT` | `false`                  | If `true`, `/login` redirects straight to the provider (skips the login page).                                  |
-| `OIDC_ADMIN_GROUP`   |                          | IdP group whose members are granted the Administrator role. When set, the IdP is the source of truth for roles. |
-| `OIDC_USER_GROUP`    |                          | IdP group whose members are granted the User role.                                                              |
-| `OIDC_LOGOUT_URL`    |                          | RP-initiated logout URL; OIDC users are redirected here after logging out.                                      |
+| Variable             | Default                  | Description                                                           |
+|----------------------|--------------------------|-----------------------------------------------------------------------|
+| `OIDC_ENABLED`       | `false`                  | Set to `true` to activate OIDC                                        |
+| `OIDC_ISSUER_URL`    |                          | Base URL of the OIDC provider (e.g. `https://auth.example.com`)       |
+| `OIDC_CLIENT_ID`     | `diurnal`                | Client ID registered with the provider                                |
+| `OIDC_CLIENT_SECRET` |                          | Client secret for the registered client                               |
+| `OIDC_PROVIDER_NAME` | `your identity provider` | Name shown on the login button ("Log in with your identity provider") |
+| `OIDC_AUTO_REDIRECT` | `false`                  | If `true`, `/login` redirects straight to the provider                |
+| `OIDC_ADMIN_GROUP`   |                          | IdP group whose members are granted the `Administrator` role          |
+| `OIDC_USER_GROUP`    |                          | IdP group whose members are granted the `User` role                   |
+| `OIDC_LOGOUT_URL`    |                          | OIDC users are redirected here after logging out                      |
 
 <!-- markdownlint-disable MD033 -- collapsible example: intentional <strong> inside <summary> -->
 <details>

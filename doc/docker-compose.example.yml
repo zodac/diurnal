@@ -33,6 +33,9 @@ services:
       TZ: UTC
       LOG_LEVEL: INFO
       ENABLE_REGISTRATION: "true"
+      # Trust X-Forwarded-* from your reverse proxy (needed for https:// OIDC redirects and Secure
+      # cookies). Only keep this "true" if a trusted proxy fronts the app; set "false" if exposed directly.
+      TRUST_X_FORWARDED_HEADERS: "true"
       JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
       JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt-private.pem
     networks:
