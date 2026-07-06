@@ -45,8 +45,13 @@ class AppInfoTest {
 
     private static AppInfo appInfoWith(final String repositoryUrl, final String buildTimestamp, final String cssFile,
                                        final String jsFile) {
+        return appInfoWith(repositoryUrl, buildTimestamp, cssFile, jsFile, "app.js", "dashboard.js");
+    }
+
+    private static AppInfo appInfoWith(final String repositoryUrl, final String buildTimestamp, final String cssFile,
+                                       final String jsFile, final String jsAppFile, final String jsDashboardFile) {
         final AppInfo appInfo = new AppInfo();
-        appInfo.appConfig = new StubAppConfig(repositoryUrl, buildTimestamp, cssFile, jsFile);
+        appInfo.appConfig = new StubAppConfig(repositoryUrl, buildTimestamp, cssFile, jsFile, jsAppFile, jsDashboardFile);
         return appInfo;
     }
 
@@ -153,6 +158,22 @@ class AppInfoTest {
     }
 
     @Test
+    void jsAppFile_returnsInjectedHashedFilename() {
+        final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.9f3a1c2b4d5e.js", "dashboard.js");
+        assertThat(appInfo.getJsAppFile())
+            .as("hashed shared-script filename should be returned verbatim")
+            .isEqualTo("app.9f3a1c2b4d5e.js");
+    }
+
+    @Test
+    void jsDashboardFile_returnsInjectedHashedFilename() {
+        final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.9f3a1c2b4d5e.js");
+        assertThat(appInfo.getJsDashboardFile())
+            .as("hashed dashboard-script filename should be returned verbatim")
+            .isEqualTo("dashboard.9f3a1c2b4d5e.js");
+    }
+
+    @Test
     void buildYear_fullTimestamp_returnsLeadingYear() {
         final AppInfo appInfo = appInfoWith("", "2099-06-22T06:07:35Z", "app.css");
         assertThat(appInfo.getBuildYear())
@@ -196,7 +217,8 @@ class AppInfoTest {
     /**
      * Stub {@link AppConfig} whose record components supply the {@code app.*} accessors directly.
      */
-    private record StubAppConfig(String repositoryUrl, String buildTimestamp, String cssFile, String jsFile) implements AppConfig {
+    private record StubAppConfig(String repositoryUrl, String buildTimestamp, String cssFile, String jsFile,
+                                 String jsAppFile, String jsDashboardFile) implements AppConfig {
 
         @Override
         public String timezone() {

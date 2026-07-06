@@ -41,6 +41,17 @@ test.describe("deployment smoke", () => {
         const css = await request.get(href ?? "")
         expect(css.status(), `stylesheet ${href} should be served`).toBe(200)
         expect(css.headers()["content-type"] ?? "").toContain("css")
+        // Every <script src> on the page is likewise content-hashed at image build time (htmx.<hash>.min.js
+        // and app.<hash>.js, both baked into microprofile-config by the same Dockerfile rename step). Assert
+        // each resolves — a hash/config desync would 404 here but never in dev/E2E (which serve un-hashed).
+        const scriptSrcs = await page.locator("script[src]").evaluateAll(
+            els => els.map(el => (el as HTMLScriptElement).getAttribute("src")).filter(Boolean) as string[],
+        )
+        expect(scriptSrcs.length, "login page should link at least one hashed script").toBeGreaterThan(0)
+        for (const src of scriptSrcs) {
+            const js = await request.get(src)
+            expect(js.status(), `script ${src} should be served`).toBe(200)
+        }
         // favicon.ico is rasterised in the `icons` build stage and served from the web root.
         expect((await request.get("/favicon.ico")).status()).toBe(200)
     })

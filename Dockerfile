@@ -84,6 +84,18 @@ RUN cd src/main/resources/META-INF/resources/js \
     && mv htmx.min.js "htmx.$(sha256sum htmx.min.js | cut -c1-12).min.js" \
     && printf '\napp.assets.js-file=%s\n' htmx.*.min.js \
        >> /build/src/main/resources/META-INF/microprofile-config.properties
+# Content-hash the app's own hand-written scripts, extracted from the templates so they ride the
+# immutable cache instead of being re-parsed on every no-cache navigation: app.js (shared, every
+# page) and dashboard.js (the calendar engine, dashboard only). Same rename+bake as htmx/CSS above;
+# both are committed files (arrive via `COPY src`), so they need only the rename. The globs are
+# anchored (app.*.js / dashboard.*.js) so each matches ONLY its own hashed output after the mv.
+RUN cd src/main/resources/META-INF/resources/js \
+    && mv app.js "app.$(sha256sum app.js | cut -c1-12).js" \
+    && mv dashboard.js "dashboard.$(sha256sum dashboard.js | cut -c1-12).js" \
+    && printf '\napp.assets.js-app-file=%s\n' app.*.js \
+       >> /build/src/main/resources/META-INF/microprofile-config.properties \
+    && printf '\napp.assets.js-dashboard-file=%s\n' dashboard.*.js \
+       >> /build/src/main/resources/META-INF/microprofile-config.properties
 # -Dcss.build.skip=true: the stylesheet is already compiled by the `css` stage and copied in above,
 # and this maven image has no Node toolchain — so skip the POM's `css-build` exec.
 RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -Dcss.build.skip=true -q

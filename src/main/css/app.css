@@ -473,3 +473,499 @@
      overlay and the JS that rebuilds it on year change, so the styling lives in one place. */
   .cal-nav-btn { @apply px-2 py-1 rounded-sm text-ink-muted hover:bg-surface-muted transition-colors; }
 }
+
+/* ============================================================================
+ * Component styles relocated out of the templates' inline <style> blocks so they
+ * ride this immutable, content-hashed stylesheet instead of being re-transferred
+ * on every no-cache page navigation. Kept as plain CSS (NOT inside `@layer`) —
+ * exactly as they were inline (un-layered, after the linked sheet) — so the
+ * cascade is unchanged: these un-layered rules still win over Tailwind's layered
+ * utilities, which is why the `.hidden` re-assertions below are needed. Every
+ * colour is a `var(--color-*)` token defined above, so no `.dark` twins are needed.
+ * ============================================================================ */
+
+/* ── Shared data-table ("dt") + settings-field styling (was layout.html) ──── */
+        /*
+            Smooth theme switching. The `.theme-transition` class is added to <html>
+            only for the duration of a light↔dark switch (see settings.html), then
+            removed, so the cross-fade never interferes with element-level hover
+            transitions or the initial (FOUC-resolved) paint. Only colour-ish
+            properties are transitioned to keep it cheap. `prefers-reduced-motion`
+            users get the instant change.
+        */
+        .theme-transition, .theme-transition *, .theme-transition *::before, .theme-transition *::after {
+            transition: background-color .3s ease, border-color .3s ease, color .3s ease,
+                fill .3s ease, stroke .3s ease, box-shadow .3s ease !important;
+            transition-delay: 0s !important;
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .theme-transition, .theme-transition *, .theme-transition *::before, .theme-transition *::after {
+                transition: none !important;
+            }
+        }
+
+        /* Table shell */
+        .dt-table { width: 100%; font-size: .875rem; line-height: 1.25rem; }
+        .dt-table thead tr { border-bottom: 1px solid var(--color-border); }
+        .dt-head-cell { padding: .75rem 1rem; text-align: left; font-size: .75rem; line-height: 1rem;
+            font-weight: 500; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .025em; }
+        .dt-tbody > tr + tr { border-top: 1px solid var(--color-border-subtle); }
+
+        /* Rows + cells */
+        .dt-row { transition: background-color .15s; }
+        .dt-row:hover { background-color: var(--color-surface-muted); }
+        .dt-cell { padding: .75rem 1rem; color: var(--color-text); vertical-align: middle; }
+        .dt-cell-muted { color: var(--color-text-muted); white-space: nowrap; }
+        .dt-cell-actions { width: 1%; white-space: nowrap; }
+
+        /* Trailing action buttons. Each label sits in a fixed-width, centred slot, so swapping
+           Edit↔Save and Delete↔Cancel (and the confirm row's Delete/Cancel) keeps every word in
+           exactly the same place — the cursor never has to move. The two states always have the
+           same two equal slots, right-aligned, so corresponding buttons line up. */
+        .dt-actions { display: flex; justify-content: flex-end; align-items: center; gap: .5rem; }
+        .dt-actions .dt-btn { min-width: 3.5rem; text-align: center; }
+        /* Tailwind's `.hidden` utility lives in the linked app.css, which is *earlier* in the cascade
+           than this inline block. A component class here that sets `display` (e.g. .dt-actions on the
+           options cell) would otherwise win on equal specificity and
+           keep a [data-dt-view]/[data-dt-edit] element visible after dtStartEdit/dtCancelEdit adds
+           `.hidden`. Re-assert `.hidden` at higher specificity so the view/edit toggle reliably hides. */
+        [data-dt-view].hidden, [data-dt-edit].hidden { display: none; }
+        /* View-mode actions stay subtle until the row is highlighted (hovered/focused); edit +
+           confirm actions are always shown. On touch this works the same way: tapping a row applies
+           the :hover state (sticky until another row is tapped), so the actions reveal on tap.
+           While hidden they're `pointer-events: none`, so they can't be clicked/tapped until revealed
+           (a tap on a hidden button falls through to the row, revealing it first); keyboard focus
+           still works, so :focus-within can reveal them for keyboard users. */
+        .dt-row [data-dt-view].dt-actions { opacity: 0; pointer-events: none; transition: opacity .15s; }
+        .dt-row:hover [data-dt-view].dt-actions,
+        .dt-row:focus-within [data-dt-view].dt-actions { opacity: 1; pointer-events: auto; }
+
+        /* Buttons — shared across every editable table. Every colour is a token that already
+           flips in dark mode (resting icons use --color-text-faint, the deeper hover shades use
+           the -strong tokens), so no .dark twin is needed here. */
+        .dt-btn { font-size: .75rem; line-height: 1rem; font-weight: 500; background: none; border: 0;
+            padding: 0; transition: color .15s; }
+        .dt-btn-edit { color: var(--color-text-faint); } .dt-btn-edit:hover { color: var(--color-brand); }
+        .dt-btn-delete { color: var(--color-text-faint); } .dt-btn-delete:hover { color: var(--color-danger); }
+        .dt-btn-save { color: var(--color-brand); } .dt-btn-save:hover { color: var(--color-brand-strong); }
+        .dt-btn-cancel { color: var(--color-text-muted); } .dt-btn-cancel:hover { color: var(--color-text-strong); }
+        .dt-btn-danger { color: var(--color-danger); } .dt-btn-danger:hover { color: var(--color-danger-strong); }
+
+        /* Row highlight ring — the single accent shared by every editable + confirm-delete row.
+           Pass the colour in via the `--dt-highlight` variable (set by the row's mode class below,
+           so it stays dark-aware). Drawn with an inset box-shadow, so it NEVER changes the row's
+           size — identical behaviour whether it wraps a single colspan cell (:only-child) or a
+           multi-column row (the ring is stitched from per-cell edges). */
+        .dt-row-highlight > td { box-shadow: inset 0 1px 0 0 var(--dt-highlight), inset 0 -1px 0 0 var(--dt-highlight); }
+        .dt-row-highlight > td:first-child { box-shadow: inset 0 1px 0 0 var(--dt-highlight), inset 0 -1px 0 0 var(--dt-highlight), inset 1px 0 0 0 var(--dt-highlight); }
+        .dt-row-highlight > td:last-child { box-shadow: inset 0 1px 0 0 var(--dt-highlight), inset 0 -1px 0 0 var(--dt-highlight), inset -1px 0 0 0 var(--dt-highlight); }
+        .dt-row-highlight > td:only-child { box-shadow: inset 0 0 0 1px var(--dt-highlight); }
+
+        /* Highlight colours — each mode class supplies just the colour passed into the ring.
+           The ring tokens already flip in dark mode, so no .dark twin is needed. */
+        .dt-row-edit { --dt-highlight: var(--color-ring-edit); }
+        .dt-row-confirm { --dt-highlight: var(--color-ring-confirm); }
+
+        /* Edit rows hold inputs (taller than a text line), so give the inputs the row's line-height
+           and trim the cell padding to match — the row keeps the SAME height as its view state, so
+           the highlight doesn't appear to enlarge it (matching the confirm row's behaviour). */
+        .dt-row-edit > td { padding-top: .625rem; padding-bottom: .625rem; }
+        .dt-row-edit .dt-text-input, .dt-row-edit .dt-select { height: 1.5rem; box-sizing: border-box; }
+
+        /* In-place confirm-delete cell — ring colour comes from .dt-row-confirm; this is padding only. */
+        .dt-confirm-cell { padding: .75rem 1rem; }
+        .dt-confirm-prompt { font-size: .75rem; color: var(--color-text-muted); }
+
+        /* Day-panel item — the delete button is hidden until the row is hovered/focused, mirroring
+           the [data-dt-view].dt-actions reveal used in editable tables. */
+        .day-item-delete { opacity: 0; pointer-events: none; transition: opacity .15s, color .15s; }
+        .day-item:hover .day-item-delete,
+        .day-item:focus-within .day-item-delete { opacity: 1; pointer-events: auto; }
+        /* The count input uses border-line at rest; step it up to input-border on row hover so it
+           stays visible against the surface-muted background. */
+        .day-item:hover input[name="count"] { border-color: var(--color-input-border); }
+        /* Confirm ring for a non-table element: drawn directly on the element (no > td needed).
+           Fixed height matches the normal item's py-2 + h-7 = 2.75rem exactly; overflow:hidden
+           prevents wrapping content from expanding the row and shifting the page scroll. */
+        .day-item-confirm { height: 2.75rem; overflow: hidden; box-shadow: inset 0 0 0 1px var(--color-ring-confirm); }
+
+        /* Settings "Display name" field — a lone editable field that borrows the data-table
+           conventions (dt-btn actions, an Edit control revealed on hover/focus, and a fixed-size
+           edit state ringed in the edit colour) without being a real table row, mirroring the
+           .day-item above. Only min-height / box-shadow are set here — never `display` — so
+           Tailwind's `.hidden` (earlier in the cascade) still wins when the view/edit states are
+           toggled (same reasoning as the .dt-actions note above). The view and edit states share
+           the same min-height, so entering edit mode never changes the row's size. */
+        .settings-field { min-height: 2.25rem; }
+        .settings-field-actions { opacity: 0; pointer-events: none; transition: opacity .15s; }
+        .settings-field:hover .settings-field-actions,
+        .settings-field:focus-within .settings-field-actions { opacity: 1; pointer-events: auto; }
+        .settings-field-edit { box-shadow: inset 0 0 0 1px var(--color-ring-edit); }
+
+        /* Touch devices have no reliable hover, so the hover-gated action reveals above (table
+           Edit/Delete, the day-panel Erase, the Settings Edit) would need an extra tap to surface.
+           Key off `(hover: none)` — the pointer's hover *capability*, NOT viewport width — so these
+           stay always-visible on phones/tablets while a narrow desktop window keeps the reveal. */
+        @media (hover: none) {
+            .dt-row [data-dt-view].dt-actions,
+            .day-item-delete,
+            .settings-field-actions { opacity: 1; pointer-events: auto; }
+        }
+        /* Reveal (eye) toggle used by the Password field's view/edit/confirm states. Same faint→brand
+           treatment as .dt-btn-edit, so it sits quietly next to the value until hovered. Colours are
+           tokens that already flip in dark mode. */
+        .settings-eye { display: inline-flex; align-items: center; justify-content: center; color: var(--color-text-faint);
+            background: none; border: 0; padding: 0; cursor: pointer; transition: color .15s; }
+        .settings-eye:hover { color: var(--color-brand); }
+
+        /* Role/status badge */
+        .dt-badge { font-size: .75rem; font-weight: 500; color: var(--color-text-muted); }
+        .dt-badge-admin { color: var(--color-brand); }
+
+        /* Inputs used inside table edit rows. Colours are tokens that flip in dark mode (the
+           input bg/border tokens give the text input and the select an identical dark treatment),
+           so no .dark twin is needed. */
+        .dt-text-input { font-size: .875rem; border: 1px solid var(--color-input-border); border-radius: .5rem;
+            padding: .25rem .5rem; background: var(--color-input-bg); color: var(--color-text); }
+        .dt-text-input:focus { outline: none; box-shadow: 0 0 0 2px var(--color-brand-ring); border-color: transparent; }
+        .dt-color-input { width: 1rem; height: 1rem; border-radius: 9999px; border: 0; padding: 0;
+            background: transparent; cursor: pointer; flex-shrink: 0; }
+        /* Native colour inputs render a rectangular inner swatch; round it so the picker stays a
+           circle (matching the read-mode .swatch) instead of flipping to a box in edit mode. */
+        input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }
+        input[type="color"]::-webkit-color-swatch { border: 1px solid rgba(0, 0, 0, .1); border-radius: 9999px; }
+        input[type="color"]::-moz-color-swatch { border: 1px solid rgba(0, 0, 0, .1); border-radius: 9999px; }
+        .dt-select { font-size: .75rem; border: 1px solid var(--color-input-border); border-radius: .375rem;
+            background: var(--color-input-bg); color: var(--color-text); padding: .25rem 1.5rem .25rem .5rem; cursor: pointer; }
+        .dt-select:focus { outline: none; box-shadow: 0 0 0 1px var(--color-brand-ring); }
+
+        /* Empty state + pagination footer. All colours are tokens that flip in dark mode. */
+        .dt-empty { padding: 2rem 1rem; text-align: center; color: var(--color-text-muted); }
+        .dt-pagination { padding: .75rem 1rem; border-top: 1px solid var(--color-border); display: flex;
+            align-items: center; justify-content: space-between; font-size: .75rem; color: var(--color-text-muted); }
+        .dt-pagination--borderless { border-top: 0; }
+        .dt-page-link { color: var(--color-brand); transition: color .15s; }
+        .dt-page-link:hover { color: var(--color-brand-strong); }
+
+        /* Inline message banners — shared by login/register pages and HTMX error responses
+           (e.g. the admin user-management guards). Use `.banner` plus one variant modifier so
+           every "something went wrong / succeeded" message reads identically. Rendered both
+           from Qute (partials/banner.html) and from Java-built HTML, hence a plain CSS class. */
+        .banner { border-radius: .5rem; border: 1px solid transparent;
+            padding: .5rem .75rem; font-size: .875rem; line-height: 1.25rem; }
+        .banner-error { background: var(--color-banner-error-bg); border-color: var(--color-banner-error-border); color: var(--color-banner-error-text); }
+        .banner-success { background: var(--color-banner-success-bg); border-color: var(--color-banner-success-border); color: var(--color-banner-success-text); }
+        .banner-warning { background: var(--color-banner-warning-bg); border-color: var(--color-banner-warning-border); color: var(--color-banner-warning-text); }
+
+/* ── Dashboard calendar styling (was dashboard.html) ─────────────────────── */
+  /* ── Shared calendar toolbar (partials/calendar-toolbar.html) ──────────────
+     One toolbar — «  ‹  month/year title  [jump icon]  ›  » — centred over the calendar and reused by
+     EVERY calendar style (full, minimal, stacked), so the navigation chrome is identical across
+     calendars, themes and viewports. The "Today" action lives in the picker popup, not this row. */
+  /* The row spans the full width above the calendar and NEVER wraps (`flex-wrap: nowrap`):
+     `justify-content: space-between` pins the prev-year/prev-month group to the left edge and the
+     next-month/next-year group to the right edge, leaving the month/year title + jump glyph centred
+     between them (the two side groups are equal width, so the centre group stays dead-centre). As the
+     screen narrows the nav buttons shrink FIRST (their horizontal padding tightens — see the media
+     queries below); only once they're at their tightest and would crowd the centred title does the
+     title abbreviate itself (see `.cal-title`), so the toolbar always stays on a single line even on
+     the narrowest phones. (On mobile the absolutely-positioned picker popup is clamped to shift left
+     so it never spills past the calendar's right edge — see openPop().) */
+  .cal-toolbar {
+    display: flex; flex-wrap: nowrap; align-items: center; justify-content: space-between;
+    margin-bottom: 0.5rem; gap: 0.25rem;
+  }
+  /* The two outer button groups; equal width keeps the centre group centred under space-between. */
+  .cal-toolbar-side   { display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0; }
+  /* The centre group never shrinks: it stays at its natural (full-title) width so that when the title
+     is too wide for the row the WHOLE toolbar overflows measurably. fitCalTitle() (in JS) watches that
+     overflow and abbreviates only when it actually happens — see the comment on .cal-title below. */
+  .cal-toolbar-center { display: flex; align-items: center; gap: 0.25rem; flex-shrink: 0; }
+  /* The month/year title sits in the centre group beside the jump icon and never wraps. It is the
+     most prominent element in the toolbar (larger than the nav buttons). `line-height: 1` keeps its
+     box shorter than the padded nav buttons, so enlarging the font does NOT grow the toolbar's height
+     or shift the calendar below it. To keep the single-row toolbar on one line on the narrowest
+     phones — and only AFTER the nav buttons have already shrunk — it swaps the full month name for a
+     3-letter abbreviation, then the 4-digit year for 2 digits. Both variants are emitted into the DOM
+     by setCalTitle(); which one shows is decided per-month by fitCalTitle() (JS), which measures real
+     toolbar overflow rather than a fixed breakpoint — so a SHORT month ("June") keeps its full name at
+     a width where a LONG one ("September") would already need to abbreviate. */
+  .cal-title {
+    white-space: nowrap; font-size: 1.25rem; line-height: 1; font-weight: 600; color: var(--color-text);
+    padding: 0 0.4rem; text-align: center;
+  }
+  .cal-title-month-abbr, .cal-title-year-abbr { display: none; }
+  /* fitCalTitle() toggles these classes on #cal-title; CSS just picks which variant shows. */
+  .cal-title.cal-title-abbr-month .cal-title-month-full { display: none; }
+  .cal-title.cal-title-abbr-month .cal-title-month-abbr { display: inline; }
+  .cal-title.cal-title-abbr-year  .cal-title-year-full  { display: none; }
+  .cal-title.cal-title-abbr-year  .cal-title-year-abbr  { display: inline; }
+  /* Shrink the nav buttons as the viewport narrows, buying room for the full title before the title
+     itself is forced to abbreviate (that final step is content-aware, handled by fitCalTitle()). */
+  @media (max-width: 560px) {
+    .cal-toolbar-btn { padding: 0.25rem 0.4rem; }
+  }
+  @media (max-width: 460px) {
+    .cal-toolbar-btn { padding: 0.25rem 0.25rem; }
+  }
+  /* The calendar nav buttons ARE the app's primary brand button — the fill/hover/pressed/focus-ring
+     surface is shared from app.css (`.btn-primary, .icon-btn-primary, .cal-toolbar-btn, …`), so it
+     never drifts from the gallery's «‹›» equivalents. Only the compact toolbar GEOMETRY lives here:
+     font metrics, padding, radius, and a transparent border to reserve the ring's footprint. */
+  .cal-toolbar-btn {
+    font-size: 0.75rem; font-weight: 500; line-height: 1.2; text-transform: none;
+    padding: 0.25rem 0.6rem; border-radius: 0.5rem;
+    border: 1px solid transparent;
+  }
+  /* The "jump to month" button is a .cal-toolbar-btn whose content is the calendar glyph. Flex-centre
+     the glyph so it sits dead-centre vertically (an inline svg with a vertical-align baseline tweak
+     rides high in the button). The button keeps the same height as the text prev/next buttons
+     because it shares their padding + 0.75rem/1.2 line metrics. The glyph stays a square 1em and
+     inherits currentColor, so it reads as a white glyph on the brand fill like their text. */
+  #cal-jump { display: inline-flex; align-items: center; justify-content: center; }
+  /* Match the text buttons' total height: their content box is 1.2em (line-height) tall, so reserve
+     that here too (the square 1em glyph alone would leave this button ~2px shorter). */
+  .cal-toolbar-glyph { width: 1em; height: 1.2em; }
+  /* The "Today" action sits at the bottom of the month/year picker popup (#cal-pop) — the same shared
+     primary brand button (surface from app.css), separated from the month grid above it. Only its
+     full-width geometry differs from the toolbar buttons. */
+  .cal-today-btn {
+    width: 100%; margin-top: 0.5rem;
+    font-size: 0.8rem; font-weight: 500; line-height: 1.2; text-transform: none;
+    padding: 0.35rem 0.6rem; border-radius: 0.5rem;
+    border: 1px solid transparent;
+  }
+
+  /* The month/year jump popup is a floating menu OVER the calendar, so it must read as lifted — not as
+     part of the grid beneath it (the calendar card is a flat bg-surface / neutral-bordered panel). A
+     brand-tinted border ties it to the accent system and sets it apart from the calendar's neutral
+     lines, a more generous radius and a pronounced layered shadow lift it off the card. The background
+     stays --color-surface (NOT surface-muted) so the month-button hover wash below keeps its contrast
+     in both themes. */
+  #cal-pop {
+    background: var(--color-surface);
+    border: 1px solid var(--color-brand);
+    border-radius: 0.75rem;
+    box-shadow: 0 10px 24px -6px rgb(0 0 0 / 0.28), 0 4px 8px -4px rgb(0 0 0 / 0.18);
+  }
+  /* Drop shadows barely register against the dark card, so separate the popup with a brighter brand
+     rim (an extra 1px brand ring via box-shadow) plus a deeper soft shadow. */
+  .dark #cal-pop {
+    box-shadow: 0 0 0 1px var(--color-brand), 0 12px 28px -6px rgb(0 0 0 / 0.6);
+  }
+
+  /* Month buttons in the jump popup mirror the calendar's own day-states (see the shared --cal-*
+     variables below) so the picker reads with the same visual grammar as the grid:
+       • the month containing TODAY  → solid brand fill + on-brand text (the "today" cell);
+       • the currently VIEWED month  → brand selection ring + faint fill + brand text (a selected day);
+       • viewed month that IS today  → the contained brand/gap/brand inset ring (selected-today);
+       • hover (plain months only)   → the same surface-muted wash a calendar day uses.
+     Brand is constant across light/dark, so the today/selected treatments hold in both themes; only the
+     selected text shifts to the lighter brand shade in dark (as on the calendar). */
+  .cal-pop-month {
+    font-size: 0.8rem; line-height: 1.2; border-radius: 0.375rem;
+    padding: 0.375rem 0.5rem; color: var(--color-text);
+    background: transparent; border: 0;
+    transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+  }
+  .cal-pop-month:hover { background: var(--color-surface-muted); }
+  .cal-pop-month-selected {
+    background: var(--color-brand-faint); color: var(--color-brand);
+    box-shadow: var(--cal-selected-ring);
+  }
+  .dark .cal-pop-month-selected { color: var(--color-brand-strong); }
+  .cal-pop-month-today {
+    background: var(--cal-today-fill); color: var(--color-on-brand);
+  }
+  .cal-pop-month-today.cal-pop-month-selected {
+    background: var(--cal-today-fill); color: var(--color-on-brand);
+    box-shadow: var(--cal-selected-today-inset);
+  }
+  /* Today/selected months keep their fill on hover (like the calendar's today/selected cells, which
+     don't take the hover wash) — only plain months react to hover. */
+  .cal-pop-month-selected:hover { background: var(--color-brand-faint); }
+  .cal-pop-month-today:hover,
+  .cal-pop-month-today.cal-pop-month-selected:hover { background: var(--cal-today-fill); }
+
+  /* ── Shared day-state styling (full + minimal/stacked) ─────────────────────
+     "Today" and the selected day are marked consistently across every calendar style, defined once here
+     as named variables. "Today" is filled solid brand; a selected day gets a brand ring (around the full
+     calendar's cell, or around the minimal/stacked date circle); and a selected today layers a contained
+     brand / transparent-gap / brand ring so the selection still reads on top of the solid brand fill (a
+     plain brand ring would be invisible, brand-on-brand). */
+  #calendar-wrap {
+    --cal-today-fill:    var(--color-brand);           /* current-day highlight (whole cell / date circle) */
+    /* Selected day (not today): a brand ring (around the cell / date circle). Constant across light/dark. */
+    --cal-selected-ring: inset 0 0 0 2px var(--color-brand);
+    /* Selected day that IS today: a CONTAINED inset ring — a brand outer rim, then a surface-coloured
+       ("transparent") gap of the same width just inside it, then the brand fill (read outer-to-in:
+       brand → gap → brand). Inset (never an outer ring) for BOTH the full calendar and the minimal/stacked
+       date circle so it stays within its box: the full cell would otherwise bleed into neighbouring cells,
+       and the 26px circle's outer ring would overlap the dots/bars strip 2px below. The rim/gap are 1.5px
+       (not 2px) so the digits keep their padding inside the small circle — large-cell 2px looked crowded
+       there; the full calendar shares the same value for one consistent treatment. */
+    --cal-selected-today-inset: inset 0 0 0 1.5px var(--color-brand), inset 0 0 0 3px var(--color-surface);
+  }
+
+  /* ── Full calendar (hand-rolled month grid; same engine as minimal/stacked) ──
+     The `full` style renders the shared 7×6 grid (#d-min-grid / .d-min-cell) as a classic month
+     calendar: bordered cells, a top-right day number, and a vertical list of logged-action events
+     (coloured dot + "name ×N" title) — reproducing the look the FullCalendar.js widget used to draw.
+     Everything here is scoped under `.d-cal-full` (set on #calendar-wrap per the active style) so it
+     never touches the minimal/stacked treatments below. The grid LINE colour matches the old widget:
+     #ddd in light, gray-700 in dark. */
+  .d-cal-full { --cal-grid-line: #ddd; }
+  .dark .d-cal-full { --cal-grid-line: rgb(55, 65, 81); }
+
+  /* Header: bold, centred day names with a bottom rule; dark gets the muted-surface band the widget used. */
+  .d-cal-full .d-min-dow-header {
+    margin-bottom: 0; border-bottom: 1px solid var(--cal-grid-line);
+  }
+  .d-cal-full .d-min-dow-header span {
+    font-size: 0.8125rem; font-weight: 700; color: var(--color-text);
+    padding: 0.35rem 0; text-align: center;
+  }
+  .dark .d-cal-full .d-min-dow-header { background: rgb(31, 41, 55); }
+  .dark .d-cal-full .d-min-dow-header span { color: rgb(229, 231, 235); }
+
+  /* Grid: rows grow with their events (the widget ran height:'auto'); a 1px line frames every cell via
+     a top/left frame on the grid plus right/bottom on each cell (so internal lines stay a single pixel). */
+  .d-cal-full.d-min-grid {
+    height: auto;
+    grid-template-rows: repeat(6, minmax(76px, auto));
+    border-top: 1px solid var(--cal-grid-line);
+    border-left: 1px solid var(--cal-grid-line);
+  }
+  .d-cal-full .d-min-cell {
+    align-items: stretch; justify-content: flex-start; padding: 0; overflow: hidden;
+    border-right: 1px solid var(--cal-grid-line);
+    border-bottom: 1px solid var(--cal-grid-line);
+  }
+  .dark .d-cal-full .d-min-cell { background: rgb(17, 24, 39); }
+
+  /* Day number: small, top-RIGHT, 4px inset (matching the widget). */
+  .d-cal-full .d-full-top { display: flex; justify-content: flex-end; }
+  .d-cal-full .d-full-daynum {
+    font-size: 0.75rem; line-height: 1; padding: 4px; color: var(--color-text);
+  }
+  .dark .d-cal-full .d-full-daynum { color: rgb(229, 231, 235); }
+  /* Other-month days are faded by lowering the whole top row's opacity — the widget's own mechanism
+     (the number colour itself is unchanged), so it reads identically in light and dark. */
+  .d-cal-full .d-min-cell.d-min-other .d-full-top { opacity: 0.3; }
+  /* …and the day's logged events are dimmed too (same opacity mechanism, so it reads identically in
+     light and dark) — differentiating prev/next-month entries from the current month's. */
+  .d-cal-full .d-min-cell.d-min-other .d-full-events { opacity: 0.4; }
+
+  /* Today fills the whole cell with brand; its number flips to on-brand. A selected (non-today) cell
+     takes the shared brand ring + brand number; a selected today layers the contained inset ring so the
+     selection still reads on the solid fill (all via the shared --cal-* variables above). */
+  .d-cal-full .d-min-cell.d-min-today { background: var(--cal-today-fill); }
+  .d-cal-full .d-min-cell.d-min-today .d-full-daynum { color: var(--color-on-brand); }
+  .d-cal-full .d-min-cell.d-min-selected:not(.d-min-today) { box-shadow: var(--cal-selected-ring); }
+  .d-cal-full .d-min-cell.d-min-selected:not(.d-min-today) .d-full-daynum { color: var(--color-brand); }
+  .dark .d-cal-full .d-min-cell.d-min-selected:not(.d-min-today) .d-full-daynum { color: var(--color-brand-strong); }
+  .d-cal-full .d-min-cell.d-min-today.d-min-selected { box-shadow: var(--cal-selected-today-inset); }
+
+  /* Event rows: a small solid colour dot + a bold, single-line, ellipsis-truncated title (the widget
+     bolds dot-event titles). Today keeps default dark text on the brand fill, exactly as before. */
+  .d-cal-full .d-full-events { display: flex; flex-direction: column; }
+  .d-cal-full .d-full-event {
+    display: flex; align-items: center; gap: 4px;
+    margin: 1px 2px 0; padding: 1px 2px; border-radius: 3px;
+    font-size: 0.7rem; line-height: 1.2;
+  }
+  .d-cal-full .d-full-event-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .d-cal-full .d-full-event-title {
+    min-width: 0; flex: 1; font-weight: 700; color: var(--color-text);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .dark .d-cal-full .d-full-event-title { color: rgb(229, 231, 235); }
+  /* The ×N multiplier, rendered beside the (truncatable) name. flex-shrink:0 so the name — never the count —
+     absorbs any ellipsis truncation. Font size is set inline by the fit routine (fitFullEvents), which in the
+     tightest cells hides the name, then the count, but never the dot. */
+  .d-cal-full .d-full-event-count { font-weight: 700; color: var(--color-text); flex-shrink: 0; }
+  .dark .d-cal-full .d-full-event-count { color: rgb(229, 231, 235); }
+
+  /* ── Minimal calendar grid (the toolbar is the shared .cal-toolbar above) ── */
+  .d-min-dow-header {
+    display: grid; grid-template-columns: repeat(7, 1fr);
+    margin-bottom: 2px;
+  }
+  .d-min-dow-header span {
+    text-align: center; font-size: 0.65rem; font-weight: 600;
+    color: rgb(107,114,128); padding: 0.25rem 0;
+  }
+  .d-min-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-template-rows: repeat(6, 1fr);
+    height: 318px;
+  }
+  .d-min-cell {
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: flex-start; padding: 2px 0;
+    cursor: pointer;
+  }
+  /* Date number rendered as a circle — hover/today/selected all target this */
+  .d-min-date {
+    width: 26px; height: 26px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.72rem; font-weight: 400; line-height: 1;
+    color: rgb(31,41,5); transition: background 0.15s; flex-shrink: 0;
+  }
+  /* The digits live in this inner span. Horizontal centring is pure CSS: a full-width, centred block
+     centres the glyph ADVANCE box (the robust reference). Vertical centring is nudged in JS (centreInk)
+     because the ink sits high in the line box. */
+  .d-min-date-ink { display: block; width: 100%; text-align: center; white-space: nowrap; }
+  .dark .d-min-date { color: rgb(229,231,235); }
+  .d-min-cell:hover .d-min-date { background: rgb(243,244,246); }
+  .dark .d-min-cell:hover .d-min-date { background: rgb(55,65,81); }
+  .d-min-cell.d-min-today .d-min-date {
+    background: var(--cal-today-fill); color: var(--color-on-brand);
+  }
+  /* Selected (non-today) day. The faint fill alone reads clearly in light mode but is nearly
+     invisible against the dark cell background, so add the shared brand selection ring: the brand
+     token is constant across light/dark, so it is equally distinct regardless of how subtle the fill. */
+  .d-min-cell.d-min-selected .d-min-date {
+    background: var(--color-brand-faint); color: var(--color-brand);
+    box-shadow: var(--cal-selected-ring);
+  }
+  /* Selected text needs a lighter brand shade to read on the darker faint fill in dark mode. */
+  .dark .d-min-cell.d-min-selected .d-min-date { color: var(--color-brand-strong); }
+  /* Today + selected: keep today's filled circle and ring it with the shared CONTAINED inset ring (brand
+     rim / surface gap / brand fill — same as the full calendar). Inset stays inside the 26px circle so it
+     never overlaps the dots/bars strip below; the 1.5px rim/gap (see --cal-selected-today-inset) keeps the
+     digits from feeling crowded. A single plain inset brand ring would be invisible brand-on-brand — the
+     surface gap is what makes the selection read on the solid brand fill. */
+  .d-min-cell.d-min-today.d-min-selected .d-min-date {
+    background: var(--cal-today-fill); color: var(--color-on-brand);
+    box-shadow: var(--cal-selected-today-inset);
+  }
+  .d-min-cell.d-min-other .d-min-date { color: rgb(156,163,175); }
+  .dark .d-min-cell.d-min-other .d-min-date { color: rgb(75,85,99); }
+  /* Fixed-height dot strip — always reserves the same space whether 0 or 4 dots */
+  .d-min-dots {
+    display: flex; gap: 2px; align-items: center; justify-content: center;
+    height: 6px; min-height: 6px; margin-top: 2px; flex-shrink: 0;
+  }
+  .d-min-dot {
+    width: 5px; height: 5px; border-radius: 50%; flex-shrink: 0;
+  }
+  /* Prev/next-month dots are dimmed to match the faded date number (container opacity → same in both modes). */
+  .d-min-cell.d-min-other .d-min-dots { opacity: 0.4; }
+
+  /* ── Stacked calendar (horizontal bars instead of dots) ─────────────── */
+  /* Fixed-height bar column — always reserves the same vertical space (4 bars × 3.3px + 3 gaps × 2px = 19.2px) */
+  .d-stk-bars {
+    display: flex; flex-direction: column; gap: 2px; align-items: center;
+    width: 100%; padding: 0 3px; box-sizing: border-box;
+    height: 19.2px; min-height: 19.2px; margin-top: 2px; flex-shrink: 0;
+    overflow: hidden;
+  }
+  .d-stk-bar {
+    height: 3.3px; width: 80%; border-radius: 1099px; flex-shrink: 0;
+  }
+  /* Prev/next-month bars are dimmed to match the faded date number (container opacity → same in both modes). */
+  .d-min-cell.d-min-other .d-stk-bars { opacity: 0.4; }

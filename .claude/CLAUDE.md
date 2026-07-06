@@ -203,6 +203,36 @@ Extra tokens consumed as `var(--color-*)` in inline CSS: `--color-brand-strong`/
 Component classes in `app.css @layer components`: `.btn-primary`, `.btn-secondary`, `.card`, `.stat-tile`, `.form-input`, `.form-select`,
 `.field-label`, `.field-label-caps`, `.help-text`, `.nav-link`/`.nav-link-active`, `.swatch`/`.swatch-sm`/`.swatch-md`, `.app-tooltip`.
 
+The stable component CSS that used to live in the templates' inline `<style>` blocks — the shared data-table (`.dt-*`)
+styling, the settings-field chrome, the theme-transition rules, the message banners (all from `layout.html`) and the
+dashboard calendar styling (`.d-*`, `.cal-*` from `dashboard.html`) — now lives at the **bottom of `app.css` as plain CSS
+(NOT inside `@layer`)**, so it rides the compiled, content-hashed, `immutable` stylesheet instead of being re-transferred
+on every no-cache navigation. It is kept un-layered on purpose: exactly as it was inline (un-layered, after the linked
+sheet), so it still wins over Tailwind's layered utilities — which is why the defensive `[data-dt-view].hidden` /
+`[data-dt-edit].hidden` re-assertions are retained. Every colour is a `var(--color-*)` token, so no `.dark` twins are needed.
+
+### Served front-end scripts (content-hashed, `immutable`)
+
+Three scripts are served from `META-INF/resources/js/` and referenced from the templates via
+`{inject:appInfo.*}`, all sharing one cache-busting pattern: served un-hashed in dev (`no-store`), and at image-build
+time the Dockerfile renames each to `name.<sha256-12>.ext`, bakes the hashed name into
+`microprofile-config.properties` (read by `AppConfig`/`AppInfo`), and serves it `public, max-age=31536000, immutable`
+(`application.properties`, the `/js/` filter).
+
+- `htmx.min.js` (`AppInfo.jsFile`) — **vendored** from npm by `scripts/vendor-assets.cjs` (`.gitignored` build artifact).
+- `app.js` (`AppInfo.jsAppFile`) — the shared per-page behaviour extracted from `layout.html` (dt edit/confirm toggles,
+  form validation + AJAX submit, locale number grouping, the tooltip long-press, the password-requirements popover). A
+  **committed** hand-written file. Loaded as a classic script at the end of `<body>` on every page, so the document is
+  parsed when it runs and its document-level handlers register in the original order (the `data-validate` handler must
+  precede `data-ajax-submit`).
+- `dashboard.js` (`AppInfo.jsDashboardFile`) — the hand-rolled calendar engine extracted from `dashboard.html`. A
+  **committed** file, loaded only on the dashboard. Its two server-injected values (the app's UTC `today` and the user's
+  `calendarView`) arrive via `window.Diurnal.dashboard`, set by a tiny inline bootstrap just before it loads. Because it
+  is now a plain `.js` file (not a Qute template) the `{`-escaping caveat below no longer applies to it.
+
+> **The FOUC-critical `window.Diurnal.applyTheme('{theme}')` stays inline in `<head>`** — it must run before the
+> stylesheet loads and carries a server-injected value, so it is neither externalised nor hashed.
+
 **Tooltips**: the app's single tooltip style is `.app-tooltip` (theme-matched: `bg-surface`/`text-ink`/`border-line` + shadow), rendered
 via **`partials/tooltip.html`** (`text`/`pos`/`align` params). Put it inside a host with `group relative` (and an `aria-label`, since the
 bubble is `aria-hidden`); it reveals on **hover** (desktop, CSS `.group:hover > .app-tooltip`) or a **long press** (touch) via the global
