@@ -122,7 +122,6 @@ generated for you.
 Open the app and **register**. The first account created becomes the **administrator**. Once you have your account, you may wish to set
 `ENABLE_REGISTRATION=false` to prevent anyone else from signing up.
 
-
 ## Environment Variables
 
 Diurnal is configured entirely through environment variables on the `diurnal` container. Only the first two are required; everything else has a
