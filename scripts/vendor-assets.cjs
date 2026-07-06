@@ -28,14 +28,14 @@
  *    the CSS/JS renames and bake the name into an AppConfig `assets.*-file` mapping.
  */
 
-'use strict';
+'use strict'
 
-const fs = require('node:fs');
-const path = require('node:path');
+const fs = require('node:fs')
+const path = require('node:path')
 
-const REPO_ROOT = path.resolve(__dirname, '..');
-const NODE_MODULES = path.join(REPO_ROOT, 'node_modules');
-const WEB_ROOT = path.join(REPO_ROOT, 'src', 'main', 'resources', 'META-INF', 'resources');
+const REPO_ROOT = path.resolve(__dirname, '..')
+const NODE_MODULES = path.join(REPO_ROOT, 'node_modules')
+const WEB_ROOT = path.join(REPO_ROOT, 'src', 'main', 'resources', 'META-INF', 'resources')
 
 /**
  * The manifest of vendored assets. `from` is resolved inside node_modules; `to` inside the served
@@ -43,26 +43,26 @@ const WEB_ROOT = path.join(REPO_ROOT, 'src', 'main', 'resources', 'META-INF', 'r
  */
 const ASSETS = [
     { from: 'htmx.org/dist/htmx.min.js', to: 'js/htmx.min.js' },
-];
+]
 
-let copied = 0;
+let copied = 0
 for (const asset of ASSETS) {
-    const src = path.join(NODE_MODULES, asset.from);
-    const dest = path.join(WEB_ROOT, asset.to);
+    const src = path.join(NODE_MODULES, asset.from)
+    const dest = path.join(WEB_ROOT, asset.to)
 
     if (!fs.existsSync(src)) {
-        console.error(`  ❌ Missing ${asset.from} in node_modules — run \`npm install\` first`);
-        process.exitCode = 1;
-        continue;
+        console.error(`  ❌ Missing ${asset.from} in node_modules — run \`npm install\` first`)
+        process.exitCode = 1
+        continue
     }
 
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.copyFileSync(src, dest);
-    console.log(`  ✅ ${asset.from} → ${path.relative(REPO_ROOT, dest)}`);
-    copied += 1;
+    fs.mkdirSync(path.dirname(dest), { recursive: true })
+    fs.copyFileSync(src, dest)
+    console.log(`  ✅ ${asset.from} → ${path.relative(REPO_ROOT, dest)}`)
+    copied += 1
 }
 
 if (process.exitCode) {
-    throw new Error('vendor-assets: one or more assets could not be copied');
+    throw new Error('vendor-assets: one or more assets could not be copied')
 }
-console.log(`Vendored ${copied} asset(s).`);
+console.log(`Vendored ${copied} asset(s).`)
