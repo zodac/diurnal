@@ -24,6 +24,10 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
       TZ: ${TZ:-UTC}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # This stack runs behind Traefik, which sets/strips X-Forwarded-*, so trust those headers
+      # (needed for https:// OIDC redirect URIs and Secure cookies). Disabled by default in
+      # application.properties — only safe because a trusted proxy fronts the app here.
+      TRUST_X_FORWARDED_HEADERS: ${TRUST_X_FORWARDED_HEADERS:-true}
       PASSWORD_AUTH_ENABLED: "true"
       ENABLE_REGISTRATION: ${ENABLE_REGISTRATION:-true}
       # Session cookie encryption — must be at least 16 chars, keep secret
