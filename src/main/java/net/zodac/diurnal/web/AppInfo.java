@@ -142,4 +142,15 @@ public class AppInfo {
     public String getCssFile() {
         return appConfig.cssFile();
     }
+
+    /**
+     * The content-hashed self-hosted htmx filename (e.g. {@code htmx.9f3a1c2b4d5e.min.js}), referenced
+     * by {@code layout.html} as {@code /js/{jsFile}} so each deploy busts client and reverse-proxy
+     * caches without serving a stale script.
+     *
+     * @return the script filename served under {@code /js/}
+     */
+    public String getJsFile() {
+        return appConfig.jsFile();
+    }
 }

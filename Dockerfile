@@ -1,17 +1,19 @@
 # syntax = docker/dockerfile:1.2
 
-# ── Stage 1: compile + purge the Tailwind CSS ────────────────────────────────
-# Scans the templates + Java sources and emits a minified app.css. Kept in its own
-# stage so the Node toolchain never reaches the build or runtime images.
+# ── Stage 1: compile the CSS + vendor the front-end libraries ─────────────────
+# Scans the templates + Java sources and emits a minified app.css, and copies the pinned third-party
+# browser libraries (htmx) out of node_modules into resources/js. Kept in its own stage so the Node
+# toolchain never reaches the build or runtime images; the build stage copies both outputs in below.
 FROM node:26.4.0-alpine AS css
 WORKDIR /css
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY tailwind.config.js ./
+COPY scripts/vendor-assets.cjs ./scripts/
 COPY src/main/css ./src/main/css
 COPY src/main/resources/templates ./src/main/resources/templates
 COPY src/main/java ./src/main/java
-RUN npm run css
+RUN npm run css && npm run vendor
 
 # ── Stage 2: generate the favicon raster assets ──────────────────────────────
 # Rasterises the committed favicon SVG (the single-letter "d" mark, itself generated from the brand
@@ -47,6 +49,10 @@ COPY src ./src
 # into quarkus-app and serves it at /css/app.css (overwriting any committed copy).
 COPY --from=css /css/src/main/resources/META-INF/resources/css/app.css \
                 ./src/main/resources/META-INF/resources/css/app.css
+# Likewise the vendored front-end libraries (htmx) copied out of node_modules by the css stage — a
+# .gitignored build artifact, so it must come from the stage rather than the (absent) committed file.
+COPY --from=css /css/src/main/resources/META-INF/resources/js/htmx.min.js \
+                ./src/main/resources/META-INF/resources/js/htmx.min.js
 # Drop the freshly-rendered raster favicons into the static web root, overwriting the committed copies.
 # The SVGs themselves (favicon.svg + wordmark.svg) are committed and come in via `COPY src` above.
 # favicon.ico is at the web root (not /img/) so browsers that request /favicon.ico directly find it.
@@ -67,6 +73,16 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN cd src/main/resources/META-INF/resources/css \
     && mv app.css "app.$(sha256sum app.css | cut -c1-12).css" \
     && printf '\napp.assets.css-file=%s\n' app.*.css \
+       >> /build/src/main/resources/META-INF/microprofile-config.properties
+# Content-hash the self-hosted htmx script for cache-busting, mirroring the stylesheet rename above:
+# htmx.min.js -> htmx.<hash>.min.js, then bake the resulting filename into the build-time config source
+# that AppInfo.jsFile reads — so layout.html's <script src> and the served file always agree. Served
+# `immutable` (application.properties). A non-Docker `mvn package` skips this and keeps the un-hashed
+# htmx.min.js default. htmx is a committed vendored file (arrives via `COPY src`), so unlike the CSS it
+# needs no build stage — only the rename.
+RUN cd src/main/resources/META-INF/resources/js \
+    && mv htmx.min.js "htmx.$(sha256sum htmx.min.js | cut -c1-12).min.js" \
+    && printf '\napp.assets.js-file=%s\n' htmx.*.min.js \
        >> /build/src/main/resources/META-INF/microprofile-config.properties
 # -Dcss.build.skip=true: the stylesheet is already compiled by the `css` stage and copied in above,
 # and this maven image has no Node toolchain — so skip the POM's `css-build` exec.

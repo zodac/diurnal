@@ -284,7 +284,12 @@
         .banner-success { background: var(--color-banner-success-bg); border-color: var(--color-banner-success-border); color: var(--color-banner-success-text); }
         .banner-warning { background: var(--color-banner-warning-bg); border-color: var(--color-banner-warning-border); color: var(--color-banner-warning-text); }
     </style>
-    <script src="https://unpkg.com/htmx.org@2.0.3"></script>
+    <!-- Self-hosted htmx (no third-party CDN): served under a build-time content-hashed filename
+         (htmx.<hash>.min.js, baked into AppInfo.jsFile by the Dockerfile) and cached `immutable`, exactly
+         like the compiled stylesheet. Keeping it same-origin removes the CDN as a supply-chain/availability
+         risk and a render-blocking cross-origin request, and keeps the door open to a strict script-src CSP.
+         Bump the pinned version by replacing /js/htmx.min.js. -->
+    <script src="/js/{inject:appInfo.jsFile}"></script>
     {#insert head /}
 </head>
 <body class="min-h-viewport bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-50"

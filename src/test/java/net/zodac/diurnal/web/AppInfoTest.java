@@ -40,8 +40,13 @@ class AppInfoTest {
     }
 
     private static AppInfo appInfoWith(final String repositoryUrl, final String buildTimestamp, final String cssFile) {
+        return appInfoWith(repositoryUrl, buildTimestamp, cssFile, "htmx.min.js");
+    }
+
+    private static AppInfo appInfoWith(final String repositoryUrl, final String buildTimestamp, final String cssFile,
+                                       final String jsFile) {
         final AppInfo appInfo = new AppInfo();
-        appInfo.appConfig = new StubAppConfig(repositoryUrl, buildTimestamp, cssFile);
+        appInfo.appConfig = new StubAppConfig(repositoryUrl, buildTimestamp, cssFile, jsFile);
         return appInfo;
     }
 
@@ -140,6 +145,14 @@ class AppInfoTest {
     }
 
     @Test
+    void jsFile_returnsInjectedHashedFilename() {
+        final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.9f3a1c2b4d5e.min.js");
+        assertThat(appInfo.getJsFile())
+            .as("hashed script filename should be returned verbatim")
+            .isEqualTo("htmx.9f3a1c2b4d5e.min.js");
+    }
+
+    @Test
     void buildYear_fullTimestamp_returnsLeadingYear() {
         final AppInfo appInfo = appInfoWith("", "2099-06-22T06:07:35Z", "app.css");
         assertThat(appInfo.getBuildYear())
@@ -183,7 +196,7 @@ class AppInfoTest {
     /**
      * Stub {@link AppConfig} whose record components supply the {@code app.*} accessors directly.
      */
-    private record StubAppConfig(String repositoryUrl, String buildTimestamp, String cssFile) implements AppConfig {
+    private record StubAppConfig(String repositoryUrl, String buildTimestamp, String cssFile, String jsFile) implements AppConfig {
 
         @Override
         public String timezone() {
