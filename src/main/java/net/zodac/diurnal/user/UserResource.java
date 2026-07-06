@@ -18,7 +18,6 @@
 package net.zodac.diurnal.user;
 
 import io.quarkus.security.Authenticated;
-import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -43,7 +42,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 public class UserResource {
 
     @Inject
-    SecurityIdentity identity;
+    CurrentUser currentUser;
 
     /**
      * Returns the current user as a {@link UserDto} ({@code 200}), or {@code 404} if not found.
@@ -64,11 +63,11 @@ public class UserResource {
         @APIResponse(responseCode = "404", description = "The authenticated account no longer exists.")
     })
     public Response me() {
-        // Resolve via the authenticated principal (the upn/email claim) rather than the JsonWebToken
-        // subject: with OIDC enabled the default JsonWebToken producer is the OIDC one, which is not
-        // populated for a smallrye Bearer token, so jwt.getSubject() would be null. SecurityIdentity
-        // works for both the Bearer and OIDC flows.
-        return User.findByEmail(identity.getPrincipal().getName())
+        // CurrentUser resolves the account from the SecurityIdentity (the authenticated principal's
+        // email for a Bearer token), never the JsonWebToken subject: with OIDC enabled the default
+        // JsonWebToken producer is the OIDC one, which is not populated for a smallrye Bearer token,
+        // so jwt.getSubject() would be null.
+        return currentUser.find()
                 .map(u -> Response.ok(UserDto.from(u)).build())
                 .orElse(Response.status(Response.Status.NOT_FOUND).build());
     }

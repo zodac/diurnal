@@ -54,6 +54,7 @@ import net.zodac.diurnal.config.RegistrationConfig;
 import net.zodac.diurnal.stats.ActionStatField;
 import net.zodac.diurnal.stats.StatsService;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.user.UserSettings;
 import org.apache.logging.log4j.LogManager;
@@ -93,6 +94,7 @@ public class WebResource {
     Template setupTemplate;
 
     @Inject SecurityIdentity identity;
+    @Inject CurrentUser currentUser;
     @Inject StatsService statsService;
     @Inject RoleAssigner roleAssigner;
     @Inject AppClock clock;
@@ -192,7 +194,7 @@ public class WebResource {
         // This is called exactly once per OIDC login, so it is the right place to update
         // lastLoginAt and emit the login log (the augmentor runs on every subsequent request).
         if (!identity.isAnonymous()) {
-            User.findByEmail(identity.getPrincipal().getName()).ifPresent(user -> {
+            currentUser.find().ifPresent(user -> {
                 user.lastLoginAt = Instant.now();
                 user.persist();
                 LOGGER.debug("OIDC login: name={} email={} role={}", user.displayName, user.email, user.role);
@@ -397,7 +399,7 @@ public class WebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance settingsPage() {
-        final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        final User user = currentUser.get();
         return settingsView(user);
     }
 
@@ -527,7 +529,7 @@ public class WebResource {
     }
 
     private Response updateSetting(final Consumer<User> mutator) {
-        final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        final User user = currentUser.get();
         mutator.accept(user);
         user.persist();
         return Response.noContent().build();
@@ -545,7 +547,7 @@ public class WebResource {
         if (displayName == null || displayName.isBlank()) {
             return Response.status(422).build();
         }
-        final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        final User user = currentUser.get();
         user.displayName = displayName.strip();
         user.persist();
         return Response.ok().build();
@@ -570,7 +572,7 @@ public class WebResource {
             @FormParam("currentPassword") final String currentPassword,
             @FormParam("newPassword")     final String newPassword,
             @FormParam("confirmPassword") final String confirmPassword) {
-        final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        final User user = currentUser.get();
         // Only local accounts have a password to change; OIDC-only users (and deployments with password
         // auth switched off entirely) have none. The UI already hides the field for them — this guards
         // the endpoint directly.
@@ -617,7 +619,7 @@ public class WebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response verifyCurrentPassword(@FormParam("currentPassword") final String currentPassword) {
-        final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        final User user = currentUser.get();
         // Only local accounts have a password to verify; mirror updatePassword's guard exactly.
         if (!passwordAuthConfig.enabled() || user.passwordHash == null || user.passwordHash.isBlank()) {
             return Response.status(Response.Status.FORBIDDEN).build();
@@ -686,7 +688,7 @@ public class WebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance dashboard() {
-        final User user = User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
+        final User user = currentUser.get();
         final List<?> recentStats = statsService.forMostRecent(user.id, 3);
         final List<ActionStatField> summaryFields = ActionStatField.displayFields(user.statsFields)
                 .stream()

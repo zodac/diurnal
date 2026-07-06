@@ -20,7 +20,6 @@ package net.zodac.diurnal.log;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
-import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -49,6 +48,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.User;
 
 /**
@@ -74,7 +74,7 @@ public class LogWebResource {
     Template dayActionItemConfirmDeleteTemplate;
 
     @Inject
-    SecurityIdentity identity;
+    CurrentUser currentUser;
     @Inject
     AppClock clock;
 
@@ -88,7 +88,7 @@ public class LogWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance dayPanel(@PathParam("date") final LocalDate date) {
-        final User user = currentUser();
+        final User user = currentUser.get();
         final boolean future = isFuture(date, user);
         final var page = future ? null : getActions(user.id, date, 1, "", user.pageSize);
 
@@ -111,7 +111,7 @@ public class LogWebResource {
         @PathParam("date") final LocalDate date,
         @QueryParam("page") @DefaultValue("1") final int pageNum,
         @QueryParam("q") @DefaultValue("") final String searchTerm) {
-        final User user = currentUser();
+        final User user = currentUser.get();
         final var page = getActions(user.id, date, pageNum, searchTerm, user.pageSize);
         return dayActionsListTemplate.data("date", date, "page", page);
     }
@@ -141,7 +141,7 @@ public class LogWebResource {
             return Response.status(Response.Status.BAD_REQUEST).build();
         }
 
-        final User user = currentUser();
+        final User user = currentUser.get();
         final LocalDate start = yearMonth.atDay(1);
         final LocalDate end = yearMonth.atEndOfMonth();
 
@@ -222,7 +222,7 @@ public class LogWebResource {
         @PathParam("date") final LocalDate date,
         @PathParam("actionId") final UUID actionId) {
 
-        final User user = currentUser();
+        final User user = currentUser.get();
         final Action action = ownedAction(user, actionId);
         if (action == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
@@ -243,7 +243,7 @@ public class LogWebResource {
         @PathParam("date") final LocalDate date,
         @PathParam("actionId") final UUID actionId) {
 
-        final User user = currentUser();
+        final User user = currentUser.get();
         final Action action = ownedAction(user, actionId);
         if (action == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
@@ -263,7 +263,7 @@ public class LogWebResource {
         @PathParam("date") final LocalDate date,
         @PathParam("actionId") final UUID actionId) {
 
-        final User user = currentUser();
+        final User user = currentUser.get();
         if (isFuture(date, user)) {
             return Response.status(Response.Status.BAD_REQUEST).build();
         }
@@ -297,7 +297,7 @@ public class LogWebResource {
         @PathParam("actionId") final UUID actionId,
         @DefaultValue("1") @FormParam("amount") final int amount) {
 
-        final User user = currentUser();
+        final User user = currentUser.get();
         if (isFuture(date, user)) {
             return Response.status(Response.Status.BAD_REQUEST).build();
         }
@@ -336,7 +336,7 @@ public class LogWebResource {
         @PathParam("actionId") final UUID actionId,
         @DefaultValue("1") @FormParam("amount") final int amount) {
 
-        final User user = currentUser();
+        final User user = currentUser.get();
         if (isFuture(date, user)) {
             return Response.status(Response.Status.BAD_REQUEST).build();
         }
@@ -380,7 +380,7 @@ public class LogWebResource {
         @PathParam("actionId") final UUID actionId,
         @DefaultValue("0") @FormParam("count") final int requestedCount) {
 
-        final User user = currentUser();
+        final User user = currentUser.get();
         if (isFuture(date, user)) {
             return Response.status(Response.Status.BAD_REQUEST).build();
         }
@@ -416,10 +416,6 @@ public class LogWebResource {
     // (falling back to the server default when the user hasn't chosen one).
     private boolean isFuture(final LocalDate date, final User user) {
         return date.isAfter(clock.today(clock.zoneFor(user.timezone)));
-    }
-
-    private User currentUser() {
-        return User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
     }
 
     private Action ownedAction(final User user, final UUID actionId) {

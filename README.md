@@ -60,7 +60,7 @@ longest streaks, weekly averages, month-over-month trends, and more.
     - Comparisons to last month/year
 - **Theming**: Light and dark modes available
 - **Mobile view**: Styled for both web browser and mobile usage
-- **User ManagementAccounts & roles**: Users can be managed by administrators
+- **User Management**: User accounts & roles can be managed by administrators
 - **OIDC**: Can be integrated with an external identity provider (Authelia, Keycloak, etc.)
 
 ## Screenshots

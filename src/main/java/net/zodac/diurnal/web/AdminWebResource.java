@@ -43,6 +43,7 @@ import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -72,6 +73,7 @@ public class AdminWebResource {
     @Location("partials/dt-confirm-delete-row")
     Template confirmDeleteRowTemplate;
     @Inject SecurityIdentity identity;
+    @Inject CurrentUser currentUser;
     @Inject AppClock clock;
 
     /**
@@ -83,7 +85,7 @@ public class AdminWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance usersPage(@QueryParam("page") @DefaultValue("1") final int pageNum) {
-        final User actor = currentUser();
+        final User actor = currentUser.get();
         return adminUsersTemplate
                 .data("email", actor.email)
                 .data("displayName", actor.displayName)
@@ -102,7 +104,7 @@ public class AdminWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance apiDocsPage() {
-        final User actor = currentUser();
+        final User actor = currentUser.get();
         return adminApiDocsTemplate
                 .data("email", actor.email)
                 .data("displayName", actor.displayName)
@@ -120,7 +122,7 @@ public class AdminWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance usersList(@QueryParam("page") @DefaultValue("1") final int pageNum) {
-        final User actor = currentUser();
+        final User actor = currentUser.get();
         return adminUsersListTemplate.data("page", getUsersPage(pageNum, actor.pageSize));
     }
 
@@ -193,7 +195,7 @@ public class AdminWebResource {
         target.persist();
         LOGGER.info("Admin {} changed role of {} to {}", identity.getPrincipal().getName(), target.email, role);
 
-        final User actor = currentUser();
+        final User actor = currentUser.get();
         return Response.ok(adminUsersListTemplate.data("page", getUsersPage(1, actor.pageSize))).build();
     }
 
@@ -225,7 +227,7 @@ public class AdminWebResource {
         target.delete();
         LOGGER.info("Admin {} deleted user {}", identity.getPrincipal().getName(), target.email);
 
-        final User actor = currentUser();
+        final User actor = currentUser.get();
         return Response.ok(adminUsersListTemplate.data("page", getUsersPage(1, actor.pageSize))).build();
     }
 
@@ -261,10 +263,6 @@ public class AdminWebResource {
 
     private boolean isLastAdmin(final User target) {
         return User.ROLE_ADMIN.equals(target.role) && User.count("role", User.ROLE_ADMIN) <= 1;
-    }
-
-    private User currentUser() {
-        return User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
     }
 
     private Response errorResponse(final String message) {
