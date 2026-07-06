@@ -406,13 +406,13 @@
            peer-focus-visible:ring-2 peer-focus-visible:ring-brand;
   }
   /* Fixed-size thumbnail frame — the single source of truth for preview-thumbnail sizing. EVERY
-     settings preview thumbnail is the same size within a viewport (a portrait ratio on mobile, a
-     landscape ratio at `sm`+ for web), regardless of the underlying screenshot's real aspect ratio:
+     settings preview thumbnail is the same size within a viewport (a single landscape ratio across
+     mobile and web), regardless of the underlying screenshot's real aspect ratio:
      the image fills the frame and is cropped to the TOP (`object-top` below), so tall full-page shots
      show only their top. The full image stays available via the (!) lightbox. Any future settings
      thumbnail should render through `partials/preview-thumb.html` (which applies this class) so it
-     automatically follows the same rules. Change the ratios here once to resize every thumbnail. */
-  .preview-thumb { @apply relative block w-full overflow-hidden bg-surface-muted aspect-[3/4] sm:aspect-[3/2]; }
+     automatically follows the same rules. Change the ratio here once to resize every thumbnail. */
+  .preview-thumb { @apply relative block w-full overflow-hidden bg-surface-muted aspect-[3/2]; }
   /* The image fills its `.preview-thumb` frame and crops to the top. */
   .preview-img   { @apply absolute inset-0 block w-full h-full object-cover object-top; }
   .preview-label { @apply block text-center text-xs font-medium py-1 text-ink-muted; }
