@@ -26,6 +26,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -63,6 +64,17 @@ public class Action extends PanacheEntityBase {
      */
     public static List<Action> findActiveByUser(final UUID userId) {
         return list("userId = ?1 and archived = false order by name asc", userId);
+    }
+
+    /**
+     * Returns the user's non-archived actions whose id is in the given collection.
+     *
+     * @param userId    the owning user
+     * @param actionIds the action ids to fetch (must be non-empty)
+     * @return the matching active actions (in no particular order)
+     */
+    public static List<Action> findActiveByUserAndIds(final UUID userId, final Collection<UUID> actionIds) {
+        return list("userId = ?1 and archived = false and id in ?2", userId, actionIds);
     }
 
     /**

@@ -315,6 +315,25 @@ class WebResourceIT extends IntegrationTestBase {
 
     @Test
     @TestSecurity(user = "web-it@lt.test", roles = "user")
+    void dashboard_summaryShowsThisMonthActionAndHidesLastMonthOnlyAction() {
+        // The dashboard summary strip is the "3 most recent actions this month" path: an action logged
+        // only in a previous month must not appear, while one logged this month must.
+        runInTx(() -> {
+            final UUID userId = User.findByEmail("web-it@lt.test").orElseThrow().id;
+            final Action current = newAction(userId, "CurrentMonthHabit");
+            newLog(userId, current.id, FIXED_TODAY, 1);
+            final Action stale = newAction(userId, "LastMonthHabit");
+            newLog(userId, stale.id, FIXED_TODAY.minusMonths(1), 1);
+        });
+
+        given().get("/")
+                .then().statusCode(200)
+                .body(containsString("CurrentMonthHabit"))
+                .body(not(containsString("LastMonthHabit")));
+    }
+
+    @Test
+    @TestSecurity(user = "web-it@lt.test", roles = "user")
     void settingsPage_authenticated_returns200() {
         given().get("/settings")
                 .then().statusCode(200)

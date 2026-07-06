@@ -1,8 +1,8 @@
 ## Patch Updates
 
-Focussing on some performance updates
+Targeting some performance updates:
 
-### Extracting \<scripts\>
+### Extracting \<script\> Blocks
 
 Extracting `<script>` blocks to avoid redownloads, and only loading on necessary pages. ~10% reduction in transferred content.
 
@@ -13,3 +13,7 @@ Previous we had performed a read then write for actions, resulting in 2 DB calls
 ### Caching User for Requests
 
 For requests that span multiple user workflows, there might have been multiple reads from the DB. Caching this now so there are no unnecessary DB calls.
+
+### Dashboard Stats Summary
+
+Adding a specific endpoint to retrieve data for most recent 3 stats on the Dashboard, and pushing the filter down to the SQL level.
