@@ -20,7 +20,6 @@ package net.zodac.diurnal.stats;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
-import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -33,6 +32,7 @@ import jakarta.ws.rs.core.MediaType;
 import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.User;
 
 /**
@@ -48,7 +48,7 @@ public class StatsWebResource {
     @Inject
     @Location("partials/stats-cards")
     Template statsCardsTemplate;
-    @Inject SecurityIdentity identity;
+    @Inject CurrentUser currentUser;
     @Inject StatsService statsService;
 
     /**
@@ -58,7 +58,7 @@ public class StatsWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance statsPage(@QueryParam("page") @DefaultValue("1") final int pageNum) {
-        final User user = currentUser();
+        final User user = currentUser.get();
         return statsTemplate
                 .data("email", user.email)
                 .data("displayName", user.displayName)
@@ -79,7 +79,7 @@ public class StatsWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance statsList(@QueryParam("page") @DefaultValue("1") final int pageNum) {
-        final User user = currentUser();
+        final User user = currentUser.get();
         return statsCardsTemplate
                 .data("decimalPlaces", user.decimalPlaces)
                 .data("statsFields", ActionStatField.displayFields(user.statsFields))
@@ -108,7 +108,4 @@ public class StatsWebResource {
         return new PaginatedStats(items, totalCount, totalPages, actualPage);
     }
 
-    private User currentUser() {
-        return User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
-    }
 }

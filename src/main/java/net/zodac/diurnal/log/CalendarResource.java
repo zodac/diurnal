@@ -17,7 +17,6 @@
 
 package net.zodac.diurnal.log;
 
-import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -38,7 +37,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import net.zodac.diurnal.action.Action;
-import net.zodac.diurnal.user.User;
+import net.zodac.diurnal.user.CurrentUser;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
@@ -65,7 +64,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 @Produces(MediaType.APPLICATION_JSON)
 public class CalendarResource {
 
-    @Inject SecurityIdentity identity;
+    @Inject CurrentUser currentUser;
 
     /**
      * Returns one calendar event per logged entry in the range (including archived actions).
@@ -96,7 +95,7 @@ public class CalendarResource {
                     schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-30"))
             @QueryParam("end") final String end) {
 
-        final UUID userId = currentUserId();
+        final UUID userId = currentUser.get().id;
 
         final LocalDate startDate = requireDate("start", start);
         final LocalDate endDate   = requireDate("end", end);
@@ -126,7 +125,7 @@ public class CalendarResource {
             @QueryParam("start") final String start,
             @QueryParam("end") final String end) {
 
-        final UUID userId = currentUserId();
+        final UUID userId = currentUser.get().id;
 
         final LocalDate startDate = requireDate("start", start);
         final LocalDate endDate   = requireDate("end", end);
@@ -154,12 +153,6 @@ public class CalendarResource {
                     return new MinimalCalendarDayDto(e.getKey(), sorted);
                 })
                 .toList();
-    }
-
-    private UUID currentUserId() {
-        return User.findByEmail(identity.getPrincipal().getName())
-                .map(u -> u.id)
-                .orElseThrow();
     }
 
     private static LocalDate requireDate(final String name, final String value) {

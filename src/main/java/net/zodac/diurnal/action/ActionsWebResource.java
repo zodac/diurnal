@@ -20,7 +20,6 @@ package net.zodac.diurnal.action;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
-import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -39,6 +38,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 import net.zodac.diurnal.log.ActionLog;
+import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.User;
 
 /**
@@ -61,7 +61,7 @@ public class ActionsWebResource {
     @Location("partials/dt-confirm-delete-row")
     Template confirmDeleteRowTemplate;
 
-    @Inject SecurityIdentity identity;
+    @Inject CurrentUser currentUser;
 
     // ── Full page ──────────────────────────────────────────────────────────
 
@@ -72,7 +72,7 @@ public class ActionsWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance actionsPage() {
-        final User user = currentUser();
+        final User user = currentUser.get();
         final var page = getActions(user.id, 1, "", user.pageSize);
         return actionsTemplate
                 .data("displayName", user.displayName)
@@ -93,7 +93,7 @@ public class ActionsWebResource {
     public Response actionsList(
             @QueryParam("page") @DefaultValue("1") final int pageNum,
             @QueryParam("q") @DefaultValue("") final String searchTerm) {
-        final User user = currentUser();
+        final User user = currentUser.get();
         final var page = getActions(user.id, pageNum, searchTerm, user.pageSize);
         final String extraQuery = (searchTerm == null || searchTerm.isBlank())
                 ? ""
@@ -186,7 +186,7 @@ public class ActionsWebResource {
             return errorResponse("Action name cannot be empty.");
         }
 
-        final User user = currentUser();
+        final User user = currentUser.get();
         final String normName = name.strip();
 
         if (Action.count("userId = ?1 and name = ?2 and archived = false", user.id, normName) > 0) {
@@ -258,12 +258,8 @@ public class ActionsWebResource {
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
-    private User currentUser() {
-        return User.findByEmail(identity.getPrincipal().getName()).orElseThrow();
-    }
-
     private Action findOwnedAction(final UUID id) {
-        final User user = currentUser();
+        final User user = currentUser.get();
         return Action.<Action>find("id = ?1 and userId = ?2 and archived = false", id, user.id)
                 .firstResult();
     }
