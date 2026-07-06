@@ -298,6 +298,23 @@
     @apply opacity-100 visible;
   }
 
+  /* Password-requirements popover: same floating look as `.app-tooltip`, but revealed by FOCUS of the
+     associated password field (its JS handler toggles `.pw-open`) rather than hover/long-press, and its
+     rows recolour live as the user types (green = met, red = unmet). Deliberately NOT `.app-tooltip`, so
+     the global long-press handler — which keys on `.app-tooltip` hosts — never grabs it. */
+  .pw-tooltip {
+    @apply pointer-events-none absolute z-30 rounded-md bg-surface px-3 py-2 text-xs
+           font-normal leading-snug text-ink opacity-0 invisible transition-opacity duration-150;
+    border: 1px solid var(--color-brand);
+    box-shadow: 0 6px 16px -6px rgb(0 0 0 / 0.28), 0 2px 6px -4px rgb(0 0 0 / 0.16);
+  }
+  .dark .pw-tooltip {
+    box-shadow: 0 0 0 1px var(--color-brand-subtle), 0 10px 22px -6px rgb(0 0 0 / 0.55);
+  }
+  .pw-tooltip.pw-open {
+    @apply opacity-100 visible;
+  }
+
   /* Page column ------------------------------------------------------------ */
   /* The single shared content column for every page's <main> (Dashboard, Actions, Stats,
      Admin, API, Settings) — so pages no longer "snap" to different widths as you navigate.

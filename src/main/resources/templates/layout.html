@@ -567,5 +567,39 @@
         }, true);
     })();
     </script>
+
+    <script>
+    // ── Live password-requirements popover ────────────────────────────────────────
+    // Drives `partials/password-constraints.html`: while the associated NEW-password field is focused,
+    // reveal the popover and recolour each requirement green (met) / red (unmet) as the user types. The
+    // rows are server-rendered from net.zodac.diurnal.auth.PasswordConstraints, so this only evaluates —
+    // the check tokens below (minLength / maxLength) MUST match Constraint.type. One handler serves both
+    // the registration and settings pages; each page has a single opted-in field.
+    (function () {
+        function met(type, bound, len) {
+            if (type === 'minLength') return len >= bound;
+            if (type === 'maxLength') return len <= bound;
+            return true;                                     // unknown token: never block, just show it
+        }
+        function refresh(tip, len) {
+            tip.querySelectorAll('[data-pw-check]').forEach(function (row) {
+                var ok = met(row.getAttribute('data-pw-type'), parseInt(row.getAttribute('data-pw-value'), 10), len);
+                row.classList.toggle('text-success', ok);
+                row.classList.toggle('text-danger', !ok);
+                var icon = row.querySelector('[data-pw-icon]');
+                if (icon) icon.textContent = ok ? '✓' : '✗';
+            });
+        }
+        document.querySelectorAll('[data-pw-tooltip]').forEach(function (tip) {
+            var input = document.getElementById(tip.getAttribute('data-pw-for'));
+            if (!input) return;
+            var update = function () { refresh(tip, input.value.length); };
+            input.addEventListener('focus', function () { update(); tip.classList.add('pw-open'); });
+            input.addEventListener('input', update);
+            input.addEventListener('blur', function () { tip.classList.remove('pw-open'); });
+            update();                                        // colour correctly before first reveal
+        });
+    })();
+    </script>
 </body>
 </html>

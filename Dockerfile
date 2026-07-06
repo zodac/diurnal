@@ -115,10 +115,17 @@ RUN apt-get update && apt-get install -yqq --no-install-recommends \
 #   java.instrument                    – bytecode instrumentation agents
 #   jdk.unsupported                    – sun.misc.Unsafe (Netty, Hibernate, et al.)
 #   jdk.zipfs                          – zip filesystem provider used when opening nested jars
+# --add-options bakes default JVM options into the JRE so every `java` launch includes them without
+# cluttering the ENTRYPOINT. --enable-native-access=ALL-UNNAMED opts the app in to JNI/native-library
+# loading, silencing the JDK's "restricted method ... System::loadLibrary" startup warning and keeping
+# the app bootable on a future JDK that will block unauthorised native access by default (JEP 472). The
+# only native load here is brotli4j (pulled transitively via quarkus-vertx-http), used for HTTP response
+# compression.
 RUN jlink --compress=zip-9 \
         --no-header-files \
         --no-man-pages \
         --strip-debug \
+        --add-options="--enable-native-access=ALL-UNNAMED" \
         --add-modules java.base,java.logging,java.xml,java.sql,java.rmi,java.naming,java.management,java.net.http,jdk.naming.dns,java.security.jgss,java.security.sasl,jdk.crypto.cryptoki,jdk.crypto.ec,java.desktop,java.instrument,jdk.unsupported,jdk.management,jdk.zipfs \
         --output /opt/jdk \
     && strip -p --strip-unneeded /opt/jdk/lib/server/libjvm.so

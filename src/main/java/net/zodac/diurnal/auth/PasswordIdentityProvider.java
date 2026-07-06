@@ -35,7 +35,6 @@ import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.mindrot.jbcrypt.BCrypt;
 
 /**
  * Authenticates form/API password logins by verifying the BCrypt hash and building the identity.
@@ -82,7 +81,7 @@ public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswo
     SecurityIdentity verifyCredentials(final String email, final String password) {
         return User.findByEmail(email)
                 .filter(u -> u.passwordHash != null)
-                .filter(u -> BCrypt.checkpw(password, u.passwordHash))
+                .filter(u -> Passwords.matches(password, u.passwordHash))
                 .map(u -> {
                     LOGGER.debug("Password login: name={} email={} role={}", u.displayName, u.email, u.role);
                     u.lastLoginAt = Instant.now();

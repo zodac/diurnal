@@ -38,7 +38,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
-import org.mindrot.jbcrypt.BCrypt;
 
 /**
  * REST API authentication endpoints: register a new password user and exchange credentials for a JWT.
@@ -97,7 +96,7 @@ public class AuthResource {
         final User user = new User();
         user.email = email;
         user.displayName = request.displayName().strip();
-        user.passwordHash = BCrypt.hashpw(request.password(), BCrypt.gensalt(12));
+        user.passwordHash = Passwords.hash(request.password());
         user.role = roleAssigner.roleForNewUser();
         user.persist();
 
@@ -130,7 +129,7 @@ public class AuthResource {
 
         return User.findByEmail(email)
                 .filter(u -> u.passwordHash != null)
-                .filter(u -> BCrypt.checkpw(request.password(), u.passwordHash))
+                .filter(u -> Passwords.matches(request.password(), u.passwordHash))
                 .map(u -> {
                     LOGGER.debug("Successful login: {}", email);
                     return Response.ok(

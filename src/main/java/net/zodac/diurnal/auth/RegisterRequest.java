@@ -20,7 +20,6 @@ package net.zodac.diurnal.auth;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
-import net.zodac.diurnal.user.User;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
@@ -32,7 +31,7 @@ public record RegisterRequest(
         @Schema(examples = "ada@example.com", description = "Email address for the new account; must be unique.") String email,
         @NotBlank @Size(min = 2, max = 100)
         @Schema(examples = "Ada Lovelace", description = "Human-readable name shown in the UI.") String displayName,
-        @NotBlank @Size(max = User.MAX_PASSWORD_LENGTH, message = "Password must be at most {max} characters")
+        @NotBlank @Size(max = PasswordConstraints.MAX_LENGTH, message = "Password must be at most {max} characters")
         @Schema(examples = "correct horse battery staple", description = "Password for the new account; at most 72 characters.") String password
 ) {
 }
