@@ -308,24 +308,16 @@ public class LogWebResource {
         }
 
         final int delta = Math.max(amount, 0);
-
-        ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
-        if (entry == null) {
-            if (delta == 0) {
-                return Response.ok(item(date, action, 0)).build();
-            }
-            entry = new ActionLog();
-            entry.userId = user.id;
-            entry.actionId = actionId;
-            entry.logDate = date;
-            entry.count = Math.min(delta, ActionLog.MAX_DAILY_COUNT);
-            entry.persist();
-            return Response.ok(item(date, action, entry.count)).build();
+        if (delta == 0) {
+            // No-op: don't create a (zero-count) row; just report the current count.
+            final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
+            return Response.ok(item(date, action, entry == null ? 0 : entry.count)).build();
         }
 
-        entry.count = Math.min(entry.count + delta, ActionLog.MAX_DAILY_COUNT);
-        entry.persist();
-        return Response.ok(item(date, action, entry.count)).build();
+        // Atomic upsert: a plain find-then-insert would let two rapid taps on a not-yet-logged
+        // action both INSERT and race the loser into the unique-constraint violation (a 500).
+        final int newCount = ActionLog.incrementCount(user.id, actionId, date, delta);
+        return Response.ok(item(date, action, newCount)).build();
     }
 
     // ── Decrement ─────────────────────────────────────────────────────────
@@ -400,24 +392,17 @@ public class LogWebResource {
 
         final int newCount = Math.clamp(requestedCount, 0, ActionLog.MAX_DAILY_COUNT);
 
-        ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
         if (newCount <= 0) {
+            final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
             if (entry != null) {
                 entry.delete();
             }
             return Response.ok(item(date, action, 0)).build();
         }
 
-        if (entry == null) {
-            entry = new ActionLog();
-            entry.userId = user.id;
-            entry.actionId = actionId;
-            entry.logDate = date;
-        }
-
-        entry.count = newCount;
-        entry.persist();
-
+        // Atomic upsert for the same reason as increment(): a find-then-insert race on a
+        // not-yet-logged action would trip the unique constraint as a 500.
+        ActionLog.setCount(user.id, actionId, date, newCount);
         return Response.ok(item(date, action, newCount)).build();
     }
 

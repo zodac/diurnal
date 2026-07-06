@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.log;
 
+import io.quarkus.hibernate.orm.panache.Panache;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -109,5 +110,76 @@ public class ActionLog extends PanacheEntityBase {
      */
     public static void deleteByAction(final UUID userId, final UUID actionId) {
         delete("userId = ?1 and actionId = ?2", userId, actionId);
+    }
+
+    // ── Atomic upserts ────────────────────────────────────────────────────
+
+    /**
+     * Atomically adds {@code delta} to the day's count for an action — inserting the row when it does
+     * not yet exist — and returns the resulting count (never above {@link #MAX_DAILY_COUNT}).
+     *
+     * <p>The whole read-modify-write happens inside a single {@code INSERT … ON CONFLICT DO UPDATE},
+     * so two rapid taps on a not-yet-logged action can no longer both {@code INSERT} and race the
+     * loser into an {@code action_logs_unique} unique-constraint violation (a 500). {@code delta}
+     * must be at least {@code 1}: a zero row would breach the {@code count >= 1} check constraint, so
+     * callers treat a non-positive amount as a no-op rather than calling this.
+     *
+     * @param userId   the owning user
+     * @param actionId the action being logged
+     * @param date     the day to log against
+     * @param delta    the amount to add (must be {@code >= 1})
+     * @return the resulting count after the increment
+     */
+    public static int incrementCount(final UUID userId, final UUID actionId, final LocalDate date, final int delta) {
+        // NB: never hold Panache.getEntityManager() in a local — it is a container-managed
+        // EntityManager that must NOT be closed, but PMD's CloseResource rule would demand it.
+        Panache.getEntityManager().createNativeQuery("""
+                INSERT INTO action_logs (id, user_id, action_id, log_date, count, created_at, updated_at)
+                VALUES (:id, :userId, :actionId, :date, LEAST(:delta, :max), :now, :now)
+                ON CONFLICT ON CONSTRAINT action_logs_unique
+                DO UPDATE SET count = LEAST(action_logs.count + LEAST(:delta, :max), :max), updated_at = :now""")
+            .setParameter("id", UUID.randomUUID())
+            .setParameter("userId", userId)
+            .setParameter("actionId", actionId)
+            .setParameter("date", date)
+            .setParameter("delta", delta)
+            .setParameter("max", MAX_DAILY_COUNT)
+            .setParameter("now", Instant.now())
+            .executeUpdate();
+
+        final Object current = Panache.getEntityManager().createNativeQuery(
+                "SELECT count FROM action_logs WHERE user_id = :userId AND action_id = :actionId AND log_date = :date")
+            .setParameter("userId", userId)
+            .setParameter("actionId", actionId)
+            .setParameter("date", date)
+            .getSingleResult();
+        return ((Number) current).intValue();
+    }
+
+    /**
+     * Atomically sets the day's count for an action to {@code count} — inserting the row when it does
+     * not yet exist — via a single {@code INSERT … ON CONFLICT DO UPDATE}, so a concurrent set on a
+     * not-yet-logged action cannot race the loser into an {@code action_logs_unique} violation (a
+     * 500). {@code count} must be in {@code [1, MAX_DAILY_COUNT]}; callers delete the row (rather than
+     * calling this) when the requested value is zero or below.
+     *
+     * @param userId   the owning user
+     * @param actionId the action being logged
+     * @param date     the day to log against
+     * @param count    the exact count to store (must be {@code >= 1})
+     */
+    public static void setCount(final UUID userId, final UUID actionId, final LocalDate date, final int count) {
+        Panache.getEntityManager().createNativeQuery("""
+                INSERT INTO action_logs (id, user_id, action_id, log_date, count, created_at, updated_at)
+                VALUES (:id, :userId, :actionId, :date, :count, :now, :now)
+                ON CONFLICT ON CONSTRAINT action_logs_unique
+                DO UPDATE SET count = EXCLUDED.count, updated_at = :now""")
+            .setParameter("id", UUID.randomUUID())
+            .setParameter("userId", userId)
+            .setParameter("actionId", actionId)
+            .setParameter("date", date)
+            .setParameter("count", count)
+            .setParameter("now", Instant.now())
+            .executeUpdate();
     }
 }
