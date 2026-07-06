@@ -37,19 +37,39 @@ else
   skip "npm dependencies"
 fi
 
-# ── 3. Playwright Chromium (+ OS deps) — cached in a persistent volume ───────
-# --with-deps installs the right system libs for this distro (uses sudo, which
-# `dev` has passwordless). Guarded by a marker so it only runs once per volume.
+# ── 3. Playwright Chromium — browser binary + OS deps, handled separately ────
+# The two halves live in DIFFERENT places with DIFFERENT lifetimes, so they must
+# be guarded independently (the old combined `install --with-deps` conflated them
+# and left Chromium unable to start after a container rebuild):
+#   • the browser binary is cached in the persistent `ms-playwright` volume, so it
+#     only needs downloading once (guarded by a marker + a non-empty cache).
+#   • the OS shared libs (libnspr4, libnss3, …) are installed into the CONTAINER
+#     root filesystem, which is EPHEMERAL — a container/image rebuild wipes them
+#     even though the cached browser (and the marker) survive on their volumes.
+#     So they must be re-asserted on every open, or Chromium fails to launch with
+#     e.g. "libnspr4.so: cannot open shared object file". Cheap no-op once present.
 PW_MARKER="${STATE_DIR}/playwright-installed"
-if [[ ! -f "${PW_MARKER}" ]] || [[ -z "$(ls -A "${PLAYWRIGHT_BROWSERS_PATH:-${HOME}/.cache/ms-playwright}" 2>/dev/null || true)" ]]; then
-  step "installing Playwright Chromium + OS deps (first run only)..."
-  if (cd e2e && npx --yes playwright install --with-deps chromium); then
+PW_CACHE="${PLAYWRIGHT_BROWSERS_PATH:-${HOME}/.cache/ms-playwright}"
+if [[ ! -f "${PW_MARKER}" ]] || [[ -z "$(ls -A "${PW_CACHE}" 2>/dev/null || true)" ]]; then
+  step "downloading Playwright Chromium (first run only)..."
+  if (cd e2e && npx --yes playwright install chromium); then
     touch "${PW_MARKER}"
   else
-    warn "playwright install failed"
+    warn "playwright browser download failed"
   fi
 else
-  skip "Playwright browsers"
+  skip "Playwright browser"
+fi
+
+# OS deps live in the ephemeral container fs (NOT a volume) — re-assert whenever a
+# representative lib is missing, e.g. after an image rebuild. `install-deps` runs
+# its own `apt-get update` first, so it works even though the Dockerfile clears the
+# apt lists. Uses sudo, which `dev` has passwordless.
+if ! ldconfig -p 2>/dev/null | grep -q 'libnspr4\.so'; then
+  step "installing Playwright Chromium OS deps (libnspr4, libnss3, …)..."
+  (cd e2e && sudo npx --yes playwright install-deps chromium) || warn "playwright install-deps failed"
+else
+  skip "Playwright OS deps"
 fi
 
 step "ready."
