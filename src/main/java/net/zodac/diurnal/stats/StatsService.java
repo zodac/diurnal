@@ -24,14 +24,15 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.time.AppClock;
@@ -50,11 +51,22 @@ public class StatsService {
     AppClock clock;
 
     /**
-     * Returns stats for every active action of the user that has at least one logged entry.
+     * Returns stats for every active action of the user that has at least one logged entry, ordered by
+     * action name.
+     *
+     * <p>The per-action totals, comparative counts and best-month/best-year figures are aggregated in
+     * the database (a monthly {@code GROUP BY}); only the distinct performed dates are read back, and
+     * solely to compute the streak/gap figures — so a long history no longer hydrates every log row.
      */
     @Transactional
     public List<ActionStats> forAllActiveActions(final UUID userId) {
-        return computeAll(userId).stream()
+        final LocalDate today = todayFor(userId);
+        final List<Action> actions = Action.findActiveByUser(userId);   // name-ascending
+        if (actions.isEmpty()) {
+            return List.of();
+        }
+        final List<UUID> actionIds = actions.stream().map(action -> action.id).toList();
+        return assembleAll(userId, actions, actionIds, today).stream()
                 .filter(ActionStatsExtensions::hasData)
                 .toList();
     }
@@ -62,50 +74,89 @@ public class StatsService {
     /**
      * Returns stats for the actions the user has performed in the current month, newest first, up to
      * {@code limit}. Actions not logged this month are excluded entirely.
+     *
+     * <p>Unlike {@link #forAllActiveActions(UUID)}, this dashboard path never touches every action: the
+     * database picks the {@code limit} most-recently-performed active actions logged this month (ties
+     * broken by name, matching the Stats page's ordering), and only those few are aggregated — the only
+     * actions the dashboard summary strip can show.
      */
     @Transactional
     public List<ActionStats> forMostRecent(final UUID userId, final int limit) {
-        return computeAll(userId).stream()
-                .filter(ActionStatsExtensions::performedThisMonth)
-                .sorted(Comparator.comparing(ActionStats::lastPerformed).reversed())
-                .limit(limit)
+        final LocalDate today = todayFor(userId);
+        final LocalDate monthStart = today.withDayOfMonth(1);
+
+        final List<UUID> recentActionIds = ActionLog.mostRecentActiveActionIds(userId, monthStart, today, limit);
+        if (recentActionIds.isEmpty()) {
+            return List.of();
+        }
+
+        // findActiveByUserAndIds does not preserve the DB's recency ordering, so restore it by id index.
+        final List<Action> actions = Action.findActiveByUserAndIds(userId, recentActionIds).stream()
+                .sorted(Comparator.comparingInt((Action action) -> recentActionIds.indexOf(action.id)))
                 .toList();
+        return assembleAll(userId, actions, recentActionIds, today);
     }
 
     // ── Shared computation ────────────────────────────────────────────────
 
-    private List<ActionStats> computeAll(final UUID userId) {
-        final Map<UUID, List<ActionLog>> byAction = ActionLog.findAllByUser(userId)
-                .stream().collect(Collectors.groupingBy(l -> l.actionId));
+    private LocalDate todayFor(final UUID userId) {
         // Streak boundaries are evaluated in the user's own timezone (else the server default).
         final User user = User.findById(userId);
-        final LocalDate today = clock.today(clock.zoneFor(user == null ? null : user.timezone));
-        return Action.findActiveByUser(userId).stream()
-                .map(a -> compute(a, byAction.getOrDefault(a.id, List.of()), today))
+        return clock.today(clock.zoneFor(user == null ? null : user.timezone));
+    }
+
+    /**
+     * Aggregates {@code actionIds} in the database and assembles one {@link ActionStats} per supplied
+     * action, preserving the order of {@code actions}. {@code actionIds} must be non-empty.
+     */
+    private static List<ActionStats> assembleAll(final UUID userId, final List<Action> actions,
+                                                 final List<UUID> actionIds, final LocalDate today) {
+        final Map<UUID, List<MonthlyTotal>> monthly = groupMonthly(ActionLog.monthlyTotalsForActions(userId, actionIds));
+        final Map<UUID, List<LocalDate>> dates = groupDates(ActionLog.distinctDatesForActions(userId, actionIds));
+        return actions.stream()
+                .map(action -> assemble(action, monthly.getOrDefault(action.id, List.of()),
+                        dates.getOrDefault(action.id, List.of()), today))
                 .toList();
     }
 
-    private static ActionStats compute(final Action action, final List<ActionLog> logs, final LocalDate today) {
-        if (logs.isEmpty()) {
+    private static Map<UUID, List<MonthlyTotal>> groupMonthly(final List<Object[]> rows) {
+        final Map<UUID, List<MonthlyTotal>> byAction = new HashMap<>();
+        for (final Object[] row : rows) {
+            final MonthlyTotal total = new MonthlyTotal(
+                    ((Number) row[1]).intValue(), ((Number) row[2]).intValue(), ((Number) row[3]).longValue());
+            byAction.computeIfAbsent((UUID) row[0], key -> new ArrayList<>()).add(total);
+        }
+        return byAction;
+    }
+
+    private static Map<UUID, List<LocalDate>> groupDates(final List<Object[]> rows) {
+        // Rows arrive ordered by (action, date), so each action's list is ascending and distinct.
+        final Map<UUID, List<LocalDate>> byAction = new HashMap<>();
+        for (final Object[] row : rows) {
+            byAction.computeIfAbsent((UUID) row[0], key -> new ArrayList<>()).add((LocalDate) row[1]);
+        }
+        return byAction;
+    }
+
+    private static ActionStats assemble(final Action action, final List<MonthlyTotal> monthlyTotals,
+                                        final List<LocalDate> sortedDates, final LocalDate today) {
+        if (sortedDates.isEmpty()) {
             return new ActionStats(action, 0, 0L, null, null, 0, 0, 0,
                     0L, 0L, 0L, 0L, "—", 0L, "—", 0L, today);
         }
-
-        final List<LocalDate> dates = logs.stream()
-                .map(l -> l.logDate).distinct().sorted().toList();
-
-        final long totalCount = logs.stream().mapToLong(l -> l.count).sum();
 
         final YearMonth thisMonth = YearMonth.from(today);
         final YearMonth prevMonth = thisMonth.minusMonths(1);
         final int thisYear = today.getYear();
 
-        final Map<YearMonth, Long> byMonth = logs.stream().collect(
-                Collectors.groupingBy(l -> YearMonth.from(l.logDate),
-                        Collectors.summingLong(l -> l.count)));
-        final Map<Integer, Long> byYear = logs.stream().collect(
-                Collectors.groupingBy(l -> l.logDate.getYear(),
-                        Collectors.summingLong(l -> l.count)));
+        final Map<YearMonth, Long> byMonth = new HashMap<>();
+        final Map<Integer, Long> byYear = new HashMap<>();
+        long totalCount = 0L;
+        for (final MonthlyTotal monthlyTotal : monthlyTotals) {
+            byMonth.merge(YearMonth.of(monthlyTotal.year(), monthlyTotal.month()), monthlyTotal.total(), Long::sum);
+            byYear.merge(monthlyTotal.year(), monthlyTotal.total(), Long::sum);
+            totalCount += monthlyTotal.total();
+        }
 
         final Map.Entry<YearMonth, Long> bestMonth = byMonth.entrySet().stream()
                 .max(Map.Entry.comparingByValue()).orElse(null);
@@ -114,13 +165,13 @@ public class StatsService {
 
         return new ActionStats(
                 action,
-                dates.size(),
+                sortedDates.size(),
                 totalCount,
-                dates.getFirst(),
-                dates.getLast(),
-                currentStreak(dates, today),
-                longestStreak(dates),
-                longestGap(dates, today),
+                sortedDates.getFirst(),
+                sortedDates.getLast(),
+                currentStreak(sortedDates, today),
+                longestStreak(sortedDates),
+                longestGap(sortedDates, today),
                 byMonth.getOrDefault(thisMonth, 0L),
                 byMonth.getOrDefault(prevMonth, 0L),
                 byYear.getOrDefault(thisYear, 0L),
@@ -130,6 +181,13 @@ public class StatsService {
                 bestYear  != null ? String.valueOf(bestYear.getKey()) : "—",
                 bestYear  != null ? bestYear.getValue() : 0L,
                 today);
+    }
+
+    /**
+     * A single action's summed {@code count} for one calendar month — the shape of the database's
+     * monthly {@code GROUP BY}, from which every non-streak figure is rolled up.
+     */
+    private record MonthlyTotal(int year, int month, long total) {
     }
 
     /**

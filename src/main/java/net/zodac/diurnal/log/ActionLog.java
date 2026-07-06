@@ -28,6 +28,7 @@ import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -75,17 +76,87 @@ public class ActionLog extends PanacheEntityBase {
     // ── Queries ───────────────────────────────────────────────────────────
 
     /**
-     * Returns all of the user's log entries, oldest first.
-     */
-    public static List<ActionLog> findAllByUser(final UUID userId) {
-        return list("userId = ?1 order by logDate asc", userId);
-    }
-
-    /**
      * Returns the user's log entries falling within the inclusive {@code [start, end]} date range.
      */
     public static List<ActionLog> findByUserAndRange(final UUID userId, final LocalDate start, final LocalDate end) {
         return list("userId = ?1 and logDate >= ?2 and logDate <= ?3", userId, start, end);
+    }
+
+    /**
+     * Returns the ids of the user's <em>active</em> (non-archived) actions logged at least once within
+     * the inclusive {@code [from, to]} date range, ordered most-recently-performed first (ties broken
+     * by action name, ascending) and capped at {@code limit}.
+     *
+     * <p>The grouping and ordering are done in the database so the dashboard summary never has to load
+     * every log for every action just to pick the handful it can display.
+     *
+     * @param userId the owning user
+     * @param from   the inclusive start of the date window
+     * @param to     the inclusive end of the date window
+     * @param limit  the maximum number of action ids to return
+     * @return the ids of the most-recently-performed active actions in the window
+     */
+    public static List<UUID> mostRecentActiveActionIds(final UUID userId, final LocalDate from, final LocalDate to,
+                                                       final int limit) {
+        // NB: never hold Panache.getEntityManager() in a local — it is a container-managed
+        // EntityManager that must NOT be closed, but PMD's CloseResource rule would demand it.
+        final List<?> rows = Panache.getEntityManager().createNativeQuery("""
+                SELECT al.action_id
+                FROM action_logs al
+                JOIN actions a ON a.id = al.action_id
+                WHERE al.user_id = :userId AND a.archived = false
+                  AND al.log_date >= :from AND al.log_date <= :to
+                GROUP BY al.action_id, a.name
+                ORDER BY MAX(al.log_date) DESC, a.name ASC
+                LIMIT :limit""")
+            .setParameter("userId", userId)
+            .setParameter("from", from)
+            .setParameter("to", to)
+            .setParameter("limit", limit)
+            .getResultList();
+        return rows.stream().map(UUID.class::cast).toList();
+    }
+
+    /**
+     * Returns the per-month summed {@code count} for each of the given actions, as
+     * {@code [actionId (UUID), year (int), month (int), total (long)]} rows — the database-side monthly
+     * aggregation behind the Stats page. {@code actionIds} must be non-empty.
+     *
+     * @param userId    the owning user (constrains the query to the indexed {@code (user_id, …)} prefix)
+     * @param actionIds the actions to aggregate
+     * @return one row per {@code (action, calendar-month)} that has at least one log entry
+     */
+    public static List<Object[]> monthlyTotalsForActions(final UUID userId, final Collection<UUID> actionIds) {
+        // NB: never hold Panache.getEntityManager() in a local — it is a container-managed
+        // EntityManager that must NOT be closed, but PMD's CloseResource rule would demand it.
+        return Panache.getEntityManager().createQuery("""
+                SELECT l.actionId, YEAR(l.logDate), MONTH(l.logDate), SUM(l.count)
+                FROM ActionLog l
+                WHERE l.userId = :userId AND l.actionId IN (:actionIds)
+                GROUP BY l.actionId, YEAR(l.logDate), MONTH(l.logDate)""", Object[].class)
+            .setParameter("userId", userId)
+            .setParameter("actionIds", actionIds)
+            .getResultList();
+    }
+
+    /**
+     * Returns the distinct performed dates for each of the given actions, as
+     * {@code [actionId (UUID), logDate (LocalDate)]} rows ordered by action then date — the minimal data
+     * needed to compute streaks and gaps. {@code actionIds} must be non-empty.
+     *
+     * @param userId    the owning user (constrains the query to the indexed {@code (user_id, …)} prefix)
+     * @param actionIds the actions whose performed dates to read
+     * @return one row per {@code (action, logged-day)}, ascending within each action
+     */
+    public static List<Object[]> distinctDatesForActions(final UUID userId, final Collection<UUID> actionIds) {
+        return Panache.getEntityManager().createQuery("""
+                SELECT l.actionId, l.logDate
+                FROM ActionLog l
+                WHERE l.userId = :userId AND l.actionId IN (:actionIds)
+                ORDER BY l.actionId, l.logDate""", Object[].class)
+            .setParameter("userId", userId)
+            .setParameter("actionIds", actionIds)
+            .getResultList();
     }
 
     /**
