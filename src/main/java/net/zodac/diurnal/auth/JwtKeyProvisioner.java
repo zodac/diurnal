@@ -65,7 +65,8 @@ public class JwtKeyProvisioner {
     String publicKeyLocation = "";
 
     /**
-     * Generates the keypair (when both halves are absent) before any token is signed or verified.
+     * Generates the keypair (when both halves are absent or empty) before any token is signed or
+     * verified, and fails fast if the configured location holds an unusable or half-present keypair.
      */
     // Run early, before anything attempts to sign or verify a token.
     void onStart(@Observes @Priority(Interceptor.Priority.LIBRARY_BEFORE) StartupEvent ev) {
@@ -76,16 +77,28 @@ public class JwtKeyProvisioner {
             return;
         }
 
-        final boolean havePrivate = Files.isRegularFile(privateKey);
-        final boolean havePublic = Files.isRegularFile(publicKey);
+        // A present-but-unreadable key can be `stat`-ed (so it looks provisioned) but not loaded. The
+        // classic case is a 0600 key bind-mounted from the host, owned by a UID other than the
+        // non-root container user (65532), so signing fails with an opaque SRJWT05028 500 on the first
+        // request. Fail fast here with an actionable message; do NOT regenerate, as it may be a valid
+        // key we simply cannot read (and the mount is typically read-only anyway).
+        requireReadableIfPresent(privateKey, "signing");
+        requireReadableIfPresent(publicKey, "verification");
+
+        // A zero-length file is NOT a usable key: it is a regular file (so Files.isRegularFile is
+        // true), but loading it fails the same way. Treat empty files as absent so a fresh pair is
+        // (re)generated rather than left in place.
+        final boolean havePrivate = isUsableKeyFile(privateKey);
+        final boolean havePublic = isUsableKeyFile(publicKey);
         if (havePrivate && havePublic) {
             return; // Already provisioned (mounted, or generated on a previous boot).
         }
         if (havePrivate != havePublic) {
-            // One half of the pair is missing — refuse to overwrite a key that may still be in use.
-            LOGGER.warn("JWT keypair is incomplete (private exists={}, public exists={}) — leaving as-is. "
-                    + "Delete both files to have a fresh pair generated.", havePrivate, havePublic);
-            return;
+            // One usable half, one missing/empty — refuse to overwrite the surviving key (it may still
+            // be in use), but fail fast rather than boot with a keypair that cannot sign OR verify.
+            throw new IllegalStateException("JWT keypair is incomplete (usable private=" + havePrivate
+                    + ", usable public=" + havePublic + ") under " + privateKey.toAbsolutePath().getParent()
+                    + " — restore the missing half, or delete both files to have a fresh pair generated");
         }
 
         try {
@@ -93,7 +106,72 @@ public class JwtKeyProvisioner {
             LOGGER.info("Generated new RSA-{} JWT keypair (private={}, public={})",
                     KEY_SIZE, privateKey, publicKey);
         } catch (Exception e) {
-            throw new IllegalStateException("Failed to generate JWT keypair", e);
+            // The common cause is a read-only key location (e.g. a host-owned bind mount the non-root
+            // container user cannot write): surface it clearly at boot instead of as a login-time 500.
+            throw new IllegalStateException("Failed to generate JWT keypair at " + privateKey.toAbsolutePath()
+                    + " — is the directory writable by the app user, or should a pre-generated key be mounted there?", e);
+        }
+    }
+
+    // Halts boot if a key file exists but the app user cannot read it, converting a later SRJWT05028
+    // signing/verification 500 into a clear, actionable startup failure. The message spells out the
+    // current ownership/permissions and the expected ones, so the reuse / multi-instance case (mount a
+    // shared, pre-generated keypair into several containers) is diagnosable from the log alone.
+    private static void requireReadableIfPresent(final Path key, final String role) {
+        if (Files.isRegularFile(key) && !Files.isReadable(key)) {
+            throw new IllegalStateException("JWT " + role + " key at " + key.toAbsolutePath()
+                    + " exists but is not readable by the app process (" + currentProcessUser() + "). "
+                    + describeOwnership(key)
+                    + "Make the key readable by that UID, for example: `sudo chown 65532:65532 secrets/jwt-private.pem secrets/jwt-public.pem`");
+        }
+    }
+
+    // The UID (and JVM user name) this process actually runs as. Read from /proc so the message names the
+    // real UID even when the container user is overridden (compose `user:` / `--user`); off Linux (dev,
+    // unit tests on a non-Linux host) it falls back to the JVM user name alone.
+    private static String currentProcessUser() {
+        final String name = System.getProperty("user.name", "unknown");
+        final String uid = effectiveUid();
+        return uid == null ? "user '" + name + "'" : "UID " + uid + " ('" + name + "')";
+    }
+
+    private static @Nullable String effectiveUid() {
+        final Path status = Path.of("/proc/self/status");
+        if (!Files.isReadable(status)) {
+            return null;
+        }
+        try {
+            for (final String line : Files.readAllLines(status)) {
+                if (line.startsWith("Uid:")) {
+                    // Format: "Uid:\t<real>\t<effective>\t<saved>\t<fs>" — the effective UID governs access.
+                    final String[] fields = line.split("\\s+");
+                    return fields.length > 2 ? fields[2] : null;
+                }
+            }
+        } catch (IOException e) {
+            return null;
+        }
+        return null;
+    }
+
+    // Best-effort description of a file's current owner and POSIX permissions for the error above;
+    // returns "" on a non-POSIX filesystem or if the metadata cannot be read.
+    private static String describeOwnership(final Path key) {
+        try {
+            return "It is currently owned by '" + Files.getOwner(key).getName() + "' with permissions `"
+                    + PosixFilePermissions.toString(Files.getPosixFilePermissions(key)) + "`. ";
+        } catch (IOException | UnsupportedOperationException e) {
+            return "";
+        }
+    }
+
+    // A key file is usable only if it is a regular file with content; an empty file would otherwise be
+    // mistaken for a provisioned key and left in place, failing later with SRJWT05028.
+    private static boolean isUsableKeyFile(final Path path) {
+        try {
+            return Files.isRegularFile(path) && Files.size(path) > 0L;
+        } catch (IOException e) {
+            return false;
         }
     }
 

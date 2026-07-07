@@ -24,23 +24,23 @@ import org.eclipse.microprofile.openapi.annotations.info.Info;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
 
 /**
- * Document-level OpenAPI metadata for the Diurnal API: the {@link Info} block plus the two HTTP
- * authentication schemes that Swagger UI's "Authorize" dialog offers.
+ * Document-level OpenAPI metadata for the Diurnal API: the {@link Info} block plus the single HTTP
+ * authentication scheme that Swagger UI's "Authorize" dialog offers.
  *
- * <p>Two schemes are declared so the docs (and "Try it out") can authenticate either way:
+ * <p>One scheme is declared so the docs (and "Try it out") can authenticate:
  * <ul>
  *   <li>{@code BearerAuth} — a signed JWT obtained from {@code POST /api/auth/login}, sent as
  *       {@code Authorization: Bearer <token>}.</li>
- *   <li>{@code BasicAuth} — the account's email and password, sent as
- *       {@code Authorization: Basic <base64>}; the server authenticates it via the same
- *       {@code PasswordIdentityProvider} the login form uses.</li>
  * </ul>
  *
- * <p>Declaring them here (rather than via the single-scheme {@code quarkus.smallrye-openapi.security-scheme}
- * config) is what lets BOTH appear; it also pins them to plain HTTP schemes instead of the
- * {@code openIdConnect} scheme SmallRye would otherwise auto-derive from the enabled OIDC extension.
- * Operations opt in per-endpoint with {@code @SecurityRequirement(name = "BearerAuth")} and/or
- * {@code @SecurityRequirement(name = "BasicAuth")} ({@code auto-add-security-requirement=false}).
+ * <p>HTTP Basic is deliberately NOT offered: enabling it would run BCrypt on every {@code /api/*}
+ * request carrying a Basic header — an unthrottled password-guessing and CPU-exhaustion surface.
+ * The API authenticates with the Bearer JWT alone (verification is asymmetric crypto, no hashing).
+ *
+ * <p>Declaring it here (rather than via the {@code quarkus.smallrye-openapi.security-scheme} config)
+ * pins it to a plain HTTP bearer scheme instead of the {@code openIdConnect} scheme SmallRye would
+ * otherwise auto-derive from the enabled OIDC extension. Operations opt in per-endpoint with
+ * {@code @SecurityRequirement(name = "BearerAuth")} ({@code auto-add-security-requirement=false}).
  *
  * <p>It is an (otherwise empty) JAX-RS {@link Application} purely to give these document-level
  * annotations a home SmallRye reliably scans. With no {@code @ApplicationPath} and no overridden
@@ -60,12 +60,6 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
         scheme = "bearer",
         bearerFormat = "JWT",
         description = "Signed JWT from POST /api/auth/login, sent as 'Authorization: Bearer <token>'."
-)
-@SecurityScheme(
-        securitySchemeName = "BasicAuth",
-        type = SecuritySchemeType.HTTP,
-        scheme = "basic",
-        description = "Account email and password, sent as HTTP Basic 'Authorization' credentials."
 )
 public class DiurnalApiDefinition extends Application {
 }

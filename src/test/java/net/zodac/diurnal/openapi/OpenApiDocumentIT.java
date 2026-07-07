@@ -26,39 +26,35 @@ import io.restassured.http.ContentType;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies the generated OpenAPI document (served at {@code /q/openapi}) declares both authentication
- * schemes Swagger UI's "Authorize" dialog relies on — the {@code BearerAuth} token scheme and the
- * {@code BasicAuth} username/password scheme from {@link DiurnalApiDefinition} — and that a secured
- * operation offers them as alternatives (OR), not both at once (AND).
+ * Verifies the generated OpenAPI document (served at {@code /q/openapi}) declares exactly the one
+ * authentication scheme Swagger UI's "Authorize" dialog relies on — the {@code BearerAuth} token
+ * scheme from {@link DiurnalApiDefinition} — and that a secured operation requires it. HTTP Basic is
+ * deliberately not offered (it would run BCrypt on every authenticated {@code /api/*} request).
  */
 @QuarkusTest
 class OpenApiDocumentIT {
 
     @Test
-    void document_declaresExactlyBearerAndBasicSecuritySchemes() {
+    void document_declaresExactlyBearerSecurityScheme() {
         given().accept(ContentType.JSON)
                 .get("/q/openapi")
                 .then().statusCode(200)
                 .body("components.securitySchemes.BearerAuth.type", equalTo("http"))
                 .body("components.securitySchemes.BearerAuth.scheme", equalTo("bearer"))
                 .body("components.securitySchemes.BearerAuth.bearerFormat", equalTo("JWT"))
-                .body("components.securitySchemes.BasicAuth.type", equalTo("http"))
-                .body("components.securitySchemes.BasicAuth.scheme", equalTo("basic"))
-                // ONLY those two — no auto-derived OIDC/openIdConnect "Authorize" option.
-                .body("components.securitySchemes.keySet()", containsInAnyOrder("BearerAuth", "BasicAuth"));
+                // ONLY Bearer — no Basic, and no auto-derived OIDC/openIdConnect "Authorize" option.
+                .body("components.securitySchemes.keySet()", containsInAnyOrder("BearerAuth"));
     }
 
     @Test
-    void securedOperation_offersBothSchemesAsAlternatives() {
-        // Each entry in the operation's `security` array is a separate requirement object (logical OR),
-        // each naming exactly one scheme — so Swagger lets a caller authorize with EITHER.
+    void securedOperation_requiresBearerScheme() {
         given().accept(ContentType.JSON)
                 .get("/q/openapi")
                 .then().statusCode(200)
-                // Two separate requirement objects = OR; each names exactly one scheme.
-                .body("paths.'/api/users/me'.get.security.size()", equalTo(2))
+                // A single requirement object naming exactly the Bearer scheme.
+                .body("paths.'/api/users/me'.get.security.size()", equalTo(1))
                 .body("paths.'/api/users/me'.get.security.collect { it.keySet() }.flatten()",
-                        containsInAnyOrder("BearerAuth", "BasicAuth"));
+                        containsInAnyOrder("BearerAuth"));
     }
 
     @Test

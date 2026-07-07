@@ -77,7 +77,6 @@ public class CalendarResource {
             description = "Returns all logged actions within the date range for the user."
     )
     @SecurityRequirement(name = "BearerAuth")
-    @SecurityRequirement(name = "BasicAuth")
     @APIResponses({
         @APIResponse(responseCode = "200", description = "Logged events in the range (one entry per logged action per day).",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON,

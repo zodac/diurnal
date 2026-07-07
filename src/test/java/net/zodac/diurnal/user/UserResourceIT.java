@@ -88,19 +88,11 @@ class UserResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    void me_withBasicCredentials_returnsOwnProfile() {
-        // HTTP Basic (preemptive — anonymous /api/* is challenged with a plain 401, not a Basic prompt)
-        // is authenticated by the same PasswordIdentityProvider as the login form.
+    void me_withBasicCredentials_returns401_basicDisabled() {
+        // HTTP Basic is deliberately NOT enabled on /api/* (it would run BCrypt on every request):
+        // even valid account credentials sent as Basic are ignored, so the request is anonymous → 401.
+        // BCrypt therefore never runs for a Basic header, so this cannot be used to guess passwords.
         given().auth().preemptive().basic("me-api@lt.test", TEST_PASSWORD)
-                .get("/api/users/me")
-                .then().statusCode(200)
-                .body("email", equalTo("me-api@lt.test"))
-                .body("role", equalTo("user"));
-    }
-
-    @Test
-    void me_withWrongBasicPassword_returns401() {
-        given().auth().preemptive().basic("me-api@lt.test", "wrong-password")
                 .get("/api/users/me")
                 .then().statusCode(401);
     }

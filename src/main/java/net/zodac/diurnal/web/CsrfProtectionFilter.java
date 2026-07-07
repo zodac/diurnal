@@ -40,7 +40,7 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>Scope decisions, and why they are safe:
  * <ul>
- *   <li><strong>Only cookie-authenticated requests are guarded.</strong> A Bearer/Basic API call
+ *   <li><strong>Only cookie-authenticated requests are guarded.</strong> A Bearer-token API call
  *       (no session cookie) is not a CSRF vector — the credential is not ambient — so it is left
  *       alone.</li>
  *   <li><strong>Requests with neither {@code Origin} nor {@code Referer} are allowed.</strong>
