@@ -117,6 +117,35 @@ Under `src/main/java/net/zodac/diurnal/`:
 
 `quarkus.http.auth.proactive=false` prevents Bearer from intercepting web requests before form auth can redirect.
 
+**Login throttling (two dimensions)** — `LoginThrottle` is a plain, key-agnostic fixed-window throttle (config snapshot + a
+`ConcurrentHashMap`; counters **decay** after a quiet window so shared keys don't accumulate). `LoginThrottles`
+(`@ApplicationScoped`, `auth`) runs **two** of them: per-**account** keyed by email (`ThrottleConfig`, env
+`PASSWORD_AUTH_THROTTLE_{ENABLED,MAX_ATTEMPTS,LOCKOUT_DURATION}`, default 5/`PT5M`) and per-**IP** keyed by client IP
+(`IpThrottleConfig`, env `PASSWORD_AUTH_IP_THROTTLE_{…}`, default 15/`PT15M`). A login is blocked if **either** is locked
+(`isLocked` = account `||` ip); `recordFailure` hits both; `recordSuccess` clears only the account (a valid login must not reset an
+IP's brute-force budget); `lockoutRemaining` = the **longer** of the two. The account throttle protects a targeted account across
+every source; the IP throttle slows a single host rotating accounts (only meaningful behind a trusted proxy — see
+`ClientAddress`/`TRUST_X_FORWARDED_HEADERS`). Both login surfaces consult the **same** `LoginThrottles` bean —
+`AuthResource.login` (JSON API → `429` + `Retry-After`) and `PasswordIdentityProvider` (web form). The locked-out message names the
+**remaining** time approximately (`LockoutMessages.retryMessage`, e.g. "…try again in about 4 minutes.") — it states the policy but
+never discloses account existence, since a non-existent email is keyed and locked identically (no enumeration). The API returns it
+as the `429` body. The web form is trickier: Quarkus form auth processes
+`POST /login` and ends the response (redirect to the single static `error-page`) *before* any user Vert.x filter runs, and only
+supports one static target — so the reason can't be varied there. Instead `PasswordIdentityProvider.authenticate` enforces the
+lockout on the IO thread and drops a short-lived `diurnal_login_lockout` cookie onto the redirect — getting the `RoutingContext` via
+`HttpSecurityUtils.getRoutingContextAttribute(request)` (NOT `CurrentVertxRequest`, whose request scope is inactive during form
+auth → `ContextNotActiveException`). `WebResource.loginPage` reads that cookie to show the lockout banner (over the generic error),
+clears it, AND echoes the **seconds left** in an `X-Login-Retry-After` response header — because the login form posts via `fetch`
+(`data-ajax-submit` in `app.js`) and never renders that HTML, so the AJAX handler reads the header and runs a **live mm:ss
+countdown** (greying/disabling the Sign in button until it hits `00:00`, then hiding the banner and restoring the button; the
+cookie value carries the same seconds for the no-JS server-rendered banner). The lockout is revealed on the first attempt made
+*while* locked (entry check), not the threshold-tripping one. Failure logging (shared `LoginAttemptLog`, called by both surfaces)
+is `Failed login attempt (x of y)` plus a `WARN` `Account locked out …` and/or `IP locked out …` when a dimension trips, using the
+durations carried on each `FailureOutcome`; the IP comes from `ClientAddress.of(routingContext)` → Vert.x `remoteAddress()`. State
+is **in-memory** (resets on restart, not shared across instances) — acceptable for the single-instance deploy. Time comes in as an
+explicit `Instant` param (from `AppClock.now()`) so the logic is pure/unit-testable and ITs can freeze/advance the clock; keep the
+branching in `LoginThrottle`/`LoginThrottles` (unit-tested to 100% PIT strength), not the glue.
+
 > **In Bearer resources, resolve the user via `SecurityIdentity.getPrincipal().getName()` → `User.findByEmail(...)`, NOT `JsonWebToken.getSubject()`.
 ** When OIDC is enabled, the default `JsonWebToken` producer is the OIDC one and `getSubject()` returns `null`, causing a 500.
 

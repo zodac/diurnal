@@ -18,6 +18,7 @@
     - [Required](#required)
     - [Database](#database)
     - [Application](#application)
+    - [Login Throttling](#login-throttling)
     - [JWT Keys](#jwt-keys)
     - [Reverse Proxy](#reverse-proxy)
     - [OIDC](#oidc)
@@ -151,6 +152,31 @@ sensible default.
 | `LOG_LEVEL`                | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                |
 | `PASSWORD_AUTH_ENABLED`    | `true`  | Set to `false` to disable password login entirely (requires OIDC to be enabled) |
 | `ENABLE_REGISTRATION`      | `true`  | Set to `false` to close the `/register` page                                    |
+
+### Login Throttling
+
+Failed logins are rate-limited on two independent dimensions to slow password guessing. A login is blocked if **either** trips. When blocked, the API
+returns `429` (with a `Retry-After` header) and the login form shows a countdown; the response never reveals whether the account exists. All counters
+are held in memory (they reset on restart) and decay after a quiet window. Durations are [ISO-8601](https://en.wikipedia.org/wiki/ISO_8601#Durations)
+(e.g. `PT5M` = 5 minutes, `PT1H` = 1 hour, `PT30S` = 30 seconds).
+
+**Per-account** — locks a single email after too many consecutive failures, protecting a targeted account regardless of where the attempts come from.
+
+| Variable                                  | Default | Description                                                  |
+|-------------------------------------------|---------|--------------------------------------------------------------|
+| `PASSWORD_AUTH_THROTTLE_ENABLED`          | `true`  | Set to `false` to disable per-account throttling             |
+| `PASSWORD_AUTH_THROTTLE_MAX_ATTEMPTS`     | `5`     | Consecutive failures for one account before it is locked out |
+| `PASSWORD_AUTH_THROTTLE_LOCKOUT_DURATION` | `PT5M`  | How long an account stays locked                             |
+
+**Per-IP** — locks a single client IP after too many failures across *any* accounts, slowing a single host that rotates through many accounts. The IP
+comes from the connection, honouring [`TRUST_X_FORWARDED_HEADERS`](#reverse-proxy), so this is only meaningful behind a trusted proxy. The default
+limit is higher than the per-account one because many users can share one IP (NAT/CGNAT).
+
+| Variable                                     | Default | Description                                                    |
+|----------------------------------------------|---------|----------------------------------------------------------------|
+| `PASSWORD_AUTH_IP_THROTTLE_ENABLED`          | `true`  | Set to `false` to disable per-IP throttling                    |
+| `PASSWORD_AUTH_IP_THROTTLE_MAX_ATTEMPTS`     | `15`    | Failures from one IP (across accounts) before it is locked out |
+| `PASSWORD_AUTH_IP_THROTTLE_LOCKOUT_DURATION` | `PT15M` | How long an IP stays locked                                    |
 
 ### JWT Keys
 

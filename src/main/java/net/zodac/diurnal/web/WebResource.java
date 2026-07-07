@@ -39,18 +39,22 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
 import java.net.URI;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Consumer;
+import net.zodac.diurnal.auth.LockoutMessages;
 import net.zodac.diurnal.auth.PasswordConstraints;
+import net.zodac.diurnal.auth.PasswordIdentityProvider;
 import net.zodac.diurnal.auth.Passwords;
 import net.zodac.diurnal.auth.RoleAssigner;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.config.RegistrationConfig;
+import net.zodac.diurnal.config.ThrottleConfig;
 import net.zodac.diurnal.stats.ActionStatField;
 import net.zodac.diurnal.stats.StatsService;
 import net.zodac.diurnal.time.AppClock;
@@ -60,6 +64,7 @@ import net.zodac.diurnal.user.UserSettings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Serves the top-level web UI pages: login, register, logout, settings and the dashboard.
@@ -76,6 +81,10 @@ public class WebResource {
     private static final String NEW_PASSWORD_ERROR = "Passwords do not match";
     private static final String NEW_PASSWORD_TOO_LONG_ERROR =
             "Password must be at most " + PasswordConstraints.MAX_LENGTH + " characters";
+
+    // Carries the seconds left on a lockout to the AJAX submit handler (app.js), which posts the form via
+    // fetch and so never renders the server-side banner — it runs a live countdown from this value instead.
+    private static final String LOGIN_RETRY_AFTER_HEADER = "X-Login-Retry-After";
 
     @Inject
     @Location("login")
@@ -111,6 +120,9 @@ public class WebResource {
     @Inject
     RegistrationConfig registrationConfig;
 
+    @Inject
+    ThrottleConfig throttleConfig;
+
     // ── Login ──────────────────────────────────────────────────────────────
 
     /**
@@ -122,7 +134,8 @@ public class WebResource {
     @Transactional
     public Response loginPage(
             @QueryParam("error")      final String error,
-            @QueryParam("registered") @DefaultValue("false") final boolean registered) {
+            @QueryParam("registered") @DefaultValue("false") final boolean registered,
+            @CookieParam(PasswordIdentityProvider.LOCKOUT_COOKIE) final String lockoutCookie) {
         // First run: no users exist yet. Send the deployer to the setup landing page to create the
         // initial local account, and short-circuit any OIDC auto-redirect below — the first account
         // must be local. During set up the initial account can always be created (ENABLE_REGISTRATION
@@ -147,10 +160,17 @@ public class WebResource {
             return Response.seeOther(URI.create("/login?error=oidc")).build();
         }
         final boolean showOidcError = "oidc".equals(error);
-        final boolean showError = error != null && !"false".equals(error) && !showOidcError;
+        // The lockout cookie (set by PasswordIdentityProvider on the failed form POST) marks this as a
+        // lockout rather than a bad password; it takes precedence over the generic error banner. Its
+        // value is the seconds left on the lockout, seeding the countdown.
+        final boolean showLocked = lockoutCookie != null;
+        final Duration lockoutRemaining = lockoutRemaining(lockoutCookie);
+        final boolean showError = error != null && !"false".equals(error) && !showOidcError && !showLocked;
         final Response.ResponseBuilder builder = Response.ok(loginTemplate
                 .data("error", showError, "registered", registered, "theme", "system")
                 .data("font", "nova")
+                .data("locked", showLocked)
+                .data("lockedMessage", LockoutMessages.retryMessage(lockoutRemaining))
                 .data("oidcError", showOidcError)
                 .data("passwordAuthEnabled", passwordAuthConfig.enabled())
                 .data("registrationEnabled", passwordAuthConfig.enabled() && registrationConfig.enabled())
@@ -162,7 +182,33 @@ public class WebResource {
             // starts a fresh code flow instead of retrying the same failed session.
             builder.cookie(new NewCookie.Builder("q_session").value("").path("/").maxAge(0).httpOnly(true).build());
         }
+        if (showLocked) {
+            // One-shot: clear it so a later reload of the login page shows the normal form.
+            builder.cookie(new NewCookie.Builder(PasswordIdentityProvider.LOCKOUT_COOKIE)
+                    .value("").path("/").maxAge(0).build());
+            // The login form posts via fetch (data-ajax-submit) and never renders this HTML, so app.js
+            // reads the seconds left from this header and runs a live countdown in the banner.
+            builder.header(LOGIN_RETRY_AFTER_HEADER, Math.max(1L, lockoutRemaining.toSeconds()));
+        }
         return builder.build();
+    }
+
+    /**
+     * Resolves the seconds-left value carried in the lockout cookie into a {@link Duration}, falling back
+     * to the configured window if the cookie is absent or malformed.
+     */
+    private Duration lockoutRemaining(@Nullable final String lockoutCookie) {
+        if (lockoutCookie != null) {
+            try {
+                final long seconds = Long.parseLong(lockoutCookie.strip());
+                if (seconds > 0L) {
+                    return Duration.ofSeconds(seconds);
+                }
+            } catch (final NumberFormatException e) {
+                LOGGER.debug("Malformed lockout cookie value: {}", lockoutCookie);
+            }
+        }
+        return throttleConfig.lockoutDuration();
     }
 
     /**

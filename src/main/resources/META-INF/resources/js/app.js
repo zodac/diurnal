@@ -132,17 +132,42 @@ document.addEventListener('click', function (e) {
 // server still redirects to /login?error=true. OIDC login is a plain link, not this form, so it is
 // untouched. (Brace note: Qute parses '{' in templates, so every '{' here is followed by whitespace.)
 (function () {
+    var lockoutTimer = null;
+
+    // mm:ss, clamped so it can NEVER render a negative value.
+    function formatClock(totalSeconds) {
+        var s = totalSeconds > 0 ? totalSeconds : 0;
+        var mins = Math.floor(s / 60);
+        var secs = s % 60;
+        return (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
+    }
+
     document.addEventListener('submit', function (e) {
         var form = e.target;
         if (e.defaultPrevented) { return; }   // client-side validation already blocked this submit
         if (!form || !form.matches || !form.matches('form[data-ajax-submit]')) { return; }
+        // While a lockout countdown is running the form is inert — swallow any submit (button click or
+        // Enter) until it expires and the button is restored.
+        if (lockoutTimer !== null) { e.preventDefault(); return; }
         e.preventDefault();
 
         var slot = form.querySelector('[data-form-errors]');
         var submitBtn = form.querySelector('button[type="submit"]');
         if (submitBtn) { submitBtn.disabled = true; }
 
+        function stopLockout() {
+            if (lockoutTimer !== null) { clearInterval(lockoutTimer); lockoutTimer = null; }
+        }
+
+        // Clears any running countdown, hides the banner and re-enables the form.
+        function clearLockout() {
+            stopLockout();
+            if (slot) { slot.hidden = true; slot.innerHTML = ''; }
+            if (submitBtn) { submitBtn.disabled = false; }
+        }
+
         function showError(message) {
+            stopLockout();
             if (submitBtn) { submitBtn.disabled = false; }
             if (slot) {
                 slot.innerHTML = '<div class="banner banner-error">' + message + '</div>';
@@ -150,6 +175,31 @@ document.addEventListener('click', function (e) {
             }
             var pw = form.querySelector('input[type="password"]');
             if (pw) { pw.focus(); }   // land on the password so a minor change is a keystroke away
+        }
+
+        // Locked out: keep the Sign in button greyed + inert and show the banner with a live mm:ss
+        // countdown. It ticks off wall-clock time to the server-provided expiry (so a throttled/background
+        // tab self-corrects on return rather than lagging), is guarded so it can never render a negative
+        // value, and once it passes 00:00 the banner is hidden (no "you can try again" text) and the
+        // button restored. Enforcement stays server-side — this is cosmetic, so an early retry just
+        // re-shows the banner.
+        function showLockoutCountdown(seconds) {
+            var total = Math.floor(seconds);
+            if (!(total > 0) || !slot) { clearLockout(); return; }   // guard: non-positive → nothing to show
+            stopLockout();
+            if (submitBtn) { submitBtn.disabled = true; }
+            slot.innerHTML = '<div class="banner banner-error">Too many failed login attempts. '
+                + 'Please try again in <span data-lockout-clock></span>.</div>';
+            slot.hidden = false;
+            var clock = slot.querySelector('[data-lockout-clock]');
+            var endTime = Date.now() + total * 1000;
+            function tick() {
+                var remaining = Math.round((endTime - Date.now()) / 1000);
+                if (remaining < 0) { clearLockout(); return; }   // past expiry → hide + restore the button
+                if (clock) { clock.textContent = formatClock(remaining); }
+            }
+            tick();   // paint immediately, before the first interval
+            lockoutTimer = setInterval(tick, 1000);
         }
 
         fetch(form.action, {
@@ -162,7 +212,13 @@ document.addEventListener('click', function (e) {
             // fetch follows the redirect, so the final resolved path tells the two apart.
             var dest = new URL(resp.url, window.location.origin);
             if (dest.pathname === '/login') {
-                showError('Invalid email or password.');
+                // A lockout carries the seconds left in X-Login-Retry-After; otherwise it's a bad login.
+                var retryAfter = parseInt(resp.headers.get('X-Login-Retry-After'), 10);
+                if (retryAfter > 0) {
+                    showLockoutCountdown(retryAfter);
+                } else {
+                    showError('Invalid email or password.');
+                }
             } else {
                 window.location.assign(resp.url);   // session cookie already set — load the landing page
             }

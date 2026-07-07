@@ -19,23 +19,45 @@ package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
+import jakarta.inject.Inject;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.Base64;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.user.User;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 class AuthResourceIT extends IntegrationTestBase {
 
     // AuthResourceIT creates its own users — base setUp() just wipes the tables.
+
+    // The instant AppClock is frozen at by IntegrationTestBase.setUp() (FIXED_TODAY, UTC midnight),
+    // so throttle bookkeeping made during a request can be asserted at the same instant.
+    private static final Instant FROZEN_NOW = FIXED_TODAY.atStartOfDay(ZoneOffset.UTC).toInstant();
+    private static final int MAX_ATTEMPTS = 5;
+
+    @Inject
+    LoginThrottles loginThrottles;
+
+    // LoginThrottles is @ApplicationScoped, so its in-memory state survives across tests — wipe it.
+    @BeforeEach
+    void clearThrottle() {
+        loginThrottles.clear();
+    }
 
     // ── Register ──────────────────────────────────────────────────────────────
 
@@ -224,6 +246,125 @@ class AuthResourceIT extends IntegrationTestBase {
         assertThat(payloadJson.contains("\"exp\""))
             .as("expiry claim missing")
             .isTrue();
+    }
+
+    // ── Per-account throttling ──────────────────────────────────────────────────
+
+    @Test
+    void login_afterMaxFailures_returns429WithHumanReadableMessage() {
+        registerUser("throttle@example.com", "Throttle", "correct_password");
+
+        // MAX_ATTEMPTS failures are ordinary 401s; they trip the lock but do not themselves block.
+        driveToLockout("throttle@example.com");
+
+        // The first attempt made WHILE locked reports the lockout, with its human-readable duration.
+        postLogin("throttle@example.com", "wrong_password")
+                .then()
+                .statusCode(429)
+                .header("Retry-After", notNullValue())
+                // States the policy and its duration; discloses nothing about account existence.
+                .body("message", containsStringIgnoringCase("too many failed login attempts"))
+                .body("message", containsStringIgnoringCase("5 minutes"));
+    }
+
+    @Test
+    void login_lockedAccount_rejectsEvenTheCorrectPassword() {
+        registerUser("locked@example.com", "Locked", "correct_password");
+
+        driveToLockout("locked@example.com");
+
+        // Correct credentials, but the lockout ignores validity while active.
+        postLogin("locked@example.com", "correct_password")
+                .then().statusCode(429);
+    }
+
+    @Test
+    void login_afterLockoutWindowElapses_succeeds() {
+        registerUser("expiry@example.com", "Expiry", "correct_password");
+
+        driveToLockout("expiry@example.com");
+        // Locked: even the correct password is refused.
+        postLogin("expiry@example.com", "correct_password").then().statusCode(429);
+
+        // Default account lockout is 5 minutes; advance the clock past it and the account works again.
+        freezeInstant(FROZEN_NOW.plus(Duration.ofMinutes(6)), ZoneId.of("UTC"));
+
+        postLogin("expiry@example.com", "correct_password")
+                .then().statusCode(200)
+                .body("token", not(emptyOrNullString()));
+    }
+
+    @Test
+    void login_successBeforeThreshold_clearsFailureCount() {
+        registerUser("reset@example.com", "Reset", "correct_password");
+
+        // Four failures (below the threshold of five) then a success must reset the tally, so a
+        // subsequent failure does not tip an already-primed counter over the edge.
+        for (int i = 0; i < MAX_ATTEMPTS - 1; i++) {
+            postLogin("reset@example.com", "wrong_password").then().statusCode(401);
+        }
+        postLogin("reset@example.com", "correct_password").then().statusCode(200);
+        postLogin("reset@example.com", "wrong_password").then().statusCode(401);
+
+        assertThat(loginThrottles.account().isLocked("reset@example.com", FROZEN_NOW))
+                .as("A success must reset the failure count, so one later failure cannot lock the account")
+                .isFalse();
+    }
+
+    @Test
+    void formLogin_belowThreshold_setsNoLockoutCookie() {
+        registerUser("formgeneric@example.com", "Form Generic", "correct_password");
+
+        // A single failure is below the threshold — the generic error redirect, no lockout cookie.
+        final io.restassured.response.Response response = postFormLogin("formgeneric@example.com", "wrong_password");
+        response.then()
+                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .header("Location", containsStringIgnoringCase("error=true"));
+        assertThat(response.getCookie("diurnal_login_lockout"))
+                .as("A sub-threshold failure must not set the lockout cookie")
+                .isNull();
+    }
+
+    @Test
+    void formLogin_whileLocked_setsLockoutCookie() {
+        registerUser("formthrottle@example.com", "Form Throttle", "correct_password");
+
+        // The web form posts to /login (intercepted by Quarkus form auth). A cookieless POST passes
+        // CSRF; failures flow through PasswordIdentityProvider, which feeds the same throttle.
+        for (int i = 0; i < MAX_ATTEMPTS; i++) {
+            postFormLogin("formthrottle@example.com", "wrong_password")
+                    .then().statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)));
+        }
+        assertThat(loginThrottles.account().isLocked("formthrottle@example.com", FROZEN_NOW))
+                .as("Repeated failed form logins must lock the account via the shared throttle")
+                .isTrue();
+
+        // The next attempt is now blocked: the provider drops the lockout cookie the login page reads.
+        postFormLogin("formthrottle@example.com", "wrong_password")
+                .then()
+                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .cookie("diurnal_login_lockout", not(emptyOrNullString()));
+    }
+
+    // Drives an account to the lockout threshold via the JSON API — MAX_ATTEMPTS failures, each a
+    // 401. The account is locked afterwards; the NEXT attempt is the first to be blocked (429).
+    private static void driveToLockout(final String email) {
+        for (int i = 0; i < MAX_ATTEMPTS; i++) {
+            postLogin(email, "wrong_password").then().statusCode(401);
+        }
+    }
+
+    private static io.restassured.response.Response postLogin(final String email, final String password) {
+        return given().contentType(ContentType.JSON)
+                .body("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}")
+                .post("/api/auth/login");
+    }
+
+    private static io.restassured.response.Response postFormLogin(final String email, final String password) {
+        return given().redirects().follow(false)
+                .formParam("email", email)
+                .formParam("password", password)
+                .post("/login");
     }
 
     // ── First-user-admin ──────────────────────────────────────────────────────
