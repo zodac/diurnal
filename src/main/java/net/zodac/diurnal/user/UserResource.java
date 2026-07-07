@@ -55,11 +55,10 @@ public class UserResource {
                     + "nested preferences object (theme, pageSize, calendarView, timezone)."
     )
     @SecurityRequirement(name = "BearerAuth")
-    @SecurityRequirement(name = "BasicAuth")
     @APIResponses({
         @APIResponse(responseCode = "200", description = "The authenticated user's profile.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = UserDto.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token or Basic credentials."),
+        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
         @APIResponse(responseCode = "404", description = "The authenticated account no longer exists.")
     })
     public Response me() {

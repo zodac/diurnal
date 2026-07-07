@@ -50,9 +50,9 @@ import jakarta.enterprise.context.ApplicationScoped;
  * ({@code /oidc-login} → code) bypass priority-based challenge selection entirely, so this mechanism
  * never affects them.
  *
- * <p>The REST API ({@code /api/*}) is deliberately NOT pinned, so it accepts a Bearer JWT or a
- * Basic credential (both reuse the same identity providers). For an <em>anonymous</em> API request
- * this mechanism therefore issues the challenge too — but a browser redirect to {@code /login} is
+ * <p>The REST API ({@code /api/*}) is deliberately NOT pinned, so it accepts a Bearer JWT (or the
+ * web session cookie for a browser reusing an existing session). For an <em>anonymous</em> API
+ * request this mechanism therefore issues the challenge too — but a browser redirect to {@code /login} is
  * wrong for a programmatic API, so {@link #challengeFor(String)} returns a plain {@code 401} for
  * {@code /api/*} paths and the {@code /login} redirect for everything else.
  */
