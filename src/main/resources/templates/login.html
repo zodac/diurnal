@@ -26,6 +26,10 @@
         {#include partials/banner variant='error' cls='mb-4' message='Invalid email or password.' /}
         {/if}
 
+        {#if locked}
+        {#include partials/banner variant='error' cls='mb-4' message=lockedMessage /}
+        {/if}
+
         {! novalidate + data-validate: the shared client-side validator (layout.html) surfaces
            blank/invalid fields as the error banners below, matching the register page, instead of
            native browser pop-ups. !}

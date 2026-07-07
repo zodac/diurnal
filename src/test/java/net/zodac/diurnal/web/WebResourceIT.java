@@ -101,6 +101,18 @@ class WebResourceIT extends IntegrationTestBase {
     }
 
     @Test
+    void loginPage_withLockoutCookie_showsLockoutBannerAndSeedsCountdown() {
+        // Cookie value = seconds left on the lockout (900 = 15 minutes).
+        given().cookie("diurnal_login_lockout", "900").get("/login")
+                .then().statusCode(200)
+                .body(containsString("Too many failed login attempts"))
+                // The no-JS banner phrases the remaining time approximately.
+                .body(containsString("15 minutes"))
+                // app.js reads the seconds-left from this header to run the live countdown.
+                .header("X-Login-Retry-After", equalTo("900"));
+    }
+
+    @Test
     void loginPage_withMessyOidcErrorParam_redirectsToCleanUrl() {
         // Authelia appends its own ?error=... to the error-path, creating a double-? URL.
         // The handler detects error starting with "oidc" (but not exactly "oidc") and redirects.

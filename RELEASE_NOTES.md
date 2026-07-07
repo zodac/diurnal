@@ -1,6 +1,6 @@
 ## Patch Updates
 
-Targeting some performance updates:
+Mostly some performance updates:
 
 ### Extracting \<script\> Blocks
 
@@ -17,3 +17,7 @@ For requests that span multiple user workflows, there might have been multiple r
 ### Dashboard Stats Summary
 
 Adding a specific endpoint to retrieve data for most recent 3 stats on the Dashboard, and pushing the filter down to the SQL level.
+
+### Login Attempts Lockout
+
+Added some env vars to configure a lockout period for password authentication, if too many incorrect attempts are made.

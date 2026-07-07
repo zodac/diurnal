@@ -361,6 +361,9 @@
   }
   /* Filled call-to-action (login/register submit, "Add actions" empty states, gallery Apply). */
   .btn-primary { @apply gap-2 rounded-lg px-4 py-2 text-sm font-medium; }
+  /* Disabled state (e.g. the Sign in button during a lockout countdown): visibly greyed and inert —
+     pointer-events-none also suppresses the brand hover so it can't look live. */
+  .btn-primary:disabled { @apply opacity-50 cursor-not-allowed pointer-events-none; }
   /* Circular icon button (modal close + gallery prev/next). One responsive size (≈0.8x on mobile →
      full on sm:) so every preview button scales by the same factor across viewports; glyph in step. */
   .icon-btn-primary { @apply rounded-full w-8 h-8 sm:w-10 sm:h-10; }
