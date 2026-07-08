@@ -85,12 +85,36 @@ document.addEventListener('DOMContentLoaded', function () {
     var dayPanelInflight = {}; // dateStr -> Promise, dedupes concurrent single-day fetches
     var monthBackfilled  = {}; // "YYYY-MM" -> true once its whole-month back-fill has been requested
 
+    // The panel cache is bounded the same way `dayData` is (see that cache's LRU below): by month,
+    // least-recently-used first. Each visited month back-fills ~30 rendered HTML strings, so WITHOUT a cap
+    // a session that browses back through years would accumulate megabytes that are never released.
+    // `dayPanelLru` holds month keys oldest→newest; DAY_PANEL_MONTH_LIMIT stays well above the working set
+    // (the selected month plus the neighbours a user hops between) and touch-on-access keeps the current
+    // month at the tail, so a month that's on screen or about to be revisited is never dropped.
+    var dayPanelLru           = []; // "YYYY-MM" keys, least-recently-used first
+    var DAY_PANEL_MONTH_LIMIT = 12; // max months of cached panels retained (mirrors the dayData CACHE_LIMIT)
+
+    // Mark a date's month as most-recently-used, then evict the oldest months' panels until at most
+    // DAY_PANEL_MONTH_LIMIT remain resident. Called on every cache access and write.
+    function touchPanelMonth(dateStr) {
+        var ym = dateStr.substring(0, 7); // "YYYY-MM"
+        var i = dayPanelLru.indexOf(ym);
+        if (i !== -1) { dayPanelLru.splice(i, 1); }
+        dayPanelLru.push(ym);
+        while (dayPanelLru.length > DAY_PANEL_MONTH_LIMIT) {
+            var stale = dayPanelLru.shift();
+            var prefix = stale + '-'; // "YYYY-MM-" — every date key in that month
+            Object.keys(dayPanelCache).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete dayPanelCache[d]; } });
+            delete monthBackfilled[stale]; // let a later visit re-fetch the whole month
+        }
+    }
+
     function fetchDayPanel(dateStr) {
-        if (dayPanelCache[dateStr] !== undefined) { return Promise.resolve(dayPanelCache[dateStr]); }
+        if (dayPanelCache[dateStr] !== undefined) { touchPanelMonth(dateStr); return Promise.resolve(dayPanelCache[dateStr]); }
         if (dayPanelInflight[dateStr]) { return dayPanelInflight[dateStr]; }
         var p = fetch('/logs/day/' + dateStr)
             .then(function (r) { return r.text(); })
-            .then(function (html) { dayPanelCache[dateStr] = html; delete dayPanelInflight[dateStr]; return html; })
+            .then(function (html) { dayPanelCache[dateStr] = html; delete dayPanelInflight[dateStr]; touchPanelMonth(dateStr); return html; })
             .catch(function (err) { delete dayPanelInflight[dateStr]; throw err; }); // drop so a later view retries
         dayPanelInflight[dateStr] = p;
         return p;
@@ -112,6 +136,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     Object.keys(panels).forEach(function (d) {
                         if (dayPanelCache[d] === undefined) { dayPanelCache[d] = panels[d]; }
                     });
+                    touchPanelMonth(dateStr); // whole month now resident — record recency & trim
                 })
                 .catch(function () { delete monthBackfilled[ym]; }); // let a later navigation retry
         });
