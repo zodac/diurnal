@@ -85,6 +85,14 @@
             ".swagger-ui .info{ margin:30px 0 0 0 !important}" +
             ".swagger-ui .information-container{ padding-bottom:16px; margin-bottom:16px;" +
                 " border-bottom:1px solid rgba(128,128,128,.35)}" +
+            // The Authorize dialog is `position:fixed` inside the iframe and centred vertically
+            // (top:50% + translateY(-50%)). But the iframe has no scroll of its own — it's sized to
+            // its full content height and the WINDOW scrolls (see syncApiHeight) — so the iframe's
+            // "viewport" is the entire, possibly very tall, document. Centring then drops the popup
+            // halfway down ALL the docs, far below the fold once operations are expanded. Pin it to
+            // the top instead (keeping the horizontal centring) so it appears at a predictable,
+            // reachable position near the Authorize control regardless of content height.
+            ".swagger-ui .dialog-ux .modal-ux{ top:24px !important; transform:translate(-50%,0) !important}" +
             // On narrow viewports the absolutely-positioned Authorize control would sit on top of the
             // title/description (there is no room beside them). Drop it back into normal flow so it
             // renders below the description instead of overlapping it. Mirrors the app's `sm:` (640px)
@@ -143,12 +151,21 @@
     })();
 
     // Size the iframe to its content height so the WHOLE PAGE scrolls (one window scrollbar that
-    // pushes the footer down), rather than the iframe scrolling internally. documentElement.scrollHeight
-    // reports the full content height regardless of the iframe's own height, so there's no feedback loop.
+    // pushes the footer down), rather than the iframe scrolling internally.
     function syncApiHeight(frame) {
         var doc;
         try { doc = frame.contentDocument; } catch (e) { return; }
         if (!doc || !doc.documentElement) return;
+        // Collapse the iframe to zero BEFORE measuring. We force `html { overflow:hidden }` (below), so
+        // documentElement.scrollHeight is floored at the iframe's own viewport height — i.e. whatever
+        // we last set it to. Measured directly, it can therefore only ever GROW: expanding operations
+        // enlarges it, but collapsing them again never shrinks it back, stranding a tall iframe with
+        // empty space and a window scrollbar that won't retract. Zeroing the height first frees the
+        // viewport so the measurement reflects the real content height (shrink included). The
+        // reset → measure → set happens synchronously in one turn, so the browser never paints the
+        // collapsed state — no flicker. Body height is content-driven (not tied to the iframe height),
+        // so this doesn't feed back into the ResizeObserver in watchApiHeight.
+        frame.style.height = "0";
         var content = Math.max(doc.documentElement.scrollHeight, doc.body ? doc.body.scrollHeight : 0);
         frame.style.height = content + "px";
     }
