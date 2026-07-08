@@ -47,8 +47,12 @@ class JwtKeyProvisionerTest {
 
         provisionerFor(priv, pub).onStart(new StartupEvent());
 
-        assertThat(priv).as("private key should be generated").exists();
-        assertThat(pub).as("public key should be generated").exists();
+        assertThat(priv)
+            .as("private key should be generated")
+            .exists();
+        assertThat(pub)
+            .as("public key should be generated")
+            .exists();
         assertThatKeysAreParseable(priv, pub);
         // The generated private key is restricted to its owner (0600), so a same-UID restart (or a
         // multi-instance setup where every container runs as the same UID) can still read it.
@@ -68,8 +72,12 @@ class JwtKeyProvisionerTest {
 
         provisionerFor(priv, pub).onStart(new StartupEvent());
 
-        assertThat(priv).as("empty private key should be replaced").isNotEmptyFile();
-        assertThat(pub).as("empty public key should be replaced").isNotEmptyFile();
+        assertThat(priv)
+            .as("empty private key should be replaced")
+            .isNotEmptyFile();
+        assertThat(pub)
+            .as("empty public key should be replaced")
+            .isNotEmptyFile();
         assertThatKeysAreParseable(priv, pub);
     }
 
@@ -83,8 +91,12 @@ class JwtKeyProvisionerTest {
 
         provisionerFor(priv, pub).onStart(new StartupEvent()); // second boot must reuse
 
-        assertThat(Files.readAllBytes(priv)).as("private key must not be regenerated").isEqualTo(privBefore);
-        assertThat(Files.readAllBytes(pub)).as("public key must not be regenerated").isEqualTo(pubBefore);
+        assertThat(Files.readAllBytes(priv))
+            .as("private key must not be regenerated")
+            .isEqualTo(privBefore);
+        assertThat(Files.readAllBytes(pub))
+            .as("public key must not be regenerated")
+            .isEqualTo(pubBefore);
     }
 
     @Test
@@ -135,7 +147,9 @@ class JwtKeyProvisionerTest {
 
         provisioner.onStart(new StartupEvent());
 
-        assertThat(dir).as("classpath locations must not create files on disk").isEmptyDirectory();
+        assertThat(dir)
+            .as("classpath locations must not create files on disk")
+            .isEmptyDirectory();
     }
 
     private static JwtKeyProvisioner provisionerFor(final Path privateKey, final Path publicKey) {

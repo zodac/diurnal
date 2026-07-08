@@ -105,7 +105,7 @@ public class StatsService {
         return clock.today(clock.zoneFor(user == null ? null : user.timezone));
     }
 
-    /**
+    /*
      * Aggregates {@code actionIds} in the database and assembles one {@link ActionStats} per supplied
      * action, preserving the order of {@code actions}. {@code actionIds} must be non-empty.
      */
@@ -183,11 +183,12 @@ public class StatsService {
                 today);
     }
 
-    /**
+    /*
      * A single action's summed {@code count} for one calendar month — the shape of the database's
      * monthly {@code GROUP BY}, from which every non-streak figure is rolled up.
      */
     private record MonthlyTotal(int year, int month, long total) {
+
     }
 
     /**

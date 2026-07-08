@@ -102,12 +102,16 @@ public class LoginThrottles {
         return Duration.ofSeconds(Math.max(account, ip));
     }
 
-    /** @return the per-account throttle (test support). */
+    /**
+     * @return the per-account throttle (test support)
+     */
     LoginThrottle account() {
         return accountThrottle;
     }
 
-    /** @return the per-IP throttle (test support). */
+    /**
+     * @return the per-IP throttle (test support)
+     */
     LoginThrottle ip() {
         return ipThrottle;
     }

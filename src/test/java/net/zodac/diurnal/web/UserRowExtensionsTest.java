@@ -20,6 +20,7 @@ package net.zodac.diurnal.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.UUID;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
@@ -48,5 +49,12 @@ class UserRowExtensionsTest {
         assertThat(UserRowExtensions.roleName(row("moderator")))
             .as("unexpected value")
             .isEqualTo("User");
+    }
+
+    @Test
+    void options_returnsRoleCatalogueOrderedByDisplayName() {
+        assertThat(UserRowExtensions.options())
+            .as("expected the role picker catalogue, alphabetically by display name")
+            .containsExactly(Role.ADMIN, Role.USER);
     }
 }

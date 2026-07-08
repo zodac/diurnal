@@ -44,6 +44,7 @@ import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -179,7 +180,7 @@ public class AdminWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response changeRole(@PathParam("id") final UUID id, @FormParam("role") final String role) {
-        if (!User.ROLE_ADMIN.equals(role) && !User.ROLE_USER.equals(role)) {
+        if (!Role.isValid(role)) {
             return errorResponse("Invalid role value.");
         }
         final User target = User.findById(id);

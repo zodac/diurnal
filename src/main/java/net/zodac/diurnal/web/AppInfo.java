@@ -42,7 +42,7 @@ public class AppInfo {
     private static final int YEAR_LENGTH = 4;
     private static final String FALLBACK_YEAR = "2026";
 
-    /**
+    /*
      * Classpath location of the repository's {@code VERSION} file, packaged as a resource by the POM's
      * {@code <resources>} block so it can be read at runtime.
      */

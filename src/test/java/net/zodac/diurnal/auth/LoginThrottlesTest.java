@@ -145,8 +145,10 @@ class LoginThrottlesTest {
     }
 
     private record FixedThrottleConfig(boolean enabled, int maxAttempts, Duration lockoutDuration) implements ThrottleConfig {
+
     }
 
     private record FixedIpThrottleConfig(boolean enabled, int maxAttempts, Duration lockoutDuration) implements IpThrottleConfig {
+
     }
 }

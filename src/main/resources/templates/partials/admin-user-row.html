@@ -11,8 +11,9 @@
                   hx-target="#admin-users-list"
                   hx-swap="innerHTML">
                 <select name="role" class="dt-select">
-                    <option value="user"  {#if u.role == 'user'}selected{/if}>User</option>
-                    <option value="admin" {#if u.role == 'admin'}selected{/if}>Administrator</option>
+                    {#for option in role:options}
+                    <option value="{option.storageValue}" {#if u.role == option.storageValue}selected{/if}>{option.displayName}</option>
+                    {/for}
                 </select>
             </form>
         </span>
