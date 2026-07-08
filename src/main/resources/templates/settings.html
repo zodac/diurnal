@@ -294,6 +294,16 @@
                     <div id="page-size-row" class="py-4">
                         <div class="flex items-center justify-between gap-4">
                             <label for="pageSize" class="block text-sm font-medium text-ink shrink-0">Items per page</label>
+                            <!-- Preset quick-picks (primary selection), right-aligned next to the label;
+                                 wrap on narrow screens for mobile compactness. -->
+                            <div id="pageSizePresets" class="flex flex-wrap justify-end gap-1.5">
+                                {#for option in pageSizeOptions}
+                                <button type="button" class="page-size-pill" data-value="{option}" aria-pressed="false">{option}</button>
+                                {/for}
+                            </div>
+                        </div>
+                        <!-- Custom fine-tune stepper, right-aligned on its own row under the presets. -->
+                        <div class="mt-3 flex justify-end">
                             <div class="page-size-stepper shrink-0">
                                 <button type="button" id="pageSizeMinus" class="page-size-stepper-btn" aria-label="Fewer items per page">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
@@ -309,12 +319,6 @@
                                     </svg>
                                 </button>
                             </div>
-                        </div>
-                        <!-- Preset quick-picks. Wrap on narrow screens for mobile compactness. -->
-                        <div id="pageSizePresets" class="mt-3 flex flex-wrap gap-1.5">
-                            {#for option in pageSizeOptions}
-                            <button type="button" class="page-size-pill" data-value="{option}" aria-pressed="false">{option}</button>
-                            {/for}
                         </div>
                     </div>
                 </div>
