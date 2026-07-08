@@ -6,13 +6,13 @@
 
         <!-- Desktop navigation: hidden on narrow viewports -->
         <nav class="hidden sm:flex gap-4 text-sm">
-            {#include partials/nav-links active=active isAdmin=isAdmin /}
+            {#include partials/nav-links active=active isAdmin=isAdmin showTips=true /}
         </nav>
         <div class="hidden sm:flex ml-auto items-center gap-4">
             <a id="nav-display-name" href="/settings" aria-label="Account settings" class="group relative text-sm {#if active == 'settings'}nav-link-active{#else}nav-link{/if}">{displayName}{#include partials/tooltip text="Account settings" pos="bottom" align="right" /}</a>
             <form method="post" action="/logout" class="flex items-center">
-                <button type="submit" class="text-sm nav-link">
-                    Log out
+                <button type="submit" aria-label="Log out" class="group relative text-sm nav-link">
+                    Log out{#include partials/tooltip text="Sign out of your account" pos="bottom" align="right" /}
                 </button>
             </form>
         </div>

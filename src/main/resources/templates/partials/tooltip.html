@@ -10,5 +10,13 @@
     align — 'center' (default) | 'left' | 'right': horizontal anchor. Use left/right for edge buttons
             so the bubble grows inward and can never push the page sideways.
 !}
+{! `pos`/`align` are optional (see above), so resolve them through the documented defaults here rather
+   than requiring every caller to pass them — otherwise a caller that omits one makes the `{#if pos ==
+   ...}`/`{#if align == ...}` comparison below throw "Key not found" at render time (Qute is strict; a
+   missing key is not silently falsy). `.or(default)` yields the default when the key is absent. NB:
+   the elvis form (`pos ?: 'top'`) can't be used in a `{#let}` — its spaces break section-param
+   parsing — so `.or(...)` is used here instead. !}
+{#let pos=pos.or('top') align=align.or('center')}
 <span aria-hidden="true"
       class="app-tooltip w-max max-w-[16rem]{#if pos == 'bottom'} top-full mt-1.5{#else} bottom-full mb-1.5{/if}{#if align == 'left'} left-0{#else if align == 'right'} right-0{#else} left-1/2 -translate-x-1/2{/if}">{text}</span>
+{/let}

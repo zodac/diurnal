@@ -1,10 +1,17 @@
 {!
   Primary navigation links — the single source shared by the desktop bar and the mobile menu,
   so the two never drift. Params: active (current page key), isAdmin (whether to show the
-  admin-only Admin/API links).
+  admin-only Admin/API links), showTips (reveal the hover tooltips — desktop bar only; the mobile
+  menu lives inside an `overflow-hidden` clip wrapper that would crop the bubble, so it opts out).
+  The tooltips sit BELOW the link (`pos="bottom"`) since the bar is at the top of the page.
+  `showTips` is optional (the mobile menu omits it): default it here with `.or(false)`, because Qute
+  is strict — a bare `{#if showTips}` on a caller that doesn't pass the key throws "Key not found" at
+  render time. (`.or(...)`, not the elvis `?:`, since the latter's spaces break `{#let}` param parsing.)
 !}
-<a href="/" class="{#if active == 'dashboard'}nav-link-active{#else}nav-link{/if}">Dashboard</a>
-<a href="/actions" class="{#if active == 'actions'}nav-link-active{#else}nav-link{/if}">Actions</a>
-<a href="/stats" class="{#if active == 'stats'}nav-link-active{#else}nav-link{/if}">Stats</a>
-{#if isAdmin}<a href="/admin/users" class="{#if active == 'admin'}nav-link-active{#else}nav-link{/if}">Admin</a>{/if}
-{#if isAdmin}<a href="/admin/api-docs" class="{#if active == 'api'}nav-link-active{#else}nav-link{/if}">API</a>{/if}
+{#let showTips=showTips.or(false)}
+<a href="/" class="group relative {#if active == 'dashboard'}nav-link-active{#else}nav-link{/if}">Dashboard{#if showTips}{#include partials/tooltip text="Calendar and daily log" pos="bottom" align="left" /}{/if}</a>
+<a href="/actions" class="group relative {#if active == 'actions'}nav-link-active{#else}nav-link{/if}">Actions{#if showTips}{#include partials/tooltip text="Create and manage your habits" pos="bottom" /}{/if}</a>
+<a href="/stats" class="group relative {#if active == 'stats'}nav-link-active{#else}nav-link{/if}">Stats{#if showTips}{#include partials/tooltip text="Streaks and trends for your habits" pos="bottom" /}{/if}</a>
+{#if isAdmin}<a href="/admin/users" class="group relative {#if active == 'admin'}nav-link-active{#else}nav-link{/if}">Admin{#if showTips}{#include partials/tooltip text="Manage users" pos="bottom" /}{/if}</a>{/if}
+{#if isAdmin}<a href="/admin/api-docs" class="group relative {#if active == 'api'}nav-link-active{#else}nav-link{/if}">API{#if showTips}{#include partials/tooltip text="Swagger API documentation" pos="bottom" /}{/if}</a>{/if}
+{/let}
