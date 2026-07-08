@@ -122,9 +122,15 @@ class ActionStatFieldTest {
     @Test
     void choices_null_marksEveryFieldSelectedInDefaultOrder() {
         final List<Choice> choices = ActionStatField.choices(null);
-        assertThat(choices).as("all fields present").hasSize(ActionStatField.values().length);
-        assertThat(choices).as("every field selected by default").allMatch(Choice::selected);
-        assertThat(choices.getFirst().key()).as("default order leads with current-streak").isEqualTo("current-streak");
+        assertThat(choices)
+            .as("all fields present")
+            .hasSize(ActionStatField.values().length);
+        assertThat(choices)
+            .as("every field selected by default")
+            .allMatch(Choice::selected);
+        assertThat(choices.getFirst().key())
+            .as("default order leads with current-streak")
+            .isEqualTo("current-streak");
     }
 
     @Test
@@ -138,8 +144,12 @@ class ActionStatFieldTest {
                 "total-count", "weekly-average", "last-performed", "vs-last-month", "vs-last-year", "best-month");
 
         // The disabled stat keeps its slot (index 2) rather than being pushed down.
-        assertThat(choices.get(2).key()).as("disabled stat stays in place").isEqualTo("total-days");
-        assertThat(choices.get(2).selected()).as("disabled stat is unselected").isFalse();
+        assertThat(choices.get(2).key())
+            .as("disabled stat stays in place")
+            .isEqualTo("total-days");
+        assertThat(choices.get(2).selected())
+            .as("disabled stat is unselected")
+            .isFalse();
     }
 
     @Test

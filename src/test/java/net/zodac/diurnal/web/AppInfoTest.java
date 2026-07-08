@@ -65,7 +65,9 @@ class AppInfoTest {
             }
         };
         appInfo.version = "0.0.1-SNAPSHOT";
-        assertThat(appInfo.getVersion()).as("the VERSION resource content should be used").isEqualTo("1.2.3");
+        assertThat(appInfo.getVersion())
+            .as("the VERSION resource content should be used")
+            .isEqualTo("1.2.3");
     }
 
     @Test
@@ -87,7 +89,9 @@ class AppInfoTest {
     void openVersionResource_findsPackagedFile() {
         // The POM packages the repo-root VERSION file onto the classpath, so it is resolvable at runtime.
         try (InputStream stream = new AppInfo().openVersionResource()) {
-            assertThat(stream).as("the packaged VERSION resource should be on the classpath").isNotNull();
+            assertThat(stream)
+                .as("the packaged VERSION resource should be on the classpath")
+                .isNotNull();
         } catch (final IOException e) {
             throw new AssertionError("closing the VERSION resource should not fail", e);
         }
@@ -214,7 +218,7 @@ class AppInfoTest {
             .isEqualTo("2026");
     }
 
-    /**
+    /*
      * Stub {@link AppConfig} whose record components supply the {@code app.*} accessors directly.
      */
     private record StubAppConfig(String repositoryUrl, String buildTimestamp, String cssFile, String jsFile,

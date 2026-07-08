@@ -318,8 +318,12 @@ class SettingsIT extends IntegrationTestBase {
 
         runInTx(() -> {
             final User user = User.findByEmail(PRIMARY).orElseThrow();
-            assertThat(user.theme).as("theme updated").isEqualTo("dark");
-            assertThat(user.pageSize).as("page size preserved").isEqualTo(25);
+            assertThat(user.theme)
+                .as("theme updated")
+                .isEqualTo("dark");
+            assertThat(user.pageSize)
+                .as("page size preserved")
+                .isEqualTo(25);
         });
     }
 
@@ -689,7 +693,9 @@ class SettingsIT extends IntegrationTestBase {
                 .isNotNull()
                 .extracting(StatFieldPref::key)
                 .startsWith("current-streak");
-            assertThat(user.theme).as("theme preserved").isEqualTo("dark");
+            assertThat(user.theme)
+                .as("theme preserved")
+                .isEqualTo("dark");
         });
     }
 }

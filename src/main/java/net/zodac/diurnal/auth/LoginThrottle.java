@@ -154,7 +154,7 @@ public final class LoginThrottle {
     public record FailureOutcome(int failureCount, int maxAttempts, boolean lockedOut, Duration lockoutDuration) {
     }
 
-    /**
+    /*
      * Mutable per-key tally: failures in the window, the last failure instant (for decay), and — once
      * locked — the instant the lockout ends.
      */

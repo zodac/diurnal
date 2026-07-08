@@ -183,19 +183,45 @@ class StatsServiceIT extends IntegrationTestBase {
         });
 
         final ActionStats stats = statsService.forAllActiveActions(userId).getFirst();
-        assertThat(stats.totalCount()).as("total count").isEqualTo(21L);
-        assertThat(stats.totalDays()).as("distinct logged days").isEqualTo(6);
-        assertThat(stats.firstPerformed()).as("first performed").isEqualTo(LocalDate.of(2025, 7, 1));
-        assertThat(stats.lastPerformed()).as("last performed").isEqualTo(TODAY);
-        assertThat(stats.thisMonthCount()).as("this month (Jun 2026) = 2+3").isEqualTo(5L);
-        assertThat(stats.lastMonthCount()).as("last month (May 2026)").isEqualTo(4L);
-        assertThat(stats.thisYearCount()).as("this year (2026) = 5+4+1").isEqualTo(10L);
-        assertThat(stats.lastYearCount()).as("last year (2025) = 10+1").isEqualTo(11L);
-        assertThat(stats.bestMonthLabel()).as("best month is Dec 2025").isEqualTo("December 2025");
-        assertThat(stats.bestMonthCount()).as("best month total").isEqualTo(10L);
-        assertThat(stats.bestYearLabel()).as("best year is 2025").isEqualTo("2025");
-        assertThat(stats.bestYearCount()).as("best year total").isEqualTo(11L);
-        assertThat(stats.currentStreak()).as("only today in the current run").isEqualTo(1);
+        assertThat(stats.totalCount())
+            .as("total count")
+            .isEqualTo(21L);
+        assertThat(stats.totalDays())
+            .as("distinct logged days")
+            .isEqualTo(6);
+        assertThat(stats.firstPerformed())
+            .as("first performed")
+            .isEqualTo(LocalDate.of(2025, 7, 1));
+        assertThat(stats.lastPerformed())
+            .as("last performed")
+            .isEqualTo(TODAY);
+        assertThat(stats.thisMonthCount())
+            .as("this month (Jun 2026) = 2+3")
+            .isEqualTo(5L);
+        assertThat(stats.lastMonthCount())
+            .as("last month (May 2026)")
+            .isEqualTo(4L);
+        assertThat(stats.thisYearCount())
+            .as("this year (2026) = 5+4+1")
+            .isEqualTo(10L);
+        assertThat(stats.lastYearCount())
+            .as("last year (2025) = 10+1")
+            .isEqualTo(11L);
+        assertThat(stats.bestMonthLabel())
+            .as("best month is Dec 2025")
+            .isEqualTo("December 2025");
+        assertThat(stats.bestMonthCount())
+            .as("best month total")
+            .isEqualTo(10L);
+        assertThat(stats.bestYearLabel())
+            .as("best year is 2025")
+            .isEqualTo("2025");
+        assertThat(stats.bestYearCount())
+            .as("best year total")
+            .isEqualTo(11L);
+        assertThat(stats.currentStreak())
+            .as("only today in the current run")
+            .isEqualTo(1);
     }
 
     @Test

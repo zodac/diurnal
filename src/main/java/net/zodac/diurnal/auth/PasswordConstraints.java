@@ -28,7 +28,9 @@ import java.util.List;
  */
 public final class PasswordConstraints {
 
-    /** Minimum accepted length of a raw password, in characters. */
+    /**
+     * Minimum accepted length of a raw password, in characters.
+     */
     public static final int MIN_LENGTH = 1;
 
     /**

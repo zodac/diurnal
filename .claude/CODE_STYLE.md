@@ -28,20 +28,33 @@ public static Optional<User> findByEmail(final String email) { ...}
 
 > Non-Javadoc comments (`/* ... */`, `// ...`) are unaffected — this rule applies only to Javadoc (`/** ... */`).
 
-### No Javadoc on private members
+### No Javadoc form on private members
 
-**Private** methods, fields, and constants must **not** carry Javadoc. Use an ordinary `//` or `/* ... */` comment if explanation is needed.
+No **private** member — method, field, constant, **or nested type (record / class)** — may use the Javadoc `/** ... */` form. This is a rule about the **comment form only**, not the content: if the member is documented, keep the prose and every inline/block tag (`{@link ...}`, `{@code ...}`, `@param`, `@return`) exactly as-is — just change the opening `/**` to `/*`. **Never delete a tag or reword documentation to "convert" it.** A trivial member needs no comment at all.
 
-❌ **Wrong:**
+❌ **Wrong** — Javadoc form on a private member:
 
 ```java
 /**
- * Builds the readable label for a streak count.
+ * The resolved form of one stored {@link StatFieldPref}, paired with its enabled state.
  */
-private static String plural(final long count, final String unit) { ...}
+private record Entry(ActionStatField field, boolean enabled) {
+
+}
 ```
 
-✅ **Right:**
+✅ **Right** — same content, block-comment form (tags preserved):
+
+```java
+/*
+ * The resolved form of one stored {@link StatFieldPref}, paired with its enabled state.
+ */
+private record Entry(ActionStatField field, boolean enabled) {
+
+}
+```
+
+✅ **Also right** — a trivial private member carries no comment:
 
 ```java
 private static String plural(final long count, final String unit) { ...}
@@ -83,6 +96,37 @@ private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, 
 private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages, int currentPage, List<Integer> fillerRows) {
 
 }
+```
+
+### Enum constants are separated by a blank line
+
+Each enum constant must be separated from the next by a **blank line**, including its (mandatory, multi-line) Javadoc. Never pack constants together.
+
+❌ **Wrong:**
+
+```java
+/**
+ * Full administrative access.
+ */
+ADMIN(User.ROLE_ADMIN, "Administrator"),
+/**
+ * Standard, non-administrative access.
+ */
+USER(User.ROLE_USER, "User");
+```
+
+✅ **Right:**
+
+```java
+/**
+ * Full administrative access.
+ */
+ADMIN(User.ROLE_ADMIN, "Administrator"),
+
+/**
+ * Standard, non-administrative access.
+ */
+USER(User.ROLE_USER, "User");
 ```
 
 ### AssertJ assertions must be fluent-chained across multiple lines

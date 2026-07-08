@@ -18,15 +18,17 @@
 package net.zodac.diurnal.web;
 
 import io.quarkus.qute.TemplateExtension;
-import net.zodac.diurnal.user.User;
+import java.util.List;
+import net.zodac.diurnal.user.Role;
 
 /**
  * Derived display labels computed from a {@link UserRow} record.
  *
  * <p>Held here, off the {@code UserRow} data record, so the branching logic can be unit- and
  * mutation-tested in isolation — the same data/logic split as {@code ActionStatsExtensions}. The
- * method is a {@link TemplateExtension}, so Qute still resolves {@code {u.roleName}} against a
- * {@code UserRow} value in the admin users table.
+ * methods are {@link TemplateExtension}s, so Qute resolves {@code {u.roleName}} against a
+ * {@code UserRow} value, and {@code {role:options}} against the {@link Role} catalogue, in the admin
+ * users table.
  */
 public final class UserRowExtensions {
 
@@ -35,13 +37,25 @@ public final class UserRowExtensions {
     }
 
     /**
-     * The human-readable role label shown in the table.
+     * The human-readable role label shown in the table, derived from the {@link Role} catalogue.
      *
      * @param row the row to inspect
-     * @return "Administrator" for an admin role, otherwise "User"
+     * @return the display name of the row's role (falls back to {@link Role#USER} for unknown values)
      */
     @TemplateExtension
     public static String roleName(final UserRow row) {
-        return User.ROLE_ADMIN.equals(row.role()) ? "Administrator" : "User";
+        return Role.fromStorageValue(row.role()).displayName();
+    }
+
+    /**
+     * The role catalogue for the admin role picker: every {@link Role} ordered alphabetically by
+     * display name. Exposed as the {@code role:options} namespace expression so the {@code <select>}
+     * is generated from the backend enum rather than hard-coded, and a new role appears automatically.
+     *
+     * @return all roles sorted by display name
+     */
+    @TemplateExtension(namespace = "role")
+    public static List<Role> options() {
+        return Role.byDisplayName();
     }
 }

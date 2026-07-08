@@ -193,7 +193,7 @@ public class WebResource {
         return builder.build();
     }
 
-    /**
+    /*
      * Resolves the seconds-left value carried in the lockout cookie into a {@link Duration}, falling back
      * to the configured window if the cookie is absent or malformed.
      */
@@ -676,7 +676,7 @@ public class WebResource {
         return Response.noContent().build();
     }
 
-    /**
+    /*
      * Whether the supplied plaintext matches a stored password hash. Empty or {@code null} plaintext never
      * matches — and short-circuits before the (deliberately slow) BCrypt comparison. Callers pass the
      * user's already-established non-blank hash.

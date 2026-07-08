@@ -458,11 +458,21 @@ class ActionStatsTest {
 
         final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.CURRENT_STREAK), 1).getFirst();
 
-        assertThat(tile.value()).as("current streak value").isEqualTo("1");
-        assertThat(tile.sub()).as("singular unit for a streak of one").isEqualTo("day");
-        assertThat(tile.subNum()).as("a unit word is not a locale-grouped number").isFalse();
-        assertThat(tile.valueClass()).as("numeric tiles use the default ink colour").isEqualTo("text-ink");
-        assertThat(tile.date()).as("a streak is not a date tile").isFalse();
+        assertThat(tile.value())
+            .as("current streak value")
+            .isEqualTo("1");
+        assertThat(tile.sub())
+            .as("singular unit for a streak of one")
+            .isEqualTo("day");
+        assertThat(tile.subNum())
+            .as("a unit word is not a locale-grouped number")
+            .isFalse();
+        assertThat(tile.valueClass())
+            .as("numeric tiles use the default ink colour")
+            .isEqualTo("text-ink");
+        assertThat(tile.date())
+            .as("a streak is not a date tile")
+            .isFalse();
     }
 
     @Test
@@ -472,7 +482,9 @@ class ActionStatsTest {
 
         final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.WEEKLY_AVERAGE), 2).getFirst();
 
-        assertThat(tile.value()).as("weekly average uses the passed decimal-place count").isEqualTo("1.50");
+        assertThat(tile.value())
+            .as("weekly average uses the passed decimal-place count")
+            .isEqualTo("1.50");
     }
 
     @Test
@@ -481,10 +493,18 @@ class ActionStatsTest {
 
         final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.LAST_PERFORMED), 1).getFirst();
 
-        assertThat(tile.date()).as("last-performed renders with the smaller date styling").isTrue();
-        assertThat(tile.value()).as("value is the formatted date").isEqualTo("12 Jun 2025");
-        assertThat(tile.sub()).as("sub is the relative label").isEqualTo("3 days ago");
-        assertThat(tile.subNum()).as("the relative label carries a day count").isTrue();
+        assertThat(tile.date())
+            .as("last-performed renders with the smaller date styling")
+            .isTrue();
+        assertThat(tile.value())
+            .as("value is the formatted date")
+            .isEqualTo("12 Jun 2025");
+        assertThat(tile.sub())
+            .as("sub is the relative label")
+            .isEqualTo("3 days ago");
+        assertThat(tile.subNum())
+            .as("the relative label carries a day count")
+            .isTrue();
     }
 
     @Test
@@ -493,10 +513,18 @@ class ActionStatsTest {
 
         final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.VS_LAST_MONTH), 1).getFirst();
 
-        assertThat(tile.value()).as("upward month trend").isEqualTo("+3");
-        assertThat(tile.valueClass()).as("upward trend is green").isEqualTo("text-green-600");
-        assertThat(tile.sub()).as("sub carries the month context").isEqualTo("5 this month · 2 last month");
-        assertThat(tile.subNum()).as("context carries locale-groupable counts").isTrue();
+        assertThat(tile.value())
+            .as("upward month trend")
+            .isEqualTo("+3");
+        assertThat(tile.valueClass())
+            .as("upward trend is green")
+            .isEqualTo("text-green-600");
+        assertThat(tile.sub())
+            .as("sub carries the month context")
+            .isEqualTo("5 this month · 2 last month");
+        assertThat(tile.subNum())
+            .as("context carries locale-groupable counts")
+            .isTrue();
     }
 
     @Test

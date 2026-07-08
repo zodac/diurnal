@@ -50,7 +50,9 @@ public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswo
 
     private static final Logger LOGGER = LogManager.getLogger(PasswordIdentityProvider.class);
 
-    /** Short-lived cookie signalling that the just-rejected form login was a lockout, not a bad password. */
+    /**
+     * Short-lived cookie signalling that the just-rejected form login was a lockout, not a bad password.
+     */
     public static final String LOCKOUT_COOKIE = "diurnal_login_lockout";
     // Only needs to survive the immediate redirect to the login page.
     private static final long LOCKOUT_COOKIE_MAX_AGE_SECONDS = 30L;
@@ -105,7 +107,7 @@ public class PasswordIdentityProvider implements IdentityProvider<UsernamePasswo
         return context.runBlocking(() -> self.verifyCredentials(email, password, clientIp));
     }
 
-    /**
+    /*
      * Sets the short-lived lockout cookie (value = seconds left on the lockout) on the current response,
      * if the request's {@link RoutingContext} is available. The login page reads it to show the banner and
      * seed the countdown. Best-effort: if it is not available (e.g. the API path), the user sees the
