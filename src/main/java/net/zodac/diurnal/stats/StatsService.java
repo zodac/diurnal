@@ -124,7 +124,7 @@ public class StatsService {
         for (final Object[] row : rows) {
             final MonthlyTotal total = new MonthlyTotal(
                     ((Number) row[1]).intValue(), ((Number) row[2]).intValue(), ((Number) row[3]).longValue());
-            byAction.computeIfAbsent((UUID) row[0], key -> new ArrayList<>()).add(total);
+            byAction.computeIfAbsent((UUID) row[0], _ -> new ArrayList<>()).add(total);
         }
         return byAction;
     }
@@ -133,7 +133,7 @@ public class StatsService {
         // Rows arrive ordered by (action, date), so each action's list is ascending and distinct.
         final Map<UUID, List<LocalDate>> byAction = new HashMap<>();
         for (final Object[] row : rows) {
-            byAction.computeIfAbsent((UUID) row[0], key -> new ArrayList<>()).add((LocalDate) row[1]);
+            byAction.computeIfAbsent((UUID) row[0], _ -> new ArrayList<>()).add((LocalDate) row[1]);
         }
         return byAction;
     }

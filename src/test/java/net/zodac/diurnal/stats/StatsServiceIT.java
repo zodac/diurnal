@@ -31,9 +31,10 @@ import org.junit.jupiter.api.Test;
 /**
  * Integration tests for {@link StatsService#forMostRecent(UUID, int)} — the dashboard summary path.
  *
- * <p>These assert observable behaviour only (which actions are returned, in what order, and that the
+ * <p>
+ * These assert observable behaviour only (which actions are returned, in what order, and that the
  * stats reflect the actions' <em>full</em> history), so they hold regardless of whether the selection
- * is done in Java or pushed into SQL — acting as the regression guard for the SQL-backed rewrite.
+ * is done in Java or pushed into SQL.
  */
 @QuarkusTest
 @SuppressWarnings("NullAway.Init") // userId populated in createDbState(), called from the base @BeforeEach

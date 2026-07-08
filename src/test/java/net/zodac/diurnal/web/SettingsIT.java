@@ -664,18 +664,16 @@ class SettingsIT extends IntegrationTestBase {
         given().patch("/settings/stats-fields")
                 .then().statusCode(204);
 
-        runInTx(() -> {
-            assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
-                .as("an empty submission resets to every field, all enabled, in default order")
-                .isNotNull()
-                .containsExactly(
-                    new StatFieldPref("current-streak", true), new StatFieldPref("longest-streak", true),
-                    new StatFieldPref("biggest-gap", true), new StatFieldPref("total-days", true),
-                    new StatFieldPref("total-count", true), new StatFieldPref("weekly-average", true),
-                    new StatFieldPref("last-performed", true), new StatFieldPref("vs-last-month", true),
-                    new StatFieldPref("vs-last-year", true), new StatFieldPref("best-month", true),
-                    new StatFieldPref("best-year", true));
-        });
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
+            .as("an empty submission resets to every field, all enabled, in default order")
+            .isNotNull()
+            .containsExactly(
+                new StatFieldPref("current-streak", true), new StatFieldPref("longest-streak", true),
+                new StatFieldPref("biggest-gap", true), new StatFieldPref("total-days", true),
+                new StatFieldPref("total-count", true), new StatFieldPref("weekly-average", true),
+                new StatFieldPref("last-performed", true), new StatFieldPref("vs-last-month", true),
+                new StatFieldPref("vs-last-year", true), new StatFieldPref("best-month", true),
+                new StatFieldPref("best-year", true)));
     }
 
     @Test

@@ -7,7 +7,8 @@
 #                 - Java (major) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
 #                 - Maven (full) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
 #                 - Node (full/major) in Dockerfile, sandbox/Dockerfile
-#                 - npm packages in package.json + e2e/package.json (exact pins, no ^/~ ranges)
+#                 - npm packages in package.json + e2e/package.json (exact pins, no ^/~ ranges),
+#                   regenerating each package-lock.json so `npm ci` stays in sync
 #                 - Docker image pins in .github/scripts/lint_and_tests.sh
 #                   (node when confirmed; hadolint + markdownlint-cli2 + shellcheck + grype best-effort)
 #                   Note: shellcheck installed as an apt/apk package instead (pinned in a
@@ -22,6 +23,7 @@
 #               (Run from the repository root.)
 #
 # Requirements: bash, awk, curl, docker, git, jq, sed
+#               (npm is run via Docker, so no host npm is needed)
 #
 # Exit codes:   0 — success (including best-effort partial updates)
 #               1 — hard failure (missing required file)
@@ -352,6 +354,62 @@ update_lint_script() {
 # latest version published on the npm registry and writes it as an EXACT pin
 # (no "^"/"~" ranges — explicit versions only). Best-effort per package: a name
 # whose latest version cannot be fetched is warned and left unchanged.
+#
+# After any bump in a manifest, its package-lock.json is regenerated so the two
+# stay in sync — otherwise `npm ci` (Dockerfile css stage, lint_and_tests.sh)
+# aborts with "package.json and package-lock.json … are in sync". The lock is
+# refreshed with `npm install --package-lock-only`, which recomputes the lockfile
+# without touching node_modules or running install scripts.
+#
+# npm is NOT required on the host: the refresh runs inside the same node image
+# the Dockerfile's css stage uses for `npm ci`, so the lock is written by the
+# exact npm version that later consumes it.
+
+# Resolve the node image `npm ci` runs in (the Dockerfile css build stage), so the
+# lockfile is regenerated with a matching npm. Falls back to node:alpine.
+npm_docker_image() {
+    local image
+    image=$(grep -oP '^FROM \Knode:\S+(?= AS css)' "${DOCKERFILE}" 2>/dev/null | head -1)
+    echo "${image:-node:alpine}"
+}
+
+# Regenerate a manifest's package-lock.json to match its (just-bumped) package.json,
+# running npm inside Docker (no host npm needed). Best-effort: skipped (with a
+# warning) if Docker is unavailable or there is no lockfile.
+regenerate_npm_lockfile() {
+    local manifest_dir="${1}"
+
+    if ! command -v docker >/dev/null 2>&1; then
+        warn "docker not available, cannot regenerate lockfile in ${manifest_dir} (run 'npm install' there before building)"
+        return 0
+    fi
+    if [[ ! -f "${manifest_dir}/package-lock.json" ]]; then
+        echo "    (no package-lock.json in ${manifest_dir}, nothing to regenerate)"
+        return 0
+    fi
+
+    local image abs_dir host_uid host_gid
+    image=$(npm_docker_image)
+    abs_dir=$(cd "${manifest_dir}" && pwd)
+    # Resolve UID/GID separately from use so their exit status isn't masked (SC2312).
+    host_uid=$(id -u)
+    host_gid=$(id -g)
+
+    # Mount only the manifest dir; run as the host user so the rewritten lockfile
+    # isn't root-owned, and point npm's cache at a writable tmp path (that user has
+    # no home in the image).
+    if docker run --rm \
+        -u "${host_uid}:${host_gid}" \
+        -e npm_config_cache=/tmp/.npm \
+        -v "${abs_dir}:/app" \
+        -w /app \
+        "${image}" \
+        npm install --package-lock-only --no-audit --no-fund >/dev/null 2>&1; then
+        ok "package-lock.json regenerated in ${manifest_dir} (via ${image})"
+    else
+        warn "Failed to regenerate package-lock.json in ${manifest_dir} (run 'npm install' there before building)"
+    fi
+}
 
 update_npm_packages() {
     echo
@@ -365,6 +423,8 @@ update_npm_packages() {
             continue
         fi
         echo "  --- ${manifest}"
+
+        local manifest_changed=false
 
         for section in dependencies devDependencies; do
             local names=()
@@ -395,8 +455,14 @@ update_npm_packages() {
                 jq --arg s "${section}" --arg p "${pkg}" --arg v "${latest}" \
                     '.[$s][$p] = $v' "${manifest}" > "${manifest}.tmp" \
                     && mv "${manifest}.tmp" "${manifest}"
+                manifest_changed=true
             done
         done
+
+        # Keep the lockfile in sync with the bumped manifest so `npm ci` succeeds.
+        if [[ "${manifest_changed}" == "true" ]]; then
+            regenerate_npm_lockfile "$(dirname "${manifest}")"
+        fi
 
         ok "npm packages processed in ${manifest}"
     done

@@ -24,7 +24,7 @@
 #             (the -trixie tag matches this base's glibc exactly).
 FROM eclipse-temurin:26.0.1_8-jdk AS jdk
 FROM maven:3.9.16-eclipse-temurin-26 AS maven
-FROM node:26.4.0-trixie AS node
+FROM node:26.5.0-trixie AS node
 
 # ── Runtime base ─────────────────────────────────────────────────────────────
 FROM debian:13.5
@@ -73,7 +73,7 @@ RUN apt-get update && apt-get install -yqq --no-install-recommends \
         fontconfig="2.15.0-2.3" \
         git="1:2.47.3-0+deb13u1" \
         gnupg="2.4.7-21+deb13u1" \
-        imagemagick="8:7.1.1.43+dfsg1-1+deb13u10" \
+        imagemagick="8:7.1.1.43+dfsg1-1+deb13u11" \
         iproute2="6.15.0-1" \
         jq="1.7.1-6+deb13u2" \
         librsvg2-bin="2.60.0+dfsg-1" \
@@ -115,7 +115,7 @@ RUN apt-get update && apt-get install -yqq --no-install-recommends \
         docker-ce-cli="5:29.6.1-1~debian.13~trixie" \
         containerd.io="2.2.5-1~debian.13~trixie" \
         docker-buildx-plugin="0.35.0-1~debian.13~trixie" \
-        docker-compose-plugin="5.3.0-1~debian.13~trixie" \
+        docker-compose-plugin="5.3.1-1~debian.13~trixie" \
     && \
     apt-get autoremove && \
     apt-get clean && \

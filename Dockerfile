@@ -4,7 +4,7 @@
 # Scans the templates + Java sources and emits a minified app.css, and copies the pinned third-party
 # browser libraries (htmx) out of node_modules into resources/js. Kept in its own stage so the Node
 # toolchain never reaches the build or runtime images; the build stage copies both outputs in below.
-FROM node:26.4.0-alpine AS css
+FROM node:26.5.0-alpine AS css
 WORKDIR /css
 COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
@@ -21,7 +21,7 @@ RUN npm run css && npm run vendor
 # in its own stage so ImageMagick / librsvg / optipng never reach the build or runtime images. librsvg
 # is ImageMagick's SVG-rendering backend; imagemagick also packs the .ico. PNGs land in
 # src/main/resources/META-INF/resources/img; favicon.ico lands at the web root (one level up).
-FROM node:26.4.0-alpine AS icons
+FROM node:26.5.0-alpine AS icons
 
 # BEGIN ALPINE PACKAGES
 RUN apk add --no-cache  \

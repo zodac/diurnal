@@ -66,7 +66,7 @@ class CacheHeadersIT extends IntegrationTestBase {
 
     @Test
     void staticImageAsset_hasOneDayCacheCeilingNotImmutable() {
-        // Stable-URL assets (no content hash) must NOT be immutable — a redeploy reuses the URL, so a
+        // Stable-URL assets (no content hash) must NOT be immutable — a redeployment reuses the URL, so a
         // one-day ceiling bounds how long a changed image/font can be served stale.
         given().get("/img/favicon.svg")
                 .then().statusCode(200)

@@ -30,14 +30,14 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * The class is key-agnostic — {@link LoginThrottles} runs two instances, one keyed by submitted email
- * (per-account) and one by client IP (per-host). Keying by the <em>submitted</em> value (whether or
- * not it corresponds to a real account) means an attacker cannot distinguish a real account from an
+ * (per-account) and one by client IP (per-host). Keying by the <em>submitted</em> value (whether
+ * it corresponds to a real account) means an attacker cannot distinguish a real account from an
  * unknown one by watching for throttling (account enumeration).
  *
  * <p>
  * Time is passed in by the caller (from {@code AppClock.now()}) rather than read here, so the logic is
  * pure and deterministically unit-testable, and integration tests can freeze/advance the clock. Config
- * is snapshotted at construction (Quarkus {@code @ConfigMapping} values are fixed for the run).
+ * is snapshot at construction (Quarkus {@code @ConfigMapping} values are fixed for the run).
  *
  * <p>
  * State is held in a {@link ConcurrentHashMap} and mutated only inside {@link ConcurrentHashMap#compute}
@@ -95,7 +95,7 @@ public final class LoginThrottle {
         if (!enabled) {
             return new FailureOutcome(0, maxAttempts, false, lockoutDuration);
         }
-        final Attempt updated = Objects.requireNonNull(attempts.compute(key, (k, existing) -> {
+        final Attempt updated = Objects.requireNonNull(attempts.compute(key, (_, existing) -> {
             // Start fresh if there is no prior record, or the previous activity is older than one window
             // (a lapsed lockout, or a quiet spell for a still-counting key).
             final Attempt attempt = existing == null || existing.isStaleAt(now, lockoutDuration) ? new Attempt() : existing;

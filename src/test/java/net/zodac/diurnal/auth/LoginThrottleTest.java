@@ -88,7 +88,7 @@ class LoginThrottleTest {
     }
 
     @Test
-    void afterExpiry_asingleFailureDoesNotImmediatelyRelock() {
+    void afterExpiry_singleFailureDoesNotImmediatelyRelock() {
         final LoginThrottle throttle = throttle(true);
         lockOut(throttle);
 

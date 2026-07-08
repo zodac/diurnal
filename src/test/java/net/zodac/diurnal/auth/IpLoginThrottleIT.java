@@ -21,12 +21,10 @@ import static io.restassured.RestAssured.given;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 
 import io.quarkus.test.junit.QuarkusTest;
-import io.quarkus.test.junit.QuarkusTestProfile;
 import io.quarkus.test.junit.TestProfile;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
 import jakarta.inject.Inject;
-import java.util.Map;
 import net.zodac.diurnal.IntegrationTestBase;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,8 +35,12 @@ import org.junit.jupiter.api.Test;
  * because per-IP state is keyed on the shared loopback address across the whole JVM.
  */
 @QuarkusTest
-@TestProfile(IpLoginThrottleIT.IpThrottleProfile.class)
+@TestProfile(IpThrottleProfile.class)
 class IpLoginThrottleIT extends IntegrationTestBase {
+
+    private static final String DUMMY_EMAIL = "victim@example.com";
+    private static final String DUMMY_DISPLAY_NAME = "Victim";
+    private static final String DUMMY_PASSWORD = "correct_password";
 
     @Inject
     LoginThrottles loginThrottles;
@@ -50,7 +52,7 @@ class IpLoginThrottleIT extends IntegrationTestBase {
 
     @Test
     void ipLockout_spansDifferentAccounts_andBlocksAValidLogin() {
-        registerUser("victim@example.com", "Victim", "correct_password");
+        registerUser();
 
         // Five failures across DIFFERENT accounts from the same (loopback) IP trip the IP lock, even
         // though no single account reaches a limit (the account throttle is off in this profile).
@@ -59,15 +61,15 @@ class IpLoginThrottleIT extends IntegrationTestBase {
         }
 
         // The IP is now locked, so even the correct password for a real account is refused.
-        postLogin("victim@example.com", "correct_password")
+        postLogin(DUMMY_EMAIL, DUMMY_PASSWORD)
                 .then()
                 .statusCode(429)
                 .body("message", containsStringIgnoringCase("too many failed login attempts"));
     }
 
-    private static void registerUser(final String email, final String displayName, final String password) {
+    private static void registerUser() {
         given().contentType(ContentType.JSON)
-                .body("{\"email\":\"" + email + "\",\"displayName\":\"" + displayName + "\",\"password\":\"" + password + "\"}")
+                .body("{\"email\":\"" + DUMMY_EMAIL + "\",\"displayName\":\"" + DUMMY_DISPLAY_NAME + "\",\"password\":\"" + DUMMY_PASSWORD + "\"}")
                 .post("/api/auth/register")
                 .then().statusCode(201);
     }
@@ -76,21 +78,5 @@ class IpLoginThrottleIT extends IntegrationTestBase {
         return given().contentType(ContentType.JSON)
                 .body("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}")
                 .post("/api/auth/login");
-    }
-
-    /**
-     * Turns the IP throttle on with a small limit and turns the account throttle off, so the IP dimension
-     * can be exercised on its own.
-     */
-    public static final class IpThrottleProfile implements QuarkusTestProfile {
-
-        @Override
-        public Map<String, String> getConfigOverrides() {
-            return Map.of(
-                    "password.auth.throttle.enabled", "false",
-                    "password.auth.ip-throttle.enabled", "true",
-                    "password.auth.ip-throttle.max-attempts", "5",
-                    "password.auth.ip-throttle.lockout-duration", "PT15M");
-        }
     }
 }

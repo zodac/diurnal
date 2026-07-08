@@ -55,8 +55,17 @@ set -uo pipefail
 
 trap 'echo; echo "❌ Interrupted"; exit 130' INT
 
+# Absolute path to this script (basedir + filename), so the "re-run ..." hints printed on failure are
+# copy/paste-ready from any working directory rather than a bare filename. Each command substitution is
+# assigned on its own line so shellcheck (SC2312) doesn't flag a masked return value.
+SCRIPT_SOURCE="${BASH_SOURCE[0]}"
+SCRIPT_DIR="$(dirname -- "${SCRIPT_SOURCE}")"
+SCRIPT_DIR="$(cd -- "${SCRIPT_DIR}" > /dev/null 2>&1 && pwd)"
+SCRIPT_NAME="$(basename -- "${SCRIPT_SOURCE}")"
+SCRIPT_PATH="${SCRIPT_DIR}/${SCRIPT_NAME}"
+
 ESLINT_BUILD_IMAGE="local/diurnal-eslint:latest"
-ESLINT_NODE_IMAGE="node:26.4.0-alpine"
+ESLINT_NODE_IMAGE="node:26.5.0-alpine"
 GRYPE_DOCKER_IMAGE="anchore/grype:v0.115.0"
 HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.14.0-alpine"
 MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.0"
@@ -80,6 +89,17 @@ VALID_STEPS=("docker" "grype" "java" "javascript" "markdown" "shellcheck" "types
 VERBOSE=false
 
 overall_exit_code=0
+
+# Yellow highlight for the copy/paste-ready "re-run …" command in failure messages, so it stands out
+# from the surrounding text. Only emit the ANSI codes when stdout is a real terminal — piped/redirected
+# output (e.g. CI logs) stays plain so the escape sequences don't leak into it.
+if [[ -t 1 ]]; then
+    YELLOW=$'\033[1;33m'
+    RESET=$'\033[0m'
+else
+    YELLOW=""
+    RESET=""
+fi
 
 # Host UID/GID, resolved once, for the `-u` flag of the eslint-based steps (so files the container
 # writes are owned by the host user). Assigned separately from use so the command's exit status is
@@ -127,7 +147,7 @@ run_docker() {
         echo "✅ Dockerfile lint passed"
     else
         echo "${output}" | jq .
-        echo "❌ Dockerfile lint failed: re-run 'lint_and_tests.sh -v docker' for the full output"
+        echo "❌ Dockerfile lint failed: re-run ${YELLOW}'${SCRIPT_PATH} -v docker'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -180,7 +200,7 @@ run_grype() {
         if "${grype_cmd[@]}"; then
             echo "✅ Grype scan passed"
         else
-            echo "❌ Grype scan failed: re-run 'lint_and_tests.sh -v grype' for the full output"
+            echo "❌ Grype scan failed: re-run ${YELLOW}'${SCRIPT_PATH} -v grype'${RESET} for the full output"
             overall_exit_code=1
         fi
         return
@@ -200,7 +220,7 @@ run_grype() {
         echo "✅ Grype scan passed"
     else
         echo "${output}"
-        echo "❌ Grype scan failed: re-run 'lint_and_tests.sh -v grype' for the full output"
+        echo "❌ Grype scan failed: re-run ${YELLOW}'${SCRIPT_PATH} -v grype'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -212,9 +232,9 @@ run_java() {
     # build (all via Docker), so — unlike the other steps — it runs against the host toolchain (JDK +
     # Maven + Node + Playwright + a Docker daemon) rather than the Node-less Maven Docker image.
     #
-    # The build is long and its output is enormous, so by default it is hidden and only the pass/fail
-    # summary is printed (matching the other steps). Re-run with -v to stream the full Maven output
-    # live — or run `mvn clean install -Dall` yourself — when a failure needs investigating.
+    # The build is long and its output is enormous, so on success only the pass/fail summary is printed
+    # (matching the other steps). Verbose streams the full Maven output live; non-verbose captures it and
+    # prints it on failure so a failed run is always reviewable without a re-run — like every other step.
     if [[ "${VERBOSE}" == true ]]; then
         if mvn clean install -Dall; then
             echo "✅ Java lints and tests passed"
@@ -222,10 +242,11 @@ run_java() {
             echo "❌ Java lints and tests failed"
             overall_exit_code=1
         fi
-    elif mvn clean install -Dall >/dev/null 2>&1; then
+    elif output=$(mvn clean install -Dall 2>&1); then
         echo "✅ Java lints and tests passed"
     else
-        echo "❌ Java lints and tests failed: re-run 'lint_and_tests.sh -v java' for the full output"
+        echo "${output}"
+        echo "❌ Java lints and tests failed: re-run ${YELLOW}'${SCRIPT_PATH} -v java'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -250,7 +271,7 @@ run_javascript() {
         echo "✅ JavaScript lint passed"
     else
         echo "${output}"
-        echo "❌ JavaScript lint failed: re-run 'lint_and_tests.sh -v javascript' for the full output"
+        echo "❌ JavaScript lint failed: re-run ${YELLOW}'${SCRIPT_PATH} -v javascript'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -281,7 +302,7 @@ run_typescript() {
         echo "✅ TypeScript lint passed"
     else
         echo "${output}"
-        echo "❌ TypeScript lint failed: re-run 'lint_and_tests.sh -v typescript' for the full output"
+        echo "❌ TypeScript lint failed: re-run ${YELLOW}'${SCRIPT_PATH} -v typescript'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -301,7 +322,7 @@ run_markdown() {
         echo "✅ Markdown lint passed"
     else
         echo "${output}"
-        echo "❌ Markdown lint failed: re-run 'lint_and_tests.sh -v markdown' for the full output"
+        echo "❌ Markdown lint failed: re-run ${YELLOW}'${SCRIPT_PATH} -v markdown'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -334,7 +355,7 @@ run_shellcheck() {
         echo "✅ Shell script lint passed"
     else
         echo "${output}"
-        echo "❌ Shell script lint failed: re-run 'lint_and_tests.sh -v shellcheck' for the full output"
+        echo "❌ Shell script lint failed: re-run ${YELLOW}'${SCRIPT_PATH} -v shellcheck'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -511,6 +532,6 @@ done
 
 if [[ "${overall_exit_code}" -ne 0 ]]; then
     echo
-    echo "❌ One or more steps failed: re-run 'lint_and_tests.sh -v [steps]' for the full output"
+    echo "❌ One or more steps failed: re-run ${YELLOW}'${SCRIPT_PATH} -v [steps]'${RESET} for the full output"
     exit 1
 fi

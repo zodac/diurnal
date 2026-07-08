@@ -36,7 +36,8 @@ class LoginThrottlesTest {
     private static final int IP_MAX = 5;
     private static final Duration ACCOUNT_LOCKOUT = Duration.ofMinutes(10);
     private static final Duration IP_LOCKOUT = Duration.ofMinutes(20);
-    private static final String IP = "203.0.113.7";
+    private static final String DUMMY_IP = "203.0.113.7"; // NOPMD: AvoidUsingHardCodedIP - Test IP
+    private static final String DUMMY_EMAIL_ADDRESS = "a@example.com";
 
     private static LoginThrottles throttles() {
         return new LoginThrottles(
@@ -44,25 +45,25 @@ class LoginThrottlesTest {
                 new FixedIpThrottleConfig(true, IP_MAX, IP_LOCKOUT));
     }
 
-    private static void failAccountToLock(final LoginThrottles throttles, final String email, final String ip) {
+    private static void failAccountToLock(final LoginThrottles throttles) {
         for (int i = 0; i < ACCOUNT_MAX; i++) {
-            throttles.recordFailure(email, ip, NOW);
+            throttles.recordFailure(DUMMY_EMAIL_ADDRESS, DUMMY_IP, NOW);
         }
     }
 
-    private static void failIpToLock(final LoginThrottles throttles, final String ip) {
+    private static void failIpToLock(final LoginThrottles throttles) {
         // Distinct emails so no single account locks — only the shared IP does.
         for (int i = 0; i < IP_MAX; i++) {
-            throttles.recordFailure("user" + i + "@example.com", ip, NOW);
+            throttles.recordFailure("user" + i + "@example.com", DUMMY_IP, NOW);
         }
     }
 
     @Test
     void isLocked_whenAccountLocked_isTrue() {
         final LoginThrottles throttles = throttles();
-        failAccountToLock(throttles, "a@example.com", IP);
+        failAccountToLock(throttles);
 
-        assertThat(throttles.isLocked("a@example.com", IP, NOW))
+        assertThat(throttles.isLocked(DUMMY_EMAIL_ADDRESS, DUMMY_IP, NOW))
                 .as("A locked account must block, even below the IP limit")
                 .isTrue();
     }
@@ -70,9 +71,9 @@ class LoginThrottlesTest {
     @Test
     void isLocked_whenOnlyIpLocked_isTrue() {
         final LoginThrottles throttles = throttles();
-        failIpToLock(throttles, IP);
+        failIpToLock(throttles);
 
-        assertThat(throttles.isLocked("brand-new@example.com", IP, NOW))
+        assertThat(throttles.isLocked("brand-new@example.com", DUMMY_IP, NOW))
                 .as("A locked IP must block even a never-seen account")
                 .isTrue();
     }
@@ -80,9 +81,9 @@ class LoginThrottlesTest {
     @Test
     void isLocked_whenNeitherLocked_isFalse() {
         final LoginThrottles throttles = throttles();
-        throttles.recordFailure("a@example.com", IP, NOW);
+        throttles.recordFailure(DUMMY_EMAIL_ADDRESS, DUMMY_IP, NOW);
 
-        assertThat(throttles.isLocked("a@example.com", IP, NOW))
+        assertThat(throttles.isLocked(DUMMY_EMAIL_ADDRESS, DUMMY_IP, NOW))
                 .as("A single failure locks neither dimension")
                 .isFalse();
     }
@@ -91,7 +92,7 @@ class LoginThrottlesTest {
     void recordFailure_reportsBothDimensions() {
         final LoginThrottles throttles = throttles();
 
-        final LoginThrottles.ThrottleOutcome outcome = throttles.recordFailure("a@example.com", IP, NOW);
+        final LoginThrottles.ThrottleOutcome outcome = throttles.recordFailure(DUMMY_EMAIL_ADDRESS, DUMMY_IP, NOW);
 
         assertThat(outcome.account().maxAttempts())
                 .as("The account outcome must carry the account limit")
@@ -104,11 +105,11 @@ class LoginThrottlesTest {
     @Test
     void recordSuccess_clearsAccountButNotIp() {
         final LoginThrottles throttles = throttles();
-        throttles.recordFailure("a@example.com", IP, NOW);   // account=1, ip=1
+        throttles.recordFailure(DUMMY_EMAIL_ADDRESS, DUMMY_IP, NOW);   // account=1, ip=1
 
-        throttles.recordSuccess("a@example.com");
+        throttles.recordSuccess(DUMMY_EMAIL_ADDRESS);
 
-        final LoginThrottles.ThrottleOutcome outcome = throttles.recordFailure("a@example.com", IP, NOW);
+        final LoginThrottles.ThrottleOutcome outcome = throttles.recordFailure(DUMMY_EMAIL_ADDRESS, DUMMY_IP, NOW);
         assertThat(outcome.account().failureCount())
                 .as("Success must reset the account counter")
                 .isEqualTo(1);
@@ -120,9 +121,9 @@ class LoginThrottlesTest {
     @Test
     void lockoutRemaining_whenOnlyAccountLocked_isAccountWindow() {
         final LoginThrottles throttles = throttles();
-        failAccountToLock(throttles, "a@example.com", IP);
+        failAccountToLock(throttles);
 
-        assertThat(throttles.lockoutRemaining("a@example.com", IP, NOW))
+        assertThat(throttles.lockoutRemaining(DUMMY_EMAIL_ADDRESS, DUMMY_IP, NOW))
                 .as("With only the account locked, the wait is the account window")
                 .isEqualTo(ACCOUNT_LOCKOUT);
     }
@@ -130,16 +131,16 @@ class LoginThrottlesTest {
     @Test
     void lockoutRemaining_whenOnlyIpLocked_isIpWindow() {
         final LoginThrottles throttles = throttles();
-        failIpToLock(throttles, IP);
+        failIpToLock(throttles);
 
-        assertThat(throttles.lockoutRemaining("brand-new@example.com", IP, NOW))
+        assertThat(throttles.lockoutRemaining("brand-new@example.com", DUMMY_IP, NOW))
                 .as("With only the IP locked, the wait is the (longer) IP window")
                 .isEqualTo(IP_LOCKOUT);
     }
 
     @Test
     void lockoutRemaining_whenNeitherLocked_isZero() {
-        assertThat(throttles().lockoutRemaining("a@example.com", IP, NOW))
+        assertThat(throttles().lockoutRemaining(DUMMY_EMAIL_ADDRESS, DUMMY_IP, NOW))
                 .as("No lockout means no wait")
                 .isEqualTo(Duration.ZERO);
     }

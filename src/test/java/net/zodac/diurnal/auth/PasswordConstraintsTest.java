@@ -41,7 +41,7 @@ class PasswordConstraintsTest {
     @Test
     void all_singularCountUsesSingularUnitInLabel() {
         // MIN_LENGTH is 1, so its label must read "character" (singular), not "characters".
-        assertThat(PasswordConstraints.all().get(0).label())
+        assertThat(PasswordConstraints.all().getFirst().label())
             .as("min-length label should be singular for a count of one")
             .isEqualTo("At least 1 character");
     }

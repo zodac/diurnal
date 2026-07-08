@@ -22,6 +22,7 @@ import java.util.Deque;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.eclipse.microprofile.openapi.OASFilter;
@@ -93,7 +94,7 @@ public final class PublicApiFilter implements OASFilter {
         final Set<String> usedTags = paths.getPathItems().values().stream()
                 .flatMap(pathItem -> pathItem.getOperations().values().stream())
                 .map(Operation::getTags)
-                .filter(tags -> tags != null)
+                .filter(Objects::nonNull)
                 .flatMap(List::stream)
                 .collect(Collectors.toUnmodifiableSet());
 
