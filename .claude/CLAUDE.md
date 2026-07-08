@@ -61,6 +61,10 @@ docker compose logs -f app
 
 > **Always use `docker compose` (v2 plugin), never `docker-compose` (hyphenated).** Only the filenames keep the hyphen.
 
+> **After writing or editing any shell script (`*.sh`), run `.github/scripts/lint_and_tests.sh shellcheck`** and fix
+> everything it reports before considering the change done — including `info`-level notes (e.g. `SC2312`). This is the
+> same shellcheck gate CI runs; skipping it ships lint failures. Note the step is `shellcheck` (not `shellscript`).
+
 Dev mode expects PostgreSQL on `localhost:5432` with database `diurnal_db`, user `diurnal_user`, and password `diurnal_password`. Flyway migrations run automatically. Data is ephemeral (
 wiped on container recreate).
 

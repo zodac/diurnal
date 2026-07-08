@@ -85,14 +85,14 @@ class LockoutMessagesTest {
     }
 
     @Test
-    void humanReadable_zero_collapsesToAMoment() {
+    void humanReadable_zero_collapsesToMoment() {
         assertThat(LockoutMessages.humanReadable(Duration.ZERO))
                 .as("A non-positive duration must collapse to 'a moment'")
                 .isEqualTo("a moment");
     }
 
     @Test
-    void humanReadable_negative_collapsesToAMoment() {
+    void humanReadable_negative_collapsesToMoment() {
         assertThat(LockoutMessages.humanReadable(Duration.ofSeconds(-5)))
                 .as("A negative duration must collapse to 'a moment'")
                 .isEqualTo("a moment");
@@ -106,7 +106,7 @@ class LockoutMessagesTest {
     }
 
     @Test
-    void approximateRemaining_underAMinute_saysLessThanAMinute() {
+    void approximateRemaining_underMinute_saysLessThanMinute() {
         assertThat(LockoutMessages.approximateRemaining(Duration.ofSeconds(45)))
                 .as("Under a minute must read 'less than a minute'")
                 .isEqualTo("less than a minute");

@@ -32,7 +32,7 @@ import jakarta.enterprise.context.ApplicationScoped;
  *
  * <p>The web UI must accept BOTH the form session cookie ({@code diurnal_session}) and the OIDC session
  * cookie ({@code q_session}), so the UI paths cannot be pinned to a single {@code auth-mechanism}
- * in {@code application.properties} — pinning restricts which mechanism may authenticate, which
+ * in {@code application.properties}. Pinning restricts which mechanism may authenticate, which
  * would lock out whichever session is not the pinned one. (Pinning the UI to {@code form} was the
  * original bug: an OIDC user authenticated at the IdP but was bounced back to {@code /login}
  * because the form-pinned pages never consulted the OIDC session cookie.)

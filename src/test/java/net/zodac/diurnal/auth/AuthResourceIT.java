@@ -316,7 +316,7 @@ class AuthResourceIT extends IntegrationTestBase {
         registerUser("formgeneric@example.com", "Form Generic", "correct_password");
 
         // A single failure is below the threshold — the generic error redirect, no lockout cookie.
-        final io.restassured.response.Response response = postFormLogin("formgeneric@example.com", "wrong_password");
+        final io.restassured.response.Response response = postFormLoginWrongPassword("formgeneric@example.com");
         response.then()
                 .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
                 .header("Location", containsStringIgnoringCase("error=true"));
@@ -332,7 +332,7 @@ class AuthResourceIT extends IntegrationTestBase {
         // The web form posts to /login (intercepted by Quarkus form auth). A cookieless POST passes
         // CSRF; failures flow through PasswordIdentityProvider, which feeds the same throttle.
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            postFormLogin("formthrottle@example.com", "wrong_password")
+            postFormLoginWrongPassword("formthrottle@example.com")
                     .then().statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)));
         }
         assertThat(loginThrottles.account().isLocked("formthrottle@example.com", FROZEN_NOW))
@@ -340,7 +340,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .isTrue();
 
         // The next attempt is now blocked: the provider drops the lockout cookie the login page reads.
-        postFormLogin("formthrottle@example.com", "wrong_password")
+        postFormLoginWrongPassword("formthrottle@example.com")
                 .then()
                 .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
                 .cookie("diurnal_login_lockout", not(emptyOrNullString()));
@@ -360,10 +360,10 @@ class AuthResourceIT extends IntegrationTestBase {
                 .post("/api/auth/login");
     }
 
-    private static io.restassured.response.Response postFormLogin(final String email, final String password) {
+    private static io.restassured.response.Response postFormLoginWrongPassword(final String email) {
         return given().redirects().follow(false)
                 .formParam("email", email)
-                .formParam("password", password)
+                .formParam("password", "wrong_password")
                 .post("/login");
     }
 

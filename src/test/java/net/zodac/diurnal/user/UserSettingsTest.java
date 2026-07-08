@@ -353,7 +353,7 @@ class UserSettingsTest {
             prev = offset;
         }
         // Most-behind option (America/Los_Angeles, PDT UTC-7 in June) sorts first.
-        assertThat(choices.get(0).value())
+        assertThat(choices.getFirst().value())
             .as("unexpected value")
             .isEqualTo("America/Los_Angeles");
     }
@@ -376,10 +376,10 @@ class UserSettingsTest {
         assertThat(selected.size())
             .as("exactly one option selected")
             .isEqualTo(1);
-        assertThat(selected.get(0).value())
+        assertThat(selected.getFirst().value())
             .as("server default selected when user inherits")
             .isEqualTo("Pacific/Auckland");
-        assertThat(selected.get(0).label())
+        assertThat(selected.getFirst().label())
             .as("unexpected value")
             .isEqualTo("Pacific/Auckland (UTC+12)");
     }
@@ -392,10 +392,10 @@ class UserSettingsTest {
         assertThat(selected.size())
             .as("exactly one option selected")
             .isEqualTo(1);
-        assertThat(selected.get(0).value())
+        assertThat(selected.getFirst().value())
             .as("user override selected")
             .isEqualTo("Asia/Tokyo");
-        assertThat(selected.get(0).label())
+        assertThat(selected.getFirst().label())
             .as("unexpected value")
             .isEqualTo("Asia/Tokyo (UTC+9)");
         // The server default is NOT selected when the user has an override.

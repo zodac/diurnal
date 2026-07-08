@@ -584,7 +584,7 @@ class LogResourceIT extends IntegrationTestBase {
         final Instant noonUtc = LocalDate.of(2026, 6, 15).atTime(12, 0).toInstant(ZoneOffset.UTC);
         final LocalDate the16th = LocalDate.of(2026, 6, 16);
 
-        // In UTC it is still the 15th, but the guard reads the user's zone where it is already the
+        // In UTC, it is still the 15th, but the guard reads the user's zone where it is already the
         // 16th — so logging the 16th is allowed even though the server clock is on the 15th.
         freezeInstant(noonUtc, ZoneOffset.UTC);
         given().post("/logs/" + the16th + "/" + primaryAction.id + "/increment")

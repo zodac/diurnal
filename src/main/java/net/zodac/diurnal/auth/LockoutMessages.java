@@ -55,11 +55,14 @@ public final class LockoutMessages {
      * @return the approximate remaining time
      */
     static String approximateRemaining(final Duration remaining) {
+        final long secondsPerMinute = Duration.ofMinutes(1L).getSeconds();
         final long seconds = remaining.getSeconds();
-        if (seconds < 60L) {
+
+        if (seconds < secondsPerMinute) {
             return "less than a minute";
         }
-        final long minutes = (seconds + 59L) / 60L;
+
+        final long minutes = (seconds + secondsPerMinute - 1L) / secondsPerMinute;
         return "about " + minutes + (minutes == 1L ? " minute" : " minutes");
     }
 
@@ -101,12 +104,14 @@ public final class LockoutMessages {
     private static String join(final List<String> parts) {
         final int size = parts.size();
         if (size == 1) {
-            return parts.get(0);
+            return parts.getFirst();
         }
-        if (size == 2) {
-            return parts.get(0) + " and " + parts.get(1);
+
+        if (size == 2) { // NOPMD: AvoidLiteralsInIfCondition - Fine here, need to determine 1 vs 2 vs more
+            return parts.getFirst() + " and " + parts.get(1);
         }
+
         // Three parts (hours, minutes and seconds): "a, b and c".
-        return parts.get(0) + ", " + parts.get(1) + " and " + parts.get(2);
+        return parts.getFirst() + ", " + parts.get(1) + " and " + parts.get(2);
     }
 }

@@ -121,8 +121,7 @@ public class LogWebResource {
      *
      * <p>The dashboard loads the selected day on its own, then calls this once to back-fill the rest of
      * the month into its client-side cache, so flicking between days is instant. Doing it as a single
-     * request with one range query avoids a per-day fan-out — a burst of ~30 concurrent requests that
-     * could exhaust the small JDBC pool — by fetching the action list and the whole month's counts once
+     * request with one range query avoids a per-day fan-out by fetching the action list and the whole month's counts once
      * and paging each day from memory.
      *
      * @param month the month to render, as {@code yyyy-MM}

@@ -25,7 +25,7 @@ import java.util.Map;
  * {@code /login} → {@code /oidc-login} auto-redirect branch in {@link WebResource}.
  *
  * <p>OIDC discovery is disabled and every endpoint path is pinned to a local placeholder so the
- * tenant is created without any network call to a real identity provider — the auto-redirect
+ * tenant is created without any network call to a real identity provider. The auto-redirect
  * decision is taken purely from config ({@code quarkus.oidc.tenant-enabled} + {@code oidc.auto.redirect}),
  * so no live IdP is needed and {@code /login} never actually initiates the code flow.
  */

@@ -32,6 +32,7 @@ import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.NoSuchAlgorithmException;
 import java.util.Base64;
+import java.util.List;
 import java.util.Set;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -130,8 +131,17 @@ public class JwtKeyProvisioner {
     // real UID even when the container user is overridden (compose `user:` / `--user`); off Linux (dev,
     // unit tests on a non-Linux host) it falls back to the JVM user name alone.
     private static String currentProcessUser() {
-        final String name = System.getProperty("user.name", "unknown");
-        final String uid = effectiveUid();
+        return describeProcessUser(System.getProperty("user.name", "unknown"), effectiveUid());
+    }
+
+    /**
+     * Renders the process-user description embedded in the unreadable-key error message.
+     *
+     * @param name the JVM user name ({@code user.name})
+     * @param uid  the effective UID, or {@code null} when it could not be resolved (e.g. off Linux)
+     * @return {@code "UID <uid> ('<name>')"} when the UID is known, otherwise {@code "user '<name>'"}
+     */
+    static String describeProcessUser(final String name, final @Nullable String uid) {
         return uid == null ? "user '" + name + "'" : "UID " + uid + " ('" + name + "')";
     }
 
@@ -141,15 +151,29 @@ public class JwtKeyProvisioner {
             return null;
         }
         try {
-            for (final String line : Files.readAllLines(status)) {
-                if (line.startsWith("Uid:")) {
-                    // Format: "Uid:\t<real>\t<effective>\t<saved>\t<fs>" — the effective UID governs access.
-                    final String[] fields = line.split("\\s+");
-                    return fields.length > 2 ? fields[2] : null;
-                }
-            }
+            return parseEffectiveUid(Files.readAllLines(status));
         } catch (IOException e) {
             return null;
+        }
+    }
+
+    /**
+     * Parses the effective UID out of the lines of a Linux {@code /proc/<pid>/status} file.
+     *
+     * <p>
+     * The relevant line has the form {@code "Uid:\t<real>\t<effective>\t<saved>\t<fs>"}; the effective
+     * UID (the one that governs file access) is the second value. Returns {@code null} when no
+     * {@code Uid:} line is present, or it does not carry an effective field.
+     *
+     * @param statusLines the lines of the status file
+     * @return the effective UID, or {@code null} if it cannot be determined
+     */
+    static @Nullable String parseEffectiveUid(final List<String> statusLines) {
+        for (final String line : statusLines) {
+            if (line.startsWith("Uid:")) {
+                final String[] fields = line.split("\\s+");
+                return fields.length > 2 ? fields[2] : null;
+            }
         }
         return null;
     }
@@ -208,7 +232,15 @@ public class JwtKeyProvisioner {
         }
     }
 
-    private @Nullable Path asLocalFile(final String location) {
+    /**
+     * Resolves a SmallRye JWT key {@code location} to the absolute filesystem {@link Path} to provision,
+     * or {@code null} when it is not a local absolute file — a relative/classpath dev default, a non-file
+     * URL, or any other scheme — and so must be left untouched.
+     *
+     * @param location the configured key location
+     * @return the absolute path to provision, or {@code null} to skip provisioning
+     */
+    static @Nullable Path asLocalFile(final String location) {
         if (location == null || location.isBlank()) {
             return null;
         }
@@ -221,12 +253,13 @@ public class JwtKeyProvisioner {
                 return null;
             }
         }
-        if (value.contains(":") && !value.startsWith("/")) {
-            // classpath:, http:, jar:, Windows drive letters, etc. — not ours to provision.
-            // (Absolute container paths like /run/secrets/... start with '/' and fall through.)
+        // Only a bare absolute filesystem path is ours to provision. Everything else is left untouched:
+        // classpath:, http:, jar: and Windows drive letters (C:\...) are not absolute unix paths, and the
+        // relative dev defaults are not either. Absolute container paths like /run/secrets/... start with
+        // '/' and fall through to be provisioned.
+        if (!value.startsWith("/")) {
             return null;
         }
-        final Path path = Path.of(value);
-        return path.isAbsolute() ? path : null;
+        return Path.of(value);
     }
 }
