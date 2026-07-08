@@ -167,6 +167,10 @@
      */
     --page-width: 75%;        /* desktop column as a share of the viewport */
     --page-max-width: 80rem;  /* hard cap (1280px) so it never gets too wide on large screens */
+
+    /* How long the pointer must dwell before a hover tooltip (`.app-tooltip`) fades in. Applied only
+     * on hover-in; hover-out is instant (see the reveal rule). Theme-independent, so no .dark twin. */
+    --tooltip-delay: 500ms;
   }
 
   .dark {
@@ -296,6 +300,11 @@
   .group:hover > .app-tooltip,
   .group.tip-open > .app-tooltip {
     @apply opacity-100 visible;
+  }
+  /* Dwell delay applies to the desktop hover path only — the touch long-press (`.tip-open`) is already
+     a deliberate gesture, so it reveals instantly. Hover-OUT stays instant (base rule has no delay). */
+  .group:hover > .app-tooltip {
+    transition-delay: var(--tooltip-delay);
   }
 
   /* Password-requirements popover: same floating look as `.app-tooltip`, but revealed by FOCUS of the
