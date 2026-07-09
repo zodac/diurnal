@@ -19,7 +19,7 @@
     - [Database](#database)
     - [Application](#application)
     - [Login Throttling](#login-throttling)
-    - [JWT Keys](#jwt-keys)
+    - [Sessions](#sessions)
     - [Reverse Proxy](#reverse-proxy)
     - [OIDC](#oidc)
 - [User Settings](#user-settings)
@@ -96,12 +96,11 @@ Download [`docker-compose-example.yml`](doc/docker-compose.example.yml) from thi
 curl -o docker-compose.yml https://raw.githubusercontent.com/zodac/diurnal/master/doc/docker-compose-example.yml
 ```
 
-**2. Set your secrets:**
+**2. Set your secret:**
 
-Edit `docker-compose.yml` and change the two required values (in **both** the `diurnal` and `diurnal-db` services where noted):
+Edit `docker-compose.yml` and change the required value (in **both** the `diurnal` and `diurnal-db` services where noted):
 
 - `DB_PASSWORD`: a strong PostgreSQL password
-- `SESSION_ENCRYPTION_KEY`: a random string of at least 16 characters (32+ recommended) used to encrypt the session cookie
 
 A quick way to generate a good value:
 
@@ -115,8 +114,7 @@ openssl rand -base64 32
 docker compose up -d
 ```
 
-Diurnal will be available at **<http://localhost:8080>**. The database schema is created automatically on first start, and the JWT signing keypair is
-generated for you.
+Diurnal will be available at **<http://localhost:8080>**. The database schema is created automatically on first start.
 
 **4. Create your account:**
 
@@ -125,15 +123,14 @@ Open the app and **register**. The first account created becomes the **administr
 
 ## Environment Variables
 
-Diurnal is configured entirely through environment variables on the `diurnal` container. Only the first two are required; everything else has a
+Diurnal is configured entirely through environment variables on the `diurnal` container. Only `DB_PASSWORD` is required; everything else has a
 sensible default.
 
 ### Required
 
-| Variable                 | Description                                                             |
-|--------------------------|-------------------------------------------------------------------------|
-| `DB_PASSWORD`            | PostgreSQL password (must match the password on the database container) |
-| `SESSION_ENCRYPTION_KEY` | Encrypts the session cookie                                             |
+| Variable      | Description                                                             |
+|---------------|-------------------------------------------------------------------------|
+| `DB_PASSWORD` | PostgreSQL password (must match the password on the database container) |
 
 ### Database
 
@@ -178,15 +175,21 @@ limit is higher than the per-account one because many users can share one IP (NA
 | `PASSWORD_AUTH_IP_THROTTLE_MAX_ATTEMPTS`     | `15`    | Failures from one IP (across accounts) before it is locked out |
 | `PASSWORD_AUTH_IP_THROTTLE_LOCKOUT_DURATION` | `PT15M` | How long an IP stays locked                                    |
 
-### JWT Keys
+### Sessions
 
-The REST API is secured with RSA-2048 JWTs. The keypair is **generated automatically on first start** into the mounted `secrets` volume and reused
-thereafter. Override the locations only if you want to supply your own keys (e.g. to share one keypair across replicas).
+Both the web UI and the REST API authenticate against a **server-side session store** (the `sessions` table). Logging in mints a random opaque token,
+delivered as the `diurnal_session` cookie (web) or a Bearer token (API); only its hash is stored, and every session is **revocable**. Logging out,
+changing your password (which signs out every *other* device), or "Log out from everywhere" in Settings all delete session rows. No keys or secrets to
+manage.
 
-| Variable                   | Default                             | Description                               |
-|----------------------------|-------------------------------------|-------------------------------------------|
-| `JWT_PUBLIC_KEY_LOCATION`  | `file:/run/secrets/jwt-public.pem`  | PEM public key used to verify tokens      |
-| `JWT_PRIVATE_KEY_LOCATION` | `file:/run/secrets/jwt-private.pem` | PKCS8 PEM private key used to sign tokens |
+A session ends at whichever comes first: `SESSION_IDLE_TIMEOUT` since it was last used, or `SESSION_ABSOLUTE_LIFETIME` since it was created. Both are
+[ISO-8601](https://en.wikipedia.org/wiki/ISO_8601#Durations) durations (e.g. `P30D` = 30 days, `P7D` = 7 days, `PT12H` = 12 hours).
+
+| Variable                    | Default | Description                                                        |
+|-----------------------------|---------|--------------------------------------------------------------------|
+| `SESSION_IDLE_TIMEOUT`      | `P30D`  | Sliding idle timeout — a session dies this long after its last use |
+| `SESSION_ABSOLUTE_LIFETIME` | `P90D`  | Hard cap on a session's age regardless of activity                 |
+| `SESSION_CLEANUP_INTERVAL`  | `PT1H`  | How often expired sessions are swept from the database             |
 
 ### Reverse Proxy
 
@@ -298,7 +301,7 @@ Each theme, calendar, and font option shows a thumbnail and has a full-size prev
 The first account to register is an **administrator**. Administrators get two extra sections:
 
 - **Admin → Users**: View and manage user accounts (delete or edit role)
-- **API**: The Swagger UI for the JWT-secured REST API, useful for scripting or integrating Diurnal with other tools.
+- **API**: The Swagger UI for the session-token-secured REST API, useful for scripting or integrating Diurnal with other tools.
 
 ## Versioning
 

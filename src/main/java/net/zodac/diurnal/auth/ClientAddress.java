@@ -31,7 +31,7 @@ import org.jspecify.annotations.Nullable;
  * and when it is not, the socket address is used — so proxy trust is governed by that one config, never
  * by blindly trusting an attacker-spoofable header here.
  */
-final class ClientAddress {
+public final class ClientAddress {
 
     private ClientAddress() {
 
@@ -43,7 +43,7 @@ final class ClientAddress {
      * @param routingContext the request routing context, or {@code null} (e.g. non-HTTP contexts)
      * @return the client IP, or {@code "unknown"}
      */
-    static String of(@Nullable final RoutingContext routingContext) {
+    public static String of(@Nullable final RoutingContext routingContext) {
         if (routingContext == null) {
             return "unknown";
         }

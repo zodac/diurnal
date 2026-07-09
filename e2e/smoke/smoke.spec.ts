@@ -65,7 +65,7 @@ test.describe("deployment smoke", () => {
         const actionName = `Smoke ${RUN}`
 
         // Registers via /api/auth/register (Bearer API) then logs in via the web form — exercising
-        // both auth surfaces and the non-root-generated JWT keypair behind the API.
+        // both auth surfaces and the shared server-side session store (opaque tokens in Postgres).
         await registerUser(user)
         await loginAs(page, user)
 

@@ -28,11 +28,11 @@ import java.util.UUID;
  * Resolves the {@link User} entity for the currently-authenticated principal, centralising the
  * lookup that every resource previously repeated inline.
  *
- * <p>The identity built by the form-session, password and OIDC flows all carry a {@code userId}
- * attribute, so the account is fetched by primary key. A Bearer-JWT identity (the REST API) has no
- * such attribute and falls back to the email — the principal name. Within a single request the
- * result is served from Hibernate's first-level cache, so resolving the user more than once issues
- * no extra query.
+ * <p>The identity built by session auth (the {@code diurnal_session} cookie or a Bearer token, via
+ * {@code UserIdentities}) and by the OIDC flow all carry a {@code userId} attribute, so the account is
+ * fetched by primary key; absent that attribute it falls back to the email — the principal name. Within
+ * a single request the result is served from Hibernate's first-level cache, so resolving the user more
+ * than once issues no extra query.
  */
 @ApplicationScoped
 public class CurrentUser {

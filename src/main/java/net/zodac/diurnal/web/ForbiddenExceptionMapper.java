@@ -41,7 +41,7 @@ public class ForbiddenExceptionMapper implements ExceptionMapper<ForbiddenExcept
     @Override
     public Response toResponse(ForbiddenException exception) {
         // Read displayName and isAdmin from the identity attributes — set at auth time by
-        // TrustedIdentityProvider / OidcUserProvisioner, so no DB call is needed here.
+        // UserIdentities (session auth) / OidcUserProvisioner, so no DB call is needed here.
         String displayName = "";
         boolean isAdmin = false;
         if (!identity.isAnonymous()) {

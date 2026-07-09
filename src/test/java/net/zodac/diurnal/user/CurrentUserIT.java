@@ -33,8 +33,9 @@ import org.junit.jupiter.api.Test;
 @QuarkusTest
 class CurrentUserIT extends IntegrationTestBase {
 
-    // Builds a real identity: the userId attribute is only added when present, mirroring the
-    // form-session/password/OIDC flows (which set it) versus a Bearer-JWT identity (which does not).
+    // Builds a real identity: the userId attribute is only added when present. Session and OIDC
+    // identities always set it (UserIdentities.of / OidcUserProvisioner), so the null-userId case here
+    // just exercises CurrentUser's defensive fallback to the principal email.
     private static SecurityIdentity identityWith(@Nullable final UUID userId, final String email) {
         final QuarkusSecurityIdentity.Builder builder = QuarkusSecurityIdentity.builder()
                 .setPrincipal(new QuarkusPrincipal(email));

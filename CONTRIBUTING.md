@@ -8,13 +8,13 @@ high-level overview of what Diurnal is and how to deploy it, see the [README](RE
 
 ## Tech stack
 
-| Layer      | Technology                                                     |
-|------------|----------------------------------------------------------------|
-| Backend    | Quarkus, RESTEasy Reactive, Hibernate ORM Panache, Flyway      |
-| UI         | Qute server-side templates), HTMX, Tailwind CSS                |
-| Auth       | Form-based sessions (web UI); JWT Bearer (REST API); OIDC      |
-| Database   | PostgreSQL                                                     |
-| Deployment | Single hardened Docker image (distroless, jlink JRE, non-root) |
+| Layer      | Technology                                                             |
+|------------|------------------------------------------------------------------------|
+| Backend    | Quarkus, RESTEasy Reactive, Hibernate ORM Panache, Flyway              |
+| UI         | Qute server-side templates), HTMX, Tailwind CSS                        |
+| Auth       | Server-side sessions — cookie (web UI) / Bearer token (REST API); OIDC |
+| Database   | PostgreSQL                                                             |
+| Deployment | Single hardened Docker image (distroless, jlink JRE, non-root)         |
 
 ## Prerequisites
 
@@ -141,7 +141,7 @@ Application code is under `src/main/java/net/zodac/diurnal/`, split by domain:
 | `action` | `Action` entity + CRUD web resource for user-defined habits            |
 | `log`    | `ActionLog` entity, per-day increment/decrement, and the calendar feed |
 | `stats`  | Streak / frequency / trend calculation and its template extensions     |
-| `auth`   | Register/login → JWT, token service, identity providers                |
+| `auth`   | Register/login/logout → session token, session store, auth mechanism   |
 | `user`   | `User` entity, user settings, `/api/users/me`                          |
 | `web`    | Top-level page routes (dashboard, login, settings, etc.)               |
 

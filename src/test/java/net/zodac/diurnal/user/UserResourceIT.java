@@ -27,7 +27,9 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.Header;
 import jakarta.inject.Inject;
 import net.zodac.diurnal.IntegrationTestBase;
-import net.zodac.diurnal.auth.TokenService;
+import net.zodac.diurnal.auth.Session;
+import net.zodac.diurnal.auth.SessionStore;
+import net.zodac.diurnal.time.AppClock;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
@@ -35,7 +37,10 @@ import org.junit.jupiter.api.Test;
 class UserResourceIT extends IntegrationTestBase {
 
     @Inject
-    TokenService tokenService;
+    SessionStore sessionStore;
+
+    @Inject
+    AppClock clock;
 
     User user;
 
@@ -77,7 +82,7 @@ class UserResourceIT extends IntegrationTestBase {
             .as("admin user should have been created in the transaction")
             .isNotNull();
 
-        given().header(new Header("Authorization", "Bearer " + tokenService.generateToken(admin)))
+        given().header(bearerFor(admin))
                 .get("/api/users/me")
                 .then().statusCode(200)
                 .body("role", equalTo("admin"))
@@ -105,6 +110,11 @@ class UserResourceIT extends IntegrationTestBase {
     }
 
     private Header bearer() {
-        return new Header("Authorization", "Bearer " + tokenService.generateToken(user));
+        return bearerFor(user);
+    }
+
+    private Header bearerFor(final User account) {
+        final String token = sessionStore.create(account, Session.AUTH_SOURCE_PASSWORD, null, null, clock.now());
+        return new Header("Authorization", "Bearer " + token);
     }
 }

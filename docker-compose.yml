@@ -30,12 +30,10 @@ services:
       TRUST_X_FORWARDED_HEADERS: ${TRUST_X_FORWARDED_HEADERS:-true}
       PASSWORD_AUTH_ENABLED: "true"
       ENABLE_REGISTRATION: ${ENABLE_REGISTRATION:-true}
-      # Session cookie encryption — must be at least 16 chars, keep secret
-      SESSION_ENCRYPTION_KEY: ${SESSION_ENCRYPTION_KEY:?SESSION_ENCRYPTION_KEY must be set}
-      # JWT keys are stored in ./secrets/ — auto-generated on first start if absent (see JwtKeyProvisioner)
-      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
-      JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt-private.pem
-      # OIDC — set OIDC_ENABLED=true and configure the values below
+      # Sessions are server-side (the sessions table); tune the lifetimes if desired (ISO-8601):
+      SESSION_IDLE_TIMEOUT: ${SESSION_IDLE_TIMEOUT:-P30D}
+      SESSION_ABSOLUTE_LIFETIME: ${SESSION_ABSOLUTE_LIFETIME:-P90D}
+      # OIDC
       OIDC_ENABLED: ${OIDC_ENABLED:-false}
       OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
       OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-diurnal}
@@ -47,9 +45,6 @@ services:
       OIDC_LOGOUT_URL: ${OIDC_LOGOUT_URL}
     networks:
       - diurnal
-    volumes:
-      # Writable so the app can generate the keypair on first start; reused on later starts
-      - ./secrets:/run/secrets
     depends_on:
       diurnal-db:
         condition: service_healthy

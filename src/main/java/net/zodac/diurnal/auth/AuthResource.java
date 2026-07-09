@@ -18,10 +18,12 @@
 package net.zodac.diurnal.auth;
 
 import io.vertx.ext.web.RoutingContext;
+import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -31,7 +33,6 @@ import jakarta.ws.rs.core.Response;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
-import java.util.Optional;
 import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.config.RegistrationConfig;
 import net.zodac.diurnal.time.AppClock;
@@ -43,22 +44,28 @@ import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
+import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jspecify.annotations.Nullable;
 
 /**
- * REST API authentication endpoints: register a new password user and exchange credentials for a JWT.
+ * REST API authentication endpoints: register a new password user, exchange credentials for an opaque
+ * session token, and revoke the current token.
  */
-@Tag(name = "Auth", description = "Create an account and exchange credentials for a Bearer JWT.")
+@Tag(name = "Auth", description = "Create an account and exchange credentials for a Bearer session token.")
 @Path("/api/auth")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class AuthResource {
 
     private static final Logger LOGGER = LogManager.getLogger(AuthResource.class);
+    private static final String BEARER_PREFIX = "Bearer ";
 
     @Inject
-    TokenService tokenService;
+    AuthenticationService authenticationService;
+
+    @Inject
+    SessionStore sessionStore;
 
     @Inject
     RoleAssigner roleAssigner;
@@ -70,9 +77,6 @@ public class AuthResource {
     RegistrationConfig registrationConfig;
 
     @Inject
-    LoginThrottles loginThrottles;
-
-    @Inject
     AppClock clock;
 
     @Context
@@ -80,9 +84,10 @@ public class AuthResource {
     RoutingContext routingContext;
 
     /**
-     * Registers a new password-based user, returning {@code 201} with a JWT, or {@code 409} if the email exists.
-     * Returns {@code 404} when password auth is disabled and {@code 403} when registration is disabled, mirroring
-     * the web registration guard so the API can never bypass {@code PASSWORD_AUTH_ENABLED}/{@code ENABLE_REGISTRATION}.
+     * Registers a new password-based user, returning {@code 201} with a session token, or {@code 409} if
+     * the email exists. Returns {@code 404} when password auth is disabled and {@code 403} when
+     * registration is disabled, mirroring the web registration guard so the API can never bypass
+     * {@code PASSWORD_AUTH_ENABLED}/{@code ENABLE_REGISTRATION}.
      */
     @POST
     @Path("/register")
@@ -90,7 +95,7 @@ public class AuthResource {
     @Operation(
             hidden = true,
             summary = "Register a new user",
-            description = "Creates an account and returns a Bearer JWT for it. The first account ever created becomes an administrator."
+            description = "Creates an account and returns a Bearer session token for it. The first account ever created becomes an administrator."
     )
     public Response register(@Valid final RegisterRequest request) {
         if (!passwordAuthConfig.enabled()) {
@@ -118,26 +123,26 @@ public class AuthResource {
         user.persist();
 
         LOGGER.info("New user registered: {} (role={})", email, user.role);
-        final String token = tokenService.generateToken(user);
+        final String token = newSession(user);
         return Response.status(Response.Status.CREATED)
                 .entity(new TokenResponse(token, user.email, user.displayName))
                 .build();
     }
 
     /**
-     * Validates credentials, returning {@code 200} with a JWT on success or {@code 401} otherwise.
-     * Returns {@code 429} (with a {@code Retry-After} header) when the account is temporarily locked
-     * out after too many consecutive failures — the response is otherwise indistinguishable from a
+     * Validates credentials, returning {@code 200} with an opaque session token on success or {@code 401}
+     * otherwise. Returns {@code 429} (with a {@code Retry-After} header) when the account is temporarily
+     * locked out after too many consecutive failures — the response is otherwise indistinguishable from a
      * {@code 401} so a locked account is never disclosed.
      */
     @POST
     @Path("/login")
     @Operation(
             summary = "Log in and obtain a token",
-            description = "Validates an email and password and returns a Bearer JWT to send as the Authorization header on subsequent API calls."
+            description = "Validates an email and password and returns an opaque Bearer session token for the Authorization header on later calls."
     )
     @APIResponses({
-        @APIResponse(responseCode = "200", description = "Credentials accepted; returns a signed Bearer JWT and basic profile.",
+        @APIResponse(responseCode = "200", description = "Credentials accepted; returns a Bearer session token and basic profile.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = TokenResponse.class))),
         @APIResponse(responseCode = "400",
                 description = "The request body is missing the email/password or the email is malformed."),
@@ -148,36 +153,50 @@ public class AuthResource {
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class)))
     })
     public Response login(@Valid final LoginRequest request) {
-        final String email = request.email().toLowerCase(Locale.ROOT).strip();
-        final Instant now = clock.now();
-
         final String clientIp = ClientAddress.of(routingContext);
+        final Instant now = clock.now();
+        final LoginResult result = authenticationService.authenticate(request.email(), request.password(), clientIp, now);
 
-        if (loginThrottles.isLocked(email, clientIp, now)) {
-            LOGGER.debug("Throttled login attempt for: {} (IP: {})", email, clientIp);
-            return lockedResponse(email, clientIp, now);
-        }
-
-        final Optional<User> authenticated = User.findByEmail(email)
-                .filter(u -> u.passwordHash != null)
-                .filter(u -> Passwords.matches(request.password(), u.passwordHash));
-
-        if (authenticated.isPresent()) {
-            final User user = authenticated.get();
-            loginThrottles.recordSuccess(email);
-            LOGGER.debug("Successful login: {}", email);
-            return Response.ok(new TokenResponse(tokenService.generateToken(user), user.email, user.displayName)).build();
-        }
-
-        final LoginThrottles.ThrottleOutcome outcome = loginThrottles.recordFailure(email, clientIp, now);
-        LoginAttemptLog.logFailure(LOGGER, outcome, email, clientIp);
-        return Response.status(Response.Status.UNAUTHORIZED)
-                .entity(new ErrorResponse("Invalid email or password"))
-                .build();
+        return switch (result) {
+            case LoginResult.Success success -> {
+                final User user = success.user();
+                LOGGER.debug("Successful API login: {}", user.email);
+                yield Response.ok(new TokenResponse(newSession(user), user.email, user.displayName)).build();
+            }
+            case LoginResult.LockedOut locked -> lockedResponse(locked.remaining());
+            case LoginResult.InvalidCredentials ignored -> Response.status(Response.Status.UNAUTHORIZED)
+                    .entity(new ErrorResponse("Invalid email or password"))
+                    .build();
+        };
     }
 
-    private Response lockedResponse(final String email, final String clientIp, final Instant now) {
-        final Duration remaining = loginThrottles.lockoutRemaining(email, clientIp, now);
+    /**
+     * Revokes the session token used to make this request, returning {@code 204}. A missing or malformed
+     * Authorization header is a no-op (still {@code 204}); an unauthenticated request is challenged with
+     * {@code 401} before it reaches here.
+     */
+    @POST
+    @Path("/logout")
+    @RolesAllowed("user")
+    @SecurityRequirement(name = "BearerAuth")
+    @Operation(summary = "Log out", description = "Revokes the Bearer session token used to make this request.")
+    @APIResponses({
+        @APIResponse(responseCode = "204", description = "The session token was revoked (a missing/malformed header is a no-op)."),
+        @APIResponse(responseCode = "401", description = "No valid session token was supplied.")
+    })
+    public Response logout(@HeaderParam("Authorization") @Nullable final String authorization) {
+        if (authorization != null && authorization.startsWith(BEARER_PREFIX)) {
+            sessionStore.revoke(authorization.substring(BEARER_PREFIX.length()).strip());
+        }
+        return Response.noContent().build();
+    }
+
+    private String newSession(final User user) {
+        final String userAgent = routingContext == null ? null : routingContext.request().getHeader("User-Agent");
+        return sessionStore.create(user, Session.AUTH_SOURCE_PASSWORD, userAgent, ClientAddress.of(routingContext), clock.now());
+    }
+
+    private Response lockedResponse(final Duration remaining) {
         return Response.status(Response.Status.TOO_MANY_REQUESTS)
                 .header("Retry-After", Math.max(1L, remaining.toSeconds()))
                 .entity(new ErrorResponse(LockoutMessages.retryMessage(remaining)))

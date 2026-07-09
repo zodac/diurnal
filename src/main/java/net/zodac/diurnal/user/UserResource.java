@@ -62,10 +62,10 @@ public class UserResource {
         @APIResponse(responseCode = "404", description = "The authenticated account no longer exists.")
     })
     public Response me() {
-        // CurrentUser resolves the account from the SecurityIdentity (the authenticated principal's
-        // email for a Bearer token), never the JsonWebToken subject: with OIDC enabled the default
-        // JsonWebToken producer is the OIDC one, which is not populated for a smallrye Bearer token,
-        // so jwt.getSubject() would be null.
+        // CurrentUser resolves the account from the SecurityIdentity built by session auth
+        // (UserIdentities.of): the userId attribute is preferred, with the principal email as the
+        // fallback. The Bearer credential is an opaque session token, not a JWT — there is no token
+        // subject to read.
         return currentUser.find()
                 .map(u -> Response.ok(UserDto.from(u)).build())
                 .orElse(Response.status(Response.Status.NOT_FOUND).build());

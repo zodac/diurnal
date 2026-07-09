@@ -28,17 +28,7 @@ services:
       LOG_LEVEL: INFO
       PASSWORD_AUTH_ENABLED: "true"
       ENABLE_REGISTRATION: "true"
-      # Throwaway session key (must be >= 16 chars).
-      SESSION_ENCRYPTION_KEY: smoke-session-key-0123456789abcd
-      # JwtKeyProvisioner generates the RSA keypair at these paths on first start. The tmpfs mount
-      # below makes /run/secrets writable by the image's non-root UID 65532 — so this exercises the
-      # real non-root key-generation path that a production deployment relies on.
-      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
-      JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt-private.pem
       OIDC_ENABLED: "false"
-    tmpfs:
-      # World-writable (mode 1777) so non-root UID 65532 can write the generated keypair.
-      - /run/secrets:mode=1777
     depends_on:
       db:
         condition: service_healthy
