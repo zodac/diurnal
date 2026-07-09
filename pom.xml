@@ -30,12 +30,6 @@
             <groupId>org.hibernate.orm</groupId>
             <artifactId>hibernate-core</artifactId>
         </dependency>
-        <!-- Password hashing -->
-        <dependency>
-            <groupId>org.mindrot</groupId>
-            <artifactId>jbcrypt</artifactId>
-        </dependency>
-
         <!--
             Logging: the application code logs through the Log4j2 API. These calls are bridged into Quarkus's
             backend at runtime, and tuning stays in application.properties (see the Logging block).
@@ -43,6 +37,15 @@
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
+        </dependency>
+        <!-- Password hashing (Argon2id) via password4j, a pure-Java implementation with no native
+             libraries — important for the distroless/jlink production image, which ships a trimmed JRE
+             and a read-only filesystem. The parent POM does not manage password4j, so its version is
+             pinned here. -->
+        <dependency>
+            <groupId>com.password4j</groupId>
+            <artifactId>password4j</artifactId>
+            <version>1.8.2</version>
         </dependency>
 
         <!-- Database -->

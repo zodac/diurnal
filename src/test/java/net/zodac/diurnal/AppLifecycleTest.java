@@ -20,6 +20,7 @@ package net.zodac.diurnal;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import net.zodac.diurnal.config.PasswordAuthConfig;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -87,7 +88,17 @@ class AppLifecycleTest {
 
     private static AppLifecycle lifecycle(final boolean passwordEnabled, final boolean oidcEnabled, final String issuerUrl) {
         final AppLifecycle lifecycle = new AppLifecycle();
-        lifecycle.passwordAuthConfig = () -> passwordEnabled;
+        lifecycle.passwordAuthConfig = new PasswordAuthConfig() {
+            @Override
+            public boolean enabled() {
+                return passwordEnabled;
+            }
+
+            @Override
+            public boolean uniformTimingEnabled() {
+                return true;
+            }
+        };
         lifecycle.oidcEnabled = oidcEnabled;
         lifecycle.oidcIssuerUrl = issuerUrl;
         return lifecycle;

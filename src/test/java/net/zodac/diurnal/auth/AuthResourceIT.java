@@ -26,6 +26,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
+import com.password4j.Argon2Function;
+import com.password4j.types.Argon2;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import jakarta.inject.Inject;
@@ -149,7 +151,7 @@ class AuthResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body(String.format(
                         "{\"email\":\"longpw@example.com\",\"displayName\":\"User\",\"password\":\"%s\"}",
-                        "a".repeat(73)))
+                        "a".repeat(129)))
                 .post("/api/auth/register")
                 .then().statusCode(400);
     }
@@ -180,6 +182,30 @@ class AuthResourceIT extends IntegrationTestBase {
                 .statusCode(200)
                 .body("token", not(emptyOrNullString()))
                 .body("email", equalTo("login@example.com"));
+    }
+
+    @Test
+    void login_hashWithOutdatedParameters_isRehashedToCurrentCostOnSuccess() {
+        // Seed a user whose Argon2id hash uses a higher memory cost than the current configuration,
+        // mimicking an account whose hash predates a cost retune.
+        runInTx(() -> {
+            final User user = newUser("outdated@example.com", "Outdated User");
+            user.passwordHash = Argon2Function.getInstance(2048, 1, 1, 32, Argon2.ID)
+                    .hash(TEST_PASSWORD).getResult();
+        });
+        runInTx(() -> assertThat(User.findByEmail("outdated@example.com").orElseThrow().passwordHash)
+            .as("seeded account should carry the outdated memory cost")
+            .contains("m=2048"));
+
+        given().contentType(ContentType.JSON)
+                .body("{\"email\":\"outdated@example.com\",\"password\":\"" + TEST_PASSWORD + "\"}")
+                .post("/api/auth/login")
+                .then().statusCode(200);
+
+        runInTx(() -> assertThat(User.findByEmail("outdated@example.com").orElseThrow().passwordHash)
+            .as("a successful login should transparently re-hash to the current Argon2id parameters")
+            .startsWith("$argon2id$")
+            .doesNotContain("m=2048"));
     }
 
     @Test

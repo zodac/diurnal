@@ -94,9 +94,9 @@ class UserResourceIT extends IntegrationTestBase {
 
     @Test
     void me_withBasicCredentials_returns401_basicDisabled() {
-        // HTTP Basic is deliberately NOT enabled on /api/* (it would run BCrypt on every request):
+        // HTTP Basic is deliberately NOT enabled on /api/* (it would run Argon2id on every request):
         // even valid account credentials sent as Basic are ignored, so the request is anonymous → 401.
-        // BCrypt therefore never runs for a Basic header, so this cannot be used to guess passwords.
+        // Argon2id therefore never runs for a Basic header, so this cannot be used to guess passwords.
         given().auth().preemptive().basic("me-api@lt.test", TEST_PASSWORD)
                 .get("/api/users/me")
                 .then().statusCode(401);

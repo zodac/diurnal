@@ -86,7 +86,7 @@ must share one exec. Their stacks use disjoint ports/DBs and each self-cleans, s
 
 ### Build
 
-Inherits from `net.zodac:parent-pom` (Maven Central). The parent manages all dependency/plugin versions (Quarkus BOM, JUnit BOM, jbcrypt, jspecify,
+Inherits from `net.zodac:parent-pom` (Maven Central). The parent manages all dependency/plugin versions (Quarkus BOM, JUnit BOM, jspecify,
 etc.). Lint config lives in the `code-quality-config/` git submodule — run `git submodule update --init` after cloning.
 
 Quality gates (opt-in):
@@ -152,7 +152,7 @@ branching is unit-tested (100% PIT); the Vert.x glue is NO_COVERAGE like the res
 IP's brute-force budget); `lockoutRemaining` = the **longer** of the two. The account throttle protects a targeted account across
 every source; the IP throttle slows a single host rotating accounts (only meaningful behind a trusted proxy — see
 `ClientAddress`/`TRUST_X_FORWARDED_HEADERS`). Both login surfaces verify credentials through the **same** `AuthenticationService` (which owns the
-`LoginThrottles` check + BCrypt and returns a `LoginResult`) — `AuthResource.login` (JSON API → `429` + `Retry-After`) and `WebResource.doLogin` (web
+`LoginThrottles` check + Argon2id verification and returns a `LoginResult`) — `AuthResource.login` (JSON API → `429` + `Retry-After`) and `WebResource.doLogin` (web
 form). The locked-out message names the **remaining** time approximately (`LockoutMessages.retryMessage`, e.g. "…try again in about 4 minutes.") — it
 states the policy but never discloses account existence, since a non-existent email is keyed and locked identically (no enumeration). The API returns it
 as the `429` body. The web form: `WebResource.doLogin` owns `POST /login` directly (there is no Quarkus form auth), so on a lockout it simply sets the
@@ -426,7 +426,7 @@ Flyway scripts in `src/main/resources/db/migration/`, sequential (`V1__`, `V2__`
 ### Testing conventions
 
 Integration tests extend `IntegrationTestBase` (truncates `action_logs → actions → users` before each test). Helpers: `newUser()`, `newAction()`,
-`newLog()`, `runInTx()`. Tests use `@TestSecurity`. The `test` profile forces `app.timezone=UTC`. BCrypt cost = 4 in tests.
+`newLog()`, `runInTx()`. Tests use `@TestSecurity`. The `test` profile forces `app.timezone=UTC`. Password hashing runs at minimal cost in tests: seeded users (`newUser()`) get a cheap Argon2id hash whose parameters mirror the `test` profile's pinned `password.hash.argon2.*` values (so a seeded login does not trigger a re-hash).
 
 **Deterministic time:** `IntegrationTestBase` freezes `AppClock` in `@BeforeEach` to `FIXED_TODAY = 2026-06-15`, restoring in `@AfterEach`. Use
 `freezeDate(LocalDate)` or `freezeInstant(Instant, ZoneId)` for boundary cases. Unit tests pass a fixed `today` directly. Surefire/failsafe pin

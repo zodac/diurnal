@@ -17,6 +17,8 @@
 
 package net.zodac.diurnal;
 
+import com.password4j.Argon2Function;
+import com.password4j.types.Argon2;
 import jakarta.inject.Inject;
 import jakarta.transaction.NotSupportedException;
 import jakarta.transaction.SystemException;
@@ -32,7 +34,6 @@ import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.mindrot.jbcrypt.BCrypt;
 
 /**
  * Base for all {@link io.quarkus.test.junit.QuarkusTest} integration tests.
@@ -50,8 +51,10 @@ import org.mindrot.jbcrypt.BCrypt;
 @SuppressWarnings("PMD.AbstractClassWithoutAbstractMethod") // base for QuarkusTest subclasses; intentionally abstract
 public abstract class IntegrationTestBase {
 
-    // Low BCrypt cost — safe for tests, fast enough to not slow the suite
-    static final int BCRYPT_COST = 4;
+    // Minimal-cost Argon2id, matching the cheap parameters pinned in application-test.properties — safe
+    // for tests and fast enough not to slow the suite. Kept in sync so a seeded user's hash already
+    // reflects the current test config (a login therefore does not trigger a re-hash).
+    private static final Argon2Function TEST_ARGON2 = Argon2Function.getInstance(1024, 1, 1, 32, Argon2.ID);
     // The plaintext password every newUser() is seeded with; protected so subclasses (in other
     // packages) can authenticate as a seeded user, e.g. via the login form or POST /api/auth/login.
     protected static final String TEST_PASSWORD = "test_password";
@@ -173,7 +176,7 @@ public abstract class IntegrationTestBase {
         final User u = new User();
         u.email = email;
         u.displayName = displayName;
-        u.passwordHash = BCrypt.hashpw(TEST_PASSWORD, BCrypt.gensalt(BCRYPT_COST));
+        u.passwordHash = TEST_ARGON2.hash(TEST_PASSWORD).getResult();
         u.role = role;
         u.persist();
         return u;

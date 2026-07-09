@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
+import com.password4j.Argon2Function;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.util.UUID;
@@ -30,7 +31,6 @@ import net.zodac.diurnal.user.StatFieldPref;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.user.UserSettings;
 import org.junit.jupiter.api.Test;
-import org.mindrot.jbcrypt.BCrypt;
 
 @QuarkusTest
 @TestSecurity(user = "settings-it@lt.test", roles = "user")
@@ -100,10 +100,13 @@ class SettingsIT extends IntegrationTestBase {
 
         runInTx(() -> {
             final String hash = User.findByEmail(PRIMARY).orElseThrow().passwordHash;
-            assertThat(BCrypt.checkpw("new_secret_123", hash))
+            assertThat(hash)
+                .as("a changed password should be stored as an Argon2id hash")
+                .startsWith("$argon2id$");
+            assertThat(Argon2Function.getInstanceFromHash(hash).check("new_secret_123", hash))
                 .as("new password should verify against the stored hash")
                 .isTrue();
-            assertThat(BCrypt.checkpw(TEST_PASSWORD, hash))
+            assertThat(Argon2Function.getInstanceFromHash(hash).check(TEST_PASSWORD, hash))
                 .as("old password should no longer verify")
                 .isFalse();
         });
@@ -117,7 +120,7 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings/password")
                 .then().statusCode(422);
 
-        runInTx(() -> assertThat(BCrypt.checkpw(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
+        runInTx(() -> assertThat(argon2Matches(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
             .as("old password must be unchanged when the current password is wrong")
             .isTrue());
     }
@@ -129,7 +132,7 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings/password")
                 .then().statusCode(422);
 
-        runInTx(() -> assertThat(BCrypt.checkpw(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
+        runInTx(() -> assertThat(argon2Matches(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
             .as("old password must be unchanged when the current password is missing")
             .isTrue());
     }
@@ -142,7 +145,7 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings/password")
                 .then().statusCode(422);
 
-        runInTx(() -> assertThat(BCrypt.checkpw(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
+        runInTx(() -> assertThat(argon2Matches(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
             .as("old password must be unchanged after a mismatch")
             .isTrue());
     }
@@ -155,7 +158,7 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings/password")
                 .then().statusCode(422);
 
-        runInTx(() -> assertThat(BCrypt.checkpw(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
+        runInTx(() -> assertThat(argon2Matches(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
             .as("old password must be unchanged when the new password is empty")
             .isTrue());
     }
@@ -695,5 +698,9 @@ class SettingsIT extends IntegrationTestBase {
                 .as("theme preserved")
                 .isEqualTo("dark");
         });
+    }
+
+    private static boolean argon2Matches(final String rawPassword, final String passwordHash) {
+        return Argon2Function.getInstanceFromHash(passwordHash).check(rawPassword, passwordHash);
     }
 }
