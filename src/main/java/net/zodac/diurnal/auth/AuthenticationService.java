@@ -69,12 +69,20 @@ public class AuthenticationService {
             return new LoginResult.LockedOut(loginThrottles.lockoutRemaining(email, clientIp, now));
         }
 
-        final Optional<User> authenticated = User.findByEmail(email)
-                .filter(u -> u.passwordHash != null)
-                .filter(u -> Passwords.matches(password, u.passwordHash));
+        final Optional<User> account = User.findByEmail(email)
+                .filter(u -> u.passwordHash != null);
 
-        if (authenticated.isPresent()) {
-            final User user = authenticated.get();
+        final boolean credentialsValid;
+        if (account.isPresent()) {
+            credentialsValid = Passwords.matches(password, account.get().passwordHash);
+        } else {
+            // No stored hash to verify against. Spend the same time as a real check so a non-existent
+            // account cannot be told apart from a wrong password by response time (user enumeration).
+            credentialsValid = passwordAuthConfig.uniformTimingEnabled() && Passwords.matchesDummy(password);
+        }
+
+        if (credentialsValid) {
+            final User user = account.orElseThrow();
             loginThrottles.recordSuccess(email);
             user.lastLoginAt = Instant.now();
             user.persist();

@@ -24,7 +24,6 @@ import io.smallrye.config.WithName;
 /**
  * Typed view over the {@code password.auth.*} settings governing the form/password login mechanism.
  */
-@FunctionalInterface
 @ConfigMapping(prefix = "password")
 public interface PasswordAuthConfig {
 
@@ -37,4 +36,17 @@ public interface PasswordAuthConfig {
     @WithName("auth.enabled")
     @WithDefault("true")
     boolean enabled();
+
+    /**
+     * Whether the login path should equalise its response time across existent and non-existent
+     * accounts. When {@code true}, a login for an account with no stored password hash still runs a
+     * BCrypt verification against a throwaway hash, so the response time cannot be used to enumerate
+     * which emails have accounts. When {@code false}, the BCrypt check is skipped when there is no hash
+     * to verify against (faster, but leaks account existence via timing).
+     *
+     * @return {@code true} when uniform login timing is enabled, defaulting to {@code true}
+     */
+    @WithName("auth.uniform-timing.enabled")
+    @WithDefault("true")
+    boolean uniformTimingEnabled();
 }

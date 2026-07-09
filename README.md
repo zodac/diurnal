@@ -143,12 +143,13 @@ sensible default.
 
 ### Application
 
-| Variable                   | Default | Description                                                                     |
-|----------------------------|---------|---------------------------------------------------------------------------------|
-| `TZ`                       | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                    |
-| `LOG_LEVEL`                | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                |
-| `PASSWORD_AUTH_ENABLED`    | `true`  | Set to `false` to disable password login entirely (requires OIDC to be enabled) |
-| `ENABLE_REGISTRATION`      | `true`  | Set to `false` to close the `/register` page                                    |
+| Variable                       | Default | Description                                                                                                  |
+|--------------------------------|---------|--------------------------------------------------------------------------------------------------------------|
+| `TZ`                           | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                                                 |
+| `LOG_LEVEL`                    | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                             |
+| `PASSWORD_AUTH_ENABLED`        | `true`  | Set to `false` to disable password login entirely (requires OIDC to be enabled)                              |
+| `PASSWORD_AUTH_UNIFORM_TIMING` | `true`  | Keep login response time constant whether or not the email exists, so accounts can't be enumerated by timing |
+| `ENABLE_REGISTRATION`          | `true`  | Set to `false` to close the `/register` page                                                                 |
 
 ### Login Throttling
 

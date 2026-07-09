@@ -32,6 +32,12 @@ public final class Passwords {
     // BCrypt work factor (2^COST rounds). Higher is slower and more resistant to brute force.
     private static final int COST = 12;
 
+    // A throwaway hash of a random value, computed once at the same COST as real hashes. Verifying a
+    // submitted password against it spends the same time as a genuine check, so a login for an account
+    // that does not exist (or has no password hash) cannot be told apart from a wrong password by how
+    // long the response takes. See matchesDummy(String).
+    private static final String DUMMY_HASH = BCrypt.hashpw("diurnal-dummy-password", BCrypt.gensalt(COST));
+
     private Passwords() {
 
     }
@@ -55,5 +61,19 @@ public final class Passwords {
      */
     public static boolean matches(final String rawPassword, final String passwordHash) {
         return BCrypt.checkpw(rawPassword, passwordHash);
+    }
+
+    /**
+     * Verifies a raw password against a fixed, throwaway hash and always fails. Its purpose is purely to
+     * spend the same time as a real {@link #matches(String, String)} check when there is no stored hash to
+     * verify against — so a login for a non-existent (or password-less) account is indistinguishable from a
+     * wrong password by response time, closing a user-enumeration timing side channel.
+     *
+     * @param rawPassword the plaintext password to verify against the throwaway hash
+     * @return {@code false}, always
+     */
+    public static boolean matchesDummy(final String rawPassword) {
+        BCrypt.checkpw(rawPassword, DUMMY_HASH);
+        return false;
     }
 }
