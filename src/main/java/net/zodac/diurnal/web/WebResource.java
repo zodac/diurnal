@@ -21,6 +21,7 @@ import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
 import io.quarkus.security.identity.SecurityIdentity;
+import io.vertx.ext.web.RoutingContext;
 import jakarta.annotation.security.PermitAll;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -35,6 +36,7 @@ import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
@@ -46,14 +48,19 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.Consumer;
+import net.zodac.diurnal.auth.AuthenticationService;
+import net.zodac.diurnal.auth.ClientAddress;
 import net.zodac.diurnal.auth.LockoutMessages;
+import net.zodac.diurnal.auth.LoginResult;
 import net.zodac.diurnal.auth.PasswordConstraints;
-import net.zodac.diurnal.auth.PasswordIdentityProvider;
 import net.zodac.diurnal.auth.Passwords;
 import net.zodac.diurnal.auth.RoleAssigner;
+import net.zodac.diurnal.auth.Session;
+import net.zodac.diurnal.auth.SessionStore;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.config.RegistrationConfig;
+import net.zodac.diurnal.config.SessionConfig;
 import net.zodac.diurnal.config.ThrottleConfig;
 import net.zodac.diurnal.stats.ActionStatField;
 import net.zodac.diurnal.stats.StatsService;
@@ -69,7 +76,11 @@ import org.jspecify.annotations.Nullable;
 /**
  * Serves the top-level web UI pages: login, register, logout, settings and the dashboard.
  */
+// This is the app's single web-page controller: many injected collaborators (templates, config,
+// session + auth services) are inherent to that role rather than a design smell, so the field count
+// rule is suppressed here in the same spirit as the wide User entity.
 @Path("/")
+@SuppressWarnings("PMD.TooManyFields")
 public class WebResource {
 
     private static final Logger LOGGER = LogManager.getLogger(WebResource.class);
@@ -85,6 +96,12 @@ public class WebResource {
     // Carries the seconds left on a lockout to the AJAX submit handler (app.js), which posts the form via
     // fetch and so never renders the server-side banner — it runs a live countdown from this value instead.
     private static final String LOGIN_RETRY_AFTER_HEADER = "X-Login-Retry-After";
+
+    // Short-lived cookie signalling that a just-rejected form login was a lockout (not a bad password).
+    // Its value is the seconds left; the GET /login render reads it to show the banner and seed the
+    // countdown, then clears it. Only needs to survive the immediate redirect to the login page.
+    private static final String LOCKOUT_COOKIE = "diurnal_login_lockout";
+    private static final int LOCKOUT_COOKIE_MAX_AGE_SECONDS = 30;
 
     @Inject
     @Location("login")
@@ -107,6 +124,13 @@ public class WebResource {
     @Inject StatsService statsService;
     @Inject RoleAssigner roleAssigner;
     @Inject AppClock clock;
+    @Inject AuthenticationService authenticationService;
+    @Inject SessionStore sessionStore;
+    @Inject SessionConfig sessionConfig;
+
+    @Context
+    @Nullable
+    RoutingContext routingContext;
 
     @ConfigProperty(name = "quarkus.oidc.tenant-enabled", defaultValue = "false")
     boolean oidcEnabled;
@@ -135,7 +159,7 @@ public class WebResource {
     public Response loginPage(
             @QueryParam("error")      final String error,
             @QueryParam("registered") @DefaultValue("false") final boolean registered,
-            @CookieParam(PasswordIdentityProvider.LOCKOUT_COOKIE) final String lockoutCookie) {
+            @CookieParam(LOCKOUT_COOKIE) final String lockoutCookie) {
         // First run: no users exist yet. Send the deployer to the setup landing page to create the
         // initial local account, and short-circuit any OIDC auto-redirect below — the first account
         // must be local. During set up the initial account can always be created (ENABLE_REGISTRATION
@@ -160,7 +184,7 @@ public class WebResource {
             return Response.seeOther(URI.create("/login?error=oidc")).build();
         }
         final boolean showOidcError = "oidc".equals(error);
-        // The lockout cookie (set by PasswordIdentityProvider on the failed form POST) marks this as a
+        // The lockout cookie (set by doLogin on the failed form POST) marks this as a
         // lockout rather than a bad password; it takes precedence over the generic error banner. Its
         // value is the seconds left on the lockout, seeding the countdown.
         final boolean showLocked = lockoutCookie != null;
@@ -184,7 +208,7 @@ public class WebResource {
         }
         if (showLocked) {
             // One-shot: clear it so a later reload of the login page shows the normal form.
-            builder.cookie(new NewCookie.Builder(PasswordIdentityProvider.LOCKOUT_COOKIE)
+            builder.cookie(new NewCookie.Builder(LOCKOUT_COOKIE)
                     .value("").path("/").maxAge(0).build());
             // The login form posts via fetch (data-ajax-submit) and never renders this HTML, so app.js
             // reads the seconds left from this header and runs a live countdown in the banner.
@@ -209,6 +233,77 @@ public class WebResource {
             }
         }
         return throttleConfig.lockoutDuration();
+    }
+
+    /**
+     * Handles the login form submission: verifies the credentials and, on success, creates a
+     * server-side session and sets the {@code diurnal_session} cookie before redirecting to the
+     * dashboard. A bad password redirects to {@code /login?error=true}; a lockout redirects to
+     * {@code /login} carrying the short-lived lockout cookie so the page can show the countdown. The
+     * form posts via {@code fetch} (app.js), which follows the redirect and reads the final URL (and
+     * the {@code X-Login-Retry-After} header on the login page) to tell success, error and lockout apart.
+     */
+    @POST
+    @Path("login")
+    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
+    @Produces(MediaType.TEXT_HTML)
+    public Response doLogin(
+            @FormParam("email") @Nullable final String email,
+            @FormParam("password") @Nullable final String password) {
+        final String clientIp = ClientAddress.of(routingContext);
+        final Instant now = clock.now();
+        final LoginResult result = authenticationService.authenticate(
+                email == null ? "" : email, password == null ? "" : password, clientIp, now);
+
+        return switch (result) {
+            case LoginResult.Success success -> {
+                final String token = sessionStore.create(
+                        success.user(), Session.AUTH_SOURCE_PASSWORD, userAgent(), clientIp, now);
+                yield Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
+            }
+            case LoginResult.LockedOut locked -> Response.seeOther(URI.create("/login"))
+                    .cookie(lockoutCookie(locked.remaining()))
+                    .build();
+            case LoginResult.InvalidCredentials ignored -> Response.seeOther(URI.create("/login?error=true")).build();
+        };
+    }
+
+    /*
+     * Builds the session cookie carrying the opaque token: HttpOnly, SameSite=Strict, Path=/, and
+     * Secure derived from the request scheme (which honours X-Forwarded-Proto behind the proxy). Its
+     * max-age matches the session's absolute lifetime.
+     */
+    private NewCookie sessionCookie(final String token) {
+        return new NewCookie.Builder(sessionConfig.cookieName())
+                .value(token)
+                .path("/")
+                .httpOnly(true)
+                .sameSite(NewCookie.SameSite.STRICT)
+                .secure(isSecureRequest())
+                .maxAge((int) sessionConfig.absoluteTimeout().toSeconds())
+                .build();
+    }
+
+    /*
+     * Builds the short-lived lockout cookie whose value is the seconds left, read by the GET /login
+     * render to show the lockout banner and seed the live countdown.
+     */
+    private NewCookie lockoutCookie(final Duration remaining) {
+        final long seconds = Math.max(1L, remaining.toSeconds());
+        return new NewCookie.Builder(LOCKOUT_COOKIE)
+                .value(Long.toString(seconds))
+                .path("/")
+                .httpOnly(true)
+                .maxAge(LOCKOUT_COOKIE_MAX_AGE_SECONDS)
+                .build();
+    }
+
+    private @Nullable String userAgent() {
+        return routingContext == null ? null : routingContext.request().getHeader("User-Agent");
+    }
+
+    private boolean isSecureRequest() {
+        return routingContext != null && routingContext.request().isSSL();
     }
 
     /**
@@ -237,14 +332,22 @@ public class WebResource {
         // tokens and creates the OIDC session cookie. The request then reaches JAX-RS — this
         // endpoint receives it and forwards the now-authenticated user to the dashboard.
         //
-        // This is called exactly once per OIDC login, so it is the right place to update
-        // lastLoginAt and emit the login log (the augmentor runs on every subsequent request).
+        // This runs exactly once per OIDC login, so it is where we record the login AND mint a
+        // Diurnal server-side session (auth_source='oidc'), setting our diurnal_session cookie. From
+        // here on SessionAuthMechanism authenticates every request from that cookie, so OIDC and
+        // password users share one revocable session model. The q_session cookie is left in place
+        // only so logout can still trigger RP-initiated IdP logout.
         if (!identity.isAnonymous()) {
-            currentUser.find().ifPresent(user -> {
+            final Optional<User> found = currentUser.find();
+            if (found.isPresent()) {
+                final User user = found.get();
                 user.lastLoginAt = Instant.now();
                 user.persist();
                 LOGGER.debug("OIDC login: name={} email={} role={}", user.displayName, user.email, user.role);
-            });
+                final String token = sessionStore.create(
+                        user, Session.AUTH_SOURCE_OIDC, userAgent(), ClientAddress.of(routingContext), clock.now());
+                return Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
+            }
         }
 
         return Response.seeOther(URI.create("/")).build();
@@ -415,12 +518,19 @@ public class WebResource {
     // ── Logout ────────────────────────────────────────────────────────────
 
     /**
-     * Clears the session cookies and redirects to the IdP logout (OIDC users) or {@code /login}.
+     * Revokes the current server-side session, clears the session cookies, and redirects to the IdP
+     * logout (OIDC users) or {@code /login}.
      */
     @POST
     @Path("logout")
-    public Response logout(@CookieParam("q_session") final String oidcSession) {
-        final NewCookie clearForm    = new NewCookie.Builder("diurnal_session").value("").path("/").maxAge(0).httpOnly(true).build();
+    public Response logout(
+            @CookieParam("diurnal_session") @Nullable final String sessionToken,
+            @CookieParam("q_session") @Nullable final String oidcSession) {
+        // Revoke only this device's session; any other devices stay logged in.
+        if (sessionToken != null && !sessionToken.isBlank()) {
+            sessionStore.revoke(sessionToken);
+        }
+        final NewCookie clearForm    = new NewCookie.Builder(sessionConfig.cookieName()).value("").path("/").maxAge(0).httpOnly(true).build();
         final NewCookie clearOidc    = new NewCookie.Builder("q_session").value("").path("/").maxAge(0).httpOnly(true).build();
         // RP-initiated logout: only redirect to the IdP if the user authenticated via OIDC
         // (has a q_session cookie). Password users go straight to /login.
@@ -430,7 +540,7 @@ public class WebResource {
         final URI target = (hasOidcSession ? oidcConfig.logoutUrl().filter(url -> !url.isBlank()) : Optional.<String>empty())
                 .map(URI::create)
                 .orElse(URI.create("/login"));
-        LOGGER.debug("Logout: redirecting to {}", target);
+        LOGGER.debug("Logout: revoking session and redirecting to {}", target);
         return Response.seeOther(target).cookie(clearForm, clearOidc).build();
     }
 
@@ -617,7 +727,8 @@ public class WebResource {
     public Response updatePassword(
             @FormParam("currentPassword") final String currentPassword,
             @FormParam("newPassword")     final String newPassword,
-            @FormParam("confirmPassword") final String confirmPassword) {
+            @FormParam("confirmPassword") final String confirmPassword,
+            @CookieParam("diurnal_session") @Nullable final String sessionToken) {
         final User user = currentUser.get();
         // Only local accounts have a password to change; OIDC-only users (and deployments with password
         // auth switched off entirely) have none. The UI already hides the field for them — this guards
@@ -644,7 +755,12 @@ public class WebResource {
         }
         user.passwordHash = Passwords.hash(newPassword);
         user.persist();
-        LOGGER.info("Password changed for user: {}", user.email);
+        // A password change evicts every other device (a common response to suspected compromise) while
+        // keeping the session that made the change signed in, so the user is not logged out mid-action.
+        if (sessionToken != null && !sessionToken.isBlank()) {
+            sessionStore.revokeOthersForUser(user.id, sessionToken);
+        }
+        LOGGER.info("Password changed for user: {} (other sessions revoked)", user.email);
         return Response.ok().build();
     }
 
@@ -688,6 +804,24 @@ public class WebResource {
     private static boolean currentPasswordMatches(final String passwordHash, final String currentPassword) {
         return currentPassword != null && !currentPassword.isEmpty()
                 && Passwords.matches(currentPassword, passwordHash);
+    }
+
+    /**
+     * Revokes every one of the current user's sessions — including the one making this request ("log out
+     * from everywhere") — then clears the session cookies and redirects to {@code /login}, forcing a
+     * fresh login on every device.
+     */
+    @POST
+    @Path("settings/sessions/revoke-all")
+    @RolesAllowed("user")
+    @Transactional
+    public Response revokeAllSessions() {
+        final User user = currentUser.get();
+        sessionStore.revokeAllForUser(user.id);
+        LOGGER.info("All sessions revoked for user: {} (log out from everywhere)", user.email);
+        final NewCookie clearForm = new NewCookie.Builder(sessionConfig.cookieName()).value("").path("/").maxAge(0).httpOnly(true).build();
+        final NewCookie clearOidc = new NewCookie.Builder("q_session").value("").path("/").maxAge(0).httpOnly(true).build();
+        return Response.seeOther(URI.create("/login")).cookie(clearForm, clearOidc).build();
     }
 
     private TemplateInstance settingsView(final User user) {

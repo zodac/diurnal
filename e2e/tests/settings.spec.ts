@@ -331,4 +331,41 @@ test.describe("Settings page", () => {
         await page.keyboard.press("Escape")
         await expect(page.locator("#preview-modal")).toBeHidden()
     })
+
+    test("log out everywhere arms an in-place confirm, not a native dialog", async ({ authenticatedPage: page }) => {
+        // Fail if a native confirm()/alert() ever appears — the whole point is to avoid it.
+        let dialogFired = false
+        page.on("dialog", (d) => { dialogFired = true; void d.dismiss() })
+
+        await page.goto("/settings")
+        const view = page.locator("#logout-all-view")
+        const confirm = page.locator("#logout-all-confirm")
+        await expect(view).toBeVisible()
+        await expect(confirm).toBeHidden()
+
+        // Arming reveals the confirm state (destructive action + Cancel); no dialog is shown.
+        await view.getByRole("button", { name: "Log out everywhere" }).click()
+        await expect(confirm).toBeVisible()
+        await expect(confirm.getByRole("button", { name: "Cancel" })).toBeVisible()
+        await expect(view).toBeHidden()
+        expect(dialogFired).toBe(false)
+
+        // Cancel restores the resting view without logging out.
+        await confirm.getByRole("button", { name: "Cancel" }).click()
+        await expect(confirm).toBeHidden()
+        await expect(view).toBeVisible()
+    })
+
+    test("confirming log out everywhere ends the session and returns to login", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        await page.locator("#logout-all-view").getByRole("button", { name: "Log out everywhere" }).click()
+        await Promise.all([
+            page.waitForURL(/\/login/),
+            page.locator("#logout-all-confirm").getByRole("button", { name: "Log out everywhere" }).click(),
+        ])
+
+        // The session is revoked, so a protected page bounces straight back to /login.
+        await page.goto("/")
+        await expect(page).toHaveURL(/\/login/)
+    })
 })

@@ -27,7 +27,7 @@ import org.jspecify.annotations.Nullable;
  * with its human-readable display name.
  *
  * <p>The {@link #storageValue()} is what is persisted in {@code users.role} and consumed by the
- * security layer (JWT groups, {@code SecurityIdentity} roles, {@code @RolesAllowed}) — it reuses the
+ * security layer ({@code SecurityIdentity} roles, {@code @RolesAllowed}) — it reuses the
  * {@link User#ROLE_ADMIN}/{@link User#ROLE_USER} constants so those values live in one place. The
  * {@link #displayName()} is what the admin User Management table and its role picker show.
  *

@@ -227,6 +227,38 @@
                             <p class="text-sm text-ink-muted">User authentication is managed by {oidcProviderName}.</p>
                         </div>
                         {/if}
+
+                        <!-- Log out from everywhere: revokes ALL of this user's sessions (this device
+                             included) server-side and returns to /login, forcing a fresh sign-in on every
+                             device. Uses the app's in-place confirm idiom (not a native dialog): the trigger
+                             arms a red-ringed confirm state with the destructive action on the LEFT and Cancel
+                             on the RIGHT, matching the data-table delete-confirm. The confirm is a plain POST
+                             form (no data-ajax-submit), so its 303 navigates the browser to /login. -->
+                        <div>
+                            <label class="field-label-caps">Sessions</label>
+
+                            <!-- View: description + the arming trigger. -->
+                            <div id="logout-all-view"
+                                 class="settings-field flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg">
+                                <p class="text-sm text-ink-muted">Sign out of Diurnal on this and every other device.</p>
+                                <div class="dt-actions">
+                                    <button type="button" onclick="armLogoutAll()"
+                                            class="dt-btn dt-btn-danger">Log out everywhere</button>
+                                </div>
+                            </div>
+
+                            <!-- Confirm (hidden until armed): destructive action left, Cancel right. -->
+                            <form id="logout-all-confirm"
+                                  method="post" action="/settings/sessions/revoke-all"
+                                  class="hidden settings-field settings-field-confirm flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg">
+                                <span class="text-sm text-ink-muted">Log out on all devices?</span>
+                                <div class="dt-actions">
+                                    <button type="submit" class="dt-btn dt-btn-danger">Log out everywhere</button>
+                                    <button type="button" onclick="cancelLogoutAll()"
+                                            class="dt-btn dt-btn-cancel">Cancel</button>
+                                </div>
+                            </form>
+                        </div>
                     </div>
                 </div>
 
@@ -533,6 +565,19 @@
                 document.getElementById('display-name-view').classList.remove('hidden');
                 document.getElementById('displayName').value =
                     document.getElementById('display-name-text').textContent;
+            }
+
+            // "Log out everywhere" in-place confirm (mirrors the data-table delete-confirm): the trigger
+            // reveals a red-ringed confirm state; Cancel restores the resting view. The confirm itself is a
+            // plain POST form, so submitting it navigates through the server's 303 redirect to /login.
+            function armLogoutAll() {
+                document.getElementById('logout-all-view').classList.add('hidden');
+                document.getElementById('logout-all-confirm').classList.remove('hidden');
+            }
+
+            function cancelLogoutAll() {
+                document.getElementById('logout-all-confirm').classList.add('hidden');
+                document.getElementById('logout-all-view').classList.remove('hidden');
             }
 
             document.getElementById('account-form').addEventListener('htmx:afterRequest', function (e) {

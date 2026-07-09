@@ -20,7 +20,7 @@ package net.zodac.diurnal.auth;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Shared failure logging for both login surfaces ({@link AuthResource}, {@link PasswordIdentityProvider}),
+ * Shared failure logging for both login surfaces (via {@link AuthenticationService}),
  * so the API and the web form emit identical lines. The caller passes its own {@link Logger} so the log
  * still names the originating class.
  */

@@ -28,15 +28,17 @@ import jakarta.inject.Inject;
 import java.time.LocalDate;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
-import net.zodac.diurnal.auth.TokenService;
+import net.zodac.diurnal.auth.Session;
+import net.zodac.diurnal.auth.SessionStore;
+import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 /**
  * Verifies the shared {@code /logs/events} feed works as the public API — i.e. it authenticates a real
- * Bearer JWT (not just the in-app session that {@link CalendarResourceIT} exercises via {@code @TestSecurity}),
- * and that an anonymous request is challenged. The {@code /logs/*} surface is unpinned, so the Bearer
- * mechanism authenticates a present token while {@code BrowserLoginChallengeMechanism} redirects an
+ * opaque session token as a Bearer header (not just the in-app session that {@link CalendarResourceIT}
+ * exercises via {@code @TestSecurity}), and that an anonymous request is challenged. The {@code /logs/*}
+ * surface is unpinned, so {@code SessionAuthMechanism} authenticates a present token while redirecting an
  * anonymous request to {@code /login}.
  */
 @QuarkusTest
@@ -46,7 +48,10 @@ class CalendarApiAuthIT extends IntegrationTestBase {
     private static final LocalDate DAY = LocalDate.of(2026, 6, 15);
 
     @Inject
-    TokenService tokenService;
+    SessionStore sessionStore;
+
+    @Inject
+    AppClock clock;
 
     User user;
     Action action;
@@ -89,6 +94,7 @@ class CalendarApiAuthIT extends IntegrationTestBase {
     }
 
     private Header bearer() {
-        return new Header("Authorization", "Bearer " + tokenService.generateToken(user));
+        final String token = sessionStore.create(user, Session.AUTH_SOURCE_PASSWORD, null, null, clock.now());
+        return new Header("Authorization", "Bearer " + token);
     }
 }

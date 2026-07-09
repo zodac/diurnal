@@ -122,7 +122,7 @@ RUN apt-get update && apt-get install -yqq --no-install-recommends \
 #   java.net.http                      – OIDC token refresh + REST client (java.net.http.HttpClient)
 #   jdk.naming.dns                     – DNS resolution for OIDC discovery
 #   java.security.jgss / .sasl          – GSS/SASL chains pulled in by TLS + auth
-#   jdk.crypto.cryptoki / jdk.crypto.ec – PKCS#11 + EC crypto (modern TLS handshakes, ES* JWT)
+#   jdk.crypto.cryptoki / jdk.crypto.ec – PKCS#11 + EC crypto (modern TLS handshakes)
 #   java.desktop                       – java.beans, required reflectively by Hibernate / Jackson
 #   java.instrument                    – bytecode instrumentation agents
 #   jdk.unsupported                    – sun.misc.Unsafe (Netty, Hibernate, et al.)
@@ -169,7 +169,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 
 # Quarkus fast-jar layout: quarkus-run.jar alongside lib/ app/ quarkus/. Deploy the whole directory.
 # Files land root-owned but world-readable, so UID 65532 can read/exec them; the app never writes here
-# (JWT keys go to the mounted /run/secrets volume, logs go to stdout).
+# (session state lives in Postgres, logs go to stdout).
 WORKDIR /app
 COPY --from=build /build/target/quarkus-app/ ./
 

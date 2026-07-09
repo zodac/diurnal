@@ -2,7 +2,7 @@
 #
 # Quick start:
 #   1. Copy this file to `docker-compose.yml`
-#   2. Set DB_PASSWORD and SESSION_ENCRYPTION_KEY below (use long, random values)
+#   2. Set DB_PASSWORD below (use a long, random value)
 #   3. Run: docker compose up -d
 #   4. Open http://localhost:8080 and register the first account (it becomes the administrator)
 #
@@ -29,23 +29,17 @@ services:
       DB_NAME: diurnal_db
       DB_USER: diurnal_user
       DB_PASSWORD: change-me-strong-password        # <-- CHANGE ME
-      SESSION_ENCRYPTION_KEY: change-me-to-a-random-32-char-string   # <-- CHANGE ME
       TZ: UTC
       LOG_LEVEL: INFO
       ENABLE_REGISTRATION: "true"
       # Trust X-Forwarded-* from your reverse proxy (needed for https:// OIDC redirects and Secure
       # cookies). Only keep this "true" if a trusted proxy fronts the app; set "false" if exposed directly.
       TRUST_X_FORWARDED_HEADERS: "true"
-      JWT_PUBLIC_KEY_LOCATION: file:/run/secrets/jwt-public.pem
-      JWT_PRIVATE_KEY_LOCATION: file:/run/secrets/jwt-private.pem
     networks:
       - diurnal
     ports:
       - "8080:8080"
     restart: unless-stopped
-    volumes:
-      # Persists the auto-generated JWT keypair across restarts.
-      - diurnal_secrets:/run/secrets
 
   diurnal-db:
     image: postgres:18.4-alpine
@@ -73,5 +67,3 @@ services:
 volumes:
   diurnal-db_data:
     name: diurnal-db_data
-  diurnal_secrets:
-    name: diurnal_secrets

@@ -29,13 +29,14 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
  *
  * <p>One scheme is declared so the docs (and "Try it out") can authenticate:
  * <ul>
- *   <li>{@code BearerAuth} — a signed JWT obtained from {@code POST /api/auth/login}, sent as
- *       {@code Authorization: Bearer <token>}.</li>
+ *   <li>{@code BearerAuth} — an opaque session token obtained from {@code POST /api/auth/login}, sent
+ *       as {@code Authorization: Bearer <token>} and revoked by {@code POST /api/auth/logout}.</li>
  * </ul>
  *
  * <p>HTTP Basic is deliberately NOT offered: enabling it would run BCrypt on every {@code /api/*}
  * request carrying a Basic header — an unthrottled password-guessing and CPU-exhaustion surface.
- * The API authenticates with the Bearer JWT alone (verification is asymmetric crypto, no hashing).
+ * The API authenticates with the Bearer session token alone (a cheap hashed-index lookup, no
+ * per-request hashing).
  *
  * <p>Declaring it here (rather than via the {@code quarkus.smallrye-openapi.security-scheme} config)
  * pins it to a plain HTTP bearer scheme instead of the {@code openIdConnect} scheme SmallRye would
@@ -58,8 +59,8 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
         securitySchemeName = "BearerAuth",
         type = SecuritySchemeType.HTTP,
         scheme = "bearer",
-        bearerFormat = "JWT",
-        description = "Signed JWT from POST /api/auth/login, sent as 'Authorization: Bearer <token>'."
+        bearerFormat = "Opaque",
+        description = "Opaque session token from POST /api/auth/login, sent as 'Authorization: Bearer <token>'."
 )
 public class DiurnalApiDefinition extends Application {
 }

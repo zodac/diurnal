@@ -29,12 +29,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import jakarta.inject.Inject;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.Base64;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.BeforeEach;
@@ -220,32 +218,27 @@ class AuthResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    void login_tokenHasValidJwtStructure() {
-        registerUser("jwt@example.com", "JWT User", "password123");
+    void login_returnsOpaqueSessionTokenThatAuthenticates() {
+        registerUser("session@example.com", "Session User", "password123");
 
         final String token = given().contentType(ContentType.JSON)
                 .body("""
-                        {"email":"jwt@example.com","password":"password123"}
+                        {"email":"session@example.com","password":"password123"}
                         """)
                 .post("/api/auth/login")
                 .then().statusCode(200)
                 .extract().path("token");
 
-        final String[] parts = token.split("\\.");
-        assertThat(parts.length)
-            .as("JWT must have header.payload.signature")
-            .isEqualTo(3);
+        assertThat(token)
+            .as("The session token must be an opaque string, not a dotted JWT")
+            .isNotBlank()
+            .doesNotContain(".");
 
-        final String payloadJson = new String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8);
-        assertThat(payloadJson.contains("\"iss\":\"diurnal\""))
-            .as("issuer claim missing")
-            .isTrue();
-        assertThat(payloadJson.contains("\"upn\":\"jwt@example.com\""))
-            .as("upn claim missing")
-            .isTrue();
-        assertThat(payloadJson.contains("\"exp\""))
-            .as("expiry claim missing")
-            .isTrue();
+        // The opaque token must authenticate a protected API call as a Bearer credential.
+        given().header("Authorization", "Bearer " + token)
+                .get("/api/users/me")
+                .then().statusCode(200)
+                .body("email", equalTo("session@example.com"));
     }
 
     // ── Per-account throttling ──────────────────────────────────────────────────

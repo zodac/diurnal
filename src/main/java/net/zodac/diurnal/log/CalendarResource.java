@@ -55,7 +55,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
  *
  * <p>The {@code /logs/events} feed is also the <strong>public API</strong> for reading a user's logged
  * actions: it is documented in the Swagger UI and may be called by external integrations with a Bearer
- * JWT (see {@code /api/auth/login}) as well as by the in-app calendar with its session cookie. The
+ * session token (see {@code /api/auth/login}) as well as by the in-app calendar with its session cookie. The
  * {@code /logs/minimal-events} feed stays internal to the dashboard.
  */
 @Tag(name = "Logs", description = "Read a user's logged actions as calendar events.")

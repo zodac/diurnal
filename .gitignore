@@ -1,13 +1,6 @@
 # Environment
 .env
 
-# JWT keys — auto-generated on first start (see JwtKeyProvisioner)
-secrets/
-src/main/resources/jwt-keys/
-# Root-level pair generated when the app runs with the base/prod profile from the repo root
-# (application.properties defaults the key locations to the relative `jwt-keys/*.pem`).
-/jwt-keys/
-
 # Maven
 target/
 

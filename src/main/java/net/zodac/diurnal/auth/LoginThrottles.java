@@ -26,7 +26,7 @@ import net.zodac.diurnal.config.ThrottleConfig;
 
 /**
  * Coordinates the two login throttles — per-account (keyed by email) and per-IP (keyed by client IP) —
- * that both login surfaces ({@link AuthResource} and {@link PasswordIdentityProvider}) consult.
+ * that both login surfaces consult (via {@link AuthenticationService}).
  *
  * <p>
  * A login is blocked if <em>either</em> dimension is locked: the account throttle protects a specific
