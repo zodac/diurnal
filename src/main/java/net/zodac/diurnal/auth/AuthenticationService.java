@@ -31,7 +31,7 @@ import org.apache.logging.log4j.Logger;
 /**
  * Verifies email/password credentials for both login surfaces (the web form and the REST API),
  * applying login throttling and recording the outcome. It performs only the credential check —
- * minting the actual session is the caller's job — so the same throttle + BCrypt path is shared and
+ * minting the actual session is the caller's job — so the same throttle + Argon2id path is shared and
  * cannot drift between the two surfaces.
  */
 @ApplicationScoped
@@ -45,9 +45,12 @@ public class AuthenticationService {
     @Inject
     PasswordAuthConfig passwordAuthConfig;
 
+    @Inject
+    Passwords passwords;
+
     /**
      * Checks the given credentials against the account store at {@code now}. Enforces the per-account
-     * and per-IP lockouts first, then verifies the BCrypt hash; on success the account's
+     * and per-IP lockouts first, then verifies the Argon2id hash; on success the account's
      * {@code lastLoginAt} is updated and the account's failure count cleared.
      *
      * @param rawEmail the submitted email (any case/whitespace; normalised internally)
@@ -74,16 +77,21 @@ public class AuthenticationService {
 
         final boolean credentialsValid;
         if (account.isPresent()) {
-            credentialsValid = Passwords.matches(password, account.get().passwordHash);
+            credentialsValid = passwords.matches(password, account.get().passwordHash);
         } else {
             // No stored hash to verify against. Spend the same time as a real check so a non-existent
             // account cannot be told apart from a wrong password by response time (user enumeration).
-            credentialsValid = passwordAuthConfig.uniformTimingEnabled() && Passwords.matchesDummy(password);
+            credentialsValid = passwordAuthConfig.uniformTimingEnabled() && passwords.matchesDummy(password);
         }
 
         if (credentialsValid) {
             final User user = account.orElseThrow();
             loginThrottles.recordSuccess(email);
+            // Transparently upgrade a hash made under weaker Argon2id parameters to the current cost now
+            // that we hold the verified plaintext.
+            if (passwords.needsRehash(user.passwordHash)) {
+                user.passwordHash = passwords.hash(password);
+            }
             user.lastLoginAt = Instant.now();
             user.persist();
             LOGGER.debug("Successful login: name={} email={} role={}", user.displayName, user.email, user.role);

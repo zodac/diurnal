@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
  * Verifies the generated OpenAPI document (served at {@code /q/openapi}) declares exactly the one
  * authentication scheme Swagger UI's "Authorize" dialog relies on — the {@code BearerAuth} token
  * scheme from {@link DiurnalApiDefinition} — and that a secured operation requires it. HTTP Basic is
- * deliberately not offered (it would run BCrypt on every authenticated {@code /api/*} request).
+ * deliberately not offered (it would run Argon2id on every authenticated {@code /api/*} request).
  *
  * <p>
  * The document is admin-gated by {@code OpenApiDocsAuthFilter}, so every request here authenticates as

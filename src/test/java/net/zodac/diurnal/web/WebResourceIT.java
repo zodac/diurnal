@@ -222,7 +222,7 @@ class WebResourceIT extends IntegrationTestBase {
 
     @Test
     void register_passwordTooLong_rendersErrorBannerInPage() {
-        final String tooLong = "a".repeat(73);
+        final String tooLong = "a".repeat(129);
         given().redirects().follow(false)
                 .formParam("email", "longpw@example.com")
                 .formParam("displayName", "Long PW")
@@ -231,7 +231,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .post("/register")
                 .then()
                 .statusCode(400)
-                .body(containsString("Password must be at most 72 characters."));
+                .body(containsString("Password must be at most 128 characters."));
     }
 
     @Test

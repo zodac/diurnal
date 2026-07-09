@@ -36,11 +36,11 @@ public final class PasswordConstraints {
     /**
      * Maximum accepted length of a raw password, in characters.
      *
-     * <p>Bounded by BCrypt's 72-byte truncation limit (see {@link Passwords}): anything longer would be silently
-     * ignored at hashing time, so it is rejected up front rather than quietly truncated. For ASCII passwords this is
-     * 72 characters; multi-byte characters occupy more than one byte each, so fewer of those fit within the ceiling.
+     * <p>A deliberate hygiene bound rather than an algorithm limit — Argon2id imposes none, and the password only feeds
+     * the fixed-size initial digest, so length barely affects hashing cost. The cap simply rejects abusive multi-kilobyte
+     * inputs up front while staying generous enough (128 characters) never to constrain a real passphrase.
      */
-    public static final int MAX_LENGTH = 72;
+    public static final int MAX_LENGTH = 128;
 
     private PasswordConstraints() {
 

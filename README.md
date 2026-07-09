@@ -18,6 +18,7 @@
     - [Required](#required)
     - [Database](#database)
     - [Application](#application)
+    - [Password Hashing](#password-hashing)
     - [Login Throttling](#login-throttling)
     - [Sessions](#sessions)
     - [Reverse Proxy](#reverse-proxy)
@@ -150,6 +151,17 @@ sensible default.
 | `PASSWORD_AUTH_ENABLED`        | `true`  | Set to `false` to disable password login entirely (requires OIDC to be enabled)                              |
 | `PASSWORD_AUTH_UNIFORM_TIMING` | `true`  | Keep login response time constant whether or not the email exists, so accounts can't be enumerated by timing |
 | `ENABLE_REGISTRATION`          | `true`  | Set to `false` to close the `/register` page                                                                 |
+
+### Password Hashing
+
+Passwords are stored as [Argon2id](https://en.wikipedia.org/wiki/Argon2) hashes. The three cost parameters below were chosen so a single hash takes
+roughly **100–500 ms** on my hardware. For resource-constrained hardware, you may need to tune these values.
+
+| Variable                           | Default | Description                                             |
+|------------------------------------|---------|---------------------------------------------------------|
+| `PASSWORD_HASH_ARGON2_MEMORY_KIB`  | `98304` | Memory cost in KiB (96 MiB)                             |
+| `PASSWORD_HASH_ARGON2_ITERATIONS`  | `3`     | Number of passes for hashing                            |
+| `PASSWORD_HASH_ARGON2_PARALLELISM` | `4`     | Number of lanes; cuts latency at the cost of more cores |
 
 ### Login Throttling
 

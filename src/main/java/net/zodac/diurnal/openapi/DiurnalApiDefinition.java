@@ -33,8 +33,8 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
  *       as {@code Authorization: Bearer <token>} and revoked by {@code POST /api/auth/logout}.</li>
  * </ul>
  *
- * <p>HTTP Basic is deliberately NOT offered: enabling it would run BCrypt on every {@code /api/*}
- * request carrying a Basic header — an unthrottled password-guessing and CPU-exhaustion surface.
+ * <p>HTTP Basic is deliberately NOT offered: enabling it would run Argon2id on every {@code /api/*}
+ * request carrying a Basic header — an unthrottled password-guessing and CPU/memory-exhaustion surface.
  * The API authenticates with the Bearer session token alone (a cheap hashed-index lookup, no
  * per-request hashing).
  *

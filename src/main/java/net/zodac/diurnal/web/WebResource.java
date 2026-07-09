@@ -125,6 +125,7 @@ public class WebResource {
     @Inject RoleAssigner roleAssigner;
     @Inject AppClock clock;
     @Inject AuthenticationService authenticationService;
+    @Inject Passwords passwords;
     @Inject SessionStore sessionStore;
     @Inject SessionConfig sessionConfig;
 
@@ -436,7 +437,7 @@ public class WebResource {
         final User user = new User();
         user.email = normalised;
         user.displayName = displayNameValue.strip();
-        user.passwordHash = Passwords.hash(passwordValue);
+        user.passwordHash = passwords.hash(passwordValue);
         user.role = roleAssigner.roleForNewUser();
         user.persist();
 
@@ -748,12 +749,13 @@ public class WebResource {
         if (newPassword == null || newPassword.isEmpty() || !newPassword.equals(confirmPassword)) {
             return Response.status(422).entity(NEW_PASSWORD_ERROR).build();
         }
-        // Reject anything past BCrypt's 72-byte ceiling rather than silently truncating it — mirrors the
-        // registration guard so the new password is capped identically however the account was created.
+        // Cap the length to bound the hashing cost (an over-long input is a cheap CPU-exhaustion lever) —
+        // mirrors the registration guard so the new password is capped identically however the account
+        // was created.
         if (newPassword.length() > PasswordConstraints.MAX_LENGTH) {
             return Response.status(422).entity(NEW_PASSWORD_TOO_LONG_ERROR).build();
         }
-        user.passwordHash = Passwords.hash(newPassword);
+        user.passwordHash = passwords.hash(newPassword);
         user.persist();
         // A password change evicts every other device (a common response to suspected compromise) while
         // keeping the session that made the change signed in, so the user is not logged out mid-action.
@@ -794,16 +796,16 @@ public class WebResource {
 
     /*
      * Whether the supplied plaintext matches a stored password hash. Empty or {@code null} plaintext never
-     * matches — and short-circuits before the (deliberately slow) BCrypt comparison. Callers pass the
+     * matches — and short-circuits before the (deliberately slow) Argon2id comparison. Callers pass the
      * user's already-established non-blank hash.
      *
-     * @param passwordHash    the stored BCrypt hash to compare against
+     * @param passwordHash    the stored password hash to compare against
      * @param currentPassword the plaintext to check
      * @return {@code true} iff {@code currentPassword} is non-empty and verifies against {@code passwordHash}
      */
-    private static boolean currentPasswordMatches(final String passwordHash, final String currentPassword) {
+    private boolean currentPasswordMatches(final String passwordHash, final String currentPassword) {
         return currentPassword != null && !currentPassword.isEmpty()
-                && Passwords.matches(currentPassword, passwordHash);
+                && passwords.matches(currentPassword, passwordHash);
     }
 
     /**

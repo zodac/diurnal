@@ -65,6 +65,9 @@ public class AuthResource {
     AuthenticationService authenticationService;
 
     @Inject
+    Passwords passwords;
+
+    @Inject
     SessionStore sessionStore;
 
     @Inject
@@ -118,7 +121,7 @@ public class AuthResource {
         final User user = new User();
         user.email = email;
         user.displayName = request.displayName().strip();
-        user.passwordHash = Passwords.hash(request.password());
+        user.passwordHash = passwords.hash(request.password());
         user.role = roleAssigner.roleForNewUser();
         user.persist();
 
