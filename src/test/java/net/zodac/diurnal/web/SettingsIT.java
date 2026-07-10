@@ -29,7 +29,6 @@ import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.user.StatFieldPref;
 import net.zodac.diurnal.user.User;
-import net.zodac.diurnal.user.UserSettings;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
@@ -120,7 +119,7 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings/password")
                 .then().statusCode(422);
 
-        runInTx(() -> assertThat(argon2Matches(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
+        runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
             .as("old password must be unchanged when the current password is wrong")
             .isTrue());
     }
@@ -132,7 +131,7 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings/password")
                 .then().statusCode(422);
 
-        runInTx(() -> assertThat(argon2Matches(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
+        runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
             .as("old password must be unchanged when the current password is missing")
             .isTrue());
     }
@@ -145,7 +144,7 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings/password")
                 .then().statusCode(422);
 
-        runInTx(() -> assertThat(argon2Matches(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
+        runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
             .as("old password must be unchanged after a mismatch")
             .isTrue());
     }
@@ -158,7 +157,7 @@ class SettingsIT extends IntegrationTestBase {
                 .post("/settings/password")
                 .then().statusCode(422);
 
-        runInTx(() -> assertThat(argon2Matches(TEST_PASSWORD, User.findByEmail(PRIMARY).orElseThrow().passwordHash))
+        runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
             .as("old password must be unchanged when the new password is empty")
             .isTrue());
     }
@@ -713,7 +712,7 @@ class SettingsIT extends IntegrationTestBase {
         });
     }
 
-    private static boolean argon2Matches(final String rawPassword, final String passwordHash) {
-        return Argon2Function.getInstanceFromHash(passwordHash).check(rawPassword, passwordHash);
+    private static boolean argon2Matches(final String passwordHash) {
+        return Argon2Function.getInstanceFromHash(passwordHash).check(IntegrationTestBase.TEST_PASSWORD, passwordHash);
     }
 }
