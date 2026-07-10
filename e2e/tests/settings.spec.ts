@@ -88,7 +88,7 @@ test.describe("Settings page", () => {
 
     test("change page size to 25 via preset pill persists", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
-        await waitForSave(page, page.locator('.page-size-pill[data-value="25"]').click())
+        await waitForSave(page, page.locator('#pageSizePresets .num-pref-pill[data-value="25"]').click())
 
         await page.goto("/settings")
         await expect(page.locator("#pageSize")).toHaveValue("25")
@@ -96,15 +96,59 @@ test.describe("Settings page", () => {
 
     test("page size offers preset pills for the standard options", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
-        const values = await page.locator(".page-size-pill").evaluateAll(pills =>
+        const values = await page.locator("#pageSizePresets .num-pref-pill").evaluateAll(pills =>
             pills.map(p => (p as HTMLElement).dataset.value))
         expect(values).toEqual(["5", "10", "25", "50", "100"])
+    })
+
+    test("change decimal places to 2 via preset pill persists", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        await waitForSave(page, page.locator('#decimalPlacesPresets .num-pref-pill[data-value="2"]').click())
+
+        await page.goto("/settings")
+        await expect(page.locator("#decimalPlaces")).toHaveValue("2")
+    })
+
+    test("decimal places offers preset pills for the standard options", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        const values = await page.locator("#decimalPlacesPresets .num-pref-pill").evaluateAll(pills =>
+            pills.map(p => (p as HTMLElement).dataset.value))
+        expect(values).toEqual(["0", "1", "2"])
+    })
+
+    test("entering an invalid decimal-place count is rejected, shows an error, and keeps the previous value", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        // Establish a known-good value first (2 via its preset pill).
+        await waitForSave(page, page.locator('#decimalPlacesPresets .num-pref-pill[data-value="2"]').click())
+
+        // The Preferences card's status indicator (shared with the "Saved" flash).
+        const indicator = page.locator(".card", { has: page.locator("#decimal-places-row") }).locator("[data-saved]")
+        const field = page.locator("#decimalPlaces")
+
+        // Type an out-of-range value and commit it (blur fires the change → save).
+        await field.fill("9")
+        await Promise.all([
+            page.waitForResponse(r =>
+                r.url().includes("/settings/decimal-places")
+                && r.request().method() === "PATCH"
+                && r.status() === 422),
+            field.blur(),
+        ])
+
+        // The error is shown in red and states the valid range; the field reverts to the last good value.
+        await expect(indicator).toHaveClass(/text-danger/)
+        await expect(indicator).toContainText(/between 0 and 5/)
+        await expect(field).toHaveValue("2")
+
+        // And the rejected value was never persisted.
+        await page.goto("/settings")
+        await expect(page.locator("#decimalPlaces")).toHaveValue("2")
     })
 
     test("entering an invalid page size is rejected, shows an error, and keeps the previous value", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
         // Establish a known-good value first (25 via its preset pill).
-        await waitForSave(page, page.locator('.page-size-pill[data-value="25"]').click())
+        await waitForSave(page, page.locator('#pageSizePresets .num-pref-pill[data-value="25"]').click())
 
         // The Preferences card's status indicator (shared with the "Saved" flash).
         const indicator = page.locator(".card", { has: page.locator("#page-size-row") }).locator("[data-saved]")

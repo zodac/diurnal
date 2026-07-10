@@ -104,36 +104,55 @@ class UserSettingsTest {
             .contains(UserSettings.DEFAULT_PAGE_SIZE);
     }
 
-    // ── Decimal places sanitisation ────────────────────────────────────────────
+    // ── Valid decimal places (any whole number in [0, 5] is accepted, presets and custom alike) ──
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 1, 2, 3})
-    void sanitiseDecimalPlaces_validValues_passedThrough(final int places) {
-        assertThat(UserSettings.sanitiseDecimalPlaces(places))
-            .as("unexpected value")
-            .isEqualTo(places);
+    @ValueSource(ints = {0, 1, 2, 3, 4, 5})
+    void isValidDecimalPlaces_inRange_returnsTrue(final int places) {
+        assertThat(UserSettings.isValidDecimalPlaces(places))
+            .as("expected value to be accepted")
+            .isTrue();
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {-1, 4, 5, 10, 100, -100})
-    void sanitiseDecimalPlaces_invalidValues_returnsDefault(final int places) {
-        assertThat(UserSettings.sanitiseDecimalPlaces(places))
+    @ValueSource(ints = {-1, 6, 10, 100, -100, Integer.MAX_VALUE, Integer.MIN_VALUE})
+    void isValidDecimalPlaces_outOfRange_returnsFalse(final int places) {
+        assertThat(UserSettings.isValidDecimalPlaces(places))
+            .as("expected value to be rejected")
+            .isFalse();
+    }
+
+    // ── parseDecimalPlaces: accepts an in-range whole number, rejects everything else with null ──
+
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "1", "3", "5", " 2 ", "04"})
+    void parseDecimalPlaces_validValues_returnParsedInt(final String raw) {
+        assertThat(UserSettings.parseDecimalPlaces(raw))
             .as("unexpected value")
-            .isEqualTo(UserSettings.DEFAULT_DECIMAL_PLACES);
+            .isEqualTo(Integer.parseInt(raw.strip()));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"-1", "6", "9", "100", "1.5", "abc", "", "   ", "2px", "0x10"})
+    void parseDecimalPlaces_invalidValues_returnNull(final String raw) {
+        assertThat(UserSettings.parseDecimalPlaces(raw))
+            .as("expected an invalid decimal-place count to be rejected")
+            .isNull();
     }
 
     @Test
-    void sanitiseDecimalPlaces_maxInt_returnsDefault() {
-        assertThat(UserSettings.sanitiseDecimalPlaces(Integer.MAX_VALUE))
-            .as("unexpected value")
-            .isEqualTo(UserSettings.DEFAULT_DECIMAL_PLACES);
+    void parseDecimalPlaces_null_returnsNull() {
+        assertThat(UserSettings.parseDecimalPlaces(null))
+            .as("expected null input to be rejected")
+            .isNull();
     }
 
     @Test
-    void sanitiseDecimalPlaces_minInt_returnsDefault() {
-        assertThat(UserSettings.sanitiseDecimalPlaces(Integer.MIN_VALUE))
-            .as("unexpected value")
-            .isEqualTo(UserSettings.DEFAULT_DECIMAL_PLACES);
+    void decimalPlacesRangeMessage_statesTheRange() {
+        assertThat(UserSettings.DECIMAL_PLACES_RANGE_MESSAGE)
+            .as("the rejection message should state the accepted range")
+            .contains("0")
+            .contains("5");
     }
 
     @Test
@@ -144,10 +163,10 @@ class UserSettingsTest {
     }
 
     @Test
-    void decimalPlacesOptions_containsExactlyFourValues() {
+    void decimalPlacesOptions_containsExactlyThreeValues() {
         assertThat(UserSettings.DECIMAL_PLACES_OPTIONS.size())
             .as("unexpected value")
-            .isEqualTo(4);
+            .isEqualTo(3);
     }
 
     @Test

@@ -47,8 +47,13 @@ public record UserSettings(String theme, int pageSize) {
     // Number of decimal places used to render fractional stats (e.g. the weekly average).
     public static final int DEFAULT_DECIMAL_PLACES = 1;
     public static final int MIN_DECIMAL_PLACES = 0;
-    public static final int MAX_DECIMAL_PLACES = 3;
-    public static final List<Integer> DECIMAL_PLACES_OPTIONS = List.of(0, 1, 2, 3);
+    public static final int MAX_DECIMAL_PLACES = 5;
+    // Presets offered in the picker; a user may also enter any value in
+    // [MIN_DECIMAL_PLACES, MAX_DECIMAL_PLACES].
+    public static final List<Integer> DECIMAL_PLACES_OPTIONS = List.of(0, 1, 2);
+    // User-facing rejection message when an out-of-range or non-numeric decimal-place count is submitted.
+    public static final String DECIMAL_PLACES_RANGE_MESSAGE =
+            "Decimal places must be a whole number between " + MIN_DECIMAL_PLACES + " and " + MAX_DECIMAL_PLACES + ".";
 
     public static final String DEFAULT_CALENDAR_VIEW = "full";
     public static final List<String> CALENDAR_VIEW_OPTIONS = List.of("full", "minimal", "stacked");
@@ -113,11 +118,32 @@ public record UserSettings(String theme, int pageSize) {
     }
 
     /**
-     * Returns the requested decimal-place count if it is within the accepted range
-     * ({@link #MIN_DECIMAL_PLACES}–{@link #MAX_DECIMAL_PLACES}), else the default.
+     * Whether the given decimal-place count is within the accepted range
+     * ({@link #MIN_DECIMAL_PLACES}–{@link #MAX_DECIMAL_PLACES}).
      */
-    public static int sanitiseDecimalPlaces(final int requested) {
-        return requested >= MIN_DECIMAL_PLACES && requested <= MAX_DECIMAL_PLACES ? requested : DEFAULT_DECIMAL_PLACES;
+    public static boolean isValidDecimalPlaces(final int value) {
+        return value >= MIN_DECIMAL_PLACES && value <= MAX_DECIMAL_PLACES;
+    }
+
+    /**
+     * Parses a submitted decimal-place count, returning the value only if it is a whole number within
+     * the accepted range ({@link #MIN_DECIMAL_PLACES}–{@link #MAX_DECIMAL_PLACES}), else {@code null}.
+     * Like {@link #parsePageSize(String)}, an invalid value is rejected (not coerced to a default) so the
+     * caller can surface an error and retain the user's previous value.
+     *
+     * @param raw the raw submitted value (may be {@code null}, blank, non-numeric or out of range)
+     * @return the valid decimal-place count, or {@code null} if the input is not acceptable
+     */
+    public static @Nullable Integer parseDecimalPlaces(@Nullable final String raw) {
+        if (raw == null) {
+            return null;
+        }
+        try {
+            final int value = Integer.parseInt(raw.strip());
+            return isValidDecimalPlaces(value) ? value : null;
+        } catch (final NumberFormatException e) {
+            return null;
+        }
     }
 
     /**
