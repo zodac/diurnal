@@ -110,7 +110,6 @@ test.describe("Authentication", () => {
         await expect(page.locator("body")).toContainText(/did not match/i)
     })
 
-
     test("register submit button is disabled until every required field is filled", async ({ page }) => {
         await page.goto("/register")
         const submit = page.locator('button[type="submit"]')

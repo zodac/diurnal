@@ -24,163 +24,149 @@ import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link LoginThrottle}, driving time explicitly so the fixed-window lockout, its
- * boundaries, expiry, and the enabled/disabled switch are all deterministic.
+ * Unit tests for {@link AttemptThrottle}, driving time explicitly so the fixed-window lockout, its
+ * boundaries, expiry, decay, and the enabled/disabled switch are all deterministic.
  */
-class LoginThrottleTest {
+class AttemptThrottleTest {
 
-    private static final String EMAIL = "victim@example.com";
+    private static final String KEY = "203.0.113.7"; // NOPMD: AvoidUsingHardCodedIP - Test IP key
     private static final Instant T0 = Instant.parse("2026-06-15T12:00:00Z");
     private static final int MAX_ATTEMPTS = 3;
     private static final Duration LOCKOUT = Duration.ofMinutes(10);
 
-    private static LoginThrottle throttle(final boolean enabled) {
-        return new LoginThrottle(enabled, MAX_ATTEMPTS, LOCKOUT);
+    private static AttemptThrottle throttle(final boolean enabled) {
+        return new AttemptThrottle(enabled, MAX_ATTEMPTS, LOCKOUT);
     }
 
     @Test
-    void unknownAccount_isNotLocked() {
-        assertThat(throttle(true).isLocked(EMAIL, T0))
-                .as("A never-seen account must not be locked")
+    void unknownKey_isNotLocked() {
+        assertThat(throttle(true).isLocked(KEY, T0))
+                .as("A never-seen key must not be locked")
                 .isFalse();
     }
 
     @Test
     void belowThreshold_doesNotLock() {
-        final LoginThrottle throttle = throttle(true);
+        final AttemptThrottle throttle = throttle(true);
         for (int i = 0; i < MAX_ATTEMPTS - 1; i++) {
-            throttle.recordFailure(EMAIL, T0);
+            throttle.recordFailure(KEY, T0);
         }
-        assertThat(throttle.isLocked(EMAIL, T0))
-                .as("Account must stay unlocked below the failure threshold")
+        assertThat(throttle.isLocked(KEY, T0))
+                .as("Key must stay unlocked below the failure threshold")
                 .isFalse();
     }
 
     @Test
-    void reachingThreshold_locksAccount() {
-        final LoginThrottle throttle = throttle(true);
+    void reachingThreshold_locksKey() {
+        final AttemptThrottle throttle = throttle(true);
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            throttle.recordFailure(EMAIL, T0);
+            throttle.recordFailure(KEY, T0);
         }
-        assertThat(throttle.isLocked(EMAIL, T0))
-                .as("Account must lock once the failure threshold is reached")
+        assertThat(throttle.isLocked(KEY, T0))
+                .as("Key must lock once the failure threshold is reached")
                 .isTrue();
     }
 
     @Test
     void lockPersistsUntilJustBeforeExpiry() {
-        final LoginThrottle throttle = throttle(true);
+        final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
-        assertThat(throttle.isLocked(EMAIL, T0.plus(LOCKOUT).minusSeconds(1)))
-                .as("Account must remain locked right up to the expiry instant")
+        assertThat(throttle.isLocked(KEY, T0.plus(LOCKOUT).minusSeconds(1)))
+                .as("Key must remain locked right up to the expiry instant")
                 .isTrue();
     }
 
     @Test
     void lockExpiresExactlyAtWindowEnd() {
-        final LoginThrottle throttle = throttle(true);
+        final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
-        assertThat(throttle.isLocked(EMAIL, T0.plus(LOCKOUT)))
-                .as("Account must be unlocked at the exact expiry instant")
+        assertThat(throttle.isLocked(KEY, T0.plus(LOCKOUT)))
+                .as("Key must be unlocked at the exact expiry instant")
                 .isFalse();
     }
 
     @Test
     void afterExpiry_singleFailureDoesNotImmediatelyRelock() {
-        final LoginThrottle throttle = throttle(true);
+        final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
         final Instant afterExpiry = T0.plus(LOCKOUT);
-        throttle.recordFailure(EMAIL, afterExpiry);
+        throttle.recordFailure(KEY, afterExpiry);
 
-        assertThat(throttle.isLocked(EMAIL, afterExpiry))
+        assertThat(throttle.isLocked(KEY, afterExpiry))
                 .as("Failure counting must reset after a lockout elapses, not relock on the first new failure")
                 .isFalse();
     }
 
     @Test
     void afterExpiry_thresholdFailuresRelock() {
-        final LoginThrottle throttle = throttle(true);
+        final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
         final Instant afterExpiry = T0.plus(LOCKOUT);
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            throttle.recordFailure(EMAIL, afterExpiry);
+            throttle.recordFailure(KEY, afterExpiry);
         }
-        assertThat(throttle.isLocked(EMAIL, afterExpiry))
-                .as("A fresh batch of failures after expiry must lock the account again")
+        assertThat(throttle.isLocked(KEY, afterExpiry))
+                .as("A fresh batch of failures after expiry must lock the key again")
                 .isTrue();
     }
 
     @Test
-    void recordSuccess_clearsAccumulatedFailures() {
-        final LoginThrottle throttle = throttle(true);
-        for (int i = 0; i < MAX_ATTEMPTS - 1; i++) {
-            throttle.recordFailure(EMAIL, T0);
-        }
-        throttle.recordSuccess(EMAIL);
-        throttle.recordFailure(EMAIL, T0);
-
-        assertThat(throttle.isLocked(EMAIL, T0))
-                .as("A successful login must reset the failure count so prior failures no longer count")
-                .isFalse();
-    }
-
-    @Test
     void lockoutRemaining_reportsFullWindowAtLockTime() {
-        final LoginThrottle throttle = throttle(true);
+        final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
-        assertThat(throttle.lockoutRemaining(EMAIL, T0))
+        assertThat(throttle.lockoutRemaining(KEY, T0))
                 .as("Remaining lockout at lock time must equal the configured window")
                 .isEqualTo(LOCKOUT);
     }
 
     @Test
     void lockoutRemaining_shrinksAsTimePasses() {
-        final LoginThrottle throttle = throttle(true);
+        final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
-        assertThat(throttle.lockoutRemaining(EMAIL, T0.plusSeconds(60)))
+        assertThat(throttle.lockoutRemaining(KEY, T0.plusSeconds(60)))
                 .as("Remaining lockout must count down as time passes")
                 .isEqualTo(LOCKOUT.minusSeconds(60));
     }
 
     @Test
     void lockoutRemaining_isZeroWhenNotLocked() {
-        assertThat(throttle(true).lockoutRemaining(EMAIL, T0))
-                .as("An unlocked account has zero remaining lockout")
+        assertThat(throttle(true).lockoutRemaining(KEY, T0))
+                .as("An unlocked key has zero remaining lockout")
                 .isEqualTo(Duration.ZERO);
     }
 
     @Test
     void lockoutRemaining_isZeroAfterExpiry() {
-        final LoginThrottle throttle = throttle(true);
+        final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
-        assertThat(throttle.lockoutRemaining(EMAIL, T0.plus(LOCKOUT)))
+        assertThat(throttle.lockoutRemaining(KEY, T0.plus(LOCKOUT)))
                 .as("An elapsed lockout reports zero remaining")
                 .isEqualTo(Duration.ZERO);
     }
 
     @Test
     void disabled_neverLocks() {
-        final LoginThrottle throttle = throttle(false);
+        final AttemptThrottle throttle = throttle(false);
         for (int i = 0; i < MAX_ATTEMPTS * 2; i++) {
-            throttle.recordFailure(EMAIL, T0);
+            throttle.recordFailure(KEY, T0);
         }
-        assertThat(throttle.isLocked(EMAIL, T0))
+        assertThat(throttle.isLocked(KEY, T0))
                 .as("A disabled throttle must never lock, however many failures occur")
                 .isFalse();
     }
 
     @Test
     void recordFailure_belowThreshold_reportsRunningCountAndNotLocked() {
-        final LoginThrottle throttle = throttle(true);
+        final AttemptThrottle throttle = throttle(true);
 
-        final LoginThrottle.FailureOutcome outcome = throttle.recordFailure(EMAIL, T0);
+        final AttemptThrottle.FailureOutcome outcome = throttle.recordFailure(KEY, T0);
 
         assertThat(outcome.failureCount())
                 .as("The first failure must report a count of one")
@@ -195,11 +181,11 @@ class LoginThrottleTest {
 
     @Test
     void recordFailure_atThreshold_reportsLockout() {
-        final LoginThrottle throttle = throttle(true);
-        throttle.recordFailure(EMAIL, T0);
-        throttle.recordFailure(EMAIL, T0);
+        final AttemptThrottle throttle = throttle(true);
+        throttle.recordFailure(KEY, T0);
+        throttle.recordFailure(KEY, T0);
 
-        final LoginThrottle.FailureOutcome outcome = throttle.recordFailure(EMAIL, T0);
+        final AttemptThrottle.FailureOutcome outcome = throttle.recordFailure(KEY, T0);
 
         assertThat(outcome.failureCount())
                 .as("The lockout-tripping failure's count must equal the limit")
@@ -211,9 +197,9 @@ class LoginThrottleTest {
 
     @Test
     void recordFailure_whenDisabled_reportsZeroCountAndNoLockout() {
-        final LoginThrottle throttle = throttle(false);
+        final AttemptThrottle throttle = throttle(false);
 
-        final LoginThrottle.FailureOutcome outcome = throttle.recordFailure(EMAIL, T0);
+        final AttemptThrottle.FailureOutcome outcome = throttle.recordFailure(KEY, T0);
 
         assertThat(outcome.failureCount())
                 .as("A disabled throttle reports no tracked failures")
@@ -228,22 +214,22 @@ class LoginThrottleTest {
 
     @Test
     void recordFailure_reportsConfiguredLockoutDuration() {
-        assertThat(throttle(true).recordFailure(EMAIL, T0).lockoutDuration())
+        assertThat(throttle(true).recordFailure(KEY, T0).lockoutDuration())
                 .as("The outcome must carry the configured lockout length for logging")
                 .isEqualTo(LOCKOUT);
     }
 
     @Test
     void failuresSpacedBeyondWindow_decayAndDoNotAccumulate() {
-        final LoginThrottle throttle = throttle(true);
+        final AttemptThrottle throttle = throttle(true);
         // One failure per window+ elapsed: each is treated as fresh, so the count never climbs to lock.
         for (int i = 0; i < MAX_ATTEMPTS + 2; i++) {
             final Instant when = T0.plus(LOCKOUT.plusMinutes(1).multipliedBy(i));
-            final LoginThrottle.FailureOutcome outcome = throttle.recordFailure(EMAIL, when);
+            final AttemptThrottle.FailureOutcome outcome = throttle.recordFailure(KEY, when);
             assertThat(outcome.failureCount())
                     .as("A failure a full window after the previous one must reset the count to one")
                     .isEqualTo(1);
-            assertThat(throttle.isLocked(EMAIL, when))
+            assertThat(throttle.isLocked(KEY, when))
                     .as("Widely-spaced failures must never lock the key")
                     .isFalse();
         }
@@ -251,19 +237,19 @@ class LoginThrottleTest {
 
     @Test
     void clear_forgetsAllAttempts() {
-        final LoginThrottle throttle = throttle(true);
+        final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
         throttle.clear();
 
-        assertThat(throttle.isLocked(EMAIL, T0))
+        assertThat(throttle.isLocked(KEY, T0))
                 .as("clear() must forget the lockout")
                 .isFalse();
     }
 
-    private static void lockOut(final LoginThrottle throttle) {
+    private static void lockOut(final AttemptThrottle throttle) {
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            throttle.recordFailure(EMAIL, T0);
+            throttle.recordFailure(KEY, T0);
         }
     }
 }

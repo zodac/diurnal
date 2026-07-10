@@ -23,24 +23,28 @@ import io.smallrye.config.WithName;
 import java.time.Duration;
 
 /**
- * Typed view over the {@code password.auth.ip-throttle.*} settings governing per-<em>IP</em> login
- * throttling: after {@link #maxAttempts()} failures from a single client IP (across any accounts) within
- * {@link #lockoutDuration()}, that IP is locked out. This complements the per-account throttle
- * ({@link ThrottleConfig}) — the account throttle protects a targeted account across every source, while
- * this slows a single host rotating through many accounts.
+ * Typed view over the {@code auth.ip-throttle.*} settings governing the single, global per-<em>IP</em>
+ * lockout: after {@link #maxAttempts()} failed logins <em>or</em> registrations from one client IP within
+ * {@link #lockoutDuration()}, that IP is locked out of both logging in and registering.
+ *
+ * <p>
+ * This is the only auth lockout — there is deliberately no per-account (email) dimension, since a
+ * per-account lockout would let an attacker deny service to a targeted victim by failing logins for their
+ * email. Keying purely on the client IP avoids that footgun.
  *
  * <p>
  * The client IP comes from Vert.x {@code remoteAddress()}, which honours
- * {@code quarkus.http.proxy.proxy-address-forwarding} ({@code TRUST_X_FORWARDED_HEADERS}); this control
- * is therefore only meaningful when that is configured correctly behind a trusted proxy. Because many
- * users can share one IP (NAT/CGNAT), the default limit is deliberately more generous than the
- * per-account one, and a counter decays after a quiet window.
+ * {@code quarkus.http.proxy.proxy-address-forwarding} ({@code TRUST_X_FORWARDED_HEADERS}); this control is
+ * therefore only meaningful when that is configured correctly behind a trusted proxy. Because many users
+ * can share one IP (NAT/CGNAT), the limit is deliberately generous and a counter decays after a quiet
+ * window so shared IPs don't accumulate unrelated failures.
  */
-@ConfigMapping(prefix = "password.auth.ip-throttle")
+@ConfigMapping(prefix = "auth.ip-throttle")
 public interface IpThrottleConfig {
 
     /**
-     * Whether per-IP login throttling is enabled.
+     * Whether the per-IP lockout is enabled. When {@code false}, no attempts are tracked and no IP is
+     * ever locked out.
      *
      * @return {@code true} when enabled, defaulting to {@code true}
      */
@@ -48,7 +52,7 @@ public interface IpThrottleConfig {
     boolean enabled();
 
     /**
-     * Failures from one client IP (across any accounts) tolerated before that IP is locked out.
+     * Failed logins or registrations from one client IP tolerated before that IP is locked out.
      *
      * @return the maximum failures, defaulting to {@code 15}
      */

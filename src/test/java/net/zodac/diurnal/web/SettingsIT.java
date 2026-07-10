@@ -713,6 +713,6 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     private static boolean argon2Matches(final String passwordHash) {
-        return Argon2Function.getInstanceFromHash(passwordHash).check(IntegrationTestBase.TEST_PASSWORD, passwordHash);
+        return Argon2Function.getInstanceFromHash(passwordHash).check(TEST_PASSWORD, passwordHash);
     }
 }

@@ -22,13 +22,15 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Human-readable text for a login lockout — shared by the JSON API ({@code 429} body) and the web
- * login banner, so both surfaces phrase the lockout identically.
+ * Human-readable text for an auth lockout — shared by the JSON API ({@code 429} body) and the web
+ * login/registration banners, so every surface phrases the lockout identically.
  *
  * <p>
- * The message names the configured lockout window (e.g. "15 minutes"), not the exact remaining time:
- * it states the policy, and disclosing "too many attempts" reveals nothing about whether the account
- * exists (a non-existent email locks out and shows the same text).
+ * The wording is deliberately <em>neutral</em> — "Too many failed attempts" — rather than naming logins
+ * or registrations: the lockout is one shared per-IP counter that both flows feed, so attributing it to
+ * either would be inaccurate (15 failed registrations then a blocked login must not read "too many
+ * failed logins") and would leak how the throttle works. It also discloses nothing about whether an
+ * account exists (a non-existent email locks out and shows the same text).
  */
 public final class LockoutMessages {
 
@@ -37,33 +39,18 @@ public final class LockoutMessages {
     }
 
     /**
-     * The full sentence shown to a locked-out user, phrasing the time <em>remaining</em> on the lockout
-     * approximately, e.g. "Too many failed login attempts. Please try again in about 12 minutes.".
+     * The full sentence shown to a locked-out user on either surface (login or registration), stating the
+     * <em>exact</em> whole seconds remaining on the lockout, e.g. "Too many failed attempts. Please try
+     * again in 42 seconds.".
      *
      * @param remaining how much of the lockout is left
      * @return the user-facing lockout message
      */
     public static String retryMessage(final Duration remaining) {
-        return "Too many failed login attempts. Please try again in " + approximateRemaining(remaining) + '.';
-    }
-
-    /**
-     * Renders a remaining lockout as a friendly, deliberately coarse phrase — "less than a minute" under
-     * a minute, otherwise "about N minute(s)" rounded <em>up</em> so a user is never told to retry early.
-     *
-     * @param remaining the remaining lockout duration
-     * @return the approximate remaining time
-     */
-    static String approximateRemaining(final Duration remaining) {
-        final long secondsPerMinute = Duration.ofMinutes(1L).getSeconds();
-        final long seconds = remaining.getSeconds();
-
-        if (seconds < secondsPerMinute) {
-            return "less than a minute";
-        }
-
-        final long minutes = (seconds + secondsPerMinute - 1L) / secondsPerMinute;
-        return "about " + minutes + (minutes == 1L ? " minute" : " minutes");
+        // Floor to at least one second so the message never reads "0 seconds" — matches the Retry-After
+        // header the API sends alongside it.
+        final long seconds = Math.max(1L, remaining.toSeconds());
+        return "Too many failed attempts. Please try again in " + seconds + (seconds == 1L ? " second." : " seconds.");
     }
 
     /**

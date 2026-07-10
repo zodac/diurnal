@@ -40,7 +40,7 @@ public class AuthenticationService {
     private static final Logger LOGGER = LogManager.getLogger(AuthenticationService.class);
 
     @Inject
-    LoginThrottles loginThrottles;
+    IpThrottle ipThrottle;
 
     @Inject
     PasswordAuthConfig passwordAuthConfig;
@@ -49,9 +49,9 @@ public class AuthenticationService {
     Passwords passwords;
 
     /**
-     * Checks the given credentials against the account store at {@code now}. Enforces the per-account
-     * and per-IP lockouts first, then verifies the Argon2id hash; on success the account's
-     * {@code lastLoginAt} is updated and the account's failure count cleared.
+     * Checks the given credentials against the account store at {@code now}. Enforces the global per-IP
+     * lockout first, then verifies the Argon2id hash; on success the account's {@code lastLoginAt} is
+     * updated. A failure feeds the shared IP counter (the same one registration failures feed).
      *
      * @param rawEmail the submitted email (any case/whitespace; normalised internally)
      * @param password the submitted password
@@ -67,9 +67,9 @@ public class AuthenticationService {
             return new LoginResult.InvalidCredentials();
         }
 
-        if (loginThrottles.isLocked(email, clientIp, now)) {
+        if (ipThrottle.isLocked(clientIp, now)) {
             LOGGER.debug("Throttled login attempt for: {} (IP: {})", email, clientIp);
-            return new LoginResult.LockedOut(loginThrottles.lockoutRemaining(email, clientIp, now));
+            return new LoginResult.LockedOut(ipThrottle.lockoutRemaining(clientIp, now));
         }
 
         final Optional<User> account = User.findByEmail(email)
@@ -86,7 +86,8 @@ public class AuthenticationService {
 
         if (credentialsValid) {
             final User user = account.orElseThrow();
-            loginThrottles.recordSuccess(email);
+            // Note: a success deliberately does NOT clear the IP counter — a valid login must not reset an
+            // IP's brute-force budget (see IpThrottle); it decays on its own after a quiet window.
             // Transparently upgrade a hash made under weaker Argon2id parameters to the current cost now
             // that we hold the verified plaintext.
             if (passwords.needsRehash(user.passwordHash)) {
@@ -98,7 +99,7 @@ public class AuthenticationService {
             return new LoginResult.Success(user);
         }
 
-        final LoginThrottles.ThrottleOutcome outcome = loginThrottles.recordFailure(email, clientIp, now);
+        final AttemptThrottle.FailureOutcome outcome = ipThrottle.recordFailure(clientIp, now);
         LoginAttemptLog.logFailure(LOGGER, outcome, email, clientIp);
         return new LoginResult.InvalidCredentials();
     }

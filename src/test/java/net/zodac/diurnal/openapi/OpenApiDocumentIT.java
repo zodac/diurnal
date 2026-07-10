@@ -28,6 +28,7 @@ import java.time.Instant;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.auth.Session;
 import net.zodac.diurnal.auth.SessionStore;
+import net.zodac.diurnal.config.ReleaseVersion;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
@@ -90,7 +91,10 @@ class OpenApiDocumentIT extends IntegrationTestBase {
                 .get("/q/openapi")
                 .then().statusCode(200)
                 .body("info.title", equalTo("Diurnal API"))
-                .body("info.version", equalTo("0.0.1"));
+                // PublicApiFilter stamps info.version from the authoritative packaged VERSION file (via
+                // ReleaseVersion), NOT the @Info annotation's fallback — so assert against that same source
+                // rather than a literal that rots on every release bump.
+                .body("info.version", equalTo(ReleaseVersion.resolve("0.0.1")));
     }
 
     private String adminToken() {

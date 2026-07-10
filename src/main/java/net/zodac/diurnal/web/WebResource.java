@@ -50,18 +50,20 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import net.zodac.diurnal.auth.AuthenticationService;
 import net.zodac.diurnal.auth.ClientAddress;
+import net.zodac.diurnal.auth.IpThrottle;
 import net.zodac.diurnal.auth.LockoutMessages;
 import net.zodac.diurnal.auth.LoginResult;
 import net.zodac.diurnal.auth.PasswordConstraints;
 import net.zodac.diurnal.auth.Passwords;
+import net.zodac.diurnal.auth.RegistrationAttemptLog;
 import net.zodac.diurnal.auth.RoleAssigner;
 import net.zodac.diurnal.auth.Session;
 import net.zodac.diurnal.auth.SessionStore;
+import net.zodac.diurnal.config.IpThrottleConfig;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.config.RegistrationConfig;
 import net.zodac.diurnal.config.SessionConfig;
-import net.zodac.diurnal.config.ThrottleConfig;
 import net.zodac.diurnal.stats.ActionStatField;
 import net.zodac.diurnal.stats.StatsService;
 import net.zodac.diurnal.time.AppClock;
@@ -87,15 +89,16 @@ public class WebResource {
 
     // Password-change error bodies. Returned to (and matched by) the settings client so it can route the
     // user back to the correct step: a wrong current password → back to step 1; a mismatch → stay on the
-    // confirm step. Kept in sync with the checks in settings.html's password-change script.
+    // confirmation step. Kept in sync with the checks in settings.html's password-change script.
     private static final String CURRENT_PASSWORD_ERROR = "Current password is incorrect";
     private static final String NEW_PASSWORD_ERROR = "Passwords do not match";
     private static final String NEW_PASSWORD_TOO_LONG_ERROR =
             "Password must be at most " + PasswordConstraints.MAX_LENGTH + " characters";
 
-    // Carries the seconds left on a lockout to the AJAX submit handler (app.js), which posts the form via
-    // fetch and so never renders the server-side banner — it runs a live countdown from this value instead.
-    private static final String LOGIN_RETRY_AFTER_HEADER = "X-Login-Retry-After";
+    // Carries the exact seconds left on a lockout to the AJAX form handlers (app.js), which post via fetch
+    // and so never render the server-side banner — they run a live mm:ss countdown from this value instead.
+    // Shared by both the login (GET /login render) and registration (POST /register 429) surfaces.
+    private static final String LOCKOUT_RETRY_AFTER_HEADER = "X-Lockout-Retry-After";
 
     // Short-lived cookie signalling that a just-rejected form login was a lockout (not a bad password).
     // Its value is the seconds left; the GET /login render reads it to show the banner and seed the
@@ -146,7 +149,10 @@ public class WebResource {
     RegistrationConfig registrationConfig;
 
     @Inject
-    ThrottleConfig throttleConfig;
+    IpThrottleConfig ipThrottleConfig;
+
+    @Inject
+    IpThrottle ipThrottle;
 
     // ── Login ──────────────────────────────────────────────────────────────
 
@@ -213,7 +219,7 @@ public class WebResource {
                     .value("").path("/").maxAge(0).build());
             // The login form posts via fetch (data-ajax-submit) and never renders this HTML, so app.js
             // reads the seconds left from this header and runs a live countdown in the banner.
-            builder.header(LOGIN_RETRY_AFTER_HEADER, Math.max(1L, lockoutRemaining.toSeconds()));
+            builder.header(LOCKOUT_RETRY_AFTER_HEADER, Math.max(1L, lockoutRemaining.toSeconds()));
         }
         return builder.build();
     }
@@ -233,7 +239,7 @@ public class WebResource {
                 LOGGER.debug("Malformed lockout cookie value: {}", lockoutCookie);
             }
         }
-        return throttleConfig.lockoutDuration();
+        return ipThrottleConfig.lockoutDuration();
     }
 
     /**
@@ -242,7 +248,7 @@ public class WebResource {
      * dashboard. A bad password redirects to {@code /login?error=true}; a lockout redirects to
      * {@code /login} carrying the short-lived lockout cookie so the page can show the countdown. The
      * form posts via {@code fetch} (app.js), which follows the redirect and reads the final URL (and
-     * the {@code X-Login-Retry-After} header on the login page) to tell success, error and lockout apart.
+     * the {@code X-Lockout-Retry-After} header on the login page) to tell success, error and lockout apart.
      */
     @POST
     @Path("login")
@@ -424,6 +430,24 @@ public class WebResource {
         final String passwordValue = password == null ? "" : password;
         final String confirmValue = confirmPassword == null ? "" : confirmPassword;
 
+        // Global per-IP lockout (the same counter failed logins feed). Revealed on the first attempt made
+        // WHILE locked — the entry check here — not on the threshold-tripping one below; the banner rides
+        // the same [data-form-errors] slot every other registration error uses.
+        final String clientIp = ClientAddress.of(routingContext);
+        final Instant now = clock.now();
+        if (ipThrottle.isLocked(clientIp, now)) {
+            LOGGER.debug("Throttled registration attempt (IP: {})", clientIp);
+            final Duration remaining = ipThrottle.lockoutRemaining(clientIp, now);
+            // The form posts via fetch (data-ajax-errors), so app.js reads the exact seconds from this
+            // header and runs a live mm:ss countdown; the rendered banner (exact-seconds message) is the
+            // no-JS fallback shown by a native form submit.
+            final String lockedMessage = LockoutMessages.retryMessage(remaining);
+            return Response.status(Response.Status.TOO_MANY_REQUESTS)
+                    .header(LOCKOUT_RETRY_AFTER_HEADER, Math.max(1L, remaining.toSeconds()))
+                    .entity(renderRegister(emailValue, displayNameValue, List.of(), List.of(lockedMessage)))
+                    .build();
+        }
+
         final List<String> missingFields = missingFields(emailValue, displayNameValue, passwordValue, confirmValue);
         final List<String> errors = validateRegistration(emailValue, passwordValue, confirmValue);
         final String normalised = emailValue.toLowerCase(Locale.ROOT).strip();
@@ -431,9 +455,9 @@ public class WebResource {
             errors.add("That email is already registered.");
         }
         if (!missingFields.isEmpty() || !errors.isEmpty()) {
-            // Mirrors the failed-login DEBUG line: the submitted email plus the client IP (resolved via
-            // the same ClientAddress helper the login path uses).
-            LOGGER.debug("Failed registration attempt for: {} (IP: {})", emailValue, ClientAddress.of(routingContext));
+            // Record the rejected attempt against the IP throttle and log it (running count + a WARN if
+            // this failure tripped the lockout), mirroring the shared failed-login logging.
+            RegistrationAttemptLog.logFailure(LOGGER, ipThrottle.recordFailure(clientIp, now), emailValue, clientIp);
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(renderRegister(emailValue, displayNameValue, missingFields, errors))
                     .build();
@@ -448,7 +472,6 @@ public class WebResource {
         user.persist();
 
         LOGGER.info("New user registered: {} (role={})", normalised, user.role);
-        final Instant now = clock.now();
         final String token = sessionStore.create(
                 user, Session.AUTH_SOURCE_PASSWORD, userAgent(), ClientAddress.of(routingContext), now);
         return Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
@@ -729,7 +752,7 @@ public class WebResource {
      * the {@code currentPassword}, then the new password entered and re-entered to confirm ({@code
      * newPassword} + {@code confirmPassword}). All three values arrive here. Returns {@code 422} when the
      * current password does not match (body {@link #CURRENT_PASSWORD_ERROR}) or when the new password is
-     * empty or the two copies do not match (body {@link #NEW_PASSWORD_ERROR}), {@code 403} for a non-local
+     * empty or the two copies do not match (body {@link #NEW_PASSWORD_ERROR}). {@code 403} for a non-local
      * (OIDC-only) account or when password auth is disabled, and {@code 200} once the new hash is
      * persisted. The response body drives which step the client returns the user to.
      */
@@ -755,7 +778,7 @@ public class WebResource {
         // the client sent back to the first step) regardless of the new/confirm values. The client also
         // verifies this up front via verifyCurrentPassword, but that is only a UX aid: this is the
         // authoritative check on the mutating request.
-        if (!currentPasswordMatches(user.passwordHash, currentPassword)) {
+        if (currentPasswordMismatch(user.passwordHash, currentPassword)) {
             return Response.status(422).entity(CURRENT_PASSWORD_ERROR).build();
         }
         // The new password cannot be empty, and the re-entered confirmation must match.
@@ -801,24 +824,25 @@ public class WebResource {
         if (!passwordAuthConfig.enabled() || user.passwordHash == null || user.passwordHash.isBlank()) {
             return Response.status(Response.Status.FORBIDDEN).build();
         }
-        if (!currentPasswordMatches(user.passwordHash, currentPassword)) {
+        if (currentPasswordMismatch(user.passwordHash, currentPassword)) {
             return Response.status(422).entity(CURRENT_PASSWORD_ERROR).build();
         }
         return Response.noContent().build();
     }
 
     /*
-     * Whether the supplied plaintext matches a stored password hash. Empty or {@code null} plaintext never
-     * matches — and short-circuits before the (deliberately slow) Argon2id comparison. Callers pass the
-     * user's already-established non-blank hash.
+     * Whether the supplied plaintext does NOT match a stored password hash — the rejection condition both
+     * callers guard on. Empty or {@code null} plaintext never matches (so this is {@code true}) and
+     * short-circuits before the (deliberately slow) Argon2id comparison. Callers pass the user's
+     * already-established non-blank hash.
      *
      * @param passwordHash    the stored password hash to compare against
      * @param currentPassword the plaintext to check
-     * @return {@code true} iff {@code currentPassword} is non-empty and verifies against {@code passwordHash}
+     * @return {@code true} iff {@code currentPassword} is empty or does not verify against {@code passwordHash}
      */
-    private boolean currentPasswordMatches(final String passwordHash, final String currentPassword) {
-        return currentPassword != null && !currentPassword.isEmpty()
-                && passwords.matches(currentPassword, passwordHash);
+    private boolean currentPasswordMismatch(final String passwordHash, final String currentPassword) {
+        return currentPassword == null || currentPassword.isEmpty()
+                || !passwords.matches(currentPassword, passwordHash);
     }
 
     /**

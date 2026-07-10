@@ -21,23 +21,22 @@ import io.quarkus.test.junit.QuarkusTestProfile;
 import java.util.Map;
 
 /**
- * Test profile that turns the per-IP throttle on with a small limit and turns the account throttle off,
- * so the IP dimension can be exercised on its own.
+ * Test profile that turns the global per-IP auth lockout on with a small limit, so it can be exercised in
+ * isolation (it is off by default in the test profile to keep unrelated login/register ITs deterministic
+ * on the shared loopback address).
  */
 public final class IpThrottleProfile implements QuarkusTestProfile {
 
     /**
-     * Disables the account throttle and enables a low-limit IP throttle, so a single client IP rotating
-     * through accounts trips the IP lock without the account dimension interfering.
+     * Enables a low-limit per-IP auth lockout so a few failed logins/registrations from one host lock it.
      *
      * @return the config overrides applied for this profile
      */
     @Override
     public Map<String, String> getConfigOverrides() {
         return Map.of(
-                "password.auth.throttle.enabled", "false",
-                "password.auth.ip-throttle.enabled", "true",
-                "password.auth.ip-throttle.max-attempts", "5",
-                "password.auth.ip-throttle.lockout-duration", "PT15M");
+                "auth.ip-throttle.enabled", "true",
+                "auth.ip-throttle.max-attempts", "5",
+                "auth.ip-throttle.lockout-duration", "PT15M");
     }
 }
