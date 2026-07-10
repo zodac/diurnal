@@ -18,7 +18,21 @@
             </form>
         </span>
     </td>
-    <td class="dt-cell dt-cell-muted">{u.createdLabel}</td>
-    <td class="dt-cell dt-cell-muted">{u.lastLoginLabel}</td>
+    <td class="dt-cell dt-cell-muted">
+        <span class="group relative inline-flex" aria-label="{u.zoneTooltip}">
+            {u.createdLabel}
+            {#include partials/tooltip text=u.zoneTooltip /}
+        </span>
+    </td>
+    <td class="dt-cell dt-cell-muted">
+        {#if u.lastLoginLabel == 'Never'}
+        {u.lastLoginLabel}
+        {#else}
+        <span class="group relative inline-flex" aria-label="{u.zoneTooltip}">
+            {u.lastLoginLabel}
+            {#include partials/tooltip text=u.zoneTooltip /}
+        </span>
+        {/if}
+    </td>
     {#include partials/dt-row-actions id=u.id rowPrefix="user-row" formPrefix="user-form" confirmBase="/admin/users" /}
 </tr>

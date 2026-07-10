@@ -37,6 +37,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.UUID;
@@ -239,7 +240,9 @@ public class AdminWebResource {
     }
 
     private PaginatedUsers getUsersPage(final int pageNum, final int pageSize) {
-        final DateTimeFormatter fmt = formatter();
+        final ZoneId zone = actorZone();
+        final DateTimeFormatter fmt = formatter(zone);
+        final String zoneLabel = zone.getId();
         final long totalCount = User.count();
         final int totalPages = (int) ((totalCount + pageSize - 1) / pageSize);
         final int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
@@ -248,18 +251,26 @@ public class AdminWebResource {
                 .page(Page.of(actualPage - 1, pageSize))
                 .list()
                 .stream()
-                .map(u -> UserRow.of(u, fmt))
+                .map(u -> UserRow.of(u, fmt, zoneLabel))
                 .toList();
 
         return new PaginatedUsers(items, totalCount, totalPages, actualPage);
     }
 
     private UserRow toRow(final User u) {
-        return UserRow.of(u, formatter());
+        final ZoneId zone = actorZone();
+        return UserRow.of(u, formatter(zone), zone.getId());
     }
 
-    private DateTimeFormatter formatter() {
-        return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(clock.zone());
+    // The timestamps are rendered in the viewing administrator's configured timezone (falling back to
+    // the server default when unset), so the admin reads them in their own local time rather than the
+    // server's; the zone id is surfaced as a tooltip on each date cell.
+    private ZoneId actorZone() {
+        return clock.zoneFor(currentUser.get().timezone);
+    }
+
+    private DateTimeFormatter formatter(final ZoneId zone) {
+        return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(zone);
     }
 
     private boolean isLastAdmin(final User target) {
