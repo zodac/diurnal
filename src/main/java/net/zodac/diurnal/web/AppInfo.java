@@ -20,12 +20,9 @@ package net.zodac.diurnal.web;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import net.zodac.diurnal.config.AppConfig;
+import net.zodac.diurnal.config.ReleaseVersion;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Application metadata surfaced to the Qute templates as {@code {inject:appInfo...}}.
@@ -42,12 +39,6 @@ public class AppInfo {
     private static final int YEAR_LENGTH = 4;
     private static final String FALLBACK_YEAR = "2026";
 
-    /*
-     * Classpath location of the repository's {@code VERSION} file, packaged as a resource by the POM's
-     * {@code <resources>} block so it can be read at runtime.
-     */
-    private static final String VERSION_RESOURCE = "/VERSION";
-
     /**
      * The Maven project version (e.g. {@code 0.0.1-SNAPSHOT}), used only as a fallback for
      * {@link #getVersion()} when the {@code VERSION} resource cannot be read.
@@ -63,45 +54,14 @@ public class AppInfo {
 
     /**
      * The release version (e.g. {@code 0.0.1}), shown in the footer. Read from the repository's
-     * {@code VERSION} file (packaged onto the classpath) — the authoritative release version, which CI
-     * bumps independently of the {@code -SNAPSHOT} Maven project version. Falls back to the Maven
-     * project version ({@link #version}) when the resource is missing, blank, or unreadable.
+     * {@code VERSION} file (packaged onto the classpath) via {@link ReleaseVersion} — the authoritative
+     * release version, which CI bumps independently of the {@code -SNAPSHOT} Maven project version. Falls
+     * back to the Maven project version ({@link #version}) when the resource is missing, blank, or unreadable.
      *
      * @return the release version
      */
     public String getVersion() {
-        return resolveVersion(openVersionResource(), version);
-    }
-
-    /**
-     * Opens the packaged {@code VERSION} resource. Extracted so tests can substitute the stream.
-     *
-     * @return the {@code VERSION} resource stream, or {@code null} when it is not on the classpath
-     */
-    @Nullable
-    InputStream openVersionResource() {
-        return AppInfo.class.getResourceAsStream(VERSION_RESOURCE);
-    }
-
-    /**
-     * Reads the release version from the given {@code VERSION} stream, closing it, and falls back to
-     * {@code fallback} when the stream is {@code null}, its (trimmed) content is empty, or reading fails.
-     *
-     * @param stream   the {@code VERSION} resource stream, or {@code null} when absent
-     * @param fallback the version to return when the stream yields nothing usable
-     * @return the trimmed {@code VERSION} content, or {@code fallback}
-     */
-    static String resolveVersion(final @Nullable InputStream stream, final String fallback) {
-        if (stream == null) {
-            return fallback;
-        }
-
-        try (stream) {
-            final String content = new String(stream.readAllBytes(), StandardCharsets.UTF_8).strip();
-            return content.isEmpty() ? fallback : content;
-        } catch (final IOException e) {
-            return fallback;
-        }
+        return ReleaseVersion.resolve(version);
     }
 
     /**

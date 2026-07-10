@@ -25,12 +25,14 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
+import net.zodac.diurnal.config.ReleaseVersion;
 import org.eclipse.microprofile.openapi.OASFilter;
 import org.eclipse.microprofile.openapi.models.Components;
 import org.eclipse.microprofile.openapi.models.OpenAPI;
 import org.eclipse.microprofile.openapi.models.Operation;
 import org.eclipse.microprofile.openapi.models.PathItem;
 import org.eclipse.microprofile.openapi.models.Paths;
+import org.eclipse.microprofile.openapi.models.info.Info;
 import org.eclipse.microprofile.openapi.models.media.Content;
 import org.eclipse.microprofile.openapi.models.media.MediaType;
 import org.eclipse.microprofile.openapi.models.media.Schema;
@@ -51,6 +53,11 @@ import org.jspecify.annotations.Nullable;
  * a surviving operation: SmallRye generates a schema for every type it scans (e.g. the whole Qute
  * {@code TemplateInstance} object graph behind the HTML routes), and removing the paths alone leaves
  * those schemas orphaned in the document.
+ *
+ * <p>It also stamps {@code info.version} with the authoritative release version from the packaged
+ * {@code VERSION} file ({@link ReleaseVersion}) — the same source the footer uses — so the OpenAPI
+ * document and Swagger UI report the real release rather than the static value declared on
+ * {@code DiurnalApiDefinition}'s {@code @Info} (which serves only as a build-time fallback).
  */
 public final class PublicApiFilter implements OASFilter {
 
@@ -59,13 +66,16 @@ public final class PublicApiFilter implements OASFilter {
     private static final Set<String> PUBLIC_APP_PATHS = Set.of("/logs/events");
 
     /**
-     * Removes every path that is not part of the public API, then drops any top-level tag and any
-     * component schema left unreferenced, so the Swagger UI shows no empty sections or stray models.
+     * Stamps the release version, then removes every path that is not part of the public API and drops
+     * any top-level tag and component schema left unreferenced, so the Swagger UI shows no empty sections
+     * or stray models.
      *
      * @param openApi the document being generated
      */
     @Override
     public void filterOpenAPI(final OpenAPI openApi) {
+        stampVersion(openApi);
+
         final Paths paths = openApi.getPaths();
         if (paths == null || paths.getPathItems() == null) {
             return;
@@ -78,6 +88,21 @@ public final class PublicApiFilter implements OASFilter {
 
         pruneUnusedTags(openApi);
         pruneUnusedSchemas(openApi);
+    }
+
+    private static void stampVersion(final OpenAPI openApi) {
+        final Info info = openApi.getInfo();
+        if (info == null) {
+            return;
+        }
+
+        // The annotation's declared version is the fallback (used only if the VERSION resource is
+        // unreadable); with no declared version there is nothing to fall back to, so leave it unset.
+        final String declaredVersion = info.getVersion();
+        if (declaredVersion == null) {
+            return;
+        }
+        info.setVersion(ReleaseVersion.resolve(declaredVersion));
     }
 
     private static boolean isPublic(final String path) {

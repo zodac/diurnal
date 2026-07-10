@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Set;
+import net.zodac.diurnal.config.ReleaseVersion;
 import org.eclipse.microprofile.openapi.OASFactory;
 import org.eclipse.microprofile.openapi.models.Components;
 import org.eclipse.microprofile.openapi.models.OpenAPI;
@@ -86,6 +87,43 @@ class PublicApiFilterTest {
         assertThat(tags.contains("Internal"))
             .as("The Internal tag's only operation was removed, so it must be pruned")
             .isFalse();
+    }
+
+    @Test
+    void filter_stampsInfoVersionFromReleaseResource() {
+        final OpenAPI api = OASFactory.createOpenAPI()
+                .info(OASFactory.createInfo().title("Diurnal API").version("0.0.1"));
+
+        new PublicApiFilter().filterOpenAPI(api);
+
+        assertThat(api.getInfo().getVersion())
+            .as("info.version should be overwritten with the packaged release version, not the declared fallback")
+            .isNotEqualTo("0.0.1")
+            .isEqualTo(ReleaseVersion.resolve("unused-fallback"));
+    }
+
+    @Test
+    void filter_infoWithoutDeclaredVersion_leavesVersionUnset() {
+        final OpenAPI api = OASFactory.createOpenAPI()
+                .info(OASFactory.createInfo().title("Diurnal API"));
+
+        new PublicApiFilter().filterOpenAPI(api);
+
+        assertThat(api.getInfo().getVersion())
+            .as("with no declared version to use as a fallback, info.version is left unset")
+            .isNull();
+    }
+
+    @Test
+    void filter_noInfoBlock_doesNotStampOrThrow() {
+        final OpenAPI api = OASFactory.createOpenAPI()
+                .paths(OASFactory.createPaths().addPathItem("/api/auth/login", post(jsonBodyOp(schemaRef("LoginRequest")))));
+
+        new PublicApiFilter().filterOpenAPI(api);
+
+        assertThat(api.getInfo())
+            .as("a document with no info block is left without one")
+            .isNull();
     }
 
     private static OpenAPI sampleDocument() {

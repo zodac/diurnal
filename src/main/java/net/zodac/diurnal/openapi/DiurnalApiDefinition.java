@@ -47,6 +47,10 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
  * annotations a home SmallRye reliably scans. With no {@code @ApplicationPath} and no overridden
  * {@code getClasses()}, it keeps the default {@code /} base path and does not restrict resource
  * scanning — every resource is still picked up as before.
+ *
+ * <p>The {@code version} declared below is only a build-time fallback: {@code PublicApiFilter} overwrites
+ * {@code info.version} with the authoritative release version from the packaged {@code VERSION} file
+ * (the same source the footer uses), so it stays in step with the running release automatically.
  */
 @OpenAPIDefinition(
         info = @Info(
