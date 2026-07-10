@@ -21,7 +21,9 @@ import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 import io.quarkus.test.junit.QuarkusTest;
 import net.zodac.diurnal.IntegrationTestBase;
@@ -63,7 +65,7 @@ class FirstRunIT extends IntegrationTestBase {
     }
 
     @Test
-    void register_firstRun_createsAdminAndRedirectsToLogin() {
+    void register_firstRun_createsAdminAndLogsIn() {
         given().redirects().follow(false)
                 .formParam("email", "first@example.com")
                 .formParam("displayName", "First Admin")
@@ -72,7 +74,8 @@ class FirstRunIT extends IntegrationTestBase {
                 .post("/register")
                 .then()
                 .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
-                .header("Location", containsString("/login?registered"));
+                .cookie("diurnal_session", not(emptyOrNullString()))
+                .header("Location", not(containsString("/login")));
 
         runInTx(() -> {
             final User created = User.findByEmail("first@example.com").orElseThrow();
