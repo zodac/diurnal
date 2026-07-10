@@ -456,15 +456,16 @@
   .num-pref-pill-active {
     @apply bg-brand border-brand text-on-brand hover:bg-brand hover:text-on-brand;
   }
-  .num-pref-stepper { @apply inline-flex items-stretch rounded-lg border border-line overflow-hidden; }
+  .num-pref-stepper { @apply inline-flex items-stretch rounded-md border border-line overflow-hidden; }
   .num-pref-stepper-btn {
-    @apply px-2.5 flex items-center justify-center text-ink-muted cursor-pointer transition-colors
+    @apply px-2 flex items-center justify-center text-ink-muted cursor-pointer transition-colors
            hover:bg-surface-muted hover:text-ink
            focus:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-ring focus-visible:z-10;
   }
-  /* The stepper's editable value. Native spin buttons are hidden — the ± buttons replace them. */
+  /* The stepper's editable value. Native spin buttons are hidden — the ± buttons replace them.
+     The number matches the preset pills' size (text-xs). */
   .num-pref-value {
-    @apply w-11 text-center text-sm font-medium text-ink bg-transparent border-x border-line
+    @apply w-9 text-center text-xs font-medium text-ink bg-transparent border-x border-line
            focus:outline-hidden focus:ring-2 focus:ring-brand-ring focus:z-10;
     -moz-appearance: textfield;
     appearance: textfield;

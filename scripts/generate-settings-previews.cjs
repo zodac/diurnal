@@ -154,9 +154,9 @@ async function seed(ctx) {
 async function setPrefs(ctx, theme, calendarView, font = 'nova') {
   // Preferences are updated one field at a time via dedicated PATCH endpoints (there is no longer a
   // single POST /settings). Each expects a form-encoded body and returns 204.
-  const patch = async (path, form) => {
-    const res = await ctx.request.fetch(`${BASE}/settings/${path}`, { method: 'PATCH', form })
-    if (!res.ok()) {throw new Error(`setPrefs ${path} failed: ${res.status()}`)}
+  const patch = async (endpoint, form) => {
+    const res = await ctx.request.fetch(`${BASE}/settings/${endpoint}`, { method: 'PATCH', form })
+    if (!res.ok()) {throw new Error(`setPrefs ${endpoint} failed: ${res.status()}`)}
   }
   await patch('theme', { theme })
   await patch('font', { font })
