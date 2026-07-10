@@ -99,38 +99,31 @@ class LockoutMessagesTest {
     }
 
     @Test
-    void retryMessage_wrapsApproximateRemaining() {
+    void retryMessage_statesExactSecondsWithNeutralWording() {
+        // Neutral "failed attempts" (not "login"/"registration"), since one shared counter feeds both.
         assertThat(LockoutMessages.retryMessage(Duration.ofMinutes(15)))
-                .as("The retry message must embed the approximate remaining time and end with a period")
-                .isEqualTo("Too many failed login attempts. Please try again in about 15 minutes.");
+                .as("The retry message must state the exact whole seconds with neutral wording, ending with a period")
+                .isEqualTo("Too many failed attempts. Please try again in 900 seconds.");
     }
 
     @Test
-    void approximateRemaining_underMinute_saysLessThanMinute() {
-        assertThat(LockoutMessages.approximateRemaining(Duration.ofSeconds(45)))
-                .as("Under a minute must read 'less than a minute'")
-                .isEqualTo("less than a minute");
+    void retryMessage_oneSecond_isSingular() {
+        assertThat(LockoutMessages.retryMessage(Duration.ofSeconds(1)))
+                .as("Exactly one second must be a singular '1 second'")
+                .isEqualTo("Too many failed attempts. Please try again in 1 second.");
     }
 
     @Test
-    void approximateRemaining_exactlyOneMinute_isSingular() {
-        assertThat(LockoutMessages.approximateRemaining(Duration.ofSeconds(60)))
-                .as("Exactly one minute must be a singular 'about 1 minute'")
-                .isEqualTo("about 1 minute");
+    void retryMessage_truncatesFractionalSecondsDown() {
+        assertThat(LockoutMessages.retryMessage(Duration.ofMillis(2500)))
+                .as("A fractional remainder must report the whole seconds only (matching Retry-After)")
+                .isEqualTo("Too many failed attempts. Please try again in 2 seconds.");
     }
 
     @Test
-    void approximateRemaining_roundsUpToWholeMinutes() {
-        // 14m1s must round UP to 15 minutes so the user is never told to retry too early.
-        assertThat(LockoutMessages.approximateRemaining(Duration.ofSeconds(841)))
-                .as("A partial minute must round up")
-                .isEqualTo("about 15 minutes");
-    }
-
-    @Test
-    void approximateRemaining_wholeMinutes_arePlural() {
-        assertThat(LockoutMessages.approximateRemaining(Duration.ofMinutes(12)))
-                .as("Several whole minutes must be plural")
-                .isEqualTo("about 12 minutes");
+    void retryMessage_belowOneSecond_flooredToOne() {
+        assertThat(LockoutMessages.retryMessage(Duration.ZERO))
+                .as("A sub-second remainder must floor to a singular '1 second', never '0 seconds'")
+                .isEqualTo("Too many failed attempts. Please try again in 1 second.");
     }
 }

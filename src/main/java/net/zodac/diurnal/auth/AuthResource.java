@@ -80,6 +80,9 @@ public class AuthResource {
     RegistrationConfig registrationConfig;
 
     @Inject
+    IpThrottle ipThrottle;
+
+    @Inject
     AppClock clock;
 
     @Context
@@ -111,8 +114,18 @@ public class AuthResource {
                     .build();
         }
 
+        // Global per-IP lockout (the same counter failed logins feed). The lockout is revealed on the
+        // first attempt made WHILE locked — the entry check here — not on the threshold-tripping one below.
+        final String clientIp = ClientAddress.of(routingContext);
+        final Instant now = clock.now();
+        if (ipThrottle.isLocked(clientIp, now)) {
+            LOGGER.debug("Throttled registration attempt (IP: {})", clientIp);
+            return lockedResponse(ipThrottle.lockoutRemaining(clientIp, now));
+        }
+
         final String email = request.email().toLowerCase(Locale.ROOT).strip();
         if (User.findByEmail(email).isPresent()) {
+            RegistrationAttemptLog.logFailure(LOGGER, ipThrottle.recordFailure(clientIp, now), email, clientIp);
             return Response.status(Response.Status.CONFLICT)
                     .entity(new ErrorResponse("Email already registered"))
                     .build();
@@ -134,8 +147,8 @@ public class AuthResource {
 
     /**
      * Validates credentials, returning {@code 200} with an opaque session token on success or {@code 401}
-     * otherwise. Returns {@code 429} (with a {@code Retry-After} header) when the account is temporarily
-     * locked out after too many consecutive failures — the response is otherwise indistinguishable from a
+     * otherwise. Returns {@code 429} (with a {@code Retry-After} header) when the client is temporarily
+     * locked out after too many failed attempts — the response is otherwise indistinguishable from a
      * {@code 401} so a locked account is never disclosed.
      */
     @POST
@@ -152,7 +165,7 @@ public class AuthResource {
         @APIResponse(responseCode = "401", description = "Invalid email or password.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class))),
         @APIResponse(responseCode = "429",
-                description = "Too many failed attempts for this account; retry after the period in the Retry-After header.",
+                description = "Too many failed attempts; retry after the period in the Retry-After header.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class)))
     })
     public Response login(@Valid final LoginRequest request) {
@@ -199,6 +212,8 @@ public class AuthResource {
         return sessionStore.create(user, Session.AUTH_SOURCE_PASSWORD, userAgent, ClientAddress.of(routingContext), clock.now());
     }
 
+    // Shared by both the login and registration lockouts — the message is neutral across surfaces (one
+    // shared per-IP counter feeds both), so there is a single 429 response builder.
     private Response lockedResponse(final Duration remaining) {
         return Response.status(Response.Status.TOO_MANY_REQUESTS)
                 .header("Retry-After", Math.max(1L, remaining.toSeconds()))

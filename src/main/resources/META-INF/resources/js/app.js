@@ -138,7 +138,7 @@ document.addEventListener('click', function (e) {
 // (input + change) keeps the button state in sync as the user types; both cards keep their fields
 // (incl. passwords) on a failed AJAX submit, so the button simply stays in whatever state the fields
 // warrant.
-// A button carrying `data-hold-disabled` is owned by another controller (the login lockout countdown,
+// A button carrying `data-hold-disabled` is owned by another controller (the shared lockout countdown,
 // which greys it out for a fixed duration) — this handler leaves it alone so the two don't fight.
 (function () {
     function requiredFilled(form) {
@@ -157,16 +157,18 @@ document.addEventListener('click', function (e) {
     });
 })();
 
-// A form marked `data-ajax-submit` is posted with fetch() instead of a full-page navigation, so a
-// rejected submission (e.g. a bad email/password on /login) can surface an inline error and let the
-// user amend and retry WITHOUT the page reloading and wiping the fields they just typed. This runs
-// after the `data-validate` handler above (registered later, both at document level, so it sees the
-// validator's preventDefault), and only takes over once client-side validation has passed. Server-side
-// form auth is unchanged and remains the no-JS fallback: without JS the form submits natively and the
-// server still redirects to /login?error=true. OIDC login is a plain link, not this form, so it is
-// untouched. (Brace note: Qute parses '{' in templates, so every '{' here is followed by whitespace.)
+// ── Shared lockout countdown ──────────────────────────────────────────────────
+// When the server rejects a login OR a registration because the client IP is locked out, it carries the
+// exact seconds left in the X-Lockout-Retry-After response header. Both AJAX form handlers below render
+// the SAME live mm:ss countdown banner in the form's [data-form-errors] slot and keep the submit button
+// greyed + inert until it reaches 00:00, then hide the banner and hand the button back. The countdown
+// ticks off wall-clock time to the server-provided expiry, so a backgrounded tab self-corrects on return.
+// Enforcement stays server-side — this is cosmetic, so an early retry just re-shows the banner. A per-form
+// timer (keyed via WeakMap) means a re-trigger replaces cleanly and the submit handlers can tell a
+// countdown is running (the form stays inert until it expires).
+window.Diurnal = window.Diurnal || {};
 (function () {
-    var lockoutTimer = null;
+    var timers = new WeakMap();
 
     // mm:ss, clamped so it can NEVER render a negative value.
     function formatClock(totalSeconds) {
@@ -176,79 +178,87 @@ document.addEventListener('click', function (e) {
         return (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
     }
 
+    function requiredFilled(form) {
+        return Array.prototype.every.call(form.querySelectorAll('[required]'), function (f) {
+            return f.value.trim() !== '';
+        });
+    }
+
+    // Whether a lockout countdown is currently running for this form (the submit handlers stay inert).
+    window.Diurnal.lockoutRunning = function (form) {
+        return timers.has(form);
+    };
+
+    // Stop any countdown, hide the banner, and hand the button back to the data-disable-until-complete
+    // controller in a consistent state (a blank required field must stay disabled).
+    window.Diurnal.clearLockout = function (form, slot, submitBtn) {
+        if (timers.has(form)) { clearInterval(timers.get(form)); timers.delete(form); }
+        if (slot) { slot.hidden = true; slot.innerHTML = ''; }
+        if (submitBtn) {
+            submitBtn.removeAttribute('data-hold-disabled');
+            submitBtn.disabled = !requiredFilled(form);
+        }
+    };
+
+    // Show the live mm:ss countdown banner and keep the submit button greyed + inert until the
+    // server-provided expiry. The lead text is neutral ("Too many failed attempts.") so it reads the same
+    // on the login and registration cards — they share ONE per-IP lockout counter, so naming either flow
+    // would be misleading — and matches the server's no-JS banner and API message. data-hold-disabled
+    // tells the data-disable-until-complete handler to keep its hands off, so typing during a lockout
+    // can't re-enable the greyed-out button.
+    window.Diurnal.startLockoutCountdown = function (form, slot, submitBtn, seconds) {
+        var total = Math.floor(seconds);
+        if (!(total > 0) || !slot) { window.Diurnal.clearLockout(form, slot, submitBtn); return; }
+        if (timers.has(form)) { clearInterval(timers.get(form)); timers.delete(form); }
+        if (submitBtn) { submitBtn.setAttribute('data-hold-disabled', ''); submitBtn.disabled = true; }
+        slot.innerHTML = '<div class="banner banner-error">Too many failed attempts. '
+            + 'Please try again in <span data-lockout-clock></span>.</div>';
+        slot.hidden = false;
+        var clock = slot.querySelector('[data-lockout-clock]');
+        var endTime = Date.now() + total * 1000;
+        function tick() {
+            var remaining = Math.round((endTime - Date.now()) / 1000);
+            if (remaining < 0) { window.Diurnal.clearLockout(form, slot, submitBtn); return; }   // expired
+            if (clock) { clock.textContent = formatClock(remaining); }
+        }
+        timers.set(form, setInterval(tick, 1000));
+        tick();   // paint immediately, before the first interval
+    };
+})();
+
+// A form marked `data-ajax-submit` is posted with fetch() instead of a full-page navigation, so a
+// rejected submission (e.g. a bad email/password on /login) can surface an inline error and let the
+// user amend and retry WITHOUT the page reloading and wiping the fields they just typed. This runs
+// after the `data-validate` handler above (registered later, both at document level, so it sees the
+// validator's preventDefault), and only takes over once client-side validation has passed. Server-side
+// form auth is unchanged and remains the no-JS fallback: without JS the form submits natively and the
+// server still redirects to /login?error=true. OIDC login is a plain link, not this form, so it is
+// untouched. (Brace note: Qute parses '{' in templates, so every '{' here is followed by whitespace.)
+(function () {
     document.addEventListener('submit', function (e) {
         var form = e.target;
         if (e.defaultPrevented) { return; }   // client-side validation already blocked this submit
         if (!form || !form.matches || !form.matches('form[data-ajax-submit]')) { return; }
         // While a lockout countdown is running the form is inert — swallow any submit (button click or
         // Enter) until it expires and the button is restored.
-        if (lockoutTimer !== null) { e.preventDefault(); return; }
+        if (window.Diurnal.lockoutRunning(form)) { e.preventDefault(); return; }
         e.preventDefault();
 
         var slot = form.querySelector('[data-form-errors]');
         var submitBtn = form.querySelector('button[type="submit"]');
-        // Hold the button disabled while this submit is in flight (and, on a lockout, for the whole
-        // countdown). data-hold-disabled tells the data-disable-until-complete handler to keep its
-        // hands off, so typing during a lockout can't re-enable the greyed-out button.
+        // Hold the button disabled while this submit is in flight. data-hold-disabled tells the
+        // data-disable-until-complete handler to keep its hands off (a lockout keeps the hold via the
+        // shared countdown; otherwise clearLockout below hands the button back).
         if (submitBtn) { submitBtn.setAttribute('data-hold-disabled', ''); submitBtn.disabled = true; }
 
-        function stopLockout() {
-            if (lockoutTimer !== null) { clearInterval(lockoutTimer); lockoutTimer = null; }
-        }
-
-        // Release the hold and re-enable — but only if the fields are actually filled, so we hand the
-        // button back to the data-disable-until-complete handler in a consistent state (a blank field
-        // must stay disabled). Passing the live field check keeps the two controllers in agreement.
-        function releaseButton() {
-            if (!submitBtn) { return; }
-            submitBtn.removeAttribute('data-hold-disabled');
-            var complete = Array.prototype.every.call(form.querySelectorAll('[required]'), function (f) {
-                return f.value.trim() !== '';
-            });
-            submitBtn.disabled = !complete;
-        }
-
-        // Clears any running countdown, hides the banner and re-enables the form.
-        function clearLockout() {
-            stopLockout();
-            if (slot) { slot.hidden = true; slot.innerHTML = ''; }
-            releaseButton();
-        }
-
         function showError(message) {
-            stopLockout();
-            releaseButton();
+            window.Diurnal.clearLockout(form, slot, submitBtn);   // drop any countdown + release the button
             if (slot) {
                 slot.innerHTML = '<div class="banner banner-error">' + message + '</div>';
                 slot.hidden = false;
             }
             var pw = form.querySelector('input[type="password"]');
             if (pw) { pw.focus(); }   // land on the password so a minor change is a keystroke away
-        }
-
-        // Locked out: keep the Sign in button greyed + inert and show the banner with a live mm:ss
-        // countdown. It ticks off wall-clock time to the server-provided expiry (so a throttled/background
-        // tab self-corrects on return rather than lagging), is guarded so it can never render a negative
-        // value, and once it passes 00:00 the banner is hidden (no "you can try again" text) and the
-        // button restored. Enforcement stays server-side — this is cosmetic, so an early retry just
-        // re-shows the banner.
-        function showLockoutCountdown(seconds) {
-            var total = Math.floor(seconds);
-            if (!(total > 0) || !slot) { clearLockout(); return; }   // guard: non-positive → nothing to show
-            stopLockout();
-            if (submitBtn) { submitBtn.disabled = true; }
-            slot.innerHTML = '<div class="banner banner-error">Too many failed login attempts. '
-                + 'Please try again in <span data-lockout-clock></span>.</div>';
-            slot.hidden = false;
-            var clock = slot.querySelector('[data-lockout-clock]');
-            var endTime = Date.now() + total * 1000;
-            function tick() {
-                var remaining = Math.round((endTime - Date.now()) / 1000);
-                if (remaining < 0) { clearLockout(); return; }   // past expiry → hide + restore the button
-                if (clock) { clock.textContent = formatClock(remaining); }
-            }
-            tick();   // paint immediately, before the first interval
-            lockoutTimer = setInterval(tick, 1000);
         }
 
         fetch(form.action, {
@@ -261,10 +271,10 @@ document.addEventListener('click', function (e) {
             // fetch follows the redirect, so the final resolved path tells the two apart.
             var dest = new URL(resp.url, window.location.origin);
             if (dest.pathname === '/login') {
-                // A lockout carries the seconds left in X-Login-Retry-After; otherwise it's a bad login.
-                var retryAfter = parseInt(resp.headers.get('X-Login-Retry-After'), 10);
+                // A lockout carries the seconds left in X-Lockout-Retry-After; otherwise it's a bad login.
+                var retryAfter = parseInt(resp.headers.get('X-Lockout-Retry-After'), 10);
                 if (retryAfter > 0) {
-                    showLockoutCountdown(retryAfter);
+                    window.Diurnal.startLockoutCountdown(form, slot, submitBtn, retryAfter);
                 } else {
                     showError('Invalid email or password.');
                 }
@@ -291,6 +301,8 @@ document.addEventListener('click', function (e) {
         var form = e.target;
         if (e.defaultPrevented) { return; }   // client-side validation already blocked this submit
         if (!form || !form.matches || !form.matches('form[data-ajax-errors]')) { return; }
+        // Inert while a lockout countdown is running (the button is greyed, but swallow Enter too).
+        if (window.Diurnal.lockoutRunning(form)) { e.preventDefault(); return; }
         e.preventDefault();
 
         var slot = form.querySelector('[data-form-errors]');
@@ -316,9 +328,16 @@ document.addEventListener('click', function (e) {
             headers: { 'Accept': 'text/html' },
             redirect: 'follow'
         }).then(function (resp) {
-            // A failed submit re-renders the form at its own path (400); success 303s elsewhere.
+            // A failed submit re-renders the form at its own path (400/429); success 303s elsewhere.
             if (new URL(resp.url, window.location.origin).pathname !== ownPath) {
                 window.location.assign(resp.url);
+                return undefined;
+            }
+            // A lockout (429) carries the exact seconds left in X-Lockout-Retry-After: run the shared live
+            // mm:ss countdown instead of swapping the server's static (no-JS) banner.
+            var retryAfter = parseInt(resp.headers.get('X-Lockout-Retry-After'), 10);
+            if (retryAfter > 0) {
+                window.Diurnal.startLockoutCountdown(form, slot, submitBtn, retryAfter);
                 return undefined;
             }
             return resp.text().then(function (body) {

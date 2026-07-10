@@ -25,14 +25,16 @@ import java.util.concurrent.ConcurrentHashMap;
 import org.jspecify.annotations.Nullable;
 
 /**
- * In-memory, fixed-window login throttle over an opaque string key: after {@code maxAttempts}
- * failures for a key within the window, that key is locked out for {@code lockoutDuration}.
+ * In-memory, fixed-window attempt throttle over an opaque string key: after {@code maxAttempts} failures
+ * for a key within the window, that key is locked out for {@code lockoutDuration}. This is the single
+ * shared lockout primitive; {@link IpThrottle} runs one instance keyed by client IP to gate <em>both</em>
+ * failed logins and failed registrations from a single host.
  *
  * <p>
- * The class is key-agnostic — {@link LoginThrottles} runs two instances, one keyed by submitted email
- * (per-account) and one by client IP (per-host). Keying by the <em>submitted</em> value (whether
- * it corresponds to a real account) means an attacker cannot distinguish a real account from an
- * unknown one by watching for throttling (account enumeration).
+ * The class is key-agnostic (nothing here knows what the key represents), so the same logic backs every
+ * lockout without duplication. There is deliberately no "success clears the counter" hook: a valid login
+ * or registration must not reset an IP's brute-force budget (otherwise one success would launder an
+ * attacker's whole tally), so the counter only ever clears by decaying after a quiet window.
  *
  * <p>
  * Time is passed in by the caller (from {@code AppClock.now()}) rather than read here, so the logic is
@@ -41,12 +43,11 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * State is held in a {@link ConcurrentHashMap} and mutated only inside {@link ConcurrentHashMap#compute}
- * (which locks the bin), so concurrent logins for the same key are consistent. A counter <em>decays</em>:
+ * (which locks the bin), so concurrent attempts for the same key are consistent. A counter <em>decays</em>:
  * a fresh failure that arrives more than one window after the previous one starts over, so a shared key
- * (e.g. a NAT'd IP) never accumulates unrelated failures indefinitely. A successful login or a restart
- * also drops the entry.
+ * (e.g. a NAT'd IP) never accumulates unrelated failures indefinitely. A restart also drops the entry.
  */
-public final class LoginThrottle {
+public final class AttemptThrottle {
 
     private final boolean enabled;
     private final int maxAttempts;
@@ -60,17 +61,17 @@ public final class LoginThrottle {
      * @param maxAttempts     failures tolerated within the window before lockout
      * @param lockoutDuration both the lockout length and the decay window
      */
-    public LoginThrottle(final boolean enabled, final int maxAttempts, final Duration lockoutDuration) {
+    public AttemptThrottle(final boolean enabled, final int maxAttempts, final Duration lockoutDuration) {
         this.enabled = enabled;
         this.maxAttempts = maxAttempts;
         this.lockoutDuration = lockoutDuration;
     }
 
     /**
-     * Whether the given key is currently locked out and must be rejected without checking the password.
+     * Whether the given key is currently locked out and must be rejected without checking credentials.
      * Always {@code false} when throttling is disabled.
      *
-     * @param key the throttle key (submitted email, or client IP)
+     * @param key the throttle key (the client IP)
      * @param now the current instant
      * @return {@code true} when the key is locked out at {@code now}
      */
@@ -83,10 +84,10 @@ public final class LoginThrottle {
     }
 
     /**
-     * Records a failed login for the given key, locking it out once {@code maxAttempts} failures are
+     * Records a failed attempt for the given key, locking it out once {@code maxAttempts} failures are
      * reached within the window. A no-op when throttling is disabled.
      *
-     * @param key the throttle key (submitted email, or client IP)
+     * @param key the throttle key (the client IP)
      * @param now the current instant
      * @return the outcome (failure count, configured limit, whether this failure tripped the lockout,
      *     and the lockout length) — for logging
@@ -110,18 +111,9 @@ public final class LoginThrottle {
     }
 
     /**
-     * Records a successful login, clearing any tracked failures/lockout for the key.
-     *
-     * @param key the throttle key (submitted email, or client IP)
-     */
-    public void recordSuccess(final String key) {
-        attempts.remove(key);
-    }
-
-    /**
      * How much longer the given key is locked out, or {@link Duration#ZERO} when it is not locked.
      *
-     * @param key the throttle key (submitted email, or client IP)
+     * @param key the throttle key (the client IP)
      * @param now the current instant
      * @return the remaining lockout duration, never negative
      */
@@ -142,7 +134,7 @@ public final class LoginThrottle {
     }
 
     /**
-     * The result of recording a failed login: how many failures the key now has in the window, the
+     * The result of recording a failed attempt: how many failures the key now has in the window, the
      * configured limit, whether this failure tripped the lockout, and how long that lockout lasts.
      * Consumed only for logging.
      *

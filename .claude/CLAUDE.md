@@ -143,30 +143,38 @@ just after `SecurityHeadersFilter`) that resolves the request's session token it
 `SessionAuthMechanism` — and applies the pure `OpenApiDocsAccess.decide`: admin → `next()`, anonymous → `302 /login`, authenticated non-admin → `403`. The
 branching is unit-tested (100% PIT); the Vert.x glue is NO_COVERAGE like the rest of the auth mechanism.
 
-**Login throttling (two dimensions)** — `LoginThrottle` is a plain, key-agnostic fixed-window throttle (config snapshot + a
-`ConcurrentHashMap`; counters **decay** after a quiet window so shared keys don't accumulate). `LoginThrottles`
-(`@ApplicationScoped`, `auth`) runs **two** of them: per-**account** keyed by email (`ThrottleConfig`, env
-`PASSWORD_AUTH_THROTTLE_{ENABLED,MAX_ATTEMPTS,LOCKOUT_DURATION}`, default 5/`PT5M`) and per-**IP** keyed by client IP
-(`IpThrottleConfig`, env `PASSWORD_AUTH_IP_THROTTLE_{…}`, default 15/`PT15M`). A login is blocked if **either** is locked
-(`isLocked` = account `||` ip); `recordFailure` hits both; `recordSuccess` clears only the account (a valid login must not reset an
-IP's brute-force budget); `lockoutRemaining` = the **longer** of the two. The account throttle protects a targeted account across
-every source; the IP throttle slows a single host rotating accounts (only meaningful behind a trusted proxy — see
-`ClientAddress`/`TRUST_X_FORWARDED_HEADERS`). Both login surfaces verify credentials through the **same** `AuthenticationService` (which owns the
-`LoginThrottles` check + Argon2id verification and returns a `LoginResult`) — `AuthResource.login` (JSON API → `429` + `Retry-After`) and `WebResource.doLogin` (web
-form). The locked-out message names the **remaining** time approximately (`LockoutMessages.retryMessage`, e.g. "…try again in about 4 minutes.") — it
-states the policy but never discloses account existence, since a non-existent email is keyed and locked identically (no enumeration). The API returns it
-as the `429` body. The web form: `WebResource.doLogin` owns `POST /login` directly (there is no Quarkus form auth), so on a lockout it simply sets the
-short-lived `diurnal_login_lockout` cookie (value = seconds left) onto its own `303 /login` redirect. `WebResource.loginPage` reads that cookie to show the lockout banner (over the generic error),
-clears it, AND echoes the **seconds left** in an `X-Login-Retry-After` response header — because the login form posts via `fetch`
-(`data-ajax-submit` in `app.js`) and never renders that HTML, so the AJAX handler reads the header and runs a **live mm:ss
-countdown** (greying/disabling the Sign in button until it hits `00:00`, then hiding the banner and restoring the button; the
-cookie value carries the same seconds for the no-JS server-rendered banner). The lockout is revealed on the first attempt made
-*while* locked (entry check), not the threshold-tripping one. Failure logging (shared `LoginAttemptLog`, called by both surfaces)
-is `Failed login attempt (x of y)` plus a `WARN` `Account locked out …` and/or `IP locked out …` when a dimension trips, using the
-durations carried on each `FailureOutcome`; the IP comes from `ClientAddress.of(routingContext)` → Vert.x `remoteAddress()`. State
-is **in-memory** (resets on restart, not shared across instances) — acceptable for the single-instance deploy. Time comes in as an
-explicit `Instant` param (from `AppClock.now()`) so the logic is pure/unit-testable and ITs can freeze/advance the clock; keep the
-branching in `LoginThrottle`/`LoginThrottles` (unit-tested to 100% PIT strength), not the glue.
+**Auth throttling (one global per-IP lockout)** — `AttemptThrottle` is a plain, key-agnostic fixed-window throttle (config
+snapshot + a `ConcurrentHashMap`; counters **decay** after a quiet window so shared keys don't accumulate). `IpThrottle`
+(`@ApplicationScoped`, `auth`) runs **one** instance keyed by client IP (`IpThrottleConfig`, env
+`AUTH_IP_THROTTLE_{ENABLED,MAX_ATTEMPTS,LOCKOUT_DURATION}`, default 15/`PT15M`). This is the **only** auth lockout — there is
+**deliberately no per-account (email) dimension**, because keying on the email would let an attacker deny service to a chosen
+victim by failing their logins. **One shared counter tallies both failed logins and failed registrations**; once it trips, that IP
+is blocked from **both** logging in and registering. `isLocked`/`recordFailure`/`lockoutRemaining` all key on the IP; there is **no
+`recordSuccess`/reset** — a valid login or registration must not launder an IP's brute-force budget, so the counter only clears by
+decaying (the distributed many-IP brute-force this trades away is mitigated by Argon2id + uniform timing, not account lockouts).
+The client IP comes from `ClientAddress.of(routingContext)` → Vert.x `remoteAddress()` (honours `TRUST_X_FORWARDED_HEADERS`), so
+this is only meaningful behind a trusted proxy. **Login** verifies credentials through the **same** `AuthenticationService` (which
+owns the `IpThrottle` check + Argon2id verification and returns a `LoginResult`) — `AuthResource.login` (JSON API → `429` +
+`Retry-After`) and `WebResource.doLogin` (web form). **Registration** consults the same `IpThrottle` directly in
+`AuthResource.register` (JSON API → `429` + `Retry-After`) and `WebResource.register` (web form → `429`, carrying the seconds-left
+`X-Lockout-Retry-After` header + a `[data-form-errors]` banner). The locked-out message states the **exact** whole seconds remaining
+with **neutral** wording (`LockoutMessages.retryMessage`, e.g. "Too many failed attempts. Please try again in 240 seconds.") —
+deliberately NOT naming login vs registration (one shared counter feeds both, so "too many failed logins" after failed *registrations*
+would be misleading) and disclosing nothing about account existence (a non-existent email is keyed and locked identically, no
+enumeration). The API returns it as the `429` body, alongside the exact `Retry-After` header. The web login form: `WebResource.doLogin`
+owns `POST /login` directly (there is no Quarkus form auth), so on a lockout it simply sets the short-lived `diurnal_login_lockout`
+cookie (value = seconds left) onto its own `303 /login` redirect. `WebResource.loginPage` reads that cookie to show the lockout banner
+(over the generic error), clears it, AND echoes the **seconds left** in an `X-Lockout-Retry-After` response header — because the login
+form posts via `fetch` (`data-ajax-submit` in `app.js`) and never renders that HTML, so the AJAX handler reads the header and runs a
+**live mm:ss countdown** via the shared `window.Diurnal.startLockoutCountdown` helper (greying/disabling the submit button until it
+hits `00:00`, then hiding the banner and restoring the button; the cookie value carries the same seconds for the no-JS server-rendered
+banner). The registration form (`data-ajax-errors`) reuses that **same** helper + `X-Lockout-Retry-After` header to show an identical
+countdown on its `429`. The lockout is revealed on the first attempt made *while* locked (entry check), not the threshold-tripping
+one. Failure logging (`LoginAttemptLog` for logins, `RegistrationAttemptLog` for registrations) is `Failed login/registration
+attempt (x of y) … (IP: …)` plus a `WARN` `IP locked out …` when the counter trips, using the duration carried on the
+`FailureOutcome`. State is **in-memory** (resets on restart, not shared across instances) — acceptable for the single-instance
+deploy. Time comes in as an explicit `Instant` param (from `AppClock.now()`) so the logic is pure/unit-testable and ITs can
+freeze/advance the clock; keep the branching in `AttemptThrottle`/`IpThrottle` (unit-tested to 100% PIT strength), not the glue.
 
 > **Resolve the current user via `SecurityIdentity.getPrincipal().getName()` (the email) → `User.findByEmail(...)`, or the `userId` attribute →
 `User.findByIdOptional`** (see `CurrentUser`). The session identity (`UserIdentities.of`) sets the email principal plus `userId`/`displayName`

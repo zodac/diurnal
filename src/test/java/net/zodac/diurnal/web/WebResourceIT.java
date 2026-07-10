@@ -105,11 +105,11 @@ class WebResourceIT extends IntegrationTestBase {
         // Cookie value = seconds left on the lockout (900 = 15 minutes).
         given().cookie("diurnal_login_lockout", "900").get("/login")
                 .then().statusCode(200)
-                .body(containsString("Too many failed login attempts"))
-                // The no-JS banner phrases the remaining time approximately.
-                .body(containsString("15 minutes"))
+                .body(containsString("Too many failed attempts"))
+                // The no-JS banner states the exact remaining seconds.
+                .body(containsString("900 seconds"))
                 // app.js reads the seconds-left from this header to run the live countdown.
-                .header("X-Login-Retry-After", equalTo("900"));
+                .header("X-Lockout-Retry-After", equalTo("900"));
     }
 
     @Test
