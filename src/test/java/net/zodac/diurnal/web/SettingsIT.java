@@ -478,16 +478,29 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateDecimalPlaces_invalid_fallsBackToDefault() {
+    void updateDecimalPlaces_outOfRange_rejectedAndValueUnchanged() {
         given().formParam("decimalPlaces", "2").patch("/settings/decimal-places");
 
         given().formParam("decimalPlaces", "9")
                 .patch("/settings/decimal-places")
-                .then().statusCode(204);
+                .then().statusCode(422);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().decimalPlaces)
-            .as("unexpected value")
-            .isEqualTo(UserSettings.DEFAULT_DECIMAL_PLACES));
+            .as("a rejected value must not change the stored decimal-place count")
+            .isEqualTo(2));
+    }
+
+    @Test
+    void updateDecimalPlaces_nonNumeric_rejectedAndValueUnchanged() {
+        given().formParam("decimalPlaces", "2").patch("/settings/decimal-places");
+
+        given().formParam("decimalPlaces", "lots")
+                .patch("/settings/decimal-places")
+                .then().statusCode(422);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().decimalPlaces)
+            .as("a non-numeric value must not change the stored decimal-place count")
+            .isEqualTo(2));
     }
 
     // ── PATCH /settings/show-stats-summary ───────────────────────────────────────

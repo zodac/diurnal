@@ -308,14 +308,40 @@
                         </div>
                     </div>
 
-                    <!-- Decimal places -->
-                    {#include partials/select-field id="decimalPlaces" label="Decimal places" endpoint="/settings/decimal-places" border=true}
-                        {#options}
-                        {#for option in decimalPlacesOptions}
-                        <option value="{option}" {#if option == decimalPlaces}selected{/if}>{option}</option>
-                        {/for}
-                        {/options}
-                    {/include}
+                    <!-- Decimal places. Same preset-pills + −/+ stepper pattern as Items per page below:
+                         the pills are the primary one-click pick, the stepper fine-tunes by one, and
+                         every control writes the same `decimalPlaces` number field which auto-saves on a
+                         custom `save` event (fired by the script below). Both surfaces are wired by the
+                         shared wireNumericPref() helper. -->
+                    <div id="decimal-places-row" class="py-4 border-b border-line">
+                        <div class="flex items-center justify-between gap-4">
+                            <label for="decimalPlaces" class="block text-sm font-medium text-ink shrink-0">Decimal places</label>
+                            <!-- Preset quick-picks (primary selection), right-aligned next to the label. -->
+                            <div id="decimalPlacesPresets" class="flex flex-wrap justify-end gap-1.5">
+                                {#for option in decimalPlacesOptions}
+                                <button type="button" class="num-pref-pill" data-value="{option}" aria-pressed="false">{option}</button>
+                                {/for}
+                            </div>
+                        </div>
+                        <!-- Custom fine-tune stepper, right-aligned on its own row under the presets. -->
+                        <div class="mt-3 flex justify-end">
+                            <div class="num-pref-stepper shrink-0">
+                                <button type="button" id="decimalPlacesMinus" class="num-pref-stepper-btn" aria-label="Fewer decimal places">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
+                                    </svg>
+                                </button>
+                                <input type="number" id="decimalPlaces" name="decimalPlaces" min="0" max="5" value="{decimalPlaces}"
+                                       inputmode="numeric" aria-label="Decimal places" class="num-pref-value"
+                                       hx-patch="/settings/decimal-places" hx-trigger="save" hx-swap="none">
+                                <button type="button" id="decimalPlacesPlus" class="num-pref-stepper-btn" aria-label="More decimal places">
+                                    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
 
                     <!-- Items per page. Presets are the primary one-click selection; the −/+ stepper
                          fine-tunes by one. Every control writes the same `pageSize` number field and
@@ -330,22 +356,22 @@
                                  wrap on narrow screens for mobile compactness. -->
                             <div id="pageSizePresets" class="flex flex-wrap justify-end gap-1.5">
                                 {#for option in pageSizeOptions}
-                                <button type="button" class="page-size-pill" data-value="{option}" aria-pressed="false">{option}</button>
+                                <button type="button" class="num-pref-pill" data-value="{option}" aria-pressed="false">{option}</button>
                                 {/for}
                             </div>
                         </div>
                         <!-- Custom fine-tune stepper, right-aligned on its own row under the presets. -->
                         <div class="mt-3 flex justify-end">
-                            <div class="page-size-stepper shrink-0">
-                                <button type="button" id="pageSizeMinus" class="page-size-stepper-btn" aria-label="Fewer items per page">
+                            <div class="num-pref-stepper shrink-0">
+                                <button type="button" id="pageSizeMinus" class="num-pref-stepper-btn" aria-label="Fewer items per page">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
                                     </svg>
                                 </button>
                                 <input type="number" id="pageSize" name="pageSize" min="1" max="100" value="{pageSize}"
-                                       inputmode="numeric" aria-label="Items per page" class="page-size-value"
+                                       inputmode="numeric" aria-label="Items per page" class="num-pref-value"
                                        hx-patch="/settings/page-size" hx-trigger="save" hx-swap="none">
-                                <button type="button" id="pageSizePlus" class="page-size-stepper-btn" aria-label="More items per page">
+                                <button type="button" id="pageSizePlus" class="num-pref-stepper-btn" aria-label="More items per page">
                                     <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
                                         <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
                                     </svg>
@@ -899,22 +925,23 @@
                 else if (e.key === 'ArrowRight') previewStep(1);
             });
 
-            // Items-per-page: preset pills (coarse, one-click) + a −/+ stepper (fine, ±1) both drive the
-            // same `pageSize` number field. Every interaction saves instantly via the field's custom
-            // `save` event — no blur-to-commit, no Save button.
+            // Numeric preference control (Items-per-page, Decimal places): preset pills (coarse,
+            // one-click) + a −/+ stepper (fine, ±1) both drive one hidden number field. Every
+            // interaction saves instantly via the field's custom `save` event — no blur-to-commit, no
+            // Save button.
             //
             // The pills and ± stepper are bounded controls: they can only ever produce a value in
-            // [MIN, MAX], so they always succeed. Direct typing, however, can be invalid (0, -1, 250,
-            // non-numeric): that raw value is sent as-is and the server REJECTS it (422). On rejection
-            // the field is reverted to the last accepted value and the card shows the error in red (the
-            // shared prefs handler above); it is never silently coerced.
-            (function () {
-                var field   = document.getElementById('pageSize');
-                var minus   = document.getElementById('pageSizeMinus');
-                var plus    = document.getElementById('pageSizePlus');
-                var presets = document.getElementById('pageSizePresets');
-                var MIN = 1;
-                var MAX = 100;
+            // [min, max], so they always succeed. Direct typing, however, can be invalid (out of range
+            // or non-numeric): that raw value is sent as-is and the server REJECTS it (422). On
+            // rejection the field is reverted to the last accepted value and the card shows the error in
+            // red (the shared prefs handler above); it is never silently coerced.
+            function wireNumericPref(opts) {
+                var field   = document.getElementById(opts.field);
+                var minus   = document.getElementById(opts.minus);
+                var plus    = document.getElementById(opts.plus);
+                var presets = document.getElementById(opts.presets);
+                var MIN = opts.min;
+                var MAX = opts.max;
                 // The last value the server accepted — the value to restore if a typed entry is rejected.
                 var lastGood = field.value;
 
@@ -927,9 +954,9 @@
                 // Highlight the preset pill matching the current value (none, if it is a custom value).
                 function syncPills() {
                     var val = parseInt(field.value, 10);
-                    presets.querySelectorAll('.page-size-pill').forEach(function (pill) {
+                    presets.querySelectorAll('.num-pref-pill').forEach(function (pill) {
                         var active = parseInt(pill.dataset.value, 10) === val;
-                        pill.classList.toggle('page-size-pill-active', active);
+                        pill.classList.toggle('num-pref-pill-active', active);
                         pill.setAttribute('aria-pressed', active ? 'true' : 'false');
                     });
                 }
@@ -944,7 +971,7 @@
                 minus.addEventListener('click', function () { setValid(parseInt(field.value, 10) - 1); });
                 plus.addEventListener('click',  function () { setValid(parseInt(field.value, 10) + 1); });
                 presets.addEventListener('click', function (e) {
-                    var pill = e.target.closest('.page-size-pill');
+                    var pill = e.target.closest('.num-pref-pill');
                     if (pill) { setValid(parseInt(pill.dataset.value, 10)); }
                 });
                 // Direct typing / native arrow keys: send the RAW value (no clamping) so the server
@@ -966,7 +993,12 @@
                 });
 
                 syncPills();
-            })();
+            }
+
+            wireNumericPref({ field: 'pageSize', minus: 'pageSizeMinus', plus: 'pageSizePlus',
+                              presets: 'pageSizePresets', min: 1, max: 100 });
+            wireNumericPref({ field: 'decimalPlaces', minus: 'decimalPlacesMinus', plus: 'decimalPlacesPlus',
+                              presets: 'decimalPlacesPresets', min: 0, max: 5 });
 
             // Assign src from data-src for all preview thumbnails so fetches are deferred until
             // after the page renders. decode() is called so the lightbox open is flash-free.

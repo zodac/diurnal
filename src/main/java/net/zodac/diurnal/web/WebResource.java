@@ -638,16 +638,23 @@ public class WebResource {
     }
 
     /**
-     * Updates the current user's decimal-place preference to the sanitised {@code decimalPlaces}.
-     * Returns {@code 204}.
+     * Updates the current user's decimal-place preference. Like the page size, an out-of-range or
+     * non-numeric value is rejected with {@code 422} (and the
+     * {@link UserSettings#DECIMAL_PLACES_RANGE_MESSAGE} body) rather than coerced, so the client can show
+     * an error and keep the previous value. A valid value persists and returns {@code 204}.
      */
     @PATCH
     @Path("settings/decimal-places")
     @RolesAllowed("user")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
-    public Response updateDecimalPlaces(@FormParam("decimalPlaces") final int decimalPlaces) {
-        return updateSetting(user -> user.decimalPlaces = UserSettings.sanitiseDecimalPlaces(decimalPlaces));
+    public Response updateDecimalPlaces(@FormParam("decimalPlaces") final String decimalPlaces) {
+        final Integer parsed = UserSettings.parseDecimalPlaces(decimalPlaces);
+        if (parsed == null) {
+            return Response.status(422).entity(UserSettings.DECIMAL_PLACES_RANGE_MESSAGE).build();
+        }
+        final int value = parsed;
+        return updateSetting(user -> user.decimalPlaces = value);
     }
 
     /**
