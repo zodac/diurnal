@@ -19,25 +19,18 @@ package net.zodac.diurnal.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.io.ByteArrayInputStream;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
 import net.zodac.diurnal.config.AppConfig;
-import org.jspecify.annotations.Nullable;
+import net.zodac.diurnal.config.ReleaseVersion;
 import org.junit.jupiter.api.Test;
 
 /**
  * Unit tests for {@link AppInfo}, the build-metadata bean surfaced to the Qute templates. The
  * {@code app.*} values normally come from a {@link AppConfig} {@code @ConfigMapping}; here a stub
  * implementation supplies them to exercise the accessors and the build-year parsing in isolation.
- * The version is read from the packaged {@code VERSION} resource, so those tests substitute the stream.
+ * The version is delegated to {@link ReleaseVersion} (tested separately), so only the delegation is
+ * exercised here.
  */
 class AppInfoTest {
-
-    private static InputStream streamOf(final String content) {
-        return new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
-    }
 
     private static AppInfo appInfoWith(final String repositoryUrl, final String buildTimestamp, final String cssFile) {
         return appInfoWith(repositoryUrl, buildTimestamp, cssFile, "htmx.min.js");
@@ -56,85 +49,15 @@ class AppInfoTest {
     }
 
     @Test
-    void version_readsVersionResource() {
-        // getVersion() reads the packaged /VERSION resource in preference to the Maven project version.
-        final AppInfo appInfo = new AppInfo() {
-            @Override
-            InputStream openVersionResource() {
-                return streamOf("1.2.3\n");
-            }
-        };
+    void version_delegatesToPackagedReleaseVersion() {
+        // getVersion() delegates to ReleaseVersion, which reads the packaged /VERSION resource in
+        // preference to the Maven project version fallback.
+        final AppInfo appInfo = new AppInfo();
         appInfo.version = "0.0.1-SNAPSHOT";
         assertThat(appInfo.getVersion())
-            .as("the VERSION resource content should be used")
-            .isEqualTo("1.2.3");
-    }
-
-    @Test
-    void version_missingResource_fallsBackToProjectVersion() {
-        final AppInfo appInfo = new AppInfo() {
-            @Override
-            @Nullable
-            InputStream openVersionResource() {
-                return null;
-            }
-        };
-        appInfo.version = "0.0.1-SNAPSHOT";
-        assertThat(appInfo.getVersion())
-            .as("a missing VERSION resource should fall back to the Maven project version")
-            .isEqualTo("0.0.1-SNAPSHOT");
-    }
-
-    @Test
-    void openVersionResource_findsPackagedFile() {
-        // The POM packages the repo-root VERSION file onto the classpath, so it is resolvable at runtime.
-        try (InputStream stream = new AppInfo().openVersionResource()) {
-            assertThat(stream)
-                .as("the packaged VERSION resource should be on the classpath")
-                .isNotNull();
-        } catch (final IOException e) {
-            throw new AssertionError("closing the VERSION resource should not fail", e);
-        }
-    }
-
-    @Test
-    void resolveVersion_nullStream_returnsFallback() {
-        assertThat(AppInfo.resolveVersion(null, "fallback"))
-            .as("a null stream should yield the fallback")
-            .isEqualTo("fallback");
-    }
-
-    @Test
-    void resolveVersion_trimsContent() {
-        assertThat(AppInfo.resolveVersion(streamOf("  0.4.2\n"), "fallback"))
-            .as("surrounding whitespace should be trimmed from the version")
-            .isEqualTo("0.4.2");
-    }
-
-    @Test
-    void resolveVersion_blankContent_returnsFallback() {
-        assertThat(AppInfo.resolveVersion(streamOf("   \n"), "fallback"))
-            .as("blank content should yield the fallback")
-            .isEqualTo("fallback");
-    }
-
-    @Test
-    void resolveVersion_readFailure_returnsFallback() throws IOException {
-        try (InputStream failing = new InputStream() {
-            @Override
-            public int read() throws IOException {
-                throw new IOException("boom");
-            }
-
-            @Override
-            public byte[] readAllBytes() throws IOException {
-                throw new IOException("boom");
-            }
-        }) {
-            assertThat(AppInfo.resolveVersion(failing, "fallback"))
-                .as("an unreadable stream should yield the fallback")
-                .isEqualTo("fallback");
-        }
+            .as("the packaged VERSION resource should be used, not the Maven project version")
+            .isNotEqualTo("0.0.1-SNAPSHOT")
+            .isNotBlank();
     }
 
     @Test
