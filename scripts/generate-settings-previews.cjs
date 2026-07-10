@@ -152,9 +152,17 @@ async function seed(ctx) {
 // ── Screenshot capture ───────────────────────────────────────────────────────────────────────────
 
 async function setPrefs(ctx, theme, calendarView, font = 'nova') {
-  const res = await ctx.request.post(`${BASE  }/settings`,
-    { form: { theme, font, pageSize: '10', calendarView, timezone: 'UTC' } })
-  if (!res.ok()) {throw new Error(`setPrefs failed: ${  res.status()}`)}
+  // Preferences are updated one field at a time via dedicated PATCH endpoints (there is no longer a
+  // single POST /settings). Each expects a form-encoded body and returns 204.
+  const patch = async (path, form) => {
+    const res = await ctx.request.fetch(`${BASE}/settings/${path}`, { method: 'PATCH', form })
+    if (!res.ok()) {throw new Error(`setPrefs ${path} failed: ${res.status()}`)}
+  }
+  await patch('theme', { theme })
+  await patch('font', { font })
+  await patch('calendar-view', { calendarView })
+  await patch('page-size', { pageSize: '10' })
+  await patch('timezone', { timezone: 'UTC' })
 }
 
 // Open the dashboard and wait until the chosen calendar style's activity markers are painted.

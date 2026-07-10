@@ -972,15 +972,24 @@
   .d-min-cell.d-min-other .d-min-dots { opacity: 0.4; }
 
   /* ── Stacked calendar (horizontal bars instead of dots) ─────────────── */
-  /* Fixed-height bar column — always reserves the same vertical space (4 bars × 3.3px + 3 gaps × 2px = 19.2px) */
+  /* Fixed-height bar column — always reserves the same vertical space for up to 4 bars
+     (4 bars × 4px + 3 gaps × 2px = 22px). The bar HEIGHT, GAP and CONTAINER height are shared across
+     mobile and desktop; only the bar WIDTH differs (desktop is 15% narrower — see the media query below).
+     Height is a whole CSS pixel (4px) on purpose: every stacked bar then snaps to the same device-pixel
+     height at integer DPR (1×/2×/3×). A fractional height lands each bar at a different sub-pixel phase and
+     renders them visibly unequal. */
   .d-stk-bars {
     display: flex; flex-direction: column; gap: 2px; align-items: center;
     width: 100%; padding: 0 3px; box-sizing: border-box;
-    height: 19.2px; min-height: 19.2px; margin-top: 2px; flex-shrink: 0;
+    height: 22px; min-height: 22px; margin-top: 2px; flex-shrink: 0;
     overflow: hidden;
   }
   .d-stk-bar {
-    height: 3.3px; width: 80%; border-radius: 1099px; flex-shrink: 0;
+    height: 4px; width: 80%; border-radius: 1099px; flex-shrink: 0;
   }
   /* Prev/next-month bars are dimmed to match the faded date number (container opacity → same in both modes). */
   .d-min-cell.d-min-other .d-stk-bars { opacity: 0.4; }
+  /* Web view (≥640px): bars 15% narrower (80% → 68%). Height/gap/container are shared with mobile above. */
+  @media (min-width: 640px) {
+    .d-stk-bar { width: 68%; }
+  }
