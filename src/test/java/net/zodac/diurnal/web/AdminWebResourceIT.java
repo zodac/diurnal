@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
@@ -103,6 +104,38 @@ class AdminWebResourceIT extends IntegrationTestBase {
                 .then().statusCode(200)
                 .body(containsString("admin@lt.test"))
                 .body(containsString("user@lt.test"));
+    }
+
+    @Test
+    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    void usersPage_datesTooltipShowsViewingAdminTimezone() {
+        runInTx(() -> {
+            final User admin = User.findByEmail("admin@lt.test").orElseThrow();
+            admin.timezone = "America/New_York";
+            admin.persist();
+        });
+
+        given().get("/admin/users")
+                .then().statusCode(200)
+                // Assert on the tooltip bubble's TEXT content (>...<), not the aria-label attribute
+                // (="..."), so a literal, un-interpolated {u.zoneLabel} in the bubble would fail here.
+                .body(containsString(">Timezone: America/New_York<"))
+                // Guard against Qute passing an include param verbatim (the original bug rendered the
+                // literal braces in the bubble).
+                .body(not(containsString("{u.zoneLabel}")))
+                .body(not(containsString("{u.zoneTooltip}")));
+    }
+
+    @Test
+    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    void usersPage_datesTooltipFallsBackToServerTimezoneWhenAdminUnset() {
+        // The admin seeded by createDbState has no timezone override, so the tooltip names the
+        // server-default zone (UTC in the test profile).
+        given().get("/admin/users")
+                .then().statusCode(200)
+                .body(containsString(">Timezone: UTC<"))
+                .body(not(containsString("{u.zoneLabel}")))
+                .body(not(containsString("{u.zoneTooltip}")));
     }
 
     // ── Role change ───────────────────────────────────────────────────────

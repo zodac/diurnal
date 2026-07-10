@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
 class UserRowExtensionsTest {
 
     private static UserRow row(final String role) {
-        return new UserRow(UUID.randomUUID(), "user@example.com", "Test User", role, "2026-01-01 00:00", "Never");
+        return new UserRow(UUID.randomUUID(), "user@example.com", "Test User", role, "2026-01-01 00:00", "Never", "UTC");
     }
 
     @Test
@@ -56,5 +56,15 @@ class UserRowExtensionsTest {
         assertThat(UserRowExtensions.options())
             .as("expected the role picker catalogue, alphabetically by display name")
             .containsExactly(Role.ADMIN, Role.USER);
+    }
+
+    @Test
+    void zoneTooltip_prefixesZoneLabel() {
+        final UserRow row = new UserRow(UUID.randomUUID(), "user@example.com", "Test User",
+                User.ROLE_USER, "2026-01-01 00:00", "Never", "Europe/London");
+
+        assertThat(UserRowExtensions.zoneTooltip(row))
+            .as("unexpected timezone tooltip label")
+            .isEqualTo("Timezone: Europe/London");
     }
 }

@@ -34,21 +34,24 @@ import net.zodac.diurnal.user.User;
  * @param role           the user's role
  * @param createdLabel   the formatted account-creation timestamp
  * @param lastLoginLabel the formatted last-login timestamp, or "Never"
+ * @param zoneLabel      the id of the timezone the timestamps are rendered in (shown as a tooltip)
  */
 public record UserRow(UUID id, String email, String displayName, String role,
-                      String createdLabel, String lastLoginLabel) {
+                      String createdLabel, String lastLoginLabel, String zoneLabel) {
 
     /**
      * Builds a row from a {@link User}, formatting its timestamps with {@code fmt}.
      *
-     * @param u   the user to build a row from
-     * @param fmt the formatter for the timestamps
+     * @param u         the user to build a row from
+     * @param fmt       the formatter for the timestamps
+     * @param zoneLabel the id of the formatter's zone, surfaced as a tooltip on each date cell
      * @return the populated row
      */
-    static UserRow of(final User u, final DateTimeFormatter fmt) {
+    static UserRow of(final User u, final DateTimeFormatter fmt, final String zoneLabel) {
         return new UserRow(
                 u.id, u.email, u.displayName, u.role,
                 fmt.format(u.createdAt),
-                u.lastLoginAt != null ? fmt.format(u.lastLoginAt) : "Never");
+                u.lastLoginAt != null ? fmt.format(u.lastLoginAt) : "Never",
+                zoneLabel);
     }
 }
