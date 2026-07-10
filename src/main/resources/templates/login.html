@@ -30,10 +30,12 @@
         {#include partials/banner variant='error' cls='mb-4' message=lockedMessage /}
         {/if}
 
-        {! novalidate + data-validate: the shared client-side validator (layout.html) surfaces
+        {! novalidate + data-validate: the shared client-side validator (app.js) surfaces
            blank/invalid fields as the error banners below, matching the register page, instead of
-           native browser pop-ups. !}
-        <form method="post" action="/login" novalidate data-validate data-ajax-submit class="space-y-4">
+           native browser pop-ups. data-disable-until-complete keeps the Sign in button disabled until
+           both fields are non-blank (a UX hint — the banner + server auth remain the real backstops;
+           the lockout countdown holds the button disabled independently via data-hold-disabled). !}
+        <form method="post" action="/login" novalidate data-validate data-ajax-submit data-disable-until-complete class="space-y-4">
             <div data-form-errors class="space-y-2" hidden></div>
             {#include partials/form-field id="email" name="email" label="Email" type="email" required=true autocomplete="email" maxlength="" /}
             {#include partials/form-field id="password" name="password" label="Password" type="password" required=true autocomplete="current-password" maxlength="" /}
