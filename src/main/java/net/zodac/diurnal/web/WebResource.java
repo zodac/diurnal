@@ -391,11 +391,13 @@ public class WebResource {
         if (registrationNotAllowed()) {
             return Response.ok(renderRegisterDisabled()).build();
         }
-        return Response.ok(renderRegister("", "", "", "", List.of(), List.of())).build();
+        return Response.ok(renderRegister("", "", List.of(), List.of())).build();
     }
 
     /**
-     * Handles the registration form submission, creating the user and redirecting to /login.
+     * Handles the registration form submission: creates the user, mints a server-side session and sets
+     * the {@code diurnal_session} cookie so the new account is logged straight in and redirected to the
+     * dashboard.
      */
     @POST
     @Path("register")
@@ -416,6 +418,7 @@ public class WebResource {
         }
 
         // Null-safe copies so the form can be re-rendered with the user's input preserved on failure.
+        // The password fields are deliberately NOT preserved (never re-echoed into the HTML).
         final String emailValue = email == null ? "" : email;
         final String displayNameValue = displayName == null ? "" : displayName;
         final String passwordValue = password == null ? "" : password;
@@ -428,9 +431,11 @@ public class WebResource {
             errors.add("That email is already registered.");
         }
         if (!missingFields.isEmpty() || !errors.isEmpty()) {
+            // Mirrors the failed-login DEBUG line: the submitted email plus the client IP (resolved via
+            // the same ClientAddress helper the login path uses).
+            LOGGER.debug("Failed registration attempt for: {} (IP: {})", emailValue, ClientAddress.of(routingContext));
             return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(renderRegister(emailValue, displayNameValue, passwordValue, confirmValue,
-                            missingFields, errors))
+                    .entity(renderRegister(emailValue, displayNameValue, missingFields, errors))
                     .build();
         }
 
@@ -439,10 +444,14 @@ public class WebResource {
         user.displayName = displayNameValue.strip();
         user.passwordHash = passwords.hash(passwordValue);
         user.role = roleAssigner.roleForNewUser();
+        user.lastLoginAt = Instant.now();
         user.persist();
 
         LOGGER.info("New user registered: {} (role={})", normalised, user.role);
-        return Response.seeOther(URI.create("/login?registered=true")).build();
+        final Instant now = clock.now();
+        final String token = sessionStore.create(
+                user, Session.AUTH_SOURCE_PASSWORD, userAgent(), ClientAddress.of(routingContext), now);
+        return Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
     }
 
     private static List<String> missingFields(final String email, final String displayName,
@@ -483,13 +492,10 @@ public class WebResource {
     }
 
     private TemplateInstance renderRegister(final String email, final String displayName,
-            final String password, final String confirmPassword, final List<String> missingFields,
-            final List<String> errors) {
+            final List<String> missingFields, final List<String> errors) {
         return registerTemplate
                 .data("email", email)
                 .data("displayName", displayName)
-                .data("password", password)
-                .data("confirmPassword", confirmPassword)
                 .data("missingFields", missingFields)
                 .data("errors", errors)
                 .data("setup", setupRequired())

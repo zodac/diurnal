@@ -64,7 +64,7 @@ test.describe("Authentication", () => {
         await expect(page).toHaveURL(/\/login/)
     })
 
-    test("register form with valid input redirects to login with registered banner", async ({ page }) => {
+    test("register form with valid input logs straight in and lands on the dashboard", async ({ page }) => {
         const unique = `e2e-register-${Date.now()}@example.com`
         await page.goto("/register")
         await page.fill('input[name="email"]', unique)
@@ -73,8 +73,10 @@ test.describe("Authentication", () => {
         await page.fill('input[name="confirmPassword"]', "valid_password1")
         await page.click('button[type="submit"]')
 
-        await expect(page).toHaveURL(/\/login\?registered/)
-        await expect(page.locator("body")).toContainText(/account created/i)
+        // Registration now authenticates the new account and drops it on the dashboard — no trip
+        // back through the login page.
+        await expect(page).toHaveURL("/")
+        await expect(page.locator("header")).toContainText("New User")
     })
 
     test("register form with duplicate email shows error and preserves input", async ({ page }) => {
@@ -85,11 +87,14 @@ test.describe("Authentication", () => {
         await page.fill('input[name="confirmPassword"]', "valid_password1")
         await page.click('button[type="submit"]')
 
-        // No redirect — the page re-renders with an error banner and the entered values intact.
+        // No redirect — the page re-renders with an error banner and the entered non-secret values
+        // intact. The password is deliberately NOT re-echoed back into the form.
         await expect(page).toHaveURL(/\/register$/)
         await expect(page.locator("body")).toContainText(/already registered/i)
         await expect(page.locator('input[name="email"]')).toHaveValue(USER.email)
         await expect(page.locator('input[name="displayName"]')).toHaveValue("Dup User")
+        await expect(page.locator('input[name="password"]')).toHaveValue("")
+        await expect(page.locator('input[name="confirmPassword"]')).toHaveValue("")
     })
 
     test("register form with mismatched confirmation shows error", async ({ page }) => {
@@ -136,7 +141,7 @@ test.describe("Authentication", () => {
         await page.fill('input[name="confirmPassword"]', "short")
         await page.click('button[type="submit"]')
 
-        await expect(page).toHaveURL(/\/login\?registered/)
+        await expect(page).toHaveURL("/")
     })
 
     test("login page with ?error=oidc shows unauthorized OIDC error banner", async ({ page }) => {

@@ -135,7 +135,7 @@ class WebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    void register_validData_redirectsToLoginWithRegisteredParam() {
+    void register_validData_logsInAndRedirectsToDashboard() {
         given().redirects().follow(false)
                 .formParam("email", "newweb@example.com")
                 .formParam("displayName", "New Web User")
@@ -144,7 +144,10 @@ class WebResourceIT extends IntegrationTestBase {
                 .post("/register")
                 .then()
                 .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
-                .header("Location", containsString("/login?registered"));
+                // Registration logs the new account straight in: a session cookie is set and the
+                // browser is sent to the dashboard, not back to the login page.
+                .cookie("diurnal_session", not(emptyOrNullString()))
+                .header("Location", not(containsString("/login")));
     }
 
     @Test
@@ -176,7 +179,8 @@ class WebResourceIT extends IntegrationTestBase {
 
     @Test
     void register_failure_preservesSubmittedFieldValues() {
-        // A failed submission must re-render the form with the user's input intact (not cleared).
+        // A failed submission must re-render the form with the user's non-secret input intact (not
+        // cleared) — but the password must NEVER be re-echoed back into the HTML.
         given().redirects().follow(false)
                 .formParam("email", "taken@example.com")
                 .formParam("displayName", "Dup Name")
@@ -186,7 +190,8 @@ class WebResourceIT extends IntegrationTestBase {
                 .then()
                 .statusCode(400)
                 .body(containsString("value=\"taken@example.com\""))
-                .body(containsString("value=\"Dup Name\""));
+                .body(containsString("value=\"Dup Name\""))
+                .body(not(containsString("value=\"password123\"")));
     }
 
     @Test
@@ -245,7 +250,8 @@ class WebResourceIT extends IntegrationTestBase {
                 .post("/register")
                 .then()
                 .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
-                .header("Location", containsString("/login?registered"));
+                .cookie("diurnal_session", not(emptyOrNullString()))
+                .header("Location", not(containsString("/login")));
     }
 
     @Test

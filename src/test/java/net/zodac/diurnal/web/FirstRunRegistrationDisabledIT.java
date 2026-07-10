@@ -21,6 +21,7 @@ import static io.restassured.RestAssured.given;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
@@ -66,7 +67,8 @@ class FirstRunRegistrationDisabledIT extends IntegrationTestBase {
                 .post("/register")
                 .then()
                 .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
-                .header("Location", containsString("/login?registered"));
+                .cookie("diurnal_session", not(emptyOrNullString()))
+                .header("Location", not(containsString("/login")));
     }
 
     @Test
