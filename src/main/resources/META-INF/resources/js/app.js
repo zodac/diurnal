@@ -97,8 +97,10 @@ document.addEventListener('click', function (e) {
 
         var slot = form.querySelector('[data-form-errors]');
         if (missing.length === 0 && errors.length === 0) {
-            if (slot) { slot.innerHTML = ''; slot.hidden = true; }
-            return; // valid — let the form submit normally
+            // Valid — let the form submit (natively or via ajax). Deliberately DON'T clear any banner
+            // still showing: a stale error should linger until the response replaces it (or the page
+            // navigates on success), so the card never blinks empty between attempts.
+            return;
         }
 
         e.preventDefault();
@@ -117,9 +119,41 @@ document.addEventListener('click', function (e) {
         errors.forEach(function (msg) {
             html += '<div class="banner banner-error">' + escapeHtml(msg) + '</div>';
         });
-        slot.innerHTML = html;
+        // Only touch the DOM when the banner actually changes — re-rendering identical markup
+        // destroys and recreates the nodes, which makes a repeated identical failure "jump".
+        if (slot.innerHTML !== html) { slot.innerHTML = html; }
         slot.hidden = false;
         if (firstInvalid) { firstInvalid.focus(); }
+    });
+})();
+
+// ── Disable submit until every required field is filled ───────────────────────
+// A form marked `data-disable-until-complete` (the register card) keeps its submit button disabled
+// until every [required] field holds a non-blank value, so an obviously incomplete submission can't
+// be fired — a clearer signal than only surfacing the missing-fields banner after a click. This is a
+// UX affordance ONLY, and deliberately a strict subset of the real validation: it checks presence,
+// not format (a filled-but-malformed email or a password mismatch still enables the button and is
+// caught by the data-validate banner above); the server remains the authoritative validator. If the
+// lock is ever bypassed (no JS, a forced submit), both backstops still fire. Listening on the form
+// (input + change) keeps the button state in sync as the user types; both cards keep their fields
+// (incl. passwords) on a failed AJAX submit, so the button simply stays in whatever state the fields
+// warrant.
+// A button carrying `data-hold-disabled` is owned by another controller (the login lockout countdown,
+// which greys it out for a fixed duration) — this handler leaves it alone so the two don't fight.
+(function () {
+    function requiredFilled(form) {
+        return Array.prototype.every.call(form.querySelectorAll('[required]'), function (field) {
+            return field.value.trim() !== '';
+        });
+    }
+    function sync(form) {
+        var btn = form.querySelector('button[type="submit"]');
+        if (btn && !btn.hasAttribute('data-hold-disabled')) { btn.disabled = !requiredFilled(form); }
+    }
+    document.querySelectorAll('form[data-disable-until-complete]').forEach(function (form) {
+        sync(form);   // reflect the server-rendered state (blank fields → disabled) on first paint
+        form.addEventListener('input', function () { sync(form); });
+        form.addEventListener('change', function () { sync(form); });
     });
 })();
 
@@ -153,22 +187,37 @@ document.addEventListener('click', function (e) {
 
         var slot = form.querySelector('[data-form-errors]');
         var submitBtn = form.querySelector('button[type="submit"]');
-        if (submitBtn) { submitBtn.disabled = true; }
+        // Hold the button disabled while this submit is in flight (and, on a lockout, for the whole
+        // countdown). data-hold-disabled tells the data-disable-until-complete handler to keep its
+        // hands off, so typing during a lockout can't re-enable the greyed-out button.
+        if (submitBtn) { submitBtn.setAttribute('data-hold-disabled', ''); submitBtn.disabled = true; }
 
         function stopLockout() {
             if (lockoutTimer !== null) { clearInterval(lockoutTimer); lockoutTimer = null; }
+        }
+
+        // Release the hold and re-enable — but only if the fields are actually filled, so we hand the
+        // button back to the data-disable-until-complete handler in a consistent state (a blank field
+        // must stay disabled). Passing the live field check keeps the two controllers in agreement.
+        function releaseButton() {
+            if (!submitBtn) { return; }
+            submitBtn.removeAttribute('data-hold-disabled');
+            var complete = Array.prototype.every.call(form.querySelectorAll('[required]'), function (f) {
+                return f.value.trim() !== '';
+            });
+            submitBtn.disabled = !complete;
         }
 
         // Clears any running countdown, hides the banner and re-enables the form.
         function clearLockout() {
             stopLockout();
             if (slot) { slot.hidden = true; slot.innerHTML = ''; }
-            if (submitBtn) { submitBtn.disabled = false; }
+            releaseButton();
         }
 
         function showError(message) {
             stopLockout();
-            if (submitBtn) { submitBtn.disabled = false; }
+            releaseButton();
             if (slot) {
                 slot.innerHTML = '<div class="banner banner-error">' + message + '</div>';
                 slot.hidden = false;
@@ -224,6 +273,60 @@ document.addEventListener('click', function (e) {
             }
         }).catch(function () {
             showError('Something went wrong. Please try again.');
+        });
+    });
+})();
+
+// A form marked `data-ajax-errors` (the register card) posts via fetch so a rejected submission
+// re-renders ONLY its error banner, in place, instead of reloading the whole page. Both failure
+// sources — a blank field caught client-side and a duplicate email caught server-side — land in the
+// same `[data-form-errors]` slot, and the banner is swapped ONLY when its contents change and is
+// NEVER cleared on a failure, so repeated failed attempts no longer make the card "jump" between
+// them; it clears only when a successful attempt navigates away. On success the server 303s onward
+// (with the session cookie set on the redirect) and we follow it. This runs after the data-validate
+// handler above, so client validation still short-circuits blank fields without a round-trip; without
+// JS the form submits natively and the server round-trips the same page + banner, degrading cleanly.
+(function () {
+    document.addEventListener('submit', function (e) {
+        var form = e.target;
+        if (e.defaultPrevented) { return; }   // client-side validation already blocked this submit
+        if (!form || !form.matches || !form.matches('form[data-ajax-errors]')) { return; }
+        e.preventDefault();
+
+        var slot = form.querySelector('[data-form-errors]');
+        var submitBtn = form.querySelector('button[type="submit"]');
+        if (submitBtn) { submitBtn.disabled = true; }
+
+        // Swap the banner only when it changes; leave the DOM (and layout) untouched otherwise. The
+        // password fields are deliberately KEPT on a failure (aligned with the login card) so a user
+        // whose email was rejected can just amend it and resubmit without retyping both passwords —
+        // the fields stay filled, so re-enabling the submit button below is consistent with the
+        // data-disable-until-complete lock.
+        function showErrors(html) {
+            if (submitBtn) { submitBtn.disabled = false; }
+            if (!slot) { return; }
+            if (slot.innerHTML !== html) { slot.innerHTML = html; }
+            slot.hidden = false;
+        }
+
+        var ownPath = new URL(form.action, window.location.origin).pathname;
+        fetch(form.action, {
+            method: 'POST',
+            body: new URLSearchParams(new FormData(form)),
+            headers: { 'Accept': 'text/html' },
+            redirect: 'follow'
+        }).then(function (resp) {
+            // A failed submit re-renders the form at its own path (400); success 303s elsewhere.
+            if (new URL(resp.url, window.location.origin).pathname !== ownPath) {
+                window.location.assign(resp.url);
+                return undefined;
+            }
+            return resp.text().then(function (body) {
+                var fresh = new DOMParser().parseFromString(body, 'text/html').querySelector('[data-form-errors]');
+                showErrors(fresh ? fresh.innerHTML : '');
+            });
+        }).catch(function () {
+            showErrors('<div class="banner banner-error">Something went wrong. Please try again.</div>');
         });
     });
 })();

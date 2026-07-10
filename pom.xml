@@ -6,7 +6,7 @@
     <parent>
         <groupId>net.zodac</groupId>
         <artifactId>parent-pom</artifactId>
-        <version>1.0.17</version>
+        <version>1.0.18</version>
     </parent>
 
     <artifactId>diurnal</artifactId>
@@ -38,14 +38,9 @@
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-api</artifactId>
         </dependency>
-        <!-- Password hashing (Argon2id) via password4j, a pure-Java implementation with no native
-             libraries — important for the distroless/jlink production image, which ships a trimmed JRE
-             and a read-only filesystem. The parent POM does not manage password4j, so its version is
-             pinned here. -->
         <dependency>
             <groupId>com.password4j</groupId>
             <artifactId>password4j</artifactId>
-            <version>1.8.2</version>
         </dependency>
 
         <!-- Database -->
@@ -414,8 +409,7 @@
                                      8081, Playwright E2E suite, feature coverage on a full JDK) and then,
                                      only if it passed (`&&`), run-smoke.sh (builds the REAL production
                                      Docker image, runs an isolated app+DB stack on 8082, black-box smoke
-                                     suite — the only tier exercising the packaged distroless/jlink/non-root
-                                     runtime). Each script is self-contained (brings up its own deps, tears
+                                     suite. Each script is self-contained (brings up its own deps, tears
                                      them down via a trap) and exits with Playwright's code, so a failure in
                                      either tier fails the build. Ordering is enforced by the `&&` inside the
                                      single exec (NOT by phase/declaration order): the only phase after
