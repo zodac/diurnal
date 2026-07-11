@@ -28,7 +28,6 @@
     - [Preferences](#preferences)
 - [Administrator User](#administrator-users)
 - [Versioning](#versioning)
-- [Contributing](#contributing)
 - [License](#license)
 
 ## Introduction
@@ -336,10 +335,6 @@ update, if they *can* use something new it's a **MINOR**, else it's a **PATCH**.
     - Codebase refactoring
     - Dependency bumps
     - Minor visual/styling updates and behaviours, like better resizing for mobile views, etc.
-
-## Contributing
-
-See **[CONTRIBUTING.md](CONTRIBUTING.md)**.
 
 ## License
 
