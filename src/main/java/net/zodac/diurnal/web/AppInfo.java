@@ -135,4 +135,49 @@ public class AppInfo {
     public String getJsDashboardFile() {
         return appConfig.jsDashboardFile();
     }
+
+    /**
+     * The content-hashed actions-page script filename (e.g. {@code actions.9f3a1c2b4d5e.js}),
+     * referenced by {@code actions.html} as {@code /js/{jsActionsFile}} so each deploy busts client and
+     * reverse-proxy caches without serving a stale script.
+     *
+     * @return the actions-script filename served under {@code /js/}
+     */
+    public String getJsActionsFile() {
+        return appConfig.jsActionsFile();
+    }
+
+    /**
+     * The content-hashed admin users-page script filename (e.g. {@code admin-users.9f3a1c2b4d5e.js}),
+     * referenced by {@code admin-users.html} as {@code /js/{jsAdminFile}} so each deploy busts client
+     * and reverse-proxy caches without serving a stale script.
+     *
+     * @return the admin users-script filename served under {@code /js/}
+     */
+    public String getJsAdminFile() {
+        return appConfig.jsAdminFile();
+    }
+
+    /**
+     * The content-hashed admin API-docs page script filename (e.g.
+     * {@code admin-api-docs.9f3a1c2b4d5e.js}), referenced by {@code admin-api-docs.html} as
+     * {@code /js/{jsApiDocsFile}} so each deploy busts client and reverse-proxy caches without serving a
+     * stale script.
+     *
+     * @return the API-docs-script filename served under {@code /js/}
+     */
+    public String getJsApiDocsFile() {
+        return appConfig.jsApiDocsFile();
+    }
+
+    /**
+     * The content-hashed settings-page script filename (e.g. {@code settings.9f3a1c2b4d5e.js}),
+     * referenced by {@code settings.html} as {@code /js/{jsSettingsFile}} so each deploy busts client
+     * and reverse-proxy caches without serving a stale script.
+     *
+     * @return the settings-script filename served under {@code /js/}
+     */
+    public String getJsSettingsFile() {
+        return appConfig.jsSettingsFile();
+    }
 }

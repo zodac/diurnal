@@ -17,7 +17,7 @@
         <span class="text-sm font-medium text-ink truncate">{action.name}</span>
     </div>
     <span class="dt-confirm-prompt shrink-0 ml-2 text-right">Erase entries?</span>
-    <div class="dt-actions ml-2" style="gap: .125rem">
+    <div class="dt-actions ml-2">
         <button hx-post="/logs/{date}/{action.id}/delete"
                 hx-target="#log-{date}-{action.id}"
                 hx-swap="innerHTML"

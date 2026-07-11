@@ -79,13 +79,6 @@
 
     {#include partials/footer /}
 </div>
-<script>
-    // Reaching the login page ends the working session: an explicit logout, a session-cookie expiry
-    // redirect, or a different user about to log in on this tab. Drop the per-tab dashboard day selection
-    // so it is tied to the authentication session, never leaking across logins. (Brace note: Qute parses
-    // '{' in templates, so every '{' here is followed by whitespace.)
-    try { sessionStorage.removeItem('diurnal.selectedDate'); } catch (e) { /* ignore */ }
-</script>
 {/body}
 
 {/include}

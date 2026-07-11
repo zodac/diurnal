@@ -1,6 +1,8 @@
 import type { Page } from "@playwright/test"
 import { test as base, request as baseRequest } from "@playwright/test"
 
+/* global window, location -- referenced inside in-browser addInitScript/page.evaluate callbacks */
+
 export interface TestUser {
     email: string;
     password: string;
@@ -53,6 +55,14 @@ interface Fixtures {
 }
 
 /**
+ * Matches a console message produced by a browser-enforced Content-Security-Policy block (Chromium's
+ * wording is "Refused to ... because it violates the following Content Security Policy directive").
+ * Kept narrow (CSP-specific, not "any console error") so this fixture only fails a spec on an actual
+ * policy regression, not on unrelated console noise.
+ */
+const CSP_CONSOLE_ERROR = /content security policy/i
+
+/**
  * A Playwright test fixture that provides a page already authenticated as a
  * per-spec isolated test user. The user is derived from the spec file name so
  * parallel spec files never share state.
@@ -62,6 +72,40 @@ interface Fixtures {
  *   test('my test', async ({ authenticatedPage }) => { ... });
  */
 export const test = base.extend<Fixtures>({
+    // CSP regression gate: overriding the built-in `page` fixture (rather than adding a
+    // separate autouse one) means every spec that requests `page` — directly or via `authenticatedPage`
+    // — gets this for free, turning "watch the console, zero expected" (a one-off manual pass)
+    // into a permanent regression gate. Two channels are watched: the DOM `securitypolicyviolation`
+    // event (fires for every actual block, incl. ones that don't log) and the console "Refused to ..."
+    // error Chromium also emits — belt-and-braces in case a future engine only surfaces one of the two.
+    page: async ({ page }, use, testInfo) => {
+        const violations: string[] = []
+        page.on("console", msg => {
+            if (msg.type() === "error" && CSP_CONSOLE_ERROR.test(msg.text())) {
+                violations.push(`console: ${msg.text()}`)
+            }
+        })
+        await page.addInitScript(() => {
+            window.addEventListener("securitypolicyviolation", (e: SecurityPolicyViolationEvent) => {
+                const w = window as unknown as { __cspViolations?: string[] }
+                w.__cspViolations = w.__cspViolations ?? []
+                w.__cspViolations.push(`${e.violatedDirective}: blocked "${e.blockedURI}" on ${location.pathname}`)
+            })
+        })
+
+        await use(page)
+
+        const domViolations = await page.evaluate(() => {
+            const w = window as unknown as { __cspViolations?: string[] }
+            return w.__cspViolations ?? []
+        }).catch(() => [] as string[])
+        violations.push(...domViolations)
+
+        if (violations.length > 0) {
+            throw new Error(`CSP violation(s) detected during "${testInfo.title}":\n${violations.join("\n")}`)
+        }
+    },
+
     // Playwright requires a fixture's first argument to use the object-destructuring pattern; this
     // fixture depends on no other fixtures, so it destructures nothing (hence the empty-pattern disable).
     // eslint-disable-next-line no-empty-pattern

@@ -1,5 +1,4 @@
-import { test, expect } from "@playwright/test"
-import { setupTestUser } from "../helpers/fixtures"
+import { test, expect, setupTestUser } from "../helpers/fixtures"
 
 const USER = {
     email: "e2e-auth@example.com",

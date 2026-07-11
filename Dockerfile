@@ -86,15 +86,29 @@ RUN cd src/main/resources/META-INF/resources/js \
        >> /build/src/main/resources/META-INF/microprofile-config.properties
 # Content-hash the app's own hand-written scripts, extracted from the templates so they ride the
 # immutable cache instead of being re-parsed on every no-cache navigation: app.js (shared, every
-# page) and dashboard.js (the calendar engine, dashboard only). Same rename+bake as htmx/CSS above;
-# both are committed files (arrive via `COPY src`), so they need only the rename. The globs are
-# anchored (app.*.js / dashboard.*.js) so each matches ONLY its own hashed output after the mv.
+# page), dashboard.js (the calendar engine, dashboard only), actions.js (actions page), admin-users.js
+# (admin users page), admin-api-docs.js (admin API-docs page) and settings.js (settings page). Same
+# rename+bake as htmx/CSS above; all are committed files (arrive via `COPY src`), so they need only
+# the rename. The globs are anchored (app.*.js / dashboard.*.js / …) so each matches ONLY its own
+# hashed output after the mv.
 RUN cd src/main/resources/META-INF/resources/js \
     && mv app.js "app.$(sha256sum app.js | cut -c1-12).js" \
     && mv dashboard.js "dashboard.$(sha256sum dashboard.js | cut -c1-12).js" \
+    && mv actions.js "actions.$(sha256sum actions.js | cut -c1-12).js" \
+    && mv admin-users.js "admin-users.$(sha256sum admin-users.js | cut -c1-12).js" \
+    && mv admin-api-docs.js "admin-api-docs.$(sha256sum admin-api-docs.js | cut -c1-12).js" \
+    && mv settings.js "settings.$(sha256sum settings.js | cut -c1-12).js" \
     && printf '\napp.assets.js-app-file=%s\n' app.*.js \
        >> /build/src/main/resources/META-INF/microprofile-config.properties \
     && printf '\napp.assets.js-dashboard-file=%s\n' dashboard.*.js \
+       >> /build/src/main/resources/META-INF/microprofile-config.properties \
+    && printf '\napp.assets.js-actions-file=%s\n' actions.*.js \
+       >> /build/src/main/resources/META-INF/microprofile-config.properties \
+    && printf '\napp.assets.js-admin-file=%s\n' admin-users.*.js \
+       >> /build/src/main/resources/META-INF/microprofile-config.properties \
+    && printf '\napp.assets.js-api-docs-file=%s\n' admin-api-docs.*.js \
+       >> /build/src/main/resources/META-INF/microprofile-config.properties \
+    && printf '\napp.assets.js-settings-file=%s\n' settings.*.js \
        >> /build/src/main/resources/META-INF/microprofile-config.properties
 # -Dcss.build.skip=true: the stylesheet is already compiled by the `css` stage and copied in above,
 # and this maven image has no Node toolchain — so skip the POM's `css-build` exec.

@@ -197,13 +197,16 @@ manage.
 A session ends at whichever comes first: `SESSION_IDLE_TIMEOUT` since it was last used, or `SESSION_ABSOLUTE_LIFETIME` since it was created. Both are
 [ISO-8601](https://en.wikipedia.org/wiki/ISO_8601#Durations) durations (e.g. `P30D` = 30 days, `P7D` = 7 days, `PT12H` = 12 hours).
 
-| Variable                    | Default | Description                                                        |
-|-----------------------------|---------|--------------------------------------------------------------------|
-| `SESSION_IDLE_TIMEOUT`      | `P30D`  | Sliding idle timeout — a session dies this long after its last use |
-| `SESSION_ABSOLUTE_LIFETIME` | `P90D`  | Hard cap on a session's age regardless of activity                 |
-| `SESSION_CLEANUP_INTERVAL`  | `PT1H`  | How often expired sessions are swept from the database             |
+| Variable                    | Default | Description                                                       |
+|-----------------------------|---------|-------------------------------------------------------------------|
+| `SESSION_IDLE_TIMEOUT`      | `P30D`  | Sliding idle timeout; a session dies this long after its last use |
+| `SESSION_ABSOLUTE_LIFETIME` | `P90D`  | Hard cap on a session's age regardless of activity                |
+| `SESSION_CLEANUP_INTERVAL`  | `PT1H`  | How often expired sessions are swept from the database            |
 
 ### Reverse Proxy
+
+Diurnal serves plaintext HTTP and is designed to run behind a TLS-terminating reverse proxy. The proxy should handle everything TLS-related: the
+certificate, any HTTP→HTTPS redirect, and the `Strict-Transport-Security` (HSTS) header.
 
 | Variable                    | Default | Description                                          |
 |-----------------------------|---------|------------------------------------------------------|

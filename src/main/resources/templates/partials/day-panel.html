@@ -17,12 +17,12 @@
            hx-get="/logs/day/{date}/list?page=1"
            hx-target="#day-actions-list"
            hx-trigger="input changed delay:300ms"
-           hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('day-search-input').value"
+           data-search-source="day-search-input"
            class="form-input w-full">
 </div>
 
 <!-- Actions list -->
-<div id="day-actions-list" class="flex flex-col gap-1" style="overflow-anchor: none;">
+<div id="day-actions-list" class="flex flex-col gap-1">
     {#include partials/day-actions-list date=date page=page /}
 </div>
 {/if}
