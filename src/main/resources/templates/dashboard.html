@@ -6,8 +6,11 @@
     <!-- Navigation -->
     {#include partials/navbar active='dashboard' /}
 
-    <!-- Main content -->
-    <main class="page-container px-4 py-8">
+    <!-- Main content. data-today/data-calendar-view are the two server-injected values the calendar
+         engine needs (the app's UTC "today" and the user's chosen calendar style); dashboard.js reads
+         them off this element's dataset instead of an inline bootstrap script, so the engine stays a
+         fully static, content-hashed file. -->
+    <main id="dashboard-main" class="page-container px-4 py-8" data-today="{today}" data-calendar-view="{calendarView}">
         <div class="mb-6">
             <h2 class="text-2xl font-semibold text-ink">Welcome, {displayName}</h2>
         </div>
@@ -78,13 +81,6 @@
     {#include partials/footer /}
 </div>
 
-<!-- Server-injected values the calendar engine needs: the app's UTC "today" and the user's chosen
-     calendar style. Handed to /js/dashboard.js via window.Diurnal (created by the applyTheme bootstrap
-     in <head>) so the engine itself can be a static, content-hashed file rather than an inline block. -->
-<script>
-    window.Diurnal = window.Diurnal || {};
-    window.Diurnal.dashboard = { today: '{today}', calendarView: '{calendarView}' };
-</script>
 <!-- The calendar engine (grid render, month cache/prefetch, day panel, toolbar). Extracted from the
      inline block that used to sit here into /js/dashboard.js so it rides the content-hashed `immutable`
      cache instead of being re-parsed on every dashboard load. Served as dashboard.<hash>.js in prod

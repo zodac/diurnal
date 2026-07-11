@@ -49,13 +49,6 @@ public class OpenApiDocsAuthFilter {
     // route, so the guard decides before the Swagger UI / OpenAPI handlers ever see the request.
     private static final int GUARD_ROUTE_ORDER = Integer.MIN_VALUE + 1;
 
-    // The Swagger UI shell: /api, /api/ and /api/index.html only — NOT the JAX-RS endpoints under
-    // /api/... (e.g. /api/auth/login), which carry further path segments and must stay reachable.
-    private static final String SWAGGER_UI_PATH_REGEX = "^/api(/|/index\\.html)?$";
-
-    // The generated OpenAPI document and its .json / .yaml variants.
-    private static final String OPENAPI_DOCUMENT_PATH_REGEX = "^/q/openapi(\\..*)?$";
-
     @Inject
     Router router;
 
@@ -76,8 +69,8 @@ public class OpenApiDocsAuthFilter {
     @SuppressWarnings("unused")
     // CDI startup observer — invoked by Quarkus, not called directly
     void onStart(@Observes final StartupEvent ev) {
-        router.routeWithRegex(SWAGGER_UI_PATH_REGEX).order(GUARD_ROUTE_ORDER).blockingHandler(this::guard);
-        router.routeWithRegex(OPENAPI_DOCUMENT_PATH_REGEX).order(GUARD_ROUTE_ORDER).blockingHandler(this::guard);
+        router.routeWithRegex(OpenApiDocsPaths.SWAGGER_UI_PATH_REGEX).order(GUARD_ROUTE_ORDER).blockingHandler(this::guard);
+        router.routeWithRegex(OpenApiDocsPaths.OPENAPI_DOCUMENT_PATH_REGEX).order(GUARD_ROUTE_ORDER).blockingHandler(this::guard);
     }
 
     private void guard(final RoutingContext context) {

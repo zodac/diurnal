@@ -17,43 +17,77 @@
 // edit state ([data-dt-edit]). Entering/leaving edit mode is a pure client-side toggle —
 // Save submits the row's form, Cancel just restores the view. Shared by every editable table.
 window.dtStartEdit = function (row) {
-    if (!row) return;
-    row.classList.add('dt-row-highlight', 'dt-row-edit');
-    row.querySelectorAll('[data-dt-view]').forEach(function (el) { el.classList.add('hidden'); });
-    row.querySelectorAll('[data-dt-edit]').forEach(function (el) { el.classList.remove('hidden'); });
-};
+    if (!row) {return}
+    row.classList.add('dt-row-highlight', 'dt-row-edit')
+    row.querySelectorAll('[data-dt-view]').forEach(function (el) { el.classList.add('hidden') })
+    row.querySelectorAll('[data-dt-edit]').forEach(function (el) { el.classList.remove('hidden') })
+}
 window.dtCancelEdit = function (row) {
-    if (!row) return;
-    row.classList.remove('dt-row-highlight', 'dt-row-edit');
-    row.querySelectorAll('form').forEach(function (f) { f.reset(); });   // drop unsaved input
-    row.querySelectorAll('[data-dt-edit]').forEach(function (el) { el.classList.add('hidden'); });
-    row.querySelectorAll('[data-dt-view]').forEach(function (el) { el.classList.remove('hidden'); });
-};
+    if (!row) {return}
+    row.classList.remove('dt-row-highlight', 'dt-row-edit')
+    row.querySelectorAll('form').forEach(function (f) { f.reset() })   // drop unsaved input
+    row.querySelectorAll('[data-dt-edit]').forEach(function (el) { el.classList.add('hidden') })
+    row.querySelectorAll('[data-dt-view]').forEach(function (el) { el.classList.remove('hidden') })
+}
 
 // Disarm every armed row except (optionally) one. "Armed" = mid edit or mid delete-confirm;
 // either way the row shows a visible Cancel (.dt-btn-cancel), so clicking it restores the row.
 // Exposed on window so page scripts can also call it (e.g. a delete rejected server-side).
 window.dtClearArmedRows = function (exceptRow) {
     document.querySelectorAll('tr .dt-btn-cancel').forEach(function (cancel) {
-        var row = cancel.closest('tr');
-        if (!row || row === exceptRow) return;
-        if (cancel.offsetParent === null) return;   // hidden → this row isn't armed
-        cancel.click();
-    });
-};
-// Selecting another entry (clicking its Edit or Delete) disarms whatever was armed before.
+        const row = cancel.closest('tr')
+        if (!row || row === exceptRow) {return}
+        if (cancel.offsetParent === null) {return}   // hidden → this row isn't armed
+        cancel.click()
+    })
+}
+// Selecting another entry (clicking its Edit or Delete) disarms whatever was armed before, and
+// Edit/Cancel themselves toggle the row's edit state (partials/dt-row-actions.html). Guarded
+// against a confirm-delete row (partials/dt-confirm-delete-row.html) — its OWN Cancel button
+// shares the `.dt-btn-cancel` class (for the generic disarm-on-select behaviour above) but is an
+// htmx `hx-get` restore, not an edit-mode toggle.
 document.body.addEventListener('click', function (e) {
-    var trigger = e.target.closest('.dt-btn-edit, .dt-btn-delete');
-    if (trigger) window.dtClearArmedRows(trigger.closest('tr'));
+    const trigger = e.target.closest('.dt-btn-edit, .dt-btn-delete')
+    if (trigger) {window.dtClearArmedRows(trigger.closest('tr'))}
+    const row = e.target.closest('tr')
+    if (row && row.classList.contains('dt-row-confirm')) {return}
+    if (e.target.closest('.dt-btn-edit')) {window.dtStartEdit(row)}
+    if (e.target.closest('.dt-btn-cancel')) {window.dtCancelEdit(row)}
 });
+
+// Mobile hamburger menu (partials/navbar.html): toggles the dropdown open/closed via the
+// data-open attribute its CSS keys on, and mirrors the state onto aria-expanded.
+(function () {
+    const toggle = document.getElementById('hamburger-btn')
+    if (!toggle) {return}
+    toggle.addEventListener('click', function () {
+        const menu = document.getElementById('mobile-menu')
+        const open = menu.getAttribute('data-open') !== 'true'
+        menu.setAttribute('data-open', String(open))
+        toggle.setAttribute('aria-expanded', String(open))
+    })
+})()
+
+// ── Delegated htmx:configRequest for the search-filter inputs/links ───────────
+// Any element carrying `data-search-source="<input id>"` (the search box itself, or a pagination
+// link referencing it) copies that input's current value into the outgoing htmx request's `q`
+// parameter. Replaces five identical `hx-on="htmx:configRequest: …"` attributes (actions.html,
+// day-panel.html, day-actions-list.html) — htmx executes `hx-on` via the Function constructor,
+// which the CSP's script-src blocks without 'unsafe-eval'.
+document.body.addEventListener('htmx:configRequest', function (e) {
+    const marker = e.target.closest('[data-search-source]')
+    if (!marker) {return}
+    const input = document.getElementById(marker.dataset.searchSource)
+    if (input) {e.detail.parameters.q = input.value}
+})
 
 // Day-panel: at most one confirm row open at a time. Runs in capture phase so it fires before
 // HTMX on the Delete button; the Cancel click triggers its own hx-get to restore the normal state.
 document.addEventListener('click', function (e) {
     if (e.target.closest('.day-item .dt-btn-delete')) {
         document.querySelectorAll('.day-item-confirm .dt-btn-cancel').forEach(function (cancel) {
-            cancel.click();
-        });
+            cancel.click()
+        })
     }
 }, true);
 
@@ -67,64 +101,64 @@ document.addEventListener('click', function (e) {
 (function () {
     function escapeHtml(value) {
         return String(value).replace(/[&<>"']/g, function (c) {
-            return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c];
-        });
+            return {'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', '\'': '&#39;'}[c]
+        })
     }
     function labelOf(field) {
-        return field.getAttribute('data-field-label') || field.name || 'This field';
+        return field.getAttribute('data-field-label') || field.name || 'This field'
     }
 
     document.addEventListener('submit', function (e) {
-        var form = e.target;
+        const form = e.target
         if (!form || !form.matches || !form.matches('form[data-validate]')) {
-            return;
+            return
         }
 
-        var missing = [];
-        var errors = [];
-        var firstInvalid = null;
+        const missing = []
+        const errors = []
+        let firstInvalid = null
         form.querySelectorAll('[required]').forEach(function (field) {
             if (!field.value.trim()) {
-                missing.push(labelOf(field));
-                firstInvalid = firstInvalid || field;
+                missing.push(labelOf(field))
+                firstInvalid = firstInvalid || field
             } else if (field.type === 'email' && field.value.indexOf('@') === -1) {
                 if (errors.indexOf('Email must contain an @ symbol.') === -1) {
-                    errors.push('Email must contain an @ symbol.');
+                    errors.push('Email must contain an @ symbol.')
                 }
-                firstInvalid = firstInvalid || field;
+                firstInvalid = firstInvalid || field
             }
-        });
+        })
 
-        var slot = form.querySelector('[data-form-errors]');
+        const slot = form.querySelector('[data-form-errors]')
         if (missing.length === 0 && errors.length === 0) {
             // Valid — let the form submit (natively or via ajax). Deliberately DON'T clear any banner
             // still showing: a stale error should linger until the response replaces it (or the page
             // navigates on success), so the card never blinks empty between attempts.
-            return;
+            return
         }
 
-        e.preventDefault();
+        e.preventDefault()
         if (!slot) {
-            return;
+            return
         }
 
-        var html = '';
+        let html = ''
         if (missing.length > 0) {
-            var noun = missing.length === 1 ? 'field' : 'fields';
-            html += '<div class="banner banner-error">Please fill in the following ' + noun + ':' +
-                    '<ul class="list-disc list-inside mt-1">' +
-                    missing.map(function (m) { return '<li>' + escapeHtml(m) + '</li>'; }).join('') +
-                    '</ul></div>';
+            const noun = missing.length === 1 ? 'field' : 'fields'
+            html += `<div class="banner banner-error">Please fill in the following ${  noun  }:` +
+                    `<ul class="list-disc list-inside mt-1">${ 
+                    missing.map(function (m) { return `<li>${  escapeHtml(m)  }</li>` }).join('') 
+                    }</ul></div>`
         }
         errors.forEach(function (msg) {
-            html += '<div class="banner banner-error">' + escapeHtml(msg) + '</div>';
-        });
+            html += `<div class="banner banner-error">${  escapeHtml(msg)  }</div>`
+        })
         // Only touch the DOM when the banner actually changes — re-rendering identical markup
         // destroys and recreates the nodes, which makes a repeated identical failure "jump".
-        if (slot.innerHTML !== html) { slot.innerHTML = html; }
-        slot.hidden = false;
-        if (firstInvalid) { firstInvalid.focus(); }
-    });
+        if (slot.innerHTML !== html) { slot.innerHTML = html }
+        slot.hidden = false
+        if (firstInvalid) { firstInvalid.focus() }
+    })
 })();
 
 // ── Disable submit until every required field is filled ───────────────────────
@@ -143,19 +177,19 @@ document.addEventListener('click', function (e) {
 (function () {
     function requiredFilled(form) {
         return Array.prototype.every.call(form.querySelectorAll('[required]'), function (field) {
-            return field.value.trim() !== '';
-        });
+            return field.value.trim() !== ''
+        })
     }
     function sync(form) {
-        var btn = form.querySelector('button[type="submit"]');
-        if (btn && !btn.hasAttribute('data-hold-disabled')) { btn.disabled = !requiredFilled(form); }
+        const btn = form.querySelector('button[type="submit"]')
+        if (btn && !btn.hasAttribute('data-hold-disabled')) { btn.disabled = !requiredFilled(form) }
     }
     document.querySelectorAll('form[data-disable-until-complete]').forEach(function (form) {
-        sync(form);   // reflect the server-rendered state (blank fields → disabled) on first paint
-        form.addEventListener('input', function () { sync(form); });
-        form.addEventListener('change', function () { sync(form); });
-    });
-})();
+        sync(form)   // reflect the server-rendered state (blank fields → disabled) on first paint
+        form.addEventListener('input', function () { sync(form) })
+        form.addEventListener('change', function () { sync(form) })
+    })
+})()
 
 // ── Shared lockout countdown ──────────────────────────────────────────────────
 // When the server rejects a login OR a registration because the client IP is locked out, it carries the
@@ -168,37 +202,37 @@ document.addEventListener('click', function (e) {
 // countdown is running (the form stays inert until it expires).
 window.Diurnal = window.Diurnal || {};
 (function () {
-    var timers = new WeakMap();
+    const timers = new WeakMap()
 
     // mm:ss, clamped so it can NEVER render a negative value.
     function formatClock(totalSeconds) {
-        var s = totalSeconds > 0 ? totalSeconds : 0;
-        var mins = Math.floor(s / 60);
-        var secs = s % 60;
-        return (mins < 10 ? '0' : '') + mins + ':' + (secs < 10 ? '0' : '') + secs;
+        const s = totalSeconds > 0 ? totalSeconds : 0
+        const mins = Math.floor(s / 60)
+        const secs = s % 60
+        return `${(mins < 10 ? '0' : '') + mins  }:${  secs < 10 ? '0' : ''  }${secs}`
     }
 
     function requiredFilled(form) {
         return Array.prototype.every.call(form.querySelectorAll('[required]'), function (f) {
-            return f.value.trim() !== '';
-        });
+            return f.value.trim() !== ''
+        })
     }
 
     // Whether a lockout countdown is currently running for this form (the submit handlers stay inert).
     window.Diurnal.lockoutRunning = function (form) {
-        return timers.has(form);
-    };
+        return timers.has(form)
+    }
 
     // Stop any countdown, hide the banner, and hand the button back to the data-disable-until-complete
     // controller in a consistent state (a blank required field must stay disabled).
     window.Diurnal.clearLockout = function (form, slot, submitBtn) {
-        if (timers.has(form)) { clearInterval(timers.get(form)); timers.delete(form); }
-        if (slot) { slot.hidden = true; slot.innerHTML = ''; }
+        if (timers.has(form)) { clearInterval(timers.get(form)); timers.delete(form) }
+        if (slot) { slot.hidden = true; slot.innerHTML = '' }
         if (submitBtn) {
-            submitBtn.removeAttribute('data-hold-disabled');
-            submitBtn.disabled = !requiredFilled(form);
+            submitBtn.removeAttribute('data-hold-disabled')
+            submitBtn.disabled = !requiredFilled(form)
         }
-    };
+    }
 
     // Show the live mm:ss countdown banner and keep the submit button greyed + inert until the
     // server-provided expiry. The lead text is neutral ("Too many failed attempts.") so it reads the same
@@ -207,23 +241,23 @@ window.Diurnal = window.Diurnal || {};
     // tells the data-disable-until-complete handler to keep its hands off, so typing during a lockout
     // can't re-enable the greyed-out button.
     window.Diurnal.startLockoutCountdown = function (form, slot, submitBtn, seconds) {
-        var total = Math.floor(seconds);
-        if (!(total > 0) || !slot) { window.Diurnal.clearLockout(form, slot, submitBtn); return; }
-        if (timers.has(form)) { clearInterval(timers.get(form)); timers.delete(form); }
-        if (submitBtn) { submitBtn.setAttribute('data-hold-disabled', ''); submitBtn.disabled = true; }
+        const total = Math.floor(seconds)
+        if (!(total > 0) || !slot) { window.Diurnal.clearLockout(form, slot, submitBtn); return }
+        if (timers.has(form)) { clearInterval(timers.get(form)); timers.delete(form) }
+        if (submitBtn) { submitBtn.setAttribute('data-hold-disabled', ''); submitBtn.disabled = true }
         slot.innerHTML = '<div class="banner banner-error">Too many failed attempts. '
-            + 'Please try again in <span data-lockout-clock></span>.</div>';
-        slot.hidden = false;
-        var clock = slot.querySelector('[data-lockout-clock]');
-        var endTime = Date.now() + total * 1000;
+            + 'Please try again in <span data-lockout-clock></span>.</div>'
+        slot.hidden = false
+        const clock = slot.querySelector('[data-lockout-clock]')
+        const endTime = Date.now() + total * 1000
         function tick() {
-            var remaining = Math.round((endTime - Date.now()) / 1000);
-            if (remaining < 0) { window.Diurnal.clearLockout(form, slot, submitBtn); return; }   // expired
-            if (clock) { clock.textContent = formatClock(remaining); }
+            const remaining = Math.round((endTime - Date.now()) / 1000)
+            if (remaining < 0) { window.Diurnal.clearLockout(form, slot, submitBtn); return }   // expired
+            if (clock) { clock.textContent = formatClock(remaining) }
         }
-        timers.set(form, setInterval(tick, 1000));
-        tick();   // paint immediately, before the first interval
-    };
+        timers.set(form, setInterval(tick, 1000))
+        tick()   // paint immediately, before the first interval
+    }
 })();
 
 // A form marked `data-ajax-submit` is posted with fetch() instead of a full-page navigation, so a
@@ -236,29 +270,29 @@ window.Diurnal = window.Diurnal || {};
 // untouched. (Brace note: Qute parses '{' in templates, so every '{' here is followed by whitespace.)
 (function () {
     document.addEventListener('submit', function (e) {
-        var form = e.target;
-        if (e.defaultPrevented) { return; }   // client-side validation already blocked this submit
-        if (!form || !form.matches || !form.matches('form[data-ajax-submit]')) { return; }
+        const form = e.target
+        if (e.defaultPrevented) { return }   // client-side validation already blocked this submit
+        if (!form || !form.matches || !form.matches('form[data-ajax-submit]')) { return }
         // While a lockout countdown is running the form is inert — swallow any submit (button click or
         // Enter) until it expires and the button is restored.
-        if (window.Diurnal.lockoutRunning(form)) { e.preventDefault(); return; }
-        e.preventDefault();
+        if (window.Diurnal.lockoutRunning(form)) { e.preventDefault(); return }
+        e.preventDefault()
 
-        var slot = form.querySelector('[data-form-errors]');
-        var submitBtn = form.querySelector('button[type="submit"]');
+        const slot = form.querySelector('[data-form-errors]')
+        const submitBtn = form.querySelector('button[type="submit"]')
         // Hold the button disabled while this submit is in flight. data-hold-disabled tells the
         // data-disable-until-complete handler to keep its hands off (a lockout keeps the hold via the
         // shared countdown; otherwise clearLockout below hands the button back).
-        if (submitBtn) { submitBtn.setAttribute('data-hold-disabled', ''); submitBtn.disabled = true; }
+        if (submitBtn) { submitBtn.setAttribute('data-hold-disabled', ''); submitBtn.disabled = true }
 
         function showError(message) {
-            window.Diurnal.clearLockout(form, slot, submitBtn);   // drop any countdown + release the button
+            window.Diurnal.clearLockout(form, slot, submitBtn)   // drop any countdown + release the button
             if (slot) {
-                slot.innerHTML = '<div class="banner banner-error">' + message + '</div>';
-                slot.hidden = false;
+                slot.innerHTML = `<div class="banner banner-error">${  message  }</div>`
+                slot.hidden = false
             }
-            var pw = form.querySelector('input[type="password"]');
-            if (pw) { pw.focus(); }   // land on the password so a minor change is a keystroke away
+            const pw = form.querySelector('input[type="password"]')
+            if (pw) { pw.focus() }   // land on the password so a minor change is a keystroke away
         }
 
         fetch(form.action, {
@@ -269,22 +303,22 @@ window.Diurnal = window.Diurnal || {};
         }).then(function (resp) {
             // Form auth 302s to the landing page on success and back to /login?error=true on failure;
             // fetch follows the redirect, so the final resolved path tells the two apart.
-            var dest = new URL(resp.url, window.location.origin);
+            const dest = new URL(resp.url, window.location.origin)
             if (dest.pathname === '/login') {
                 // A lockout carries the seconds left in X-Lockout-Retry-After; otherwise it's a bad login.
-                var retryAfter = parseInt(resp.headers.get('X-Lockout-Retry-After'), 10);
+                const retryAfter = parseInt(resp.headers.get('X-Lockout-Retry-After'), 10)
                 if (retryAfter > 0) {
-                    window.Diurnal.startLockoutCountdown(form, slot, submitBtn, retryAfter);
+                    window.Diurnal.startLockoutCountdown(form, slot, submitBtn, retryAfter)
                 } else {
-                    showError('Invalid email or password.');
+                    showError('Invalid email or password.')
                 }
             } else {
-                window.location.assign(resp.url);   // session cookie already set — load the landing page
+                window.location.assign(resp.url)   // session cookie already set — load the landing page
             }
         }).catch(function () {
-            showError('Something went wrong. Please try again.');
-        });
-    });
+            showError('Something went wrong. Please try again.')
+        })
+    })
 })();
 
 // A form marked `data-ajax-errors` (the register card) posts via fetch so a rejected submission
@@ -298,16 +332,16 @@ window.Diurnal = window.Diurnal || {};
 // JS the form submits natively and the server round-trips the same page + banner, degrading cleanly.
 (function () {
     document.addEventListener('submit', function (e) {
-        var form = e.target;
-        if (e.defaultPrevented) { return; }   // client-side validation already blocked this submit
-        if (!form || !form.matches || !form.matches('form[data-ajax-errors]')) { return; }
+        const form = e.target
+        if (e.defaultPrevented) { return }   // client-side validation already blocked this submit
+        if (!form || !form.matches || !form.matches('form[data-ajax-errors]')) { return }
         // Inert while a lockout countdown is running (the button is greyed, but swallow Enter too).
-        if (window.Diurnal.lockoutRunning(form)) { e.preventDefault(); return; }
-        e.preventDefault();
+        if (window.Diurnal.lockoutRunning(form)) { e.preventDefault(); return }
+        e.preventDefault()
 
-        var slot = form.querySelector('[data-form-errors]');
-        var submitBtn = form.querySelector('button[type="submit"]');
-        if (submitBtn) { submitBtn.disabled = true; }
+        const slot = form.querySelector('[data-form-errors]')
+        const submitBtn = form.querySelector('button[type="submit"]')
+        if (submitBtn) { submitBtn.disabled = true }
 
         // Swap the banner only when it changes; leave the DOM (and layout) untouched otherwise. The
         // password fields are deliberately KEPT on a failure (aligned with the login card) so a user
@@ -315,13 +349,13 @@ window.Diurnal = window.Diurnal || {};
         // the fields stay filled, so re-enabling the submit button below is consistent with the
         // data-disable-until-complete lock.
         function showErrors(html) {
-            if (submitBtn) { submitBtn.disabled = false; }
-            if (!slot) { return; }
-            if (slot.innerHTML !== html) { slot.innerHTML = html; }
-            slot.hidden = false;
+            if (submitBtn) { submitBtn.disabled = false }
+            if (!slot) { return }
+            if (slot.innerHTML !== html) { slot.innerHTML = html }
+            slot.hidden = false
         }
 
-        var ownPath = new URL(form.action, window.location.origin).pathname;
+        const ownPath = new URL(form.action, window.location.origin).pathname
         fetch(form.action, {
             method: 'POST',
             body: new URLSearchParams(new FormData(form)),
@@ -330,24 +364,24 @@ window.Diurnal = window.Diurnal || {};
         }).then(function (resp) {
             // A failed submit re-renders the form at its own path (400/429); success 303s elsewhere.
             if (new URL(resp.url, window.location.origin).pathname !== ownPath) {
-                window.location.assign(resp.url);
-                return undefined;
+                window.location.assign(resp.url)
+                return undefined
             }
             // A lockout (429) carries the exact seconds left in X-Lockout-Retry-After: run the shared live
             // mm:ss countdown instead of swapping the server's static (no-JS) banner.
-            var retryAfter = parseInt(resp.headers.get('X-Lockout-Retry-After'), 10);
+            const retryAfter = parseInt(resp.headers.get('X-Lockout-Retry-After'), 10)
             if (retryAfter > 0) {
-                window.Diurnal.startLockoutCountdown(form, slot, submitBtn, retryAfter);
-                return undefined;
+                window.Diurnal.startLockoutCountdown(form, slot, submitBtn, retryAfter)
+                return undefined
             }
             return resp.text().then(function (body) {
-                var fresh = new DOMParser().parseFromString(body, 'text/html').querySelector('[data-form-errors]');
-                showErrors(fresh ? fresh.innerHTML : '');
-            });
+                const fresh = new DOMParser().parseFromString(body, 'text/html').querySelector('[data-form-errors]')
+                showErrors(fresh ? fresh.innerHTML : '')
+            })
         }).catch(function () {
-            showErrors('<div class="banner banner-error">Something went wrong. Please try again.</div>');
-        });
-    });
+            showErrors('<div class="banner banner-error">Something went wrong. Please try again.</div>')
+        })
+    })
 })();
 
 // ── Browser-locale number grouping ────────────────────────────────────────────
@@ -360,34 +394,34 @@ window.Diurnal = window.Diurnal || {};
     function fmt(num, decimals) {
         return decimals > 0
             ? num.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
-            : num.toLocaleString(undefined);
+            : num.toLocaleString(undefined)
     }
     // Replace each run of digits (optionally with a decimal part) in the element's text. A leading
     // sign/word stays put, so "+1234" → "+1,234" and "1234 this month" → "1,234 this month".
-    window.Diurnal.formatNumbers = function (root) {
-        root = root || document.body;
-        var els = [];
-        if (root.classList && root.classList.contains('js-num')) { els.push(root); }
-        if (root.querySelectorAll) { Array.prototype.push.apply(els, root.querySelectorAll('.js-num')); }
+    window.Diurnal.formatNumbers = function (rootParam) {
+        const root = rootParam || document.body
+        const els = []
+        if (root.classList && root.classList.contains('js-num')) { els.push(root) }
+        if (root.querySelectorAll) { Array.prototype.push.apply(els, root.querySelectorAll('.js-num')) }
         els.forEach(function (el) {
-            if (el.dataset.numDone) { return; }   // idempotent: don't re-group an already-grouped value
-            el.dataset.numDone = '1';
-            var walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
-            var nodes = [];
-            var node;
-            while ((node = walker.nextNode())) { nodes.push(node); }
+            if (el.dataset.numDone) { return }   // idempotent: don't re-group an already-grouped value
+            el.dataset.numDone = '1'
+            const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null)
+            const nodes = []
+            let node
+            while ((node = walker.nextNode())) { nodes.push(node) }
             nodes.forEach(function (textNode) {
                 textNode.nodeValue = textNode.nodeValue.replace(/\d+(?:\.\d+)?/g, function (match) {
-                    var dot = match.indexOf('.');
-                    return fmt(Number(match), dot === -1 ? 0 : match.length - dot - 1);
-                });
-            });
-        });
-    };
+                    const dot = match.indexOf('.')
+                    return fmt(Number(match), dot === -1 ? 0 : match.length - dot - 1)
+                })
+            })
+        })
+    }
     // Initial render (the body is fully parsed above this script), then again for any HTMX-swapped
     // content (e.g. the stats list paginating in).
-    window.Diurnal.formatNumbers(document.body);
-    document.body.addEventListener('htmx:afterSwap', function (e) { window.Diurnal.formatNumbers(e.target); });
+    window.Diurnal.formatNumbers(document.body)
+    document.body.addEventListener('htmx:afterSwap', function (e) { window.Diurnal.formatNumbers(e.target) })
 })();
 
 // ── Global tooltip long-press (touch) ─────────────────────────────────────────
@@ -398,53 +432,54 @@ window.Diurnal = window.Diurnal || {};
 // The Action-stats picker manages its OWN hosts (they also drag/toggle), so #stats-fields-list is
 // skipped here. Mouse is left to hover.
 (function () {
-    var LONG_PRESS_MS = 500;
-    var timer = null;
-    var openHost = null;
-    var suppressClick = false;
+    const LONG_PRESS_MS = 500
+    let timer = null
+    let openHost = null
+    let suppressClick = false
 
     // The nearest ancestor (or self) whose DIRECT child is an `.app-tooltip` — i.e. the host.
-    function hostOf(el) {
+    function hostOf(startEl) {
+        let el = startEl
         while (el && el.nodeType === 1) {
-            if (el.querySelector(':scope > .app-tooltip')) return el;
-            el = el.parentElement;
+            if (el.querySelector(':scope > .app-tooltip')) {return el}
+            el = el.parentElement
         }
-        return null;
+        return null
     }
     function closeTip() {
-        if (openHost) { openHost.classList.remove('tip-open'); openHost = null; }
+        if (openHost) { openHost.classList.remove('tip-open'); openHost = null }
     }
 
     document.addEventListener('pointerdown', function (e) {
-        if (e.pointerType === 'mouse') return;               // mouse uses hover
-        suppressClick = false;
-        if (openHost && !openHost.contains(e.target)) closeTip();   // tap outside dismisses
-        if (e.target.closest('#stats-fields-list')) return;  // handled by the stats-picker script
-        var host = hostOf(e.target);
-        if (!host) return;
+        if (e.pointerType === 'mouse') {return}               // mouse uses hover
+        suppressClick = false
+        if (openHost && !openHost.contains(e.target)) {closeTip()}   // tap outside dismisses
+        if (e.target.closest('#stats-fields-list')) {return}  // handled by the stats-picker script
+        const host = hostOf(e.target)
+        if (!host) {return}
         timer = setTimeout(function () {
-            timer = null;
-            suppressClick = true;
-            closeTip();
-            host.classList.add('tip-open');
-            openHost = host;
-        }, LONG_PRESS_MS);
-    }, true);
+            timer = null
+            suppressClick = true
+            closeTip()
+            host.classList.add('tip-open')
+            openHost = host
+        }, LONG_PRESS_MS)
+    }, true)
 
-    function cancel() { if (timer) { clearTimeout(timer); timer = null; } }
-    document.addEventListener('pointermove', cancel, true);
-    document.addEventListener('pointerup', cancel, true);
-    document.addEventListener('pointercancel', cancel, true);
+    function cancel() { if (timer) { clearTimeout(timer); timer = null } }
+    document.addEventListener('pointermove', cancel, true)
+    document.addEventListener('pointerup', cancel, true)
+    document.addEventListener('pointercancel', cancel, true)
 
     // Swallow the click a long-press would otherwise trigger. Capture + stopImmediatePropagation so
     // it never reaches the element's own (htmx / link / colour-input) handler.
     document.addEventListener('click', function (e) {
-        if (!suppressClick) return;
-        suppressClick = false;
-        e.preventDefault();
-        e.stopPropagation();
-        e.stopImmediatePropagation();
-    }, true);
+        if (!suppressClick) {return}
+        suppressClick = false
+        e.preventDefault()
+        e.stopPropagation()
+        e.stopImmediatePropagation()
+    }, true)
 })();
 
 // ── Live password-requirements popover ────────────────────────────────────────
@@ -455,26 +490,35 @@ window.Diurnal = window.Diurnal || {};
 // the registration and settings pages; each page has a single opted-in field.
 (function () {
     function met(type, bound, len) {
-        if (type === 'minLength') return len >= bound;
-        if (type === 'maxLength') return len <= bound;
-        return true;                                     // unknown token: never block, just show it
+        if (type === 'minLength') {return len >= bound}
+        if (type === 'maxLength') {return len <= bound}
+        return true                                     // unknown token: never block, just show it
     }
     function refresh(tip, len) {
         tip.querySelectorAll('[data-pw-check]').forEach(function (row) {
-            var ok = met(row.getAttribute('data-pw-type'), parseInt(row.getAttribute('data-pw-value'), 10), len);
-            row.classList.toggle('text-success', ok);
-            row.classList.toggle('text-danger', !ok);
-            var icon = row.querySelector('[data-pw-icon]');
-            if (icon) icon.textContent = ok ? '✓' : '✗';
-        });
+            const ok = met(row.getAttribute('data-pw-type'), parseInt(row.getAttribute('data-pw-value'), 10), len)
+            row.classList.toggle('text-success', ok)
+            row.classList.toggle('text-danger', !ok)
+            const icon = row.querySelector('[data-pw-icon]')
+            if (icon) {icon.textContent = ok ? '✓' : '✗'}
+        })
     }
     document.querySelectorAll('[data-pw-tooltip]').forEach(function (tip) {
-        var input = document.getElementById(tip.getAttribute('data-pw-for'));
-        if (!input) return;
-        var update = function () { refresh(tip, input.value.length); };
-        input.addEventListener('focus', function () { update(); tip.classList.add('pw-open'); });
-        input.addEventListener('input', update);
-        input.addEventListener('blur', function () { tip.classList.remove('pw-open'); });
-        update();                                        // colour correctly before first reveal
-    });
-})();
+        const input = document.getElementById(tip.getAttribute('data-pw-for'))
+        if (!input) {return}
+        const update = function () { refresh(tip, input.value.length) }
+        input.addEventListener('focus', function () { update(); tip.classList.add('pw-open') })
+        input.addEventListener('input', update)
+        input.addEventListener('blur', function () { tip.classList.remove('pw-open') })
+        update()                                        // colour correctly before first reveal
+    })
+})()
+
+// ── Login page: drop the per-tab dashboard day selection ──────────────────────
+// Reaching the login page ends the working session: an explicit logout, a session-cookie expiry
+// redirect, or a different user about to log in on this tab. Drop the selection so it is tied to
+// the authentication session, never leaking across logins. Guarded to the login page only (path
+// check, not a data-page marker — avoids threading a new param through every full-page template).
+if (window.location.pathname === '/login') {
+    try { sessionStorage.removeItem('diurnal.selectedDate') } catch (e) { /* ignore */ }
+}

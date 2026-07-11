@@ -183,6 +183,46 @@ attributes; there is no JWT/`JsonWebToken` in play.
 OIDC users store `oidcSubject` + `oidcIssuer` instead of a password hash; composite unique index
 `(oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL`. OIDC is disabled by default (`quarkus.oidc.enabled=false`).
 
+### Security headers / CSP
+
+`SecurityHeadersFilter` (a top-priority Vert.x route, `order(Integer.MIN_VALUE)`) adds a full set of security headers to
+every response: `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy:
+strict-origin-when-cross-origin`, `X-Frame-Options: SAMEORIGIN`, `Cross-Origin-Opener-Policy: same-origin`,
+`Cross-Origin-Resource-Policy: same-origin`, `Permissions-Policy` (denies geolocation/camera/microphone/payment). HSTS is
+deliberately **not** emitted — that's the TLS-terminating reverse proxy's job, not the app's (plaintext HTTP behind the
+proxy makes an HSTS header meaningless).
+
+The CSP is decided by the pure `CspPolicy.forPath(path)` (100% PIT, `CspPolicyTest`) and branches on path:
+
+- **User-facing routes** get the strict policy: `default-src 'self'; frame-ancestors 'self'; base-uri 'self';
+  form-action 'self'; object-src 'none'; script-src 'self' '<pinned FOUC-script hash>'; script-src-attr 'none';
+  style-src 'self' '<pinned FOUC-style hash>'; style-src-attr 'unsafe-inline'; img-src 'self'; font-src 'self';
+  connect-src 'self'`. There is **no inline script or `on*=`/`hx-on=` attribute anywhere in the app** except one
+  byte-static FOUC theme bootstrap in `layout.html`'s `<head>` (covered by a pinned `sha256-…` hash,
+  `SecurityHeadersFilterIT` re-derives it from a live fetch on every run so an edit without re-pinning fails CI) —
+  every other script lives in a committed, content-hashed `/js/*.js` file (see "Served front-end scripts" above).
+  `style-src-attr 'unsafe-inline'` is the one deliberate laxity: per-user swatch colours render as inline `style="…"`
+  attributes (can't be a static class or hash since the colour varies per action); it can't execute script. An audit
+  found no `data:` URI, cross-origin font, or cross-origin fetch/HTMX target anywhere in the app, so `img-src`/
+  `font-src`/`connect-src`/`default-src` all stay at `'self'` with no relaxation.
+- **The admin-gated OpenAPI docs paths** (`/api` Swagger UI shell, `/q/openapi*`, matched via the shared
+  `OpenApiDocsPaths` regexes) get a separate, relaxed policy (`script-src 'self' 'unsafe-inline' 'unsafe-eval';
+  style-src 'self' 'unsafe-inline'; img-src 'self' data:`) because Quarkus's bundled Swagger UI bootstraps itself with
+  inline script/styles. This only ever reaches an authenticated administrator — both paths are already gated by
+  `OpenApiDocsAuthFilter`.
+
+`<meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false}'>` in `layout.html` stops htmx
+from executing `hx-on=`/`Function`-constructor code paths (would otherwise need `'unsafe-eval'`) and from injecting its
+`.htmx-indicator` styles as an inline `<style>` (would otherwise need broader `style-src`); the indicator CSS lives in
+`app.css` instead, ready for the day a `.htmx-indicator` element is used.
+
+Regression coverage: `CspPolicyTest` (unit, the path→policy branching), `SecurityHeadersFilterIT` (the live FOUC-hash
+re-derivation + header presence), a deployment-smoke spec (`e2e/smoke/smoke.spec.ts`) asserting the full header set on
+the **real production image**, and an E2E fixture (`e2e/helpers/fixtures.ts`'s `page` fixture override) that fails any
+Playwright spec if a `securitypolicyviolation` DOM event fires or a CSP-related console error is logged — turning
+"watch the console, zero expected" into a permanent gate across the whole E2E suite rather than a one-off manual pass.
+CSRF is a separate concern, handled by `CsrfProtectionFilter` (request-origin validation), not this filter.
+
 ### HTMX partial responses
 
 Qute templates in `src/main/resources/templates/` are full-page layouts or partials in `templates/partials/`. Full `@GET` returns a
@@ -273,7 +313,7 @@ sheet), so it still wins over Tailwind's layered utilities — which is why the 
 
 ### Served front-end scripts (content-hashed, `immutable`)
 
-Three scripts are served from `META-INF/resources/js/` and referenced from the templates via
+Seven scripts are served from `META-INF/resources/js/` and referenced from the templates via
 `{inject:appInfo.*}`, all sharing one cache-busting pattern: served un-hashed in dev (`no-store`), and at image-build
 time the Dockerfile renames each to `name.<sha256-12>.ext`, bakes the hashed name into
 `microprofile-config.properties` (read by `AppConfig`/`AppInfo`), and serves it `public, max-age=31536000, immutable`
@@ -281,17 +321,26 @@ time the Dockerfile renames each to `name.<sha256-12>.ext`, bakes the hashed nam
 
 - `htmx.min.js` (`AppInfo.jsFile`) — **vendored** from npm by `scripts/vendor-assets.cjs` (`.gitignored` build artifact).
 - `app.js` (`AppInfo.jsAppFile`) — the shared per-page behaviour extracted from `layout.html` (dt edit/confirm toggles,
-  form validation + AJAX submit, locale number grouping, the tooltip long-press, the password-requirements popover). A
-  **committed** hand-written file. Loaded as a classic script at the end of `<body>` on every page, so the document is
-  parsed when it runs and its document-level handlers register in the original order (the `data-validate` handler must
-  precede `data-ajax-submit`).
+  form validation + AJAX submit, locale number grouping, the tooltip long-press, the password-requirements popover, the
+  delegated `htmx:configRequest` search-filter listener, the mobile-menu toggle). A **committed** hand-written file.
+  Loaded as a classic script at the end of `<body>` on every page, so the document is parsed when it runs and its
+  document-level handlers register in the original order (the `data-validate` handler must precede `data-ajax-submit`).
 - `dashboard.js` (`AppInfo.jsDashboardFile`) — the hand-rolled calendar engine extracted from `dashboard.html`. A
   **committed** file, loaded only on the dashboard. Its two server-injected values (the app's UTC `today` and the user's
-  `calendarView`) arrive via `window.Diurnal.dashboard`, set by a tiny inline bootstrap just before it loads. Because it
-  is now a plain `.js` file (not a Qute template) the `{`-escaping caveat below no longer applies to it.
+  `calendarView`) arrive via `data-today`/`data-calendar-view` attributes on `#dashboard-main`, read directly off
+  `dataset` — no inline bootstrap. Because it is a plain `.js` file (not a Qute template) the `{`-escaping caveat below
+  no longer applies to it.
+- `actions.js`, `admin-users.js`, `admin-api-docs.js`, `settings.js` (`AppInfo.jsActionsFile`/`jsAdminFile`/
+  `jsApiDocsFile`/`jsSettingsFile`) — the page-specific behaviour extracted from `actions.html`, `admin-users.html`,
+  `admin-api-docs.html`, and `settings.html` respectively (extracted during the CSP hardening), each
+  loaded only on its own page and wired via `data-*` hooks + `addEventListener` (no inline `on*=`/`hx-on=` attributes
+  remain anywhere in the app — see "Security headers / CSP" below).
 
-> **The FOUC-critical `window.Diurnal.applyTheme('{theme}')` stays inline in `<head>`** — it must run before the
-> stylesheet loads and carries a server-injected value, so it is neither externalised nor hashed.
+> **The FOUC-critical theme bootstrap stays inline in `<head>` (`layout.html`)** — it must run before the stylesheet
+> loads and the `system` option needs `prefers-color-scheme`, which can't be resolved server-side. It reads the theme
+> from `data-theme` on `<html>` (server-rendered, mirroring `.font-nova`) rather than having Qute interpolate the value,
+> so its bytes are byte-static across every render and are covered by a pinned CSP hash instead of being inline-allowed
+> (see "Security headers / CSP" below).
 
 **Tooltips**: the app's single tooltip style is `.app-tooltip` (theme-matched: `bg-surface`/`text-ink`/`border-line` + shadow), rendered
 via **`partials/tooltip.html`** (`text`/`pos`/`align` params). Put it inside a host with `group relative` (and an `aria-label`, since the

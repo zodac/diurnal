@@ -537,6 +537,9 @@
            same two equal slots, right-aligned, so corresponding buttons line up. */
         .dt-actions { display: flex; justify-content: flex-end; align-items: center; gap: .5rem; }
         .dt-actions .dt-btn { min-width: 3.5rem; text-align: center; }
+        /* The day-panel's confirm-delete row (day-action-item-confirm-delete.html) is narrower than a
+           data-table row, so its Erase/Cancel pair sits closer together than the shared 0.5rem gap. */
+        .day-item-confirm .dt-actions { gap: .125rem; }
         /* Tailwind's `.hidden` utility lives in the linked app.css, which is *earlier* in the cascade
            than this inline block. A component class here that sets `display` (e.g. .dt-actions on the
            options cell) would otherwise win on equal specificity and
@@ -601,6 +604,10 @@
            Fixed height matches the normal item's py-2 + h-7 = 2.75rem exactly; overflow:hidden
            prevents wrapping content from expanding the row and shifting the page scroll. */
         .day-item-confirm { height: 2.75rem; overflow: hidden; box-shadow: inset 0 0 0 1px var(--color-ring-confirm); }
+        /* The day-actions list is prepended to (new logs land at the top) via an HTMX swap; without
+           this the browser's scroll-anchoring would otherwise shift the viewport to keep the
+           previously-topmost item in place, yanking the list under the user's cursor. */
+        #day-actions-list { overflow-anchor: none; }
 
         /* Settings "Display name" field — a lone editable field that borrows the data-table
            conventions (dt-btn actions, an Edit control revealed on hover/focus, and a fixed-size
@@ -759,6 +766,7 @@
      stays --color-surface (NOT surface-muted) so the month-button hover wash below keeps its contrast
      in both themes. */
   #cal-pop {
+    width: 220px;
     background: var(--color-surface);
     border: 1px solid var(--color-brand);
     border-radius: 0.75rem;
@@ -994,3 +1002,19 @@
   @media (min-width: 640px) {
     .d-stk-bar { width: 68%; }
   }
+
+/* ── CSP style-src hardening: static inline `style=` attributes moved
+   here so `style-src` can stay `'self'` with no hash/nonce. The admin API-docs iframe starts
+   hidden and is revealed by admin-api-docs.js writing `frame.style.visibility` directly (a CSSOM
+   property write, ungoverned by CSP), which overrides this rule via inline-style specificity. ── */
+#api-frame { visibility: hidden; }
+
+/* htmx injects `.htmx-indicator` rules as an inline <style> element at startup, which `style-src
+   'self'` blocks — `includeIndicatorStyles:false` in layout.html's htmx-config meta tag disables
+   that injection, so the same rules (verbatim, from htmx's own default) live here instead. Not
+   currently used by any element (`grep -rn 'htmx-indicator' src/main/resources/templates` matches
+   nothing today), kept ready so a future loading-indicator doesn't quietly need this wiring redone. */
+.htmx-indicator { opacity: 0; visibility: hidden; }
+.htmx-request .htmx-indicator, .htmx-request.htmx-indicator {
+    opacity: 1; visibility: visible; transition: opacity 200ms ease-in;
+}

@@ -10,7 +10,7 @@
 !}
 <td class="dt-cell dt-cell-actions">
     <div data-dt-view class="dt-actions">
-        <button type="button" onclick="dtStartEdit(this.closest('tr'))" class="dt-btn dt-btn-edit">Edit</button>
+        <button type="button" class="dt-btn dt-btn-edit">Edit</button>
         <button hx-get="{confirmBase}/{id}/confirm-delete"
                 hx-target="#{rowPrefix}-{id}"
                 hx-swap="outerHTML"
@@ -18,6 +18,6 @@
     </div>
     <div data-dt-edit class="hidden dt-actions">
         <button type="submit" form="{formPrefix}-{id}" class="dt-btn dt-btn-save">Save</button>
-        <button type="button" onclick="dtCancelEdit(this.closest('tr'))" class="dt-btn dt-btn-cancel">Cancel</button>
+        <button type="button" class="dt-btn dt-btn-cancel">Cancel</button>
     </div>
 </td>

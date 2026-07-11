@@ -97,4 +97,51 @@ public interface AppConfig {
     @WithName("assets.js-dashboard-file")
     @WithDefault("dashboard.js")
     String jsDashboardFile();
+
+    /**
+     * Filename of the actions-page script served under {@code /js/} (the counter-surgery behaviour
+     * extracted from {@code actions.html} and loaded only on that page). Content-hashed at image-build
+     * time so each deployment serves a fresh URL; defaults to the un-hashed {@code actions.js} in dev.
+     *
+     * @return the served actions-script filename
+     */
+    @WithName("assets.js-actions-file")
+    @WithDefault("actions.js")
+    String jsActionsFile();
+
+    /**
+     * Filename of the admin users-page script served under {@code /js/} (the 409 last-administrator
+     * banner behaviour extracted from {@code admin-users.html} and loaded only on that page).
+     * Content-hashed at image-build time so each deployment serves a fresh URL; defaults to the
+     * un-hashed {@code admin-users.js} in dev.
+     *
+     * @return the served admin users-script filename
+     */
+    @WithName("assets.js-admin-file")
+    @WithDefault("admin-users.js")
+    String jsAdminFile();
+
+    /**
+     * Filename of the admin API-docs page script served under {@code /js/} (the Swagger UI iframe
+     * font/theme/height behaviour extracted from {@code admin-api-docs.html} and loaded only on that
+     * page). Content-hashed at image-build time so each deployment serves a fresh URL; defaults to the
+     * un-hashed {@code admin-api-docs.js} in dev.
+     *
+     * @return the served API-docs-script filename
+     */
+    @WithName("assets.js-api-docs-file")
+    @WithDefault("admin-api-docs.js")
+    String jsApiDocsFile();
+
+    /**
+     * Filename of the settings-page script served under {@code /js/} (the display-name/password
+     * editors, preview modal and stats-fields picker behaviour extracted from {@code settings.html} and
+     * loaded only on that page). Content-hashed at image-build time so each deployment serves a fresh
+     * URL; defaults to the un-hashed {@code settings.js} in dev.
+     *
+     * @return the served settings-script filename
+     */
+    @WithName("assets.js-settings-file")
+    @WithDefault("settings.js")
+    String jsSettingsFile();
 }

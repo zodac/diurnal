@@ -56,6 +56,38 @@ test.describe("deployment smoke", () => {
         expect((await request.get("/favicon.ico")).status()).toBe(200)
     })
 
+    test("full security header set is present on the production image", async ({ request }) => {
+        // The smoke tier is the natural home for this because the
+        // prod hash-rename wiring (Dockerfile) differs from dev, and the FOUC script's pinned CSP hash
+        // must keep matching regardless of how the *other* assets (CSS/JS filenames) get hashed. This
+        // asserts directive/header presence only — SecurityHeadersFilterIT already re-derives and pins
+        // the exact FOUC script hash against a live fetch, so it isn't re-verified byte-for-byte here.
+        const res = await request.get("/login")
+        expect(res.status()).toBe(200)
+        const headers = res.headers()
+
+        const csp = headers["content-security-policy"] ?? ""
+        expect(csp).toContain("default-src 'self'")
+        expect(csp).toContain("frame-ancestors 'self'")
+        expect(csp).toContain("base-uri 'self'")
+        expect(csp).toContain("form-action 'self'")
+        expect(csp).toContain("object-src 'none'")
+        expect(csp).toMatch(/script-src 'self' 'sha256-[^']+'/)
+        expect(csp).toContain("script-src-attr 'none'")
+        expect(csp).toMatch(/style-src 'self' 'sha256-[^']+'/)
+        expect(csp).toContain("style-src-attr 'unsafe-inline'")
+        expect(csp).toContain("img-src 'self'")
+        expect(csp).toContain("font-src 'self'")
+        expect(csp).toContain("connect-src 'self'")
+
+        expect(headers["x-content-type-options"]).toBe("nosniff")
+        expect(headers["referrer-policy"]).toBe("strict-origin-when-cross-origin")
+        expect(headers["x-frame-options"]).toBe("SAMEORIGIN")
+        expect(headers["cross-origin-opener-policy"]).toBe("same-origin")
+        expect(headers["cross-origin-resource-policy"]).toBe("same-origin")
+        expect(headers["permissions-policy"]).toBeTruthy()
+    })
+
     test("register -> login -> create action -> log persists across reload", async ({ page }) => {
         const user = {
             email: `${RUN}@example.com`,

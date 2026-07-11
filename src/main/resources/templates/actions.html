@@ -16,10 +16,10 @@
         <!-- Add action form -->
         <div class="card p-4 mb-6">
             <h3 class="card-title mb-3">New action</h3>
-            <form hx-post="/actions"
+            <form id="new-action-form"
+                  hx-post="/actions"
                   hx-target="#actions-tbody"
                   hx-swap="afterbegin"
-                  hx-on::after-request="if(event.detail.xhr.status===200) { document.getElementById('action-error').innerHTML=''; this.reset(); var er=document.getElementById('actions-empty-row'); if(er) er.remove(); var sh=document.getElementById('showing-shown'); var tot=document.getElementById('showing-total'); if(sh) sh.textContent=parseInt(sh.textContent,10)+1; if(tot) tot.textContent=parseInt(tot.textContent,10)+1; var section=document.getElementById('actions-section'); if(section) { section.dataset.total=parseInt(section.dataset.total,10)+1; section.classList.remove('hidden'); } } else if(event.detail.xhr.status===409) { document.getElementById('action-error').innerHTML=event.detail.xhr.responseText; }"
                   class="flex items-center gap-3">
                 <span class="group relative inline-flex shrink-0">
                     <input type="color"
@@ -58,7 +58,7 @@
                        hx-get="/actions/list?page=1"
                        hx-target="#action-list"
                        hx-trigger="input changed delay:300ms"
-                       hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('search-input').value"
+                       data-search-source="search-input"
                        class="form-input w-full">
             </div>
 
@@ -74,44 +74,11 @@
     {#include partials/footer /}
 </div>
 
-<script>
-// The delete endpoint returns 204 with an empty body. Handle the surgical removal here,
-// rather than on the button itself (its outerHTML swap removes the button — and its own
-// after-request listener — before that listener would fire):
-//   1. htmx skips the swap on a 204 by default, but we rely on the outerHTML swap to remove
-//      the deleted row, so force the swap.
-//   2. Decrement the filtered "Showing X of Y" counter to match the removed row, and the
-//      section's UNFILTERED data-total (one fewer action exists overall).
-//   3. If no actions remain in the system (data-total <= 0), hide the whole search+list
-//      section so only the "New action" card shows — matching a fresh empty-account render.
-//   4. Otherwise, if the current (filtered) view is now empty — i.e. a search matches none of
-//      the remaining actions — keep the table visible but add an empty-state row, so the
-//      surgical path matches what a fresh search render shows.
-document.body.addEventListener('htmx:beforeSwap', function (e) {
-    if (e.detail.xhr.status === 204) {
-        e.detail.shouldSwap = true;
-        var sh = document.getElementById('showing-shown');
-        var tot = document.getElementById('showing-total');
-        if (sh) sh.textContent = parseInt(sh.textContent, 10) - 1;
-        var filteredLeft = tot ? parseInt(tot.textContent, 10) - 1 : 0;
-        if (tot) tot.textContent = filteredLeft;
-
-        var section = document.getElementById('actions-section');
-        var totalLeft = section ? parseInt(section.dataset.total, 10) - 1 : 0;
-        if (section) section.dataset.total = totalLeft;
-
-        if (totalLeft <= 0) {
-            if (section) section.classList.add('hidden');
-        } else if (filteredLeft <= 0) {
-            var tbody = document.getElementById('actions-tbody');
-            if (tbody && !document.getElementById('actions-empty-row')) {
-                tbody.insertAdjacentHTML('beforeend',
-                    '<tr id="actions-empty-row"><td colspan="3" class="dt-empty">No actions match your search.</td></tr>');
-            }
-        }
-    }
-});
-</script>
+<!-- The counter-surgery behaviour for the search filter + delete flow. Extracted from the inline
+     block that used to sit here into /js/actions.js so it rides the content-hashed `immutable`
+     cache instead of being re-parsed on every page load. Served as actions.<hash>.js in prod
+     (baked into AppInfo.jsActionsFile), actions.js in dev; runs after the shared /js/app.js. -->
+<script src="/js/{inject:appInfo.jsActionsFile}"></script>
 
 {/body}
 

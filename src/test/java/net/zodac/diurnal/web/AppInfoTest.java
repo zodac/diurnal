@@ -43,8 +43,17 @@ class AppInfoTest {
 
     private static AppInfo appInfoWith(final String repositoryUrl, final String buildTimestamp, final String cssFile,
                                        final String jsFile, final String jsAppFile, final String jsDashboardFile) {
+        return appInfoWith(repositoryUrl, buildTimestamp, cssFile, jsFile, jsAppFile, jsDashboardFile,
+            "actions.js", "admin-users.js", "admin-api-docs.js", "settings.js");
+    }
+
+    private static AppInfo appInfoWith(final String repositoryUrl, final String buildTimestamp, final String cssFile,
+                                       final String jsFile, final String jsAppFile, final String jsDashboardFile,
+                                       final String jsActionsFile, final String jsAdminFile, final String jsApiDocsFile,
+                                       final String jsSettingsFile) {
         final AppInfo appInfo = new AppInfo();
-        appInfo.appConfig = new StubAppConfig(repositoryUrl, buildTimestamp, cssFile, jsFile, jsAppFile, jsDashboardFile);
+        appInfo.appConfig = new StubAppConfig(repositoryUrl, buildTimestamp, cssFile, jsFile, jsAppFile, jsDashboardFile,
+            jsActionsFile, jsAdminFile, jsApiDocsFile, jsSettingsFile);
         return appInfo;
     }
 
@@ -101,6 +110,42 @@ class AppInfoTest {
     }
 
     @Test
+    void jsActionsFile_returnsInjectedHashedFilename() {
+        final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
+            "actions.9f3a1c2b4d5e.js", "admin-users.js", "admin-api-docs.js", "settings.js");
+        assertThat(appInfo.getJsActionsFile())
+            .as("hashed actions-script filename should be returned verbatim")
+            .isEqualTo("actions.9f3a1c2b4d5e.js");
+    }
+
+    @Test
+    void jsAdminFile_returnsInjectedHashedFilename() {
+        final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
+            "actions.js", "admin-users.9f3a1c2b4d5e.js", "admin-api-docs.js", "settings.js");
+        assertThat(appInfo.getJsAdminFile())
+            .as("hashed admin users-script filename should be returned verbatim")
+            .isEqualTo("admin-users.9f3a1c2b4d5e.js");
+    }
+
+    @Test
+    void jsApiDocsFile_returnsInjectedHashedFilename() {
+        final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
+            "actions.js", "admin-users.js", "admin-api-docs.9f3a1c2b4d5e.js", "settings.js");
+        assertThat(appInfo.getJsApiDocsFile())
+            .as("hashed API-docs-script filename should be returned verbatim")
+            .isEqualTo("admin-api-docs.9f3a1c2b4d5e.js");
+    }
+
+    @Test
+    void jsSettingsFile_returnsInjectedHashedFilename() {
+        final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
+            "actions.js", "admin-users.js", "admin-api-docs.js", "settings.9f3a1c2b4d5e.js");
+        assertThat(appInfo.getJsSettingsFile())
+            .as("hashed settings-script filename should be returned verbatim")
+            .isEqualTo("settings.9f3a1c2b4d5e.js");
+    }
+
+    @Test
     void buildYear_fullTimestamp_returnsLeadingYear() {
         final AppInfo appInfo = appInfoWith("", "2099-06-22T06:07:35Z", "app.css");
         assertThat(appInfo.getBuildYear())
@@ -145,7 +190,8 @@ class AppInfoTest {
      * Stub {@link AppConfig} whose record components supply the {@code app.*} accessors directly.
      */
     private record StubAppConfig(String repositoryUrl, String buildTimestamp, String cssFile, String jsFile,
-                                 String jsAppFile, String jsDashboardFile) implements AppConfig {
+                                 String jsAppFile, String jsDashboardFile, String jsActionsFile, String jsAdminFile,
+                                 String jsApiDocsFile, String jsSettingsFile) implements AppConfig {
 
         @Override
         public String timezone() {

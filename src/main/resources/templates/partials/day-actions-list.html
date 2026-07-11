@@ -16,8 +16,9 @@
 {/for}
 
 <!-- Pagination. Same .dt-pagination / .page-link look as every other list; keeps its own
-     structure because it passes the live search term through via hx-on (no full-page href, and
-     no window-scroll on swap since this lives inside the dashboard day panel). -->
+     structure because it passes the live search term through via the delegated htmx:configRequest
+     listener in app.js (data-search-source, no full-page href, and no window-scroll on swap since
+     this lives inside the dashboard day panel). -->
 {#if page.totalPages > 1}
 <div class="dt-pagination">
     <p>Showing {page.items.size} of {page.totalCount}</p>
@@ -25,7 +26,7 @@
         {#if page.currentPage > 1}
         <a href="#"
            hx-get="/logs/day/{date}/list?page={page.currentPage - 1}"
-           hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('day-search-input').value"
+           data-search-source="day-search-input"
            hx-target="#day-actions-list"
            class="dt-page-link">
             ← Previous
@@ -35,7 +36,7 @@
         {#if page.currentPage < page.totalPages}
         <a href="#"
            hx-get="/logs/day/{date}/list?page={page.currentPage + 1}"
-           hx-on="htmx:configRequest: event.detail.parameters.q = document.getElementById('day-search-input').value"
+           data-search-source="day-search-input"
            hx-target="#day-actions-list"
            class="dt-page-link">
             Next →

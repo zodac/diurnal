@@ -3,7 +3,7 @@
    user explicitly chose 'standard') re-points the --font-* variables in app.css to the Nova faces.
    Rendered statically here so it's correct from first paint with no FOUC; the settings picker toggles
    the same class live. The `.dark` class is added separately by the FOUC script below and coexists. !}
-<html lang="en"{#if font != 'standard'} class="font-nova"{/if}>
+<html lang="en" data-theme="{theme}"{#if font != 'standard'} class="font-nova"{/if}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -16,6 +16,15 @@
         by the theme picker in settings.html.
     -->
     <meta name="color-scheme" content="light dark">
+    <!--
+        Pins htmx's eval-shaped behaviour off: with every hx-on= attribute migrated to a real
+        addEventListener, nothing in the app relies on htmx's
+        Function-constructor code paths any more, so disable them outright — belt-and-braces
+        against one creeping back in unreviewed. includeIndicatorStyles:false stops htmx injecting
+        its own inline <style> for `.htmx-indicator` at startup (blocked by style-src 'self'); the
+        same rules now live in app.css instead.
+    -->
+    <meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false}'>
     <title>Diurnal – Make every day count</title>
     <!--
         Favicons: the single-letter "d" mark. favicon.svg is generated from the brand font by
@@ -76,7 +85,7 @@
                 }
             }
         };
-        window.Diurnal.applyTheme('{theme}', {});
+        window.Diurnal.applyTheme(document.documentElement.dataset.theme, {});
     </script>
     <!--
         Compiled, purged Tailwind stylesheet — built by `npm run css` (and by the `css` stage

@@ -254,6 +254,15 @@ run_java() {
 run_javascript() {
     echo
     echo "Running JavaScript lint using [${ESLINT_NODE_IMAGE}]"
+    # Lint every tracked *.js/*.cjs file. `git ls-files` naturally excludes the vendored,
+    # gitignored htmx.min.js (see scripts/vendor-assets.cjs), the code-quality-config submodule,
+    # and any node_modules/target build output — same approach as the shellcheck step below.
+    local files=()
+    mapfile -t files < <(git ls-files '*.js' '*.cjs' || true)
+    if [[ "${#files[@]}" -eq 0 ]]; then
+        echo "✅ JavaScript lint passed (no JavaScript files found)"
+        return
+    fi
     if ! ensure_eslint_image; then
         overall_exit_code=1
         return
@@ -266,7 +275,7 @@ run_javascript() {
         --entrypoint eslint \
         "${ESLINT_BUILD_IMAGE}" \
         --config code-quality-config/javascript/eslint.config.cjs \
-        "tailwind.config.js" "scripts/*.cjs" 2>&1); then
+        "${files[@]}" 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
         echo "✅ JavaScript lint passed"
     else
@@ -388,7 +397,7 @@ detect_changed_steps() {
             run_java=true
             java_changed_files+=("${file}")
         fi
-        [[ "${file}" == "tailwind.config.js" || "${file}" =~ ^scripts/.*\.cjs$ || "${file}" =~ ^code-quality-config/javascript/ ]] && run_javascript=true
+        [[ "${file}" =~ \.(js|cjs)$ || "${file}" =~ ^code-quality-config/javascript/ ]] && run_javascript=true
         [[ "${file}" =~ ^e2e/.*\.ts$ || "${file}" =~ ^e2e/tsconfig\.json$ || "${file}" =~ ^e2e/package(-lock)?\.json$ || "${file}" =~ ^code-quality-config/typescript/ ]] && run_typescript=true
         [[ "${file}" =~ \.md$ || "${file}" =~ ^code-quality-config/markdown/ ]] && run_markdown=true
         [[ "${file}" =~ \.sh$ || "${file}" =~ ^code-quality-config/shellscript/ ]] && run_shellcheck=true
