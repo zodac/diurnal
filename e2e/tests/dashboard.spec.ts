@@ -1,7 +1,7 @@
 import type { Page } from "@playwright/test"
 import { test, expect, loginAs } from "../helpers/fixtures"
 
-// Unique action name for this test run — never archived, so no DB unique-constraint collision
+// Unique action name for this test run — kept live, so no DB unique-constraint collision
 // across repeated runs or across chromium/mobile-chrome sharing the same user+DB.
 // Contains 'DashAction' so toContainText('DashAction') still matches.
 const DASH_NAME = `DashAction${Date.now()}`
@@ -54,7 +54,7 @@ async function setCalendarView(page: Page, value: string): Promise<void> {
 test.describe("Dashboard", () => {
     test.beforeEach(async ({ authenticatedPage: page }) => {
         // Create DASH_NAME if it doesn't exist yet (200 = created, 409 = already exists — both fine).
-        // We never archive this action, so the unique constraint is never violated on re-runs.
+        // We never delete this action, so the unique constraint is never violated on re-runs.
         await page.goto("/actions")
         await page.evaluate(async (name: string) => {
             const params = new URLSearchParams({ name, colour: "#6366f1" })

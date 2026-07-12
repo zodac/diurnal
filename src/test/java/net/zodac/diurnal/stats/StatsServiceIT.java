@@ -122,21 +122,6 @@ class StatsServiceIT extends IntegrationTestBase {
     }
 
     @Test
-    void forMostRecent_excludesArchivedActions() {
-        runInTx(() -> {
-            final Action archived = newAction(userId, "Archived");
-            archived.archived = true;
-            newLog(userId, archived.id, TODAY, 1);
-            final Action active = newAction(userId, "Active");
-            newLog(userId, active.id, TODAY, 1);
-        });
-
-        assertThat(recentNames(10))
-                .as("archived actions must not appear on the dashboard summary")
-                .containsExactly("Active");
-    }
-
-    @Test
     void forMostRecent_computesStatsOverFullHistoryNotJustThisMonth() {
         runInTx(() -> {
             final Action action = newAction(userId, "LongHistory");

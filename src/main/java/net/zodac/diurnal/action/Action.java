@@ -31,7 +31,7 @@ import java.util.List;
 import java.util.UUID;
 
 /**
- * A user-defined habit that can be tracked day-to-day; soft-deleted via {@link #archived}.
+ * A user-defined habit that can be tracked day-to-day; hard-deleted (along with its logs) when removed.
  */
 @Entity
 @Table(name = "actions")
@@ -50,9 +50,6 @@ public class Action extends PanacheEntityBase {
     @Column(nullable = false, length = 7)
     public String colour = "#64748b";
 
-    @Column(nullable = false)
-    public boolean archived;
-
     @Column(name = "created_at", nullable = false, updatable = false)
     public Instant createdAt = Instant.now();
 
@@ -60,21 +57,21 @@ public class Action extends PanacheEntityBase {
     public Instant updatedAt = Instant.now();
 
     /**
-     * Returns the user's non-archived actions, ordered by name.
+     * Returns the user's actions, ordered by name.
      */
-    public static List<Action> findActiveByUser(final UUID userId) {
-        return list("userId = ?1 and archived = false order by name asc", userId);
+    public static List<Action> findByUser(final UUID userId) {
+        return list("userId = ?1 order by name asc", userId);
     }
 
     /**
-     * Returns the user's non-archived actions whose id is in the given collection.
+     * Returns the user's actions whose id is in the given collection.
      *
      * @param userId    the owning user
      * @param actionIds the action ids to fetch (must be non-empty)
-     * @return the matching active actions (in no particular order)
+     * @return the matching actions (in no particular order)
      */
-    public static List<Action> findActiveByUserAndIds(final UUID userId, final Collection<UUID> actionIds) {
-        return list("userId = ?1 and archived = false and id in ?2", userId, actionIds);
+    public static List<Action> findByUserAndIds(final UUID userId, final Collection<UUID> actionIds) {
+        return list("userId = ?1 and id in ?2", userId, actionIds);
     }
 
     /**

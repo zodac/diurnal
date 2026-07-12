@@ -148,7 +148,7 @@ public class LogWebResource {
         final LocalDate end = yearMonth.atEndOfMonth();
 
         // Fetch the action list and the month's logs ONCE, then page each day from memory.
-        final List<Action> all = Action.findActiveByUser(user.id);
+        final List<Action> all = Action.findByUser(user.id);
         final Map<LocalDate, Map<UUID, Integer>> countsByDate = ActionLog.findByUserAndRange(user.id, start, end)
             .stream()
             .collect(Collectors.groupingBy(
@@ -177,7 +177,7 @@ public class LogWebResource {
     }
 
     private PaginatedDayActions getActions(final UUID userId, final LocalDate date, final int pageNum, final String searchTerm, final int pageSize) {
-        return paginate(Action.findActiveByUser(userId), ActionLog.countsByAction(userId, date), pageNum, searchTerm, pageSize);
+        return paginate(Action.findByUser(userId), ActionLog.countsByAction(userId, date), pageNum, searchTerm, pageSize);
     }
 
     // Pages a day's actions purely in memory, given a pre-fetched action list and that day's counts.
@@ -427,7 +427,7 @@ public class LogWebResource {
     }
 
     private Action ownedAction(final User user, final UUID actionId) {
-        return Action.<Action>find("id = ?1 and userId = ?2 and archived = false", actionId, user.id)
+        return Action.<Action>find("id = ?1 and userId = ?2", actionId, user.id)
             .firstResult();
     }
 

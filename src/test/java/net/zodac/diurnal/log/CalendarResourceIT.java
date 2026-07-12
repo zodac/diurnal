@@ -41,18 +41,12 @@ class CalendarResourceIT extends IntegrationTestBase {
     UUID primaryId;
     UUID otherId;
     Action primaryAction;
-    Action archivedAction; // pre-archived; its log should still appear on the calendar
 
     @Override
     protected void createDbState() {
         primaryId     = newUser(PRIMARY, "Calendar User").id;
         otherId       = newUser(OTHER,   "Other User").id;
         primaryAction = newAction(primaryId, "Running");
-
-        // An archived action whose historical logs should still appear on the calendar
-        archivedAction = newAction(primaryId, "OldHabit");
-        archivedAction.archived = true;
-        archivedAction.persist();
     }
 
     // ── Events ────────────────────────────────────────────────────────────────
@@ -116,18 +110,6 @@ class CalendarResourceIT extends IntegrationTestBase {
                 .then().statusCode(200)
                 .body("$.size()", equalTo(1))
                 .body("[0].title", equalTo("Running"));
-    }
-
-    @Test
-    void events_archivedActionLogsStillAppear() {
-        // archivedAction is pre-archived in createDbState(); log it on TODAY
-        runInTx(() -> newLog(primaryId, archivedAction.id, TODAY, 1));
-
-        given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
-                .get("/logs/events")
-                .then().statusCode(200)
-                .body("$.size()", equalTo(1))
-                .body("[0].title", equalTo("OldHabit"));
     }
 
     @Test
@@ -255,17 +237,6 @@ class CalendarResourceIT extends IntegrationTestBase {
                 .then().statusCode(200)
                 .body("$.size()", equalTo(1))
                 .body("[0].actions[0].name", equalTo("Running"));
-    }
-
-    @Test
-    void minimalEvents_archivedActionLogsStillAppear() {
-        runInTx(() -> newLog(primaryId, archivedAction.id, TODAY, 1));
-
-        given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
-                .get("/logs/minimal-events")
-                .then().statusCode(200)
-                .body("$.size()", equalTo(1))
-                .body("[0].actions[0].name", equalTo("OldHabit"));
     }
 
     @Test

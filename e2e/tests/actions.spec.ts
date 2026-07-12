@@ -2,9 +2,9 @@ import { test, expect } from "../helpers/fixtures"
 
 /* global window -- referenced inside in-browser page.waitForFunction callbacks */
 
-// Unique-name helper: the DB unique constraint on (user_id, name) ignores the archived flag,
-// so an archived name can't be recreated for the same user. Using a run-scoped counter +
-// timestamp guarantees every test in this run gets a brand-new name that was never archived.
+// Unique-name helper: the DB unique constraint on (user_id, name) forbids two live actions
+// with the same name for one user. Using a run-scoped counter + timestamp guarantees every
+// test in this run gets a brand-new name that can't collide with another still-live action.
 let _seq = 0
 const _RUN = Date.now()
 
@@ -14,7 +14,7 @@ function unique(base: string): string {
 
 test.describe("Actions page", () => {
     test.beforeEach(async ({ authenticatedPage: page }) => {
-        // Archive all active actions before each test so each test starts with a clean list.
+        // Delete all actions before each test so each test starts with a clean list.
         for (let pass = 0; pass < 10; pass++) {
             await page.goto("/actions")
             const items = await page.locator('#action-list [id^="action-"]').all()
@@ -262,7 +262,7 @@ test.describe("Actions page", () => {
     })
 
     test("empty account hides the search bar and table; first action reveals them, deleting the last hides them again", async ({ authenticatedPage: page }) => {
-        // beforeEach archived every action, so the account starts empty.
+        // beforeEach deleted every action, so the account starts empty.
         await page.goto("/actions")
         await page.waitForFunction(() => typeof (window as {htmx?: unknown}).htmx !== "undefined")
         await expect(page.locator("#search-input")).toBeHidden()

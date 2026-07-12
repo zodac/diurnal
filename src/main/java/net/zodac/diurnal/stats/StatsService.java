@@ -61,7 +61,7 @@ public class StatsService {
     @Transactional
     public List<ActionStats> forAllActiveActions(final UUID userId) {
         final LocalDate today = todayFor(userId);
-        final List<Action> actions = Action.findActiveByUser(userId);   // name-ascending
+        final List<Action> actions = Action.findByUser(userId);   // name-ascending
         if (actions.isEmpty()) {
             return List.of();
         }
@@ -90,8 +90,8 @@ public class StatsService {
             return List.of();
         }
 
-        // findActiveByUserAndIds does not preserve the DB's recency ordering, so restore it by id index.
-        final List<Action> actions = Action.findActiveByUserAndIds(userId, recentActionIds).stream()
+        // findByUserAndIds does not preserve the DB's recency ordering, so restore it by id index.
+        final List<Action> actions = Action.findByUserAndIds(userId, recentActionIds).stream()
                 .sorted(Comparator.comparingInt((Action action) -> recentActionIds.indexOf(action.id)))
                 .toList();
         return assembleAll(userId, actions, recentActionIds, today);
