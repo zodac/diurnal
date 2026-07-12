@@ -785,7 +785,15 @@ public class WebResource {
         // the client sent back to the first step) regardless of the new/confirm values. The client also
         // verifies this up front via verifyCurrentPassword, but that is only a UX aid: this is the
         // authoritative check on the mutating request.
+        //
+        // NO LOCKOUT HERE (deliberate): this is an already-authenticated user changing their OWN password,
+        // so they get unlimited attempts. It is entirely separate from the per-IP login/registration
+        // lockout (IpThrottle) — a wrong current password neither consults that shared counter nor feeds
+        // it (it never calls recordFailure), so failed password changes can never lock the IP out of
+        // logging in or registering, and vice versa. The WARN below is an audit trail only, not a throttle.
         if (currentPasswordMismatch(user.passwordHash, currentPassword)) {
+            LOGGER.warn("Failed current-password check on password change for user: {} (IP: {})",
+                    user.email, ClientAddress.of(routingContext));
             return Response.status(422).entity(CURRENT_PASSWORD_ERROR).build();
         }
         // The new password cannot be empty, and the re-entered confirmation must match.
@@ -817,6 +825,11 @@ public class WebResource {
      * password auth is disabled. This is a UX aid only — {@link #updatePassword} re-verifies the current
      * password authoritatively on the mutating request.
      *
+     * <p>Like {@link #updatePassword}, this applies <b>no</b> lockout: an already-authenticated user
+     * confirming their own password gets unlimited tries, wholly separate from the per-IP
+     * login/registration lockout ({@code IpThrottle}) — a mismatch here never checks nor increments that
+     * shared counter.
+     *
      * @param currentPassword the password to check against the stored hash
      * @return the verification outcome as an empty response
      */
@@ -832,6 +845,8 @@ public class WebResource {
             return Response.status(Response.Status.FORBIDDEN).build();
         }
         if (currentPasswordMismatch(user.passwordHash, currentPassword)) {
+            LOGGER.warn("Failed current-password check on password-change verify for user: {} (IP: {})",
+                    user.email, ClientAddress.of(routingContext));
             return Response.status(422).entity(CURRENT_PASSWORD_ERROR).build();
         }
         return Response.noContent().build();

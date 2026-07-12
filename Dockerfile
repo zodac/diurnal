@@ -13,6 +13,10 @@ COPY scripts/vendor-assets.cjs ./scripts/
 COPY src/main/css ./src/main/css
 COPY src/main/resources/templates ./src/main/resources/templates
 COPY src/main/java ./src/main/java
+# The served front-end scripts add Tailwind utility classes at runtime (e.g. classList.add('opacity-100')),
+# so Tailwind must scan them here too or those utilities are purged from the image's stylesheet and the
+# class silently does nothing (the committed *.js only — htmx.min.js is vendored by `npm run vendor` below).
+COPY src/main/resources/META-INF/resources/js ./src/main/resources/META-INF/resources/js
 RUN npm run css && npm run vendor
 
 # ── Stage 2: generate the favicon raster assets ──────────────────────────────

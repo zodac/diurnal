@@ -44,7 +44,8 @@ import org.jspecify.annotations.Nullable;
  * the trace stream in self-generated noise. Those paths ({@link #UNLOGGED_PATHS}) are never logged.
  */
 @Provider
-@Priority(Integer.MAX_VALUE) // Innermost request filter / outermost response filter, so the timing brackets the resource method as tightly as possible.
+// Innermost request filter / outermost response filter, so the timing brackets the resource method as tightly as possible.
+@Priority(Integer.MAX_VALUE)
 public class RequestLoggingFilter implements ContainerRequestFilter, ContainerResponseFilter {
 
     private static final Logger LOGGER = LogManager.getLogger(RequestLoggingFilter.class);
@@ -85,7 +86,20 @@ public class RequestLoggingFilter implements ContainerRequestFilter, ContainerRe
         if (!(startNanos instanceof final Long start)) {
             return "?";
         }
-        return Long.toString((System.nanoTime() - start) / 1_000_000L);
+        return Long.toString(millisBetween(start, System.nanoTime()));
+    }
+
+    /**
+     * Converts a pair of {@link System#nanoTime()} readings to the whole elapsed milliseconds between
+     * them. Extracted from {@link #elapsedMillis(Object)} as pure arithmetic so it can be exercised with
+     * fixed inputs (the {@code nanoTime()} call itself stays in the caller as untestable glue).
+     *
+     * @param startNanos the earlier {@code nanoTime} reading (request arrival)
+     * @param endNanos   the later {@code nanoTime} reading (response emission)
+     * @return the elapsed whole milliseconds, {@code (endNanos - startNanos) / 1_000_000}
+     */
+    static long millisBetween(final long startNanos, final long endNanos) {
+        return (endNanos - startNanos) / 1_000_000L;
     }
 
     /**

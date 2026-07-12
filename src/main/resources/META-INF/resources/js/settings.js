@@ -17,7 +17,9 @@ function showAccountStatus(message, isError) {
     el.classList.toggle('text-danger', isError)
     el.classList.add('opacity-100')
     clearTimeout(el._hideTimer)
-    el._hideTimer = setTimeout(function () { el.classList.remove('opacity-100') }, 2000)
+    // Errors linger longer than the "Saved" confirmation so they can actually be read (mirrors the
+    // preference-card indicator timing below).
+    el._hideTimer = setTimeout(function () { el.classList.remove('opacity-100') }, isError ? 4000 : 2000)
 }
 
 window.startEditDisplayName = function () {
@@ -81,6 +83,49 @@ const passwordEls = {
     confirm:    document.getElementById('password-confirm-form')
 }
 
+// The "Next"/"Save" button of each step, gated below so a step can't be advanced until its field
+// is correctly filled (current: non-empty; new: meets every requirement; confirm: matches new).
+const passwordBtns = {
+    current: passwordEls.currentForm.querySelector('button[type="submit"]'),
+    new:     passwordEls.newForm.querySelector('button[type="submit"]'),
+    confirm: passwordEls.confirm.querySelector('button[type="submit"]')
+}
+const newPasswordTip = document.querySelector('[data-pw-tooltip][data-pw-for="newPassword"]')
+
+// Per-step gate predicates. These are a UX affordance only — the server re-verifies the current
+// password and the match authoritatively on the final POST, and the error banner still fires if the
+// disabled state is ever bypassed (no JS, a forced submit).
+function currentStepValid() {
+    return document.getElementById('currentPassword').value.length > 0
+}
+function newStepValid() {
+    const len = document.getElementById('newPassword').value.length
+    // Fall back to non-empty if the popover is somehow absent, mirroring the server's minimum.
+    if (!newPasswordTip) {return len > 0}
+    // Evaluate the same server-rendered requirement rows the popover in app.js recolours. Read straight
+    // off the DOM (no cross-file dependency, so a stale/cached app.js can't break this), applying the
+    // same minLength/maxLength tokens — which mirror net.zodac.diurnal.auth.PasswordConstraints.Constraint.type.
+    return Array.prototype.every.call(newPasswordTip.querySelectorAll('[data-pw-check]'), function (row) {
+        const bound = parseInt(row.getAttribute('data-pw-value'), 10)
+        const type = row.getAttribute('data-pw-type')
+        if (type === 'minLength') {return len >= bound}
+        if (type === 'maxLength') {return len <= bound}
+        return true                                     // unknown token: never block
+    })
+}
+function confirmStepValid() {
+    const confirm = document.getElementById('confirmPassword').value
+    return confirm.length > 0 && confirm === document.getElementById('pendingPassword').value
+}
+
+// Reflect the current field values onto the three step buttons' disabled state. Called on every
+// keystroke in the password area and after each step transition (which clears the next field).
+function syncPasswordButtons() {
+    passwordBtns.current.disabled = !currentStepValid()
+    passwordBtns.new.disabled = !newStepValid()
+    passwordBtns.confirm.disabled = !confirmStepValid()
+}
+
 // Reset an input to hidden (type=password), clear its value, and restore its eye toggle to
 // the "reveal" icon.
 function resetRevealInput(input) {
@@ -115,6 +160,7 @@ function showCurrentStep() {
     passwordEls.currentForm.classList.remove('hidden')
     const input = document.getElementById('currentPassword')
     resetRevealInput(input)
+    syncPasswordButtons()
     input.focus()
 }
 
@@ -134,6 +180,7 @@ window.cancelEditPassword = function () {
     resetRevealInput(document.getElementById('confirmPassword'))
     document.getElementById('pendingCurrent').value = ''
     document.getElementById('pendingPassword').value = ''
+    syncPasswordButtons()
 }
 
 document.getElementById('password-edit-btn').addEventListener('click', window.startEditPassword)
@@ -144,6 +191,13 @@ document.querySelectorAll('[data-reveal-target]').forEach(function (btn) {
     btn.addEventListener('click', function () { window.toggleReveal(btn.dataset.revealTarget, btn) })
 })
 
+// Keep each step's button in sync as the user types (current non-empty / new meets every rule /
+// confirm matches). The confirm field also re-checks against the stashed new password.
+;['currentPassword', 'newPassword', 'confirmPassword'].forEach(function (id) {
+    document.getElementById(id).addEventListener('input', syncPasswordButtons)
+})
+syncPasswordButtons()   // reflect the initial (empty → disabled) state on first paint
+
 // Step 1 → 2, run only once the server has confirmed the current password: stash it for the
 // final POST and swap to the new-password input in the same slot.
 function advanceToNewPassword() {
@@ -152,20 +206,36 @@ function advanceToNewPassword() {
     passwordEls.newForm.classList.remove('hidden')
     const input = document.getElementById('newPassword')
     resetRevealInput(input)
+    syncPasswordButtons()
     input.focus()
 }
 
-// The Next button on step 1 posts the current password to /settings/password/verify (hx-post).
-// Advancing to step 2 is gated on that check succeeding: a wrong (or empty) password keeps the
-// user here with an inline error, so they never fill in the new password for nothing. This is
-// only a UX aid — updatePassword re-verifies the current password authoritatively on the final
-// POST (the password could change between steps, and a client could skip this call entirely).
-passwordEls.currentForm.addEventListener('htmx:afterRequest', function (e) {
-    if (e.detail.successful) {
-        advanceToNewPassword()
-    } else {
-        showAccountStatus(e.detail.xhr.responseText || 'Current password is incorrect', true)
-    }
+// The Next button on step 1 posts the current password to /settings/password/verify via fetch (NOT
+// htmx): a wrong current password is an expected, handled outcome, and htmx would log every 4xx to
+// the console unsuppressably (it console.errors before the client can react). fetch keeps that 422
+// off the console while still showing the inline error, mirroring the login/register cards. Advancing
+// to step 2 is gated on the check succeeding (204): a wrong (or empty) password keeps the user here
+// with an inline error, so they never fill in the new password for nothing. This is only a UX aid —
+// updatePassword re-verifies the current password authoritatively on the final POST (the password
+// could change between steps, and a client could skip this call entirely).
+passwordEls.currentForm.addEventListener('submit', function (e) {
+    e.preventDefault()
+    const form = passwordEls.currentForm
+    fetch(form.action, {
+        method: 'POST',
+        body: new URLSearchParams(new FormData(form)),
+        headers: { 'Accept': 'text/plain' }
+    }).then(function (resp) {
+        if (resp.status === 204) {
+            advanceToNewPassword()
+            return undefined
+        }
+        return resp.text().then(function (body) {
+            showAccountStatus(body || 'Current password is incorrect', true)
+        })
+    }).catch(function () {
+        showAccountStatus('Something went wrong. Please try again.', true)
+    })
 })
 
 // Step 2 → 3: validate non-empty (the only rule), stash the value for the confirm POST, then
@@ -182,27 +252,41 @@ window.submitNewPassword = function (event) {
     passwordEls.confirm.classList.remove('hidden')
     const input = document.getElementById('confirmPassword')
     resetRevealInput(input)
+    syncPasswordButtons()
     input.focus()
     return false
 }
 
 passwordEls.newForm.addEventListener('submit', window.submitNewPassword)
 
-// Step 3 result: on success return to the read view and flash "Saved". On failure show the
-// server's message in red; a wrong CURRENT password can't be fixed from the confirm step, so
-// send the user back to step 1 (matched by the server's "current password" wording). A simple
-// mismatch is corrected in place, so the confirm field is left untouched.
-passwordEls.confirm.addEventListener('htmx:afterRequest', function (e) {
-    if (e.detail.successful) {
-        window.cancelEditPassword()
-        showAccountStatus('Saved', false)
-        return
-    }
-    const msg = e.detail.xhr.responseText || 'Passwords do not match'
-    showAccountStatus(msg, true)
-    if (/current password/i.test(msg)) {
-        showCurrentStep()
-    }
+// Step 3 result: the final POST is fetch()-submitted too (same rationale as step 1 — keep the 422 a
+// wrong current password / mismatch returns off the console). On success (200) return to the read
+// view and flash "Saved". On failure show the server's message in red; a wrong CURRENT password can't
+// be fixed from the confirm step, so send the user back to step 1 (matched by the server's "current
+// password" wording). A simple mismatch is corrected in place, so the confirm field is left untouched.
+passwordEls.confirm.addEventListener('submit', function (e) {
+    e.preventDefault()
+    const form = passwordEls.confirm
+    fetch(form.action, {
+        method: 'POST',
+        body: new URLSearchParams(new FormData(form)),
+        headers: { 'Accept': 'text/plain' }
+    }).then(function (resp) {
+        if (resp.ok) {
+            window.cancelEditPassword()
+            showAccountStatus('Saved', false)
+            return undefined
+        }
+        return resp.text().then(function (body) {
+            const msg = body || 'Passwords do not match'
+            showAccountStatus(msg, true)
+            if (/current password/i.test(msg)) {
+                showCurrentStep()
+            }
+        })
+    }).catch(function () {
+        showAccountStatus('Something went wrong. Please try again.', true)
+    })
 })
 
 // Each preference control PATCHes itself, so update the status indicator on the card that

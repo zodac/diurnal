@@ -37,6 +37,20 @@ class RequestLoggingFilterTest {
     }
 
     @Test
+    void millisBetween_convertsNanosToWholeMillis() {
+        assertThat(RequestLoggingFilter.millisBetween(2_000_000L, 5_000_000L))
+            .as("3ms elapsed (5ms - 2ms) should render as 3 whole millis")
+            .isEqualTo(3L);
+    }
+
+    @Test
+    void millisBetween_truncatesSubMillisRemainder() {
+        assertThat(RequestLoggingFilter.millisBetween(0L, 2_500_000L))
+            .as("2.5ms elapsed should truncate to 2 whole millis")
+            .isEqualTo(2L);
+    }
+
+    @Test
     void elapsedMillis_withNullMarker_isUnknown() {
         assertThat(RequestLoggingFilter.elapsedMillis(null))
             .as("a missing start marker should render as the unknown placeholder")
