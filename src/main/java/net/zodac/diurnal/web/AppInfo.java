@@ -40,6 +40,14 @@ public class AppInfo {
     private static final String FALLBACK_YEAR = "2026";
 
     /**
+     * The application tagline ({@code Make every day count}). Single source of truth surfaced to the
+     * templates as {@code {inject:appInfo.tagline}} — used by the page {@code <title>}, the login
+     * wordmark's {@code alt} text, and the navbar logo tooltip — so a change to the tagline touches
+     * only this one constant.
+     */
+    private static final String TAGLINE = "Make every day count";
+
+    /**
      * The Maven project version (e.g. {@code 0.0.1-SNAPSHOT}), used only as a fallback for
      * {@link #getVersion()} when the {@code VERSION} resource cannot be read.
      */
@@ -62,6 +70,16 @@ public class AppInfo {
      */
     public String getVersion() {
         return ReleaseVersion.resolve(version);
+    }
+
+    /**
+     * The application tagline ({@code Make every day count}), shown in the page title, the login
+     * wordmark's {@code alt} text, and the navbar logo tooltip.
+     *
+     * @return the tagline
+     */
+    public String getTagline() {
+        return TAGLINE;
     }
 
     /**

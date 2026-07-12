@@ -142,9 +142,18 @@ function syncApiHeight(frame) {
     // reset → measure → set happens synchronously in one turn, so the browser never paints the
     // collapsed state — no flicker. Body height is content-driven (not tied to the iframe height),
     // so this doesn't feed back into the ResizeObserver in watchApiHeight.
+    //
+    // Collapsing to 0 momentarily shrinks the whole document, so the browser clamps the window
+    // scroll to the new (short) max — landing at the top. Executing an operation grows the content
+    // and triggers this on the ResizeObserver, so without restoring, every "Execute" yanks the page
+    // to the top. Capture the scroll offset before the reset and put it back after we've re-set the
+    // full height (all synchronous, so the intermediate scroll position never paints).
+    const scrollX = window.scrollX
+    const scrollY = window.scrollY
     frame.style.height = '0'
     const content = Math.max(doc.documentElement.scrollHeight, doc.body ? doc.body.scrollHeight : 0)
     frame.style.height = `${content  }px`
+    window.scrollTo(scrollX, scrollY)
 }
 
 // Keep that height in sync as Swagger's content grows/shrinks (expanding an operation, the schema

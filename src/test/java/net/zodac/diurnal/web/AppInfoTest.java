@@ -70,6 +70,14 @@ class AppInfoTest {
     }
 
     @Test
+    void tagline_returnsApplicationTagline() {
+        // The tagline is a fixed constant (single source of truth for the title/alt/tooltip).
+        assertThat(new AppInfo().getTagline())
+            .as("the application tagline should be returned verbatim")
+            .isEqualTo("Make every day count");
+    }
+
+    @Test
     void repositoryUrl_returnsInjectedValue() {
         final AppInfo appInfo = appInfoWith("https://diurnal.example.com/repo", "", "app.css");
         assertThat(appInfo.getRepositoryUrl())

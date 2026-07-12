@@ -29,6 +29,53 @@ window.dtCancelEdit = function (row) {
     row.querySelectorAll('[data-dt-edit]').forEach(function (el) { el.classList.add('hidden') })
     row.querySelectorAll('[data-dt-view]').forEach(function (el) { el.classList.remove('hidden') })
 }
+// Leave edit mode WITHOUT resetting the form — used on Save. Save submits the row's form over the
+// network and then htmx swaps in the server-rendered (view-state) row. Without this, the row sits
+// highlighted and expanded through the whole round-trip and then jars straight into plain view when
+// the response lands — the "flash". Exiting edit mode the instant the request starts makes Save feel
+// as immediate as Cancel; the swap that follows just updates the (now already view-state) content.
+// The form is NOT reset (its values are mid-flight to the server) and stays in the DOM, so the
+// request already gathered its parameters — see the htmx:beforeRequest wiring below.
+window.dtFinishEdit = function (row) {
+    if (!row) {return}
+    row.classList.remove('dt-row-highlight', 'dt-row-edit')
+    row.querySelectorAll('[data-dt-edit]').forEach(function (el) { el.classList.add('hidden') })
+    row.querySelectorAll('[data-dt-view]').forEach(function (el) { el.classList.remove('hidden') })
+}
+// A Save submit fires from a form inside an edit row (.dt-row-edit). By htmx:beforeRequest the
+// request's parameters are already gathered, so collapsing the row's edit state here can't affect
+// what gets submitted — it only removes the highlight/expanded chrome before the round-trip, so the
+// row never flashes when the swapped-in view row replaces it. Scoped to .dt-row-edit so the many
+// other htmx requests (increment/decrement, delete-confirm, pagination) are untouched.
+document.body.addEventListener('htmx:beforeRequest', function (e) {
+    const row = e.target.closest ? e.target.closest('tr.dt-row-edit') : null
+    if (row) {window.dtFinishEdit(row)}
+})
+
+// Kill the post-Save "flash". An outerHTML swap replaces the whole <tr> with a brand-new element;
+// because the cursor is stationary over it, the browser applies `:hover` only on the NEXT frame, so
+// the row's hover background and its action-button opacity animate in from their non-hover state —
+// a visible fade Cancel never shows (Cancel reuses the same element and never loses hover). Tag the
+// swapped-in row `.dt-no-transition` (transitions off) so that late hover snaps in instantly, then
+// drop the class a couple of frames later to restore normal hover-out transitions. Collect the row
+// from the swap target itself, its descendants, or its ancestor, to cover whichever element htmx
+// reports for the swap.
+document.body.addEventListener('htmx:afterSwap', function (e) {
+    const el = e.target
+    if (!el || !el.querySelectorAll) {return}
+    const rows = new Set()
+    if (el.matches && el.matches('tr.dt-row')) {rows.add(el)}
+    el.querySelectorAll('tr.dt-row').forEach(function (r) { rows.add(r) })
+    const ancestor = el.closest && el.closest('tr.dt-row')
+    if (ancestor) {rows.add(ancestor)}
+    rows.forEach(function (row) {
+        row.classList.add('dt-no-transition')
+        void row.offsetWidth   // flush the non-hover state without a transition
+        requestAnimationFrame(function () {
+            requestAnimationFrame(function () { row.classList.remove('dt-no-transition') })
+        })
+    })
+})
 
 // Disarm every armed row except (optionally) one. "Armed" = mid edit or mid delete-confirm;
 // either way the row shows a visible Cancel (.dt-btn-cancel), so clicking it restores the row.

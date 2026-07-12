@@ -1,7 +1,8 @@
 <header class="bg-surface border-b border-line px-4 py-3 relative">
     <div class="flex items-center gap-6">
-        <a href="/" class="flex items-center shrink-0">
+        <a href="/" aria-label="{inject:appInfo.tagline}" class="group relative flex items-center shrink-0">
             <img src="/img/wordmark.svg" alt="Diurnal" class="h-6 w-auto" width="91" height="24">
+            {#include partials/tooltip text=inject:appInfo.tagline pos="bottom" align="left" /}
         </a>
 
         <!-- Desktop navigation: hidden on narrow viewports -->

@@ -2,7 +2,7 @@
 
     <div class="flex items-center gap-2 min-w-0 flex-1">
         <span class="swatch swatch-sm shrink-0" style="background-color: {action.colour}"></span>
-        <span class="text-sm text-ink truncate">{action.name}</span>
+        <span class="text-[0.8125rem] text-ink truncate">{action.name}</span>
     </div>
 
     <div class="flex items-center gap-0.5 shrink-0">
@@ -53,8 +53,8 @@
                     hx-target="#log-{date}-{action.id}"
                     hx-swap="innerHTML"
                     aria-label="Erase this action's entries"
-                    class="group relative dt-btn dt-btn-delete {#if count == 0}invisible{#else}day-item-delete{/if}">
-                Erase{#include partials/tooltip text="Erase this action's entries" pos="top" align="right" /}
+                    class="dt-btn dt-btn-delete {#if count == 0}invisible{#else}day-item-delete{/if}">
+                Erase
             </button>
         </div>
     </div>

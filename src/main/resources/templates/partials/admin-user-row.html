@@ -8,8 +8,8 @@
         <span data-dt-edit class="hidden flex items-center gap-2">
             <form id="user-form-{u.id}"
                   hx-post="/admin/users/{u.id}/role"
-                  hx-target="#admin-users-list"
-                  hx-swap="innerHTML">
+                  hx-target="#user-row-{u.id}"
+                  hx-swap="outerHTML">
                 <select name="role" class="dt-select">
                     {#for option in role:options}
                     <option value="{option.storageValue}" {#if u.role == option.storageValue}selected{/if}>{option.displayName}</option>
