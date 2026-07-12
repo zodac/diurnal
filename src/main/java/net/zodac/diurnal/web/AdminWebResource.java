@@ -197,8 +197,9 @@ public class AdminWebResource {
         target.persist();
         LOGGER.info("Admin {} changed role of {} to {}", identity.getPrincipal().getName(), target.email, role);
 
-        final User actor = currentUser.get();
-        return Response.ok(adminUsersListTemplate.data("page", getUsersPage(1, actor.pageSize))).build();
+        // Re-render just this row (outerHTML) so the surrounding rows don't repaint — the edited row
+        // swaps straight from its edit state to a fresh view state, with no whole-list flash.
+        return Response.ok(adminUserRowTemplate.data("u", toRow(target))).build();
     }
 
     /**

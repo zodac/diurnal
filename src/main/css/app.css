@@ -527,6 +527,13 @@
         /* Rows + cells */
         .dt-row { transition: background-color .15s; }
         .dt-row:hover { background-color: var(--color-surface-muted); }
+        /* A freshly htmx-swapped-in row (after Save) gets `:hover` applied a frame LATE — the cursor
+           is stationary over the just-inserted element, so the browser only re-evaluates hover on the
+           next tick. That late hover would animate the row background AND the action-button opacity in
+           from their non-hover state, a visible "flash" that the client-side Cancel (which reuses the
+           same element, never losing hover) never shows. app.js tags the swapped row `.dt-no-transition`
+           for one frame so the hover state snaps in with no transition. */
+        .dt-no-transition, .dt-no-transition * { transition: none !important; }
         .dt-cell { padding: .75rem 1rem; color: var(--color-text); vertical-align: middle; }
         .dt-cell-muted { color: var(--color-text-muted); white-space: nowrap; }
         .dt-cell-actions { width: 1%; white-space: nowrap; }
