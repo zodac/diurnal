@@ -606,7 +606,8 @@ public class WebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateTheme(@FormParam("theme") final String theme) {
-        return updateSetting(user -> user.theme = UserSettings.sanitiseTheme(theme));
+        final String value = UserSettings.sanitiseTheme(theme);
+        return updateSetting("Theme", value, user -> user.theme = value);
     }
 
     /**
@@ -618,7 +619,8 @@ public class WebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateFont(@FormParam("font") final String font) {
-        return updateSetting(user -> user.font = UserSettings.sanitiseFont(font));
+        final String value = UserSettings.sanitiseFont(font);
+        return updateSetting("Font", value, user -> user.font = value);
     }
 
     /**
@@ -630,7 +632,8 @@ public class WebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateCalendarView(@FormParam("calendarView") final String calendarView) {
-        return updateSetting(user -> user.calendarView = UserSettings.sanitiseCalendarView(calendarView));
+        final String value = UserSettings.sanitiseCalendarView(calendarView);
+        return updateSetting("Calendar view", value, user -> user.calendarView = value);
     }
 
     /**
@@ -643,7 +646,8 @@ public class WebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateTimezone(@FormParam("timezone") final String timezone) {
-        return updateSetting(user -> user.timezone = UserSettings.sanitiseTimezone(timezone));
+        final String value = UserSettings.sanitiseTimezone(timezone);
+        return updateSetting("Timezone", value, user -> user.timezone = value);
     }
 
     /**
@@ -663,7 +667,7 @@ public class WebResource {
             return Response.status(422).entity(UserSettings.PAGE_SIZE_RANGE_MESSAGE).build();
         }
         final int value = parsed;
-        return updateSetting(user -> user.pageSize = value);
+        return updateSetting("Page size", value, user -> user.pageSize = value);
     }
 
     /**
@@ -683,7 +687,7 @@ public class WebResource {
             return Response.status(422).entity(UserSettings.DECIMAL_PLACES_RANGE_MESSAGE).build();
         }
         final int value = parsed;
-        return updateSetting(user -> user.decimalPlaces = value);
+        return updateSetting("Decimal places", value, user -> user.decimalPlaces = value);
     }
 
     /**
@@ -703,7 +707,8 @@ public class WebResource {
             @FormParam("statsEnabled") final List<String> statsEnabled) {
         final List<String> order = statsOrder == null ? List.of() : statsOrder;
         final List<String> enabled = statsEnabled == null ? List.of() : statsEnabled;
-        return updateSetting(user -> user.statsFields = ActionStatField.encode(order, enabled));
+        final String value = "order=" + order + " enabled=" + enabled;
+        return updateSetting("Action stats", value, user -> user.statsFields = ActionStatField.encode(order, enabled));
     }
 
     /**
@@ -718,13 +723,14 @@ public class WebResource {
     @Transactional
     public Response updateShowStatsSummary(@FormParam("showStatsSummary") final List<String> showStatsSummary) {
         final boolean show = showStatsSummary != null && showStatsSummary.contains("true");
-        return updateSetting(user -> user.showStatsSummary = show);
+        return updateSetting("Show stats summary", show, user -> user.showStatsSummary = show);
     }
 
-    private Response updateSetting(final Consumer<User> mutator) {
+    private Response updateSetting(final String settingName, final @Nullable Object newValue, final Consumer<User> mutator) {
         final User user = currentUser.get();
         mutator.accept(user);
         user.persist();
+        LOGGER.debug("Setting '{}' changed to '{}' for user {}", settingName, newValue, user.email);
         return Response.noContent().build();
     }
 
@@ -743,6 +749,7 @@ public class WebResource {
         final User user = currentUser.get();
         user.displayName = displayName.strip();
         user.persist();
+        LOGGER.info("Display name changed to '{}' for user {}", user.displayName, user.email);
         return Response.ok().build();
     }
 

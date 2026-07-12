@@ -50,6 +50,8 @@ import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.User;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Increment/decrement endpoints for a day's action counts, plus the dashboard day-panel partials.
@@ -58,6 +60,7 @@ import net.zodac.diurnal.user.User;
 @RolesAllowed("user")
 public class LogWebResource {
 
+    private static final Logger LOGGER = LogManager.getLogger(LogWebResource.class);
     private static final DateTimeFormatter DAY_LABEL = DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.ENGLISH);
 
     @Inject
@@ -277,6 +280,7 @@ public class LogWebResource {
             entry.delete();
         }
 
+        LOGGER.debug("Log entry deleted: action {} on {} for user {}", actionId, date, user.email);
         return Response.ok(item(date, action, 0)).build();
     }
 
@@ -316,6 +320,7 @@ public class LogWebResource {
         // Atomic upsert: a plain find-then-insert would let two rapid taps on a not-yet-logged
         // action both INSERT and race the loser into the unique-constraint violation (a 500).
         final int newCount = ActionLog.incrementCount(user.id, actionId, date, delta);
+        LOGGER.debug("Log incremented by {}: action {} on {} -> {} for user {}", delta, actionId, date, newCount, user.email);
         return Response.ok(item(date, action, newCount)).build();
     }
 
@@ -355,11 +360,13 @@ public class LogWebResource {
         final int newCount = entry.count - delta;
         if (newCount <= 0) {
             entry.delete();
+            LOGGER.debug("Log decremented to zero (entry removed): action {} on {} for user {}", actionId, date, user.email);
             return Response.ok(item(date, action, 0)).build();
         }
 
         entry.count = newCount;
         entry.persist();
+        LOGGER.debug("Log decremented by {}: action {} on {} -> {} for user {}", delta, actionId, date, newCount, user.email);
         return Response.ok(item(date, action, newCount)).build();
     }
 
@@ -396,12 +403,14 @@ public class LogWebResource {
             if (entry != null) {
                 entry.delete();
             }
+            LOGGER.debug("Log set to zero (entry removed): action {} on {} for user {}", actionId, date, user.email);
             return Response.ok(item(date, action, 0)).build();
         }
 
         // Atomic upsert for the same reason as increment(): a find-then-insert race on a
         // not-yet-logged action would trip the unique constraint as a 500.
         ActionLog.setCount(user.id, actionId, date, newCount);
+        LOGGER.debug("Log count set: action {} on {} -> {} for user {}", actionId, date, newCount, user.email);
         return Response.ok(item(date, action, newCount)).build();
     }
 
