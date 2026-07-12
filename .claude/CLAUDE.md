@@ -374,7 +374,7 @@ surgical HTMX count updates.
 
 ### CalendarResource
 
-`GET /logs/events` returns `CalendarEventDto` JSON (one event per logged action, title carries the `×N` multiplier), including archived actions. It is
+`GET /logs/events` returns `CalendarEventDto` JSON (one event per logged action, title carries the `×N` multiplier). It is
 the **public logged-events API** — authenticates both the session cookie and a Bearer session token, published in Swagger by `PublicApiFilter` — and is also the feed
 the dashboard's `full` calendar reads. `start`/`end` are mandatory ISO-8601 dates (missing → 400). Anonymous requests → 302 to `/login`.
 `/logs/minimal-events` is internal (`@Operation(hidden = true)`) and feeds the `minimal`/`stacked` styles (≤4 dots per day).
@@ -447,7 +447,7 @@ All list views (actions, day-panel, stats) use in-memory pagination: fetch all, 
 ### Notable invariants
 
 - `ActionLog.MAX_DAILY_COUNT = 999` — `SMALLINT` column; increment, increment-by-10, and set are silently capped.
-- Actions are soft-deleted (`archived = true`); logs are hard-deleted when an action is deleted.
+- Actions are hard-deleted along with their logs when an action is deleted (no soft-delete/archive).
 - **All date-boundary "now"/"today" goes through `AppClock`** (`@ApplicationScoped`). Business logic calls `clock.today()`/`clock.zone()`. Entity
   audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`) use `Instant.now()` directly (zone-independent, not date-boundary sensitive).
 - `app.timezone` (default `UTC`) feeds `AppClock`; must match `TZ` in `docker-compose.yml`.

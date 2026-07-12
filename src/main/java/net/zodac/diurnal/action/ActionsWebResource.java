@@ -110,7 +110,7 @@ public class ActionsWebResource {
     }
 
     private PaginatedActions getActions(final UUID userId, final int pageNum, final String searchTerm, final int pageSize) {
-        final List<Action> all = Action.findActiveByUser(userId);
+        final List<Action> all = Action.findByUser(userId);
 
         final var filtered = all.stream()
                 .filter(a -> searchTerm == null || searchTerm.isBlank()
@@ -193,7 +193,7 @@ public class ActionsWebResource {
         final User user = currentUser.get();
         final String normName = name.strip();
 
-        if (Action.count("userId = ?1 and name = ?2 and archived = false", user.id, normName) > 0) {
+        if (Action.count("userId = ?1 and name = ?2", user.id, normName) > 0) {
             return errorResponse("An action named '" + normName + "' already exists.");
         }
 
@@ -231,7 +231,7 @@ public class ActionsWebResource {
 
         final String normName = name.strip();
 
-        if (Action.count("userId = ?1 and name = ?2 and archived = false and id != ?3", action.userId, normName, id) > 0) {
+        if (Action.count("userId = ?1 and name = ?2 and id != ?3", action.userId, normName, id) > 0) {
             return errorResponse("An action named '" + normName + "' already exists.");
         }
 
@@ -244,7 +244,7 @@ public class ActionsWebResource {
     }
 
     /**
-     * Soft-deletes (archives) an owned action and removes its logs, returning {@code 204}.
+     * Hard-deletes an owned action and its logs, returning {@code 204}.
      */
     @POST
     @Path("{id}/delete")
@@ -255,10 +255,9 @@ public class ActionsWebResource {
         if (action == null) {
             return Response.status(404).build();
         }
-        // Remove the action's logged entries too, so they no longer appear on the calendar.
+        // Remove the action's logged entries first, then the action itself.
         ActionLog.deleteByAction(action.userId, action.id);
-        action.archived = true;
-        action.persist();
+        action.delete();
         LOGGER.info("Action deleted: {} for user {}", action.id, currentUser.get().email);
         return Response.noContent().build();
     }
@@ -267,7 +266,7 @@ public class ActionsWebResource {
 
     private Action findOwnedAction(final UUID id) {
         final User user = currentUser.get();
-        return Action.<Action>find("id = ?1 and userId = ?2 and archived = false", id, user.id)
+        return Action.<Action>find("id = ?1 and userId = ?2", id, user.id)
                 .firstResult();
     }
 

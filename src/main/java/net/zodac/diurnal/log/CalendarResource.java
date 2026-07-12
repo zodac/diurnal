@@ -67,7 +67,7 @@ public class CalendarResource {
     @Inject CurrentUser currentUser;
 
     /**
-     * Returns one calendar event per logged entry in the range (including archived actions).
+     * Returns one calendar event per logged entry in the range.
      */
     @GET
     @Path("/events")
@@ -99,7 +99,6 @@ public class CalendarResource {
         final LocalDate startDate = requireDate("start", start);
         final LocalDate endDate   = requireDate("end", end);
 
-        // Build action map (include archived so historical logs still render).
         final Map<UUID, Action> actionMap = Action.<Action>list("userId = ?1", userId)
                 .stream().collect(Collectors.toMap(a -> a.id, a -> a));
 

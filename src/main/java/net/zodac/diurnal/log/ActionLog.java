@@ -83,9 +83,9 @@ public class ActionLog extends PanacheEntityBase {
     }
 
     /**
-     * Returns the ids of the user's <em>active</em> (non-archived) actions logged at least once within
-     * the inclusive {@code [from, to]} date range, ordered most-recently-performed first (ties broken
-     * by action name, ascending) and capped at {@code limit}.
+     * Returns the ids of the user's actions logged at least once within the inclusive {@code [from, to]}
+     * date range, ordered most-recently-performed first (ties broken by action name, ascending) and
+     * capped at {@code limit}.
      *
      * <p>The grouping and ordering are done in the database so the dashboard summary never has to load
      * every log for every action just to pick the handful it can display.
@@ -94,7 +94,7 @@ public class ActionLog extends PanacheEntityBase {
      * @param from   the inclusive start of the date window
      * @param to     the inclusive end of the date window
      * @param limit  the maximum number of action ids to return
-     * @return the ids of the most-recently-performed active actions in the window
+     * @return the ids of the most-recently-performed actions in the window
      */
     public static List<UUID> mostRecentActiveActionIds(final UUID userId, final LocalDate from, final LocalDate to,
                                                        final int limit) {
@@ -104,7 +104,7 @@ public class ActionLog extends PanacheEntityBase {
                 SELECT al.action_id
                 FROM action_logs al
                 JOIN actions a ON a.id = al.action_id
-                WHERE al.user_id = :userId AND a.archived = false
+                WHERE al.user_id = :userId
                   AND al.log_date >= :from AND al.log_date <= :to
                 GROUP BY al.action_id, a.name
                 ORDER BY MAX(al.log_date) DESC, a.name ASC

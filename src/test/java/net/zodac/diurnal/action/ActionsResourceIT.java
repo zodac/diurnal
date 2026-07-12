@@ -86,6 +86,21 @@ class ActionsResourceIT extends IntegrationTestBase {
     }
 
     @Test
+    void createAction_sameNameAsAnotherUsersAction_succeeds() {
+        // Name uniqueness is scoped per-user: another user already owning "Cycling"
+        // must not block this user from creating their own action of the same name.
+        runInTx(() -> newAction(otherId, "Cycling"));
+
+        given().formParam("name", "Cycling").formParam("colour", "#6366f1").post("/actions")
+            .then().statusCode(200)
+            .body(containsString("Cycling"));
+
+        assertThat(Action.count("name = ?1", "Cycling"))
+            .as("both users should own their own action of the same name")
+            .isEqualTo(2);
+    }
+
+    @Test
     void createAction_invalidColour_sanitisedToDefault() {
         given().formParam("name", "Swimming").formParam("colour", "not-a-colour")
             .post("/actions")
@@ -207,19 +222,15 @@ class ActionsResourceIT extends IntegrationTestBase {
     // ── Delete ────────────────────────────────────────────────────────────────
 
     @Test
-    void deleteAction_ownAction_returns204AndArchivesIt() {
+    void deleteAction_ownAction_returns204AndHardDeletesIt() {
         final UUID id = createActionAndGetId("ToDelete");
         given().post("/actions/" + id + "/delete")
             .then().statusCode(204);
 
-        // Verify archived in DB — query includes archived to find it
         final Action found = Action.<Action>find("id = ?1", id).firstResult();
         assertThat(found)
-            .as("archived action should still exist in DB")
-            .isNotNull();
-        assertThat(found.archived)
-            .as("action should be archived")
-            .isTrue();
+            .as("deleted action should no longer exist in DB")
+            .isNull();
     }
 
     @Test
@@ -245,6 +256,24 @@ class ActionsResourceIT extends IntegrationTestBase {
         runInTx(() -> holder[0] = newAction(otherId, "OtherToDelete"));
         given().post("/actions/" + holder[0].id + "/delete")
             .then().statusCode(404);
+    }
+
+    @Test
+    void deleteAction_thenRecreateSameName_succeeds() {
+        // Hard-delete frees the name at the DB level, so the same name can be reused
+        // (a soft-delete would leave the row and trip the (user_id, name) unique constraint).
+        final UUID firstId = createActionAndGetId("Recreatable");
+        given().post("/actions/" + firstId + "/delete")
+            .then().statusCode(204);
+
+        final UUID secondId = createActionAndGetId("Recreatable");
+        assertThat(secondId)
+            .as("recreated action should be a brand-new row")
+            .isNotEqualTo(firstId);
+
+        assertThat(Action.count("userId = ?1 and name = ?2", primaryId, "Recreatable"))
+            .as("exactly one live action should carry the reused name")
+            .isEqualTo(1);
     }
 
     // ── Partial fragments ──────────────────────────────────────────────────────
