@@ -42,14 +42,52 @@ window.dtFinishEdit = function (row) {
     row.querySelectorAll('[data-dt-edit]').forEach(function (el) { el.classList.add('hidden') })
     row.querySelectorAll('[data-dt-view]').forEach(function (el) { el.classList.remove('hidden') })
 }
-// A Save submit fires from a form inside an edit row (.dt-row-edit). By htmx:beforeRequest the
-// request's parameters are already gathered, so collapsing the row's edit state here can't affect
-// what gets submitted — it only removes the highlight/expanded chrome before the round-trip, so the
-// row never flashes when the swapped-in view row replaces it. Scoped to .dt-row-edit so the many
-// other htmx requests (increment/decrement, delete-confirm, pagination) are untouched.
+// True when any form-associated control differs from its server-rendered default value. Reads the
+// live controls against their defaults (defaultValue / defaultChecked / option.defaultSelected), so
+// no baseline snapshot is needed: the edit inputs render with `value=`/`selected` attributes set to
+// the current values, which are exactly those defaults. `form.elements` includes controls linked via
+// the `form=` attribute (e.g. the Actions colour picker, which lives outside its <form>), so they are
+// checked too. Colours compare case-insensitively — the native colour picker always reports lowercase
+// `value`, but a stored uppercase hex would otherwise read as a spurious change.
+window.dtFormDirty = function (form) {
+    if (!form) {return true}
+    const els = form.elements
+    for (let i = 0; i < els.length; i++) {
+        const el = els[i]
+        if (!el.name) {continue}
+        if (el.type === 'checkbox' || el.type === 'radio') {
+            if (el.checked !== el.defaultChecked) {return true}
+        } else if (el.tagName === 'SELECT') {
+            for (let j = 0; j < el.options.length; j++) {
+                if (el.options[j].selected !== el.options[j].defaultSelected) {return true}
+            }
+        } else if (el.type === 'color') {
+            if (el.value.toLowerCase() !== el.defaultValue.toLowerCase()) {return true}
+        } else if (el.value !== el.defaultValue) {
+            return true
+        }
+    }
+    return false
+}
+
+// A Save submit fires from a form inside an edit row (.dt-row-edit). First guard against a no-op
+// save: if nothing in the row's form changed from its rendered defaults, cancel the request so the
+// backend is never contacted (no phantom role-change log line, no needless UPDATE) and just restore
+// the view state. Otherwise proceed. By htmx:beforeRequest the request's parameters are already
+// gathered, so collapsing the row's edit state here can't affect what gets submitted — it only
+// removes the highlight/expanded chrome before the round-trip, so the row never flashes when the
+// swapped-in view row replaces it. Scoped to .dt-row-edit so the many other htmx requests
+// (increment/decrement, delete-confirm, pagination) are untouched.
 document.body.addEventListener('htmx:beforeRequest', function (e) {
     const row = e.target.closest ? e.target.closest('tr.dt-row-edit') : null
-    if (row) {window.dtFinishEdit(row)}
+    if (!row) {return}
+    const form = e.target.tagName === 'FORM' ? e.target : (e.target.closest && e.target.closest('form'))
+    if (form && !window.dtFormDirty(form)) {
+        e.preventDefault()             // abort the htmx request — nothing changed
+        window.dtCancelEdit(row)       // restore the view state without a round-trip
+        return
+    }
+    window.dtFinishEdit(row)
 })
 
 // Kill the post-Save "flash". An outerHTML swap replaces the whole <tr> with a brand-new element;
