@@ -24,6 +24,10 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
       TZ: ${TZ:-UTC}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      # DB query tracing. Independent of LOG_LEVEL (which only covers net.zodac.diurnal): set to TRACE
+      # to log every SQL statement + bound parameters the app issues to Postgres. Leave at WARN (off)
+      # in production — it is verbose and can surface parameter values in the logs.
+      DB_LOG_LEVEL: ${DB_LOG_LEVEL:-WARN}
       # This stack runs behind Traefik, which sets/strips X-Forwarded-*, so trust those headers
       # (needed for https:// OIDC redirect URIs and Secure cookies). Disabled by default in
       # application.properties — only safe because a trusted proxy fronts the app here.

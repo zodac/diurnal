@@ -40,6 +40,8 @@ import java.util.UUID;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.User;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * CRUD endpoints for a user's trackable actions, returning full pages and HTMX partials.
@@ -47,6 +49,8 @@ import net.zodac.diurnal.user.User;
 @Path("/actions")
 @RolesAllowed("user")
 public class ActionsWebResource {
+
+    private static final Logger LOGGER = LogManager.getLogger(ActionsWebResource.class);
 
     @Inject
     @Location("actions")
@@ -199,6 +203,7 @@ public class ActionsWebResource {
         action.colour = sanitiseColour(colour);
         action.persist();
 
+        LOGGER.info("Action created: {} (colour={}) for user {}", action.id, action.colour, user.email);
         return Response.ok(actionRowTemplate.data("action", action)).build();
     }
 
@@ -234,6 +239,7 @@ public class ActionsWebResource {
         action.colour = sanitiseColour(colour);
         action.persist();
 
+        LOGGER.info("Action updated: {} (colour={}) for user {}", action.id, action.colour, currentUser.get().email);
         return Response.ok(actionRowTemplate.data("action", action)).build();
     }
 
@@ -253,6 +259,7 @@ public class ActionsWebResource {
         ActionLog.deleteByAction(action.userId, action.id);
         action.archived = true;
         action.persist();
+        LOGGER.info("Action deleted: {} for user {}", action.id, currentUser.get().email);
         return Response.noContent().build();
     }
 
