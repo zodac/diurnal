@@ -155,4 +155,30 @@ test.describe("User row edit mode", () => {
         await expect(row.getByRole("button", { name: "Cancel" })).toBeHidden()
         await expect(row).not.toHaveClass(/dt-row-highlight/)
     })
+
+    test("saving with no role change makes no request and restores view", async ({ page }) => {
+        await loginAsAdmin(page)
+        await page.goto("/admin/users")
+        const row = page.locator("tr", { hasText: ADMIN.email })
+
+        await row.hover()
+        await row.getByRole("button", { name: "Edit" }).click()
+        await expect(row.getByRole("button", { name: "Save" })).toBeVisible()
+
+        // Save without touching the role select → no POST to /role should fire (no phantom
+        // "changed role" log line, no needless UPDATE), and the row returns to view mode.
+        let posted = false
+        const watch = (r: import("@playwright/test").Request): void => {
+            if (/\/admin\/users\/\d+\/role$/.test(r.url()) && r.method() === "POST") {posted = true}
+        }
+        page.on("request", watch)
+        await row.getByRole("button", { name: "Save" }).click()
+        await page.waitForTimeout(300)
+        page.off("request", watch)
+        expect(posted).toBe(false)
+
+        await expect(row.getByRole("button", { name: "Edit" })).toBeVisible()
+        await expect(row.getByRole("button", { name: "Save" })).toBeHidden()
+        await expect(row).not.toHaveClass(/dt-row-highlight/)
+    })
 })

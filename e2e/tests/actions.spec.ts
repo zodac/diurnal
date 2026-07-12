@@ -91,6 +91,40 @@ test.describe("Actions page", () => {
         await expect(page.locator("#action-list")).not.toContainText("OldName")
     })
 
+    test("edit action: saving with no change makes no request and restores view", async ({ authenticatedPage: page }) => {
+        const origName = unique("Unchanged")
+        await page.goto("/actions")
+        await page.waitForFunction(() => typeof (window as {htmx?: unknown}).htmx !== "undefined")
+        await page.fill('input[name="name"]', origName)
+        await Promise.all([
+            page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
+            page.locator('form[hx-post="/actions"] button[type="submit"]').click(),
+        ])
+        await expect(page.locator("#action-list")).toContainText(origName)
+
+        const item = page.locator('#action-list [id^="action-"]').filter({ hasText: origName })
+        const itemId = await item.getAttribute("id")
+        await item.hover()
+        await item.getByRole("button", { name: "Edit" }).click()
+        const editForm = page.locator(`#${itemId}`)
+        await expect(editForm.locator('input[name="name"]')).toBeVisible()
+
+        // Save without touching name or colour → no POST should fire, and the row returns to view state.
+        let posted = false
+        const watch = (r: import("@playwright/test").Request): void => {
+            if (r.url().endsWith(`/actions/${itemId?.replace("action-", "")}`) && r.method() === "POST") {posted = true}
+        }
+        page.on("request", watch)
+        await editForm.locator('button[type="submit"]').click()
+        // Give any (unwanted) request a chance to fire, then assert none did.
+        await page.waitForTimeout(300)
+        page.off("request", watch)
+        expect(posted).toBe(false)
+        // Back in view state (no swap, same row): the edit input is hidden and the name text shows.
+        await expect(editForm.locator('input[name="name"]')).toBeHidden()
+        await expect(item.locator("[data-dt-view]").filter({ hasText: origName })).toBeVisible()
+    })
+
     test("delete action: confirm panel appears then removes action", async ({ authenticatedPage: page }) => {
         const name = unique("ToDelete")
         await page.goto("/actions")
