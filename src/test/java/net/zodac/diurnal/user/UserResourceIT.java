@@ -60,8 +60,12 @@ class UserResourceIT extends IntegrationTestBase {
                 .body("role", equalTo("user"))
                 // Preferences are nested and reflect the new user's entity defaults.
                 .body("preferences.theme", equalTo("system"))
+                .body("preferences.font", equalTo("nova"))
                 .body("preferences.pageSize", equalTo(5))
+                .body("preferences.showStatsSummary", equalTo(true))
+                .body("preferences.decimalPlaces", equalTo(1))
                 .body("preferences.calendarView", equalTo("full"))
+                .body("preferences.statsFields", nullValue())
                 .body("preferences.timezone", nullValue());
     }
 
@@ -71,7 +75,10 @@ class UserResourceIT extends IntegrationTestBase {
         runInTx(() -> {
             final User u = newUser("admin-api@lt.test", "Admin User", User.ROLE_ADMIN);
             u.theme = "dark";
+            u.font = "standard";
             u.pageSize = 50;
+            u.showStatsSummary = false;
+            u.decimalPlaces = 3;
             u.calendarView = "minimal";
             u.timezone = "Europe/London";
             u.persist();
@@ -87,7 +94,10 @@ class UserResourceIT extends IntegrationTestBase {
                 .then().statusCode(200)
                 .body("role", equalTo("admin"))
                 .body("preferences.theme", equalTo("dark"))
+                .body("preferences.font", equalTo("standard"))
                 .body("preferences.pageSize", equalTo(50))
+                .body("preferences.showStatsSummary", equalTo(false))
+                .body("preferences.decimalPlaces", equalTo(3))
                 .body("preferences.calendarView", equalTo("minimal"))
                 .body("preferences.timezone", equalTo("Europe/London"));
     }
