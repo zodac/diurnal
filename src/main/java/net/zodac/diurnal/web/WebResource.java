@@ -556,8 +556,11 @@ public class WebResource {
     public Response logout(
             @CookieParam("diurnal_session") @Nullable final String sessionToken,
             @CookieParam("q_session") @Nullable final String oidcSession) {
-        // Revoke only this device's session; any other devices stay logged in.
+        // Revoke only this device's session; any other devices stay logged in. Resolve the owning
+        // user first so the logout can be logged with the same identity detail as the login entry.
+        Optional<User> sessionUser = Optional.empty();
         if (sessionToken != null && !sessionToken.isBlank()) {
+            sessionUser = sessionStore.resolve(sessionToken, clock.now());
             sessionStore.revoke(sessionToken);
         }
         final NewCookie clearForm    = new NewCookie.Builder(sessionConfig.cookieName()).value("").path("/").maxAge(0).httpOnly(true).build();
@@ -570,7 +573,10 @@ public class WebResource {
         final URI target = (hasOidcSession ? oidcConfig.logoutUrl().filter(url -> !url.isBlank()) : Optional.<String>empty())
                 .map(URI::create)
                 .orElse(URI.create("/login"));
-        LOGGER.debug("Logout: revoking session and redirecting to {}", target);
+        sessionUser.ifPresentOrElse(
+                user -> LOGGER.debug("Logout: revoking session for name={} email={} role={}, redirecting to {}",
+                        user.displayName, user.email, user.role, target),
+                () -> LOGGER.debug("Logout: revoking session and redirecting to {}", target));
         return Response.seeOther(target).cookie(clearForm, clearOidc).build();
     }
 
