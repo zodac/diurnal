@@ -514,8 +514,13 @@ function wireNumericPref(opts) {
     }
 
     // Bounded controls (pills, ±): the value is clamped into range, so it always validates.
+    // A clamped result equal to the current value (e.g. pressing − at the minimum, or a pill
+    // for the already-selected value) is a no-op — skip the save so we don't PATCH an unchanged
+    // setting.
     function setValid(n) {
-        field.value = clamp(n)
+        const next = String(clamp(n))
+        if (next === field.value) { return }
+        field.value = next
         syncPills()
         htmx.trigger(field, 'save')
     }
