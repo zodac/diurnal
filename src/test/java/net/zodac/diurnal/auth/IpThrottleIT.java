@@ -27,6 +27,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
+import io.quarkus.test.security.TestSecurity;
 import io.restassured.http.ContentType;
 import io.restassured.response.Response;
 import jakarta.inject.Inject;
@@ -168,6 +169,33 @@ class IpThrottleIT extends IntegrationTestBase {
         freezeInstant(FROZEN_NOW.plus(Duration.ofMinutes(16)), ZoneId.of("UTC"));
 
         postLogin(SEED_EMAIL, SEED_PASSWORD).then().statusCode(200);
+    }
+
+    // A logged-in user changing their OWN password gets UNLIMITED tries: the settings password-change flow
+    // is wholly separate from this per-IP login/registration lockout. Proven with the throttle turned ON
+    // (this profile) at a low limit: failed current-password checks are never gated by the lockout (never
+    // 429) and never feed its shared counter, so they can neither lock the IP nor be locked by it.
+    @Test
+    @TestSecurity(user = SEED_EMAIL, roles = "user")
+    void passwordChangeVerifyFailures_areNeitherGatedByNorFeedTheIpLockout() {
+        registerSeedUser();
+
+        // Fail the current-password check well past MAX_ATTEMPTS from this IP: every one is a plain 422,
+        // never a 429 — the endpoint applies no lockout of its own, however many times it is wrong.
+        for (int i = 0; i < MAX_ATTEMPTS * 2; i++) {
+            given().formParam("currentPassword", "wrong_password")
+                    .post("/settings/password/verify")
+                    .then().statusCode(422);
+        }
+
+        // The correct current password still verifies (204): those failures caused no self-inflicted lock.
+        given().formParam("currentPassword", SEED_PASSWORD)
+                .post("/settings/password/verify")
+                .then().statusCode(204);
+
+        // ...and none of them touched the shared IP counter: a fresh wrong login is an ordinary 401. It
+        // would be an immediate 429 if the (well past MAX_ATTEMPTS) verify failures had fed the lockout.
+        postLogin(SEED_EMAIL, "wrong_password").then().statusCode(401);
     }
 
     private static void registerSeedUser() {

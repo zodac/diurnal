@@ -568,6 +568,10 @@
            the -strong tokens), so no .dark twin is needed here. */
         .dt-btn { font-size: .75rem; line-height: 1rem; font-weight: 500; background: none; border: 0;
             padding: 0; transition: color .15s; }
+        /* A gated step button (e.g. the change-password Next/Save) reads as inert until its field is
+           correctly filled: dimmed, no hover recolour, not clickable. */
+        .dt-btn:disabled { color: var(--color-text-faint); opacity: .5; cursor: not-allowed;
+            pointer-events: none; }
         .dt-btn-edit { color: var(--color-text-faint); } .dt-btn-edit:hover { color: var(--color-brand); }
         .dt-btn-delete { color: var(--color-text-faint); } .dt-btn-delete:hover { color: var(--color-danger); }
         .dt-btn-save { color: var(--color-brand); } .dt-btn-save:hover { color: var(--color-brand-strong); }

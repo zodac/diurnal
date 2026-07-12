@@ -146,8 +146,13 @@
                                  error rather than letting them fill in the new password for nothing. The
                                  value rides along in a hidden field to the final POST, which re-verifies it
                                  authoritatively (the verify call is only a UX aid). -->
-                            <form id="password-current-form" class="hidden"
-                                  hx-post="/settings/password/verify" hx-swap="none">
+                            <!-- Submitted via fetch() in settings.js (NOT htmx): a wrong current password is an
+                                 expected, handled outcome, so it must not ride htmx's error path — htmx logs every
+                                 4xx to the console (unsuppressably) even when the client reacts to it. fetch keeps
+                                 the 422 off the console while still surfacing the inline error (mirrors the
+                                 login/register cards, which fetch for the same reason). -->
+                            <form id="password-current-form" class="hidden" method="post"
+                                  action="/settings/password/verify">
                                 <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
                                     <input type="password"
                                            id="currentPassword"
@@ -194,8 +199,11 @@
                                  current password and the match, persisting only when both hold, else 422 →
                                  red error (field is NOT cleared). The current and new passwords ride along
                                  in hidden fields carried over from steps 1 and 2. -->
-                            <form id="password-confirm-form" class="hidden"
-                                  hx-post="/settings/password" hx-swap="none">
+                            <!-- Also fetch()-submitted in settings.js (see the current-password form above): the
+                                 final POST returns 422 on a wrong current password or a mismatch, which fetch
+                                 surfaces inline without htmx's console error. -->
+                            <form id="password-confirm-form" class="hidden" method="post"
+                                  action="/settings/password">
                                 <input type="hidden" id="pendingCurrent" name="currentPassword">
                                 <input type="hidden" id="pendingPassword" name="newPassword">
                                 <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
