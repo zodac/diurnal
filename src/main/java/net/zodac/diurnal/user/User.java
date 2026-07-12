@@ -74,24 +74,30 @@ public class User extends PanacheEntityBase {
     @Column(name = "updated_at", nullable = false)
     public Instant updatedAt = Instant.now();
 
+    @Preference
     @Column(name = "theme", nullable = false)
     public String theme = "system";
 
     // UI font family: 'nova' (the brand Nova typography) or 'standard' (system sans).
+    @Preference
     @Column(name = "font", nullable = false)
     public String font = UserSettings.DEFAULT_FONT;
 
+    @Preference
     @Column(name = "page_size", nullable = false)
     public int pageSize = UserSettings.DEFAULT_PAGE_SIZE;
 
     // Whether the dashboard renders the per-action stats-summary strip.
+    @Preference
     @Column(name = "show_stats_summary", nullable = false)
     public boolean showStatsSummary = UserSettings.DEFAULT_SHOW_STATS_SUMMARY;
 
     // Number of decimal places used to render fractional stats (e.g. the weekly average).
+    @Preference
     @Column(name = "decimal_places", nullable = false)
     public int decimalPlaces = UserSettings.DEFAULT_DECIMAL_PLACES;
 
+    @Preference
     @Column(name = "calendar_view", nullable = false)
     public String calendarView = UserSettings.DEFAULT_CALENDAR_VIEW;
 
@@ -101,12 +107,14 @@ public class User extends PanacheEntityBase {
     // whether shown or hidden. NULL = never customised (render every stat in the default order).
     // Display-only; StatsService always computes the full set. Parsed via
     // ActionStatField.displayFields(...) / choices(...).
+    @Preference
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "stats_fields", columnDefinition = "jsonb")
     public @Nullable List<StatFieldPref> statsFields;
 
     // Per-user timezone override (IANA id). NULL = use the server default (app.timezone),
     // so "today" / streak / future-log boundaries follow the user's own clock.
+    @Preference
     @Column(name = "timezone")
     public @Nullable String timezone;
 

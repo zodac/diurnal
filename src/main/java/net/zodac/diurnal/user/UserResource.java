@@ -52,7 +52,8 @@ public class UserResource {
     @Operation(
             summary = "Get the current user",
             description = "Returns the authenticated user's profile: id, email, display name, role, and a "
-                    + "nested preferences object (theme, pageSize, calendarView, timezone)."
+                    + "nested preferences object (theme, font, pageSize, showStatsSummary, decimalPlaces, "
+                    + "calendarView, statsFields, timezone)."
     )
     @SecurityRequirement(name = "BearerAuth")
     @APIResponses({
