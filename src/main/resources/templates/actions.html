@@ -1,19 +1,19 @@
 {#include layout.html}
 
 {#body}
-<div class="min-h-viewport flex flex-col">
+<div class="page-shell">
 
-    <!-- Navigation -->
+    {! Navigation !}
     {#include partials/navbar active='actions' /}
 
-    <!-- Content -->
-    <main class="page-container px-4 py-8">
-        <h2 class="text-2xl font-semibold mb-1 text-ink">Actions</h2>
-        <p class="text-sm text-ink-muted mb-6">
+    {! Content !}
+    <main id="actions-main" class="page-container px-4 py-8">
+        <h2 class="page-title mb-1">Actions</h2>
+        <p class="page-subtitle">
             Define the habits or activities you want to track on your calendar.
         </p>
 
-        <!-- Add action form -->
+        {! Add action form !}
         <div class="card p-4 mb-6">
             <h3 class="card-title mb-3">New action</h3>
             <form id="new-action-form"
@@ -21,14 +21,8 @@
                   hx-target="#actions-tbody"
                   hx-swap="afterbegin"
                   class="flex items-center gap-3">
-                <span class="group relative inline-flex shrink-0">
-                    <input type="color"
-                           name="colour"
-                           value="#64748b"
-                           class="w-9 h-9 rounded-full border border-line cursor-pointer p-0.5 bg-surface"
-                           aria-label="Pick a colour">
-                    {#include partials/tooltip text="Pick a colour" pos="bottom" align="left" /}
-                </span>
+                {#include partials/colour-picker value='#64748b' wrapperCls='shrink-0'
+                    inputCls='w-9 h-9 rounded-full border border-line cursor-pointer p-0.5 bg-surface' /}
                 <input type="text"
                        name="name"
                        placeholder="Action name"
@@ -42,27 +36,17 @@
             <div id="action-error" class="mt-2"></div>
         </div>
 
-        <!-- Search + list. Hidden entirely when the user has NO actions at all, so an empty
+        {! Search + list. Hidden entirely when the user has NO actions at all, so an empty
              account shows only the "New action" card above. `data-total` tracks the UNFILTERED
              active-action count (page.totalCount is unfiltered here — the full page never carries
              a search term) so the surgical add/delete handlers can toggle this section without a
              reload. It stays visible while ANY action exists, even when the current search matches
-             none — that case still shows the (empty) table. -->
+             none — that case still shows the (empty) table. !}
         <div id="actions-section" data-total="{page.totalCount}" class="{#if page.totalCount == 0}hidden{/if}">
-            <!-- Search bar -->
-            <div class="mb-4">
-                <input type="text"
-                       id="search-input"
-                       name="q"
-                       placeholder="Search actions…"
-                       hx-get="/actions/list?page=1"
-                       hx-target="#action-list"
-                       hx-trigger="input changed delay:300ms"
-                       data-search-source="search-input"
-                       class="form-input w-full">
-            </div>
+            {! Search bar !}
+            {#include partials/search-input id="search-input" url="/actions/list?page=1" target="#action-list" /}
 
-            <!-- Action list -->
+            {! Action list !}
             <div class="card overflow-hidden">
                 <div id="action-list">
                     {#include partials/actions-list page=page extraQuery="" /}
@@ -74,10 +58,10 @@
     {#include partials/footer /}
 </div>
 
-<!-- The counter-surgery behaviour for the search filter + delete flow. Extracted from the inline
+{! The counter-surgery behaviour for the search filter + delete flow. Extracted from the inline
      block that used to sit here into /js/actions.js so it rides the content-hashed `immutable`
      cache instead of being re-parsed on every page load. Served as actions.<hash>.js in prod
-     (baked into AppInfo.jsActionsFile), actions.js in dev; runs after the shared /js/app.js. -->
+     (baked into AppInfo.jsActionsFile), actions.js in dev; runs after the shared /js/app.js. !}
 <script src="/js/{inject:appInfo.jsActionsFile}"></script>
 
 {/body}

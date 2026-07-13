@@ -1,84 +1,88 @@
 {#include layout.html}
 
+{! Preload the hero wordmark so its fetch starts during HTML parse (alongside the stylesheet)
+   instead of waiting for layout to discover the <img> — combined with the img's width/height
+   (space reserved, no reflow) and fetchpriority, the hero paints with the page rather than
+   popping in after it. Its tagline font is embedded as a subset data: URI inside the SVG, so
+   there is no secondary font fetch to flash either. !}
+{#head}
+    <link rel="preload" href="/img/wordmark-readme.svg" as="image">
+{/head}
+
 {#body}
-<div class="min-h-viewport flex flex-col">
-    <main class="flex-1 flex items-center justify-center p-4">
-    <div class="card shadow-xs w-full max-w-sm p-8">
+{#include partials/centered-card}
 
-        <h1 class="mb-5">
-            <img src="/img/wordmark-readme.svg" alt="Diurnal — {inject:appInfo.tagline}" class="w-full max-w-[260px] h-auto mx-auto" width="6314" height="2340">
-        </h1>
-        <p class="text-sm text-ink-muted mb-6 text-center">Sign in to your account</p>
+    <h1 class="mb-5">
+        <img src="/img/wordmark-readme.svg" alt="Diurnal — {inject:appInfo.tagline}" fetchpriority="high" class="w-full max-w-[260px] h-auto mx-auto" width="6314" height="2340">
+    </h1>
+    <p class="text-sm text-ink-muted mb-6 text-center">Sign in to your account</p>
 
-        {#if oidcError}
-        {#include partials/banner variant='error' cls='mb-4'
-            message='You are not authorized to access this application. Contact your administrator.' /}
-        {/if}
+    {#if oidcError}
+    {#include partials/banner variant='error' cls='mb-4'
+        message='You are not authorized to access this application. Contact your administrator.' /}
+    {/if}
 
-        {#if passwordAuthEnabled}
+    {#if passwordAuthEnabled}
 
-        {#if registered}
-        {#include partials/banner variant='success' cls='mb-4'
-            message='Account created — you can now sign in.' /}
-        {/if}
+    {#if registered}
+    {#include partials/banner variant='success' cls='mb-4'
+        message='Account created — you can now sign in.' /}
+    {/if}
 
-        {#if error}
-        {#include partials/banner variant='error' cls='mb-4' message='Invalid email or password.' /}
-        {/if}
+    {#if error}
+    {#include partials/banner variant='error' cls='mb-4' message='Invalid email or password.' /}
+    {/if}
 
-        {#if locked}
-        {#include partials/banner variant='error' cls='mb-4' message=lockedMessage /}
-        {/if}
+    {#if locked}
+    {#include partials/banner variant='error' cls='mb-4' message=lockedMessage /}
+    {/if}
 
-        {! novalidate + data-validate: the shared client-side validator (app.js) surfaces
-           blank/invalid fields as the error banners below, matching the register page, instead of
-           native browser pop-ups. data-disable-until-complete keeps the Sign in button disabled until
-           both fields are non-blank (a UX hint — the banner + server auth remain the real backstops;
-           the lockout countdown holds the button disabled independently via data-hold-disabled). !}
-        <form method="post" action="/login" novalidate data-validate data-ajax-submit data-disable-until-complete class="space-y-4">
-            <div data-form-errors class="space-y-2" hidden></div>
-            {#include partials/form-field id="email" name="email" label="Email" type="email" required=true autocomplete="email" maxlength="" /}
-            {#include partials/form-field id="password" name="password" label="Password" type="password" required=true autocomplete="current-password" maxlength="" /}
-            <button type="submit" class="btn-primary w-full">
-                Sign in
-            </button>
-        </form>
+    {! novalidate + data-validate: the shared client-side validator (app.js) surfaces
+       blank/invalid fields as the error banners below, matching the register page, instead of
+       native browser pop-ups. data-disable-until-complete keeps the Sign in button disabled until
+       both fields are non-blank (a UX hint — the banner + server auth remain the real backstops;
+       the lockout countdown holds the button disabled independently via data-hold-disabled). !}
+    <form method="post" action="/login" novalidate data-validate data-ajax-submit data-disable-until-complete class="space-y-4">
+        <div data-form-errors class="space-y-2" hidden></div>
+        {#include partials/form-field id="email" name="email" label="Email" type="email" required=true autocomplete="email" maxlength="" /}
+        {#include partials/form-field id="password" name="password" label="Password" type="password" required=true autocomplete="current-password" maxlength="" /}
+        <button type="submit" class="btn-primary w-full">
+            Sign in
+        </button>
+    </form>
 
-        {#if registrationEnabled}
-        <p class="mt-4 text-center text-sm text-ink-muted">
-            Don't have an account?
-            <a href="/register" class="text-brand hover:underline font-medium">Register</a>
-        </p>
-        {/if}
+    {#if registrationEnabled}
+    <p class="mt-4 text-center text-sm text-ink-muted">
+        Don't have an account?
+        <a href="/register" class="link-brand">Register</a>
+    </p>
+    {/if}
 
-        {/if}
+    {/if}
 
-        {#if oidcEnabled}
-        {#if passwordAuthEnabled}
-        <div class="relative my-6">
-            <div class="absolute inset-0 flex items-center">
-                <div class="w-full border-t border-line"></div>
-            </div>
-            <div class="relative flex justify-center text-xs uppercase">
-                <span class="bg-surface px-2 text-ink-muted">or</span>
-            </div>
+    {#if oidcEnabled}
+    {#if passwordAuthEnabled}
+    <div class="relative my-6">
+        <div class="absolute inset-0 flex items-center">
+            <div class="w-full border-t border-line"></div>
         </div>
-        {/if}
-
-        <a href="/oidc-login" class="btn-secondary">
-            Log in with {oidcProviderName}
-        </a>
-        {/if}
-
-        {#if !passwordAuthEnabled && !oidcEnabled}
-        {#include partials/banner variant='warning'
-            message='No authentication method is configured. Please contact your administrator.' /}
-        {/if}
+        <div class="relative flex justify-center text-xs uppercase">
+            <span class="bg-surface px-2 text-ink-muted">or</span>
+        </div>
     </div>
-    </main>
+    {/if}
 
-    {#include partials/footer /}
-</div>
+    <a href="/oidc-login" class="btn-secondary">
+        Log in with {oidcProviderName}
+    </a>
+    {/if}
+
+    {#if !passwordAuthEnabled && !oidcEnabled}
+    {#include partials/banner variant='warning'
+        message='No authentication method is configured. Please contact your administrator.' /}
+    {/if}
+
+{/include}
 {/body}
 
 {/include}

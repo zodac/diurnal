@@ -6,20 +6,18 @@
     </div>
 
     <div class="flex items-center gap-0.5 shrink-0">
-        <!-- Decrement: hidden (not just disabled) at 0, since there is nothing to decrement.
-             `invisible` keeps the cell's width so the count stays put. -->
+        {! Decrement: hidden (not just disabled) at 0, since there is nothing to decrement.
+             `invisible` keeps the cell's width so the count stays put. !}
         <button hx-post="/logs/{date}/{action.id}/decrement"
                 hx-vals='{"amount": 1}'
                 hx-target="#log-{date}-{action.id}"
                 hx-swap="innerHTML"
                 aria-label="Decrease"
-                class="w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
-                       text-ink-muted hover:bg-brand hover:text-on-brand active:bg-brand-strong
-                       {#if count == 0}invisible{/if}">
+                class="day-item-btn text-ink-muted {#if count == 0}invisible{/if}">
             −
         </button>
 
-        <!-- Count (editable) -->
+        {! Count (editable) !}
         <input type="text" inputmode="numeric" maxlength="3"
                name="count"
                value="{count}"
@@ -27,27 +25,23 @@
                hx-trigger="change"
                hx-target="#log-{date}-{action.id}"
                hx-swap="innerHTML"
-               class="w-10 h-7 text-center text-sm font-semibold tabular-nums
-                      bg-transparent border border-line rounded
-                      hover:border-brand focus:border-brand focus:outline-hidden
+               class="inline-num-input w-10 h-7
                       {#if count == 0}text-ink-muted{#else}text-ink{/if}">
 
-        <!-- Increment: hidden (not just disabled) at the 999 cap, since it can go no higher.
-             `invisible` keeps the cell's width so the count stays put. -->
+        {! Increment: hidden (not just disabled) at the 999 cap, since it can go no higher.
+             `invisible` keeps the cell's width so the count stays put. !}
         <button hx-post="/logs/{date}/{action.id}/increment"
                 hx-vals='{"amount": 1}'
                 hx-target="#log-{date}-{action.id}"
                 hx-swap="innerHTML"
                 aria-label="Increase"
-                class="w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
-                       text-brand hover:bg-brand hover:text-on-brand active:bg-brand-strong
-                       {#if count >= 999}invisible{/if}">
+                class="day-item-btn text-brand {#if count >= 999}invisible{/if}">
             +
         </button>
 
-        <!-- Delete entry: wrapped in .dt-actions so the button gets the same min-width as the
+        {! Delete entry: wrapped in .dt-actions so the button gets the same min-width as the
              confirm state's Cancel, keeping Cancel in exactly the same position on swap.
-             Always rendered; invisible (not just opacity-0) when there is no log to erase. -->
+             Always rendered; invisible (not just opacity-0) when there is no log to erase. !}
         <div class="dt-actions ml-[0.2rem]">
             <button hx-get="/logs/{date}/{action.id}/confirm-delete"
                     hx-target="#log-{date}-{action.id}"

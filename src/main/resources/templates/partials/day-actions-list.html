@@ -1,7 +1,7 @@
 {#if page.items.isEmpty()}
-<p class="text-sm text-ink-muted italic text-center py-4">
+<p class="empty-note">
     No actions defined yet.
-    <a href="/actions" class="text-brand hover:underline">Add one</a>
+    <a href="/actions" class="link-brand">Add one</a>
 </p>
 {#else}
 {#for status in page.items}
@@ -10,39 +10,16 @@
 </div>
 {/for}
 
-<!-- Filler rows: keep every page the same height when paginated -->
+{! Filler rows: keep every page the same height when paginated !}
 {#for i in page.fillerRows}
 <div class="px-2 py-2" aria-hidden="true"><div class="h-7"></div></div>
 {/for}
 
-<!-- Pagination. Same .dt-pagination / .page-link look as every other list; keeps its own
-     structure because it passes the live search term through via the delegated htmx:configRequest
-     listener in app.js (data-search-source, no full-page href, and no window-scroll on swap since
-     this lives inside the dashboard day panel). -->
-{#if page.totalPages > 1}
-<div class="dt-pagination">
-    <p>Showing {page.items.size} of {page.totalCount}</p>
-    <div class="flex gap-2">
-        {#if page.currentPage > 1}
-        <a href="#"
-           hx-get="/logs/day/{date}/list?page={page.currentPage - 1}"
-           data-search-source="day-search-input"
-           hx-target="#day-actions-list"
-           class="dt-page-link">
-            ← Previous
-        </a>
-        {/if}
-        <span>Page {page.currentPage} of {page.totalPages}</span>
-        {#if page.currentPage < page.totalPages}
-        <a href="#"
-           hx-get="/logs/day/{date}/list?page={page.currentPage + 1}"
-           data-search-source="day-search-input"
-           hx-target="#day-actions-list"
-           class="dt-page-link">
-            Next →
-        </a>
-        {/if}
-    </div>
-</div>
-{/if}
+{! Shared pagination control. pageUrl="" (no full-page fallback URL — this list lives inside the
+   dashboard day panel), searchSource carries the live search term into the page links via the
+   delegated htmx:configRequest listener in app.js, and scrollTop=false keeps the dashboard from
+   jumping to the top when the panel pages. !}
+{#include partials/pagination page=page pageUrl="" listUrl=str:fmt('/logs/day/%s/list', date)
+    target="#day-actions-list" extraQuery="" alwaysShow=false borderless=false
+    searchSource="day-search-input" scrollTop=false /}
 {/if}

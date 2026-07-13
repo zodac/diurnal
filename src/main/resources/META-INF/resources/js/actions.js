@@ -9,8 +9,10 @@
 
 // New-action form: on a successful add (200), clear any stale "no actions"/error state and grow
 // the "Showing X of Y" counters + the section's UNFILTERED data-total by one (mirroring the
-// htmx:beforeSwap delete handler below in reverse); on a duplicate-name rejection (409), surface
-// the server's error banner. Attached directly to the form (not delegated), so `this` is the form.
+// htmx:beforeSwap delete handler below in reverse). Attached directly to the form (not
+// delegated), so `this` is the form. A duplicate-name rejection (409) is handled by the
+// htmx:beforeSwap opt-in below — the server's HX-Retarget/HX-Reswap headers route its banner into
+// #action-error (the same mechanism as admin-users.js).
 document.getElementById('new-action-form').addEventListener('htmx:afterRequest', function (event) {
     if (event.detail.xhr.status === 200) {
         document.getElementById('action-error').innerHTML = ''
@@ -26,8 +28,6 @@ document.getElementById('new-action-form').addEventListener('htmx:afterRequest',
             section.dataset.total = parseInt(section.dataset.total, 10) + 1
             section.classList.remove('hidden')
         }
-    } else if (event.detail.xhr.status === 409) {
-        document.getElementById('action-error').innerHTML = event.detail.xhr.responseText
     }
 })
 
@@ -44,6 +44,15 @@ document.getElementById('new-action-form').addEventListener('htmx:afterRequest',
 //      the remaining actions — keep the table visible but add an empty-state row, so the
 //      surgical path matches what a fresh search render shows.
 document.body.addEventListener('htmx:beforeSwap', function (e) {
+    // Guard failures (e.g. a duplicate action name) come back as a 409 with HX-Retarget/HX-Reswap
+    // pointing at #action-error. htmx skips the swap on non-2xx responses by default, so opt the
+    // error in — the retarget/reswap headers then route it to the banner (the same mechanism as
+    // admin-users.js, so every 409 banner rides one code path).
+    if (e.detail.xhr.status === 409) {
+        e.detail.shouldSwap = true
+        e.detail.isError = false
+        return
+    }
     if (e.detail.xhr.status === 204) {
         e.detail.shouldSwap = true
         const sh = document.getElementById('showing-shown')

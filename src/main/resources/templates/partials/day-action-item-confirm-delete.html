@@ -6,25 +6,20 @@
   Layout mirrors the normal item so Cancel lands in exactly the Erase position:
     normal:  [name flex-1] [controls] [.dt-actions: Erase]
     confirm: [name flex-1] [prompt right-aligned] [.dt-actions: Erase | Cancel]
-  Both rows end with .dt-actions; Cancel is the rightmost .dt-btn, so it shares the
-  same min-width (3.5rem) and right-edge position as the normal Erase button. The
-  prompt is kept short and right-aligned, so the action name (flex-1) keeps the
+  Both rows end with .dt-actions (via partials/confirm-actions.html); Cancel is the rightmost
+  .dt-btn, so it shares the same min-width (3.5rem) and right-edge position as the normal Erase
+  button. The prompt is kept short and right-aligned, so the action name (flex-1) keeps the
   maximum room before it has to truncate.
 !}
+{#let logTarget=str:fmt('#log-%s-%s', date, action.id)}
 <div class="day-item-confirm flex items-center px-2 py-2 rounded-lg">
     <div class="flex items-center gap-2 min-w-0 flex-1">
         <span class="swatch swatch-sm shrink-0" style="background-color: {action.colour}"></span>
         <span class="text-[0.8125rem] font-medium text-ink truncate">{action.name}</span>
     </div>
-    <span class="dt-confirm-prompt shrink-0 ml-2 text-right">Erase entries?</span>
-    <div class="dt-actions ml-2">
-        <button hx-post="/logs/{date}/{action.id}/delete"
-                hx-target="#log-{date}-{action.id}"
-                hx-swap="innerHTML"
-                class="dt-btn dt-btn-danger">Erase</button>
-        <button hx-get="/logs/{date}/{action.id}"
-                hx-target="#log-{date}-{action.id}"
-                hx-swap="innerHTML"
-                class="dt-btn dt-btn-cancel">Cancel</button>
-    </div>
+    {#include partials/confirm-actions prompt='Erase entries?' confirmLabel='Erase'
+        confirmUrl=str:fmt('/logs/%s/%s/delete', date, action.id) confirmTarget=logTarget confirmSwap='innerHTML'
+        cancelUrl=str:fmt('/logs/%s/%s', date, action.id) cancelTarget=logTarget cancelSwap='innerHTML'
+        promptCls='shrink-0 ml-2 text-right' actionsCls='ml-2' /}
 </div>
+{/let}

@@ -3,6 +3,7 @@
   (inside #action-list) and returned wholesale by GET /actions/list for HTMX swaps.
   Params: page (PaginatedActions), extraQuery (pre-encoded "&q=..." or "").
 !}
+<div class="overflow-x-auto">
 <table class="dt-table">
     <thead>
         <tr>
@@ -22,5 +23,6 @@
         {/if}
     </tbody>
 </table>
+</div>
 
 {#include partials/pagination page=page pageUrl="/actions" listUrl="/actions/list" target="#action-list" extraQuery=extraQuery alwaysShow=true borderless=false /}

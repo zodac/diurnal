@@ -1,0 +1,24 @@
+{!
+  Colour-picker input with the shared "Pick a colour" tooltip, wrapped in the `group relative`
+  tooltip host (the tooltip can't live on the <input> itself, so the wrapper hosts it — and, in the
+  data-table edit state, also carries the [data-dt-edit] + hidden markers that dtStartEdit /
+  dtCancelEdit toggle, with the input always visible within it).
+  Params:
+    value      — the initial colour (required)
+    inputCls   — the input's class list (required — sizing differs per context: the large round
+                 new-action picker vs the compact .dt-color-input)
+    wrapperCls — optional extra classes on the wrapper (e.g. 'shrink-0', or 'hidden' for an edit state)
+    dtEdit     — optional, default false: true to mark the wrapper [data-dt-edit]
+    form       — optional owning form id ('' when the input is nested inside its own <form>)
+!}
+{#let wrapperCls=wrapperCls.or('') dtEdit=dtEdit.or(false) form=form.or('')}
+<span {#if dtEdit}data-dt-edit {/if}class="group relative inline-flex{#if wrapperCls} {wrapperCls}{/if}">
+    <input type="color"
+           name="colour"
+           value="{value}"
+           {#if form}form="{form}"
+           {/if}class="{inputCls}"
+           aria-label="Pick a colour">
+    {#include partials/tooltip text="Pick a colour" pos="bottom" align="left" /}
+</span>
+{/let}

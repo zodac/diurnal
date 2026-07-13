@@ -3,25 +3,15 @@
 </div>
 
 {#if future}
-<!-- Future dates cannot be logged against -->
-<p class="text-sm text-ink-muted italic text-center py-4">
+{! Future dates cannot be logged against !}
+<p class="empty-note">
     Actions can't be logged for a future date.
 </p>
 {#else}
-<!-- Search bar -->
-<div class="mb-4">
-    <input type="text"
-           id="day-search-input"
-           name="q"
-           placeholder="Search actions…"
-           hx-get="/logs/day/{date}/list?page=1"
-           hx-target="#day-actions-list"
-           hx-trigger="input changed delay:300ms"
-           data-search-source="day-search-input"
-           class="form-input w-full">
-</div>
+{! Search bar !}
+{#include partials/search-input id="day-search-input" url=str:fmt('/logs/day/%s/list?page=1', date) target="#day-actions-list" /}
 
-<!-- Actions list -->
+{! Actions list !}
 <div id="day-actions-list" class="flex flex-col gap-1">
     {#include partials/day-actions-list date=date page=page /}
 </div>

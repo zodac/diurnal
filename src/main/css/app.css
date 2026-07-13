@@ -67,21 +67,6 @@
   src: url('/fonts/NovaRound-Bold.woff2') format('woff2');
 }
 
-@layer utilities {
-  /*
-   * Full-viewport min-height for the flexbox sticky-footer shell (the page wrapper is a
-   * `min-h-viewport flex flex-col` column whose <main> is `flex-1`, so the footer sits at the
-   * bottom of the viewport on short pages and below the content on tall ones). Two declarations on
-   * purpose: 100vh is the universally-supported fallback; 100dvh (dynamic viewport height) then
-   * overrides it on modern browsers so the height tracks the mobile address bar — keeping the
-   * footer pinned to the *visible* bottom without needing a scroll. A browser that doesn't
-   * understand dvh just ignores the second line and keeps the vh value.
-   */
-  .min-h-viewport {
-    min-height: 100vh;
-    min-height: 100dvh;
-  }
-}
 
 /*
  * Colour tokens — the single source of truth for the palette.
@@ -125,6 +110,7 @@
     --color-ring-edit: #6366f1;  /* == brand — edit-row ring */
     /* @end:brand */
 
+    --color-canvas: #f9fafb;         /* the page (body) background (gray-50) */
     --color-surface: #ffffff;        /* cards / header */
     --color-surface-muted: #f9fafb;  /* page bg / subtle panels (gray-50) */
 
@@ -158,6 +144,12 @@
     --color-banner-warning-border: #fde68a; /* amber-200 */
     --color-banner-warning-text: #92400e;   /* amber-800 */
 
+    /* Circular icon chips (the error pages' status glyphs). */
+    --color-chip-danger-bg: #fee2e2;        /* red-100 */
+    --color-chip-danger-text: #dc2626;      /* red-600 (== danger) */
+    --color-chip-warning-bg: #fef9c3;       /* yellow-100 */
+    --color-chip-warning-text: #ca8a04;     /* yellow-600 */
+
     /*
      * Shared page column width — the whole app's content column is set in ONE place here.
      * Every page's <main> is the `.page-container` class (see @layer components), which reads
@@ -185,6 +177,7 @@
     --color-ring-edit: #6366f1;  /* == brand — edit-row ring */
     /* @end:brand */
 
+    --color-canvas: #111827;         /* the page (body) background (gray-900) */
     --color-surface: #1f2937;        /* gray-800 */
     --color-surface-muted: #374151;  /* gray-700 */
 
@@ -214,6 +207,11 @@
     --color-banner-warning-bg: rgb(120 53 15 / .2); /* amber-900 / 20% */
     --color-banner-warning-border: #78350f;         /* amber-900 */
     --color-banner-warning-text: #fde68a;           /* amber-200 */
+
+    --color-chip-danger-bg: rgb(127 29 29 / .3);    /* red-900 / 30% */
+    --color-chip-danger-text: #f87171;              /* red-400 (== danger) */
+    --color-chip-warning-bg: rgb(113 63 18 / .3);   /* yellow-900 / 30% */
+    --color-chip-warning-text: #facc15;             /* yellow-400 */
   }
 
   /*
@@ -263,6 +261,21 @@
   button:not(:disabled),
   [role="button"]:not(:disabled) {
     cursor: pointer;
+  }
+
+  /*
+   * Page canvas — the body's background/text colours, defined once here (token-backed, so dark
+   * mode is automatic via the `.dark` variable overrides) instead of utility classes on <body>.
+   * The two min-height declarations are deliberate: 100vh is the universally-supported fallback;
+   * 100dvh then overrides it on modern browsers so the height tracks the mobile address bar. The
+   * inline `style` on <body> (layout.html) and the FOUC `#theme-bg` override are the pre-stylesheet
+   * guards and deliberately duplicate these values — see the layout.html comments.
+   */
+  body {
+    min-height: 100vh;
+    min-height: 100dvh;
+    background-color: var(--color-canvas);
+    color: var(--color-text);
   }
 }
 
@@ -324,11 +337,39 @@
     @apply opacity-100 visible;
   }
 
+  /* Page shell ------------------------------------------------------------- */
+  /* Every page's outermost wrapper: a full-viewport flex column whose <main> is `flex-1`, so the
+     footer sits at the bottom of the viewport on short pages and below the content on tall ones.
+     Two min-height declarations on purpose: 100vh is the universally-supported fallback; 100dvh
+     (dynamic viewport height) then overrides it on modern browsers so the height tracks the mobile
+     address bar — keeping the footer pinned to the *visible* bottom without needing a scroll. */
+  .page-shell {
+    @apply flex flex-col;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  /* Page heading + muted subtitle under it. Per-page spacing (mb-*) stays at the call site. */
+  .page-title { @apply text-2xl font-semibold text-ink; }
+  .page-subtitle { @apply text-sm text-ink-muted mb-6; }
+
+  /* Inline brand link (auth-card footers, empty-state prompts). */
+  .link-brand { @apply text-brand hover:underline font-medium; }
+
+  /* Muted italic empty-state / placeholder note (day panel, empty lists). */
+  .empty-note { @apply text-sm text-ink-muted italic text-center py-4; }
+
+  /* Circular status-icon chip (the error pages' glyphs). Colour via the variant modifiers. */
+  .icon-chip { @apply flex h-14 w-14 items-center justify-center rounded-full; }
+  .icon-chip svg { @apply h-7 w-7; }
+  .icon-chip-danger { background-color: var(--color-chip-danger-bg); color: var(--color-chip-danger-text); }
+  .icon-chip-warning { background-color: var(--color-chip-warning-bg); color: var(--color-chip-warning-text); }
+
   /* Page column ------------------------------------------------------------ */
   /* The single shared content column for every page's <main> (Dashboard, Actions, Stats,
      Admin, API, Settings) — so pages no longer "snap" to different widths as you navigate.
      Base (mobile): full width, exactly like the original pages, so the column never narrows on
-     phones. `flex-1` (with each page's `min-h-viewport flex flex-col` wrapper) is what pins the
+     phones. `flex-1` (with each page's `.page-shell` wrapper) is what pins the
      sticky footer to the bottom on short pages — kept here unchanged. The navbar/footer stay
      full-bleed by design. `min-w-0` lets the column shrink below its content's intrinsic min-width
      (a flex item defaults to `min-width:auto`), so wide children — e.g. the dashboard's calendar
@@ -438,7 +479,10 @@
            focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white;
   }
   /* Field label above an input. */
-  .field-label { @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1; }
+  .field-label {
+    @apply block text-sm font-medium mb-1;
+    color: var(--color-text-strong);
+  }
   /* Small uppercase label (settings read-only fields). */
   .field-label-caps { @apply block text-xs font-medium text-ink-muted uppercase tracking-wide mb-1 font-display; }
   /* Muted helper / caption text. */
@@ -474,7 +518,7 @@
   .num-pref-value::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
   /* Navigation links ------------------------------------------------------- */
-  .nav-link { @apply text-ink-muted hover:text-gray-900 dark:hover:text-white transition-colors; }
+  .nav-link { @apply text-ink-muted hover:text-ink transition-colors; }
   .nav-link-active { @apply text-brand font-medium; }
 
   /* Colour swatches -------------------------------------------------------- */
@@ -485,6 +529,19 @@
   /* Calendar month/year picker nav arrow (dashboard). Used by both the server-rendered
      overlay and the JS that rebuilds it on year change, so the styling lives in one place. */
   .cal-nav-btn { @apply px-2 py-1 rounded-sm text-ink-muted hover:bg-surface-muted transition-colors; }
+
+  /* Compact editable number input (the day panel's count field, the calendar jump-year field).
+     Size and text colour stay at the call site (they vary per control). */
+  .inline-num-input {
+    @apply text-center text-sm font-semibold tabular-nums bg-transparent border border-line rounded
+           hover:border-brand focus:border-brand focus:outline-hidden;
+  }
+
+  /* Day-panel +/− log button. Resting text colour stays at the call site (muted − vs brand +). */
+  .day-item-btn {
+    @apply w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
+           hover:bg-brand hover:text-on-brand active:bg-brand-strong;
+  }
 }
 
 /* ============================================================================

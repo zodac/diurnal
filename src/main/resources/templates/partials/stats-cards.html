@@ -2,16 +2,16 @@
     {#for s in page.items}
     <div class="card p-4 flex flex-col gap-4">
 
-        <!-- Action header -->
+        {! Action header !}
         <div class="flex items-center gap-2">
             <span class="swatch swatch-md" style="background-color: {s.action.colour}"></span>
             <h3 class="card-title truncate">{s.action.name}</h3>
         </div>
 
-        <!-- Tiles: a single flat grid rendered in the user's chosen order (the "Action stats"
+        {! Tiles: a single flat grid rendered in the user's chosen order (the "Action stats"
              setting). The backend always computes every statistic; statsFields only selects which
              tiles show here and in what sequence. s.tiles(...) maps each selected ActionStatField to a
-             StatTile (see ActionStatsExtensions.tiles). -->
+             StatTile (see ActionStatsExtensions.tiles). !}
         <dl class="grid grid-cols-2 gap-2">
             {#for tile in s.tiles(statsFields, decimalPlaces)}
             {#include partials/stat-tile label=tile.label value=tile.value sub=tile.sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}
@@ -22,7 +22,7 @@
     {/for}
 </div>
 
-<!-- Shared pagination control. Stats is a grid of standalone cards (not a clipped .dt-table)
+{! Shared pagination control. Stats is a grid of standalone cards (not a clipped .dt-table)
      with no editable rows, so alwaysShow=false: no footer on a single page, just the Previous/
-     Next controls once it spills onto more than one page. -->
+     Next controls once it spills onto more than one page. !}
 {#include partials/pagination page=page pageUrl="/stats" listUrl="/stats/list" target="#stats-list" extraQuery="" alwaysShow=false borderless=true /}

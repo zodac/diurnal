@@ -1,0 +1,28 @@
+{!
+  Card heading row (Settings cards): the card title, optional help text under it, and the
+  auto-save status indicator in the top-right — the SAME spot for the green "Saved" confirmation
+  and a red validation error, so an error never shifts the layout (colour + text are set by the
+  handlers in settings.js).
+  Params:
+    title    — the card title (required)
+    help     — optional muted help text under the title ('' / omit for none)
+    statusId — optional id for the status indicator. When present the indicator is addressed
+               directly by id (the Account card's showAccountStatus); when absent it carries the
+               [data-saved] hook the shared prefs-form handler flashes.
+!}
+{#let help=help.or('') statusId=statusId.or('')}
+<div class="flex items-center justify-between mb-4">
+    {#if help}
+    <div>
+        <h3 class="card-title">{title}</h3>
+        <p class="help-text mt-0.5">{help}</p>
+    </div>
+    {#else}
+    <h3 class="card-title">{title}</h3>
+    {/if}
+    <span {#if statusId}id="{statusId}"{#else}data-saved{/if}
+          class="text-xs text-success opacity-0 transition-opacity duration-300">
+        Saved
+    </span>
+</div>
+{/let}

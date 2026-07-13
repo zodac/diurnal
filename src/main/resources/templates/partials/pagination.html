@@ -2,7 +2,8 @@
   Shared pagination footer for every data table.
   Params:
     page       — paginated result with currentPage / totalPages / totalCount / items
-    pageUrl    — full-page URL for the non-JS href fallback (e.g. "/actions")
+    pageUrl    — full-page URL for the non-JS href fallback (e.g. "/actions"); pass "" for lists
+                 with no full-page equivalent (the dashboard day panel), which renders href="#"
     listUrl    — HTMX partial URL swapped into `target` (e.g. "/actions/list")
     target     — CSS selector that receives the swapped list (e.g. "#action-list")
     extraQuery — optional pre-encoded query suffix, e.g. "&q=foo" (pass "" when unused)
@@ -11,6 +12,11 @@
     borderless — true to drop the top border/divider (for a grid of standalone cards, not a
                  clipped `.dt-table`, where a full-width rule above the footer reads as stray);
                  false/omitted keeps the default table divider
+    searchSource — optional id of a live search input: emitted as `data-search-source` on the
+                 page links so the delegated htmx:configRequest listener in app.js carries the
+                 current search term into the request (the dashboard day panel)
+    scrollTop  — optional, default true: scroll the window to the top on swap. Pass false for a
+                 list embedded in a page that shouldn't jump (the dashboard day panel)
 
   The "Showing" counter exposes #showing-shown / #showing-total so surgical (HTMX 204)
   row removals can keep the count in sync without re-rendering the whole list.
@@ -23,33 +29,37 @@
   transition (e.g. adding the very first row). Such a list shows "Showing 0 of 0" when empty.
 
   `alwaysShow=false` (Stats — a grid of standalone cards, not a clipped table, with no editable
-  rows) keeps the original behaviour: no footer at all on a single page, just the page-navigation
-  controls once the list spills onto more than one page.
+  rows; the day panel) keeps the original behaviour: no footer at all on a single page, just the
+  page-navigation controls once the list spills onto more than one page.
 
   Either way the page-navigation block (Previous / Page X of Y / Next) only appears when there's
   more than one page.
 !}
+{#let searchSource=searchSource.or('') scrollTop=scrollTop.or(true)}
 {#if alwaysShow || page.totalPages > 1}
 <div class="dt-pagination{#if borderless} dt-pagination--borderless{/if}">
     <p>Showing <span id="showing-shown">{page.items.size}</span> of <span id="showing-total">{page.totalCount}</span></p>
     {#if page.totalPages > 1}
     <div class="flex gap-2">
         {#if page.currentPage > 1}
-        <a href="{pageUrl}?page={page.currentPage - 1}{extraQuery}"
+        <a href="{#if pageUrl}{pageUrl}?page={page.currentPage - 1}{extraQuery}{#else}#{/if}"
            hx-get="{listUrl}?page={page.currentPage - 1}{extraQuery}"
-           hx-target="{target}"
-           hx-swap="innerHTML show:window:top"
+           {#if searchSource}data-search-source="{searchSource}"
+           {/if}hx-target="{target}"
+           hx-swap="innerHTML{#if scrollTop} show:window:top{/if}"
            class="dt-page-link">← Previous</a>
         {/if}
         <span>Page {page.currentPage} of {page.totalPages}</span>
         {#if page.currentPage < page.totalPages}
-        <a href="{pageUrl}?page={page.currentPage + 1}{extraQuery}"
+        <a href="{#if pageUrl}{pageUrl}?page={page.currentPage + 1}{extraQuery}{#else}#{/if}"
            hx-get="{listUrl}?page={page.currentPage + 1}{extraQuery}"
-           hx-target="{target}"
-           hx-swap="innerHTML show:window:top"
+           {#if searchSource}data-search-source="{searchSource}"
+           {/if}hx-target="{target}"
+           hx-swap="innerHTML{#if scrollTop} show:window:top{/if}"
            class="dt-page-link">Next →</a>
         {/if}
     </div>
     {/if}
 </div>
 {/if}
+{/let}

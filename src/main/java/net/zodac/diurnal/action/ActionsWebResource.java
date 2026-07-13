@@ -41,6 +41,7 @@ import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
+import net.zodac.diurnal.web.HtmxResponses;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -191,14 +192,14 @@ public class ActionsWebResource {
         @FormParam("colour") @DefaultValue("#64748b") final String colour) {
 
         if (name == null || name.isBlank()) {
-            return errorResponse("Action name cannot be empty.");
+            return HtmxResponses.conflictBanner("#action-error", "Action name cannot be empty.");
         }
 
         final User user = currentUser.get();
         final String normName = name.strip();
 
         if (Action.count("userId = ?1 and name = ?2", user.id, normName) > 0) {
-            return errorResponse("An action named '" + normName + "' already exists.");
+            return HtmxResponses.conflictBanner("#action-error", "An action named '" + normName + "' already exists.");
         }
 
         final Action action = new Action();
@@ -230,13 +231,13 @@ public class ActionsWebResource {
         }
 
         if (name == null || name.isBlank()) {
-            return errorResponse("Action name cannot be empty.");
+            return HtmxResponses.conflictBanner("#action-error", "Action name cannot be empty.");
         }
 
         final String normName = name.strip();
 
         if (Action.count("userId = ?1 and name = ?2 and id != ?3", action.userId, normName, id) > 0) {
-            return errorResponse("An action named '" + normName + "' already exists.");
+            return HtmxResponses.conflictBanner("#action-error", "An action named '" + normName + "' already exists.");
         }
 
         action.name = normName;
@@ -272,17 +273,6 @@ public class ActionsWebResource {
         final User user = currentUser.get();
         return Action.<Action>find("id = ?1 and userId = ?2", id, user.id)
                 .firstResult();
-    }
-
-    private Response errorResponse(final String message) {
-        // Mirrors templates/partials/banner.html so HTMX error banners match the login/register
-        // pages. The `.banner*` styling is defined once in layout.html.
-        final String html = "<div class=\"banner banner-error\">" + message + "</div>";
-        return Response.status(Response.Status.CONFLICT)
-                .entity(html)
-                .header("HX-Retarget", "#action-error")
-                .header("HX-Reswap", "innerHTML")
-                .build();
     }
 
     private static String sanitiseColour(final String colour) {

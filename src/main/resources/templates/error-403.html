@@ -1,30 +1,8 @@
 {#include layout.html}
 
 {#body}
-<div class="min-h-viewport flex flex-col">
-
-    {#include partials/navbar active='' /}
-
-    <main class="flex-1 flex items-center justify-center p-4">
-        <div class="card shadow-xs w-full max-w-sm p-8 text-center">
-
-            <div class="mb-4 flex justify-center">
-                <div class="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30">
-                    <svg class="h-7 w-7 text-red-600 dark:text-red-400" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M18.364 18.364A9 9 0 0 0 5.636 5.636m12.728 12.728A9 9 0 0 1 5.636 5.636m12.728 12.728L5.636 5.636" />
-                    </svg>
-                </div>
-            </div>
-
-            <h1 class="text-xl font-semibold mb-2 text-ink">Access Denied</h1>
-            <p class="text-sm text-ink-muted">
-                You do not have permission to view this page.
-            </p>
-        </div>
-    </main>
-
-    {#include partials/footer /}
-</div>
+{#include partials/error-page variant='danger' title='Access Denied'
+    message='You do not have permission to view this page.' icon='circle-slash' /}
 {/body}
 
 {/include}

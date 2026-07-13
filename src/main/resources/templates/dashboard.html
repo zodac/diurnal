@@ -1,26 +1,26 @@
 {#include layout.html}
 
 {#body}
-<div class="min-h-viewport flex flex-col">
+<div class="page-shell">
 
-    <!-- Navigation -->
+    {! Navigation !}
     {#include partials/navbar active='dashboard' /}
 
-    <!-- Main content. data-today/data-calendar-view are the two server-injected values the calendar
+    {! Main content. data-today/data-calendar-view are the two server-injected values the calendar
          engine needs (the app's UTC "today" and the user's chosen calendar style); dashboard.js reads
          them off this element's dataset instead of an inline bootstrap script, so the engine stays a
-         fully static, content-hashed file. -->
+         fully static, content-hashed file. !}
     <main id="dashboard-main" class="page-container px-4 py-8" data-today="{today}" data-calendar-view="{calendarView}">
         <div class="mb-6">
-            <h2 class="text-2xl font-semibold text-ink">Welcome, {displayName}</h2>
+            <h2 class="page-title">Welcome, {displayName}</h2>
         </div>
 
-        <!-- Calendar + day panel -->
+        {! Calendar + day panel !}
         <div class="grid gap-4 lg:grid-cols-3 mb-6 min-w-0">
 
-            <!-- min-w-0: grid items default to min-width:auto, which would let the calendar grid's
+            {! min-w-0: grid items default to min-width:auto, which would let the calendar grid's
                  intrinsic width blow the column past the viewport on mobile. Allowing the item to shrink
-                 lets the calendar size down to fit the narrow screen. -->
+                 lets the calendar size down to fit the narrow screen. !}
             <div class="lg:col-span-2 card p-4 min-w-0">
                 {! Every calendar style shares one toolbar (partials/calendar-toolbar.html) AND one grid
                    body — the same 7×6 #d-min-grid; only its per-cell rendering differs (full = bordered
@@ -36,19 +36,19 @@
                 </div>
             </div>
 
-            <div id="day-panel"
+            <div id="day-logger-panel"
                  class="card p-4 self-start min-w-0">
-                <p class="text-sm text-ink-muted italic text-center py-4">
+                <p class="empty-note">
                     Click a day to log actions.
                 </p>
             </div>
 
         </div>
 
-        <!-- Stats quick-link (hidden until there are logged actions, or when the user has turned the
-             stats summary off in Settings) -->
+        {! Stats quick-link (hidden until there are logged actions, or when the user has turned the
+             stats summary off in Settings) !}
         {#if showStatsSummary && !recentStats.isEmpty()}
-        <div class="card p-4">
+        <div id="stats-summary" class="card p-4">
             <div class="flex flex-col gap-3">
                 {#for s in recentStats}
                 <div class="stat-tile px-3 py-2 border border-line-subtle
@@ -59,16 +59,10 @@
                     </div>
                     {! Mirrors the Stats page: the tiles shown are the user's top three enabled "Action
                        stats" (summaryFields), in their chosen order. The backend always computes every
-                       statistic; the display preference only selects which tiles appear here.
-                       Mobile squeezes three columns into the card width, so the type is reduced a step
-                       (text-[0.65rem]/text-xs) and the gap tightened here; sm: restores the larger sizes. !}
+                       statistic; the display preference only selects which tiles appear here. !}
                     <dl class="grid grid-cols-3 gap-2 sm:gap-4 min-w-0 sm:flex-1">
                         {#for tile in s.tiles(summaryFields, decimalPlaces)}
-                        <div>
-                            <dt class="help-text text-[0.65rem] sm:text-xs">{tile.label}</dt>
-                            <dd class="text-xs sm:text-sm font-semibold {tile.valueClass ?: 'text-ink'}{#if !tile.date} js-num{/if}">{tile.value}</dd>
-                            {#if tile.sub}<dd class="help-text text-[0.65rem] sm:text-xs{#if tile.subNum || tile.date} js-num{/if}">{tile.sub}</dd>{/if}
-                        </div>
+                        {#include partials/stat-tile-compact label=tile.label value=tile.value sub=tile.sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}
                         {/for}
                     </dl>
                 </div>
@@ -81,10 +75,10 @@
     {#include partials/footer /}
 </div>
 
-<!-- The calendar engine (grid render, month cache/prefetch, day panel, toolbar). Extracted from the
+{! The calendar engine (grid render, month cache/prefetch, day panel, toolbar). Extracted from the
      inline block that used to sit here into /js/dashboard.js so it rides the content-hashed `immutable`
      cache instead of being re-parsed on every dashboard load. Served as dashboard.<hash>.js in prod
-     (baked into AppInfo.jsDashboardFile), dashboard.js in dev; runs after the shared /js/app.js. -->
+     (baked into AppInfo.jsDashboardFile), dashboard.js in dev; runs after the shared /js/app.js. !}
 <script src="/js/{inject:appInfo.jsDashboardFile}"></script>
 {/body}
 

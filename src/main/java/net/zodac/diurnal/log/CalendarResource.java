@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.log;
 
+import io.quarkus.vertx.http.Compressed;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -58,6 +59,13 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
  * The {@code /logs/events} feed is also the <strong>public API</strong> for reading a user's logged actions: it is documented in the Swagger UI and
  * may be called by external integrations with a Bearer session token (see {@code /api/auth/login}) as well as by the in-app calendar with its session
  * cookie. The {@code /logs/minimal-events} feed stays internal to the dashboard.
+ *
+ * <p>
+ * Both feeds are {@link Compressed} — with the month back-fill they form the dashboard's hot loading path ({@code cal.refresh()} re-pulls the visible
+ * month's feed after every log mutation), and a month of events is repetitive JSON that gzips heavily. This is a targeted exception to the
+ * deliberately narrow global {@code quarkus.http.compress-media-types} (see the BREACH note in {@code application.properties}), safe for the same
+ * reason as {@code LogWebResource.monthPanels}: the body carries no secret (no CSRF token — protection is origin-based — and the session token never
+ * appears in a body), and the only request-controlled inputs, {@code start}/{@code end}, must parse as ISO-8601 dates before anything is returned.
  */
 @Tag(name = "Logs", description = "Read a user's logged actions as calendar events.")
 @Path("/logs")
@@ -70,6 +78,7 @@ public class CalendarResource {
     /**
      * Returns one calendar event per logged entry in the range.
      */
+    @Compressed
     @GET
     @Path("/events")
     @Transactional
@@ -116,6 +125,7 @@ public class CalendarResource {
     /**
      * Returns up to four coloured dots per day for the compact "minimal" calendar view (internal to the dashboard).
      */
+    @Compressed
     @GET
     @Path("/minimal-events")
     @Transactional

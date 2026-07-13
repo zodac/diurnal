@@ -1,0 +1,25 @@
+{!
+  Shared page shell for the auth-style pages (login, register, setup) and the error pages: the
+  full-viewport `.page-shell` column with a single centred card and the standard footer. The card
+  content is supplied by the caller's main block (rendered into {#insert /}).
+  Params:
+    nav    — optional, default false: true to render the navbar (the error pages; the auth pages
+             have no signed-in chrome)
+    center — optional, default false: true to centre the card's text (the error pages)
+!}
+{#let nav=nav.or(false) center=center.or(false)}
+<div class="page-shell">
+
+    {#if nav}
+    {#include partials/navbar active='' /}
+    {/if}
+
+    <main class="flex-1 flex items-center justify-center p-4">
+        <div class="card shadow-xs w-full max-w-sm p-8{#if center} text-center{/if}">
+            {#insert /}
+        </div>
+    </main>
+
+    {#include partials/footer /}
+</div>
+{/let}

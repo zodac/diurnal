@@ -1,77 +1,70 @@
 {#include layout.html}
 
 {#body}
-<div class="min-h-viewport flex flex-col">
-    <main class="flex-1 flex items-center justify-center p-4">
-    <div class="card shadow-xs w-full max-w-sm p-8">
+{#include partials/centered-card}
 
-        <h1 class="mb-1">
-            <img src="/img/wordmark.svg" alt="Diurnal" class="h-8 w-auto" width="121" height="32">
-        </h1>
-        {#if setup}
-        <p class="text-sm text-ink-muted mb-6">Create the administrator account for this instance</p>
-        {#else if registrationDisabled}
-        <p class="text-sm text-ink-muted mb-6">Registration unavailable</p>
-        {#else}
-        <p class="text-sm text-ink-muted mb-6">Create a new account</p>
-        {/if}
+    {#include partials/card-wordmark /}
+    {#if setup}
+    <p class="text-sm text-ink-muted mb-6">Create the administrator account for this instance</p>
+    {#else if registrationDisabled}
+    <p class="text-sm text-ink-muted mb-6">Registration unavailable</p>
+    {#else}
+    <p class="text-sm text-ink-muted mb-6">Create a new account</p>
+    {/if}
 
-        {#if registrationDisabled}
-        {#include partials/banner variant='error' cls='mb-4'
-            message='Registration is currently disabled. Please contact your system administrator.' /}
-        <p class="mt-4 text-center text-sm text-ink-muted">
-            <a href="/login" class="text-brand hover:underline font-medium">Back to sign in</a>
-        </p>
-        {#else}
+    {#if registrationDisabled}
+    {#include partials/banner variant='error' cls='mb-4'
+        message='Registration is currently disabled. Please contact your system administrator.' /}
+    <p class="mt-4 text-center text-sm text-ink-muted">
+        <a href="/login" class="link-brand">Back to sign in</a>
+    </p>
+    {#else}
 
-        {! novalidate + data-validate: the shared client-side validator (app.js) catches blank /
-           malformed fields and renders them as banners in the [data-form-errors] slot below — the
-           same slot the server re-renders into on a round-trip (duplicate email, mismatch, …), so
-           both paths look identical and neither triggers native browser pop-ups. data-ajax-errors
-           posts via fetch and swaps ONLY that slot in place on failure (never clearing it until a
-           successful attempt navigates away), so the card no longer reloads/jumps between attempts.
-           data-disable-until-complete keeps the submit button disabled until every required field is
-           non-blank (a UX hint — the banner + server validation remain the real backstops). !}
-        <form method="post" action="/register" novalidate data-validate data-ajax-errors data-disable-until-complete class="space-y-4">
-            <div data-form-errors class="space-y-2" {#if missingFields.size == 0 && errors.size == 0}hidden{/if}>
-                {#if missingFields.size > 0}
-                <div class="banner banner-error">
-                    Please fill in the following {#if missingFields.size == 1}field{#else}fields{/if}:
-                    <ul class="list-disc list-inside mt-1">
-                        {#for field in missingFields}
-                        <li>{field}</li>
-                        {/for}
-                    </ul>
-                </div>
-                {/if}
-                {#for message in errors}
-                {#include partials/banner variant='error' message=message /}
-                {/for}
+    {! novalidate + data-validate: the shared client-side validator (app.js) catches blank /
+       malformed fields and renders them as banners in the [data-form-errors] slot below — the
+       same slot the server re-renders into on a round-trip (duplicate email, mismatch, …), so
+       both paths look identical and neither triggers native browser pop-ups. data-ajax-errors
+       posts via fetch and swaps ONLY that slot in place on failure (never clearing it until a
+       successful attempt navigates away), so the card no longer reloads/jumps between attempts.
+       data-disable-until-complete keeps the submit button disabled until every required field is
+       non-blank (a UX hint — the banner + server validation remain the real backstops). !}
+    <form method="post" action="/register" novalidate data-validate data-ajax-errors data-disable-until-complete class="space-y-4">
+        <div data-form-errors class="space-y-2" {#if missingFields.size == 0 && errors.size == 0}hidden{/if}>
+            {#if missingFields.size > 0}
+            <div class="banner banner-error">
+                Please fill in the following {#if missingFields.size == 1}field{#else}fields{/if}:
+                <ul class="list-disc list-inside mt-1">
+                    {#for field in missingFields}
+                    <li>{field}</li>
+                    {/for}
+                </ul>
             </div>
-            {#include partials/form-field id="email" name="email" label="Email" type="email" required=true autocomplete="email" maxlength="" value=email /}
-            {#include partials/form-field id="displayName" name="displayName" label="Display name" type="text" required=true autocomplete="name" maxlength="" value=displayName /}
-            <div class="relative">
-                {#include partials/form-field id="password" name="password" label="Password" type="password" required=true autocomplete="new-password" maxlength=maxPasswordLength value="" /}
-                {#include partials/password-constraints for="password" /}
-            </div>
-            {#include partials/form-field id="confirmPassword" name="confirmPassword" label="Confirm password" type="password" required=true autocomplete="new-password" maxlength=maxPasswordLength value="" /}
-            <button type="submit" class="btn-primary w-full">
-                Create account
-            </button>
-        </form>
+            {/if}
+            {#for message in errors}
+            {#include partials/banner variant='error' message=message /}
+            {/for}
+        </div>
+        {#include partials/form-field id="email" name="email" label="Email" type="email" required=true autocomplete="email" maxlength="" value=email /}
+        {#include partials/form-field id="displayName" name="displayName" label="Display name" type="text" required=true autocomplete="name" maxlength="" value=displayName /}
+        <div class="relative">
+            {#include partials/form-field id="password" name="password" label="Password" type="password" required=true autocomplete="new-password" maxlength=maxPasswordLength value="" /}
+            {#include partials/password-constraints for="password" /}
+        </div>
+        {#include partials/form-field id="confirmPassword" name="confirmPassword" label="Confirm password" type="password" required=true autocomplete="new-password" maxlength=maxPasswordLength value="" /}
+        <button type="submit" class="btn-primary w-full">
+            Create account
+        </button>
+    </form>
 
-        {#if !setup}
-        <p class="mt-4 text-center text-sm text-ink-muted">
-            Already have an account?
-            <a href="/login" class="text-brand hover:underline font-medium">Sign in</a>
-        </p>
-        {/if}
-        {/if}
-    </div>
-    </main>
+    {#if !setup}
+    <p class="mt-4 text-center text-sm text-ink-muted">
+        Already have an account?
+        <a href="/login" class="link-brand">Sign in</a>
+    </p>
+    {/if}
+    {/if}
 
-    {#include partials/footer /}
-</div>
+{/include}
 {/body}
 
 {/include}

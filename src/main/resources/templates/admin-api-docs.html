@@ -1,27 +1,27 @@
 {#include layout.html}
 
 {#body}
-<!-- min-h-dvh (not a fixed h-dvh): the page is AT LEAST the visible height — so the footer sits
-     at the bottom on a short spec — but GROWS with the iframe, which is sized to its own content
-     height (syncApiHeight). So the docs scroll with the page: one scrollbar on the window, pushing
-     the footer down, instead of a second scrollbar nested inside the iframe. dvh (not vh) tracks
-     the mobile address-bar shrink correctly. -->
-<div class="min-h-dvh flex flex-col">
+{! .page-shell is a MINIMUM height (not fixed): the page is AT LEAST the visible height — so the
+     footer sits at the bottom on a short spec — but GROWS with the iframe, which is sized to its
+     own content height (syncApiHeight). So the docs scroll with the page: one scrollbar on the
+     window, pushing the footer down, instead of a second scrollbar nested inside the iframe (the
+     shell's dvh declaration tracks the mobile address-bar shrink correctly). !}
+<div class="page-shell">
 
-    <!-- Navigation -->
+    {! Navigation !}
     {#include partials/navbar active='api' /}
 
-    <!-- Shared page column (.page-container): same width as every other page. flex-1 so the
-         footer is pushed to the bottom when the spec is short. -->
-    <main class="page-container px-4 py-8">
-        <!-- Swagger UI embedded in-app so the navbar and account controls stay available; the
+    {! Shared page column (.page-container): same width as every other page. flex-1 so the
+         footer is pushed to the bottom when the spec is short. !}
+    <main id="api-docs-main" class="page-container px-4 py-8">
+        {! Swagger UI embedded in-app so the navbar and account controls stay available; the
              underlying docs are still served at /api. Nested containers mirror the dashboard stats
              section: an outer `.card` shell, then the inner framed panel that actually holds the
              iframe (overflow-hidden clips it to the rounded corners). Its `load` listener (wired in
              admin-api-docs.js) restyles its font to match the app and hides Swagger's own header bar
              (see alignApiFont), and sizes the iframe to its content (see watchApiHeight). Kept hidden
              until then so its dark/light theme is settled and the header is removed before it's
-             revealed (see steerApiTheme). -->
+             revealed (see steerApiTheme). !}
         <div class="card p-6 sm:p-8">
             <div class="rounded-xl border border-line-subtle overflow-hidden">
                 <iframe id="api-frame" src="/api" title="Diurnal API documentation"
@@ -33,10 +33,10 @@
     {#include partials/footer /}
 </div>
 
-<!-- The Swagger UI iframe font/theme/height behaviour. Extracted from the inline block that used to
+{! The Swagger UI iframe font/theme/height behaviour. Extracted from the inline block that used to
      sit here into /js/admin-api-docs.js so it rides the content-hashed `immutable` cache instead of
      being re-parsed on every page load. Served as admin-api-docs.<hash>.js in prod (baked into
-     AppInfo.jsApiDocsFile), admin-api-docs.js in dev; runs after the shared /js/app.js. -->
+     AppInfo.jsApiDocsFile), admin-api-docs.js in dev; runs after the shared /js/app.js. !}
 <script src="/js/{inject:appInfo.jsApiDocsFile}"></script>
 {/body}
 

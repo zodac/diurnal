@@ -13,6 +13,39 @@
  * run before the stylesheet loads and carries a server-injected value, so it cannot be hashed.
  */
 
+// Single shared namespace for the helpers reused across this file and the page scripts
+// (settings.js, dashboard.js).
+window.Diurnal = window.Diurnal || {}
+
+// The ONE place the inline error-banner markup is built client-side, mirroring
+// partials/banner.html (and the Java-built HTMX banners) — a keep-in-sync pair, see
+// .claude/UI_PATTERNS.md. The message is NOT escaped here: callers pass trusted literals, or
+// escape user content themselves (the form validator below).
+window.Diurnal.bannerHtml = function (message) {
+    return `<div class="banner banner-error">${  message  }</div>`
+}
+
+// True when every [required] field in the form holds a non-blank value. Shared by the
+// data-disable-until-complete controller and the lockout countdown below.
+window.Diurnal.requiredFilled = function (form) {
+    return Array.prototype.every.call(form.querySelectorAll('[required]'), function (field) {
+        return field.value.trim() !== ''
+    })
+}
+
+// POST a form via fetch as a URL-encoded body — the shared submission core for every
+// fetch-submitted form (the login/register cards below, the settings password steps). fetch (not
+// htmx) keeps expected, handled 4xx outcomes off the console — htmx unsuppressably console.errors
+// every 4xx. Redirects are followed, so callers can inspect resp.url to tell success from failure.
+window.Diurnal.postForm = function (form, accept) {
+    return fetch(form.action, {
+        method: 'POST',
+        body: new URLSearchParams(new FormData(form)),
+        headers: { 'Accept': accept || 'text/html' },
+        redirect: 'follow'
+    })
+}
+
 // An editable row carries both a view state (elements marked [data-dt-view]) and a hidden
 // edit state ([data-dt-edit]). Entering/leaving edit mode is a pure client-side toggle —
 // Save submits the row's form, Cancel just restores the view. Shared by every editable table.
@@ -230,13 +263,13 @@ document.addEventListener('click', function (e) {
         let html = ''
         if (missing.length > 0) {
             const noun = missing.length === 1 ? 'field' : 'fields'
-            html += `<div class="banner banner-error">Please fill in the following ${  noun  }:` +
-                    `<ul class="list-disc list-inside mt-1">${ 
-                    missing.map(function (m) { return `<li>${  escapeHtml(m)  }</li>` }).join('') 
-                    }</ul></div>`
+            html += window.Diurnal.bannerHtml(`Please fill in the following ${  noun  }:` +
+                    `<ul class="list-disc list-inside mt-1">${
+                    missing.map(function (m) { return `<li>${  escapeHtml(m)  }</li>` }).join('')
+                    }</ul>`)
         }
         errors.forEach(function (msg) {
-            html += `<div class="banner banner-error">${  escapeHtml(msg)  }</div>`
+            html += window.Diurnal.bannerHtml(escapeHtml(msg))
         })
         // Only touch the DOM when the banner actually changes — re-rendering identical markup
         // destroys and recreates the nodes, which makes a repeated identical failure "jump".
@@ -260,21 +293,16 @@ document.addEventListener('click', function (e) {
 // A button carrying `data-hold-disabled` is owned by another controller (the shared lockout countdown,
 // which greys it out for a fixed duration) — this handler leaves it alone so the two don't fight.
 (function () {
-    function requiredFilled(form) {
-        return Array.prototype.every.call(form.querySelectorAll('[required]'), function (field) {
-            return field.value.trim() !== ''
-        })
-    }
     function sync(form) {
         const btn = form.querySelector('button[type="submit"]')
-        if (btn && !btn.hasAttribute('data-hold-disabled')) { btn.disabled = !requiredFilled(form) }
+        if (btn && !btn.hasAttribute('data-hold-disabled')) { btn.disabled = !window.Diurnal.requiredFilled(form) }
     }
     document.querySelectorAll('form[data-disable-until-complete]').forEach(function (form) {
         sync(form)   // reflect the server-rendered state (blank fields → disabled) on first paint
         form.addEventListener('input', function () { sync(form) })
         form.addEventListener('change', function () { sync(form) })
     })
-})()
+})();
 
 // ── Shared lockout countdown ──────────────────────────────────────────────────
 // When the server rejects a login OR a registration because the client IP is locked out, it carries the
@@ -285,7 +313,6 @@ document.addEventListener('click', function (e) {
 // Enforcement stays server-side — this is cosmetic, so an early retry just re-shows the banner. A per-form
 // timer (keyed via WeakMap) means a re-trigger replaces cleanly and the submit handlers can tell a
 // countdown is running (the form stays inert until it expires).
-window.Diurnal = window.Diurnal || {};
 (function () {
     const timers = new WeakMap()
 
@@ -295,12 +322,6 @@ window.Diurnal = window.Diurnal || {};
         const mins = Math.floor(s / 60)
         const secs = s % 60
         return `${(mins < 10 ? '0' : '') + mins  }:${  secs < 10 ? '0' : ''  }${secs}`
-    }
-
-    function requiredFilled(form) {
-        return Array.prototype.every.call(form.querySelectorAll('[required]'), function (f) {
-            return f.value.trim() !== ''
-        })
     }
 
     // Whether a lockout countdown is currently running for this form (the submit handlers stay inert).
@@ -315,7 +336,7 @@ window.Diurnal = window.Diurnal || {};
         if (slot) { slot.hidden = true; slot.innerHTML = '' }
         if (submitBtn) {
             submitBtn.removeAttribute('data-hold-disabled')
-            submitBtn.disabled = !requiredFilled(form)
+            submitBtn.disabled = !window.Diurnal.requiredFilled(form)
         }
     }
 
@@ -330,8 +351,8 @@ window.Diurnal = window.Diurnal || {};
         if (!(total > 0) || !slot) { window.Diurnal.clearLockout(form, slot, submitBtn); return }
         if (timers.has(form)) { clearInterval(timers.get(form)); timers.delete(form) }
         if (submitBtn) { submitBtn.setAttribute('data-hold-disabled', ''); submitBtn.disabled = true }
-        slot.innerHTML = '<div class="banner banner-error">Too many failed attempts. '
-            + 'Please try again in <span data-lockout-clock></span>.</div>'
+        slot.innerHTML = window.Diurnal.bannerHtml(
+            'Too many failed attempts. Please try again in <span data-lockout-clock></span>.')
         slot.hidden = false
         const clock = slot.querySelector('[data-lockout-clock]')
         const endTime = Date.now() + total * 1000
@@ -345,23 +366,41 @@ window.Diurnal = window.Diurnal || {};
     }
 })();
 
-// A form marked `data-ajax-submit` is posted with fetch() instead of a full-page navigation, so a
-// rejected submission (e.g. a bad email/password on /login) can surface an inline error and let the
-// user amend and retry WITHOUT the page reloading and wiping the fields they just typed. This runs
-// after the `data-validate` handler above (registered later, both at document level, so it sees the
-// validator's preventDefault), and only takes over once client-side validation has passed. Server-side
-// form auth is unchanged and remains the no-JS fallback: without JS the form submits natively and the
-// server still redirects to /login?error=true. OIDC login is a plain link, not this form, so it is
-// untouched. (Brace note: Qute parses '{' in templates, so every '{' here is followed by whitespace.)
+// ── Fetch-submitted forms (data-ajax-submit / data-ajax-errors) ───────────────
+// Both modes post via fetch() instead of a full-page navigation, so a rejected submission can
+// surface an inline error and let the user amend and retry WITHOUT the page reloading and wiping
+// the fields they just typed. Both run after the `data-validate` handler above (registered later,
+// both at document level, so they see the validator's preventDefault) and only take over once
+// client-side validation has passed; without JS each form submits natively and the server
+// round-trips the same page + banner, degrading cleanly. They share the entry guard, the
+// Diurnal.postForm() submission core and the lockout-header branch below, and differ only in how a
+// resolved response is interpreted (see each handler's comment).
 (function () {
-    document.addEventListener('submit', function (e) {
+    // Common entry guard: respect the validator's preventDefault, match the mode's selector, and
+    // swallow every submit while a lockout countdown is running (button click or Enter — the form
+    // is inert until it expires and the button is restored).
+    function guardedForm(e, selector) {
         const form = e.target
-        if (e.defaultPrevented) { return }   // client-side validation already blocked this submit
-        if (!form || !form.matches || !form.matches('form[data-ajax-submit]')) { return }
-        // While a lockout countdown is running the form is inert — swallow any submit (button click or
-        // Enter) until it expires and the button is restored.
-        if (window.Diurnal.lockoutRunning(form)) { e.preventDefault(); return }
+        if (e.defaultPrevented) { return null }   // client-side validation already blocked this submit
+        if (!form || !form.matches || !form.matches(selector)) { return null }
+        if (window.Diurnal.lockoutRunning(form)) { e.preventDefault(); return null }
         e.preventDefault()
+        return form
+    }
+
+    // The exact seconds left on a lockout, carried on the response by the server (NaN when absent).
+    function retryAfterOf(resp) {
+        return parseInt(resp.headers.get('X-Lockout-Retry-After'), 10)
+    }
+
+    // `data-ajax-submit` (the login card): form auth 302s to the landing page on success and back
+    // to /login?error=true on failure; fetch follows the redirect, so the final resolved path tells
+    // the two apart. Server-side form auth is unchanged and remains the no-JS fallback (the server
+    // still redirects to /login?error=true). OIDC login is a plain link, not this form, so it is
+    // untouched.
+    document.addEventListener('submit', function (e) {
+        const form = guardedForm(e, 'form[data-ajax-submit]')
+        if (!form) { return }
 
         const slot = form.querySelector('[data-form-errors]')
         const submitBtn = form.querySelector('button[type="submit"]')
@@ -373,25 +412,18 @@ window.Diurnal = window.Diurnal || {};
         function showError(message) {
             window.Diurnal.clearLockout(form, slot, submitBtn)   // drop any countdown + release the button
             if (slot) {
-                slot.innerHTML = `<div class="banner banner-error">${  message  }</div>`
+                slot.innerHTML = window.Diurnal.bannerHtml(message)
                 slot.hidden = false
             }
             const pw = form.querySelector('input[type="password"]')
             if (pw) { pw.focus() }   // land on the password so a minor change is a keystroke away
         }
 
-        fetch(form.action, {
-            method: 'POST',
-            body: new URLSearchParams(new FormData(form)),
-            headers: { 'Accept': 'text/html' },
-            redirect: 'follow'
-        }).then(function (resp) {
-            // Form auth 302s to the landing page on success and back to /login?error=true on failure;
-            // fetch follows the redirect, so the final resolved path tells the two apart.
+        window.Diurnal.postForm(form).then(function (resp) {
             const dest = new URL(resp.url, window.location.origin)
             if (dest.pathname === '/login') {
                 // A lockout carries the seconds left in X-Lockout-Retry-After; otherwise it's a bad login.
-                const retryAfter = parseInt(resp.headers.get('X-Lockout-Retry-After'), 10)
+                const retryAfter = retryAfterOf(resp)
                 if (retryAfter > 0) {
                     window.Diurnal.startLockoutCountdown(form, slot, submitBtn, retryAfter)
                 } else {
@@ -404,25 +436,17 @@ window.Diurnal = window.Diurnal || {};
             showError('Something went wrong. Please try again.')
         })
     })
-})();
 
-// A form marked `data-ajax-errors` (the register card) posts via fetch so a rejected submission
-// re-renders ONLY its error banner, in place, instead of reloading the whole page. Both failure
-// sources — a blank field caught client-side and a duplicate email caught server-side — land in the
-// same `[data-form-errors]` slot, and the banner is swapped ONLY when its contents change and is
-// NEVER cleared on a failure, so repeated failed attempts no longer make the card "jump" between
-// them; it clears only when a successful attempt navigates away. On success the server 303s onward
-// (with the session cookie set on the redirect) and we follow it. This runs after the data-validate
-// handler above, so client validation still short-circuits blank fields without a round-trip; without
-// JS the form submits natively and the server round-trips the same page + banner, degrading cleanly.
-(function () {
+    // `data-ajax-errors` (the register card): a rejected submission re-renders ONLY its error
+    // banner, in place. Both failure sources — a blank field caught client-side and a duplicate
+    // email caught server-side — land in the same `[data-form-errors]` slot, and the banner is
+    // swapped ONLY when its contents change and is NEVER cleared on a failure, so repeated failed
+    // attempts don't make the card "jump" between them; it clears only when a successful attempt
+    // navigates away. On success the server 303s onward (with the session cookie set on the
+    // redirect) and we follow it.
     document.addEventListener('submit', function (e) {
-        const form = e.target
-        if (e.defaultPrevented) { return }   // client-side validation already blocked this submit
-        if (!form || !form.matches || !form.matches('form[data-ajax-errors]')) { return }
-        // Inert while a lockout countdown is running (the button is greyed, but swallow Enter too).
-        if (window.Diurnal.lockoutRunning(form)) { e.preventDefault(); return }
-        e.preventDefault()
+        const form = guardedForm(e, 'form[data-ajax-errors]')
+        if (!form) { return }
 
         const slot = form.querySelector('[data-form-errors]')
         const submitBtn = form.querySelector('button[type="submit"]')
@@ -441,12 +465,7 @@ window.Diurnal = window.Diurnal || {};
         }
 
         const ownPath = new URL(form.action, window.location.origin).pathname
-        fetch(form.action, {
-            method: 'POST',
-            body: new URLSearchParams(new FormData(form)),
-            headers: { 'Accept': 'text/html' },
-            redirect: 'follow'
-        }).then(function (resp) {
+        window.Diurnal.postForm(form).then(function (resp) {
             // A failed submit re-renders the form at its own path (400/429); success 303s elsewhere.
             if (new URL(resp.url, window.location.origin).pathname !== ownPath) {
                 window.location.assign(resp.url)
@@ -454,7 +473,7 @@ window.Diurnal = window.Diurnal || {};
             }
             // A lockout (429) carries the exact seconds left in X-Lockout-Retry-After: run the shared live
             // mm:ss countdown instead of swapping the server's static (no-JS) banner.
-            const retryAfter = parseInt(resp.headers.get('X-Lockout-Retry-After'), 10)
+            const retryAfter = retryAfterOf(resp)
             if (retryAfter > 0) {
                 window.Diurnal.startLockoutCountdown(form, slot, submitBtn, retryAfter)
                 return undefined
@@ -464,7 +483,7 @@ window.Diurnal = window.Diurnal || {};
                 showErrors(fresh ? fresh.innerHTML : '')
             })
         }).catch(function () {
-            showErrors('<div class="banner banner-error">Something went wrong. Please try again.</div>')
+            showErrors(window.Diurnal.bannerHtml('Something went wrong. Please try again.'))
         })
     })
 })();
