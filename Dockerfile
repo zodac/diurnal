@@ -1,9 +1,12 @@
 # syntax = docker/dockerfile:1.2
 
-# ── Stage 1: compile the CSS + vendor the front-end libraries ─────────────────
-# Scans the templates + Java sources and emits a minified app.css, and copies the pinned third-party
-# browser libraries (htmx) out of node_modules into resources/js. Kept in its own stage so the Node
-# toolchain never reaches the build or runtime images; the build stage copies both outputs in below.
+# ── Stage 1: compile the CSS + vendor and minify the front-end scripts ────────
+# Scans the templates + Java sources and emits a minified app.css, copies the pinned third-party
+# browser libraries (htmx) out of node_modules into resources/js, and esbuild-minifies the app's own
+# hand-written scripts in place (the committed sources stay readable; dev mode serves them as-is —
+# only the image ships the minified form, which the smoke tier then exercises). Kept in its own
+# stage so the Node toolchain never reaches the build or runtime images; the build stage copies the
+# outputs in below.
 FROM node:26.5.0-alpine AS css
 WORKDIR /css
 COPY package.json package-lock.json ./
@@ -17,7 +20,7 @@ COPY src/main/java ./src/main/java
 # so Tailwind must scan them here too or those utilities are purged from the image's stylesheet and the
 # class silently does nothing (the committed *.js only — htmx.min.js is vendored by `npm run vendor` below).
 COPY src/main/resources/META-INF/resources/js ./src/main/resources/META-INF/resources/js
-RUN npm run css && npm run vendor
+RUN npm run css && npm run vendor && npm run js:min
 
 # ── Stage 2: generate the favicon raster assets ──────────────────────────────
 # Rasterises the committed favicon SVG (the single-letter "d" mark, itself generated from the brand
@@ -53,10 +56,11 @@ COPY src ./src
 # into quarkus-app and serves it at /css/app.css (overwriting any committed copy).
 COPY --from=css /css/src/main/resources/META-INF/resources/css/app.css \
                 ./src/main/resources/META-INF/resources/css/app.css
-# Likewise the vendored front-end libraries (htmx) copied out of node_modules by the css stage — a
-# .gitignored build artifact, so it must come from the stage rather than the (absent) committed file.
-COPY --from=css /css/src/main/resources/META-INF/resources/js/htmx.min.js \
-                ./src/main/resources/META-INF/resources/js/htmx.min.js
+# Likewise the whole /js directory from the css stage: the vendored htmx (a .gitignored build
+# artifact, absent from the committed tree) plus the esbuild-minified copies of the app's own
+# scripts, which overwrite the readable committed sources for the image only.
+COPY --from=css /css/src/main/resources/META-INF/resources/js/ \
+                ./src/main/resources/META-INF/resources/js/
 # Drop the freshly-rendered raster favicons into the static web root, overwriting the committed copies.
 # The SVGs themselves (favicon.svg + wordmark.svg) are committed and come in via `COPY src` above.
 # favicon.ico is at the web root (not /img/) so browsers that request /favicon.ico directly find it.

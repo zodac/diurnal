@@ -1,19 +1,19 @@
 {#include layout.html}
 
 {#body}
-<div class="min-h-viewport flex flex-col">
+<div class="page-shell">
 
-    <!-- Navigation -->
+    {! Navigation !}
     {#include partials/navbar active='settings' /}
 
-    <!-- Content -->
-    <main class="page-container px-4 py-8">
-        <h2 class="text-2xl font-semibold mb-1 text-ink">Settings</h2>
-        <p class="text-sm text-ink-muted mb-6">
+    {! Content !}
+    <main id="settings-main" class="page-container px-4 py-8">
+        <h2 class="page-title mb-1">Settings</h2>
+        <p class="page-subtitle">
             Manage your account preferences and appearance.
         </p>
 
-        <!-- Two-column settings layout (flex, not grid). On desktop the left column stacks Account
+        {! Two-column settings layout (flex, not grid). On desktop the left column stacks Account
              (top) then Preferences (below); the taller Appearance picker card fills the right column.
              Flex columns (rather than a grid) let each column pack its cards flush from the top
              independently — a grid would stretch the short left cards to the tall Appearance card's
@@ -31,32 +31,25 @@
              radiogroups below and on the two selects in partials/select-field): updating one setting
              no longer touches the others, so there is no wrapper form and no shared/scoped trigger.
              This wrapper is just the layout container (and the delegation point for the "Saved"
-             indicator in the script below). -->
+             indicator in the script below). !}
         <div id="prefs-form" class="flex flex-col lg:flex-row gap-6 lg:items-start">
 
-            <!-- Left column on desktop; on mobile `display:contents` so its cards join the outer
-                 flex flow (see the layout comment above). -->
+            {! Left column on desktop; on mobile `display:contents` so its cards join the outer
+                 flex flow (see the layout comment above). !}
             <div class="contents lg:flex lg:flex-col lg:gap-6 lg:flex-1 lg:min-w-0">
 
-                <!-- Account -->
-                <div class="card p-4">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="card-title">Account</h3>
-                        <!-- Shared status indicator for the Account card: shows the green "Saved"
-                             confirmation OR a red validation error (password change) in the SAME spot,
-                             so an error never shifts the layout. Colour + text are set by
-                             showAccountStatus() in the script below. -->
-                        <span id="account-status"
-                              class="text-xs text-success opacity-0 transition-opacity duration-300">
-                            Saved
-                        </span>
-                    </div>
+                {! Account !}
+                <div id="settings-account" class="card p-4">
+                    {! The header's status indicator shows the green "Saved" confirmation OR a red
+                         validation error (password change) in the SAME spot, so an error never shifts
+                         the layout. Colour + text are set by showAccountStatus() in settings.js. !}
+                    {#include partials/card-header title='Account' statusId='account-status' /}
 
                     <div class="space-y-4">
-                        <!-- Email (read-only). The value sits in a `.settings-field` row (same
+                        {! Email (read-only). The value sits in a `.settings-field` row (same
                              min-height + vertical centring as the Display Name / Password rows below)
                              so all three value rows are the same height and the vertical rhythm between
-                             every field is equal. -->
+                             every field is equal. !}
                         <div>
                             <label class="field-label-caps">Email</label>
                             <div class="settings-field flex items-center">
@@ -64,17 +57,17 @@
                             </div>
                         </div>
 
-                        <!-- Display Name. The view/edit states borrow the data-table conventions
+                        {! Display Name. The view/edit states borrow the data-table conventions
                              (`.dt-btn` actions, an Edit control revealed only on hover/focus, and a
                              fixed-height edit state ringed in the edit colour) without being a real
                              `<table>` row — mirroring the day-panel `.day-item`. `.settings-field`
                              gives both states the same height so entering edit mode never resizes the
                              row; `px-2 -mx-2` lets the hover background / edit ring bleed into the
-                             padding while the text stays aligned with the Email value above. -->
+                             padding while the text stays aligned with the Email value above. !}
                         <div>
                             <label class="field-label-caps">Display Name</label>
 
-                            <!-- Read mode -->
+                            {! Read mode !}
                             <div id="display-name-view"
                                  class="settings-field flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg hover:bg-surface-muted">
                                 <p id="display-name-text" class="text-sm text-ink truncate">{displayName}</p>
@@ -85,8 +78,8 @@
                                 </div>
                             </div>
 
-                            <!-- Edit mode (hidden by default). Its own form, posting to a different
-                                 endpoint — kept intact by wrapping the prefs area in a <div>. -->
+                            {! Edit mode (hidden by default). Its own form, posting to a different
+                                 endpoint — kept intact by wrapping the prefs area in a <div>. !}
                             <form id="account-form"
                                   class="hidden"
                                   hx-post="/settings/display-name"
@@ -110,7 +103,7 @@
                             </form>
                         </div>
 
-                        <!-- Password (local accounts only). Mirrors the Display Name field's
+                        {! Password (local accounts only). Mirrors the Display Name field's
                              view/edit chrome (hover-revealed Edit, fixed-height ringed edit state) so
                              switching modes never resizes the row. Changing the password is a two-step
                              flow that keeps every control in the SAME place:
@@ -125,12 +118,12 @@
                              confirm inputs below works normally, as those hold a real value).
                              SECURITY: the change now starts by asking for the CURRENT password, so a
                              hijacked session cannot silently reset it. Each of the three steps (current →
-                             new → re-enter) occupies the SAME slot, so the row never grows or reflows. -->
+                             new → re-enter) occupies the SAME slot, so the row never grows or reflows. !}
                         {#if canChangePassword}
                         <div>
                             <label class="field-label-caps">Password</label>
 
-                            <!-- Read mode: fixed masked placeholder + Edit (no reveal — nothing to show). -->
+                            {! Read mode: fixed masked placeholder + Edit (no reveal — nothing to show). !}
                             <div id="password-view"
                                  class="settings-field flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg hover:bg-surface-muted">
                                 <span class="text-sm text-ink tracking-widest select-none">••••••••••</span>
@@ -141,16 +134,16 @@
                                 </div>
                             </div>
 
-                            <!-- Step 1: enter the CURRENT password. Verified server-side the moment the user
+                            {! Step 1: enter the CURRENT password. Verified server-side the moment the user
                                  clicks Next (hx-post below) — a wrong value keeps them here with an inline
                                  error rather than letting them fill in the new password for nothing. The
                                  value rides along in a hidden field to the final POST, which re-verifies it
-                                 authoritatively (the verify call is only a UX aid). -->
-                            <!-- Submitted via fetch() in settings.js (NOT htmx): a wrong current password is an
+                                 authoritatively (the verify call is only a UX aid). !}
+                            {! Submitted via fetch() in settings.js (NOT htmx): a wrong current password is an
                                  expected, handled outcome, so it must not ride htmx's error path — htmx logs every
                                  4xx to the console (unsuppressably) even when the client reacts to it. fetch keeps
                                  the 422 off the console while still surfacing the inline error (mirrors the
-                                 login/register cards, which fetch for the same reason). -->
+                                 login/register cards, which fetch for the same reason). !}
                             <form id="password-current-form" class="hidden" method="post"
                                   action="/settings/password/verify">
                                 <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
@@ -172,9 +165,9 @@
                                 </div>
                             </form>
 
-                            <!-- Step 2: enter the new password. Purely client-side (validated non-empty)
+                            {! Step 2: enter the new password. Purely client-side (validated non-empty)
                                  before swapping to the confirm step — nothing is sent to the server until
-                                 the re-entry is confirmed. -->
+                                 the re-entry is confirmed. !}
                             <form id="password-new-form" class="hidden relative">
                                 <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
                                     <input type="password"
@@ -195,13 +188,13 @@
                                 {#include partials/password-constraints for="newPassword" /}
                             </form>
 
-                            <!-- Step 3: re-enter to confirm. Posts all three values; the server verifies the
+                            {! Step 3: re-enter to confirm. Posts all three values; the server verifies the
                                  current password and the match, persisting only when both hold, else 422 →
                                  red error (field is NOT cleared). The current and new passwords ride along
-                                 in hidden fields carried over from steps 1 and 2. -->
-                            <!-- Also fetch()-submitted in settings.js (see the current-password form above): the
+                                 in hidden fields carried over from steps 1 and 2. !}
+                            {! Also fetch()-submitted in settings.js (see the current-password form above): the
                                  final POST returns 422 on a wrong current password or a mismatch, which fetch
-                                 surfaces inline without htmx's console error. -->
+                                 surfaces inline without htmx's console error. !}
                             <form id="password-confirm-form" class="hidden" method="post"
                                   action="/settings/password">
                                 <input type="hidden" id="pendingCurrent" name="currentPassword">
@@ -226,23 +219,23 @@
                             </form>
                         </div>
                         {#else if isOidcUser}
-                        <!-- OIDC-only account: no password exists to view or change. -->
+                        {! OIDC-only account: no password exists to view or change. !}
                         <div>
                             <label class="field-label-caps">Password</label>
                             <p class="text-sm text-ink-muted">User authentication is managed by {oidcProviderName}.</p>
                         </div>
                         {/if}
 
-                        <!-- Log out from everywhere: revokes ALL of this user's sessions (this device
+                        {! Log out from everywhere: revokes ALL of this user's sessions (this device
                              included) server-side and returns to /login, forcing a fresh sign-in on every
                              device. Uses the app's in-place confirm idiom (not a native dialog): the trigger
                              arms a red-ringed confirm state with the destructive action on the LEFT and Cancel
                              on the RIGHT, matching the data-table delete-confirm. The confirm is a plain POST
-                             form (no data-ajax-submit), so its 303 navigates the browser to /login. -->
+                             form (no data-ajax-submit), so its 303 navigates the browser to /login. !}
                         <div>
                             <label class="field-label-caps">Sessions</label>
 
-                            <!-- View: description + the arming trigger. -->
+                            {! View: description + the arming trigger. !}
                             <div id="logout-all-view"
                                  class="settings-field flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg">
                                 <p class="text-sm text-ink-muted">Sign out of Diurnal on this and every other device.</p>
@@ -252,7 +245,7 @@
                                 </div>
                             </div>
 
-                            <!-- Confirm (hidden until armed): destructive action left, Cancel right. -->
+                            {! Confirm (hidden until armed): destructive action left, Cancel right. !}
                             <form id="logout-all-confirm"
                                   method="post" action="/settings/sessions/revoke-all"
                                   class="hidden settings-field settings-field-confirm flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg">
@@ -267,18 +260,12 @@
                     </div>
                 </div>
 
-                <!-- Preferences. order-last drops it below Appearance on mobile (where the
-                     left-column wrapper is display:contents); lg:order-none restores desktop order. -->
-                <div class="card p-4 order-last lg:order-none">
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="card-title">Preferences</h3>
-                        <span data-saved
-                              class="text-xs text-success opacity-0 transition-opacity duration-300">
-                            Saved
-                        </span>
-                    </div>
+                {! Preferences. order-last drops it below Appearance on mobile (where the
+                     left-column wrapper is display:contents); lg:order-none restores desktop order. !}
+                <div id="settings-preferences" class="card p-4 order-last lg:order-none">
+                    {#include partials/card-header title='Preferences' /}
 
-                    <!-- Timezone -->
+                    {! Timezone !}
                     {#include partials/select-field id="timezone" label="Timezone" endpoint="/settings/timezone" border=true}
                         {#options}
                         {#for choice in timezoneChoices}
@@ -287,10 +274,10 @@
                         {/options}
                     {/include}
 
-                    <!-- Show stats summary. A toggle switch: the hidden "false" input always posts, and
+                    {! Show stats summary. A toggle switch: the hidden "false" input always posts, and
                          the checkbox posts an additional "true" only when ticked, so the endpoint reads
                          the setting as on iff the posted values contain "true". hx-include scopes the
-                         PATCH to this row so BOTH inputs are sent. -->
+                         PATCH to this row so BOTH inputs are sent. !}
                     <div id="stats-summary-row" class="flex items-center justify-between py-4 border-b border-line">
                         <div class="shrink-0 pr-4">
                             <label for="showStatsSummary" class="block text-sm font-medium text-ink">Statistics Summary</label>
@@ -313,143 +300,72 @@
                         </div>
                     </div>
 
-                    <!-- Decimal places. Same preset-pills + −/+ stepper pattern as Items per page below:
-                         the pills are the primary one-click pick, the stepper fine-tunes by one, and
-                         every control writes the same `decimalPlaces` number field which auto-saves on a
-                         custom `save` event (fired by the script below). Both surfaces are wired by the
-                         shared wireNumericPref() helper. -->
-                    <div id="decimal-places-row" class="py-4 border-b border-line">
-                        <div class="flex items-center justify-between gap-4">
-                            <label for="decimalPlaces" class="block text-sm font-medium text-ink shrink-0">Decimal places</label>
-                            <!-- Preset quick-picks (primary selection), right-aligned next to the label. -->
-                            <div id="decimalPlacesPresets" class="flex flex-wrap justify-end gap-1.5">
-                                {#for option in decimalPlacesOptions}
-                                <button type="button" class="num-pref-pill" data-value="{option}" aria-pressed="false">{option}</button>
-                                {/for}
-                            </div>
-                        </div>
-                        <!-- Custom fine-tune stepper, right-aligned on its own row under the presets. -->
-                        <div class="mt-3 flex justify-end">
-                            <div class="num-pref-stepper shrink-0">
-                                <button type="button" id="decimalPlacesMinus" class="num-pref-stepper-btn" aria-label="Fewer decimal places">
-                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
-                                    </svg>
-                                </button>
-                                <input type="number" id="decimalPlaces" name="decimalPlaces" min="0" max="5" value="{decimalPlaces}"
-                                       inputmode="numeric" aria-label="Decimal places" class="num-pref-value"
-                                       hx-patch="/settings/decimal-places" hx-trigger="save" hx-swap="none">
-                                <button type="button" id="decimalPlacesPlus" class="num-pref-stepper-btn" aria-label="More decimal places">
-                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    {! Decimal places + Items per page: the shared numeric-preference row (preset
+                         pills + −/+ stepper writing one auto-saving number field — see
+                         partials/num-pref-row.html). Both surfaces are wired by the shared
+                         wireNumericPref() helper in settings.js. !}
+                    {#include partials/num-pref-row rowId='decimal-places-row' id='decimalPlaces' label='Decimal places'
+                        endpoint='/settings/decimal-places' min=0 max=5 value=decimalPlaces options=decimalPlacesOptions
+                        minusLabel='Fewer decimal places' plusLabel='More decimal places' border=true /}
 
-                    <!-- Items per page. Presets are the primary one-click selection; the −/+ stepper
-                         fine-tunes by one. Every control writes the same `pageSize` number field and
-                         saves instantly on a custom `save` event (fired by the script below), so there
-                         is no blur-to-commit and no Save button — it auto-saves like the other controls.
-                         The `save` event (not `change`) carries the PATCH so the field's own change
-                         handler can normalise + re-fire without recursing. -->
-                    <div id="page-size-row" class="py-4">
-                        <div class="flex items-center justify-between gap-4">
-                            <label for="pageSize" class="block text-sm font-medium text-ink shrink-0">Items per page</label>
-                            <!-- Preset quick-picks (primary selection), right-aligned next to the label;
-                                 wrap on narrow screens for mobile compactness. -->
-                            <div id="pageSizePresets" class="flex flex-wrap justify-end gap-1.5">
-                                {#for option in pageSizeOptions}
-                                <button type="button" class="num-pref-pill" data-value="{option}" aria-pressed="false">{option}</button>
-                                {/for}
-                            </div>
-                        </div>
-                        <!-- Custom fine-tune stepper, right-aligned on its own row under the presets. -->
-                        <div class="mt-3 flex justify-end">
-                            <div class="num-pref-stepper shrink-0">
-                                <button type="button" id="pageSizeMinus" class="num-pref-stepper-btn" aria-label="Fewer items per page">
-                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5 12h14" />
-                                    </svg>
-                                </button>
-                                <input type="number" id="pageSize" name="pageSize" min="1" max="100" value="{pageSize}"
-                                       inputmode="numeric" aria-label="Items per page" class="num-pref-value"
-                                       hx-patch="/settings/page-size" hx-trigger="save" hx-swap="none">
-                                <button type="button" id="pageSizePlus" class="num-pref-stepper-btn" aria-label="More items per page">
-                                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
-                                    </svg>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                    {#include partials/num-pref-row rowId='page-size-row' id='pageSize' label='Items per page'
+                        endpoint='/settings/page-size' min=1 max=100 value=pageSize options=pageSizeOptions
+                        minusLabel='Fewer items per page' plusLabel='More items per page' border=false /}
                 </div>
 
-                <!-- Action stats. A drag-orderable list choosing WHICH per-action stats show on the
+                {! Action stats. A drag-orderable list choosing WHICH per-action stats show on the
                      Stats page and in what order — a display preference only; every stat is still
                      computed in the backend. The list holds EVERY stat in the user's arranged order;
                      enabled ones render on /stats in that order. Reordering is Pointer Events (mouse +
                      touch, no library). Each row posts a hidden `statsOrder` (full arrangement) and a
                      `statsEnabled` checkbox (ticked = shown); disabling therefore never moves a row.
                      "Last performed" is mandatory (disabled+checked) — the server forces it enabled.
-                     order-last drops it below Appearance on mobile; lg:order-none restores desktop. -->
-                <div class="card p-4 order-last lg:order-none">
-                    <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 class="card-title">Statistics</h3>
-                            <p class="help-text mt-0.5">Choose and order the stats shown for actions.</p>
-                        </div>
-                        <span data-saved
-                              class="text-xs text-success opacity-0 transition-opacity duration-300">
-                            Saved
-                        </span>
-                    </div>
+                     order-last drops it below Appearance on mobile; lg:order-none restores desktop. !}
+                <div id="settings-statistics" class="card p-4 order-last lg:order-none">
+                    {#include partials/card-header title='Statistics' help='Choose and order the stats shown for actions.' /}
 
-                    <!-- The container owns the PATCH: it fires on any checkbox `change` and on the
+                    {! The container owns the PATCH: it fires on any checkbox `change` and on the
                          custom `reorder` event dispatched after a drag, including its descendant inputs
                          in DOM order — every row's hidden `statsOrder` (so the full arrangement,
                          including hidden stats, is captured) plus the ticked `statsEnabled` checkboxes.
-                         Disabling a stat therefore never moves it: only its checkbox state changes. -->
+                         Disabling a stat therefore never moves it: only its checkbox state changes. !}
                     <ul id="stats-fields-list" class="space-y-1"
                         hx-patch="/settings/stats-fields" hx-trigger="change, reorder"
                         hx-include="#stats-fields-list" hx-swap="none">
                         {#for choice in statsFieldChoices}
                         <li class="stats-field-row relative flex items-center gap-3 rounded-lg border border-line px-3 py-2 bg-surface select-none{#if !choice.mandatory} cursor-pointer{/if}"
                             data-key="{choice.key}">
-                            <!-- Drag handle: the only drag-initiating region (touch-none keeps a touch
+                            {! Drag handle: the only drag-initiating region (touch-none keeps a touch
                                  drag from scrolling the page). Pointer Events drive the reorder, so this
-                                 works with mouse AND touch. -->
+                                 works with mouse AND touch. !}
                             <span class="stats-field-handle shrink-0 cursor-grab text-ink-muted touch-none" aria-hidden="true">
-                                <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M4 8h16M4 16h16" />
-                                </svg>
+                                {#include partials/icon name='drag-handle' cls='w-4 h-4' /}
                             </span>
-                            <!-- Always posts, and moves with the row → captures the full arrangement. -->
+                            {! Always posts, and moves with the row → captures the full arrangement. !}
                             <input type="hidden" name="statsOrder" value="{choice.key}">
-                            <!-- Visual only (pointer-events-none) so it never toggles on its own: a SHORT
+                            {! Visual only (pointer-events-none) so it never toggles on its own: a SHORT
                                  press anywhere on the row except the handle flips it via the script below,
                                  which dispatches a change event so the htmx PATCH still fires. Keyboard
-                                 (space) toggles it natively. -->
+                                 (space) toggles it natively. !}
                             <input type="checkbox" id="stats-field-{choice.key}" name="statsEnabled" value="{choice.key}"
                                    class="shrink-0 accent-brand pointer-events-none"
                                    aria-labelledby="stats-field-label-{choice.key}"
                                    aria-describedby="stats-field-desc-{choice.key}"
                                    {#if choice.selected}checked{/if}{#if choice.mandatory} disabled{/if}>
-                            <!-- Text: hover (desktop) or long-press (touch) reveals the description
+                            {! Text: hover (desktop) or long-press (touch) reveals the description
                                  tooltip. `group` scopes the hover; `.tip-open` (added by the script on a
                                  long press) is the touch equivalent. The tooltip sits OUTSIDE the
                                  truncating span so the ellipsis overflow never clips it, and is capped to
-                                 the label width on mobile so it can't push the page sideways. -->
-                            <!-- w-fit (not flex-1) so the hover/long-press target is only the text glyphs,
+                                 the label width on mobile so it can't push the page sideways. !}
+                            {! w-fit (not flex-1) so the hover/long-press target is only the text glyphs,
                                  not the empty row space to its right (which still toggles, via the row).
                                  NOT `relative`: the tooltip is positioned against the ROW (li.relative) so
                                  that on mobile it can be viewport-centred at 95vw (the row is centred in
-                                 the viewport) rather than pinned to this narrow text box. -->
+                                 the viewport) rather than pinned to this narrow text box. !}
                             <span class="stats-field-label group w-fit max-w-full min-w-0 text-sm">
                                 <span id="stats-field-label-{choice.key}" class="block truncate text-ink">{choice.label}</span>
-                                <!-- .app-tooltip = the shared themed bubble; positioning/width per call site:
-                                     mobile → centred on the viewport at 95vw; sm+ → anchored, content width. -->
+                                {! .app-tooltip = the shared themed bubble; positioning/width per call site:
+                                     mobile → centred on the viewport at 95vw; sm+ → anchored, content width. !}
                                 <span id="stats-field-desc-{choice.key}" role="tooltip"
                                       class="app-tooltip bottom-full mb-1.5 left-1/2 -translate-x-1/2 w-[95vw] max-w-[95vw] sm:left-0 sm:translate-x-0 sm:w-max sm:max-w-sm">{choice.description}</span>
                             </span>
@@ -462,26 +378,18 @@
                 </div>
             </div>
 
-            <!-- Right column: Appearance (fills the freed horizontal space). -->
-            <div class="card p-4 lg:flex-1 lg:min-w-0">
-                    <div class="flex items-center justify-between mb-4">
-                        <div>
-                            <h3 class="card-title">Appearance</h3>
-                        </div>
-                        <span data-saved
-                              class="text-xs text-success opacity-0 transition-opacity duration-300">
-                            Saved
-                        </span>
-                    </div>
+            {! Right column: Appearance (fills the freed horizontal space). !}
+            <div id="settings-appearance" class="card p-4 lg:flex-1 lg:min-w-0">
+                    {#include partials/card-header title='Appearance' /}
 
                     <div class="space-y-6">
-                        <!-- Theme. Pickers fill the card width now (no max-w-md) so the freed
-                             horizontal space in the right column is used. -->
+                        {! Theme. Pickers fill the card width now (no max-w-md) so the freed
+                             horizontal space in the right column is used. !}
                         <div class="pb-4 border-b border-line">
                             <span class="block text-sm font-medium text-ink mb-3">Theme</span>
-                            <!-- hx-include self: htmx doesn't auto-serialize a <div>'s descendant
+                            {! hx-include self: htmx doesn't auto-serialize a <div>'s descendant
                                  inputs (only a <form>/named field does), so include this group to
-                                 send the checked radio's value. -->
+                                 send the checked radio's value. !}
                             <div id="theme-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Theme"
                                  hx-patch="/settings/theme" hx-trigger="change" hx-swap="none" hx-include="#theme-options">
                                 {#include partials/preview-option group="theme" value="system" current=theme imgBase="page-nova-full-system" label="System" title="System theme" alt="Dashboard split diagonally between light and dark themes" /}
@@ -490,7 +398,7 @@
                             </div>
                         </div>
 
-                        <!-- Calendar style -->
+                        {! Calendar style !}
                         <div class="pb-4 border-b border-line">
                             <span class="block text-sm font-medium text-ink mb-3">Calendar style</span>
                             <div id="calendar-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Calendar style"
@@ -501,9 +409,9 @@
                             </div>
                         </div>
 
-                        <!-- Font. grid-cols-3 (not -2) keeps each tile the SAME size as the
+                        {! Font. grid-cols-3 (not -2) keeps each tile the SAME size as the
                              theme/calendar pickers even though there are only two — the third column
-                             is simply left empty. Last block in the card, so no bottom divider. -->
+                             is simply left empty. Last block in the card, so no bottom divider. !}
                         <div>
                             <span class="block text-sm font-medium text-ink mb-3">Font</span>
                             <div id="font-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Font"
@@ -517,8 +425,8 @@
             </div>
         </div>
 
-        <!-- Full-size preview overlay (opened by the (!) icon on a preview tile). Acts as a
-             per-setting gallery: prev/next step through the options of the same picker only. -->
+        {! Full-size preview overlay (opened by the (!) icon on a preview tile). Acts as a
+             per-setting gallery: prev/next step through the options of the same picker only. !}
         <div id="preview-modal"
              class="hidden fixed inset-0 z-50 items-center justify-center bg-black/70 p-4 opacity-0">
             <div id="preview-modal-panel"
@@ -532,47 +440,41 @@
                         </button>
                         <button type="button" id="preview-close" aria-label="Close preview"
                                 class="icon-btn-primary">
-                            <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
-                                <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" />
-                            </svg>
+                            {#include partials/icon name='close' /}
                         </button>
                     </div>
                 </div>
-                <!-- Cap the image to the height left under the header + the modal's p-4 (≈6rem of chrome)
+                {! Cap the image to the height left under the header + the modal's p-4 (≈6rem of chrome)
                      using dynamic-viewport units (100dvh — correct on mobile with browser UI), and
                      object-contain so a tall full-page shot scales DOWN to fit instead of overflowing
                      and pushing the buttons off-screen. mx-auto centres the (now narrower) portrait shots.
                      One <img> per gallery tile is created here by openPreview; display is toggled between
                      steps rather than mutating a single img's src, so no image is ever re-fetched. The
                      data-img-class attribute carries the shared class string so Tailwind purge includes
-                     all classes even though they are applied by JS rather than declared in markup. -->
+                     all classes even though they are applied by JS rather than declared in markup. !}
                 <div class="relative">
                     <div id="preview-modal-imgs"
                          data-img-class="block mx-auto max-w-full max-h-[calc(100dvh-6rem)] w-auto h-auto object-contain rounded-lg shadow-2xl border border-white/10"></div>
-                    <!-- Arrows centred with inset-y-0 + my-auto (NOT -translate-y-1/2): a transform would
-                         put each on its own GPU layer and make the glyph sub-pixel-snap on first hover. -->
+                    {! Arrows centred with inset-y-0 + my-auto (NOT -translate-y-1/2): a transform would
+                         put each on its own GPU layer and make the glyph sub-pixel-snap on first hover. !}
                     <button type="button" id="preview-prev" aria-label="Previous preview"
                             class="icon-btn-primary absolute left-2 inset-y-0 my-auto">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
-                        </svg>
+                        {#include partials/icon name='chevron-left' /}
                     </button>
                     <button type="button" id="preview-next" aria-label="Next preview"
                             class="icon-btn-primary absolute right-2 inset-y-0 my-auto">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-                        </svg>
+                        {#include partials/icon name='chevron-right' /}
                     </button>
                 </div>
             </div>
         </div>
 
-        <!-- The settings-page engine (display-name/password editors, "log out everywhere", the
+        {! The settings-page engine (display-name/password editors, "log out everywhere", the
              preference auto-save handlers, the preview modal, the numeric-preference controls, and
              the stats-fields drag/toggle/tooltip picker). Extracted from the inline block that used
              to sit here into /js/settings.js so it rides the content-hashed `immutable` cache
              instead of being re-parsed on every page load. Served as settings.<hash>.js in prod
-             (baked into AppInfo.jsSettingsFile), settings.js in dev; runs after the shared /js/app.js. -->
+             (baked into AppInfo.jsSettingsFile), settings.js in dev; runs after the shared /js/app.js. !}
         <script src="/js/{inject:appInfo.jsSettingsFile}"></script>
     </main>
 

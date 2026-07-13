@@ -1,0 +1,21 @@
+{!
+  Debounced search filter for a paginated list: HTMX-swaps the filtered first page into the
+  target as the user types. `data-search-source` points at the input itself so pagination links
+  carrying the same marker keep the live search term in their requests (the delegated
+  htmx:configRequest listener in app.js).
+  Params (all required):
+    id     — the input's id (also its data-search-source value)
+    url    — the hx-get list URL, already reset to page 1 (e.g. "/actions/list?page=1")
+    target — CSS selector receiving the swapped list (e.g. "#action-list")
+!}
+<div class="mb-4">
+    <input type="text"
+           id="{id}"
+           name="q"
+           placeholder="Search actions…"
+           hx-get="{url}"
+           hx-target="{target}"
+           hx-trigger="input changed delay:300ms"
+           data-search-source="{id}"
+           class="form-input w-full">
+</div>

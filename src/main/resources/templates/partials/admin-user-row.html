@@ -19,19 +19,13 @@
         </span>
     </td>
     <td class="dt-cell dt-cell-muted">
-        <span class="group relative inline-flex" aria-label="{u.zoneTooltip}">
-            {u.createdLabel}
-            {#include partials/tooltip text=u.zoneTooltip /}
-        </span>
+        {#include partials/tooltip-text text=u.createdLabel tip=u.zoneTooltip /}
     </td>
     <td class="dt-cell dt-cell-muted">
         {#if u.lastLoginLabel == 'Never'}
         {u.lastLoginLabel}
         {#else}
-        <span class="group relative inline-flex" aria-label="{u.zoneTooltip}">
-            {u.lastLoginLabel}
-            {#include partials/tooltip text=u.zoneTooltip /}
-        </span>
+        {#include partials/tooltip-text text=u.lastLoginLabel tip=u.zoneTooltip /}
         {/if}
     </td>
     {#include partials/dt-row-actions id=u.id rowPrefix="user-row" formPrefix="user-form" confirmBase="/admin/users" /}

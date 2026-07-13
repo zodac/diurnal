@@ -1,0 +1,45 @@
+{!
+  Numeric preference row (Settings → Preferences): a label, preset quick-pick pills (the primary
+  one-click selection) and a −/+ fine-tune stepper, all writing the same number field, which
+  auto-saves via its custom `save` event (fired by wireNumericPref in settings.js — the `save`
+  event, not `change`, carries the PATCH so the field's own change handler can normalise + re-fire
+  without recursing). The pill/stepper element ids derive from `id` ({id}Presets / {id}Minus /
+  {id}Plus), matching the wireNumericPref(...) wiring.
+  Params (all required):
+    rowId      — id of the row wrapper
+    id         — the number field's id AND form field name (the PATCH endpoint reads this @FormParam)
+    label      — the visible field label (also the field's aria-label)
+    endpoint   — the hx-patch URL
+    min / max  — the field's bounds (the server still validates authoritatively)
+    value      — the current value
+    options    — the preset values, rendered as pills in order
+    minusLabel — aria-label for the − stepper button
+    plusLabel  — aria-label for the + stepper button
+    border     — true to add a bottom divider (between rows), false on the last row
+!}
+<div id="{rowId}" class="py-4{#if border} border-b border-line{/if}">
+    <div class="flex items-center justify-between gap-4">
+        <label for="{id}" class="block text-sm font-medium text-ink shrink-0">{label}</label>
+        {! Preset quick-picks (primary selection), right-aligned next to the label;
+             wrap on narrow screens for mobile compactness. !}
+        <div id="{id}Presets" class="flex flex-wrap justify-end gap-1.5">
+            {#for option in options}
+            <button type="button" class="num-pref-pill" data-value="{option}" aria-pressed="false">{option}</button>
+            {/for}
+        </div>
+    </div>
+    {! Custom fine-tune stepper, right-aligned on its own row under the presets. !}
+    <div class="mt-3 flex justify-end">
+        <div class="num-pref-stepper shrink-0">
+            <button type="button" id="{id}Minus" class="num-pref-stepper-btn" aria-label="{minusLabel}">
+                {#include partials/icon name='minus' cls='w-3.5 h-3.5' /}
+            </button>
+            <input type="number" id="{id}" name="{id}" min="{min}" max="{max}" value="{value}"
+                   inputmode="numeric" aria-label="{label}" class="num-pref-value"
+                   hx-patch="{endpoint}" hx-trigger="save" hx-swap="none">
+            <button type="button" id="{id}Plus" class="num-pref-stepper-btn" aria-label="{plusLabel}">
+                {#include partials/icon name='plus' cls='w-3.5 h-3.5' /}
+            </button>
+        </div>
+    </div>
+</div>

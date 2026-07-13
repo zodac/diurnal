@@ -7,26 +7,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <!--
+    {!
         Declares that this app ships its own light/dark themes. Browsers use it to
         theme native form controls/scrollbars, and dark-mode extensions (e.g. Dark
         Reader) read it as the standard signal that the page is already dark-aware,
         so they back off instead of layering a second dark filter on top. The
         content is kept in sync with the active theme by the FOUC script below and
         by the theme picker in settings.html.
-    -->
+    !}
     <meta name="color-scheme" content="light dark">
-    <!--
+    {!
         Pins htmx's eval-shaped behaviour off: with every hx-on= attribute migrated to a real
         addEventListener, nothing in the app relies on htmx's
         Function-constructor code paths any more, so disable them outright — belt-and-braces
         against one creeping back in unreviewed. includeIndicatorStyles:false stops htmx injecting
         its own inline <style> for `.htmx-indicator` at startup (blocked by style-src 'self'); the
         same rules now live in app.css instead.
-    -->
+    !}
     <meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false}'>
     <title>Diurnal – {inject:appInfo.tagline}</title>
-    <!--
+    {!
         Favicons: the single-letter "d" mark. favicon.svg is generated from the brand font by
         scripts/generate-brand.py; the rasters are rendered from it by scripts/generate-favicons.cjs.
         Minimal set — five links, each a distinct surface, no redundant sizes:
@@ -40,20 +40,20 @@
             it already contains 16/32/48, so no separate small PNG links are needed.
           - apple-touch-icon.png — iOS home-screen / bookmark thumbnail.
           - manifest.json — PWA / add-to-home-screen icons (192+512; used only in a secure context).
-    -->
+    !}
     <link rel="icon" type="image/png" sizes="192x192" href="/img/icon-192.png">
     <link rel="icon" type="image/svg+xml" href="/img/favicon.svg">
     <link rel="icon" href="/favicon.ico" sizes="32x32">
     <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
     <link rel="manifest" href="/manifest.json">
-    <!--
+    {!
         Single source of truth for applying a theme ('dark' | 'light' | 'system'), defined inline
         in <head> so it's available for the pre-render FOUC pass (no external request) AND reusable
         by the settings theme picker. Resolves 'system' against prefers-color-scheme, toggles the
         `.dark` class, syncs the color-scheme meta, and manages the FOUC background override.
         opts.transition cross-fades (settings only); opts.resetBody clears the inline body colours
         the FOUC override leaves behind. Then it runs once immediately to set the initial theme.
-    -->
+    !}
     <script>
         window.Diurnal = window.Diurnal || {};
         window.Diurnal.applyTheme = function (theme, opts) {
@@ -87,49 +87,52 @@
         };
         window.Diurnal.applyTheme(document.documentElement.dataset.theme, {});
     </script>
-    <!--
+    {!
         Compiled, purged Tailwind stylesheet — built by `npm run css` (and by the `css` stage
         of the Dockerfile for the image), replacing the runtime Play CDN. `darkMode: 'class'`
         is baked into the build, so the server-controlled `.dark` class on <html> still drives
         dark styling. Colour tokens are defined once in src/main/css/app.css.
-    -->
-    <!--
+    !}
+    {!
         Preload the primary body face (Nova Flat Book) — it's needed for essentially all text on
         first paint, so fetching it in parallel with the stylesheet minimises the font swap. The
         heading face (Nova Round) and the bold/italic variants load on demand via @font-face. Only
         emitted under the Nova theme, so a "Standard"-font user never downloads (or warns about) it.
-    -->
+    !}
     {#if font != 'standard'}
     <link rel="preload" href="/fonts/NovaFlat-Book.woff2" as="font" type="font/woff2" crossorigin>
     {/if}
     <link rel="stylesheet" href="/css/{inject:appInfo.cssFile}">
-    <!--
+    {!
         The shared data-table ("dt") component styling, the settings-field chrome, the theme-
         transition rules and the message-banner styles all used to live in an inline <style> here.
         They are stable, token-only CSS, so they now live in src/main/css/app.css and ride the
         compiled, content-hashed, `immutable` stylesheet linked above instead of being re-transferred
         on every no-cache navigation. See the "relocated out of the templates" section in app.css.
-    -->
-    <!-- Self-hosted htmx (no third-party CDN): served under a build-time content-hashed filename
+    !}
+    {! Self-hosted htmx (no third-party CDN): served under a build-time content-hashed filename
          (htmx.<hash>.min.js, baked into AppInfo.jsFile by the Dockerfile) and cached `immutable`, exactly
          like the compiled stylesheet. Keeping it same-origin removes the CDN as a supply-chain/availability
          risk and a render-blocking cross-origin request, and keeps the door open to a strict script-src CSP.
-         Bump the pinned version by replacing /js/htmx.min.js. -->
+         Bump the pinned version by replacing /js/htmx.min.js. !}
     <script src="/js/{inject:appInfo.jsFile}"></script>
     {#insert head /}
 </head>
-<body class="min-h-viewport bg-gray-50 text-gray-900 dark:bg-gray-900 dark:text-gray-50"
-      style="background-color:#f9fafb;color:#111827">
+{! The body's colours + full-viewport min-height live in app.css (@layer base, token-backed, so
+     dark mode is automatic) — no utility classes needed here. The inline style is the pre-stylesheet
+     FOUC guard: it paints the light page colours before /css/app.css arrives (the dark equivalent is
+     the #theme-bg override injected by the applyTheme script above). !}
+<body style="background-color:#f9fafb;color:#111827">
     {#insert body}Page content{/insert}
 
-    <!-- Shared front-end behaviour (data-table edit/confirm toggles, form validation + AJAX submit,
+    {! Shared front-end behaviour (data-table edit/confirm toggles, form validation + AJAX submit,
          locale number grouping, the tooltip long-press, the password-requirements popover). Extracted
          from the inline blocks that used to sit here into /js/app.js so it rides the same content-hashed
          `immutable` cache as the stylesheet and htmx, rather than being re-parsed on every no-cache
          navigation. Served as app.<hash>.js in prod (baked into AppInfo.jsAppFile), app.js in dev.
          Loaded here at the end of <body> as a classic script, so the document is fully parsed when it
          runs (Diurnal.formatNumbers(document.body) inside relies on that) and its document-level
-         handlers register in the original order. The FOUC-critical applyTheme() stays inline in <head>. -->
+         handlers register in the original order. The FOUC-critical applyTheme() stays inline in <head>. !}
     <script src="/js/{inject:appInfo.jsAppFile}"></script>
 </body>
 </html>

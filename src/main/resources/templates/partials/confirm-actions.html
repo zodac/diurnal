@@ -1,0 +1,27 @@
+{!
+  Shared confirm cluster for the in-place delete-confirm states: the muted prompt followed by the
+  `.dt-actions` button pair — destructive action on the LEFT, Cancel on the RIGHT (where the
+  original Delete/Erase sat, so a double-click safely dismisses). Used by the data-table confirm
+  row (partials/dt-confirm-delete-row.html) and the day panel's confirm item
+  (partials/day-action-item-confirm-delete.html).
+  Params:
+    prompt        — muted confirmation / warning text (required)
+    confirmLabel  — the destructive button's label, e.g. "Delete" / "Erase" (required)
+    confirmUrl / confirmTarget / confirmSwap — the destructive hx-post (required)
+    cancelUrl / cancelTarget / cancelSwap    — the Cancel hx-get restoring the normal state (required)
+    promptCls     — optional extra classes on the prompt
+    actionsCls    — optional extra classes on the .dt-actions wrapper
+!}
+{#let promptCls=promptCls.or('') actionsCls=actionsCls.or('')}
+<span class="dt-confirm-prompt{#if promptCls} {promptCls}{/if}">{prompt}</span>
+<div class="dt-actions{#if actionsCls} {actionsCls}{/if}">
+    <button hx-post="{confirmUrl}"
+            hx-target="{confirmTarget}"
+            hx-swap="{confirmSwap}"
+            class="dt-btn dt-btn-danger">{confirmLabel}</button>
+    <button hx-get="{cancelUrl}"
+            hx-target="{cancelTarget}"
+            hx-swap="{cancelSwap}"
+            class="dt-btn dt-btn-cancel">Cancel</button>
+</div>
+{/let}

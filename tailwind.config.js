@@ -75,7 +75,7 @@ module.exports = {
         danger: 'var(--color-danger)',
         success: 'var(--color-success)',
         // Raw-palette pins. A handful of templates and Java-assembled classes still use raw
-        // Tailwind palette steps (e.g. `text-gray-700`, `bg-red-100`, `text-green-600`). Tailwind
+        // Tailwind palette steps (gray/red/green text and background utilities). Tailwind
         // v4 recalibrated its default palette to OKLCH, so those steps render at subtly different
         // values than under v3. Overriding just the steps actually used with their exact v3 hex
         // keeps the rendered colours byte-identical to the pre-migration build. `extend` deep-merges

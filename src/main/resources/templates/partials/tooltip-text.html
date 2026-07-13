@@ -1,0 +1,10 @@
+{!
+  Inline text with a hover/long-press tooltip: wraps the text in the `group relative` tooltip host
+  and gives it an accessible name (the bubble itself is aria-hidden). Params:
+    text — the visible text (required)
+    tip  — the tooltip text / aria-label (required)
+!}
+<span class="group relative inline-flex" aria-label="{tip}">
+    {text}
+    {#include partials/tooltip text=tip /}
+</span>

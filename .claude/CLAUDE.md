@@ -2,6 +2,9 @@
 
 > **Code style:** Project-specific expectations live in [`CODE_STYLE.md`](CODE_STYLE.md). Read it before writing or editing code.
 
+> **UI patterns:** Template/CSS conventions (partial extraction, component classes, tokens, `id` rules) live in
+[`UI_PATTERNS.md`](UI_PATTERNS.md). Read it before writing or editing templates or CSS.
+
 > **No real URLs or internal IPs in comments or examples.** Use only `https://diurnal.example.com` or
 `http://127.0.0.1:8080` as placeholder values. Never use production hostnames, LAN addresses (`192.168.*`, `10.*`,
 `172.16–31.*`), or any other real hostname.
@@ -315,9 +318,10 @@ sheet), so it still wins over Tailwind's layered utilities — which is why the 
 
 Seven scripts are served from `META-INF/resources/js/` and referenced from the templates via
 `{inject:appInfo.*}`, all sharing one cache-busting pattern: served un-hashed in dev (`no-store`), and at image-build
-time the Dockerfile renames each to `name.<sha256-12>.ext`, bakes the hashed name into
-`microprofile-config.properties` (read by `AppConfig`/`AppInfo`), and serves it `public, max-age=31536000, immutable`
-(`application.properties`, the `/js/` filter).
+time the Dockerfile esbuild-minifies the six hand-written scripts (`npm run js:min` in the `css` stage — the committed
+sources stay readable; only the image ships the minified form), renames each to `name.<sha256-12>.ext`, bakes the
+hashed name into `microprofile-config.properties` (read by `AppConfig`/`AppInfo`), and serves it
+`public, max-age=31536000, immutable` (`application.properties`, the `/js/` filter).
 
 - `htmx.min.js` (`AppInfo.jsFile`) — **vendored** from npm by `scripts/vendor-assets.cjs` (`.gitignored` build artifact).
 - `app.js` (`AppInfo.jsAppFile`) — the shared per-page behaviour extracted from `layout.html` (dt edit/confirm toggles,

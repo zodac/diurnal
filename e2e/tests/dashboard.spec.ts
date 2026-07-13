@@ -69,7 +69,7 @@ test.describe("Dashboard", () => {
         // Tests that increment/decrement need a clean starting state.
         await page.goto("/")
         for (let i = 0; i < 10; i++) {
-            const decBtn = page.locator("#day-panel").getByLabel("Decrease").first()
+            const decBtn = page.locator("#day-logger-panel").getByLabel("Decrease").first()
             // Button is invisible (not clickable) when count is 0; if we can't see it, we're done.
             if (!(await decBtn.isVisible().catch(() => false))) {break}
             await Promise.all([
@@ -85,7 +85,7 @@ test.describe("Dashboard", () => {
         const todayCell = page.locator(`.d-min-cell[data-date="${todayStr()}"]`)
         await expect(todayCell).toHaveClass(/d-min-selected/)
         // Day panel should have loaded content (not the placeholder)
-        await expect(page.locator("#day-panel")).not.toContainText("Click a day to log actions")
+        await expect(page.locator("#day-logger-panel")).not.toContainText("Click a day to log actions")
     })
 
     test("click a past date loads that day in the day panel", async ({ authenticatedPage: page }) => {
@@ -93,56 +93,56 @@ test.describe("Dashboard", () => {
         const past = pastDateStr(3)
         const cell = page.locator(`.d-min-cell[data-date="${past}"]`)
         await cell.click()
-        await expect(page.locator("#day-panel")).toContainText("DashAction")
+        await expect(page.locator("#day-logger-panel")).toContainText("DashAction")
     })
 
     test("clicking a logged event loads the correct day panel", async ({ authenticatedPage: page }) => {
         // Log an action on today via the day panel first
         await page.goto("/")
-        await page.locator("#day-panel").getByLabel("Increase").first().click()
-        const countEl = page.locator('#day-panel [id^="log-"]').first().locator(".tabular-nums")
+        await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
+        const countEl = page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")
         await expect(countEl).toHaveValue("1")
 
         // Navigate to yesterday — its count should be 0
         const past = pastDateStr(1)
         await page.locator(`.d-min-cell[data-date="${past}"]`).click()
-        await expect(page.locator('#day-panel [id^="log-"]').first().locator(".tabular-nums")).toHaveValue("0")
+        await expect(page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")).toHaveValue("0")
 
         // Click the event on today's cell (clicking anywhere in the cell selects its day) to navigate back
         const event = page.locator(".d-full-event").first()
         await event.click()
-        await expect(page.locator('#day-panel [id^="log-"]').first().locator(".tabular-nums")).toHaveValue("1")
+        await expect(page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")).toHaveValue("1")
     })
 
     test("increment button increases count from 0 to 1", async ({ authenticatedPage: page }) => {
         await page.goto("/")
-        const countEl = page.locator('#day-panel [id^="log-"]').first().locator(".tabular-nums")
+        const countEl = page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")
         await expect(countEl).toHaveValue("0")
-        await page.locator("#day-panel").getByLabel("Increase").first().click()
+        await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
         await expect(countEl).toHaveValue("1")
     })
 
     test("increment twice reaches count 2", async ({ authenticatedPage: page }) => {
         await page.goto("/")
-        const incrementBtn = page.locator("#day-panel").getByLabel("Increase").first()
+        const incrementBtn = page.locator("#day-logger-panel").getByLabel("Increase").first()
         await incrementBtn.click()
         await incrementBtn.click()
-        const countEl = page.locator('#day-panel [id^="log-"]').first().locator(".tabular-nums")
+        const countEl = page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")
         await expect(countEl).toHaveValue("2")
     })
 
     test("decrement from 1 reaches 0 and hides minus button", async ({ authenticatedPage: page }) => {
         await page.goto("/")
-        await page.locator("#day-panel").getByLabel("Increase").first().click()
-        await page.locator("#day-panel").getByLabel("Decrease").first().click()
-        const countEl = page.locator('#day-panel [id^="log-"]').first().locator(".tabular-nums")
+        await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
+        await page.locator("#day-logger-panel").getByLabel("Decrease").first().click()
+        const countEl = page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")
         await expect(countEl).toHaveValue("0")
-        await expect(page.locator("#day-panel").getByLabel("Decrease").first()).toBeHidden()
+        await expect(page.locator("#day-logger-panel").getByLabel("Decrease").first()).toBeHidden()
     })
 
     test("decrement button is hidden when count is 0", async ({ authenticatedPage: page }) => {
         await page.goto("/")
-        await expect(page.locator("#day-panel").getByLabel("Decrease").first()).toBeHidden()
+        await expect(page.locator("#day-logger-panel").getByLabel("Decrease").first()).toBeHidden()
     })
 
     test("calendar events refresh after logging an action", async ({ authenticatedPage: page }) => {
@@ -151,7 +151,7 @@ test.describe("Dashboard", () => {
         // No events for today initially (before logging)
         const eventsBefore = await page.locator(`.d-min-cell[data-date="${today}"] .d-full-event`).count()
         // Log an action
-        await page.locator("#day-panel").getByLabel("Increase").first().click()
+        await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
         // The grid refetches its month after htmx:afterRequest — wait for the new event row
         await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-full-event`)).toHaveCount(Math.max(eventsBefore + 1, 1), { timeout: 5000 })
     })
@@ -176,7 +176,7 @@ test.describe("Dashboard", () => {
         if ((await firstEvent.count()) === 0) {
             await Promise.all([
                 page.waitForResponse(r => r.url().includes("/logs/events")),
-                page.locator("#day-panel").getByLabel("Increase").first().click(),
+                page.locator("#day-logger-panel").getByLabel("Increase").first().click(),
             ])
         }
         await expect(firstEvent).toHaveCount(1, { timeout: 5000 })
@@ -190,7 +190,7 @@ test.describe("Dashboard", () => {
         await page.locator(`.d-min-cell[data-date="${prevFirst}"]`).click()
         await Promise.all([
             page.waitForResponse(r => r.url().includes("/logs/events")), // the force-refresh of the previous month
-            page.locator("#day-panel").getByLabel("Increase").first().click(),
+            page.locator("#day-logger-panel").getByLabel("Increase").first().click(),
         ])
 
         // Back to the current month (served from cache) — the 1st must still show exactly one event, not two.
@@ -204,8 +204,8 @@ test.describe("Dashboard", () => {
         // (which renders trailing days of the next month too), avoiding the leading-day coincidence
         // where "the next month's first cell" can resolve to today near a month boundary.
         await page.locator(`.d-min-cell[data-date="${futureDateStr(2)}"]`).click()
-        await expect(page.locator("#day-panel")).toContainText(/future|cannot log/i)
-        await expect(page.locator("#day-panel").getByLabel("Increase")).toHaveCount(0)
+        await expect(page.locator("#day-logger-panel")).toContainText(/future|cannot log/i)
+        await expect(page.locator("#day-logger-panel").getByLabel("Increase")).toHaveCount(0)
     })
 
     test("jump picker: calendar icon opens month grid, click closes it, Escape closes it", async ({ authenticatedPage: page }) => {
@@ -315,14 +315,14 @@ test.describe("Dashboard – Minimal calendar", () => {
 
     test("today is pre-selected and day panel loads automatically", async ({ authenticatedPage: page }) => {
         await page.goto("/")
-        await expect(page.locator("#day-panel")).not.toContainText("Click a day to log actions")
+        await expect(page.locator("#day-logger-panel")).not.toContainText("Click a day to log actions")
     })
 
     test("clicking a past date loads that day in the day panel", async ({ authenticatedPage: page }) => {
         await page.goto("/")
         const past = pastDateStr(3)
         await page.locator(`.d-min-cell[data-date="${past}"]`).click()
-        await expect(page.locator("#day-panel")).not.toContainText("Click a day to log actions")
+        await expect(page.locator("#day-logger-panel")).not.toContainText("Click a day to log actions")
     })
 
     test("clicked date receives the selected class", async ({ authenticatedPage: page }) => {
@@ -336,7 +336,7 @@ test.describe("Dashboard – Minimal calendar", () => {
         await page.goto("/")
         // Ensure today's log is at 0 first
         for (let i = 0; i < 10; i++) {
-            const decBtn = page.locator("#day-panel").getByLabel("Decrease").first()
+            const decBtn = page.locator("#day-logger-panel").getByLabel("Decrease").first()
             if (!(await decBtn.isVisible().catch(() => false))) {break}
             await Promise.all([
                 page.waitForResponse(r => r.url().includes("/logs/") && r.request().method() === "POST"),
@@ -349,7 +349,7 @@ test.describe("Dashboard – Minimal calendar", () => {
 
         await Promise.all([
             page.waitForResponse(r => r.url().includes("/logs/") && r.request().method() === "POST"),
-            page.locator("#day-panel").getByLabel("Increase").first().click(),
+            page.locator("#day-logger-panel").getByLabel("Increase").first().click(),
         ])
 
         await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-min-dot`)).toHaveCount(1, { timeout: 5000 })
@@ -415,21 +415,21 @@ test.describe("Dashboard – Stacked calendar", () => {
 
     test("today is pre-selected and day panel loads automatically", async ({ authenticatedPage: page }) => {
         await page.goto("/")
-        await expect(page.locator("#day-panel")).not.toContainText("Click a day to log actions")
+        await expect(page.locator("#day-logger-panel")).not.toContainText("Click a day to log actions")
     })
 
     test("clicking a past date loads that day in the day panel", async ({ authenticatedPage: page }) => {
         await page.goto("/")
         const past = pastDateStr(3)
         await page.locator(`.d-min-cell[data-date="${past}"]`).click()
-        await expect(page.locator("#day-panel")).not.toContainText("Click a day to log actions")
+        await expect(page.locator("#day-logger-panel")).not.toContainText("Click a day to log actions")
     })
 
     test("bar appears under today after logging an action", async ({ authenticatedPage: page }) => {
         await page.goto("/")
         // Reset log count to 0
         for (let i = 0; i < 10; i++) {
-            const decBtn = page.locator("#day-panel").getByLabel("Decrease").first()
+            const decBtn = page.locator("#day-logger-panel").getByLabel("Decrease").first()
             if (!(await decBtn.isVisible().catch(() => false))) {break}
             await Promise.all([
                 page.waitForResponse(r => r.url().includes("/logs/") && r.request().method() === "POST"),
@@ -442,7 +442,7 @@ test.describe("Dashboard – Stacked calendar", () => {
 
         await Promise.all([
             page.waitForResponse(r => r.url().includes("/logs/") && r.request().method() === "POST"),
-            page.locator("#day-panel").getByLabel("Increase").first().click(),
+            page.locator("#day-logger-panel").getByLabel("Increase").first().click(),
         ])
 
         await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-stk-bar`)).toHaveCount(1, { timeout: 5000 })

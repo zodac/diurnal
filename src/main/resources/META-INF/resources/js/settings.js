@@ -8,32 +8,44 @@
  * addEventListener at the bottom of this file — none of the markup carries inline on*= handlers.
  */
 
-// Account card status line: green "Saved" or a red error, shown in the SAME header slot so
-// an error never nudges the layout. Colour + text are set here per call.
-function showAccountStatus(message, isError) {
-    const el = document.getElementById('account-status')
+// Flash a status indicator: set its text, colour it green (success) or red (error), fade it in,
+// and schedule the fade-out — errors linger longer (4s vs 2s) so they can actually be read. The
+// ONE implementation behind the Account card's #account-status line and every [data-saved] card
+// indicator, so their timing/colours can never drift apart.
+function flashStatus(el, message, isError) {
     el.textContent = message
     el.classList.toggle('text-success', !isError)
     el.classList.toggle('text-danger', isError)
     el.classList.add('opacity-100')
     clearTimeout(el._hideTimer)
-    // Errors linger longer than the "Saved" confirmation so they can actually be read (mirrors the
-    // preference-card indicator timing below).
     el._hideTimer = setTimeout(function () { el.classList.remove('opacity-100') }, isError ? 4000 : 2000)
 }
 
+// Account card status line: green "Saved" or a red error, shown in the SAME header slot so
+// an error never nudges the layout.
+function showAccountStatus(message, isError) {
+    flashStatus(document.getElementById('account-status'), message, isError)
+}
+
+// Swap the two states of an in-place view↔edit/confirm field (the display-name row, the
+// "log out everywhere" row): hide one, reveal the other. These rows borrow the `.dt-*` button
+// chrome but are NOT table rows, so the shared dtStartEdit/dtCancelEdit toggles (which also apply
+// the .dt-row-* highlight classes) deliberately don't apply — the ring lives in the markup's
+// .settings-field-edit/.settings-field-confirm classes instead.
+function swapField(hideId, showId) {
+    document.getElementById(hideId).classList.add('hidden')
+    document.getElementById(showId).classList.remove('hidden')
+}
+
 window.startEditDisplayName = function () {
-    document.getElementById('display-name-view').classList.add('hidden')
-    const form = document.getElementById('account-form')
-    form.classList.remove('hidden')
+    swapField('display-name-view', 'account-form')
     const input = document.getElementById('displayName')
     input.focus()
     input.select()
 }
 
 window.cancelEditDisplayName = function () {
-    document.getElementById('account-form').classList.add('hidden')
-    document.getElementById('display-name-view').classList.remove('hidden')
+    swapField('account-form', 'display-name-view')
     document.getElementById('displayName').value =
         document.getElementById('display-name-text').textContent
 }
@@ -42,13 +54,11 @@ window.cancelEditDisplayName = function () {
 // reveals a red-ringed confirm state; Cancel restores the resting view. The confirm itself is a
 // plain POST form, so submitting it navigates through the server's 303 redirect to /login.
 window.armLogoutAll = function () {
-    document.getElementById('logout-all-view').classList.add('hidden')
-    document.getElementById('logout-all-confirm').classList.remove('hidden')
+    swapField('logout-all-view', 'logout-all-confirm')
 }
 
 window.cancelLogoutAll = function () {
-    document.getElementById('logout-all-confirm').classList.add('hidden')
-    document.getElementById('logout-all-view').classList.remove('hidden')
+    swapField('logout-all-confirm', 'logout-all-view')
 }
 
 document.getElementById('display-name-edit-btn').addEventListener('click', window.startEditDisplayName)
@@ -220,12 +230,7 @@ function advanceToNewPassword() {
 // could change between steps, and a client could skip this call entirely).
 passwordEls.currentForm.addEventListener('submit', function (e) {
     e.preventDefault()
-    const form = passwordEls.currentForm
-    fetch(form.action, {
-        method: 'POST',
-        body: new URLSearchParams(new FormData(form)),
-        headers: { 'Accept': 'text/plain' }
-    }).then(function (resp) {
+    window.Diurnal.postForm(passwordEls.currentForm, 'text/plain').then(function (resp) {
         if (resp.status === 204) {
             advanceToNewPassword()
             return undefined
@@ -266,12 +271,7 @@ passwordEls.newForm.addEventListener('submit', window.submitNewPassword)
 // password" wording). A simple mismatch is corrected in place, so the confirm field is left untouched.
 passwordEls.confirm.addEventListener('submit', function (e) {
     e.preventDefault()
-    const form = passwordEls.confirm
-    fetch(form.action, {
-        method: 'POST',
-        body: new URLSearchParams(new FormData(form)),
-        headers: { 'Accept': 'text/plain' }
-    }).then(function (resp) {
+    window.Diurnal.postForm(passwordEls.confirm, 'text/plain').then(function (resp) {
         if (resp.ok) {
             window.cancelEditPassword()
             showAccountStatus('Saved', false)
@@ -300,21 +300,11 @@ document.getElementById('prefs-form').addEventListener('htmx:afterRequest', func
     const card = e.detail.elt.closest('.card')
     const indicator = card ? card.querySelector('[data-saved]') : null
     if (!indicator) {return}
-    clearTimeout(indicator._hideTimer)
     if (e.detail.successful) {
-        indicator.textContent = 'Saved'
-        indicator.classList.remove('text-danger')
-        indicator.classList.add('text-success')
+        flashStatus(indicator, 'Saved', false)
     } else {
-        indicator.textContent = e.detail.xhr.responseText || 'Could not save'
-        indicator.classList.remove('text-success')
-        indicator.classList.add('text-danger')
+        flashStatus(indicator, e.detail.xhr.responseText || 'Could not save', true)
     }
-    indicator.classList.add('opacity-100')
-    // Errors linger a little longer than the "Saved" confirmation so they can be read.
-    indicator._hideTimer = setTimeout(function () {
-        indicator.classList.remove('opacity-100')
-    }, e.detail.successful ? 2000 : 4000)
 })
 
 // Cross-fade into the chosen theme using the shared applyTheme helper (layout.html).

@@ -1,0 +1,18 @@
+{!
+  One compact metric column (the dashboard's stats-summary rows) — the small-type sibling of
+  `partials/stat-tile.html`, taking the same StatTile-shaped params. Mobile squeezes three columns
+  into the card width, so the type is reduced a step (text-[0.65rem]/text-xs); sm: restores the
+  larger sizes. Params:
+    label      — caption (dt)
+    value      — the figure (dd); a number for numeric tiles, a date/label for date tiles
+    sub        — optional secondary caption (dd)
+    subNum     — optional; true when `sub` carries number(s) to locale-group (NOT a date/label)
+    valueClass — optional colour/utility for the value; defaults to text-ink
+    date       — optional; true when `value` is a date/label (skips the `.js-num` locale grouping,
+                 which then applies to the `sub` instead)
+!}
+<div>
+    <dt class="help-text text-[0.65rem] sm:text-xs">{label}</dt>
+    <dd class="text-xs sm:text-sm font-semibold {valueClass ?: 'text-ink'}{#if !date} js-num{/if}">{value}</dd>
+    {#if sub}<dd class="help-text text-[0.65rem] sm:text-xs{#if subNum || date} js-num{/if}">{sub}</dd>{/if}
+</div>

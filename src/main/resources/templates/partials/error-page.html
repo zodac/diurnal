@@ -1,0 +1,22 @@
+{!
+  Shared error-page body (403 / 404 / any future status page): the centred card shell with a
+  circular status-icon chip, a heading and a muted message. Params (all required):
+    variant — icon-chip colour variant: 'danger' (red) | 'warning' (yellow)
+    icon    — the status glyph's name in partials/icon.html (e.g. 'circle-slash')
+    title   — the heading
+    message — the muted explanatory text
+!}
+{#include partials/centered-card nav=true center=true}
+
+<div class="mb-4 flex justify-center">
+    <div class="icon-chip icon-chip-{variant}">
+        {#include partials/icon name=icon /}
+    </div>
+</div>
+
+<h1 class="text-xl font-semibold mb-2 text-ink">{title}</h1>
+<p class="text-sm text-ink-muted">
+    {message}
+</p>
+
+{/include}

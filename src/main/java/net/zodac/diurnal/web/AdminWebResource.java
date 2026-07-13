@@ -146,7 +146,7 @@ public class AdminWebResource {
     public Response userRow(@PathParam("id") final UUID id) {
         final User target = User.findById(id);
         if (target == null) {
-            return errorResponse("User not found.");
+            return HtmxResponses.conflictBanner("#admin-error", "User not found.");
         }
         return Response.ok(adminUserRowTemplate.data("u", toRow(target))).build();
     }
@@ -162,7 +162,7 @@ public class AdminWebResource {
     public Response confirmDeleteUser(@PathParam("id") final UUID id) {
         final User target = User.findById(id);
         if (target == null) {
-            return errorResponse("User not found.");
+            return HtmxResponses.conflictBanner("#admin-error", "User not found.");
         }
         // Admin delete re-renders the whole list (innerHTML), so the confirmation row's destructive
         // POST targets #admin-users-list; Cancel restores just this row from /admin/users/{id}.
@@ -189,16 +189,16 @@ public class AdminWebResource {
     @Transactional
     public Response changeRole(@PathParam("id") final UUID id, @FormParam("role") final String role) {
         if (!Role.isValid(role)) {
-            return errorResponse("Invalid role value.");
+            return HtmxResponses.conflictBanner("#admin-error", "Invalid role value.");
         }
         final User target = User.findById(id);
         if (target == null) {
-            return errorResponse("User not found.");
+            return HtmxResponses.conflictBanner("#admin-error", "User not found.");
         }
         if (Role.USER.storageValue().equals(role) && isLastAdmin(target)) {
             LOGGER.warn("Admin {} attempted to demote the last administrator {}",
                 identity.getPrincipal().getName(), target.email);
-            return errorResponse("Cannot remove the last administrator.");
+            return HtmxResponses.conflictBanner("#admin-error", "Cannot remove the last administrator.");
         }
         target.role = role;
         target.persist();
@@ -220,12 +220,12 @@ public class AdminWebResource {
     public Response deleteUser(@PathParam("id") final UUID id) {
         final User target = User.findById(id);
         if (target == null) {
-            return errorResponse("User not found.");
+            return HtmxResponses.conflictBanner("#admin-error", "User not found.");
         }
         if (isLastAdmin(target)) {
             LOGGER.warn("Admin {} attempted to delete the last administrator {}",
                 identity.getPrincipal().getName(), target.email);
-            return errorResponse("Cannot delete the last administrator.");
+            return HtmxResponses.conflictBanner("#admin-error", "Cannot delete the last administrator.");
         }
 
         // Hard-delete in FK order: logs → actions → user
@@ -283,16 +283,5 @@ public class AdminWebResource {
 
     private boolean isLastAdmin(final User target) {
         return Role.ADMIN.storageValue().equals(target.role) && User.count("role", Role.ADMIN.storageValue()) <= 1;
-    }
-
-    private Response errorResponse(final String message) {
-        // Mirrors templates/partials/banner.html so HTMX error banners match the login/register
-        // pages. The `.banner*` styling is defined once in layout.html.
-        final String html = "<div class=\"banner banner-error\">" + message + "</div>";
-        return Response.status(Response.Status.CONFLICT)
-                .entity(html)
-                .header("HX-Retarget", "#admin-error")
-                .header("HX-Reswap", "innerHTML")
-                .build();
     }
 }

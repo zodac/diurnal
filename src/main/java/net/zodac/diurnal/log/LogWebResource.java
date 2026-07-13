@@ -20,6 +20,7 @@ package net.zodac.diurnal.log;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
+import io.quarkus.vertx.http.Compressed;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -103,7 +104,6 @@ public class LogWebResource {
         return dayPanelTemplate
             .data("date", date)
             .data("dateLabel", date.format(DAY_LABEL))
-            .data("theme", user.theme)
             .data("future", future)
             .data("page", page);
     }
@@ -132,10 +132,18 @@ public class LogWebResource {
      * flicking between days is instant. Doing it as a single request with one range query avoids a per-day fan-out by fetching the action list and
      * the whole month's counts once and paging each day from memory.
      *
+     * <p>
+     * The response is the app's largest payload by far (~30 rendered panels of repetitive HTML in one JSON body), so it is explicitly
+     * {@link Compressed} — a targeted exception to the deliberately narrow global {@code quarkus.http.compress-media-types} (see the BREACH note in
+     * {@code application.properties}). Compressing it is safe from a BREACH standpoint: the body carries no secret (no CSRF token — CSRF protection
+     * is origin-based — and the session token never appears in a response body), and the only request-controlled input, the {@code month} path
+     * segment, must parse as {@code yyyy-MM} before anything is rendered.
+     *
      * @param month the month to render, as {@code yyyy-MM}
      * @return {@code 200} with a JSON object mapping each {@code yyyy-MM-dd} to its day-panel HTML, or {@code 400} when {@code month} is not a valid
      *     {@code yyyy-MM}
      */
+    @Compressed
     @GET
     @Path("/month/{month}")
     @Produces(MediaType.APPLICATION_JSON)
@@ -165,7 +173,6 @@ public class LogWebResource {
             panels.put(date.toString(), dayPanelTemplate
                 .data("date", date)
                 .data("dateLabel", date.format(DAY_LABEL))
-                .data("theme", user.theme)
                 .data("future", future)
                 .data("page", page)
                 .render());
@@ -282,7 +289,7 @@ public class LogWebResource {
             entry.delete();
         }
 
-        LOGGER.debug("Log entry deleted: action {} on {} for user {}", actionId, date, user.email);
+        LOGGER.info("Log entry deleted: action {} on {} for user {}", actionId, date, user.email);
         return Response.ok(item(date, action, 0)).build();
     }
 

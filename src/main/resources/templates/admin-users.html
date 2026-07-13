@@ -1,21 +1,21 @@
 {#include layout.html}
 
 {#body}
-<div class="min-h-viewport flex flex-col">
+<div class="page-shell">
 
-    <!-- Navigation -->
+    {! Navigation !}
     {#include partials/navbar active='admin' /}
 
-    <main class="page-container px-4 py-8">
-        <h2 class="text-2xl font-semibold mb-2 text-ink">User Management</h2>
-        <p class="text-sm text-ink-muted mb-6">
+    <main id="admin-users-main" class="page-container px-4 py-8">
+        <h2 class="page-title mb-2">User Management</h2>
+        <p class="page-subtitle">
             Manage user accounts and roles.
         </p>
 
-        <!-- Error target for inline HTMX errors -->
+        {! Error target for inline HTMX errors !}
         <div id="admin-error" class="mb-4"></div>
 
-        <!-- User table -->
+        {! User table !}
         <div class="card overflow-hidden">
             <div id="admin-users-list">
                 {#include partials/admin-users-list page=page /}
@@ -26,10 +26,10 @@
     {#include partials/footer /}
 </div>
 
-<!-- The 409 last-administrator banner behaviour. Extracted from the inline block that used to sit
+{! The 409 last-administrator banner behaviour. Extracted from the inline block that used to sit
      here into /js/admin-users.js so it rides the content-hashed `immutable` cache instead of being
      re-parsed on every page load. Served as admin-users.<hash>.js in prod (baked into
-     AppInfo.jsAdminFile), admin-users.js in dev; runs after the shared /js/app.js. -->
+     AppInfo.jsAdminFile), admin-users.js in dev; runs after the shared /js/app.js. !}
 <script src="/js/{inject:appInfo.jsAdminFile}"></script>
 
 {/body}

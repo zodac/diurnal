@@ -15,10 +15,7 @@
     <div class="cal-toolbar-center">
         <span id="cal-title" class="cal-title"></span>
         <button id="cal-jump" type="button" class="cal-toolbar-btn group relative" aria-label="Jump to month">
-            <svg class="cal-toolbar-glyph" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/>
-                <line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-            </svg>{#include partials/tooltip text="Jump to month" pos="bottom" align="center" /}
+            {#include partials/icon name='calendar' cls='cal-toolbar-glyph' /}{#include partials/tooltip text="Jump to month" pos="bottom" align="center" /}
         </button>
     </div>
     <div class="cal-toolbar-side cal-toolbar-side-right">
@@ -34,9 +31,7 @@
            change/Enter). The ‹ › steppers still nudge it. Changing the year only repaints the picker's
            month grid; navigation happens when a month is picked. !}
         <input type="text" inputmode="numeric" maxlength="4"
-               class="cal-pop-year w-14 h-7 text-center text-sm font-semibold tabular-nums text-ink
-                      bg-transparent border border-line rounded
-                      hover:border-brand focus:border-brand focus:outline-hidden"
+               class="cal-pop-year inline-num-input w-14 h-7 text-ink"
                aria-label="Jump to year">
         <button type="button" data-y="1" class="cal-nav-btn group relative" aria-label="Next year">›{#include partials/tooltip text="Next year" pos="bottom" align="right" /}</button>
     </div>

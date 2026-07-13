@@ -1,48 +1,36 @@
-<header class="bg-surface border-b border-line px-4 py-3 relative">
+<header id="site-header" class="bg-surface border-b border-line px-4 py-3 relative">
     <div class="flex items-center gap-6">
         <a href="/" aria-label="{inject:appInfo.tagline}" class="group relative flex items-center shrink-0">
-            <img src="/img/wordmark.svg" alt="Diurnal" class="h-6 w-auto" width="91" height="24">
+            <img src="/img/wordmark.svg" alt="Diurnal" fetchpriority="high" class="h-6 w-auto" width="91" height="24">
             {#include partials/tooltip text=inject:appInfo.tagline pos="bottom" align="left" /}
         </a>
 
-        <!-- Desktop navigation: hidden on narrow viewports -->
+        {! Desktop navigation: hidden on narrow viewports !}
         <nav class="hidden sm:flex gap-4 text-sm">
             {#include partials/nav-links active=active isAdmin=isAdmin showTips=true /}
         </nav>
         <div class="hidden sm:flex ml-auto items-center gap-4">
-            <a id="nav-display-name" href="/settings" aria-label="Account settings" class="group relative text-sm {#if active == 'settings'}nav-link-active{#else}nav-link{/if}">{displayName}{#include partials/tooltip text="Account settings" pos="bottom" align="right" /}</a>
-            <form method="post" action="/logout" class="flex items-center">
-                <button type="submit" aria-label="Log out" class="group relative text-sm nav-link">
-                    Log out{#include partials/tooltip text="Sign out of your account" pos="bottom" align="right" /}
-                </button>
-            </form>
+            {#include partials/account-links id="nav-display-name" active=active showTips=true /}
         </div>
 
-        <!-- Mobile hamburger: shown only when the desktop nav is hidden -->
+        {! Mobile hamburger: shown only when the desktop nav is hidden !}
         <button type="button" id="hamburger-btn" aria-label="Toggle menu" aria-controls="mobile-menu" aria-expanded="false"
-                class="group sm:hidden ml-auto p-1 -my-1 -mr-1 text-gray-500 dark:text-gray-400 aria-expanded:text-brand dark:aria-expanded:text-brand aria-[expanded=false]:hover:text-gray-900 dark:aria-[expanded=false]:hover:text-white focus:outline-hidden transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-6 h-6 transition-transform duration-200 group-aria-expanded:rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-            </svg>
+                class="group sm:hidden ml-auto p-1 -my-1 -mr-1 text-ink-muted aria-expanded:text-brand aria-[expanded=false]:hover:text-ink focus:outline-hidden transition-colors">
+            {#include partials/icon name='hamburger' cls='w-6 h-6 transition-transform duration-200 group-aria-expanded:rotate-90' /}
         </button>
     </div>
 
-    <!-- Mobile dropdown menu: animated open/closed via a grid-rows transition, always hidden from sm up -->
+    {! Mobile dropdown menu: animated open/closed via a grid-rows transition, always hidden from sm up !}
     <div id="mobile-menu" data-open="false"
          class="grid grid-rows-[0fr] data-[open=true]:grid-rows-[1fr] transition-[grid-template-rows] duration-200 ease-out sm:hidden">
-        <!-- Clip wrapper: holds overflow-hidden so the inner padding collapses to 0 when closed
-             (padding on the grid item itself isn't clipped, leaving the row visibly taller). -->
+        {! Clip wrapper: holds overflow-hidden so the inner padding collapses to 0 when closed
+             (padding on the grid item itself isn't clipped, leaving the row visibly taller). !}
         <div class="overflow-hidden min-h-0">
             <nav class="flex flex-col gap-3 pt-3 text-sm">
                 {#include partials/nav-links active=active isAdmin=isAdmin /}
-                <!-- Separator: mirrors the left/right split of the desktop nav -->
+                {! Separator: mirrors the left/right split of the desktop nav !}
                 <hr class="border-line">
-                <a id="nav-display-name-mobile" href="/settings" class="{#if active == 'settings'}nav-link-active{#else}nav-link{/if}">{displayName}</a>
-                <form method="post" action="/logout" class="flex items-center">
-                    <button type="submit" class="text-sm nav-link">
-                        Log out
-                    </button>
-                </form>
+                {#include partials/account-links id="nav-display-name-mobile" active=active /}
             </nav>
         </div>
     </div>

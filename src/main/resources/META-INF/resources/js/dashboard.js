@@ -68,7 +68,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const calWrap  = document.getElementById('calendar-wrap')
     const titleEl  = document.getElementById('cal-title')
     const pop      = document.getElementById('cal-pop')
-    const dayPanel = document.getElementById('day-panel')
+    const dayPanel = document.getElementById('day-logger-panel')
     const dayPanelPlaceholder = dayPanel ? dayPanel.innerHTML : '' // the "Click a day…" prompt, captured pre-load
     let selectedDate = null // ISO date of the highlighted day, or null when nothing is selected
 
@@ -830,7 +830,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // which reads as a flash of all logged actions across the calendar. So gate on a non-GET verb.
     document.body.addEventListener('htmx:afterRequest', function (e) {
         const verb = e.detail && e.detail.requestConfig && e.detail.requestConfig.verb
-        if (verb && verb !== 'get' && e.target && e.target.closest && e.target.closest('#day-panel')) {
+        if (verb && verb !== 'get' && e.target && e.target.closest && e.target.closest('#day-logger-panel')) {
             cal.refresh()
             // The live panel was updated inline by the mutation, but the cached snapshot for this day is
             // now stale. Drop it so the next revisit re-fetches the fresh counts via the single-day fetch

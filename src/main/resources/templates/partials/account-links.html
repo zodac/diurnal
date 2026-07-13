@@ -1,0 +1,17 @@
+{!
+  The account-settings link + logout button — the single source shared by the desktop navbar and
+  the mobile menu (partials/navbar.html), so the two never drift. Params:
+    id       — the display-name anchor's id (settings.js updates its text live on a rename)
+    active   — current page key (highlights the settings link)
+    showTips — reveal the hover tooltips — desktop bar only; the mobile menu lives inside an
+               `overflow-hidden` clip wrapper that would crop the bubble, so it opts out.
+               Optional, defaulted here with `.or(false)` (Qute is strict — see nav-links.html).
+!}
+{#let showTips=showTips.or(false)}
+<a id="{id}" href="/settings" {#if showTips}aria-label="Account settings" {/if}class="group relative text-sm {#if active == 'settings'}nav-link-active{#else}nav-link{/if}">{displayName}{#if showTips}{#include partials/tooltip text="Account settings" pos="bottom" align="right" /}{/if}</a>
+<form method="post" action="/logout" class="flex items-center">
+    <button type="submit" {#if showTips}aria-label="Log out" {/if}class="group relative text-sm nav-link">
+        Log out{#if showTips}{#include partials/tooltip text="Sign out of your account" pos="bottom" align="right" /}{/if}
+    </button>
+</form>
+{/let}
