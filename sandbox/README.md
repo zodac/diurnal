@@ -106,7 +106,7 @@ sandbox or when something changed, otherwise it's a fast no-op:
 
 1. `git submodule update --init` — only if a submodule is uninitialised (linters
    need `code-quality-config`).
-2. `npm install` — only if `node_modules` is missing or `package-lock.json`
+2. `npm install` in `frontend/` — only if its `node_modules` is missing or `package-lock.json`
    changed (tracked by a hash in the persistent state volume).
 3. `npx playwright install --with-deps chromium` — once per Playwright volume
    (E2E browser + its OS libs).

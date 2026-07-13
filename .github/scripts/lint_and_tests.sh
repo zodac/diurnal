@@ -39,7 +39,7 @@
 #     (git submodule update --init) - it holds every linter's CI config
 #   - The `java` step additionally needs the host toolchain the Docker steps don't: a JDK + Maven,
 #     Node/npm (the POM css-build exec and the E2E deps), and Playwright browsers
-#     (cd e2e && npx playwright install --with-deps). It runs `mvn clean install -Dall` directly on the
+#     (cd tests && npx playwright install --with-deps). It runs `mvn clean install -Dall` directly on the
 #     host, not in the Maven Docker image, because -Dall drives Docker itself (the managed test DB, the
 #     E2E stack, and the deployment-smoke image build).
 #   - The `grype` step builds the production runtime image and scans it, so it needs a Docker daemon
@@ -292,15 +292,15 @@ run_typescript() {
         overall_exit_code=1
         return
     fi
-    # The TS config is type-aware (parserOptions.project) so the e2e dependencies must be installed
-    # for the type-checker to resolve imports. eslint is run from within e2e so it picks up
-    # e2e/tsconfig.json and e2e/node_modules; the config path is relative to that dir.
+    # The TS config is type-aware (parserOptions.project) so the tests/ dependencies must be installed
+    # for the type-checker to resolve imports. eslint is run from within tests/ so it picks up
+    # tests/tsconfig.json and tests/node_modules; the config path is relative to that dir.
     if output=$(docker run --rm \
         -u "${HOST_UID}:${HOST_GID}" \
         -e HOME=/tmp \
         -e npm_config_cache=/tmp/.npm \
         -v "${PWD}":/app \
-        -w /app/e2e \
+        -w /app/tests \
         --entrypoint sh \
         "${ESLINT_BUILD_IMAGE}" \
         -c "npm ci --no-audit --no-fund && \
@@ -326,7 +326,7 @@ run_markdown() {
         "${MARKDOWNLINT_DOCKER_IMAGE}" \
         --config code-quality-config/markdown/.markdownlint.json \
         "**/*.md" "!code-quality-config/**" "!**/node_modules/**" "!**/target/**" \
-        "!.claude/**" "!RELEASE_NOTES.md" "!e2e/playwright-report/**" "!e2e/test-results/**" 2>&1); then
+        "!.claude/**" "!RELEASE_NOTES.md" "!tests/playwright-report/**" "!tests/test-results/**" 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
         echo "✅ Markdown lint passed"
     else
@@ -387,18 +387,20 @@ detect_changed_steps() {
 
     while IFS= read -r file; do
         [[ -z "${file}" ]] && continue
-        [[ "${file}" == "Dockerfile" || "${file}" =~ ^sandbox/Dockerfile || "${file}" == ".dockerignore" || "${file}" =~ ^docker-compose || "${file}" =~ ^code-quality-config/docker/ ]] && run_docker=true
+        [[ "${file}" == "Dockerfile" || "${file}" =~ ^sandbox/Dockerfile || "${file}" == ".dockerignore" || "${file}" =~ ^(tests/)?docker-compose || "${file}" =~ ^code-quality-config/docker/ ]] && run_docker=true
         # Grype re-scans when the contents of the runtime image change: the runtime Dockerfile (base
         # images, package pins, copy layout), the build context filter, or the ignore list itself. The
         # pom.xml path (bundled Java deps) is handled below with the same version-bump suppression as
         # java; sandbox/Dockerfile and docker-compose don't affect the published runtime image.
         [[ "${file}" == "Dockerfile" || "${file}" == ".dockerignore" || "${file}" == ".grype.yaml" ]] && run_grype=true
-        if [[ "${file}" =~ ^src/ || "${file}" == "pom.xml" || "${file}" =~ ^code-quality-config/java/ ]]; then
+        # frontend/ (the Tailwind source + npm build) feeds the compiled stylesheet the -Dall gate
+        # builds and the E2E suite exercises, so it triggers the java step like src/ does.
+        if [[ "${file}" =~ ^src/ || "${file}" =~ ^frontend/ || "${file}" == "pom.xml" || "${file}" =~ ^code-quality-config/java/ ]]; then
             run_java=true
             java_changed_files+=("${file}")
         fi
         [[ "${file}" =~ \.(js|cjs)$ || "${file}" =~ ^code-quality-config/javascript/ ]] && run_javascript=true
-        [[ "${file}" =~ ^e2e/.*\.ts$ || "${file}" =~ ^e2e/tsconfig\.json$ || "${file}" =~ ^e2e/package(-lock)?\.json$ || "${file}" =~ ^code-quality-config/typescript/ ]] && run_typescript=true
+        [[ "${file}" =~ ^tests/.*\.ts$ || "${file}" =~ ^tests/tsconfig\.json$ || "${file}" =~ ^tests/package(-lock)?\.json$ || "${file}" =~ ^code-quality-config/typescript/ ]] && run_typescript=true
         [[ "${file}" =~ \.md$ || "${file}" =~ ^code-quality-config/markdown/ ]] && run_markdown=true
         [[ "${file}" =~ \.sh$ || "${file}" =~ ^code-quality-config/shellscript/ ]] && run_shellcheck=true
     done < <(

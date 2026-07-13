@@ -91,7 +91,7 @@
         Compiled, purged Tailwind stylesheet — built by `npm run css` (and by the `css` stage
         of the Dockerfile for the image), replacing the runtime Play CDN. `darkMode: 'class'`
         is baked into the build, so the server-controlled `.dark` class on <html> still drives
-        dark styling. Colour tokens are defined once in src/main/css/app.css.
+        dark styling. Colour tokens are defined once in frontend/css/app.css.
     !}
     {!
         Preload the primary body face (Nova Flat Book) — it's needed for essentially all text on
@@ -106,7 +106,7 @@
     {!
         The shared data-table ("dt") component styling, the settings-field chrome, the theme-
         transition rules and the message-banner styles all used to live in an inline <style> here.
-        They are stable, token-only CSS, so they now live in src/main/css/app.css and ride the
+        They are stable, token-only CSS, so they now live in frontend/css/app.css and ride the
         compiled, content-hashed, `immutable` stylesheet linked above instead of being re-transferred
         on every no-cache navigation. See the "relocated out of the templates" section in app.css.
     !}

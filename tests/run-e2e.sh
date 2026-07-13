@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Self-contained E2E runner, invoked from the `e2e-run` exec execution in pom.xml (the `-Dall`
+# Self-contained E2E runner, invoked from the `e2e-then-smoke` exec execution in pom.xml (the `-Dall`
 # profile). It is bound to the `install` phase — strictly AFTER the `verify` phase where failsafe
 # reports `*IT` failures — so it only runs once the integration tests have been confirmed green. If
 # the ITs fail, the build stops at `verify` and this script is never reached.
@@ -14,7 +14,7 @@
 # Args (passed positionally from the exec plugin so Maven properties resolve in the POM, not here):
 #   $1  HTTP port for the app + E2E base URL
 #   $2  Maven ${project.build.directory} (the `target` dir)
-#   $3  Maven ${project.basedir} (project root; holds docker-compose.dev.yml and the e2e/ dir)
+#   $3  Maven ${project.basedir} (project root; holds docker-compose.dev.yml and the tests/ dir)
 #
 # Readiness/E2E use 127.0.0.1 (not 'localhost') because the app binds IPv4 (0.0.0.0) and Node may
 # otherwise resolve localhost to IPv6 ::1.
@@ -57,4 +57,4 @@ fi
 
 # Run Playwright; its exit code becomes the script's (cleanup runs via the EXIT trap regardless),
 # so a non-zero result fails the Maven build.
-(cd "${BASEDIR}/e2e" && BASE_URL="http://127.0.0.1:${PORT}" npm test)
+(cd "${BASEDIR}/tests" && BASE_URL="http://127.0.0.1:${PORT}" npm test)

@@ -1,7 +1,7 @@
 import { defineConfig, devices } from "@playwright/test"
 
 export default defineConfig({
-    testDir: "./tests",
+    testDir: "./ui",
     fullyParallel: false, // tests within a file stay sequential; parallelism is file/project-level
     forbidOnly: process.env.CI !== undefined,
     retries: process.env.CI !== undefined ? 1 : 0,

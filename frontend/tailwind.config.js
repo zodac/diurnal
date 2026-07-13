@@ -13,13 +13,13 @@
 module.exports = {
   darkMode: 'class',
   content: [
-    './src/main/resources/templates/**/*.html',
-    './src/main/java/**/*.java',
+    '../src/main/resources/templates/**/*.html',
+    '../src/main/java/**/*.java',
     // Served front-end scripts add Tailwind utility classes at runtime (e.g. classList.add('opacity-100')
     // in settings.js/app.js). They MUST be scanned or those utilities are purged and the class silently
     // does nothing in the image. NOTE: the Docker `css` stage must also COPY this directory into its build
     // context (see Dockerfile) — otherwise the glob matches nothing there and the utilities purge anyway.
-    './src/main/resources/META-INF/resources/js/**/*.js',
+    '../src/main/resources/META-INF/resources/js/**/*.js',
   ],
   // Kept regardless of scanning. The first three are assembled in Java; the opacity utilities are added
   // ONLY from JS (button enable/disable greying, status-banner fade-in) and no template references them,

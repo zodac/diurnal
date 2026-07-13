@@ -7,7 +7,7 @@
 #                 - Java (major) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
 #                 - Maven (full) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
 #                 - Node (full/major) in Dockerfile, sandbox/Dockerfile
-#                 - npm packages in package.json + e2e/package.json (exact pins, no ^/~ ranges),
+#                 - npm packages in frontend/package.json + tests/package.json (exact pins, no ^/~ ranges),
 #                   regenerating each package-lock.json so `npm ci` stays in sync
 #                 - Docker image pins in .github/scripts/lint_and_tests.sh
 #                   (node when confirmed; hadolint + markdownlint-cli2 + shellcheck + grype best-effort)
@@ -415,7 +415,7 @@ update_npm_packages() {
     echo
     echo "🔍 Updating npm packages (exact pinned versions)..."
 
-    local manifests=("./package.json" "./e2e/package.json")
+    local manifests=("./frontend/package.json" "./tests/package.json")
 
     for manifest in "${manifests[@]}"; do
         if [[ ! -f "${manifest}" ]]; then

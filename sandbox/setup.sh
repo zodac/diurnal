@@ -23,12 +23,12 @@ else
   skip "git submodules"
 fi
 
-# ── 2. npm install — only when package-lock.json changed or node_modules gone ─
+# ── 2. npm install (frontend/) — only when package-lock.json changed or node_modules gone ─
 LOCK_HASH_FILE="${STATE_DIR}/package-lock.sha"
-CURRENT_LOCK_HASH="$(sha256sum package-lock.json 2>/dev/null | cut -d' ' -f1)"
-if [[ ! -d node_modules ]] || [[ "${CURRENT_LOCK_HASH}" != "$(cat "${LOCK_HASH_FILE}" 2>/dev/null || true)" ]]; then
+CURRENT_LOCK_HASH="$(sha256sum frontend/package-lock.json 2>/dev/null | cut -d' ' -f1)"
+if [[ ! -d frontend/node_modules ]] || [[ "${CURRENT_LOCK_HASH}" != "$(cat "${LOCK_HASH_FILE}" 2>/dev/null || true)" ]]; then
   step "running npm install..."
-  if npm install --no-audit --no-fund; then
+  if npm --prefix frontend install --no-audit --no-fund; then
     echo "${CURRENT_LOCK_HASH}" > "${LOCK_HASH_FILE}"
   else
     warn "npm install failed"
@@ -52,7 +52,7 @@ PW_MARKER="${STATE_DIR}/playwright-installed"
 PW_CACHE="${PLAYWRIGHT_BROWSERS_PATH:-${HOME}/.cache/ms-playwright}"
 if [[ ! -f "${PW_MARKER}" ]] || [[ -z "$(ls -A "${PW_CACHE}" 2>/dev/null || true)" ]]; then
   step "downloading Playwright Chromium (first run only)..."
-  if (cd e2e && npx --yes playwright install chromium); then
+  if (cd tests && npx --yes playwright install chromium); then
     touch "${PW_MARKER}"
   else
     warn "playwright browser download failed"
@@ -67,7 +67,7 @@ fi
 # apt lists. Uses sudo, which `dev` has passwordless.
 if ! ldconfig -p 2>/dev/null | grep -q 'libnspr4\.so'; then
   step "installing Playwright Chromium OS deps (libnspr4, libnss3, …)..."
-  (cd e2e && sudo npx --yes playwright install-deps chromium) || warn "playwright install-deps failed"
+  (cd tests && sudo npx --yes playwright install-deps chromium) || warn "playwright install-deps failed"
 else
   skip "Playwright OS deps"
 fi

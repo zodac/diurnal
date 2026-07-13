@@ -181,13 +181,14 @@
         </resources>
         <plugins>
             <!--
-                Compile the Tailwind stylesheet as part of the Maven build: src/main/css/app.css (the
+                Compile the Tailwind stylesheet as part of the Maven build: frontend/css/app.css (the
                 hand-edited source) -> src/main/resources/META-INF/resources/css/app.css (the served,
                 minified, purged output). Bound to generate-resources so it runs BEFORE process-resources
                 copies resources into target/classes and Quarkus packages the fast-jar — so every Maven
                 build (dev, package, *IT, E2E) produces the stylesheet, and it never needs committing
                 (it is .gitignored). This just delegates to `npm run css`, so the npm script stays the
-                single definition of the build; it therefore needs a local `npm install` (node_modules).
+                single definition of the build; it therefore needs an `npm install` in frontend/
+                (node_modules).
                 Skipped in Docker via -Dcss.build.skip=true: that build compiles the CSS in a dedicated
                 Node stage and copies it in, keeping Node out of the Maven/runtime images.
             -->
@@ -203,7 +204,7 @@
                         <phase>generate-resources</phase>
                         <configuration>
                             <skip>${css.build.skip}</skip>
-                            <workingDirectory>${project.basedir}</workingDirectory>
+                            <workingDirectory>${project.basedir}/frontend</workingDirectory>
                             <executable>npm</executable>
                             <arguments>
                                 <argument>run</argument>
@@ -229,7 +230,7 @@
                         <phase>generate-resources</phase>
                         <configuration>
                             <skip>${css.build.skip}</skip>
-                            <workingDirectory>${project.basedir}</workingDirectory>
+                            <workingDirectory>${project.basedir}/frontend</workingDirectory>
                             <executable>npm</executable>
                             <arguments>
                                 <argument>run</argument>
@@ -436,7 +437,7 @@
                 <!-- Single "testing" HTTP port, shared by both IT & E2E test suites. Consumed only by the
                      E2E exec execution below; override with -De2e.http.port=<port> on a port conflict. -->
                 <e2e.http.port>8081</e2e.http.port>
-                <!-- Host port the deployment-smoke stack (docker-compose.smoke.yml) publishes the real
+                <!-- Host port the deployment-smoke stack (tests/docker-compose.smoke.yml) publishes the real
                      production image on. != 8081 (IT/E2E) and != 8080 (production) so the smoke run
                      coexists with both; override with -Dsmoke.http.port=<port> on a conflict. -->
                 <smoke.http.port>8082</smoke.http.port>
@@ -503,13 +504,13 @@
                                 sortpom. e2e runs first (fail-fast: an E2E failure short-circuits before the
                                 expensive production-image build); smoke runs only if e2e passed.
 
-                                Step 1 — e2e/run-e2e.sh: self-contained; brings up its own test DB, starts
+                                Step 1 — tests/run-e2e.sh: self-contained; brings up its own test DB, starts
                                 the packaged jar on ${e2e.http.port}, polls /login until ready (max 120s),
                                 runs Playwright, tears the jar + test DB down via an EXIT trap. Feature
                                 coverage on a full JDK.
 
-                                Step 2 — e2e/run-smoke.sh: builds the REAL production image from the
-                                Dockerfile, brings up an isolated full stack (docker-compose.smoke.yml:
+                                Step 2 — tests/run-smoke.sh: builds the REAL production image from the
+                                Dockerfile, brings up an isolated full stack (tests/docker-compose.smoke.yml:
                                 app + ephemeral DB) on ${smoke.http.port}, runs the small black-box smoke
                                 suite against it, tears the stack down via an EXIT trap. The ONLY tier that
                                 exercises the packaged distroless / jlink / non-root runtime.
@@ -529,7 +530,7 @@
                                     <executable>bash</executable>
                                     <arguments>
                                         <argument>-c</argument>
-                                        <argument>"${project.basedir}/e2e/run-e2e.sh" "${e2e.http.port}" "${project.build.directory}" "${project.basedir}" &amp;&amp; "${project.basedir}/e2e/run-smoke.sh" "${smoke.http.port}" "${project.basedir}"</argument>
+                                        <argument>"${project.basedir}/tests/run-e2e.sh" "${e2e.http.port}" "${project.build.directory}" "${project.basedir}" &amp;&amp; "${project.basedir}/tests/run-smoke.sh" "${smoke.http.port}" "${project.basedir}"</argument>
                                     </arguments>
                                 </configuration>
                             </execution>

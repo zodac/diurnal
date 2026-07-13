@@ -1,7 +1,7 @@
 # Isolated full-stack smoke environment — builds and runs the REAL production image (Dockerfile) so
 # the deployment-smoke suite can exercise the packaged distroless / jlink / non-root runtime, which
-# no other test tier covers (unit + IT + E2E all run on a full JDK). Brought up by e2e/run-smoke.sh,
-# which is wired into `mvn clean install -Dall` via the `deployment-smoke` exec in pom.xml.
+# no other test tier covers (unit + IT + E2E all run on a full JDK). Brought up by tests/run-smoke.sh,
+# which is wired into `mvn clean install -Dall` via the `e2e-then-smoke` exec in pom.xml.
 #
 # Deliberately self-contained and namespaced so it NEVER collides with a running production stack
 # (docker-compose.yml): a distinct compose project (`-p diurnal-smoke`, set by run-smoke.sh), no
@@ -11,7 +11,8 @@ services:
 
   app:
     build:
-      context: .
+      # Context is the repo root (this file lives in tests/); the Dockerfile sits at that root.
+      context: ..
       dockerfile: Dockerfile
     ports:
       # Host 8082 (!= 8080 production, != 8081 dev / IT / E2E) so smoke coexists with both.

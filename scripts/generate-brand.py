@@ -1,23 +1,26 @@
 #!/usr/bin/env python3
-# Single brand pipeline. The ONE file you edit to rebrand is scripts/assets/wordmark.svg —
+# Single brand pipeline. The ONE file you edit to rebrand is assets/wordmark.svg —
 # specifically its fill="#rrggbb". Running this script then propagates that everywhere:
 #
-#   1. copies scripts/assets/wordmark.svg -> the served img/wordmark.svg (navbar, auth, README),
+#   1. copies assets/wordmark.svg -> the served img/wordmark.svg (navbar, auth, README),
 #   2. renders img/favicon.svg (the letter "d", square) in the SAME colour,
 #   3. computes the whole brand colour-token family from that one colour (hover/active shades,
 #      focus ring, the translucent "today" fill, the "selected-day" tint, the readable on-brand
 #      text colour, and the table edit-row ring) and writes them into the @generated:brand region
-#      of src/main/css/app.css — so every accent/highlight in the UI is derived, never hardcoded.
+#      of frontend/css/app.css — so every accent/highlight in the UI is derived, never hardcoded.
 #
 # After this, `node scripts/generate-favicons.cjs` rasterises favicon.svg into the .ico/.png set,
-# and `npm run css` compiles app.css. `npm run brand` chains all three (edit one file, run one thing).
+# and `npm run css` (in frontend/) compiles app.css. `npm --prefix frontend run brand` chains all
+# three (edit one file, run one thing).
 #
-# The favicon GLYPH geometry comes from the font (scripts/assets/NovaFlat-Book.ttf), kept consistent
+# The favicon GLYPH geometry comes from the font (assets/Nova/NovaFlat-Book.ttf), kept consistent
 # with the wordmark; only its colour (and the theme) is driven by wordmark.svg. To change the WORD or
-# FONT (not just the colour), run with `--rebuild-wordmark` to re-render scripts/assets/wordmark.svg
+# FONT (not just the colour), run with `--rebuild-wordmark` to re-render assets/wordmark.svg
 # from the font first, then the normal pipeline.
 #
-# Requires: python3 + fonttools  (pip install fonttools). Run from the project root.
+# Requires: python3 + fonttools  (pip install fonttools). Paths are anchored to the repo root
+# (derived from this file's location), so it can be run from any working directory.
+import os
 import re
 import shutil
 import sys
@@ -27,11 +30,12 @@ from fontTools.pens.svgPathPen import SVGPathPen
 from fontTools.pens.transformPen import TransformPen
 from fontTools.ttLib import TTFont
 
-FONT = 'scripts/assets/NovaFlat-Book.ttf'
-WORDMARK_SRC = 'scripts/assets/wordmark.svg'
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+FONT = os.path.join(ROOT, 'assets/Nova/NovaFlat-Book.ttf')
+WORDMARK_SRC = os.path.join(ROOT, 'assets/wordmark.svg')
 WORD = 'diurnal'
-IMG = 'src/main/resources/META-INF/resources/img'
-APP_CSS = 'src/main/css/app.css'
+IMG = os.path.join(ROOT, 'src/main/resources/META-INF/resources/img')
+APP_CSS = os.path.join(ROOT, 'frontend/css/app.css')
 
 
 # ── colour maths ─────────────────────────────────────────────────────────────────────────────────
@@ -167,8 +171,8 @@ def _tokens(brand):
 
 
 def _block(tokens, theme):
-    head = (f'    /* @generated:brand ({theme}) — computed from {WORDMARK_SRC} by '
-            f'scripts/generate-brand.py; do not hand-edit (edit the wordmark + run `npm run brand`). */')
+    head = (f'    /* @generated:brand ({theme}) — computed from assets/wordmark.svg by '
+            f'scripts/generate-brand.py; do not hand-edit (edit the wordmark + run `npm --prefix frontend run brand`). */')
     rows = [f'    --color-{name}: {val};  /* {note} */' for name, val, note in tokens]
     return '\n'.join([head, *rows, '    /* @end:brand */'])
 
@@ -208,7 +212,7 @@ def main():
     print(f'brand = {brand}')
     print(f'wrote {IMG}/wordmark.svg, {IMG}/favicon.svg, {IMG}/footer-mark.svg, '
           f'and the @generated:brand tokens in {APP_CSS}')
-    print('next: `node scripts/generate-favicons.cjs` (rasters) + `npm run css` (or just `npm run brand`)')
+    print('next: `node scripts/generate-favicons.cjs` (rasters) + `npm --prefix frontend run css` (or just `npm --prefix frontend run brand`)')
 
 
 if __name__ == '__main__':

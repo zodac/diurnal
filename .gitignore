@@ -4,13 +4,13 @@
 # Maven
 target/
 
-# Compiled Tailwind CSS — build artifact generated from src/main/css/app.css by `npm run css`
+# Compiled Tailwind CSS — build artifact generated from frontend/css/app.css by `npm run css`
 # (and the Maven `css-build` exec / the Docker css stage). The source is the committed one.
 src/main/resources/META-INF/resources/css/app.css
 
 # Vendored third-party browser libraries — build artifacts copied out of node_modules by
 # `npm run vendor` (scripts/vendor-assets.cjs), run by the Maven `vendor-assets` exec / the Docker
-# css stage. The source of truth is the exact-pinned devDependency in package.json.
+# css stage. The source of truth is the exact-pinned devDependency in frontend/package.json.
 src/main/resources/META-INF/resources/js/htmx.min.js
 
 
@@ -24,5 +24,5 @@ src/main/resources/META-INF/resources/js/htmx.min.js
 
 # Playwright
 node_modules/
-e2e/playwright-report/
-e2e/test-results/
+tests/playwright-report/
+tests/test-results/

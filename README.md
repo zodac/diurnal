@@ -1,6 +1,6 @@
 <!-- markdownlint-disable MD033 MD041 -- centered wordmark banner: intentional inline HTML in place of a text H1 -->
 <p align="center">
-  <img src="scripts/assets/wordmark-readme.svg" alt="Diurnal — Make every day count" width="380">
+  <img src="assets/wordmark-readme.svg" alt="Diurnal — Make every day count" width="380">
 </p>
 <!-- markdownlint-enable MD033 MD041 -->
 
@@ -90,10 +90,10 @@ alongside a PostgreSQL container.
 
 **1. Get the Docker Compose file:**
 
-Download [`docker-compose-example.yml`](doc/docker-compose.example.yml) from this repository and save it as `docker-compose.yml`:
+Download [`docker-compose.example.yml`](docs/docker-compose.example.yml) from this repository and save it as `docker-compose.yml`:
 
 ```bash
-curl -o docker-compose.yml https://raw.githubusercontent.com/zodac/diurnal/master/doc/docker-compose-example.yml
+curl -o docker-compose.yml https://raw.githubusercontent.com/zodac/diurnal/master/docs/docker-compose.example.yml
 ```
 
 **2. Set your secret:**
