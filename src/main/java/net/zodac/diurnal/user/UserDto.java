@@ -41,7 +41,7 @@ public record UserDto(
      * so the API cannot drift out of sync with the entity.
      *
      * @param theme the UI theme: {@code light}, {@code dark} or {@code system}
-     * @param font the UI font family: {@code nova} (brand typography) or {@code standard} (system sans)
+     * @param font the UI font family: {@code nova} (brand typography), {@code standard} (system sans) or {@code dyslexic} (OpenDyslexic)
      * @param pageSize the number of rows shown per page in list views
      * @param showStatsSummary whether the dashboard renders the per-action stats-summary strip
      * @param decimalPlaces the number of decimal places used to render fractional stats
@@ -52,7 +52,7 @@ public record UserDto(
     @Schema(description = "A user's display and behaviour preferences.")
     public record Preferences(
         @Schema(examples = "system", description = "The UI colour scheme: 'light', 'dark', or 'system'.") String theme,
-        @Schema(examples = "nova", description = "The UI font family: 'nova' or 'standard'.") String font,
+        @Schema(examples = "nova", description = "The UI font family: 'nova', 'standard' or 'dyslexic'.") String font,
         @Schema(examples = "25", description = "Number of rows displayed per page in list views.") int pageSize,
         @Schema(examples = "true", description = "Whether the dashboard renders the per-action stats-summary strip.")
         boolean showStatsSummary,

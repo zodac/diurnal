@@ -1,9 +1,10 @@
 <!DOCTYPE html>
-{! `font-nova` (the user's Font setting; the Nova brand theme is the default — applied unless the
-   user explicitly chose 'standard') re-points the --font-* variables in app.css to the Nova faces.
-   Rendered statically here so it's correct from first paint with no FOUC; the settings picker toggles
-   the same class live. The `.dark` class is added separately by the FOUC script below and coexists. !}
-<html lang="en" data-theme="{theme}"{#if font != 'standard'} class="font-nova"{/if}>
+{! The user's Font setting drives a class on <html> that re-points the --font-* variables in app.css:
+   'nova' (the default brand theme) → `font-nova`, 'dyslexic' → `font-dyslexic`, 'standard' → no class
+   (the system sans stays). Rendered statically here so it's correct from first paint with no FOUC; the
+   settings picker toggles the same class live. The `.dark` class is added separately by the FOUC script
+   below and coexists. !}
+<html lang="en" data-theme="{theme}"{#if font == 'dyslexic'} class="font-dyslexic"{#else if font != 'standard'} class="font-nova"{/if}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -94,12 +95,14 @@
         dark styling. Colour tokens are defined once in frontend/css/app.css.
     !}
     {!
-        Preload the primary body face (Nova Flat Book) — it's needed for essentially all text on
-        first paint, so fetching it in parallel with the stylesheet minimises the font swap. The
-        heading face (Nova Round) and the bold/italic variants load on demand via @font-face. Only
-        emitted under the Nova theme, so a "Standard"-font user never downloads (or warns about) it.
+        Preload the active theme's primary body face — it's needed for essentially all text on first
+        paint, so fetching it in parallel with the stylesheet minimises the font swap. The heading face
+        and the bold/italic variants load on demand via @font-face. Only the chosen theme's face is
+        emitted, so a "Standard"-font user never downloads (or warns about) any of them.
     !}
-    {#if font != 'standard'}
+    {#if font == 'dyslexic'}
+    <link rel="preload" href="/fonts/OpenDyslexic-Regular.woff2" as="font" type="font/woff2" crossorigin>
+    {#else if font != 'standard'}
     <link rel="preload" href="/fonts/NovaFlat-Book.woff2" as="font" type="font/woff2" crossorigin>
     {/if}
     <link rel="stylesheet" href="/css/{inject:appInfo.cssFile}">

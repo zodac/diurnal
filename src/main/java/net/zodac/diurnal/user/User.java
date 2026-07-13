@@ -39,12 +39,9 @@ import org.jspecify.annotations.Nullable;
  */
 // A JPA active-record entity: its "fields" are almost all @Column mappings to the single `users`
 // table, so a wide flat set is inherent to the persistence mapping rather than a design smell. The
-// shared PMD ruleset already excludes every sibling size rule (GodClass, TooManyMethods,
-// ExcessivePublicCount, ExcessiveImports); TooManyFields is suppressed here in the same spirit.
 @Entity
 @Table(name = "users")
-@SuppressWarnings("PMD.TooManyFields")
-public class User extends PanacheEntityBase {
+public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA entity; every mapped column is a field
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -73,12 +70,11 @@ public class User extends PanacheEntityBase {
 
     @Preference
     @Column(name = "theme", nullable = false)
-    public String theme = "system";
+    public String theme = Theme.DEFAULT.value();
 
-    // UI font family: 'nova' (the brand Nova typography) or 'standard' (system sans).
     @Preference
     @Column(name = "font", nullable = false)
-    public String font = UserSettings.DEFAULT_FONT;
+    public String font = Font.DEFAULT.value();
 
     @Preference
     @Column(name = "page_size", nullable = false)
@@ -96,7 +92,7 @@ public class User extends PanacheEntityBase {
 
     @Preference
     @Column(name = "calendar_view", nullable = false)
-    public String calendarView = UserSettings.DEFAULT_CALENDAR_VIEW;
+    public String calendarView = CalendarView.DEFAULT.value();
 
     // User-configurable "Action stats" display preference: the full, ordered arrangement of every
     // stat (its ActionStatField key + enabled flag) selecting which per-action stats show on the Stats

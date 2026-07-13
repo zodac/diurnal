@@ -28,7 +28,9 @@ import jakarta.ws.rs.NotFoundException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.net.URI;
+import net.zodac.diurnal.user.Font;
 import net.zodac.diurnal.user.Role;
+import net.zodac.diurnal.user.Theme;
 import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 
 /**
@@ -64,8 +66,8 @@ public class NotFoundExceptionMapper {
             }
             return Response.status(Response.Status.NOT_FOUND)
                     .entity(errorTemplate
-                            .data("theme", "system")
-                            .data("font", "nova")
+                            .data("theme", Theme.DEFAULT.value())
+                            .data("font", Font.DEFAULT.value())
                             .data("displayName", displayName)
                             .data("isAdmin", isAdmin))
                     .type(MediaType.TEXT_HTML_TYPE)

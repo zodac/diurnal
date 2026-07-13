@@ -67,6 +67,43 @@
   src: url('/fonts/NovaRound-Bold.woff2') format('woff2');
 }
 
+/*
+ * OpenDyslexic — the third Font option, an accessibility face designed to ease reading for
+ * people with dyslexia (heavier, weighted letter bottoms so glyphs are harder to flip/confuse).
+ * SIL Open Font Licence 1.1; the .otf masters + OFL.txt are kept in assets/OpenDyslexic/ and the
+ * woff2 here are generated from them (fontTools). One family, Regular/Bold each with an italic,
+ * used as BOTH the body and display face under `.font-dyslexic` (no separate display sibling —
+ * legibility, not hierarchy, is the point). Only fetched under the OpenDyslexic Font setting.
+ */
+@font-face {
+  font-family: 'OpenDyslexic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/OpenDyslexic-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'OpenDyslexic';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/OpenDyslexic-Italic.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'OpenDyslexic';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/OpenDyslexic-Bold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'OpenDyslexic';
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/OpenDyslexic-BoldItalic.woff2') format('woff2');
+}
+
 
 /*
  * Colour tokens — the single source of truth for the palette.
@@ -223,6 +260,17 @@
   .font-nova {
     --font-body: 'Nova Flat', ui-sans-serif, system-ui, sans-serif;
     --font-display: 'Nova Round', 'Nova Flat', ui-sans-serif, system-ui, sans-serif;
+  }
+
+  /*
+   * The "OpenDyslexic" Font setting: re-point BOTH font variables to the OpenDyslexic accessibility
+   * face (no separate display sibling — headings share the body face). Applied via `.font-dyslexic`
+   * on <html> from the user's preference (and toggled live by the settings picker), independent of
+   * (and coexisting with) `.dark`.
+   */
+  .font-dyslexic {
+    --font-body: 'OpenDyslexic', ui-sans-serif, system-ui, sans-serif;
+    --font-display: 'OpenDyslexic', ui-sans-serif, system-ui, sans-serif;
   }
 
   /*
