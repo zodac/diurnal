@@ -253,4 +253,71 @@ public class ActionLog extends PanacheEntityBase {
             .setParameter("now", Instant.now())
             .executeUpdate();
     }
+
+    /**
+     * Atomically subtracts {@code delta} from the day's count for an action, deleting the row when the
+     * result reaches zero (or the row does not exist), and returns the resulting count ({@code 0} when
+     * the row was removed or was already absent).
+     *
+     * <p>The row is locked up front with {@code SELECT ... FOR UPDATE} and the update-or-delete decision
+     * is then made while that lock is held. This serialises against a concurrent {@link #incrementCount}
+     * (whose {@code INSERT ... ON CONFLICT DO UPDATE} contends on the same row lock) in every case,
+     * including the boundary where the count is at or below {@code delta}: an increment cannot slip in
+     * between the decision and the delete to raise the count past the delete threshold and thereby lose
+     * the decrement. Under {@code READ COMMITTED} the second writer blocks on the lock and, once it
+     * commits, either re-applies over the fresh value (increment) or observes it here; if this method
+     * deletes the row, a blocked increment re-runs its {@code ON CONFLICT} as a fresh insert. When the
+     * row does not exist there is nothing to lock or subtract, so the call is a no-op returning
+     * {@code 0} (a concurrent increment may still create the row — a legitimate {@code +delta} from
+     * empty). {@code delta} must be at least {@code 1}: callers treat a non-positive amount as a no-op
+     * rather than calling this.
+     *
+     * @param userId   the owning user
+     * @param actionId the action being logged
+     * @param date     the day to log against
+     * @param delta    the amount to subtract (must be {@code >= 1})
+     * @return the resulting count after the decrement, or {@code 0} if the row was removed or absent
+     */
+    public static int decrementCount(final UUID userId, final UUID actionId, final LocalDate date, final int delta) {
+        final List<?> locked = Panache.getEntityManager().createNativeQuery("""
+                SELECT count FROM action_logs
+                WHERE user_id = :userId AND action_id = :actionId AND log_date = :date
+                FOR UPDATE""")
+            .setParameter("userId", userId)
+            .setParameter("actionId", actionId)
+            .setParameter("date", date)
+            .getResultList();
+
+        if (locked.isEmpty()) {
+            // No row to decrement. A concurrent increment may create one after this — that is a
+            // legitimate increment from empty, not a decrement we are obliged to apply.
+            return 0;
+        }
+
+        final int newCount = ((Number) locked.get(0)).intValue() - delta;
+
+        if (newCount <= 0) {
+            // We still hold the FOR UPDATE lock, so no increment can raise the count before we delete.
+            Panache.getEntityManager().createNativeQuery("""
+                    DELETE FROM action_logs
+                    WHERE user_id = :userId AND action_id = :actionId AND log_date = :date""")
+                .setParameter("userId", userId)
+                .setParameter("actionId", actionId)
+                .setParameter("date", date)
+                .executeUpdate();
+            return 0;
+        }
+
+        Panache.getEntityManager().createNativeQuery("""
+                UPDATE action_logs
+                SET count = :newCount, updated_at = :now
+                WHERE user_id = :userId AND action_id = :actionId AND log_date = :date""")
+            .setParameter("newCount", newCount)
+            .setParameter("userId", userId)
+            .setParameter("actionId", actionId)
+            .setParameter("date", date)
+            .setParameter("now", Instant.now())
+            .executeUpdate();
+        return newCount;
+    }
 }

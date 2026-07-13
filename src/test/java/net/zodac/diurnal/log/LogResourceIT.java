@@ -31,7 +31,17 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.user.Role;
@@ -590,5 +600,126 @@ class LogResourceIT extends IntegrationTestBase {
         freezeInstant(noonUtc, ZoneOffset.UTC);
         given().post("/logs/" + the16th + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200);
+    }
+
+    // ── Concurrent logging (two sessions racing on the same day/action) ─────────
+
+    // Sampling many interleavings gives a race a chance to surface; a single pass could get lucky.
+    private static final int RACE_ITERATIONS = 50;
+
+    @Test
+    void concurrentIncrements_composeToExactSum() {
+        // "Normal" concurrent logging: several sessions each tap +1 on the same not-yet-logged action
+        // at the same instant. Every increment must land — the atomic upsert serialises them — so the
+        // final count is exactly the number of writers, never fewer (a lost update) nor a 500 from the
+        // unique constraint.
+        final int writers = 10;
+
+        for (int iteration = 0; iteration < 15; iteration++) {
+            seedCount(0);
+
+            final Runnable[] increments = new Runnable[writers];
+            for (int w = 0; w < writers; w++) {
+                increments[w] = incrementOnce();
+            }
+            runSimultaneously(increments);
+
+            assertThat(countInDb())
+                .as("every concurrent increment must land exactly once")
+                .isEqualTo(writers);
+        }
+    }
+
+    @Test
+    void concurrentIncrementAndDecrement_aboveBoundary_netsToZero() {
+        // One session +1, another -1, on a count comfortably above the decrement amount: the decrement
+        // takes its UPDATE path (which locks the row), so the two serialise and compose back to the
+        // starting value whichever commits first.
+        for (int iteration = 0; iteration < RACE_ITERATIONS; iteration++) {
+            seedCount(5);
+
+            runSimultaneously(incrementOnce(), decrementOnce());
+
+            assertThat(countInDb())
+                .as("increment + decrement above the delete boundary must net to zero")
+                .isEqualTo(5);
+        }
+    }
+
+    @Test
+    void concurrentIncrementAndDecrement_atDeleteBoundary_netsToZero() {
+        // The fixed edge case: count == the decrement amount, so the decrement would DELETE the row.
+        // Without the row lock held across the decision, a concurrent increment can slip in, push the
+        // count to 2, and the delete is lost (final 2). With SELECT ... FOR UPDATE the two serialise
+        // and always net back to 1:
+        //   - increment first: 1 -> 2, then decrement 2 -> 1
+        //   - decrement first: row deleted, then increment re-inserts at 1
+        for (int iteration = 0; iteration < RACE_ITERATIONS; iteration++) {
+            seedCount(1);
+
+            runSimultaneously(incrementOnce(), decrementOnce());
+
+            assertThat(countInDb())
+                .as("increment + decrement at the delete boundary must net to one, never lose the decrement")
+                .isEqualTo(1);
+        }
+    }
+
+    private Runnable incrementOnce() {
+        return () -> given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+                .then().statusCode(200);
+    }
+
+    private Runnable decrementOnce() {
+        return () -> given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
+                .then().statusCode(200);
+    }
+
+    // Reset the primary action's TODAY log to exactly `count` (no row when count == 0).
+    private void seedCount(final int count) {
+        runInTx(() -> {
+            ActionLog.deleteByAction(primaryId, primaryAction.id);
+            if (count > 0) {
+                newLog(primaryId, primaryAction.id, TODAY, count);
+            }
+        });
+    }
+
+    // Read the primary action's current TODAY count straight from the DB (fresh tx -> no stale L1 cache).
+    private int countInDb() {
+        final AtomicInteger holder = new AtomicInteger();
+        runInTx(() -> {
+            final ActionLog entry = ActionLog.findEntry(primaryId, primaryAction.id, TODAY);
+            holder.set(entry == null ? 0 : entry.count);
+        });
+        return holder.get();
+    }
+
+    // Run every task on its own thread, released together via a barrier to maximise real overlap, then
+    // rethrow the first failure (including any RestAssured assertion) once all threads have finished.
+    private static void runSimultaneously(final Runnable... tasks) {
+        final int parties = tasks.length;
+        final ExecutorService pool = Executors.newFixedThreadPool(parties);
+        final CyclicBarrier gate = new CyclicBarrier(parties);
+        try {
+            final List<Future<?>> futures = new ArrayList<>(parties);
+            for (final Runnable task : tasks) {
+                futures.add(pool.submit(() -> {
+                    gate.await(10, TimeUnit.SECONDS); // all threads leave the gate at once
+                    task.run();
+                    return null;
+                }));
+            }
+            for (final Future<?> future : futures) {
+                future.get(30, TimeUnit.SECONDS); // propagates assertion errors raised on the worker threads
+            }
+        } catch (final ExecutionException | TimeoutException e) {
+            throw new IllegalStateException("Concurrent task failed", e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted awaiting concurrent tasks", e);
+        } finally {
+            pool.shutdownNow();
+        }
     }
 }

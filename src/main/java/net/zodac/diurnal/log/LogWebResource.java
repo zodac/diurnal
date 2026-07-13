@@ -352,21 +352,15 @@ public class LogWebResource {
         }
 
         final int delta = Math.max(amount, 0);
-
-        final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
-        if (entry == null) {
-            return Response.ok(item(date, action, 0)).build();
+        if (delta == 0) {
+            // No-op: report the current count without touching the row.
+            final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
+            return Response.ok(item(date, action, entry == null ? 0 : entry.count)).build();
         }
 
-        final int newCount = entry.count - delta;
-        if (newCount <= 0) {
-            entry.delete();
-            LOGGER.debug("Log decremented to zero (entry removed): action {} on {} for user {}", actionId, date, user.email);
-            return Response.ok(item(date, action, 0)).build();
-        }
-
-        entry.count = newCount;
-        entry.persist();
+        // Atomic decrement for the same reason as increment(): a find-then-write race lets two
+        // concurrent decrements (e.g. the same action tapped down on two devices) lose an update.
+        final int newCount = ActionLog.decrementCount(user.id, actionId, date, delta);
         LOGGER.debug("Log decremented by {}: action {} on {} -> {} for user {}", delta, actionId, date, newCount, user.email);
         return Response.ok(item(date, action, newCount)).build();
     }
