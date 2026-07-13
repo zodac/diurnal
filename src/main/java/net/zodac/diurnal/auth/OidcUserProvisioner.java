@@ -34,6 +34,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import net.zodac.diurnal.config.PasswordAuthConfig;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -150,13 +151,13 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
                 .setPrincipal(new QuarkusPrincipal(user.email))
                 .addAttribute("userId", user.id.toString())
                 .addAttribute("displayName", user.displayName)
-                .addRole(User.ROLE_USER)
+                .addRole(Role.USER.storageValue())
                 // Re-attach the ID token credential so @IdToken injection works in oidcCallback().
                 // The fresh identity intentionally excludes all other OIDC credentials to prevent
                 // LDAP group names from mapping to roles, but the raw token is needed for logout.
                 .addCredential(idTokenCred);
         if (user.isAdmin()) {
-            builder.addRole(User.ROLE_ADMIN);
+            builder.addRole(Role.ADMIN.storageValue());
         }
         return builder.build();
     }

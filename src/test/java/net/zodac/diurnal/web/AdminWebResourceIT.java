@@ -28,6 +28,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
@@ -36,14 +37,14 @@ class AdminWebResourceIT extends IntegrationTestBase {
 
     @Override
     protected void createDbState() {
-        newUser("admin@lt.test", "Admin User", User.ROLE_ADMIN);
-        newUser("user@lt.test", "Regular User", User.ROLE_USER);
+        newUser("admin@lt.test", "Admin User", Role.ADMIN.storageValue());
+        newUser("user@lt.test", "Regular User", Role.USER.storageValue());
     }
 
     // ── Authorization ─────────────────────────────────────────────────────
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void usersPage_admin_returns200() {
         given().get("/admin/users")
                 .then().statusCode(200)
@@ -52,14 +53,14 @@ class AdminWebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "user@lt.test", roles = "user")
+    @TestSecurity(user = "user@lt.test", roles = Role.Values.USER)
     void usersPage_nonAdmin_returns403() {
         given().get("/admin/users")
                 .then().statusCode(403);
     }
 
     @Test
-    @TestSecurity(user = "user@lt.test", roles = "user")
+    @TestSecurity(user = "user@lt.test", roles = Role.Values.USER)
     void usersPage_nonAdmin_403PageIsStyledHtml() {
         given().get("/admin/users")
                 .then().statusCode(403)
@@ -68,7 +69,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "user@lt.test", roles = "user")
+    @TestSecurity(user = "user@lt.test", roles = Role.Values.USER)
     void usersPage_nonAdmin_403PageHasNavbar() {
         // The error page should still render the navbar so users can navigate away
         given().get("/admin/users")
@@ -86,7 +87,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "user@lt.test", roles = "user")
+    @TestSecurity(user = "user@lt.test", roles = Role.Values.USER)
     void changeRole_nonAdmin_returns403() {
         final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
@@ -98,7 +99,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     // ── User list content ─────────────────────────────────────────────────
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void usersPage_showsBothUsers() {
         given().get("/admin/users")
                 .then().statusCode(200)
@@ -107,7 +108,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void usersPage_datesTooltipShowsViewingAdminTimezone() {
         runInTx(() -> {
             final User admin = User.findByEmail("admin@lt.test").orElseThrow();
@@ -127,7 +128,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void usersPage_datesTooltipFallsBackToServerTimezoneWhenAdminUnset() {
         // The admin seeded by createDbState has no timezone override, so the tooltip names the
         // server-default zone (UTC in the test profile).
@@ -141,7 +142,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     // ── Role change ───────────────────────────────────────────────────────
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void changeRole_promoteUser_updatesRole() {
         final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
@@ -153,12 +154,12 @@ class AdminWebResourceIT extends IntegrationTestBase {
             final User u = User.findByEmail("user@lt.test").orElseThrow();
             assertThat(u.role)
                 .as("unexpected value")
-                .isEqualTo(User.ROLE_ADMIN);
+                .isEqualTo(Role.ADMIN.storageValue());
         });
     }
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void changeRole_demoteLastAdmin_returns409() {
         final UUID adminId = runInTxReturning(() -> User.findByEmail("admin@lt.test").orElseThrow().id);
 
@@ -169,12 +170,12 @@ class AdminWebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void changeRole_demoteAdminWhenAnotherExists_succeeds() {
         // Promote user@lt.test to admin first, then demote admin@lt.test
         runInTx(() -> {
             final User u = User.findByEmail("user@lt.test").orElseThrow();
-            u.role = User.ROLE_ADMIN;
+            u.role = Role.ADMIN.storageValue();
             u.persist();
         });
 
@@ -184,13 +185,13 @@ class AdminWebResourceIT extends IntegrationTestBase {
                 .then().statusCode(200);
         runInTx(() -> assertThat(User.findByEmail("admin@lt.test").orElseThrow().role)
             .as("unexpected value")
-            .isEqualTo(User.ROLE_USER));
+            .isEqualTo(Role.USER.storageValue()));
     }
 
     // ── Confirm-delete panel ──────────────────────────────────────────────
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void confirmDeleteUser_showsConfirmRow() {
         final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
@@ -203,14 +204,14 @@ class AdminWebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void confirmDeleteUser_notFound_returns409() {
         given().get("/admin/users/" + UUID.randomUUID() + "/confirm-delete")
                 .then().statusCode(409);
     }
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void userRow_cancelRestoresRow() {
         final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
@@ -224,7 +225,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     // ── Delete ────────────────────────────────────────────────────────────
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void deleteUser_regularUser_removesUser() {
         final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
@@ -237,7 +238,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void deleteUser_lastAdmin_returns409() {
         final UUID adminId = runInTxReturning(() -> User.findByEmail("admin@lt.test").orElseThrow().id);
 
@@ -247,7 +248,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {"user", "admin"})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void deleteUser_notFound_returns409() {
         given().post("/admin/users/" + UUID.randomUUID() + "/delete")
                 .then().statusCode(409)

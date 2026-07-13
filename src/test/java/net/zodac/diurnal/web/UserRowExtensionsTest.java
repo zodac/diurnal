@@ -21,7 +21,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.UUID;
 import net.zodac.diurnal.user.Role;
-import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 class UserRowExtensionsTest {
@@ -32,14 +31,14 @@ class UserRowExtensionsTest {
 
     @Test
     void roleName_adminRole_returnsAdministrator() {
-        assertThat(UserRowExtensions.roleName(row(User.ROLE_ADMIN)))
+        assertThat(UserRowExtensions.roleName(row(Role.ADMIN.storageValue())))
             .as("unexpected value")
             .isEqualTo("Administrator");
     }
 
     @Test
     void roleName_userRole_returnsUser() {
-        assertThat(UserRowExtensions.roleName(row(User.ROLE_USER)))
+        assertThat(UserRowExtensions.roleName(row(Role.USER.storageValue())))
             .as("unexpected value")
             .isEqualTo("User");
     }
@@ -61,7 +60,7 @@ class UserRowExtensionsTest {
     @Test
     void zoneTooltip_prefixesZoneLabel() {
         final UserRow row = new UserRow(UUID.randomUUID(), "user@example.com", "Test User",
-                User.ROLE_USER, "2026-01-01 00:00", "Never", "Europe/London");
+                Role.USER.storageValue(), "2026-01-01 00:00", "Never", "Europe/London");
 
         assertThat(UserRowExtensions.zoneTooltip(row))
             .as("unexpected timezone tooltip label")

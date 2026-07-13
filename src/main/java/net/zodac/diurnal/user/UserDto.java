@@ -30,7 +30,7 @@ public record UserDto(
         @Schema(examples = "3fa85f64-5717-4562-b3fc-2c963f66afa6", description = "Unique identifier for the user.") UUID id,
         @Schema(examples = "ada@example.com", description = "Email address of the user.") String email,
         @Schema(examples = "Ada Lovelace", description = "Human-readable name shown in the UI.") String displayName,
-        @Schema(examples = "user", description = "The user's role: 'user' or 'admin'.") String role,
+        @Schema(examples = Role.Values.USER, description = "The user's role, e.g. 'user' or 'admin'.") String role,
         @Schema(description = "The user's display and behaviour preferences.") Preferences preferences) {
 
     /**

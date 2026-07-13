@@ -30,6 +30,7 @@ import io.quarkus.test.security.TestSecurity;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
@@ -299,7 +300,7 @@ class WebResourceIT extends IntegrationTestBase {
     // ── Dashboard (authenticated) ──────────────────────────────────────────────
 
     @Test
-    @TestSecurity(user = "web-it@lt.test", roles = "user")
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER)
     void dashboard_authenticated_returns200() {
         // "web-it@lt.test" is pre-created in createDbState()
         given().get("/")
@@ -309,7 +310,7 @@ class WebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "web-it@lt.test", roles = "user")
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER)
     void dashboard_withLoggedAction_showsTopThreeEnabledStatTiles() {
         // Seed a logged action so the stats-summary card renders. With the default (never-customised)
         // "Action stats" preference, the top three enabled fields are the first three declared:
@@ -332,7 +333,7 @@ class WebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "web-it@lt.test", roles = "user")
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER)
     void dashboard_summaryShowsThisMonthActionAndHidesLastMonthOnlyAction() {
         // The dashboard summary strip is the "3 most recent actions this month" path: an action logged
         // only in a previous month must not appear, while one logged this month must.
@@ -351,7 +352,7 @@ class WebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "web-it@lt.test", roles = "user")
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER)
     void settingsPage_authenticated_returns200() {
         given().get("/settings")
                 .then().statusCode(200)
@@ -374,7 +375,7 @@ class WebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "web-it@lt.test", roles = "user")
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER)
     void unknownPath_authenticated_returns404WithErrorPage() {
         given().get("/this-path-does-not-exist")
                 .then().statusCode(404)

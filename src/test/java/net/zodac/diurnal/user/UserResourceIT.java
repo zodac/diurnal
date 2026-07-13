@@ -73,7 +73,7 @@ class UserResourceIT extends IntegrationTestBase {
     void me_reflectsAdminRoleAndCustomisedPreferences() {
         final User[] holder = new User[1];
         runInTx(() -> {
-            final User u = newUser("admin-api@lt.test", "Admin User", User.ROLE_ADMIN);
+            final User u = newUser("admin-api@lt.test", "Admin User", Role.ADMIN.storageValue());
             u.theme = "dark";
             u.font = "standard";
             u.pageSize = 50;

@@ -12,6 +12,22 @@ async function waitForSave(page: Page, action: Promise<unknown>): Promise<void> 
     ])
 }
 
+// Set a numeric preference (page size / decimal places) to `value` via its preset pill,
+// tolerating the case where it is ALREADY that value. Clicking a preset for the current value is
+// a deliberate no-op that fires no PATCH (settings.js `setValid`), so `waitForSave` would hang —
+// only wait for a save when the value actually changes.
+async function establishNumericPref(
+    page: Page, presetsId: string, fieldId: string, value: string,
+): Promise<void> {
+    const alreadySet = (await page.locator(`#${fieldId}`).inputValue()) === value
+    const click = page.locator(`#${presetsId} .num-pref-pill[data-value="${value}"]`).click()
+    if (alreadySet) {
+        await click
+    } else {
+        await waitForSave(page, click)
+    }
+}
+
 // Theme and calendar style are chosen from preview tiles backed by hidden radio inputs. Tests in
 // a spec share one user, so a value may already be selected; we check the radio and always dispatch
 // `change` so the htmx save fires regardless (mirroring how Playwright's selectOption behaved on the
@@ -88,7 +104,7 @@ test.describe("Settings page", () => {
 
     test("change page size to 25 via preset pill persists", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
-        await waitForSave(page, page.locator('#pageSizePresets .num-pref-pill[data-value="25"]').click())
+        await establishNumericPref(page, "pageSizePresets", "pageSize", "25")
 
         await page.goto("/settings")
         await expect(page.locator("#pageSize")).toHaveValue("25")
@@ -103,7 +119,7 @@ test.describe("Settings page", () => {
 
     test("change decimal places to 2 via preset pill persists", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
-        await waitForSave(page, page.locator('#decimalPlacesPresets .num-pref-pill[data-value="2"]').click())
+        await establishNumericPref(page, "decimalPlacesPresets", "decimalPlaces", "2")
 
         await page.goto("/settings")
         await expect(page.locator("#decimalPlaces")).toHaveValue("2")
@@ -119,7 +135,7 @@ test.describe("Settings page", () => {
     test("entering an invalid decimal-place count is rejected, shows an error, and keeps the previous value", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
         // Establish a known-good value first (2 via its preset pill).
-        await waitForSave(page, page.locator('#decimalPlacesPresets .num-pref-pill[data-value="2"]').click())
+        await establishNumericPref(page, "decimalPlacesPresets", "decimalPlaces", "2")
 
         // The Preferences card's status indicator (shared with the "Saved" flash).
         const indicator = page.locator(".card", { has: page.locator("#decimal-places-row") }).locator("[data-saved]")
@@ -148,7 +164,7 @@ test.describe("Settings page", () => {
     test("entering an invalid page size is rejected, shows an error, and keeps the previous value", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
         // Establish a known-good value first (25 via its preset pill).
-        await waitForSave(page, page.locator('#pageSizePresets .num-pref-pill[data-value="25"]').click())
+        await establishNumericPref(page, "pageSizePresets", "pageSize", "25")
 
         // The Preferences card's status indicator (shared with the "Saved" flash).
         const indicator = page.locator(".card", { has: page.locator("#page-size-row") }).locator("[data-saved]")

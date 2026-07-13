@@ -1,3 +1,4 @@
+import type { Request } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
 
 /* global window -- referenced inside in-browser page.waitForFunction callbacks */
@@ -111,7 +112,7 @@ test.describe("Actions page", () => {
 
         // Save without touching name or colour → no POST should fire, and the row returns to view state.
         let posted = false
-        const watch = (r: import("@playwright/test").Request): void => {
+        const watch = (r: Request): void => {
             if (r.url().endsWith(`/actions/${itemId?.replace("action-", "")}`) && r.method() === "POST") {posted = true}
         }
         page.on("request", watch)

@@ -54,7 +54,7 @@ import org.apache.logging.log4j.Logger;
  * Admin-only user management: list, change role, and delete users (with last-admin safeguards).
  */
 @Path("/admin")
-@RolesAllowed("admin")
+@RolesAllowed(Role.Values.ADMIN)
 public class AdminWebResource {
 
     private static final Logger LOGGER = LogManager.getLogger(AdminWebResource.class);
@@ -83,7 +83,7 @@ public class AdminWebResource {
      */
     @GET
     @Path("users")
-    @RolesAllowed("admin")
+    @RolesAllowed(Role.Values.ADMIN)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance usersPage(@QueryParam("page") @DefaultValue("1") final int pageNum) {
@@ -102,7 +102,7 @@ public class AdminWebResource {
      */
     @GET
     @Path("api-docs")
-    @RolesAllowed("admin")
+    @RolesAllowed(Role.Values.ADMIN)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance apiDocsPage() {
@@ -120,7 +120,7 @@ public class AdminWebResource {
      */
     @GET
     @Path("users/list")
-    @RolesAllowed("admin")
+    @RolesAllowed(Role.Values.ADMIN)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance usersList(@QueryParam("page") @DefaultValue("1") final int pageNum) {
@@ -133,7 +133,7 @@ public class AdminWebResource {
      */
     @GET
     @Path("users/{id}")
-    @RolesAllowed("admin")
+    @RolesAllowed(Role.Values.ADMIN)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response userRow(@PathParam("id") final UUID id) {
@@ -149,7 +149,7 @@ public class AdminWebResource {
      */
     @GET
     @Path("users/{id}/confirm-delete")
-    @RolesAllowed("admin")
+    @RolesAllowed(Role.Values.ADMIN)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response confirmDeleteUser(@PathParam("id") final UUID id) {
@@ -176,7 +176,7 @@ public class AdminWebResource {
      */
     @POST
     @Path("users/{id}/role")
-    @RolesAllowed("admin")
+    @RolesAllowed(Role.Values.ADMIN)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
@@ -188,7 +188,7 @@ public class AdminWebResource {
         if (target == null) {
             return errorResponse("User not found.");
         }
-        if (User.ROLE_USER.equals(role) && isLastAdmin(target)) {
+        if (Role.USER.storageValue().equals(role) && isLastAdmin(target)) {
             LOGGER.warn("Admin {} attempted to demote the last administrator {}",
                     identity.getPrincipal().getName(), target.email);
             return errorResponse("Cannot remove the last administrator.");
@@ -207,7 +207,7 @@ public class AdminWebResource {
      */
     @POST
     @Path("users/{id}/delete")
-    @RolesAllowed("admin")
+    @RolesAllowed(Role.Values.ADMIN)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response deleteUser(@PathParam("id") final UUID id) {
@@ -275,7 +275,7 @@ public class AdminWebResource {
     }
 
     private boolean isLastAdmin(final User target) {
-        return User.ROLE_ADMIN.equals(target.role) && User.count("role", User.ROLE_ADMIN) <= 1;
+        return Role.ADMIN.storageValue().equals(target.role) && User.count("role", Role.ADMIN.storageValue()) <= 1;
     }
 
     private Response errorResponse(final String message) {

@@ -27,11 +27,12 @@ import org.jspecify.annotations.Nullable;
  * with its human-readable display name.
  *
  * <p>The {@link #storageValue()} is what is persisted in {@code users.role} and consumed by the
- * security layer ({@code SecurityIdentity} roles, {@code @RolesAllowed}) — it reuses the
- * {@link User#ROLE_ADMIN}/{@link User#ROLE_USER} constants so those values live in one place. The
+ * security layer ({@code SecurityIdentity} roles, {@code @RolesAllowed}) — it mirrors the
+ * compile-time {@link Values} constants so those raw values live in exactly one place. The
  * {@link #displayName()} is what the admin User Management table and its role picker show.
  *
- * <p><strong>Adding a new role:</strong> add a constant here, and it automatically appears in the
+ * <p><strong>Adding a new role:</strong> add a constant here (and a matching {@link Values} constant
+ * if it needs to be named in a {@code @RolesAllowed} annotation), and it automatically appears in the
  * admin role picker — alphabetically ordered via {@link #byDisplayName()} — with no template change.
  */
 public enum Role {
@@ -39,12 +40,12 @@ public enum Role {
     /**
      * Full administrative access: user management plus all standard capabilities.
      */
-    ADMIN(User.ROLE_ADMIN, "Administrator"),
+    ADMIN(Values.ADMIN, "Administrator"),
 
     /**
      * Standard, non-administrative access.
      */
-    USER(User.ROLE_USER, "User");
+    USER(Values.USER, "User");
 
     private final String storageValue;
     private final String displayName;
@@ -106,5 +107,31 @@ public enum Role {
     public static boolean isValid(final @Nullable String storageValue) {
         return Arrays.stream(values())
                 .anyMatch(role -> role.storageValue.equals(storageValue));
+    }
+
+    /**
+     * The raw role {@link #storageValue()} strings as compile-time {@code String} constants.
+     *
+     * <p>Annotations such as {@code @RolesAllowed} and {@code @Schema} require a constant expression,
+     * which an enum method call ({@code Role.ADMIN.storageValue()}) is not — so each enum constant is
+     * constructed from the matching constant here, making these the one place the raw strings are
+     * defined and guaranteeing they equal the corresponding {@link #storageValue()}. Runtime code
+     * should still prefer the enum ({@code Role.ADMIN.storageValue()}).
+     */
+    public static final class Values {
+
+        /**
+         * The stored value for {@link Role#ADMIN}.
+         */
+        public static final String ADMIN = "admin";
+
+        /**
+         * The stored value for {@link Role#USER}.
+         */
+        public static final String USER = "user";
+
+        private Values() {
+
+        }
     }
 }

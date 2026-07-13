@@ -38,6 +38,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.Role;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
@@ -60,7 +61,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
  */
 @Tag(name = "Logs", description = "Read a user's logged actions as calendar events.")
 @Path("/logs")
-@RolesAllowed("user")
+@RolesAllowed(Role.Values.USER)
 @Produces(MediaType.APPLICATION_JSON)
 public class CalendarResource {
 

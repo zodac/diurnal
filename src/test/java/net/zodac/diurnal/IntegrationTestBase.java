@@ -31,6 +31,7 @@ import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -166,7 +167,7 @@ public abstract class IntegrationTestBase {
      * Persists a new {@code user}-role user with the shared test password.
      */
     protected static User newUser(final String email, final String displayName) {
-        return newUser(email, displayName, User.ROLE_USER);
+        return newUser(email, displayName, Role.USER.storageValue());
     }
 
     /**

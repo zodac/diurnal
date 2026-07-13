@@ -39,6 +39,7 @@ import java.util.Locale;
 import java.util.UUID;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -47,7 +48,7 @@ import org.apache.logging.log4j.Logger;
  * CRUD endpoints for a user's trackable actions, returning full pages and HTMX partials.
  */
 @Path("/actions")
-@RolesAllowed("user")
+@RolesAllowed(Role.Values.USER)
 public class ActionsWebResource {
 
     private static final Logger LOGGER = LogManager.getLogger(ActionsWebResource.class);

@@ -10,6 +10,13 @@ const DB_CONFIG = {
     database: process.env.TEST_DB_NAME ?? "diurnal_db",
 }
 
+// The users.role storage values, mirrored from the backend's single source of truth
+// (net.zodac.diurnal.user.Role.Values — ADMIN/USER). These are a fixed schema contract, not an
+// environment-varying setting, so they are constants rather than env overrides; this file cannot
+// import the Java enum, so if a role's stored value ever changes there, change it here to match.
+const ROLE_ADMIN = "admin"
+const ROLE_USER = "user"
+
 /**
  * Make an already-registered user the SOLE admin: promote it and demote every other admin.
  *
@@ -25,11 +32,11 @@ export async function ensureSoleAdmin(email: string): Promise<void> {
     const client = new Client(DB_CONFIG)
     await client.connect()
     try {
-        const promoted = await client.query("UPDATE users SET role = 'admin' WHERE email = $1", [email])
+        const promoted = await client.query(`UPDATE users SET role = '${ROLE_ADMIN}' WHERE email = $1`, [email])
         if (promoted.rowCount === 0) {
             throw new Error(`ensureSoleAdmin: no user found with email ${email} (register them first)`)
         }
-        await client.query("UPDATE users SET role = 'user' WHERE email <> $1 AND role = 'admin'", [email])
+        await client.query(`UPDATE users SET role = '${ROLE_USER}' WHERE email <> $1 AND role = '${ROLE_ADMIN}'`, [email])
     } finally {
         await client.end()
     }
@@ -50,7 +57,7 @@ export async function ensureNotAdmin(email: string): Promise<void> {
     const client = new Client(DB_CONFIG)
     await client.connect()
     try {
-        const updated = await client.query("UPDATE users SET role = 'user' WHERE email = $1", [email])
+        const updated = await client.query(`UPDATE users SET role = '${ROLE_USER}' WHERE email = $1`, [email])
         if (updated.rowCount === 0) {
             throw new Error(`ensureNotAdmin: no user found with email ${email} (register them first)`)
         }

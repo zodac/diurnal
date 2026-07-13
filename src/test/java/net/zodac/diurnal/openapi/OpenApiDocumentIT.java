@@ -29,6 +29,7 @@ import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.auth.Session;
 import net.zodac.diurnal.auth.SessionStore;
 import net.zodac.diurnal.config.ReleaseVersion;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
@@ -56,7 +57,7 @@ class OpenApiDocumentIT extends IntegrationTestBase {
 
     @Override
     protected void createDbState() {
-        adminUser = newUser("openapi-admin@lt.test", "OpenAPI Admin", User.ROLE_ADMIN);
+        adminUser = newUser("openapi-admin@lt.test", "OpenAPI Admin", Role.ADMIN.storageValue());
     }
 
     @Test

@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
-import net.zodac.diurnal.user.User;
+import net.zodac.diurnal.user.Role;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.junit.jupiter.api.Test;
 
@@ -53,7 +53,7 @@ class RoleAssignerIT extends IntegrationTestBase {
     void roleForNewUser_emptyTable_returnsAdmin() {
         runInTx(() -> assertThat(roleAssigner.roleForNewUser())
             .as("unexpected value")
-            .isEqualTo(User.ROLE_ADMIN));
+            .isEqualTo(Role.ADMIN.storageValue()));
     }
 
     @Test
@@ -61,7 +61,7 @@ class RoleAssignerIT extends IntegrationTestBase {
         runInTx(() -> newUser("existing@lt.test", "Existing"));
         runInTx(() -> assertThat(roleAssigner.roleForNewUser())
             .as("unexpected value")
-            .isEqualTo(User.ROLE_USER));
+            .isEqualTo(Role.USER.storageValue()));
     }
 
     // ── roleFromOidcGroups — null / empty (always empty regardless of config) ──
@@ -95,7 +95,7 @@ class RoleAssignerIT extends IntegrationTestBase {
         if (oidcAdminGroup.isPresent() && !oidcAdminGroup.get().isBlank()) {
             assertThat(roleAssigner.roleFromOidcGroups(List.of(oidcAdminGroup.get())))
                 .as("unexpected value")
-                .isEqualTo(Optional.of(User.ROLE_ADMIN));
+                .isEqualTo(Optional.of(Role.ADMIN.storageValue()));
         } else {
             // No admin group configured — even a group literally named "admin" returns empty
             assertThat(roleAssigner.roleFromOidcGroups(List.of("admin")).isEmpty())
@@ -109,7 +109,7 @@ class RoleAssignerIT extends IntegrationTestBase {
         if (oidcUserGroup.isPresent() && !oidcUserGroup.get().isBlank()) {
             assertThat(roleAssigner.roleFromOidcGroups(List.of(oidcUserGroup.get())))
                 .as("unexpected value")
-                .isEqualTo(Optional.of(User.ROLE_USER));
+                .isEqualTo(Optional.of(Role.USER.storageValue()));
         } else {
             assertThat(roleAssigner.roleFromOidcGroups(List.of("users")).isEmpty())
                 .as("expected condition to be true")

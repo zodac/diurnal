@@ -36,6 +36,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.user.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -176,7 +177,7 @@ class IpThrottleIT extends IntegrationTestBase {
     // (this profile) at a low limit: failed current-password checks are never gated by the lockout (never
     // 429) and never feed its shared counter, so they can neither lock the IP nor be locked by it.
     @Test
-    @TestSecurity(user = SEED_EMAIL, roles = "user")
+    @TestSecurity(user = SEED_EMAIL, roles = Role.Values.USER)
     void passwordChangeVerifyFailures_areNeitherGatedByNorFeedTheIpLockout() {
         registerSeedUser();
 

@@ -68,6 +68,7 @@ import net.zodac.diurnal.stats.ActionStatField;
 import net.zodac.diurnal.stats.StatsService;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.user.UserSettings;
 import org.apache.logging.log4j.LogManager;
@@ -318,7 +319,7 @@ public class WebResource {
      */
     @GET
     @Path("oidc-login")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     public Response oidcLogin() {
         // Unauthenticated requests never reach here — the oidc-trigger permission policy
         // intercepts them first and issues the OIDC Authorization Code challenge.
@@ -587,7 +588,7 @@ public class WebResource {
      */
     @GET
     @Path("settings")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance settingsPage() {
@@ -608,7 +609,7 @@ public class WebResource {
      */
     @PATCH
     @Path("settings/theme")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateTheme(@FormParam("theme") final String theme) {
@@ -621,7 +622,7 @@ public class WebResource {
      */
     @PATCH
     @Path("settings/font")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateFont(@FormParam("font") final String font) {
@@ -634,7 +635,7 @@ public class WebResource {
      */
     @PATCH
     @Path("settings/calendar-view")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateCalendarView(@FormParam("calendarView") final String calendarView) {
@@ -648,7 +649,7 @@ public class WebResource {
      */
     @PATCH
     @Path("settings/timezone")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateTimezone(@FormParam("timezone") final String timezone) {
@@ -664,7 +665,7 @@ public class WebResource {
      */
     @PATCH
     @Path("settings/page-size")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updatePageSize(@FormParam("pageSize") final String pageSize) {
@@ -684,7 +685,7 @@ public class WebResource {
      */
     @PATCH
     @Path("settings/decimal-places")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateDecimalPlaces(@FormParam("decimalPlaces") final String decimalPlaces) {
@@ -705,7 +706,7 @@ public class WebResource {
      */
     @PATCH
     @Path("settings/stats-fields")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateStatsFields(
@@ -724,7 +725,7 @@ public class WebResource {
      */
     @PATCH
     @Path("settings/show-stats-summary")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateShowStatsSummary(@FormParam("showStatsSummary") final List<String> showStatsSummary) {
@@ -745,7 +746,7 @@ public class WebResource {
      */
     @POST
     @Path("settings/display-name")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateDisplayName(@FormParam("displayName") final String displayName) {
@@ -771,7 +772,7 @@ public class WebResource {
      */
     @POST
     @Path("settings/password")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updatePassword(
@@ -841,7 +842,7 @@ public class WebResource {
      */
     @POST
     @Path("settings/password/verify")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response verifyCurrentPassword(@FormParam("currentPassword") final String currentPassword) {
@@ -880,7 +881,7 @@ public class WebResource {
      */
     @POST
     @Path("settings/sessions/revoke-all")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @Transactional
     public Response revokeAllSessions() {
         final User user = currentUser.get();
@@ -931,7 +932,7 @@ public class WebResource {
      */
     @GET
     @Path("/")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance dashboard() {

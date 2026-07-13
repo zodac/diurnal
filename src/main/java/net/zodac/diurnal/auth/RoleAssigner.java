@@ -22,6 +22,7 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Optional;
 import net.zodac.diurnal.config.OidcConfig;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.jspecify.annotations.Nullable;
 
@@ -40,7 +41,7 @@ public class RoleAssigner {
      * @return the new {@link User}'s role
      */
     public String roleForNewUser() {
-        return User.count() == 0 ? User.ROLE_ADMIN : User.ROLE_USER;
+        return User.count() == 0 ? Role.ADMIN.storageValue() : Role.USER.storageValue();
     }
 
     /**
@@ -68,12 +69,12 @@ public class RoleAssigner {
         final Optional<String> userGroup = oidcConfig.userGroup();
         if (adminGroup.isPresent() && !adminGroup.get().isBlank()
             && groups.contains(adminGroup.get())) {
-            return Optional.of(User.ROLE_ADMIN);
+            return Optional.of(Role.ADMIN.storageValue());
         }
 
         if (userGroup.isPresent() && !userGroup.get().isBlank()
             && groups.contains(userGroup.get())) {
-            return Optional.of(User.ROLE_USER);
+            return Optional.of(Role.USER.storageValue());
         }
         return Optional.empty();
     }

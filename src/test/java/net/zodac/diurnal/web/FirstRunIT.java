@@ -27,6 +27,7 @@ import static org.hamcrest.Matchers.not;
 
 import io.quarkus.test.junit.QuarkusTest;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
@@ -81,7 +82,7 @@ class FirstRunIT extends IntegrationTestBase {
             final User created = User.findByEmail("first@example.com").orElseThrow();
             assertThat(created.role)
                 .as("First registered user must be an administrator")
-                .isEqualTo(User.ROLE_ADMIN);
+                .isEqualTo(Role.ADMIN.storageValue());
         });
     }
 

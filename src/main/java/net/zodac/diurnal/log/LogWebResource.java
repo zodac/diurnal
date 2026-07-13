@@ -49,6 +49,7 @@ import java.util.stream.IntStream;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -57,7 +58,7 @@ import org.apache.logging.log4j.Logger;
  * Increment/decrement endpoints for a day's action counts, plus the dashboard day-panel partials.
  */
 @Path("/logs")
-@RolesAllowed("user")
+@RolesAllowed(Role.Values.USER)
 public class LogWebResource {
 
     private static final Logger LOGGER = LogManager.getLogger(LogWebResource.class);

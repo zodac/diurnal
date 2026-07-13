@@ -26,6 +26,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
+import net.zodac.diurnal.user.Role;
 
 /**
  * Renders the styled 403 page (instead of the default JSON error) when access is denied.
@@ -47,7 +48,7 @@ public class ForbiddenExceptionMapper implements ExceptionMapper<ForbiddenExcept
         if (!identity.isAnonymous()) {
             final String attr = identity.getAttribute("displayName");
             displayName = attr != null ? attr : identity.getPrincipal().getName();
-            isAdmin = identity.hasRole("admin");
+            isAdmin = identity.hasRole(Role.Values.ADMIN);
         }
         return Response.status(Response.Status.FORBIDDEN)
                 .entity(errorTemplate
