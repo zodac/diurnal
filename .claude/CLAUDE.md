@@ -21,10 +21,11 @@ git submodule update --init
 
 # Build CSS (compiled Tailwind at /css/app.css; rebuild after any class/template change)
 # The compiled file is a build artifact (.gitignored); any `mvn` build regenerates it via the
-# POM's `css-build` exec, but it needs node_modules — so run `npm install` once after cloning.
-# For a hot-reload dev loop, run `npm run css:watch` alongside quarkus:dev.
-npm install        # one-time (required for `mvn` to build the CSS)
-npm run css        # or: npm run css:watch
+# POM's `css-build` exec, but it needs frontend/node_modules — so run the install once after cloning.
+# The Node UI-build project (package.json, tailwind.config.js, the CSS source) lives in frontend/.
+# For a hot-reload dev loop, run the css:watch script alongside quarkus:dev.
+npm --prefix frontend install    # one-time (required for `mvn` to build the CSS)
+npm --prefix frontend run css    # or: npm --prefix frontend run css:watch
 
 # Start dev PostgreSQL (required before quarkus:dev)
 docker compose -f docker-compose.dev.yml up -d diurnal-db-dev
@@ -38,7 +39,7 @@ mvn package
 
 # Run ALL tests + linters (full CI gate)
 mvn clean install -Dall
-# Prerequisite: cd e2e && npx playwright install
+# Prerequisite: cd tests && npx playwright install
 
 # Run linters only (no tests)
 mvn clean install -Dlint
@@ -47,14 +48,14 @@ mvn clean install -Dlint
 mvn test -Dtests
 mvn test -Dtests -Dtest=MyTestClass
 
-# Run Playwright E2E tests
-cd e2e && npm test                                  # against :8080
-cd e2e && BASE_URL=http://localhost:8081 npm test   # against dev / -Dall port
+# Run Playwright E2E tests (the specs live in tests/ui/)
+cd tests && npm test                                  # against :8080
+cd tests && BASE_URL=http://localhost:8081 npm test   # against dev / -Dall port
 
 # Run the deployment-smoke suite against the REAL production image (the only tier that exercises the
 # distroless/jlink/non-root runtime). Self-contained: builds the image, runs an isolated app+DB stack
 # on :8082, runs the smoke specs, tears it all down. Included automatically in `mvn clean install -Dall`.
-bash e2e/run-smoke.sh 8082 "$(pwd)"
+bash tests/run-smoke.sh 8082 "$(pwd)"
 
 # Full Docker deployment
 cp .env.example .env   # fill in DB_PASSWORD and SESSION_ENCRYPTION_KEY
@@ -220,8 +221,8 @@ from executing `hx-on=`/`Function`-constructor code paths (would otherwise need 
 `app.css` instead, ready for the day a `.htmx-indicator` element is used.
 
 Regression coverage: `CspPolicyTest` (unit, the path→policy branching), `SecurityHeadersFilterIT` (the live FOUC-hash
-re-derivation + header presence), a deployment-smoke spec (`e2e/smoke/smoke.spec.ts`) asserting the full header set on
-the **real production image**, and an E2E fixture (`e2e/helpers/fixtures.ts`'s `page` fixture override) that fails any
+re-derivation + header presence), a deployment-smoke spec (`tests/smoke/smoke.spec.ts`) asserting the full header set on
+the **real production image**, and an E2E fixture (`tests/helpers/fixtures.ts`'s `page` fixture override) that fails any
 Playwright spec if a `securitypolicyviolation` DOM event fires or a CSP-related console error is logged — turning
 "watch the console, zero expected" into a permanent gate across the whole E2E suite rather than a one-off manual pass.
 CSRF is a separate concern, handled by `CsrfProtectionFilter` (request-origin validation), not this filter.
@@ -279,22 +280,22 @@ else on a row toggles its (visual-only, `pointer-events-none`) checkbox; the des
 
 ### CSS build & colour tokens
 
-Tailwind is compiled (not CDN). `src/main/css/app.css` (the committed source) is built into `src/main/resources/META-INF/resources/css/app.css` (the
-served output). **Rebuild with `npm run css` after any class change in templates or Java** or the class will be purged.
+Tailwind is compiled (not CDN). `frontend/css/app.css` (the committed source) is built into `src/main/resources/META-INF/resources/css/app.css` (the
+served output). **Rebuild with `npm --prefix frontend run css` after any class change in templates or Java** or the class will be purged.
 
 The compiled output is a **build artifact, not committed** (`.gitignore`d). Every Maven build regenerates it: the POM's `exec-maven-plugin`
 `css-build` execution runs `npm run css` in `generate-resources` (before resources are copied/packaged), so `package`/`*IT`/E2E always bundle a fresh
-stylesheet. This needs `node_modules` (`npm install` once). The Docker build instead compiles the CSS in a dedicated `css` stage and copies it in,
+stylesheet. This needs `frontend/node_modules` (`npm --prefix frontend install` once). The Docker build instead compiles the CSS in a dedicated `css` stage and copies it in,
 passing `-Dcss.build.skip=true` to `mvn package` so the Node-less Maven image skips the exec. Dev mode (`quarkus:dev`) serves the on-disk file
-directly — keep `npm run css:watch` running, or run `npm run css` manually, to refresh it.
+directly — keep `npm --prefix frontend run css:watch` running, or run `npm --prefix frontend run css` manually, to refresh it.
 
 Colour tokens: `app.css` defines `--color-*` CSS variables (`:root` + `.dark`). Tailwind exposes semantic utilities: `bg-surface`/`bg-surface-muted`,
 `text-ink`/`text-ink-muted`, `border-line`/`border-line-subtle`, `text-brand`, `bg-brand`, `text-success`, `text-danger`. Use these instead of raw
 `gray-*`/`indigo-*`.
 
 **The brand colour is generated — never hand-edit it.** The `--color-brand*` family lives in `@generated:brand` regions of `app.css`, computed by
-`scripts/generate-brand.py` from the `fill` of `scripts/assets/wordmark.svg` (the single source of truth). To rebrand: change the `fill`, then
-`npm run brand`. Base colour: `#6366f1`, constant across light and dark.
+`scripts/generate-brand.py` from the `fill` of `assets/wordmark.svg` (the single source of truth). To rebrand: change the `fill`, then
+`npm --prefix frontend run brand`. Base colour: `#6366f1`, constant across light and dark.
 
 Every accent must resolve to the brand: `.btn-primary`, active nav links, log increment `+`, focus rings, calendar "today" fill, Edit button, edit-row
 highlight. Route new accented elements through `bg-brand`/`text-brand`/`border-brand`/`ring-brand-ring`/`text-on-brand` — **never a literal `indigo-*`
@@ -406,10 +407,10 @@ passed to every full-page template** (mirror `theme` 1:1; HTMX day-panel partial
 
 ### Brand assets
 
-No logo/icon mark — purely typographic. **`scripts/assets/wordmark.svg` is the single source of truth** (outside `src/`, not packaged by Maven).
+No logo/icon mark — purely typographic. **`assets/wordmark.svg` is the single source of truth** (outside `src/`, not packaged by Maven).
 Everything under `src/main/resources/META-INF/resources/img/` is generated output.
 
-**To rebrand: change `fill` in `wordmark.svg`, then `npm run brand`** — chains `generate-brand.py` → `generate-favicons.cjs` → `npm run css`. Docker
+**To rebrand: change `fill` in `wordmark.svg`, then `npm --prefix frontend run brand`** — chains `generate-brand.py` → `generate-favicons.cjs` → `npm run css`. Docker
 re-renders rasters from committed `favicon.svg` but does not run `generate-brand.py`.
 
 Served assets: `wordmark.svg` (navbar/headings), `favicon.svg` (scalable favicon), `footer-mark.svg` (snug "d" for footer). Rasters: `favicon.ico` (
@@ -493,15 +494,15 @@ Integration tests extend `IntegrationTestBase` (truncates `action_logs → actio
 `freezeDate(LocalDate)` or `freezeInstant(Instant, ZoneId)` for boundary cases. Unit tests pass a fixed `today` directly. Surefire/failsafe pin
 `-Duser.timezone=UTC`. E2E specs use UTC date APIs (`setUTCDate`/`getUTCDate`/`toISOString`) and `timezoneId: 'UTC'` in Playwright.
 
-### Deployment-smoke tier (`e2e/smoke/`)
+### Deployment-smoke tier (`tests/smoke/`)
 
 The test pyramid has a fourth tier on top of unit / `*IT` / E2E: **deployment-smoke**, the only tier that runs the **actual production Docker image
 ** (distroless, jlink custom JRE, non-root UID 65532) rather than a full JDK. It exists because that runtime is now a real source of bugs none of the
 lower tiers can see — e.g. a jlink module trimmed too far (the `java.rmi` boot failure), non-root write permissions, or a CSS-hash/favicon build-stage
 desync.
 
-- **Files:** `docker-compose.smoke.yml` (isolated app+DB stack built from the `Dockerfile`), `e2e/run-smoke.sh` (build → `up --wait` → run →
-  trap-teardown), `e2e/playwright.smoke.config.ts` (`testDir: ./smoke`, single chromium project), `e2e/smoke/*.spec.ts`.
+- **Files:** `tests/docker-compose.smoke.yml` (isolated app+DB stack built from the `Dockerfile`), `tests/run-smoke.sh` (build → `up --wait` → run →
+  trap-teardown), `tests/playwright.smoke.config.ts` (`testDir: ./smoke`, single chromium project), `tests/smoke/*.spec.ts`.
 - **Runs the prod profile** against a live Postgres — so there is **NO frozen clock and NO seeded DB**. Smoke specs must **self-seed** and use only
   the app's own UTC "today" (`TZ=UTC` in the compose stack; browser pinned to UTC). Do **not** port frozen-time E2E specs here. Keep the suite small
   and image-focused (boot/health, hashed assets, one persisted round-trip through the server-side session store) — feature behaviour belongs in the E2E suite.

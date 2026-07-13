@@ -112,7 +112,7 @@ export const test = base.extend<Fixtures>({
     testUser: async ({}, use, testInfo) => {
         // Derive a deterministic email from the spec file name AND project so each project×spec
         // combination gets its own isolated DB user — required for parallel workers.
-        const specName = testInfo.file.replace(/.*\/tests\//, "").replace(".spec.ts", "")
+        const specName = testInfo.file.replace(/.*\//, "").replace(".spec.ts", "")
         const project = testInfo.project.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")
         const user: TestUser = {
             email: `e2e-${specName}-${project}@example.com`,

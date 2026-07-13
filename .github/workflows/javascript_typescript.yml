@@ -6,13 +6,13 @@ on:
     paths:
       - '.github/workflows/javascript_typescript.yml'
       # JavaScript sources linted by the `javascript` step
-      - 'tailwind.config.js'
+      - 'frontend/tailwind.config.js'
       - 'scripts/**/*.cjs'
       # TypeScript sources linted by the `typescript` step
-      - 'e2e/**/*.ts'
-      - 'e2e/tsconfig.json'
-      - 'e2e/package.json'
-      - 'e2e/package-lock.json'
+      - 'tests/**/*.ts'
+      - 'tests/tsconfig.json'
+      - 'tests/package.json'
+      - 'tests/package-lock.json'
   workflow_dispatch: # allows manual trigger
 
 jobs:

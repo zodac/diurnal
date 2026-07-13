@@ -3,17 +3,17 @@
  * trio. `@config` keeps the v3-style JavaScript config (tailwind.config.js) as the source of the
  * `darkMode: 'class'` strategy, the `content` scan globs (templates + Java sources), the `safelist`,
  * and the semantic colour/font token mapping — so the whole theme still lives in one file and the
- * JS-lint target stays valid. Path is relative to this file: src/main/css → repo root.
+ * JS-lint target stays valid. Path is relative to this file: frontend/css → frontend/.
  */
 @import 'tailwindcss';
-@config '../../../tailwind.config.js';
+@config '../tailwind.config.js';
 
 /*
  * Brand typography — the Nova superfamily (the same family the wordmark is set in).
  *
  * Two faces drive the Nova theme, both served locally as woff2 from
  * /fonts (src/main/resources/META-INF/resources/fonts/, generated from the curated .ttf masters
- * kept in scripts/assets/Nova/ — see CLAUDE.md "Typography & the per-user Font setting"):
+ * kept in assets/Nova/ — see CLAUDE.md "Typography & the per-user Font setting"):
  *   - "Nova Flat"  — the brand font; the body/UI face under the Nova theme.
  *                    Book = 400, Bold = 700, each with an oblique (italic) variant.
  *   - "Nova Round" — a softer, rounded sibling used as the DISPLAY face for headings and
@@ -99,7 +99,7 @@
     --font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     --font-display: var(--font-body);
 
-    /* @generated:brand (light) — computed from scripts/assets/wordmark.svg by scripts/generate-brand.py; do not hand-edit (edit the wordmark + run `npm run brand`). */
+    /* @generated:brand (light) — computed from assets/wordmark.svg by scripts/generate-brand.py; do not hand-edit (edit the wordmark + run `npm --prefix frontend run brand`). */
     --color-brand: #6366f1;  /* the wordmark colour — THE core accent */
     --color-brand-hover: #5356ca;  /* darker — hover/active */
     --color-brand-strong: #4749ae;  /* darker still — active hovers */
@@ -166,7 +166,7 @@
   }
 
   .dark {
-    /* @generated:brand (dark) — computed from scripts/assets/wordmark.svg by scripts/generate-brand.py; do not hand-edit (edit the wordmark + run `npm run brand`). */
+    /* @generated:brand (dark) — computed from assets/wordmark.svg by scripts/generate-brand.py; do not hand-edit (edit the wordmark + run `npm --prefix frontend run brand`). */
     --color-brand: #6366f1;  /* same brand hue as light */
     --color-brand-hover: #8588f4;  /* lighter — hover/active on dark */
     --color-brand-strong: #a1a3f7;  /* lighter still — active hovers on dark */
