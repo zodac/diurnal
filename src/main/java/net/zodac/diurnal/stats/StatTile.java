@@ -18,22 +18,22 @@
 package net.zodac.diurnal.stats;
 
 /**
- * A single rendered Stats-page tile, pre-computed from an {@link ActionStats} for one
- * {@link ActionStatField}. A pure data carrier for the {@code partials/stat-tile} template.
+ * A single rendered Stats-page tile, pre-computed from an {@link ActionStats} for one {@link ActionStatField}. A pure data carrier for the
+ * {@code partials/stat-tile} template.
  *
- * @param label      the tile caption
- * @param value      the primary figure or label to render
- * @param sub        the optional secondary caption ({@code ""} for none)
- * @param subNum     {@code true} when {@code sub} carries locale-groupable number(s)
+ * @param label the tile caption
+ * @param value the primary figure or label to render
+ * @param sub the optional secondary caption ({@code ""} for none)
+ * @param subNum {@code true} when {@code sub} carries locale-groupable number(s)
  * @param valueClass a utility/colour class for the value (e.g. a trend colour), or {@code "text-ink"}
- * @param date       {@code true} for the date-styled "Last performed" tile (smaller, two-line value)
+ * @param date {@code true} for the date-styled "Last performed" tile (smaller, two-line value)
  */
 public record StatTile(
-        String  label,
-        String  value,
-        String  sub,
-        boolean subNum,
-        String  valueClass,
-        boolean date
+    String  label,
+    String  value,
+    String  sub,
+    boolean subNum,
+    String  valueClass,
+    boolean date
 ) {
 }

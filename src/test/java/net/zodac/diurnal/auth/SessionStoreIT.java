@@ -29,8 +29,8 @@ import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 /**
- * Integration tests for {@link PostgresSessionStore}: token resolution, idle expiry and the three
- * revocation modes (single, all, all-but-current) against a real database.
+ * Integration tests for {@link PostgresSessionStore}: token resolution, idle expiry and the three revocation modes (single, all, all-but-current)
+ * against a real database.
  */
 @QuarkusTest
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach

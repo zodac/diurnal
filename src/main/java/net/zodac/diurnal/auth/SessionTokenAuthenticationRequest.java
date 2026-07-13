@@ -20,10 +20,9 @@ package net.zodac.diurnal.auth;
 import io.quarkus.security.identity.request.BaseAuthenticationRequest;
 
 /**
- * Carries a raw opaque session token from {@link SessionAuthMechanism} to
- * {@link SessionIdentityProvider}, which resolves it to a {@link net.zodac.diurnal.user.User}. This
- * indirection lets the blocking database lookup run off the IO thread via the identity-provider
- * machinery, mirroring how the built-in mechanisms hand credentials to their providers.
+ * Carries a raw opaque session token from {@link SessionAuthMechanism} to {@link SessionIdentityProvider}, which resolves it to a
+ * {@link net.zodac.diurnal.user.User}. This indirection lets the blocking database lookup run off the IO thread via the identity-provider machinery,
+ * mirroring how the built-in mechanisms hand credentials to their providers.
  */
 public class SessionTokenAuthenticationRequest extends BaseAuthenticationRequest {
 

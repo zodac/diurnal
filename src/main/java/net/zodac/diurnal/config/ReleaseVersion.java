@@ -23,20 +23,16 @@ import java.nio.charset.StandardCharsets;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Reads the authoritative release version from the repository's {@code VERSION} file, which the POM
- * packages onto the classpath so it is resolvable at runtime (footer) and at build time (the generated
- * OpenAPI document). CI bumps this file independently of the {@code -SNAPSHOT} Maven project version.
+ * Reads the authoritative release version from the repository's {@code VERSION} file, which the POM packages onto the classpath so it is resolvable
+ * at runtime (footer) and at build time (the generated OpenAPI document). CI bumps this file independently of the {@code -SNAPSHOT} Maven project
+ * version.
  *
- * <p>Shared by {@code net.zodac.diurnal.web.AppInfo} (the footer version) and
- * {@code net.zodac.diurnal.openapi.PublicApiFilter} (the Swagger/OpenAPI {@code info.version}) so both
- * surfaces report the same version from one source.
+ * <p>
+ * Shared by {@code net.zodac.diurnal.web.AppInfo} (the footer version) and {@code net.zodac.diurnal.openapi.PublicApiFilter} (the Swagger/OpenAPI
+ * {@code info.version}) so both surfaces report the same version from one source.
  */
 public final class ReleaseVersion {
 
-    /*
-     * Classpath location of the repository's {@code VERSION} file, packaged as a resource by the POM's
-     * {@code <resources>} block.
-     */
     private static final String VERSION_RESOURCE = "/VERSION";
 
     private ReleaseVersion() {
@@ -44,8 +40,8 @@ public final class ReleaseVersion {
     }
 
     /**
-     * Resolves the release version from the packaged {@code VERSION} resource, falling back to
-     * {@code fallback} when the resource is missing, blank, or unreadable.
+     * Resolves the release version from the packaged {@code VERSION} resource, falling back to {@code fallback} when the resource is missing, blank,
+     * or unreadable.
      *
      * @param fallback the version to return when the resource yields nothing usable
      * @return the trimmed {@code VERSION} content, or {@code fallback}
@@ -55,10 +51,10 @@ public final class ReleaseVersion {
     }
 
     /**
-     * Reads the release version from the given {@code VERSION} stream, closing it, and falls back to
-     * {@code fallback} when the stream is {@code null}, its (trimmed) content is empty, or reading fails.
+     * Reads the release version from the given {@code VERSION} stream, closing it, and falls back to {@code fallback} when the stream is
+     * {@code null}, its (trimmed) content is empty, or reading fails.
      *
-     * @param stream   the {@code VERSION} resource stream, or {@code null} when absent
+     * @param stream the {@code VERSION} resource stream, or {@code null} when absent
      * @param fallback the version to return when the stream yields nothing usable
      * @return the trimmed {@code VERSION} content, or {@code fallback}
      */

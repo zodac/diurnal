@@ -25,7 +25,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 @Schema(description = "Successful authentication response: the opaque Bearer session token plus the user's basic profile.")
 public record TokenResponse(
     @Schema(examples = "iRbY3s0k9mA2fV7pQ1wZxL8cT4hN6uD0eG5jS3rK2oI",
-        description = "Opaque session token to send as the Bearer token on subsequent API calls.")
+    description = "Opaque session token to send as the Bearer token on subsequent API calls.")
     String token,
     @Schema(examples = "ada@example.com", description = "Email address of the authenticated user.") String email,
     @Schema(examples = "Ada Lovelace", description = "Human-readable display name of the authenticated user.") String displayName) {

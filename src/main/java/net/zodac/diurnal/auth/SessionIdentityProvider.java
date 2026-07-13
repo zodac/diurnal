@@ -27,13 +27,12 @@ import jakarta.inject.Inject;
 import net.zodac.diurnal.time.AppClock;
 
 /**
- * Resolves a {@link SessionTokenAuthenticationRequest} into a {@link SecurityIdentity} by looking the
- * token up in the {@link SessionStore}. Runs the blocking database work on a worker thread, then
- * builds the identity with the account's live roles via {@link UserIdentities}.
+ * Resolves a {@link SessionTokenAuthenticationRequest} into a {@link SecurityIdentity} by looking the token up in the {@link SessionStore}. Runs the
+ * blocking database work on a worker thread, then builds the identity with the account's live roles via {@link UserIdentities}.
  *
  * <p>
- * An unknown or expired token yields an {@link AuthenticationFailedException}, which drives the
- * mechanism's challenge (a {@code /login} redirect for the browser, {@code 401} for the API).
+ * An unknown or expired token yields an {@link AuthenticationFailedException}, which drives the mechanism's challenge (a {@code /login} redirect for
+ * the browser, {@code 401} for the API).
  */
 @ApplicationScoped
 public class SessionIdentityProvider implements IdentityProvider<SessionTokenAuthenticationRequest> {

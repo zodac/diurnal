@@ -66,7 +66,7 @@ public class Action extends PanacheEntityBase {
     /**
      * Returns the user's actions whose id is in the given collection.
      *
-     * @param userId    the owning user
+     * @param userId the owning user
      * @param actionIds the action ids to fetch (must be non-empty)
      * @return the matching actions (in no particular order)
      */

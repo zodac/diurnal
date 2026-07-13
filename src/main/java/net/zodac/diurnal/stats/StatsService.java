@@ -45,18 +45,17 @@ import net.zodac.diurnal.user.User;
 public class StatsService {
 
     private static final DateTimeFormatter MONTH_FMT =
-            DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
+        DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
 
     @Inject
     AppClock clock;
 
     /**
-     * Returns stats for every active action of the user that has at least one logged entry, ordered by
-     * action name.
+     * Returns stats for every active action of the user that has at least one logged entry, ordered by action name.
      *
-     * <p>The per-action totals, comparative counts and best-month/best-year figures are aggregated in
-     * the database (a monthly {@code GROUP BY}); only the distinct performed dates are read back, and
-     * solely to compute the streak/gap figures — so a long history no longer hydrates every log row.
+     * <p>
+     * The per-action totals, comparative counts and best-month/best-year figures are aggregated in the database (a monthly {@code GROUP BY}); only
+     * the distinct performed dates are read back, and solely to compute the streak/gap figures — so a long history no longer hydrates every log row.
      */
     @Transactional
     public List<ActionStats> forAllActiveActions(final UUID userId) {
@@ -72,13 +71,13 @@ public class StatsService {
     }
 
     /**
-     * Returns stats for the actions the user has performed in the current month, newest first, up to
-     * {@code limit}. Actions not logged this month are excluded entirely.
+     * Returns stats for the actions the user has performed in the current month, newest first, up to {@code limit}. Actions not logged this month are
+     * excluded entirely.
      *
-     * <p>Unlike {@link #forAllActiveActions(UUID)}, this dashboard path never touches every action: the
-     * database picks the {@code limit} most-recently-performed active actions logged this month (ties
-     * broken by name, matching the Stats page's ordering), and only those few are aggregated — the only
-     * actions the dashboard summary strip can show.
+     * <p>
+     * Unlike {@link #forAllActiveActions(UUID)}, this dashboard path never touches every action: the database picks the {@code limit}
+     * most-recently-performed active actions logged this month (ties broken by name, matching the Stats page's ordering), and only those few are
+     * aggregated — the only actions the dashboard summary strip can show.
      */
     @Transactional
     public List<ActionStats> forMostRecent(final UUID userId, final int limit) {
@@ -92,8 +91,8 @@ public class StatsService {
 
         // findByUserAndIds does not preserve the DB's recency ordering, so restore it by id index.
         final List<Action> actions = Action.findByUserAndIds(userId, recentActionIds).stream()
-                .sorted(Comparator.comparingInt((Action action) -> recentActionIds.indexOf(action.id)))
-                .toList();
+            .sorted(Comparator.comparingInt((Action action) -> recentActionIds.indexOf(action.id)))
+            .toList();
         return assembleAll(userId, actions, recentActionIds, today);
     }
 
@@ -105,12 +104,8 @@ public class StatsService {
         return clock.today(clock.zoneFor(user == null ? null : user.timezone));
     }
 
-    /*
-     * Aggregates {@code actionIds} in the database and assembles one {@link ActionStats} per supplied
-     * action, preserving the order of {@code actions}. {@code actionIds} must be non-empty.
-     */
     private static List<ActionStats> assembleAll(final UUID userId, final List<Action> actions,
-                                                 final List<UUID> actionIds, final LocalDate today) {
+        final List<UUID> actionIds, final LocalDate today) {
         final Map<UUID, List<MonthlyTotal>> monthly = groupMonthly(ActionLog.monthlyTotalsForActions(userId, actionIds));
         final Map<UUID, List<LocalDate>> dates = groupDates(ActionLog.distinctDatesForActions(userId, actionIds));
         return actions.stream()
@@ -123,7 +118,7 @@ public class StatsService {
         final Map<UUID, List<MonthlyTotal>> byAction = new HashMap<>();
         for (final Object[] row : rows) {
             final MonthlyTotal total = new MonthlyTotal(
-                    ((Number) row[1]).intValue(), ((Number) row[2]).intValue(), ((Number) row[3]).longValue());
+                ((Number) row[1]).intValue(), ((Number) row[2]).intValue(), ((Number) row[3]).longValue());
             byAction.computeIfAbsent((UUID) row[0], _ -> new ArrayList<>()).add(total);
         }
         return byAction;
@@ -139,7 +134,7 @@ public class StatsService {
     }
 
     private static ActionStats assemble(final Action action, final List<MonthlyTotal> monthlyTotals,
-                                        final List<LocalDate> sortedDates, final LocalDate today) {
+        final List<LocalDate> sortedDates, final LocalDate today) {
         if (sortedDates.isEmpty()) {
             return new ActionStats(action, 0, 0L, null, null, 0, 0, 0,
                     0L, 0L, 0L, 0L, "—", 0L, "—", 0L, today);
@@ -159,9 +154,9 @@ public class StatsService {
         }
 
         final Map.Entry<YearMonth, Long> bestMonth = byMonth.entrySet().stream()
-                .max(Map.Entry.comparingByValue()).orElse(null);
+            .max(Map.Entry.comparingByValue()).orElse(null);
         final Map.Entry<Integer, Long> bestYear = byYear.entrySet().stream()
-                .max(Map.Entry.comparingByValue()).orElse(null);
+            .max(Map.Entry.comparingByValue()).orElse(null);
 
         return new ActionStats(
                 action,
@@ -183,10 +178,6 @@ public class StatsService {
                 today);
     }
 
-    /*
-     * A single action's summed {@code count} for one calendar month — the shape of the database's
-     * monthly {@code GROUP BY}, from which every non-streak figure is rolled up.
-     */
     private record MonthlyTotal(int year, int month, long total) {
 
     }
@@ -206,8 +197,8 @@ public class StatsService {
     }
 
     /**
-     * The longest span of consecutive days on which the action was <em>not</em> performed, looking
-     * both at gaps between any two logged dates and at the open gap from the last log to today.
+     * The longest span of consecutive days on which the action was <em>not</em> performed, looking both at gaps between any two logged dates and at
+     * the open gap from the last log to today.
      */
     static int longestGap(final List<LocalDate> sortedDates, final LocalDate today) {
         if (sortedDates.isEmpty()) {

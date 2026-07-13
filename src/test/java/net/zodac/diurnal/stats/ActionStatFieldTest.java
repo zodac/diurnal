@@ -84,19 +84,20 @@ class ActionStatFieldTest {
 
     @Test
     void displayFields_excludesDisabledButKeepsOrder() {
+        final List<ActionStatField> expected = List.of(
+            ActionStatField.BEST_YEAR,
+            ActionStatField.CURRENT_STREAK,
+            ActionStatField.LONGEST_STREAK,
+            ActionStatField.BIGGEST_GAP,
+            ActionStatField.TOTAL_COUNT,
+            ActionStatField.WEEKLY_AVERAGE,
+            ActionStatField.LAST_PERFORMED,
+            ActionStatField.VS_LAST_MONTH,
+            ActionStatField.VS_LAST_YEAR,
+            ActionStatField.BEST_MONTH);
         assertThat(ActionStatField.displayFields(CUSTOM))
             .as("disabled total-days omitted; the arranged order is otherwise preserved")
-            .containsExactly(
-                ActionStatField.BEST_YEAR,
-                ActionStatField.CURRENT_STREAK,
-                ActionStatField.LONGEST_STREAK,
-                ActionStatField.BIGGEST_GAP,
-                ActionStatField.TOTAL_COUNT,
-                ActionStatField.WEEKLY_AVERAGE,
-                ActionStatField.LAST_PERFORMED,
-                ActionStatField.VS_LAST_MONTH,
-                ActionStatField.VS_LAST_YEAR,
-                ActionStatField.BEST_MONTH);
+            .containsExactlyElementsOf(expected);
     }
 
     @Test
@@ -137,11 +138,12 @@ class ActionStatFieldTest {
     void choices_preservesArrangementOrderRegardlessOfEnabledState() {
         final List<Choice> choices = ActionStatField.choices(CUSTOM);
 
+        final List<String> expectedKeys = List.of("best-year", "current-streak", "total-days", "longest-streak", "biggest-gap", "total-count",
+            "weekly-average", "last-performed", "vs-last-month", "vs-last-year", "best-month");
         assertThat(choices)
             .as("every field is represented, in the stored arrangement order")
             .extracting(Choice::key)
-            .containsExactly("best-year", "current-streak", "total-days", "longest-streak", "biggest-gap",
-                "total-count", "weekly-average", "last-performed", "vs-last-month", "vs-last-year", "best-month");
+            .containsExactlyElementsOf(expectedKeys);
 
         // The disabled stat keeps its slot (index 2) rather than being pushed down.
         assertThat(choices.get(2).key())
@@ -157,8 +159,8 @@ class ActionStatFieldTest {
         assertThat(ActionStatField.choices(null))
             .as("every picker row carries a non-blank tooltip description")
             .allSatisfy(choice -> assertThat(choice.description())
-                .as("description for " + choice.key())
-                .isNotBlank());
+            .as("description for " + choice.key())
+            .isNotBlank());
     }
 
     @Test
@@ -242,7 +244,7 @@ class ActionStatFieldTest {
             .as("every field stored exactly once; omitted fields appended, none duplicated")
             .extracting(StatFieldPref::key)
             .containsExactlyInAnyOrderElementsOf(
-                Arrays.stream(ActionStatField.values()).map(ActionStatField::key).toList());
+            Arrays.stream(ActionStatField.values()).map(ActionStatField::key).toList());
         assertThat(encoded)
             .as("an omitted field is appended, enabled")
             .contains(new StatFieldPref("biggest-gap", true));

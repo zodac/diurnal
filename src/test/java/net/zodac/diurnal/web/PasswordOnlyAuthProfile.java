@@ -23,9 +23,9 @@ import java.util.Map;
 /**
  * Test profile pinning a password-only configuration: password auth enabled, OIDC disabled.
  *
- * <p>{@code quarkus.oidc.tenant-enabled} is forced to {@code false} at the profile level (which takes
- * precedence over any ambient {@code OIDC_ENABLED} in a developer's local {@code .env}), so the test
- * is deterministic regardless of the host environment.
+ * <p>
+ * {@code quarkus.oidc.tenant-enabled} is forced to {@code false} at the profile level (which takes precedence over any ambient {@code OIDC_ENABLED}
+ * in a developer's local {@code .env}), so the test is deterministic regardless of the host environment.
  */
 public final class PasswordOnlyAuthProfile implements QuarkusTestProfile {
 

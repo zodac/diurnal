@@ -23,20 +23,19 @@ import io.smallrye.config.WithName;
 import java.time.Duration;
 
 /**
- * Typed view over the {@code session.*} settings governing the server-side session store shared by the
- * web UI and the REST API.
+ * Typed view over the {@code session.*} settings governing the server-side session store shared by the web UI and the REST API.
  *
  * <p>
- * A session stays usable until either bound is crossed: {@link #idleTimeout()} since it was last used,
- * or {@link #absoluteTimeout()} since it was created. Both are ISO-8601 durations (e.g. {@code P30D}).
- * Sessions are revocable, so these can be generous without the exposure a non-revocable token carries.
+ * A session stays usable until either bound is crossed: {@link #idleTimeout()} since it was last used, or {@link #absoluteTimeout()} since it was
+ * created. Both are ISO-8601 durations (e.g. {@code P30D}). Sessions are revocable, so these can be generous without the exposure a non-revocable
+ * token carries.
  */
 @ConfigMapping(prefix = "session")
 public interface SessionConfig {
 
     /**
-     * How long a session may sit idle (no authenticated request) before it stops being valid. Measured
-     * from the session's {@code lastUsedAt}, which is bumped on every request. ISO-8601 duration.
+     * How long a session may sit idle (no authenticated request) before it stops being valid. Measured from the session's {@code lastUsedAt}, which
+     * is bumped on every request. ISO-8601 duration.
      *
      * @return the sliding idle timeout, defaulting to 30 days
      */
@@ -45,8 +44,8 @@ public interface SessionConfig {
     Duration idleTimeout();
 
     /**
-     * The hard cap on a session's lifetime regardless of activity, measured from creation. Once passed,
-     * the client must log in afresh even if continuously active. ISO-8601 duration.
+     * The hard cap on a session's lifetime regardless of activity, measured from creation. Once passed, the client must log in afresh even if
+     * continuously active. ISO-8601 duration.
      *
      * @return the absolute lifetime, defaulting to 90 days
      */
@@ -55,9 +54,9 @@ public interface SessionConfig {
     Duration absoluteTimeout();
 
     /**
-     * How often the {@code SessionSweeper} deletes absolute-expired sessions. Also referenced directly
-     * by the sweeper's {@code @Scheduled(every = "{session.cleanup-interval}")}; declared here so the
-     * property maps cleanly under the {@code session.*} prefix. ISO-8601 duration.
+     * How often the {@code SessionSweeper} deletes absolute-expired sessions. Also referenced directly by the sweeper's
+     * {@code @Scheduled(every = "{session.cleanup-interval}")}; declared here so the property maps cleanly under the {@code session.*} prefix.
+     * ISO-8601 duration.
      *
      * @return the cleanup interval, defaulting to 1 hour
      */

@@ -20,9 +20,8 @@ package net.zodac.diurnal.auth;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Shared failure logging for both registration surfaces (the web form and {@code POST /api/auth/register}),
- * so they emit identical lines. The caller passes its own {@link Logger} so the log still names the
- * originating class. Mirrors {@link LoginAttemptLog}.
+ * Shared failure logging for both registration surfaces (the web form and {@code POST /api/auth/register}), so they emit identical lines. The caller
+ * passes its own {@link Logger} so the log still names the originating class. Mirrors {@link LoginAttemptLog}.
  */
 public final class RegistrationAttemptLog {
 
@@ -31,25 +30,24 @@ public final class RegistrationAttemptLog {
     }
 
     /**
-     * Logs a rejected registration: the per-IP running count at {@code DEBUG}, and a {@code WARN} when
-     * this failure locked the IP out.
+     * Logs a rejected registration: the per-IP running count at {@code DEBUG}, and a {@code WARN} when this failure locked the IP out.
      *
-     * @param logger   the caller's logger (so the source class is named)
-     * @param outcome  the per-IP throttle outcome for this failure
-     * @param email    the submitted email
+     * @param logger the caller's logger (so the source class is named)
+     * @param outcome the per-IP throttle outcome for this failure
+     * @param email the submitted email
      * @param clientIp the client IP
      */
     public static void logFailure(final Logger logger, final AttemptThrottle.FailureOutcome outcome,
-            final String email, final String clientIp) {
+        final String email, final String clientIp) {
         if (outcome.failureCount() >= 1) {
             logger.debug("Failed registration attempt ({} of {}) for: {} (IP: {})",
-                    outcome.failureCount(), outcome.maxAttempts(), email, clientIp);
+                outcome.failureCount(), outcome.maxAttempts(), email, clientIp);
         } else {
             logger.debug("Failed registration attempt for: {} (IP: {})", email, clientIp);
         }
         if (outcome.lockedOut()) {
             logger.warn("Registration IP locked out: {} for {} after {} failed attempts (last email: {})",
-                    clientIp, LockoutMessages.humanReadable(outcome.lockoutDuration()), outcome.maxAttempts(), email);
+                clientIp, LockoutMessages.humanReadable(outcome.lockoutDuration()), outcome.maxAttempts(), email);
         }
     }
 }

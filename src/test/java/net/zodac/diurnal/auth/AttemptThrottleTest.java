@@ -24,8 +24,8 @@ import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link AttemptThrottle}, driving time explicitly so the fixed-window lockout, its
- * boundaries, expiry, decay, and the enabled/disabled switch are all deterministic.
+ * Unit tests for {@link AttemptThrottle}, driving time explicitly so the fixed-window lockout, its boundaries, expiry, decay, and the
+ * enabled/disabled switch are all deterministic.
  */
 class AttemptThrottleTest {
 

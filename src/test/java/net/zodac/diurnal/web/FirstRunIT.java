@@ -32,9 +32,8 @@ import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 /**
- * Covers the first-run setup flow that activates when the database has no users. The base class
- * truncates all tables before each test and this class adds no seed data, so every test starts in
- * the "no users yet" state.
+ * Covers the first-run setup flow that activates when the database has no users. The base class truncates all tables before each test and this class
+ * adds no seed data, so every test starts in the "no users yet" state.
  */
 @QuarkusTest
 class FirstRunIT extends IntegrationTestBase {

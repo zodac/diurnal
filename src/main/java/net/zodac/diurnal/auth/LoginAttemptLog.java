@@ -20,9 +20,8 @@ package net.zodac.diurnal.auth;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Shared failure logging for both login surfaces (via {@link AuthenticationService}),
- * so the API and the web form emit identical lines. The caller passes its own {@link Logger} so the log
- * still names the originating class.
+ * Shared failure logging for both login surfaces (via {@link AuthenticationService}), so the API and the web form emit identical lines. The caller
+ * passes its own {@link Logger} so the log still names the originating class.
  */
 final class LoginAttemptLog {
 
@@ -31,25 +30,24 @@ final class LoginAttemptLog {
     }
 
     /**
-     * Logs a failed login: the per-IP running count at {@code DEBUG}, and a {@code WARN} when this
-     * failure locked the IP out.
+     * Logs a failed login: the per-IP running count at {@code DEBUG}, and a {@code WARN} when this failure locked the IP out.
      *
-     * @param logger   the caller's logger (so the source class is named)
-     * @param outcome  the per-IP throttle outcome for this failure
-     * @param email    the submitted email
+     * @param logger the caller's logger (so the source class is named)
+     * @param outcome the per-IP throttle outcome for this failure
+     * @param email the submitted email
      * @param clientIp the client IP
      */
     static void logFailure(final Logger logger, final AttemptThrottle.FailureOutcome outcome,
-            final String email, final String clientIp) {
+        final String email, final String clientIp) {
         if (outcome.failureCount() >= 1) {
             logger.debug("Failed login attempt ({} of {}) for: {} (IP: {})",
-                    outcome.failureCount(), outcome.maxAttempts(), email, clientIp);
+                outcome.failureCount(), outcome.maxAttempts(), email, clientIp);
         } else {
             logger.debug("Failed login attempt for: {} (IP: {})", email, clientIp);
         }
         if (outcome.lockedOut()) {
             logger.warn("IP locked out: {} for {} after {} failed attempts (last login email: {})",
-                    clientIp, LockoutMessages.humanReadable(outcome.lockoutDuration()), outcome.maxAttempts(), email);
+                clientIp, LockoutMessages.humanReadable(outcome.lockoutDuration()), outcome.maxAttempts(), email);
         }
     }
 }

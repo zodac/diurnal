@@ -32,9 +32,9 @@ import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies that {@code ENABLE_REGISTRATION=false} can never lock out the first user: the registration
- * page stays open during first-run setup (no users), but is rejected with {@code 404} once any user
- * exists. Uses {@link RegistrationDisabledProfile} to force {@code registration.enabled=false}.
+ * Verifies that {@code ENABLE_REGISTRATION=false} can never lock out the first user: the registration page stays open during first-run setup (no
+ * users), but is rejected with {@code 404} once any user exists. Uses {@link RegistrationDisabledProfile} to force
+ * {@code registration.enabled=false}.
  */
 @QuarkusTest
 @TestProfile(RegistrationDisabledProfile.class)

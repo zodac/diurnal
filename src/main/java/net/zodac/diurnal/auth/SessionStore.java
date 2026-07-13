@@ -24,35 +24,34 @@ import net.zodac.diurnal.user.User;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Persistence boundary for server-side sessions. Callers deal only in raw opaque tokens; the
- * implementation is responsible for hashing them for storage and lookup.
+ * Persistence boundary for server-side sessions. Callers deal only in raw opaque tokens; the implementation is responsible for hashing them for
+ * storage and lookup.
  *
  * <p>
- * The default {@link PostgresSessionStore} keeps sessions in the database, which suits the
- * single-instance deployment. The interface exists so a shared-cache implementation (e.g. Redis)
- * could be substituted if the deployment ever scales horizontally, without touching callers.
+ * The default {@link PostgresSessionStore} keeps sessions in the database, which suits the single-instance deployment. The interface exists so a
+ * shared-cache implementation (e.g. Redis) could be substituted if the deployment ever scales horizontally, without touching callers.
  */
 public interface SessionStore {
 
     /**
-     * Creates a new session for the given user and returns the freshly minted raw token to hand to the
-     * client. Only the token's hash is persisted; this is the one moment the raw token exists.
+     * Creates a new session for the given user and returns the freshly minted raw token to hand to the client. Only the token's hash is persisted;
+     * this is the one moment the raw token exists.
      *
-     * @param user       the authenticated user
+     * @param user the authenticated user
      * @param authSource {@link Session#AUTH_SOURCE_PASSWORD} or {@link Session#AUTH_SOURCE_OIDC}
-     * @param userAgent  the requesting client's user agent, or {@code null} if unknown
-     * @param clientIp   the requesting client's IP, or {@code null} if unknown
-     * @param now        the current instant (from {@code AppClock})
+     * @param userAgent the requesting client's user agent, or {@code null} if unknown
+     * @param clientIp the requesting client's IP, or {@code null} if unknown
+     * @param now the current instant (from {@code AppClock})
      * @return the raw opaque token to deliver to the client
      */
     String create(User user, String authSource, @Nullable String userAgent, @Nullable String clientIp, Instant now);
 
     /**
-     * Resolves a raw token to its owning user if the session exists and is still valid, refreshing the
-     * session's last-used time as a side effect. Expired sessions are pruned on encounter.
+     * Resolves a raw token to its owning user if the session exists and is still valid, refreshing the session's last-used time as a side effect.
+     * Expired sessions are pruned on encounter.
      *
      * @param rawToken the raw token presented by the client
-     * @param now      the current instant (from {@code AppClock})
+     * @param now the current instant (from {@code AppClock})
      * @return the owning {@link User}, or empty if the token is unknown or expired
      */
     Optional<User> resolve(String rawToken, Instant now);
@@ -65,18 +64,17 @@ public interface SessionStore {
     void revoke(String rawToken);
 
     /**
-     * Revokes every session belonging to the given user — the "log out from everywhere" action,
-     * including the caller's own current session.
+     * Revokes every session belonging to the given user — the "log out from everywhere" action, including the caller's own current session.
      *
      * @param userId the user whose sessions should all be revoked
      */
     void revokeAllForUser(UUID userId);
 
     /**
-     * Revokes every session belonging to the given user except the one identified by the current raw
-     * token — used on password change to evict all other devices while keeping the caller signed in.
+     * Revokes every session belonging to the given user except the one identified by the current raw token — used on password change to evict all
+     * other devices while keeping the caller signed in.
      *
-     * @param userId          the user whose other sessions should be revoked
+     * @param userId the user whose other sessions should be revoked
      * @param currentRawToken the raw token of the session to keep
      */
     void revokeOthersForUser(UUID userId, String currentRawToken);

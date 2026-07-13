@@ -24,8 +24,7 @@ import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link SessionTokens}: token minting, hashing, the validity boundaries and the
- * last-used bump-coalescing predicate.
+ * Unit tests for {@link SessionTokens}: token minting, hashing, the validity boundaries and the last-used bump-coalescing predicate.
  */
 class SessionTokensTest {
 

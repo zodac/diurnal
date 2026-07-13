@@ -30,17 +30,14 @@ import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 
 /**
- * Gates the OpenAPI documentation surface behind the {@code admin} role. Both the Swagger UI shell
- * ({@code /api}) and the generated OpenAPI document ({@code /q/openapi}) are served in every profile
- * and sit on {@code permit} paths, so without this filter they are reachable anonymously.
+ * Gates the OpenAPI documentation surface behind the {@code admin} role. Both the Swagger UI shell ({@code /api}) and the generated OpenAPI document
+ * ({@code /q/openapi}) are served in every profile and sit on {@code permit} paths, so without this filter they are reachable anonymously.
  *
  * <p>
- * Because {@code quarkus.http.auth.proactive=false} leaves those framework-served paths with no
- * resolved {@link io.quarkus.security.identity.SecurityIdentity} (a named roles-allowed HTTP policy
- * would not fire), this is enforced as a low-order Vert.x route that runs before the framework
- * handlers: it resolves the request's session token itself via the {@link SessionStore} — mirroring
- * {@link SessionAuthMechanism} — and applies the {@link OpenApiDocsAccess} decision, only calling
- * {@code next()} for an administrator.
+ * Because {@code quarkus.http.auth.proactive=false} leaves those framework-served paths with no resolved
+ * {@link io.quarkus.security.identity.SecurityIdentity} (a named roles-allowed HTTP policy would not fire), this is enforced as a low-order Vert.x
+ * route that runs before the framework handlers: it resolves the request's session token itself via the {@link SessionStore} — mirroring
+ * {@link SessionAuthMechanism} — and applies the {@link OpenApiDocsAccess} decision, only calling {@code next()} for an administrator.
  */
 @ApplicationScoped
 public class OpenApiDocsAuthFilter {

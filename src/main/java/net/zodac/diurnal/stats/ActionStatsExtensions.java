@@ -27,14 +27,13 @@ import java.util.Locale;
 /**
  * Derived labels, trends and predicates computed from an {@link ActionStats} record.
  *
- * <p>This behaviour is deliberately held here rather than on the {@code ActionStats} record so that
- * PITest can mutation-test it. PITest hot-swaps each mutant into the running minion JVM via
- * {@code Instrumentation.redefineClasses}, which the JVM refuses for a class carrying a
- * {@code Record} attribute — every record mutant failed with "class redefinition failed: attempted
- * to change the Record attribute" (the "Minion exited abnormally due to RUN_ERROR" lint warnings),
- * leaving the logic untested. As methods on this plain class the same logic redefines cleanly and is
- * fully mutated. The template-facing methods are {@link TemplateExtension}s, so Qute still resolves
- * {@code {s.monthTrend}}, {@code {s.currentStreakLabel}} etc. against an {@code ActionStats} value.
+ * <p>
+ * This behaviour is deliberately held here rather than on the {@code ActionStats} record so that PITest can mutation-test it. PITest hot-swaps each
+ * mutant into the running minion JVM via {@code Instrumentation.redefineClasses}, which the JVM refuses for a class carrying a {@code Record}
+ * attribute — every record mutant failed with "class redefinition failed: attempted to change the Record attribute" (the "Minion exited abnormally
+ * due to RUN_ERROR" lint warnings), leaving the logic untested. As methods on this plain class the same logic redefines cleanly and is fully mutated.
+ * The template-facing methods are {@link TemplateExtension}s, so Qute still resolves {@code {s.monthTrend}}, {@code {s.currentStreakLabel}} etc.
+ * against an {@code ActionStats} value.
  */
 public final class ActionStatsExtensions {
 
@@ -71,15 +70,15 @@ public final class ActionStatsExtensions {
     // ── Stats-page tiles (user-configurable display) ──────────────────────
 
     /**
-     * Builds the ordered list of Stats-page tiles for this action, one per selected
-     * {@link ActionStatField}, in the caller-supplied order. Every value reuses the existing derived
-     * labels below, so the display preference never affects how the statistics are computed — only
-     * which tiles are rendered and in what order.
+     * Builds the ordered list of Stats-page tiles for this action, one per selected {@link ActionStatField}, in the caller-supplied order. Every
+     * value reuses the existing derived labels below, so the display preference never affects how the statistics are computed — only which tiles are
+     * rendered and in what order.
      *
-     * <p>Called from {@code partials/stats-cards} as {@code {s.tiles(statsFields, decimalPlaces)}}.
+     * <p>
+     * Called from {@code partials/stats-cards} as {@code {s.tiles(statsFields, decimalPlaces)}}.
      *
-     * @param stats         the statistics to render
-     * @param fields        the ordered fields the user has chosen to display
+     * @param stats the statistics to render
+     * @param fields the ordered fields the user has chosen to display
      * @param decimalPlaces the user's decimal-place preference (for the weekly average)
      * @return the ordered tiles to render
      */
@@ -128,8 +127,8 @@ public final class ActionStatsExtensions {
     }
 
     /**
-     * The last-performed date for the dashboard "Latest" label: "Never" if never logged, "d MMM" (no
-     * year) when it falls in the current year, and the full "d MMM yyyy" only for an earlier year.
+     * The last-performed date for the dashboard "Latest" label: "Never" if never logged, "d MMM" (no year) when it falls in the current year, and the
+     * full "d MMM yyyy" only for an earlier year.
      *
      * @param stats the statistics to inspect
      * @return the formatted "Latest" label
@@ -168,11 +167,10 @@ public final class ActionStatsExtensions {
     }
 
     /**
-     * The average number of active days per week since the action was first performed, rendered to
-     * the given number of decimal places. A zero average is simplified to a plain {@code "0"} (no
-     * trailing decimals) regardless of {@code decimalPlaces}.
+     * The average number of active days per week since the action was first performed, rendered to the given number of decimal places. A zero average
+     * is simplified to a plain {@code "0"} (no trailing decimals) regardless of {@code decimalPlaces}.
      *
-     * @param stats         the statistics to inspect
+     * @param stats the statistics to inspect
      * @param decimalPlaces the number of decimal places to render (the user's preference)
      * @return the weekly average as a display string
      */
@@ -187,10 +185,10 @@ public final class ActionStatsExtensions {
     }
 
     /**
-     * Formats a fractional stat value to {@code decimalPlaces} decimals, simplifying an exact zero to
-     * a plain {@code "0"} so an empty average reads as {@code "0"} rather than {@code "0.0"}.
+     * Formats a fractional stat value to {@code decimalPlaces} decimals, simplifying an exact zero to a plain {@code "0"} so an empty average reads
+     * as {@code "0"} rather than {@code "0.0"}.
      *
-     * @param value         the value to format
+     * @param value the value to format
      * @param decimalPlaces the number of decimal places to render
      * @return the formatted value
      */

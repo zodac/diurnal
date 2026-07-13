@@ -22,8 +22,8 @@ import io.smallrye.config.WithDefault;
 import io.smallrye.config.WithName;
 
 /**
- * Typed view over the application's own {@code app.*} settings — general metadata and runtime
- * behaviour that is specific to Diurnal rather than to any Quarkus extension.
+ * Typed view over the application's own {@code app.*} settings — general metadata and runtime behaviour that is specific to Diurnal rather than to
+ * any Quarkus extension.
  */
 @ConfigMapping(prefix = "app")
 public interface AppConfig {
@@ -38,8 +38,7 @@ public interface AppConfig {
     String repositoryUrl();
 
     /**
-     * IANA timezone used for all "today" calculations (streaks, since-labels, comparisons). Must
-     * match {@code TZ} in {@code docker-compose.yml}.
+     * IANA timezone used for all "today" calculations (streaks, since-labels, comparisons). Must match {@code TZ} in {@code docker-compose.yml}.
      *
      * @return the configured timezone ID, defaulting to {@code UTC}
      */
@@ -47,8 +46,7 @@ public interface AppConfig {
     String timezone();
 
     /**
-     * Maven's build timestamp (ISO-8601, UTC), filtered in at package time. Empty for an un-packaged
-     * dev run.
+     * Maven's build timestamp (ISO-8601, UTC), filtered in at package time. Empty for an un-packaged dev run.
      *
      * @return the build timestamp, or empty when not packaged
      */
@@ -57,8 +55,8 @@ public interface AppConfig {
     String buildTimestamp();
 
     /**
-     * Filename of the compiled stylesheet served under {@code /css/}. Content-hashed at image-build
-     * time so each deployment serves a fresh URL; defaults to the un-hashed {@code app.css} in dev.
+     * Filename of the compiled stylesheet served under {@code /css/}. Content-hashed at image-build time so each deployment serves a fresh URL;
+     * defaults to the un-hashed {@code app.css} in dev.
      *
      * @return the served stylesheet filename
      */
@@ -67,8 +65,8 @@ public interface AppConfig {
     String cssFile();
 
     /**
-     * Filename of the self-hosted htmx script served under {@code /js/}. Content-hashed at image-build
-     * time so each deployment serves a fresh URL; defaults to the un-hashed {@code htmx.min.js} in dev.
+     * Filename of the self-hosted htmx script served under {@code /js/}. Content-hashed at image-build time so each deployment serves a fresh URL;
+     * defaults to the un-hashed {@code htmx.min.js} in dev.
      *
      * @return the served script filename
      */
@@ -77,9 +75,8 @@ public interface AppConfig {
     String jsFile();
 
     /**
-     * Filename of the shared application script served under {@code /js/} (the behaviour extracted from
-     * {@code layout.html} and loaded on every page). Content-hashed at image-build time so each
-     * deployment serves a fresh URL; defaults to the un-hashed {@code app.js} in dev.
+     * Filename of the shared application script served under {@code /js/} (the behaviour extracted from {@code layout.html} and loaded on every
+     * page). Content-hashed at image-build time so each deployment serves a fresh URL; defaults to the un-hashed {@code app.js} in dev.
      *
      * @return the served shared-script filename
      */
@@ -88,9 +85,8 @@ public interface AppConfig {
     String jsAppFile();
 
     /**
-     * Filename of the dashboard calendar script served under {@code /js/} (the engine extracted from
-     * {@code dashboard.html} and loaded only on the dashboard). Content-hashed at image-build time so
-     * each deployment serves a fresh URL; defaults to the un-hashed {@code dashboard.js} in dev.
+     * Filename of the dashboard calendar script served under {@code /js/} (the engine extracted from {@code dashboard.html} and loaded only on the
+     * dashboard). Content-hashed at image-build time so each deployment serves a fresh URL; defaults to the un-hashed {@code dashboard.js} in dev.
      *
      * @return the served dashboard-script filename
      */
@@ -99,9 +95,9 @@ public interface AppConfig {
     String jsDashboardFile();
 
     /**
-     * Filename of the actions-page script served under {@code /js/} (the counter-surgery behaviour
-     * extracted from {@code actions.html} and loaded only on that page). Content-hashed at image-build
-     * time so each deployment serves a fresh URL; defaults to the un-hashed {@code actions.js} in dev.
+     * Filename of the actions-page script served under {@code /js/} (the counter-surgery behaviour extracted from {@code actions.html} and loaded
+     * only on that page). Content-hashed at image-build time so each deployment serves a fresh URL; defaults to the un-hashed {@code actions.js} in
+     * dev.
      *
      * @return the served actions-script filename
      */
@@ -110,10 +106,9 @@ public interface AppConfig {
     String jsActionsFile();
 
     /**
-     * Filename of the admin users-page script served under {@code /js/} (the 409 last-administrator
-     * banner behaviour extracted from {@code admin-users.html} and loaded only on that page).
-     * Content-hashed at image-build time so each deployment serves a fresh URL; defaults to the
-     * un-hashed {@code admin-users.js} in dev.
+     * Filename of the admin users-page script served under {@code /js/} (the 409 last-administrator banner behaviour extracted from
+     * {@code admin-users.html} and loaded only on that page). Content-hashed at image-build time so each deployment serves a fresh URL; defaults to
+     * the un-hashed {@code admin-users.js} in dev.
      *
      * @return the served admin users-script filename
      */
@@ -122,10 +117,9 @@ public interface AppConfig {
     String jsAdminFile();
 
     /**
-     * Filename of the admin API-docs page script served under {@code /js/} (the Swagger UI iframe
-     * font/theme/height behaviour extracted from {@code admin-api-docs.html} and loaded only on that
-     * page). Content-hashed at image-build time so each deployment serves a fresh URL; defaults to the
-     * un-hashed {@code admin-api-docs.js} in dev.
+     * Filename of the admin API-docs page script served under {@code /js/} (the Swagger UI iframe font/theme/height behaviour extracted from
+     * {@code admin-api-docs.html} and loaded only on that page). Content-hashed at image-build time so each deployment serves a fresh URL; defaults
+     * to the un-hashed {@code admin-api-docs.js} in dev.
      *
      * @return the served API-docs-script filename
      */
@@ -134,10 +128,9 @@ public interface AppConfig {
     String jsApiDocsFile();
 
     /**
-     * Filename of the settings-page script served under {@code /js/} (the display-name/password
-     * editors, preview modal and stats-fields picker behaviour extracted from {@code settings.html} and
-     * loaded only on that page). Content-hashed at image-build time so each deployment serves a fresh
-     * URL; defaults to the un-hashed {@code settings.js} in dev.
+     * Filename of the settings-page script served under {@code /js/} (the display-name/password editors, preview modal and stats-fields picker
+     * behaviour extracted from {@code settings.html} and loaded only on that page). Content-hashed at image-build time so each deployment serves a
+     * fresh URL; defaults to the un-hashed {@code settings.js} in dev.
      *
      * @return the served settings-script filename
      */

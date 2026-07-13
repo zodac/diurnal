@@ -26,10 +26,10 @@ import org.junit.jupiter.api.Test;
 /**
  * Unit tests for the {@link AppLifecycle#validateAuthConfig()} startup validation of the authentication configuration.
  *
- * <p>These exercise the fail-fast guards directly (constructing the bean and calling the validation
- * method) rather than as a {@link io.quarkus.test.junit.QuarkusTest}, because the "no auth method
- * enabled" case throws before the application can finish booting. There is no running app to make
- * an HTTP call against.
+ * <p>
+ * These exercise the fail-fast guards directly (constructing the bean and calling the validation method) rather than as a
+ * {@link io.quarkus.test.junit.QuarkusTest}, because the "no auth method enabled" case throws before the application can finish booting. There is no
+ * running app to make an HTTP call against.
  */
 class AppLifecycleTest {
 

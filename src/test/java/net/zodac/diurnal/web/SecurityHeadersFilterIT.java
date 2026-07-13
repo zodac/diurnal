@@ -33,11 +33,10 @@ import net.zodac.diurnal.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 
 /**
- * Integration tests for {@link SecurityHeadersFilter}: the {@code Content-Security-Policy} header
- * carries the correct policy variant per path, and — the load-bearing check — the pinned FOUC-script
- * hash in {@link CspPolicy} always matches the actual rendered bytes of the inline theme bootstrap in
- * {@code layout.html}. A future edit to that script that isn't followed by re-pinning the hash breaks
- * this test instead of silently breaking the CSP for every page.
+ * Integration tests for {@link SecurityHeadersFilter}: the {@code Content-Security-Policy} header carries the correct policy variant per path, and —
+ * the load-bearing check — the pinned FOUC-script hash in {@link CspPolicy} always matches the actual rendered bytes of the inline theme bootstrap in
+ * {@code layout.html}. A future edit to that script that isn't followed by re-pinning the hash breaks this test instead of silently breaking the CSP
+ * for every page.
  */
 @QuarkusTest
 class SecurityHeadersFilterIT extends IntegrationTestBase {

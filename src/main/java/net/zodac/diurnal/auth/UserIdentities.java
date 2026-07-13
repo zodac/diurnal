@@ -24,14 +24,13 @@ import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 
 /**
- * Builds the {@link SecurityIdentity} for an authenticated {@link User}, so every auth path (session
- * resolution today, and any future one) grants the same principal, attributes and roles.
+ * Builds the {@link SecurityIdentity} for an authenticated {@link User}, so every auth path (session resolution today, and any future one) grants the
+ * same principal, attributes and roles.
  *
  * <p>
- * The principal name is the user's email (resolved back to the {@code User} via
- * {@code SecurityIdentity.getPrincipal().getName()}); {@code userId} and {@code displayName} are
- * carried as attributes. Roles are derived from the live {@code User.role}, so they always reflect
- * the current database state.
+ * The principal name is the user's email (resolved back to the {@code User} via {@code SecurityIdentity.getPrincipal().getName()}); {@code userId}
+ * and {@code displayName} are carried as attributes. Roles are derived from the live {@code User.role}, so they always reflect the current database
+ * state.
  */
 final class UserIdentities {
 
@@ -40,8 +39,7 @@ final class UserIdentities {
     }
 
     /**
-     * Builds a {@link SecurityIdentity} for the given user, granting {@code user} plus {@code admin}
-     * when the account is an administrator.
+     * Builds a {@link SecurityIdentity} for the given user, granting {@code user} plus {@code admin} when the account is an administrator.
      */
     static SecurityIdentity of(final User user) {
         final QuarkusSecurityIdentity.Builder builder = QuarkusSecurityIdentity.builder()

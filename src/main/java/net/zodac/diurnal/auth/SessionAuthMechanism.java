@@ -33,22 +33,19 @@ import java.util.Set;
 import net.zodac.diurnal.config.SessionConfig;
 
 /**
- * The single authentication mechanism for the app: it resolves the server-side session behind the
- * opaque token carried either in the {@code diurnal_session} cookie (web UI) or an
- * {@code Authorization: Bearer} header (REST API), and — as the top-ranked mechanism — issues the
+ * The single authentication mechanism for the app: it resolves the server-side session behind the opaque token carried either in the
+ * {@code diurnal_session} cookie (web UI) or an {@code Authorization: Bearer} header (REST API), and — as the top-ranked mechanism — issues the
  * challenge for anonymous requests.
  *
  * <p>
- * When no token is present it abstains (returns no identity) so other registered mechanisms (e.g. the
- * OIDC code flow on its pinned paths) still get a turn. When a token IS present, the blocking lookup
- * is delegated to {@link SessionIdentityProvider} via a {@link SessionTokenAuthenticationRequest}, so
- * the database work runs off the IO thread.
+ * When no token is present it abstains (returns no identity) so other registered mechanisms (e.g. the OIDC code flow on its pinned paths) still get a
+ * turn. When a token IS present, the blocking lookup is delegated to {@link SessionIdentityProvider} via a {@link SessionTokenAuthenticationRequest},
+ * so the database work runs off the IO thread.
  *
  * <p>
- * The challenge is chosen by path (see {@link #challengeFor(String)}): a {@code 302} redirect to
- * {@code /login} for browser paths, a plain {@code 401} for the REST API where a redirect would be
- * wrong for a programmatic client. It declares a priority above the built-in mechanisms so this
- * choice wins the tie on unpinned paths.
+ * The challenge is chosen by path (see {@link #challengeFor(String)}): a {@code 302} redirect to {@code /login} for browser paths, a plain
+ * {@code 401} for the REST API where a redirect would be wrong for a programmatic client. It declares a priority above the built-in mechanisms so
+ * this choice wins the tie on unpinned paths.
  */
 @ApplicationScoped
 public class SessionAuthMechanism implements HttpAuthenticationMechanism {
@@ -77,9 +74,8 @@ public class SessionAuthMechanism implements HttpAuthenticationMechanism {
     }
 
     /**
-     * Picks the challenge for an anonymous request by path: a plain {@code 401} for the REST API
-     * ({@code /api/*}, where a {@code /login} redirect would be wrong for a programmatic client) and a
-     * {@code 302} redirect to {@code /login} for every other (browser) path.
+     * Picks the challenge for an anonymous request by path: a plain {@code 401} for the REST API ({@code /api/*}, where a {@code /login} redirect
+     * would be wrong for a programmatic client) and a {@code 302} redirect to {@code /login} for every other (browser) path.
      *
      * @param path the request's normalised path
      * @return the {@link ChallengeData} to send

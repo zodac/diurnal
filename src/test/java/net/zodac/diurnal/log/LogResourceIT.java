@@ -67,6 +67,9 @@ class LogResourceIT extends IntegrationTestBase {
     static final LocalDate YESTERDAY = TODAY.minusDays(1);
     static final LocalDate TOMORROW  = TODAY.plusDays(1);
 
+    // Sampling many interleavings gives a race a chance to surface; a single pass could get lucky.
+    private static final int RACE_ITERATIONS = 50;
+
     @Override
     protected void createDbState() {
         primaryId     = newUser(PRIMARY, "Log User").id;
@@ -456,8 +459,8 @@ class LogResourceIT extends IntegrationTestBase {
         });
 
         final String body = given().get("/logs/day/" + YESTERDAY)
-                .then().statusCode(200)
-                .extract().body().asString();
+            .then().statusCode(200)
+            .extract().body().asString();
 
         // PrimaryAction has count=3, AlphaFirst count=1 — PrimaryAction should appear first in HTML
         final int posA = body.indexOf("PrimaryAction");
@@ -604,9 +607,6 @@ class LogResourceIT extends IntegrationTestBase {
 
     // ── Concurrent logging (two sessions racing on the same day/action) ─────────
 
-    // Sampling many interleavings gives a race a chance to surface; a single pass could get lucky.
-    private static final int RACE_ITERATIONS = 50;
-
     @Test
     void concurrentIncrements_composeToExactSum() {
         // "Normal" concurrent logging: several sessions each tap +1 on the same not-yet-logged action
@@ -650,7 +650,7 @@ class LogResourceIT extends IntegrationTestBase {
     void concurrentIncrementAndDecrement_atDeleteBoundary_netsToZero() {
         // The fixed edge case: count == the decrement amount, so the decrement would DELETE the row.
         // Without the row lock held across the decision, a concurrent increment can slip in, push the
-        // count to 2, and the delete is lost (final 2). With SELECT ... FOR UPDATE the two serialise
+        // count to 2, and the `delete` is lost (final 2). With SELECT ... FOR UPDATE the two serialise
         // and always net back to 1:
         //   - increment first: 1 -> 2, then decrement 2 -> 1
         //   - decrement first: row deleted, then increment re-inserts at 1
@@ -699,9 +699,8 @@ class LogResourceIT extends IntegrationTestBase {
     // rethrow the first failure (including any RestAssured assertion) once all threads have finished.
     private static void runSimultaneously(final Runnable... tasks) {
         final int parties = tasks.length;
-        final ExecutorService pool = Executors.newFixedThreadPool(parties);
         final CyclicBarrier gate = new CyclicBarrier(parties);
-        try {
+        try (final ExecutorService pool = Executors.newFixedThreadPool(parties)) {
             final List<Future<?>> futures = new ArrayList<>(parties);
             for (final Runnable task : tasks) {
                 futures.add(pool.submit(() -> {
@@ -718,8 +717,6 @@ class LogResourceIT extends IntegrationTestBase {
         } catch (final InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Interrupted awaiting concurrent tasks", e);
-        } finally {
-            pool.shutdownNow();
         }
     }
 }

@@ -18,18 +18,16 @@
 package net.zodac.diurnal.auth;
 
 /**
- * The path patterns identifying the admin-gated OpenAPI documentation surface (the Swagger UI shell
- * and the generated OpenAPI document). Shared between {@link OpenApiDocsAuthFilter} (which enforces
- * the admin-only access gate on these paths) and {@code net.zodac.diurnal.web.CspPolicy} (which
- * relaxes the {@code Content-Security-Policy} on the same paths, since Swagger UI cannot run under the
- * app's strict policy) so the two path matches cannot drift apart.
+ * The path patterns identifying the admin-gated OpenAPI documentation surface (the Swagger UI shell and the generated OpenAPI document). Shared
+ * between {@link OpenApiDocsAuthFilter} (which enforces the admin-only access gate on these paths) and {@code net.zodac.diurnal.web.CspPolicy} (which
+ * relaxes the {@code Content-Security-Policy} on the same paths, since Swagger UI cannot run under the app's strict policy) so the two path matches
+ * cannot drift apart.
  */
 public final class OpenApiDocsPaths {
 
     /**
-     * The Swagger UI shell: {@code /api}, {@code /api/} and {@code /api/index.html} only — NOT the
-     * JAX-RS endpoints under {@code /api/...} (e.g. {@code /api/auth/login}), which carry further path
-     * segments and must stay reachable under the strict policy.
+     * The Swagger UI shell: {@code /api}, {@code /api/} and {@code /api/index.html} only — NOT the JAX-RS endpoints under {@code /api/...} (e.g.
+     * {@code /api/auth/login}), which carry further path segments and must stay reachable under the strict policy.
      */
     public static final String SWAGGER_UI_PATH_REGEX = "^/api(/|/index\\.html)?$";
 

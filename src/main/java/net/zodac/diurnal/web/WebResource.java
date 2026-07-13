@@ -94,7 +94,7 @@ public class WebResource {
     private static final String CURRENT_PASSWORD_ERROR = "Current password is incorrect";
     private static final String NEW_PASSWORD_ERROR = "Passwords do not match";
     private static final String NEW_PASSWORD_TOO_LONG_ERROR =
-            "Password must be at most " + PasswordConstraints.MAX_LENGTH + " characters";
+        "Password must be at most " + PasswordConstraints.MAX_LENGTH + " characters";
 
     // Carries the exact seconds left on a lockout to the AJAX form handlers (app.js), which post via fetch
     // and so never render the server-side banner — they run a live mm:ss countdown from this value instead.
@@ -110,27 +110,39 @@ public class WebResource {
     @Inject
     @Location("login")
     Template loginTemplate;
+
     @Inject
     @Location("register")
     Template registerTemplate;
+
     @Inject
     @Location("dashboard")
     Template dashboardTemplate;
+
     @Inject
     @Location("settings")
     Template settingsTemplate;
+
     @Inject
     @Location("setup")
     Template setupTemplate;
 
     @Inject SecurityIdentity identity;
+
     @Inject CurrentUser currentUser;
+
     @Inject StatsService statsService;
+
     @Inject RoleAssigner roleAssigner;
+
     @Inject AppClock clock;
+
     @Inject AuthenticationService authenticationService;
+
     @Inject Passwords passwords;
+
     @Inject SessionStore sessionStore;
+
     @Inject SessionConfig sessionConfig;
 
     @Context
@@ -165,9 +177,9 @@ public class WebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response loginPage(
-            @QueryParam("error")      final String error,
-            @QueryParam("registered") @DefaultValue("false") final boolean registered,
-            @CookieParam(LOCKOUT_COOKIE) final String lockoutCookie) {
+        @QueryParam("error")      final String error,
+        @QueryParam("registered") @DefaultValue("false") final boolean registered,
+        @CookieParam(LOCKOUT_COOKIE) final String lockoutCookie) {
         // First run: no users exist yet. Send the deployer to the setup landing page to create the
         // initial local account, and short-circuit any OIDC auto-redirect below — the first account
         // must be local. During set up the initial account can always be created (ENABLE_REGISTRATION
@@ -199,16 +211,16 @@ public class WebResource {
         final Duration lockoutRemaining = lockoutRemaining(lockoutCookie);
         final boolean showError = error != null && !"false".equals(error) && !showOidcError && !showLocked;
         final Response.ResponseBuilder builder = Response.ok(loginTemplate
-                .data("error", showError, "registered", registered, "theme", "system")
-                .data("font", "nova")
-                .data("locked", showLocked)
-                .data("lockedMessage", LockoutMessages.retryMessage(lockoutRemaining))
-                .data("oidcError", showOidcError)
-                .data("passwordAuthEnabled", passwordAuthConfig.enabled())
-                .data("registrationEnabled", passwordAuthConfig.enabled() && registrationConfig.enabled())
-                .data("oidcEnabled", oidcEnabled)
-                .data("oidcProviderName", oidcConfig.providerName()))
-                .type(MediaType.TEXT_HTML_TYPE);
+            .data("error", showError, "registered", registered, "theme", "system")
+            .data("font", "nova")
+            .data("locked", showLocked)
+            .data("lockedMessage", LockoutMessages.retryMessage(lockoutRemaining))
+            .data("oidcError", showOidcError)
+            .data("passwordAuthEnabled", passwordAuthConfig.enabled())
+            .data("registrationEnabled", passwordAuthConfig.enabled() && registrationConfig.enabled())
+            .data("oidcEnabled", oidcEnabled)
+            .data("oidcProviderName", oidcConfig.providerName()))
+            .type(MediaType.TEXT_HTML_TYPE);
         if (showOidcError) {
             // Clear the stale OIDC session cookie so the next "Log in with Authelia" click
             // starts a fresh code flow instead of retrying the same failed session.
@@ -217,7 +229,7 @@ public class WebResource {
         if (showLocked) {
             // One-shot: clear it so a later reload of the login page shows the normal form.
             builder.cookie(new NewCookie.Builder(LOCKOUT_COOKIE)
-                    .value("").path("/").maxAge(0).build());
+                .value("").path("/").maxAge(0).build());
             // The login form posts via fetch (data-ajax-submit) and never renders this HTML, so app.js
             // reads the seconds left from this header and runs a live countdown in the banner.
             builder.header(LOCKOUT_RETRY_AFTER_HEADER, Math.max(1L, lockoutRemaining.toSeconds()));
@@ -225,10 +237,6 @@ public class WebResource {
         return builder.build();
     }
 
-    /*
-     * Resolves the seconds-left value carried in the lockout cookie into a {@link Duration}, falling back
-     * to the configured window if the cookie is absent or malformed.
-     */
     private Duration lockoutRemaining(@Nullable final String lockoutCookie) {
         if (lockoutCookie != null) {
             try {
@@ -244,29 +252,27 @@ public class WebResource {
     }
 
     /**
-     * Handles the login form submission: verifies the credentials and, on success, creates a
-     * server-side session and sets the {@code diurnal_session} cookie before redirecting to the
-     * dashboard. A bad password redirects to {@code /login?error=true}; a lockout redirects to
-     * {@code /login} carrying the short-lived lockout cookie so the page can show the countdown. The
-     * form posts via {@code fetch} (app.js), which follows the redirect and reads the final URL (and
-     * the {@code X-Lockout-Retry-After} header on the login page) to tell success, error and lockout apart.
+     * Handles the login form submission: verifies the credentials and, on success, creates a server-side session and sets the {@code diurnal_session}
+     * cookie before redirecting to the dashboard. A bad password redirects to {@code /login?error=true}; a lockout redirects to {@code /login}
+     * carrying the short-lived lockout cookie so the page can show the countdown. The form posts via {@code fetch} (app.js), which follows the
+     * redirect and reads the final URL (and the {@code X-Lockout-Retry-After} header on the login page) to tell success, error and lockout apart.
      */
     @POST
     @Path("login")
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
     public Response doLogin(
-            @FormParam("email") @Nullable final String email,
-            @FormParam("password") @Nullable final String password) {
+        @FormParam("email") @Nullable final String email,
+        @FormParam("password") @Nullable final String password) {
         final String clientIp = ClientAddress.of(routingContext);
         final Instant now = clock.now();
         final LoginResult result = authenticationService.authenticate(
-                email == null ? "" : email, password == null ? "" : password, clientIp, now);
+            email == null ? "" : email, password == null ? "" : password, clientIp, now);
 
         return switch (result) {
             case LoginResult.Success success -> {
                 final String token = sessionStore.create(
-                        success.user(), Session.AUTH_SOURCE_PASSWORD, userAgent(), clientIp, now);
+                    success.user(), Session.AUTH_SOURCE_PASSWORD, userAgent(), clientIp, now);
                 yield Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
             }
             case LoginResult.LockedOut locked -> Response.seeOther(URI.create("/login"))
@@ -276,11 +282,6 @@ public class WebResource {
         };
     }
 
-    /*
-     * Builds the session cookie carrying the opaque token: HttpOnly, SameSite=Strict, Path=/, and
-     * Secure derived from the request scheme (which honours X-Forwarded-Proto behind the proxy). Its
-     * max-age matches the session's absolute lifetime.
-     */
     private NewCookie sessionCookie(final String token) {
         return new NewCookie.Builder(sessionConfig.cookieName())
                 .value(token)
@@ -292,10 +293,6 @@ public class WebResource {
                 .build();
     }
 
-    /*
-     * Builds the short-lived lockout cookie whose value is the seconds left, read by the GET /login
-     * render to show the lockout banner and seed the live countdown.
-     */
     private NewCookie lockoutCookie(final Duration remaining) {
         final long seconds = Math.max(1L, remaining.toSeconds());
         return new NewCookie.Builder(LOCKOUT_COOKIE)
@@ -353,7 +350,7 @@ public class WebResource {
                 user.persist();
                 LOGGER.debug("OIDC login: name={} email={} role={}", user.displayName, user.email, user.role);
                 final String token = sessionStore.create(
-                        user, Session.AUTH_SOURCE_OIDC, userAgent(), ClientAddress.of(routingContext), clock.now());
+                    user, Session.AUTH_SOURCE_OIDC, userAgent(), ClientAddress.of(routingContext), clock.now());
                 return Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
             }
         }
@@ -364,9 +361,8 @@ public class WebResource {
     // ── First-run setup ──────────────────────────────────────────────────────
 
     /**
-     * First-run landing page: introduces the application and guides the deployer to register the
-     * initial (local, administrator) account. Once any user exists — or when local registration is
-     * unavailable — it redirects to {@code /login}, so it is only ever visible during setup.
+     * First-run landing page: introduces the application and guides the deployer to register the initial (local, administrator) account. Once any
+     * user exists — or when local registration is unavailable — it redirects to {@code /login}, so it is only ever visible during setup.
      */
     @GET
     @Path("welcome")
@@ -382,10 +378,9 @@ public class WebResource {
     // ── Register ───────────────────────────────────────────────────────────
 
     /**
-     * Renders the registration page. Returns {@code 404} only when password auth is disabled entirely
-     * (no local registration concept). When password auth is on but registration is disabled and setup
-     * is complete, it still renders the page — showing a "registration disabled" banner instead of the
-     * form, rather than a bare browser error.
+     * Renders the registration page. Returns {@code 404} only when password auth is disabled entirely (no local registration concept). When password
+     * auth is on but registration is disabled and setup is complete, it still renders the page — showing a "registration disabled" banner instead of
+     * the form, rather than a bare browser error.
      */
     @GET
     @Path("register")
@@ -402,9 +397,8 @@ public class WebResource {
     }
 
     /**
-     * Handles the registration form submission: creates the user, mints a server-side session and sets
-     * the {@code diurnal_session} cookie so the new account is logged straight in and redirected to the
-     * dashboard.
+     * Handles the registration form submission: creates the user, mints a server-side session and sets the {@code diurnal_session} cookie so the new
+     * account is logged straight in and redirected to the dashboard.
      */
     @POST
     @Path("register")
@@ -412,10 +406,10 @@ public class WebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
     public Response register(
-            @FormParam("email")           final String email,
-            @FormParam("displayName")     final String displayName,
-            @FormParam("password")        final String password,
-            @FormParam("confirmPassword") final String confirmPassword) {
+        @FormParam("email")           final String email,
+        @FormParam("displayName")     final String displayName,
+        @FormParam("password")        final String password,
+        @FormParam("confirmPassword") final String confirmPassword) {
 
         if (!passwordAuthConfig.enabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();
@@ -474,12 +468,12 @@ public class WebResource {
 
         LOGGER.info("New user registered: {} (role={})", normalised, user.role);
         final String token = sessionStore.create(
-                user, Session.AUTH_SOURCE_PASSWORD, userAgent(), ClientAddress.of(routingContext), now);
+            user, Session.AUTH_SOURCE_PASSWORD, userAgent(), ClientAddress.of(routingContext), now);
         return Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
     }
 
     private static List<String> missingFields(final String email, final String displayName,
-            final String password, final String confirmPassword) {
+        final String password, final String confirmPassword) {
         final List<String> missing = new ArrayList<>();
         if (email.isBlank()) {
             missing.add("Email");
@@ -497,7 +491,7 @@ public class WebResource {
     }
 
     private static List<String> validateRegistration(final String email, final String password,
-            final String confirmPassword) {
+        final String confirmPassword) {
         final List<String> errors = new ArrayList<>();
 
         if (!email.isBlank() && !email.contains("@")) {
@@ -516,7 +510,7 @@ public class WebResource {
     }
 
     private TemplateInstance renderRegister(final String email, final String displayName,
-            final List<String> missingFields, final List<String> errors) {
+        final List<String> missingFields, final List<String> errors) {
         return registerTemplate
                 .data("email", email)
                 .data("displayName", displayName)
@@ -549,14 +543,13 @@ public class WebResource {
     // ── Logout ────────────────────────────────────────────────────────────
 
     /**
-     * Revokes the current server-side session, clears the session cookies, and redirects to the IdP
-     * logout (OIDC users) or {@code /login}.
+     * Revokes the current server-side session, clears the session cookies, and redirects to the IdP logout (OIDC users) or {@code /login}.
      */
     @POST
     @Path("logout")
     public Response logout(
-            @CookieParam("diurnal_session") @Nullable final String sessionToken,
-            @CookieParam("q_session") @Nullable final String oidcSession) {
+        @CookieParam("diurnal_session") @Nullable final String sessionToken,
+        @CookieParam("q_session") @Nullable final String oidcSession) {
         // Revoke only this device's session; any other devices stay logged in. Resolve the owning
         // user first so the logout can be logged with the same identity detail as the login entry.
         Optional<User> sessionUser = Optional.empty();
@@ -572,12 +565,12 @@ public class WebResource {
         // Without it, Authelia accepts the end_session request but does nothing.
         final boolean hasOidcSession = oidcSession != null && !oidcSession.isBlank();
         final URI target = (hasOidcSession ? oidcConfig.logoutUrl().filter(url -> !url.isBlank()) : Optional.<String>empty())
-                .map(URI::create)
-                .orElse(URI.create("/login"));
+            .map(URI::create)
+            .orElse(URI.create("/login"));
         sessionUser.ifPresentOrElse(
-                user -> LOGGER.debug("Logout: revoking session for name={} email={} role={}, redirecting to {}",
-                        user.displayName, user.email, user.role, target),
-                () -> LOGGER.debug("Logout: revoking session and redirecting to {}", target));
+            user -> LOGGER.debug("Logout: revoking session for name={} email={} role={}, redirecting to {}",
+            user.displayName, user.email, user.role, target),
+            () -> LOGGER.debug("Logout: revoking session and redirecting to {}", target));
         return Response.seeOther(target).cookie(clearForm, clearOidc).build();
     }
 
@@ -644,8 +637,7 @@ public class WebResource {
     }
 
     /**
-     * Updates the current user's timezone to the sanitised {@code timezone} (blank or unoffered →
-     * server default). Returns {@code 204}.
+     * Updates the current user's timezone to the sanitised {@code timezone} (blank or unoffered → server default). Returns {@code 204}.
      */
     @PATCH
     @Path("settings/timezone")
@@ -658,9 +650,8 @@ public class WebResource {
     }
 
     /**
-     * Updates the current user's page size. Unlike the other preferences, an out-of-range or
-     * non-numeric value is rejected with {@code 422} (and the {@link UserSettings#PAGE_SIZE_RANGE_MESSAGE}
-     * body) rather than coerced, so the client can show an error and keep the previous value. A valid
+     * Updates the current user's page size. Unlike the other preferences, an out-of-range or non-numeric value is rejected with {@code 422} (and the
+     * {@link UserSettings#PAGE_SIZE_RANGE_MESSAGE} body) rather than coerced, so the client can show an error and keep the previous value. A valid
      * value persists and returns {@code 204}.
      */
     @PATCH
@@ -678,10 +669,9 @@ public class WebResource {
     }
 
     /**
-     * Updates the current user's decimal-place preference. Like the page size, an out-of-range or
-     * non-numeric value is rejected with {@code 422} (and the
-     * {@link UserSettings#DECIMAL_PLACES_RANGE_MESSAGE} body) rather than coerced, so the client can show
-     * an error and keep the previous value. A valid value persists and returns {@code 204}.
+     * Updates the current user's decimal-place preference. Like the page size, an out-of-range or non-numeric value is rejected with {@code 422} (and
+     * the {@link UserSettings#DECIMAL_PLACES_RANGE_MESSAGE} body) rather than coerced, so the client can show an error and keep the previous value. A
+     * valid value persists and returns {@code 204}.
      */
     @PATCH
     @Path("settings/decimal-places")
@@ -698,11 +688,9 @@ public class WebResource {
     }
 
     /**
-     * Updates which per-action stats show on the Stats page, and in what order. The client posts EVERY
-     * row's key in its (drag-arranged) DOM order as {@code statsOrder}, plus the ticked subset as
-     * {@code statsEnabled}; these are encoded into the stored arrangement (disabled fields kept in
-     * place, {@code last-performed} forced enabled). A display-only preference — it never affects how
-     * statistics are computed. Returns {@code 204}.
+     * Updates which per-action stats show on the Stats page, and in what order. The client posts EVERY row's key in its (drag-arranged) DOM order as
+     * {@code statsOrder}, plus the ticked subset as {@code statsEnabled}; these are encoded into the stored arrangement (disabled fields kept in
+     * place, {@code last-performed} forced enabled). A display-only preference — it never affects how statistics are computed. Returns {@code 204}.
      */
     @PATCH
     @Path("settings/stats-fields")
@@ -710,8 +698,8 @@ public class WebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateStatsFields(
-            @FormParam("statsOrder")   final List<String> statsOrder,
-            @FormParam("statsEnabled") final List<String> statsEnabled) {
+        @FormParam("statsOrder")   final List<String> statsOrder,
+        @FormParam("statsEnabled") final List<String> statsEnabled) {
         final List<String> order = statsOrder == null ? List.of() : statsOrder;
         final List<String> enabled = statsEnabled == null ? List.of() : statsEnabled;
         final String value = "order=" + order + " enabled=" + enabled;
@@ -719,9 +707,8 @@ public class WebResource {
     }
 
     /**
-     * Toggles whether the dashboard shows the stats-summary strip. The checkbox posts a hidden
-     * {@code "false"} plus (when ticked) {@code "true"}, so the setting is on iff the values contain
-     * {@code "true"}. Returns {@code 204}.
+     * Toggles whether the dashboard shows the stats-summary strip. The checkbox posts a hidden {@code "false"} plus (when ticked) {@code "true"}, so
+     * the setting is on iff the values contain {@code "true"}. Returns {@code 204}.
      */
     @PATCH
     @Path("settings/show-stats-summary")
@@ -761,14 +748,12 @@ public class WebResource {
     }
 
     /**
-     * Changes the current (local) user's password. To defend against a hijacked session silently taking
-     * over the account, the caller must prove knowledge of the existing password: the flow first asks for
-     * the {@code currentPassword}, then the new password entered and re-entered to confirm ({@code
-     * newPassword} + {@code confirmPassword}). All three values arrive here. Returns {@code 422} when the
-     * current password does not match (body {@link #CURRENT_PASSWORD_ERROR}) or when the new password is
-     * empty or the two copies do not match (body {@link #NEW_PASSWORD_ERROR}). {@code 403} for a non-local
-     * (OIDC-only) account or when password auth is disabled, and {@code 200} once the new hash is
-     * persisted. The response body drives which step the client returns the user to.
+     * Changes the current (local) user's password. To defend against a hijacked session silently taking over the account, the caller must prove
+     * knowledge of the existing password: the flow first asks for the {@code currentPassword}, then the new password entered and re-entered to
+     * confirm ({@code newPassword} + {@code confirmPassword}). All three values arrive here. Returns {@code 422} when the current password does not
+     * match (body {@link #CURRENT_PASSWORD_ERROR}) or when the new password is empty or the two copies do not match (body
+     * {@link #NEW_PASSWORD_ERROR}). {@code 403} for a non-local (OIDC-only) account or when password auth is disabled, and {@code 200} once the new
+     * hash is persisted. The response body drives which step the client returns the user to.
      */
     @POST
     @Path("settings/password")
@@ -776,10 +761,10 @@ public class WebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updatePassword(
-            @FormParam("currentPassword") final String currentPassword,
-            @FormParam("newPassword")     final String newPassword,
-            @FormParam("confirmPassword") final String confirmPassword,
-            @CookieParam("diurnal_session") @Nullable final String sessionToken) {
+        @FormParam("currentPassword") final String currentPassword,
+        @FormParam("newPassword")     final String newPassword,
+        @FormParam("confirmPassword") final String confirmPassword,
+        @CookieParam("diurnal_session") @Nullable final String sessionToken) {
         final User user = currentUser.get();
         // Only local accounts have a password to change; OIDC-only users (and deployments with password
         // auth switched off entirely) have none. The UI already hides the field for them — this guards
@@ -800,7 +785,7 @@ public class WebResource {
         // logging in or registering, and vice versa. The WARN below is an audit trail only, not a throttle.
         if (currentPasswordMismatch(user.passwordHash, currentPassword)) {
             LOGGER.warn("Failed current-password check on password change for user: {} (IP: {})",
-                    user.email, ClientAddress.of(routingContext));
+                user.email, ClientAddress.of(routingContext));
             return Response.status(422).entity(CURRENT_PASSWORD_ERROR).build();
         }
         // The new password cannot be empty, and the re-entered confirmation must match.
@@ -825,17 +810,15 @@ public class WebResource {
     }
 
     /**
-     * Verifies the current (local) user's existing password without changing anything, so the settings
-     * client can confirm step 1 of the password-change flow before asking for the new password. Returns
-     * {@code 204} when it matches, {@code 422} when it does not (or is empty, body
-     * {@link #CURRENT_PASSWORD_ERROR}), and {@code 403} for a non-local (OIDC-only) account or when
-     * password auth is disabled. This is a UX aid only — {@link #updatePassword} re-verifies the current
-     * password authoritatively on the mutating request.
+     * Verifies the current (local) user's existing password without changing anything, so the settings client can confirm step 1 of the
+     * password-change flow before asking for the new password. Returns {@code 204} when it matches, {@code 422} when it does not (or is empty, body
+     * {@link #CURRENT_PASSWORD_ERROR}), and {@code 403} for a non-local (OIDC-only) account or when password auth is disabled. This is a UX aid only
+     * — {@link #updatePassword} re-verifies the current password authoritatively on the mutating request.
      *
-     * <p>Like {@link #updatePassword}, this applies <b>no</b> lockout: an already-authenticated user
-     * confirming their own password gets unlimited tries, wholly separate from the per-IP
-     * login/registration lockout ({@code IpThrottle}) — a mismatch here never checks nor increments that
-     * shared counter.
+     * <p>
+     * Like {@link #updatePassword}, this applies <b>no</b> lockout: an already-authenticated user confirming their own password gets unlimited tries,
+     * wholly separate from the per-IP login/registration lockout ({@code IpThrottle}) — a mismatch here never checks nor increments that shared
+     * counter.
      *
      * @param currentPassword the password to check against the stored hash
      * @return the verification outcome as an empty response
@@ -853,31 +836,20 @@ public class WebResource {
         }
         if (currentPasswordMismatch(user.passwordHash, currentPassword)) {
             LOGGER.warn("Failed current-password check on password-change verify for user: {} (IP: {})",
-                    user.email, ClientAddress.of(routingContext));
+                user.email, ClientAddress.of(routingContext));
             return Response.status(422).entity(CURRENT_PASSWORD_ERROR).build();
         }
         return Response.noContent().build();
     }
 
-    /*
-     * Whether the supplied plaintext does NOT match a stored password hash — the rejection condition both
-     * callers guard on. Empty or {@code null} plaintext never matches (so this is {@code true}) and
-     * short-circuits before the (deliberately slow) Argon2id comparison. Callers pass the user's
-     * already-established non-blank hash.
-     *
-     * @param passwordHash    the stored password hash to compare against
-     * @param currentPassword the plaintext to check
-     * @return {@code true} iff {@code currentPassword} is empty or does not verify against {@code passwordHash}
-     */
     private boolean currentPasswordMismatch(final String passwordHash, final String currentPassword) {
         return currentPassword == null || currentPassword.isEmpty()
                 || !passwords.matches(currentPassword, passwordHash);
     }
 
     /**
-     * Revokes every one of the current user's sessions — including the one making this request ("log out
-     * from everywhere") — then clears the session cookies and redirects to {@code /login}, forcing a
-     * fresh login on every device.
+     * Revokes every one of the current user's sessions — including the one making this request ("log out from everywhere") — then clears the session
+     * cookies and redirects to {@code /login}, forcing a fresh login on every device.
      */
     @POST
     @Path("settings/sessions/revoke-all")
@@ -926,9 +898,8 @@ public class WebResource {
     // ── Dashboard (protected) ──────────────────────────────────────────────
 
     /**
-     * Renders the dashboard with the user's calendar and three most-recent action stats. Each summary
-     * tile row shows the user's top three enabled "Action stats" (the same display preference that
-     * drives the Stats page), in their chosen order.
+     * Renders the dashboard with the user's calendar and three most-recent action stats. Each summary tile row shows the user's top three enabled
+     * "Action stats" (the same display preference that drives the Stats page), in their chosen order.
      */
     @GET
     @Path("/")
@@ -939,9 +910,9 @@ public class WebResource {
         final User user = currentUser.get();
         final List<?> recentStats = statsService.forMostRecent(user.id, 3);
         final List<ActionStatField> summaryFields = ActionStatField.displayFields(user.statsFields)
-                .stream()
-                .limit(3)
-                .toList();
+            .stream()
+            .limit(3)
+            .toList();
         return dashboardTemplate
                 .data("email", user.email)
                 .data("displayName", user.displayName)

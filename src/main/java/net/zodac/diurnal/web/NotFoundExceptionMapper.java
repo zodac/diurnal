@@ -40,14 +40,14 @@ public class NotFoundExceptionMapper {
     @Inject
     @Location("error-404")
     Template errorTemplate;
+
     @Inject CurrentIdentityAssociation identityAssociation;
 
     /**
-     * Maps a {@link NotFoundException} to a redirect or the styled 404 HTML page. For anonymous
-     * browser navigations to unknown web routes, it redirects to {@code /login} rather than showing a
-     * 404 — and {@code /login} itself redirects on to {@code /welcome} during first-run setup, so an
-     * unknown link always lands the visitor in the correct place (setup or sign-in). API, asset and
-     * health 404s, and 404s for authenticated users, fall through to the styled 404 page.
+     * Maps a {@link NotFoundException} to a redirect or the styled 404 HTML page. For anonymous browser navigations to unknown web routes, it
+     * redirects to {@code /login} rather than showing a 404 — and {@code /login} itself redirects on to {@code /welcome} during first-run setup, so
+     * an unknown link always lands the visitor in the correct place (setup or sign-in). API, asset and health 404s, and 404s for authenticated users,
+     * fall through to the styled 404 page.
      */
     @ServerExceptionMapper
     public Uni<Response> toResponse(final NotFoundException exception, final RoutingContext routingContext) {

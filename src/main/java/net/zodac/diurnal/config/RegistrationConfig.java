@@ -28,8 +28,7 @@ import io.smallrye.config.WithDefault;
 public interface RegistrationConfig {
 
     /**
-     * Whether new password accounts may be created via the UI / API. OIDC accounts are always
-     * provisioned on first login regardless of this setting.
+     * Whether new password accounts may be created via the UI / API. OIDC accounts are always provisioned on first login regardless of this setting.
      *
      * @return {@code true} when registration is enabled, defaulting to {@code true}
      */

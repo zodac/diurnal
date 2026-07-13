@@ -60,7 +60,7 @@ class UserRowExtensionsTest {
     @Test
     void zoneTooltip_prefixesZoneLabel() {
         final UserRow row = new UserRow(UUID.randomUUID(), "user@example.com", "Test User",
-                Role.USER.storageValue(), "2026-01-01 00:00", "Never", "Europe/London");
+            Role.USER.storageValue(), "2026-01-01 00:00", "Never", "Europe/London");
 
         assertThat(UserRowExtensions.zoneTooltip(row))
             .as("unexpected timezone tooltip label")

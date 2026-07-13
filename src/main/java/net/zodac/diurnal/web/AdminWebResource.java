@@ -62,20 +62,27 @@ public class AdminWebResource {
     @Inject
     @Location("admin-users")
     Template adminUsersTemplate;
+
     @Inject
     @Location("admin-api-docs")
     Template adminApiDocsTemplate;
+
     @Inject
     @Location("partials/admin-users-list")
     Template adminUsersListTemplate;
+
     @Inject
     @Location("partials/admin-user-row")
     Template adminUserRowTemplate;
+
     @Inject
     @Location("partials/dt-confirm-delete-row")
     Template confirmDeleteRowTemplate;
+
     @Inject SecurityIdentity identity;
+
     @Inject CurrentUser currentUser;
+
     @Inject AppClock clock;
 
     /**
@@ -190,7 +197,7 @@ public class AdminWebResource {
         }
         if (Role.USER.storageValue().equals(role) && isLastAdmin(target)) {
             LOGGER.warn("Admin {} attempted to demote the last administrator {}",
-                    identity.getPrincipal().getName(), target.email);
+                identity.getPrincipal().getName(), target.email);
             return errorResponse("Cannot remove the last administrator.");
         }
         target.role = role;
@@ -217,7 +224,7 @@ public class AdminWebResource {
         }
         if (isLastAdmin(target)) {
             LOGGER.warn("Admin {} attempted to delete the last administrator {}",
-                    identity.getPrincipal().getName(), target.email);
+                identity.getPrincipal().getName(), target.email);
             return errorResponse("Cannot delete the last administrator.");
         }
 
@@ -249,11 +256,11 @@ public class AdminWebResource {
         final int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
 
         final List<UserRow> items = User.<User>findAll(Sort.by("createdAt"))
-                .page(Page.of(actualPage - 1, pageSize))
-                .list()
-                .stream()
-                .map(u -> UserRow.of(u, fmt, zoneLabel))
-                .toList();
+            .page(Page.of(actualPage - 1, pageSize))
+            .list()
+            .stream()
+            .map(u -> UserRow.of(u, fmt, zoneLabel))
+            .toList();
 
         return new PaginatedUsers(items, totalCount, totalPages, actualPage);
     }

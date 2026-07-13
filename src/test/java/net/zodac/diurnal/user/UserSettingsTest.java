@@ -28,7 +28,7 @@ class UserSettingsTest {
     // 15 Jun 2026 noon UTC: a stable, DST-deterministic instant for offset assertions
     // (NZ standard time UTC+12, US daylight time).
     private static final java.time.Instant NOW =
-            java.time.LocalDate.of(2026, 6, 15).atTime(12, 0).toInstant(java.time.ZoneOffset.UTC);
+        java.time.LocalDate.of(2026, 6, 15).atTime(12, 0).toInstant(java.time.ZoneOffset.UTC);
 
     // ── Valid page sizes (any whole number in [1, 100] is accepted, presets and custom alike) ──
 

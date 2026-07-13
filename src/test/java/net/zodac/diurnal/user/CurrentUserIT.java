@@ -38,7 +38,7 @@ class CurrentUserIT extends IntegrationTestBase {
     // just exercises CurrentUser's defensive fallback to the principal email.
     private static SecurityIdentity identityWith(@Nullable final UUID userId, final String email) {
         final QuarkusSecurityIdentity.Builder builder = QuarkusSecurityIdentity.builder()
-                .setPrincipal(new QuarkusPrincipal(email));
+            .setPrincipal(new QuarkusPrincipal(email));
         if (userId != null) {
             builder.addAttribute("userId", userId.toString());
         }

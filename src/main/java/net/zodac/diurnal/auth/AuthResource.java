@@ -50,8 +50,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jspecify.annotations.Nullable;
 
 /**
- * REST API authentication endpoints: register a new password user, exchange credentials for an opaque
- * session token, and revoke the current token.
+ * REST API authentication endpoints: register a new password user, exchange credentials for an opaque session token, and revoke the current token.
  */
 @Tag(name = "Auth", description = "Create an account and exchange credentials for a Bearer session token.")
 @Path("/api/auth")
@@ -91,18 +90,17 @@ public class AuthResource {
     RoutingContext routingContext;
 
     /**
-     * Registers a new password-based user, returning {@code 201} with a session token, or {@code 409} if
-     * the email exists. Returns {@code 404} when password auth is disabled and {@code 403} when
-     * registration is disabled, mirroring the web registration guard so the API can never bypass
+     * Registers a new password-based user, returning {@code 201} with a session token, or {@code 409} if the email exists. Returns {@code 404} when
+     * password auth is disabled and {@code 403} when registration is disabled, mirroring the web registration guard so the API can never bypass
      * {@code PASSWORD_AUTH_ENABLED}/{@code ENABLE_REGISTRATION}.
      */
     @POST
     @Path("/register")
     @Transactional
     @Operation(
-            hidden = true,
-            summary = "Register a new user",
-            description = "Creates an account and returns a Bearer session token for it. The first account ever created becomes an administrator."
+        hidden = true,
+        summary = "Register a new user",
+        description = "Creates an account and returns a Bearer session token for it. The first account ever created becomes an administrator."
     )
     public Response register(@Valid final RegisterRequest request) {
         if (!passwordAuthConfig.enabled()) {
@@ -147,16 +145,15 @@ public class AuthResource {
     }
 
     /**
-     * Validates credentials, returning {@code 200} with an opaque session token on success or {@code 401}
-     * otherwise. Returns {@code 429} (with a {@code Retry-After} header) when the client is temporarily
-     * locked out after too many failed attempts — the response is otherwise indistinguishable from a
-     * {@code 401} so a locked account is never disclosed.
+     * Validates credentials, returning {@code 200} with an opaque session token on success or {@code 401} otherwise. Returns {@code 429} (with a
+     * {@code Retry-After} header) when the client is temporarily locked out after too many failed attempts — the response is otherwise
+     * indistinguishable from a {@code 401} so a locked account is never disclosed.
      */
     @POST
     @Path("/login")
     @Operation(
-            summary = "Log in and obtain a token",
-            description = "Validates an email and password and returns an opaque Bearer session token for the Authorization header on later calls."
+        summary = "Log in and obtain a token",
+        description = "Validates an email and password and returns an opaque Bearer session token for the Authorization header on later calls."
     )
     @APIResponses({
         @APIResponse(responseCode = "200", description = "Credentials accepted; returns a Bearer session token and basic profile.",
@@ -188,9 +185,8 @@ public class AuthResource {
     }
 
     /**
-     * Revokes the session token used to make this request, returning {@code 204}. A missing or malformed
-     * Authorization header is a no-op (still {@code 204}); an unauthenticated request is challenged with
-     * {@code 401} before it reaches here.
+     * Revokes the session token used to make this request, returning {@code 204}. A missing or malformed Authorization header is a no-op (still
+     * {@code 204}); an unauthenticated request is challenged with {@code 401} before it reaches here.
      */
     @POST
     @Path("/logout")
@@ -231,6 +227,6 @@ public class AuthResource {
      */
     @Schema(description = "Error payload returned when an authentication request is rejected.")
     public record ErrorResponse(
-            @Schema(examples = "Invalid email or password", description = "Human-readable description of the error.") String message) {
+        @Schema(examples = "Invalid email or password", description = "Human-readable description of the error.") String message) {
     }
 }

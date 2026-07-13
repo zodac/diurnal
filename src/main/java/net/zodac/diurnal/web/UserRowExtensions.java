@@ -24,11 +24,10 @@ import net.zodac.diurnal.user.Role;
 /**
  * Derived display labels computed from a {@link UserRow} record.
  *
- * <p>Held here, off the {@code UserRow} data record, so the branching logic can be unit- and
- * mutation-tested in isolation — the same data/logic split as {@code ActionStatsExtensions}. The
- * methods are {@link TemplateExtension}s, so Qute resolves {@code {u.roleName}} against a
- * {@code UserRow} value, and {@code {role:options}} against the {@link Role} catalogue, in the admin
- * users table.
+ * <p>
+ * Held here, off the {@code UserRow} data record, so the branching logic can be unit- and mutation-tested in isolation — the same data/logic split as
+ * {@code ActionStatsExtensions}. The methods are {@link TemplateExtension}s, so Qute resolves {@code {u.roleName}} against a {@code UserRow} value,
+ * and {@code {role:options}} against the {@link Role} catalogue, in the admin users table.
  */
 public final class UserRowExtensions {
 
@@ -50,9 +49,10 @@ public final class UserRowExtensions {
     /**
      * The tooltip shown on the row's date cells, naming the timezone the timestamps are rendered in.
      *
-     * <p>Built here rather than inline in the template because Qute takes a quoted {@code {#include}}
-     * parameter literally — {@code text="Timezone: {u.zoneLabel}"} would render the braces verbatim — so
-     * the fully-composed string must be passed as a single expression ({@code text=u.zoneTooltip}).
+     * <p>
+     * Built here rather than inline in the template because Qute takes a quoted {@code {#include}} parameter literally —
+     * {@code text="Timezone: {u.zoneLabel}"} would render the braces verbatim — so the fully-composed string must be passed as a single expression
+     * ({@code text=u.zoneTooltip}).
      *
      * @param row the row to inspect
      * @return the timezone tooltip label, e.g. {@code "Timezone: Europe/London"}
@@ -63,9 +63,8 @@ public final class UserRowExtensions {
     }
 
     /**
-     * The role catalogue for the admin role picker: every {@link Role} ordered alphabetically by
-     * display name. Exposed as the {@code role:options} namespace expression so the {@code <select>}
-     * is generated from the backend enum rather than hard-coded, and a new role appears automatically.
+     * The role catalogue for the admin role picker: every {@link Role} ordered alphabetically by display name. Exposed as the {@code role:options}
+     * namespace expression so the {@code <select>} is generated from the backend enum rather than hard-coded, and a new role appears automatically.
      *
      * @return all roles sorted by display name
      */

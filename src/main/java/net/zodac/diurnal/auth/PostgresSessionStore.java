@@ -29,8 +29,8 @@ import net.zodac.diurnal.user.User;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Database-backed {@link SessionStore}: sessions live in the {@code sessions} table, keyed by the
- * SHA-256 hash of the raw token. Suits the single-instance deployment; durable across restarts.
+ * Database-backed {@link SessionStore}: sessions live in the {@code sessions} table, keyed by the SHA-256 hash of the raw token. Suits the
+ * single-instance deployment; durable across restarts.
  */
 @ApplicationScoped
 public class PostgresSessionStore implements SessionStore {
@@ -46,11 +46,11 @@ public class PostgresSessionStore implements SessionStore {
     @Override
     @Transactional
     public String create(
-            final User user,
-            final String authSource,
-            final @Nullable String userAgent,
-            final @Nullable String clientIp,
-            final Instant now) {
+        final User user,
+        final String authSource,
+        final @Nullable String userAgent,
+        final @Nullable String clientIp,
+        final Instant now) {
         final String rawToken = SessionTokens.generate();
         final Session session = new Session();
         session.tokenHash = SessionTokens.hash(rawToken);

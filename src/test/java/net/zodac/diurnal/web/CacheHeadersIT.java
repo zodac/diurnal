@@ -26,14 +26,13 @@ import net.zodac.diurnal.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies the HTTP cache-control strategy configured in {@code application.properties}: the
- * content-hashed stylesheet is cached immutably for a year, the stable-URL img/font assets keep a
- * one-day ceiling, and dynamic HTML pages are marked {@code no-cache} so a reverse proxy never serves
- * a stale page pointing at an obsolete asset URL.
+ * Verifies the HTTP cache-control strategy configured in {@code application.properties}: the content-hashed stylesheet is cached immutably for a
+ * year, the stable-URL img/font assets keep a one-day ceiling, and dynamic HTML pages are marked {@code no-cache} so a reverse proxy never serves a
+ * stale page pointing at an obsolete asset URL.
  *
- * <p>Runs under the {@code test} profile, which (unlike {@code dev}) does not relax these headers, so
- * the production caching behaviour is exercised. The served stylesheet is the un-hashed {@code app.css}
- * here, since the content-hash rename happens only in the Docker build.
+ * <p>
+ * Runs under the {@code test} profile, which (unlike {@code dev}) does not relax these headers, so the production caching behaviour is exercised. The
+ * served stylesheet is the un-hashed {@code app.css} here, since the content-hash rename happens only in the Docker build.
  */
 @QuarkusTest
 class CacheHeadersIT extends IntegrationTestBase {

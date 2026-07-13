@@ -26,20 +26,11 @@ import java.util.Base64;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link CspPolicy#forPath(String)}: the admin-gated OpenAPI documentation surface gets
- * a relaxed policy, and every other route — including JAX-RS endpoints nested under {@code /api/...} —
- * gets the app's strict policy.
+ * Unit tests for {@link CspPolicy#forPath(String)}: the admin-gated OpenAPI documentation surface gets a relaxed policy, and every other route —
+ * including JAX-RS endpoints nested under {@code /api/...} — gets the app's strict policy.
  */
 class CspPolicyTest {
 
-    /*
-     * Source of truth for the pinned FOUC_STYLE_HASH constant: the literal text of the inline
-     * <style id="theme-bg"> element that layout.html's FOUC script injects (see the JS string in
-     * window.Diurnal.applyTheme). It isn't present in the server-rendered HTML — the <style> only
-     * exists once that inline script runs client-side — so this hardcoded copy is what stands in for
-     * SecurityHeadersFilterIT's live re-derivation of the sibling FOUC_SCRIPT_HASH. An edit to that
-     * literal in layout.html must update this copy AND the pinned hash together, or this test fails.
-     */
     private static final String FOUC_STYLE_CONTENT = "body{background-color:#111827!important;color:#f9fafb!important}";
 
     @Test

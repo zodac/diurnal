@@ -118,12 +118,12 @@ class WebResourceIT extends IntegrationTestBase {
         // Authelia appends its own ?error=... to the error-path, creating a double-? URL.
         // The handler detects error starting with "oidc" (but not exactly "oidc") and redirects.
         given().redirects().follow(false)
-                .get("/login?error=oidc%3Ferror%3Daccess_denied%26error_description%3DSomething")
-                .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
-                .header("Location", allOf(
-                        containsString("error=oidc"),
-                        not(containsString("access_denied"))));
+            .get("/login?error=oidc%3Ferror%3Daccess_denied%26error_description%3DSomething")
+            .then()
+            .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+            .header("Location", allOf(
+            containsString("error=oidc"),
+            not(containsString("access_denied"))));
     }
 
     // ── Register ──────────────────────────────────────────────────────────────
@@ -323,13 +323,13 @@ class WebResourceIT extends IntegrationTestBase {
         });
 
         given().get("/")
-                .then().statusCode(200)
-                .body(containsString("Meditate"))
-                .body(allOf(
-                        containsString("Current streak"),
-                        containsString("Longest streak"),
-                        containsString("Biggest gap"),
-                        not(containsString("Total count"))));
+            .then().statusCode(200)
+            .body(containsString("Meditate"))
+            .body(allOf(
+            containsString("Current streak"),
+            containsString("Longest streak"),
+            containsString("Biggest gap"),
+            not(containsString("Total count"))));
     }
 
     @Test

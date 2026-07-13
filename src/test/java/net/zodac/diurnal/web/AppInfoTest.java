@@ -24,11 +24,9 @@ import net.zodac.diurnal.config.ReleaseVersion;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link AppInfo}, the build-metadata bean surfaced to the Qute templates. The
- * {@code app.*} values normally come from a {@link AppConfig} {@code @ConfigMapping}; here a stub
- * implementation supplies them to exercise the accessors and the build-year parsing in isolation.
- * The version is delegated to {@link ReleaseVersion} (tested separately), so only the delegation is
- * exercised here.
+ * Unit tests for {@link AppInfo}, the build-metadata bean surfaced to the Qute templates. The {@code app.*} values normally come from a
+ * {@link AppConfig} {@code @ConfigMapping}; here a stub implementation supplies them to exercise the accessors and the build-year parsing in
+ * isolation. The version is delegated to {@link ReleaseVersion} (tested separately), so only the delegation is exercised here.
  */
 class AppInfoTest {
 
@@ -37,20 +35,20 @@ class AppInfoTest {
     }
 
     private static AppInfo appInfoWith(final String repositoryUrl, final String buildTimestamp, final String cssFile,
-                                       final String jsFile) {
+        final String jsFile) {
         return appInfoWith(repositoryUrl, buildTimestamp, cssFile, jsFile, "app.js", "dashboard.js");
     }
 
     private static AppInfo appInfoWith(final String repositoryUrl, final String buildTimestamp, final String cssFile,
-                                       final String jsFile, final String jsAppFile, final String jsDashboardFile) {
+        final String jsFile, final String jsAppFile, final String jsDashboardFile) {
         return appInfoWith(repositoryUrl, buildTimestamp, cssFile, jsFile, jsAppFile, jsDashboardFile,
             "actions.js", "admin-users.js", "admin-api-docs.js", "settings.js");
     }
 
     private static AppInfo appInfoWith(final String repositoryUrl, final String buildTimestamp, final String cssFile,
-                                       final String jsFile, final String jsAppFile, final String jsDashboardFile,
-                                       final String jsActionsFile, final String jsAdminFile, final String jsApiDocsFile,
-                                       final String jsSettingsFile) {
+        final String jsFile, final String jsAppFile, final String jsDashboardFile,
+        final String jsActionsFile, final String jsAdminFile, final String jsApiDocsFile,
+        final String jsSettingsFile) {
         final AppInfo appInfo = new AppInfo();
         appInfo.appConfig = new StubAppConfig(repositoryUrl, buildTimestamp, cssFile, jsFile, jsAppFile, jsDashboardFile,
             jsActionsFile, jsAdminFile, jsApiDocsFile, jsSettingsFile);
@@ -194,12 +192,9 @@ class AppInfoTest {
             .isEqualTo("2026");
     }
 
-    /*
-     * Stub {@link AppConfig} whose record components supply the {@code app.*} accessors directly.
-     */
     private record StubAppConfig(String repositoryUrl, String buildTimestamp, String cssFile, String jsFile,
-                                 String jsAppFile, String jsDashboardFile, String jsActionsFile, String jsAdminFile,
-                                 String jsApiDocsFile, String jsSettingsFile) implements AppConfig {
+        String jsAppFile, String jsDashboardFile, String jsActionsFile, String jsAdminFile,
+        String jsApiDocsFile, String jsSettingsFile) implements AppConfig {
 
         @Override
         public String timezone() {

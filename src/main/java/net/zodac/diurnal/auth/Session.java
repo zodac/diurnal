@@ -33,13 +33,12 @@ import net.zodac.diurnal.user.User;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A server-side authenticated session — the revocable counterpart to the opaque token held by a
- * client (as the {@code diurnal_session} cookie for the web UI, or a Bearer token for the REST API).
+ * A server-side authenticated session — the revocable counterpart to the opaque token held by a client (as the {@code diurnal_session} cookie for the
+ * web UI, or a Bearer token for the REST API).
  *
  * <p>
- * Only the SHA-256 {@link #tokenHash} of the raw token is persisted, so a read-only leak of this
- * table hands out no usable sessions. Roles are deliberately not stored here — they are resolved
- * live from the linked {@link User} on each request — so an admin/role change takes effect without
+ * Only the SHA-256 {@link #tokenHash} of the raw token is persisted, so a read-only leak of this table hands out no usable sessions. Roles are
+ * deliberately not stored here — they are resolved live from the linked {@link User} on each request — so an admin/role change takes effect without
  * touching sessions. Revoking a session is simply deleting its row.
  */
 @Entity
@@ -111,17 +110,15 @@ public class Session extends PanacheEntityBase {
     }
 
     /**
-     * Deletes every session belonging to the given user except the one identified by
-     * {@code keepTokenHash}, returning the number of rows removed.
+     * Deletes every session belonging to the given user except the one identified by {@code keepTokenHash}, returning the number of rows removed.
      */
     public static void deleteByUserExcept(final UUID userId, final byte[] keepTokenHash) {
         delete("user.id = ?1 and tokenHash <> ?2", userId, keepTokenHash);
     }
 
     /**
-     * Deletes every session whose absolute expiry is at or before the given instant, returning the
-     * number of rows removed. Idle-expired sessions are pruned lazily on access; this sweeps the
-     * ones that are never presented again.
+     * Deletes every session whose absolute expiry is at or before the given instant, returning the number of rows removed. Idle-expired sessions are
+     * pruned lazily on access; this sweeps the ones that are never presented again.
      */
     public static long deleteExpired(final Instant now) {
         return delete("expiresAt <= ?1", now);

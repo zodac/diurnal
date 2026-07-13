@@ -70,7 +70,7 @@ public class AppLifecycle {
         LOGGER.info("  Password auth : {}", passwordAuthConfig.enabled() ? "enabled" : "disabled");
         if (oidcEnabled) {
             LOGGER.info("  OIDC          : enabled  (issuer: {}, provider: {}, auto-redirect: {})",
-                    oidcIssuerUrl, oidcConfig.providerName(), oidcConfig.autoRedirect());
+                oidcIssuerUrl, oidcConfig.providerName(), oidcConfig.autoRedirect());
         } else {
             LOGGER.info("  OIDC          : disabled");
             if (oidcConfig.autoRedirect()) {
@@ -81,13 +81,11 @@ public class AppLifecycle {
     }
 
     /**
-     * Fails fast when the authentication configuration is invalid: no auth method enabled, or OIDC
-     * enabled without an issuer URL. Extracted from {@link #onStart(StartupEvent)} so the guards can
-     * be exercised directly without booting the application (the "no auth method" case throws before
+     * Fails fast when the authentication configuration is invalid: no auth method enabled, or OIDC enabled without an issuer URL. Extracted from
+     * {@link #onStart(StartupEvent)} so the guards can be exercised directly without booting the application (the "no auth method" case throws before
      * startup can complete).
      *
-     * @throws IllegalStateException if neither password auth nor OIDC is enabled, or if OIDC is
-     *                               enabled but no issuer URL is configured
+     * @throws IllegalStateException if neither password auth nor OIDC is enabled, or if OIDC is enabled but no issuer URL is configured
      */
     void validateAuthConfig() {
         if (!passwordAuthConfig.enabled() && !oidcEnabled) {

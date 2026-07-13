@@ -35,11 +35,10 @@ import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies the shared {@code /logs/events} feed works as the public API — i.e. it authenticates a real
- * opaque session token as a Bearer header (not just the in-app session that {@link CalendarResourceIT}
- * exercises via {@code @TestSecurity}), and that an anonymous request is challenged. The {@code /logs/*}
- * surface is unpinned, so {@code SessionAuthMechanism} authenticates a present token while redirecting an
- * anonymous request to {@code /login}.
+ * Verifies the shared {@code /logs/events} feed works as the public API — i.e. it authenticates a real opaque session token as a Bearer header (not
+ * just the in-app session that {@link CalendarResourceIT} exercises via {@code @TestSecurity}), and that an anonymous request is challenged. The
+ * {@code /logs/*} surface is unpinned, so {@code SessionAuthMechanism} authenticates a present token while redirecting an anonymous request to
+ * {@code /login}.
  */
 @QuarkusTest
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach

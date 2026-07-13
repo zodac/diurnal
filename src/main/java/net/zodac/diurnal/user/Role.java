@@ -23,17 +23,16 @@ import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The catalogue of user account roles: the single source of truth pairing each role's stored value
- * with its human-readable display name.
+ * The catalogue of user account roles: the single source of truth pairing each role's stored value with its human-readable display name.
  *
- * <p>The {@link #storageValue()} is what is persisted in {@code users.role} and consumed by the
- * security layer ({@code SecurityIdentity} roles, {@code @RolesAllowed}) — it mirrors the
- * compile-time {@link Values} constants so those raw values live in exactly one place. The
+ * <p>
+ * The {@link #storageValue()} is what is persisted in {@code users.role} and consumed by the security layer ({@code SecurityIdentity} roles,
+ * {@code @RolesAllowed}) — it mirrors the compile-time {@link Values} constants so those raw values live in exactly one place. The
  * {@link #displayName()} is what the admin User Management table and its role picker show.
  *
- * <p><strong>Adding a new role:</strong> add a constant here (and a matching {@link Values} constant
- * if it needs to be named in a {@code @RolesAllowed} annotation), and it automatically appears in the
- * admin role picker — alphabetically ordered via {@link #byDisplayName()} — with no template change.
+ * <p>
+ * <strong>Adding a new role:</strong> add a constant here (and a matching {@link Values} constant if it needs to be named in a {@code @RolesAllowed}
+ * annotation), and it automatically appears in the admin role picker — alphabetically ordered via {@link #byDisplayName()} — with no template change.
  */
 public enum Role {
 
@@ -74,15 +73,15 @@ public enum Role {
     }
 
     /**
-     * Every role ordered alphabetically by {@link #displayName()} — the catalogue backing the admin
-     * role picker, so a newly-added role surfaces automatically in a stable, sorted order.
+     * Every role ordered alphabetically by {@link #displayName()} — the catalogue backing the admin role picker, so a newly-added role surfaces
+     * automatically in a stable, sorted order.
      *
      * @return all roles sorted by display name
      */
     public static List<Role> byDisplayName() {
         return Arrays.stream(values())
-                .sorted(Comparator.comparing(Role::displayName))
-                .toList();
+            .sorted(Comparator.comparing(Role::displayName))
+            .toList();
     }
 
     /**
@@ -93,9 +92,9 @@ public enum Role {
      */
     public static Role fromStorageValue(final @Nullable String storageValue) {
         return Arrays.stream(values())
-                .filter(role -> role.storageValue.equals(storageValue))
-                .findFirst()
-                .orElse(USER);
+            .filter(role -> role.storageValue.equals(storageValue))
+            .findFirst()
+            .orElse(USER);
     }
 
     /**
@@ -106,17 +105,17 @@ public enum Role {
      */
     public static boolean isValid(final @Nullable String storageValue) {
         return Arrays.stream(values())
-                .anyMatch(role -> role.storageValue.equals(storageValue));
+            .anyMatch(role -> role.storageValue.equals(storageValue));
     }
 
     /**
      * The raw role {@link #storageValue()} strings as compile-time {@code String} constants.
      *
-     * <p>Annotations such as {@code @RolesAllowed} and {@code @Schema} require a constant expression,
-     * which an enum method call ({@code Role.ADMIN.storageValue()}) is not — so each enum constant is
-     * constructed from the matching constant here, making these the one place the raw strings are
-     * defined and guaranteeing they equal the corresponding {@link #storageValue()}. Runtime code
-     * should still prefer the enum ({@code Role.ADMIN.storageValue()}).
+     * <p>
+     * Annotations such as {@code @RolesAllowed} and {@code @Schema} require a constant expression, which an enum method call
+     * ({@code Role.ADMIN.storageValue()}) is not — so each enum constant is constructed from the matching constant here, making these the one place
+     * the raw strings are defined and guaranteeing they equal the corresponding {@link #storageValue()}. Runtime code should still prefer the enum
+     * ({@code Role.ADMIN.storageValue()}).
      */
     public static final class Values {
 

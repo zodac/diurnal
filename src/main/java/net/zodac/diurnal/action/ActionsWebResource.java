@@ -56,12 +56,15 @@ public class ActionsWebResource {
     @Inject
     @Location("actions")
     Template actionsTemplate;
+
     @Inject
     @Location("partials/actions-list")
     Template actionsListTemplate;
+
     @Inject
     @Location("partials/action-row")
     Template actionRowTemplate;
+
     @Inject
     @Location("partials/dt-confirm-delete-row")
     Template confirmDeleteRowTemplate;
@@ -96,13 +99,13 @@ public class ActionsWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response actionsList(
-            @QueryParam("page") @DefaultValue("1") final int pageNum,
-            @QueryParam("q") @DefaultValue("") final String searchTerm) {
+        @QueryParam("page") @DefaultValue("1") final int pageNum,
+        @QueryParam("q") @DefaultValue("") final String searchTerm) {
         final User user = currentUser.get();
         final var page = getActions(user.id, pageNum, searchTerm, user.pageSize);
         final String extraQuery = (searchTerm == null || searchTerm.isBlank())
-                ? ""
-                : "&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8);
+            ? ""
+            : "&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8);
         return Response.ok(actionsListTemplate.data("page", page, "extraQuery", extraQuery)).build();
     }
 
@@ -114,9 +117,9 @@ public class ActionsWebResource {
         final List<Action> all = Action.findByUser(userId);
 
         final var filtered = all.stream()
-                .filter(a -> searchTerm == null || searchTerm.isBlank()
-                        || a.name.toLowerCase(Locale.ROOT).contains(searchTerm.toLowerCase(Locale.ROOT)))
-                .toList();
+            .filter(a -> searchTerm == null || searchTerm.isBlank()
+            || a.name.toLowerCase(Locale.ROOT).contains(searchTerm.toLowerCase(Locale.ROOT)))
+            .toList();
 
         final int totalCount = filtered.size();
         final int totalPages = (totalCount + pageSize - 1) / pageSize;
@@ -124,9 +127,9 @@ public class ActionsWebResource {
         final int skip = (actualPage - 1) * pageSize;
 
         final var items = filtered.stream()
-                .skip(skip)
-                .limit(pageSize)
-                .toList();
+            .skip(skip)
+            .limit(pageSize)
+            .toList();
 
         return new PaginatedActions(items, totalCount, totalPages, actualPage);
     }
@@ -184,8 +187,8 @@ public class ActionsWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response createAction(
-            @FormParam("name") final String name,
-            @FormParam("colour") @DefaultValue("#64748b") final String colour) {
+        @FormParam("name") final String name,
+        @FormParam("colour") @DefaultValue("#64748b") final String colour) {
 
         if (name == null || name.isBlank()) {
             return errorResponse("Action name cannot be empty.");
@@ -217,9 +220,9 @@ public class ActionsWebResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response updateAction(
-            @PathParam("id") final UUID id,
-            @FormParam("name") final String name,
-            @FormParam("colour") @DefaultValue("#64748b") final String colour) {
+        @PathParam("id") final UUID id,
+        @FormParam("name") final String name,
+        @FormParam("colour") @DefaultValue("#64748b") final String colour) {
 
         final Action action = findOwnedAction(id);
         if (action == null) {

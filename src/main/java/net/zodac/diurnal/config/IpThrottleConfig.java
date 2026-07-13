@@ -23,28 +23,24 @@ import io.smallrye.config.WithName;
 import java.time.Duration;
 
 /**
- * Typed view over the {@code auth.ip-throttle.*} settings governing the single, global per-<em>IP</em>
- * lockout: after {@link #maxAttempts()} failed logins <em>or</em> registrations from one client IP within
- * {@link #lockoutDuration()}, that IP is locked out of both logging in and registering.
+ * Typed view over the {@code auth.ip-throttle.*} settings governing the single, global per-<em>IP</em> lockout: after {@link #maxAttempts()} failed
+ * logins <em>or</em> registrations from one client IP within {@link #lockoutDuration()}, that IP is locked out of both logging in and registering.
  *
  * <p>
- * This is the only auth lockout — there is deliberately no per-account (email) dimension, since a
- * per-account lockout would let an attacker deny service to a targeted victim by failing logins for their
- * email. Keying purely on the client IP avoids that footgun.
+ * This is the only auth lockout — there is deliberately no per-account (email) dimension, since a per-account lockout would let an attacker deny
+ * service to a targeted victim by failing logins for their email. Keying purely on the client IP avoids that footgun.
  *
  * <p>
- * The client IP comes from Vert.x {@code remoteAddress()}, which honours
- * {@code quarkus.http.proxy.proxy-address-forwarding} ({@code TRUST_X_FORWARDED_HEADERS}); this control is
- * therefore only meaningful when that is configured correctly behind a trusted proxy. Because many users
- * can share one IP (NAT/CGNAT), the limit is deliberately generous and a counter decays after a quiet
- * window so shared IPs don't accumulate unrelated failures.
+ * The client IP comes from Vert.x {@code remoteAddress()}, which honours {@code quarkus.http.proxy.proxy-address-forwarding}
+ * ({@code TRUST_X_FORWARDED_HEADERS}); this control is therefore only meaningful when that is configured correctly behind a trusted proxy. Because
+ * many users can share one IP (NAT/CGNAT), the limit is deliberately generous and a counter decays after a quiet window so shared IPs don't
+ * accumulate unrelated failures.
  */
 @ConfigMapping(prefix = "auth.ip-throttle")
 public interface IpThrottleConfig {
 
     /**
-     * Whether the per-IP lockout is enabled. When {@code false}, no attempts are tracked and no IP is
-     * ever locked out.
+     * Whether the per-IP lockout is enabled. When {@code false}, no attempts are tracked and no IP is ever locked out.
      *
      * @return {@code true} when enabled, defaulting to {@code true}
      */
@@ -61,8 +57,7 @@ public interface IpThrottleConfig {
     int maxAttempts();
 
     /**
-     * How long an IP stays locked once {@link #maxAttempts()} is reached (also the decay window).
-     * ISO-8601 duration, e.g. {@code PT15M}.
+     * How long an IP stays locked once {@link #maxAttempts()} is reached (also the decay window). ISO-8601 duration, e.g. {@code PT15M}.
      *
      * @return the lockout duration, defaulting to 15 minutes
      */

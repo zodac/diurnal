@@ -259,11 +259,11 @@ class CalendarResourceIT extends IntegrationTestBase {
     void events_colourSetOnEvent() {
         // Create via API to persist the coloured action
         final String html = given().formParam("name", "Coloured2").formParam("colour", "#ff5500")
-                .post("/actions")
-                .then().statusCode(200).extract().body().asString();
+            .post("/actions")
+            .then().statusCode(200).extract().body().asString();
 
         final java.util.regex.Matcher m = java.util.regex.Pattern
-                .compile("id=\"action-([0-9a-f-]+)\"").matcher(html);
+            .compile("id=\"action-([0-9a-f-]+)\"").matcher(html);
         if (!m.find()) {
             return; // skip if extraction fails
         }
