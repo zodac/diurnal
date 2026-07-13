@@ -108,11 +108,11 @@ Each enum constant must be separated from the next by a **blank line**, includin
 /**
  * Full administrative access.
  */
-ADMIN(User.ROLE_ADMIN, "Administrator"),
+ADMIN(Values.ADMIN, "Administrator"),
 /**
  * Standard, non-administrative access.
  */
-USER(User.ROLE_USER, "User");
+USER(Values.USER, "User");
 ```
 
 ✅ **Right:**
@@ -121,12 +121,12 @@ USER(User.ROLE_USER, "User");
 /**
  * Full administrative access.
  */
-ADMIN(User.ROLE_ADMIN, "Administrator"),
+ADMIN(Values.ADMIN, "Administrator"),
 
 /**
  * Standard, non-administrative access.
  */
-USER(User.ROLE_USER, "User");
+USER(Values.USER, "User");
 ```
 
 ### AssertJ assertions must be fluent-chained across multiple lines
@@ -152,5 +152,5 @@ assertThat(user.pageSize)
 
 runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().role)
     .as("unexpected value")
-    .isEqualTo(User.ROLE_ADMIN));
+    .isEqualTo(Role.ADMIN.storageValue()));
 ```

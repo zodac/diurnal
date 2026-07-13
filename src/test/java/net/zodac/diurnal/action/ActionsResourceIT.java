@@ -26,11 +26,12 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.UserSettings;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
-@TestSecurity(user = "actions-it@lt.test", roles = "user")
+@TestSecurity(user = "actions-it@lt.test", roles = Role.Values.USER)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class ActionsResourceIT extends IntegrationTestBase {
 

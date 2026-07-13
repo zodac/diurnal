@@ -36,6 +36,7 @@ import java.util.Locale;
 import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.config.RegistrationConfig;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -193,7 +194,7 @@ public class AuthResource {
      */
     @POST
     @Path("/logout")
-    @RolesAllowed("user")
+    @RolesAllowed(Role.Values.USER)
     @SecurityRequirement(name = "BearerAuth")
     @Operation(summary = "Log out", description = "Revokes the Bearer session token used to make this request.")
     @APIResponses({

@@ -20,6 +20,7 @@ package net.zodac.diurnal.auth;
 import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.security.runtime.QuarkusPrincipal;
 import io.quarkus.security.runtime.QuarkusSecurityIdentity;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 
 /**
@@ -47,10 +48,10 @@ final class UserIdentities {
             .setPrincipal(new QuarkusPrincipal(user.email))
             .addAttribute("userId", user.id.toString())
             .addAttribute("displayName", user.displayName)
-            .addRole(User.ROLE_USER);
+            .addRole(Role.USER.storageValue());
 
         if (user.isAdmin()) {
-            builder.addRole(User.ROLE_ADMIN);
+            builder.addRole(Role.ADMIN.storageValue());
         }
         return builder.build();
     }

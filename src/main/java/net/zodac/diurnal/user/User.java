@@ -46,9 +46,6 @@ import org.jspecify.annotations.Nullable;
 @SuppressWarnings("PMD.TooManyFields")
 public class User extends PanacheEntityBase {
 
-    public static final String ROLE_ADMIN = "admin";
-    public static final String ROLE_USER = "user";
-
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     public UUID id;
@@ -119,13 +116,13 @@ public class User extends PanacheEntityBase {
     public @Nullable String timezone;
 
     @Column(name = "role", nullable = false)
-    public String role = ROLE_USER;
+    public String role = Role.USER.storageValue();
 
     @Column(name = "last_login_at")
     public Instant lastLoginAt;
 
     public boolean isAdmin() {
-        return ROLE_ADMIN.equals(role);
+        return Role.fromStorageValue(role) == Role.ADMIN;
     }
 
     /**

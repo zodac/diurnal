@@ -34,11 +34,12 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
-@TestSecurity(user = "log-it@lt.test", roles = "user")
+@TestSecurity(user = "log-it@lt.test", roles = Role.Values.USER)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class LogResourceIT extends IntegrationTestBase {
 

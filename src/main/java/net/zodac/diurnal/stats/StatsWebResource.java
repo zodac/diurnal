@@ -33,13 +33,14 @@ import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 
 /**
  * Serves the paginated stats page and its HTMX list partial.
  */
 @Path("/stats")
-@RolesAllowed("user")
+@RolesAllowed(Role.Values.USER)
 public class StatsWebResource {
 
     @Inject

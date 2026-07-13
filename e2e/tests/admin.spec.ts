@@ -1,7 +1,7 @@
 import type { TestUser } from "../helpers/fixtures"
 import { test, expect, registerUser, loginAs } from "../helpers/fixtures"
 import { ensureSoleAdmin, ensureNotAdmin } from "../helpers/db"
-import type { Page } from "@playwright/test"
+import type { Page, Request } from "@playwright/test"
 
 // A dedicated admin user for the admin-only screens. Rather than relying on RoleAssigner's
 // "first user ever = admin" rule (fragile: depends on spec order + a pristine DB), we register
@@ -168,7 +168,7 @@ test.describe("User row edit mode", () => {
         // Save without touching the role select → no POST to /role should fire (no phantom
         // "changed role" log line, no needless UPDATE), and the row returns to view mode.
         let posted = false
-        const watch = (r: import("@playwright/test").Request): void => {
+        const watch = (r: Request): void => {
             if (/\/admin\/users\/\d+\/role$/.test(r.url()) && r.method() === "POST") {posted = true}
         }
         page.on("request", watch)

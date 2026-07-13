@@ -29,6 +29,7 @@ import com.password4j.types.Argon2;
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
@@ -264,7 +265,7 @@ class AuthResourceIT extends IntegrationTestBase {
             final User u = User.findByEmail("first@example.com").orElseThrow();
             assertThat(u.role)
                 .as("First registered user should be admin")
-                .isEqualTo(User.ROLE_ADMIN);
+                .isEqualTo(Role.ADMIN.storageValue());
         });
     }
 
@@ -283,7 +284,7 @@ class AuthResourceIT extends IntegrationTestBase {
             final User u = User.findByEmail("second@example.com").orElseThrow();
             assertThat(u.role)
                 .as("Subsequent users should be user role")
-                .isEqualTo(User.ROLE_USER);
+                .isEqualTo(Role.USER.storageValue());
         });
     }
 

@@ -25,6 +25,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import java.time.Instant;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
@@ -50,7 +51,7 @@ class OpenApiDocsAuthFilterIT extends IntegrationTestBase {
 
     @Override
     protected void createDbState() {
-        adminUser = newUser("docs-admin@lt.test", "Docs Admin", User.ROLE_ADMIN);
+        adminUser = newUser("docs-admin@lt.test", "Docs Admin", Role.ADMIN.storageValue());
         regularUser = newUser("docs-user@lt.test", "Docs User");
     }
 

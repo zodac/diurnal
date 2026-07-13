@@ -3,7 +3,7 @@
     <td class="dt-cell">{u.displayName}</td>
     <td class="dt-cell">
         <span data-dt-view class="flex items-center gap-2">
-            <span class="dt-badge {#if u.role == 'admin'}dt-badge-admin{/if}">{u.roleName}</span>
+            <span class="dt-badge dt-badge-{u.role}">{u.roleName}</span>
         </span>
         <span data-dt-edit class="hidden flex items-center gap-2">
             <form id="user-form-{u.id}"

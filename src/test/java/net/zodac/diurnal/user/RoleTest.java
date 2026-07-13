@@ -32,7 +32,7 @@ class RoleTest {
     void admin_hasExpectedStorageValueAndDisplayName() {
         assertThat(Role.ADMIN.storageValue())
             .as("unexpected stored value")
-            .isEqualTo(User.ROLE_ADMIN);
+            .isEqualTo("admin");
         assertThat(Role.ADMIN.displayName())
             .as("unexpected display name")
             .isEqualTo("Administrator");
@@ -42,7 +42,7 @@ class RoleTest {
     void user_hasExpectedStorageValueAndDisplayName() {
         assertThat(Role.USER.storageValue())
             .as("unexpected stored value")
-            .isEqualTo(User.ROLE_USER);
+            .isEqualTo("user");
         assertThat(Role.USER.displayName())
             .as("unexpected display name")
             .isEqualTo("User");
@@ -71,14 +71,14 @@ class RoleTest {
 
     @Test
     void fromStorageValue_adminValue_returnsAdmin() {
-        assertThat(Role.fromStorageValue(User.ROLE_ADMIN))
+        assertThat(Role.fromStorageValue("admin"))
             .as("expected the admin role")
             .isEqualTo(Role.ADMIN);
     }
 
     @Test
     void fromStorageValue_userValue_returnsUser() {
-        assertThat(Role.fromStorageValue(User.ROLE_USER))
+        assertThat(Role.fromStorageValue("user"))
             .as("expected the user role")
             .isEqualTo(Role.USER);
     }
@@ -96,10 +96,10 @@ class RoleTest {
 
     @Test
     void isValid_knownValues_returnsTrue() {
-        assertThat(Role.isValid(User.ROLE_ADMIN))
+        assertThat(Role.isValid("admin"))
             .as("expected the admin value to be valid")
             .isTrue();
-        assertThat(Role.isValid(User.ROLE_USER))
+        assertThat(Role.isValid("user"))
             .as("expected the user value to be valid")
             .isTrue();
     }

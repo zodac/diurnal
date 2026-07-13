@@ -27,12 +27,13 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.StatFieldPref;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
-@TestSecurity(user = "settings-it@lt.test", roles = "user")
+@TestSecurity(user = "settings-it@lt.test", roles = Role.Values.USER)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class SettingsIT extends IntegrationTestBase {
 
@@ -198,7 +199,7 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = OIDC_USER, roles = "user")
+    @TestSecurity(user = OIDC_USER, roles = Role.Values.USER)
     void verifyCurrentPassword_oidcAccount_returns403() {
         given().formParam("currentPassword", "anything")
                 .post("/settings/password/verify")
@@ -206,7 +207,7 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = OIDC_USER, roles = "user")
+    @TestSecurity(user = OIDC_USER, roles = Role.Values.USER)
     void updatePassword_oidcAccount_returns403AndSetsNoPassword() {
         given().formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "new_secret_123")
@@ -238,7 +239,7 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = OIDC_USER, roles = "user")
+    @TestSecurity(user = OIDC_USER, roles = Role.Values.USER)
     void settingsPage_oidcAccount_showsProviderNoteNotPasswordField() {
         // Assert only the stable prefix: the trailing provider name comes from OIDC_PROVIDER_NAME and
         // varies by environment (default "your identity provider", but e.g. "Authelia" when configured).
