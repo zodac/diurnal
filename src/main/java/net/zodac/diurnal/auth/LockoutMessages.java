@@ -22,15 +22,14 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Human-readable text for an auth lockout — shared by the JSON API ({@code 429} body) and the web
- * login/registration banners, so every surface phrases the lockout identically.
+ * Human-readable text for an auth lockout — shared by the JSON API ({@code 429} body) and the web login/registration banners, so every surface
+ * phrases the lockout identically.
  *
  * <p>
- * The wording is deliberately <em>neutral</em> — "Too many failed attempts" — rather than naming logins
- * or registrations: the lockout is one shared per-IP counter that both flows feed, so attributing it to
- * either would be inaccurate (15 failed registrations then a blocked login must not read "too many
- * failed logins") and would leak how the throttle works. It also discloses nothing about whether an
- * account exists (a non-existent email locks out and shows the same text).
+ * The wording is deliberately <em>neutral</em> — "Too many failed attempts" — rather than naming logins or registrations: the lockout is one shared
+ * per-IP counter that both flows feed, so attributing it to either would be inaccurate (15 failed registrations then a blocked login must not read
+ * "too many failed logins") and would leak how the throttle works. It also discloses nothing about whether an account exists (a non-existent email
+ * locks out and shows the same text).
  */
 public final class LockoutMessages {
 
@@ -39,9 +38,8 @@ public final class LockoutMessages {
     }
 
     /**
-     * The full sentence shown to a locked-out user on either surface (login or registration), stating the
-     * <em>exact</em> whole seconds remaining on the lockout, e.g. "Too many failed attempts. Please try
-     * again in 42 seconds.".
+     * The full sentence shown to a locked-out user on either surface (login or registration), stating the <em>exact</em> whole seconds remaining on
+     * the lockout, e.g. "Too many failed attempts. Please try again in 42 seconds.".
      *
      * @param remaining how much of the lockout is left
      * @return the user-facing lockout message
@@ -54,9 +52,8 @@ public final class LockoutMessages {
     }
 
     /**
-     * Renders a duration in plain, correctly-pluralised English, e.g. {@code PT15M} → "15 minutes",
-     * {@code PT1H30M} → "1 hour and 30 minutes", {@code PT45S} → "45 seconds". Sub-second and
-     * non-positive durations collapse to "a moment".
+     * Renders a duration in plain, correctly-pluralised English, e.g. {@code PT15M} → "15 minutes", {@code PT1H30M} → "1 hour and 30 minutes",
+     * {@code PT45S} → "45 seconds". Sub-second and non-positive durations collapse to "a moment".
      *
      * @param duration the duration to render
      * @return the human-readable form

@@ -25,11 +25,10 @@ import org.jspecify.annotations.Nullable;
  * Resolves the client IP of a request for security logging.
  *
  * <p>
- * Reads Vert.x's {@code remoteAddress()} directly rather than parsing {@code X-Forwarded-For} by hand:
- * when the app is configured behind a trusted proxy ({@code quarkus.http.proxy.proxy-address-forwarding},
- * i.e. {@code TRUST_X_FORWARDED_HEADERS=true}), Vert.x already substitutes the forwarded client address,
- * and when it is not, the socket address is used — so proxy trust is governed by that one config, never
- * by blindly trusting an attacker-spoofable header here.
+ * Reads Vert.x's {@code remoteAddress()} directly rather than parsing {@code X-Forwarded-For} by hand: when the app is configured behind a trusted
+ * proxy ({@code quarkus.http.proxy.proxy-address-forwarding}, i.e. {@code TRUST_X_FORWARDED_HEADERS=true}), Vert.x already substitutes the forwarded
+ * client address, and when it is not, the socket address is used — so proxy trust is governed by that one config, never by blindly trusting an
+ * attacker-spoofable header here.
  */
 public final class ClientAddress {
 

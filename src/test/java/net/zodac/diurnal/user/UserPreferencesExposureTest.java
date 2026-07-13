@@ -26,22 +26,22 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Guards that the public API's {@link UserDto.Preferences} projection stays in lock-step with the
- * {@link Preference}-annotated fields on {@link User}. Adding a new preference column without exposing it
- * through {@code GET /api/users/me} — the recurring de-sync this guard exists to prevent — fails here.
+ * Guards that the public API's {@link UserDto.Preferences} projection stays in lock-step with the {@link Preference}-annotated fields on
+ * {@link User}. Adding a new preference column without exposing it through {@code GET /api/users/me} — the recurring de-sync this guard exists to
+ * prevent — fails here.
  */
 class UserPreferencesExposureTest {
 
     @Test
     void everyPreferenceFieldIsExposedByTheDto() {
         final List<String> preferenceFields = Arrays.stream(User.class.getDeclaredFields())
-                .filter(field -> field.isAnnotationPresent(Preference.class))
-                .map(Field::getName)
-                .toList();
+            .filter(field -> field.isAnnotationPresent(Preference.class))
+            .map(Field::getName)
+            .toList();
 
         final List<String> exposedFields = Arrays.stream(UserDto.Preferences.class.getRecordComponents())
-                .map(RecordComponent::getName)
-                .toList();
+            .map(RecordComponent::getName)
+            .toList();
 
         assertThat(preferenceFields)
             .as("no @Preference fields were found on User — the marker or the reflection query is broken")

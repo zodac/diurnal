@@ -26,8 +26,7 @@ import java.util.Map;
 public final class RegistrationDisabledProfile implements QuarkusTestProfile {
 
     /**
-     * Disables open registration so tests can confirm the first-run setup still permits the initial
-     * account while later registration is rejected.
+     * Disables open registration so tests can confirm the first-run setup still permits the initial account while later registration is rejected.
      *
      * @return the config overrides applied for this profile
      */

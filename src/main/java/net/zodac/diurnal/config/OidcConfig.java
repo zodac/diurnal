@@ -23,15 +23,16 @@ import io.smallrye.config.WithName;
 import java.util.Optional;
 
 /**
- * Typed view over the application's own {@code oidc.*} settings (the values sourced from the
- * {@code OIDC_*} environment variables in {@code application.properties}).
+ * Typed view over the application's own {@code oidc.*} settings (the values sourced from the {@code OIDC_*} environment variables in
+ * {@code application.properties}).
  *
- * <p>This is deliberately separate from Quarkus' built-in {@code quarkus.oidc.*} extension config:
- * these keys drive <em>our</em> behaviour (login button label, auto-redirect, RP-initiated logout
- * URL, LDAP group→role mapping), not the OIDC handshake itself.
+ * <p>
+ * This is deliberately separate from Quarkus' built-in {@code quarkus.oidc.*} extension config: these keys drive <em>our</em> behaviour (login button
+ * label, auto-redirect, RP-initiated logout URL, LDAP group→role mapping), not the OIDC handshake itself.
  *
- * <p>The {@link WithName} values pin the exact dotted property names so the existing
- * {@code application.properties} keys and {@code OIDC_*} env-var bindings are unchanged.
+ * <p>
+ * The {@link WithName} values pin the exact dotted property names so the existing {@code application.properties} keys and {@code OIDC_*} env-var
+ * bindings are unchanged.
  */
 @ConfigMapping(prefix = "oidc")
 public interface OidcConfig {
@@ -46,8 +47,7 @@ public interface OidcConfig {
     String providerName();
 
     /**
-     * Whether {@code /login} immediately redirects to the OIDC flow instead of rendering the login
-     * page. Only has an effect when OIDC is enabled.
+     * Whether {@code /login} immediately redirects to the OIDC flow instead of rendering the login page. Only has an effect when OIDC is enabled.
      *
      * @return {@code true} to auto-redirect, defaulting to {@code false}
      */

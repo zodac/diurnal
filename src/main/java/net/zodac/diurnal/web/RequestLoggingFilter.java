@@ -29,19 +29,19 @@ import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Logs every REST endpoint hit at {@code TRACE}, giving an administrator per-request visibility of the
- * traffic reaching the application without instrumenting each resource method.
+ * Logs every REST endpoint hit at {@code TRACE}, giving an administrator per-request visibility of the traffic reaching the application without
+ * instrumenting each resource method.
  *
- * <p>As a JAX-RS provider it fires only for requests that reach a resource method — static assets and
- * framework-served paths (the Swagger UI shell, health checks) are handled outside JAX-RS and are not
- * logged here. On the way in it records {@code method + path}; on the way out it records the resolved
- * status and the wall-clock time spent in the resource, so a slow or failing endpoint is visible at a
- * glance. Everything is emitted at {@code TRACE}, so it stays silent in production (root
- * {@code net.zodac.diurnal} defaults to {@code INFO}) until {@code LOG_LEVEL=TRACE} turns it on.
+ * <p>
+ * As a JAX-RS provider it fires only for requests that reach a resource method — static assets and framework-served paths (the Swagger UI shell,
+ * health checks) are handled outside JAX-RS and are not logged here. On the way in it records {@code method + path}; on the way out it records the
+ * resolved status and the wall-clock time spent in the resource, so a slow or failing endpoint is visible at a glance. Everything is emitted at
+ * {@code TRACE}, so it stays silent in production (root {@code net.zodac.diurnal} defaults to {@code INFO}) until {@code LOG_LEVEL=TRACE} turns it
+ * on.
  *
- * <p>High-frequency infrastructure probes are excluded entirely (at every level): the container's
- * Docker {@code HEALTHCHECK} hammers {@code /health} on a short interval, which would otherwise drown
- * the trace stream in self-generated noise. Those paths ({@link #UNLOGGED_PATHS}) are never logged.
+ * <p>
+ * High-frequency infrastructure probes are excluded entirely (at every level): the container's Docker {@code HEALTHCHECK} hammers {@code /health} on
+ * a short interval, which would otherwise drown the trace stream in self-generated noise. Those paths ({@link #UNLOGGED_PATHS}) are never logged.
  */
 @Provider
 // Innermost request filter / outermost response filter, so the timing brackets the resource method as tightly as possible.
@@ -78,8 +78,8 @@ public class RequestLoggingFilter implements ContainerRequestFilter, ContainerRe
     /**
      * Renders the elapsed time since a request-start {@code nanoTime} marker as whole milliseconds.
      *
-     * @param startNanos the {@link System#nanoTime()} value stashed when the request arrived, or
-     *                   {@code null}/a non-{@code Long} when it could not be recorded
+     * @param startNanos the {@link System#nanoTime()} value stashed when the request arrived, or {@code null}/a non-{@code Long} when it could not be
+     *     recorded
      * @return the elapsed whole milliseconds as a string, or {@code "?"} when no start marker is present
      */
     static String elapsedMillis(final @Nullable Object startNanos) {
@@ -90,12 +90,12 @@ public class RequestLoggingFilter implements ContainerRequestFilter, ContainerRe
     }
 
     /**
-     * Converts a pair of {@link System#nanoTime()} readings to the whole elapsed milliseconds between
-     * them. Extracted from {@link #elapsedMillis(Object)} as pure arithmetic so it can be exercised with
-     * fixed inputs (the {@code nanoTime()} call itself stays in the caller as untestable glue).
+     * Converts a pair of {@link System#nanoTime()} readings to the whole elapsed milliseconds between them. Extracted from
+     * {@link #elapsedMillis(Object)} as pure arithmetic so it can be exercised with fixed inputs (the {@code nanoTime()} call itself stays in the
+     * caller as untestable glue).
      *
      * @param startNanos the earlier {@code nanoTime} reading (request arrival)
-     * @param endNanos   the later {@code nanoTime} reading (response emission)
+     * @param endNanos the later {@code nanoTime} reading (response emission)
      * @return the elapsed whole milliseconds, {@code (endNanos - startNanos) / 1_000_000}
      */
     static long millisBetween(final long startNanos, final long endNanos) {
@@ -106,8 +106,7 @@ public class RequestLoggingFilter implements ContainerRequestFilter, ContainerRe
      * Decides whether a request path should be logged, excluding high-frequency infrastructure probes.
      *
      * @param path the request path from {@code UriInfo.getPath()} (with or without a leading slash)
-     * @return {@code false} for a path in {@link #UNLOGGED_PATHS} (e.g. the container health check),
-     *         {@code true} otherwise
+     * @return {@code false} for a path in {@link #UNLOGGED_PATHS} (e.g. the container health check), {@code true} otherwise
      */
     static boolean shouldLog(final String path) {
         final String normalised = path.startsWith("/") ? path.substring(1) : path;

@@ -30,15 +30,15 @@ import org.jspecify.annotations.Nullable;
 /**
  * Rejects cross-site state-changing requests that ride on the session cookie (CSRF defence).
  *
- * <p>The web UI is authenticated by the {@code diurnal_session} (form) or {@code q_session} (OIDC)
- * cookie, which the browser attaches automatically to <em>any</em> request to this origin — including
- * one triggered by an attacker's page. This filter closes that gap by validating, on every unsafe
- * HTTP method (POST/PUT/PATCH/DELETE), that the request's {@code Origin} (or, absent that,
- * {@code Referer}) matches the host the browser actually addressed
- * ({@code X-Forwarded-Host}, falling back to {@code Host}). An attacker's page cannot forge either
- * header, so a cross-site forgery is detected and rejected with {@code 403}.
+ * <p>
+ * The web UI is authenticated by the {@code diurnal_session} (form) or {@code q_session} (OIDC) cookie, which the browser attaches automatically to
+ * <em>any</em> request to this origin — including one triggered by an attacker's page. This filter closes that gap by validating, on every unsafe
+ * HTTP method (POST/PUT/PATCH/DELETE), that the request's {@code Origin} (or, absent that, {@code Referer}) matches the host the browser actually
+ * addressed ({@code X-Forwarded-Host}, falling back to {@code Host}). An attacker's page cannot forge either header, so a cross-site forgery is
+ * detected and rejected with {@code 403}.
  *
- * <p>Scope decisions, and why they are safe:
+ * <p>
+ * Scope decisions, and why they are safe:
  * <ul>
  *   <li><strong>Only cookie-authenticated requests are guarded.</strong> A Bearer-token API call
  *       (no session cookie) is not a CSRF vector — the credential is not ambient — so it is left
@@ -51,8 +51,9 @@ import org.jspecify.annotations.Nullable;
  *       This closes the sandboxed-iframe {@code Origin: null} bypass.</li>
  * </ul>
  *
- * <p>This complements — and is defence-in-depth over — the {@code SameSite=Strict} attribute set on
- * the session cookie (see {@code application.properties}).
+ * <p>
+ * This complements — and is defence-in-depth over — the {@code SameSite=Strict} attribute set on the session cookie (see
+ * {@code application.properties}).
  */
 @Provider
 @Priority(Priorities.AUTHENTICATION)
@@ -91,18 +92,18 @@ public class CsrfProtectionFilter implements ContainerRequestFilter {
     /**
      * Decides whether a request is a cross-site request forgery that must be rejected.
      *
-     * @param method              the HTTP method
+     * @param method the HTTP method
      * @param cookieAuthenticated whether the request carries a session (form/OIDC) cookie
-     * @param origin              the {@code Origin} header value, or {@code null} if absent
-     * @param referer             the {@code Referer} header value, or {@code null} if absent
-     * @param expectedAuthority   the {@code host[:port]} the browser addressed, or {@code null}
+     * @param origin the {@code Origin} header value, or {@code null} if absent
+     * @param referer the {@code Referer} header value, or {@code null} if absent
+     * @param expectedAuthority the {@code host[:port]} the browser addressed, or {@code null}
      * @return {@code true} if the request must be rejected as a CSRF attempt
      */
     static boolean isCsrfViolation(final String method,
-                                   final boolean cookieAuthenticated,
-                                   final @Nullable String origin,
-                                   final @Nullable String referer,
-                                   final @Nullable String expectedAuthority) {
+        final boolean cookieAuthenticated,
+        final @Nullable String origin,
+        final @Nullable String referer,
+        final @Nullable String expectedAuthority) {
         if (SAFE_METHODS.contains(method) || !cookieAuthenticated) {
             return false;
         }
@@ -126,12 +127,10 @@ public class CsrfProtectionFilter implements ContainerRequestFilter {
     }
 
     /**
-     * Extracts the {@code host[:port]} authority from an absolute URL (an {@code Origin} has no path;
-     * a {@code Referer} does).
+     * Extracts the {@code host[:port]} authority from an absolute URL (an {@code Origin} has no path; a {@code Referer} does).
      *
      * @param url the absolute URL to parse
-     * @return the {@code host[:port]} authority, or {@code null} for a relative URL, the opaque
-     *         {@code "null"} origin, or an empty authority
+     * @return the {@code host[:port]} authority, or {@code null} for a relative URL, the opaque {@code "null"} origin, or an empty authority
      */
     static @Nullable String authorityOf(final String url) {
         final int schemeEnd = url.indexOf("://");
@@ -147,12 +146,12 @@ public class CsrfProtectionFilter implements ContainerRequestFilter {
     /**
      * Resolves the {@code host[:port]} the browser addressed, to compare against a request's origin.
      *
-     * <p>Behind a reverse proxy the browser-facing host arrives as {@code X-Forwarded-Host}; a
-     * multi-proxy chain sends a comma-separated list, of which the first entry is the original
-     * client-facing host. Falls back to the {@code Host} header when not proxied.
+     * <p>
+     * Behind a reverse proxy the browser-facing host arrives as {@code X-Forwarded-Host}; a multi-proxy chain sends a comma-separated list, of which
+     * the first entry is the original client-facing host. Falls back to the {@code Host} header when not proxied.
      *
      * @param forwardedHost the {@code X-Forwarded-Host} header value, or {@code null} if absent
-     * @param host          the {@code Host} header value, or {@code null} if absent
+     * @param host the {@code Host} header value, or {@code null} if absent
      * @return the client-facing {@code host[:port]} authority, or {@code null} if neither is present
      */
     static @Nullable String expectedAuthority(final @Nullable String forwardedHost, final @Nullable String host) {

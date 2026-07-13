@@ -23,8 +23,8 @@ import io.quarkus.vertx.http.runtime.security.ChallengeData;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link SessionAuthMechanism#challengeFor(String)}: the REST API gets a plain
- * {@code 401} while every browser path gets a {@code 302} redirect to {@code /login}.
+ * Unit tests for {@link SessionAuthMechanism#challengeFor(String)}: the REST API gets a plain {@code 401} while every browser path gets a {@code 302}
+ * redirect to {@code /login}.
  */
 class SessionAuthMechanismTest {
 

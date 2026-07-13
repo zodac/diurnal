@@ -25,9 +25,8 @@ import net.zodac.diurnal.config.IpThrottleConfig;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link IpThrottle}, verifying its per-IP delegation to the shared throttle: failures
- * accumulate to a lockout, the remaining time is reported, and there is no success hook to launder the
- * counter (it only clears by decay).
+ * Unit tests for {@link IpThrottle}, verifying its per-IP delegation to the shared throttle: failures accumulate to a lockout, the remaining time is
+ * reported, and there is no success hook to launder the counter (it only clears by decay).
  */
 class IpThrottleTest {
 

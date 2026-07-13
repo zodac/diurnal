@@ -21,15 +21,13 @@ import java.time.Duration;
 import net.zodac.diurnal.user.User;
 
 /**
- * The outcome of a credential check by {@link AuthenticationService}: the caller (web form or REST
- * API) maps each case to its own response — a session + redirect/token on success, a bad-credentials
- * error, or a lockout with the remaining time.
+ * The outcome of a credential check by {@link AuthenticationService}: the caller (web form or REST API) maps each case to its own response — a
+ * session + redirect/token on success, a bad-credentials error, or a lockout with the remaining time.
  */
 public sealed interface LoginResult permits LoginResult.Success, LoginResult.InvalidCredentials, LoginResult.LockedOut {
 
     /**
-     * The credentials were valid; {@link #user()} is the authenticated account for which a session
-     * should now be created.
+     * The credentials were valid; {@link #user()} is the authenticated account for which a session should now be created.
      *
      * @param user the authenticated user
      */
@@ -38,16 +36,15 @@ public sealed interface LoginResult permits LoginResult.Success, LoginResult.Inv
     }
 
     /**
-     * The email/password pair did not match (or password auth is disabled). Deliberately
-     * indistinguishable from an unknown account, so account existence is never disclosed.
+     * The email/password pair did not match (or password auth is disabled). Deliberately indistinguishable from an unknown account, so account
+     * existence is never disclosed.
      */
     record InvalidCredentials() implements LoginResult {
 
     }
 
     /**
-     * The attempt was blocked by login throttling; {@link #remaining()} is roughly how long until it
-     * may be retried.
+     * The attempt was blocked by login throttling; {@link #remaining()} is roughly how long until it may be retried.
      *
      * @param remaining the time left on the lockout
      */

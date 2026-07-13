@@ -22,14 +22,12 @@ import io.vertx.ext.web.RoutingContext;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Single source of truth for reading the raw opaque session token off an HTTP request: the
- * {@code diurnal_session} cookie takes precedence (the browser case), falling back to an
- * {@code Authorization: Bearer} header (the API case).
+ * Single source of truth for reading the raw opaque session token off an HTTP request: the {@code diurnal_session} cookie takes precedence (the
+ * browser case), falling back to an {@code Authorization: Bearer} header (the API case).
  *
  * <p>
- * Shared by {@link SessionAuthMechanism} (which authenticates every route) and
- * {@link OpenApiDocsAuthFilter} (which gates the documentation surface) so the two never drift on how
- * a token is located.
+ * Shared by {@link SessionAuthMechanism} (which authenticates every route) and {@link OpenApiDocsAuthFilter} (which gates the documentation surface)
+ * so the two never drift on how a token is located.
  */
 final class SessionTokenExtractor {
 
@@ -40,10 +38,10 @@ final class SessionTokenExtractor {
     }
 
     /**
-     * Extracts the raw session token from the request, preferring the session cookie over a Bearer
-     * header. Returns {@code null} when neither carries a non-blank value.
+     * Extracts the raw session token from the request, preferring the session cookie over a Bearer header. Returns {@code null} when neither carries
+     * a non-blank value.
      *
-     * @param context    the request's routing context
+     * @param context the request's routing context
      * @param cookieName the configured session cookie name
      * @return the raw token, or {@code null} if absent
      */

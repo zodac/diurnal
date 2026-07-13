@@ -23,8 +23,7 @@ import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link LockoutMessages}, covering pluralisation, multi-unit joining, and the
- * non-positive edge case.
+ * Unit tests for {@link LockoutMessages}, covering pluralisation, multi-unit joining, and the non-positive edge case.
  */
 class LockoutMessagesTest {
 

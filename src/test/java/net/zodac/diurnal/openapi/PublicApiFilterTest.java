@@ -68,7 +68,7 @@ class PublicApiFilterTest {
         assertThat(schemas)
             .as("Only schemas reachable from a surviving operation (incl. transitively) should remain")
             .isEqualTo(Set.of("LoginRequest", "RangeParam", "CalendarEventDto", "Colour",
-                    "EventNot", "EventAddProp", "EventAllOf", "EventAnyOf", "EventOneOf"));
+            "EventNot", "EventAddProp", "EventAllOf", "EventAnyOf", "EventOneOf"));
     }
 
     @Test
@@ -92,7 +92,7 @@ class PublicApiFilterTest {
     @Test
     void filter_stampsInfoVersionFromReleaseResource() {
         final OpenAPI api = OASFactory.createOpenAPI()
-                .info(OASFactory.createInfo().title("Diurnal API").version("0.0.1"));
+            .info(OASFactory.createInfo().title("Diurnal API").version("0.0.1"));
 
         new PublicApiFilter().filterOpenAPI(api);
 
@@ -105,7 +105,7 @@ class PublicApiFilterTest {
     @Test
     void filter_infoWithoutDeclaredVersion_leavesVersionUnset() {
         final OpenAPI api = OASFactory.createOpenAPI()
-                .info(OASFactory.createInfo().title("Diurnal API"));
+            .info(OASFactory.createInfo().title("Diurnal API"));
 
         new PublicApiFilter().filterOpenAPI(api);
 
@@ -117,7 +117,7 @@ class PublicApiFilterTest {
     @Test
     void filter_noInfoBlock_doesNotStampOrThrow() {
         final OpenAPI api = OASFactory.createOpenAPI()
-                .paths(OASFactory.createPaths().addPathItem("/api/auth/login", post(jsonBodyOp(schemaRef("LoginRequest")))));
+            .paths(OASFactory.createPaths().addPathItem("/api/auth/login", post(jsonBodyOp(schemaRef("LoginRequest")))));
 
         new PublicApiFilter().filterOpenAPI(api);
 
@@ -128,33 +128,33 @@ class PublicApiFilterTest {
 
     private static OpenAPI sampleDocument() {
         final Paths paths = OASFactory.createPaths()
-                .addPathItem("/api/auth/login", post(jsonBodyOp(schemaRef("LoginRequest"))))
-                // /logs/events carries the tagged events GET plus a second, deliberately UNTAGGED
-                // operation, so pruneUnusedTags has to skip a null tag-list (exercising that guard).
-                .addPathItem("/logs/events", OASFactory.createPathItem().GET(eventsOp()).PUT(untaggedOp()))
-                .addPathItem("/actions", get(jsonResponseOp(schemaRef("TemplateInstance"))));
+            .addPathItem("/api/auth/login", post(jsonBodyOp(schemaRef("LoginRequest"))))
+            // /logs/events carries the tagged events GET plus a second, deliberately UNTAGGED
+            // operation, so pruneUnusedTags has to skip a null tag-list (exercising that guard).
+            .addPathItem("/logs/events", OASFactory.createPathItem().GET(eventsOp()).PUT(untaggedOp()))
+            .addPathItem("/actions", get(jsonResponseOp(schemaRef("TemplateInstance"))));
 
         // CalendarEventDto references one distinct schema through EACH composition mechanism, so each
         // is reachable only via that one recursion branch in collectSchemaRefs/collectSchemaList.
         final Components components = OASFactory.createComponents()
-                .addSchema("LoginRequest", OASFactory.createSchema())
-                .addSchema("RangeParam", OASFactory.createSchema())
-                .addSchema("CalendarEventDto", OASFactory.createSchema()
-                        .addProperty("colour", schemaRef("Colour"))
-                        .not(schemaRef("EventNot"))
-                        .additionalPropertiesSchema(schemaRef("EventAddProp"))
-                        .allOf(List.of(schemaRef("EventAllOf")))
-                        .anyOf(List.of(schemaRef("EventAnyOf")))
-                        .oneOf(List.of(schemaRef("EventOneOf"))))
-                .addSchema("Colour", OASFactory.createSchema())
-                .addSchema("EventNot", OASFactory.createSchema())
-                .addSchema("EventAddProp", OASFactory.createSchema())
-                .addSchema("EventAllOf", OASFactory.createSchema())
-                .addSchema("EventAnyOf", OASFactory.createSchema())
-                .addSchema("EventOneOf", OASFactory.createSchema())
-                .addSchema("TemplateInstance", OASFactory.createSchema().addProperty("engine", schemaRef("Engine")))
-                .addSchema("Engine", OASFactory.createSchema())
-                .addSchema("Orphan", OASFactory.createSchema());
+            .addSchema("LoginRequest", OASFactory.createSchema())
+            .addSchema("RangeParam", OASFactory.createSchema())
+            .addSchema("CalendarEventDto", OASFactory.createSchema()
+            .addProperty("colour", schemaRef("Colour"))
+            .not(schemaRef("EventNot"))
+            .additionalPropertiesSchema(schemaRef("EventAddProp"))
+            .allOf(List.of(schemaRef("EventAllOf")))
+            .anyOf(List.of(schemaRef("EventAnyOf")))
+            .oneOf(List.of(schemaRef("EventOneOf"))))
+            .addSchema("Colour", OASFactory.createSchema())
+            .addSchema("EventNot", OASFactory.createSchema())
+            .addSchema("EventAddProp", OASFactory.createSchema())
+            .addSchema("EventAllOf", OASFactory.createSchema())
+            .addSchema("EventAnyOf", OASFactory.createSchema())
+            .addSchema("EventOneOf", OASFactory.createSchema())
+            .addSchema("TemplateInstance", OASFactory.createSchema().addProperty("engine", schemaRef("Engine")))
+            .addSchema("Engine", OASFactory.createSchema())
+            .addSchema("Orphan", OASFactory.createSchema());
 
         return OASFactory.createOpenAPI()
                 .paths(paths)

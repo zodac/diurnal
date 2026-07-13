@@ -46,10 +46,13 @@ public class StatsWebResource {
     @Inject
     @Location("stats")
     Template statsTemplate;
+
     @Inject
     @Location("partials/stats-cards")
     Template statsCardsTemplate;
+
     @Inject CurrentUser currentUser;
+
     @Inject StatsService statsService;
 
     /**
@@ -102,9 +105,9 @@ public class StatsWebResource {
         final int skip = (actualPage - 1) * pageSize;
 
         final List<ActionStats> items = all.stream()
-                .skip(skip)
-                .limit(pageSize)
-                .toList();
+            .skip(skip)
+            .limit(pageSize)
+            .toList();
 
         return new PaginatedStats(items, totalCount, totalPages, actualPage);
     }

@@ -26,9 +26,8 @@ import java.time.Instant;
 import java.util.Base64;
 
 /**
- * Pure helpers for opaque session tokens: minting a fresh token, hashing it for storage/lookup, and
- * deciding whether a stored session is still valid. Kept free of any persistence or request state so
- * the branching (the validity boundaries) is deterministically unit-testable.
+ * Pure helpers for opaque session tokens: minting a fresh token, hashing it for storage/lookup, and deciding whether a stored session is still valid.
+ * Kept free of any persistence or request state so the branching (the validity boundaries) is deterministically unit-testable.
  */
 final class SessionTokens {
 
@@ -42,8 +41,8 @@ final class SessionTokens {
     }
 
     /**
-     * Mints a fresh, high-entropy opaque token as a URL-safe base64 string. This is the only form the
-     * client ever sees; the store persists {@link #hash(String)} of it, not the token itself.
+     * Mints a fresh, high-entropy opaque token as a URL-safe base64 string. This is the only form the client ever sees; the store persists
+     * {@link #hash(String)} of it, not the token itself.
      */
     static String generate() {
         final byte[] bytes = new byte[TOKEN_BYTES];
@@ -52,8 +51,7 @@ final class SessionTokens {
     }
 
     /**
-     * Computes the SHA-256 hash of a raw token, used as the stored/lookup key. Deterministic, so the
-     * same token always resolves to the same row.
+     * Computes the SHA-256 hash of a raw token, used as the stored/lookup key. Deterministic, so the same token always resolves to the same row.
      */
     static byte[] hash(final String rawToken) {
         try {
@@ -66,18 +64,16 @@ final class SessionTokens {
     }
 
     /**
-     * Whether a session is still usable at {@code now}: it must be before both its absolute
-     * {@code expiresAt} and its sliding idle deadline ({@code lastUsedAt + idleTimeout}). The
-     * boundary instant itself counts as expired.
+     * Whether a session is still usable at {@code now}: it must be before both its absolute {@code expiresAt} and its sliding idle deadline
+     * ({@code lastUsedAt + idleTimeout}). The boundary instant itself counts as expired.
      */
     static boolean isValid(final Instant lastUsedAt, final Instant expiresAt, final Instant now, final Duration idleTimeout) {
         return now.isBefore(expiresAt) && now.isBefore(lastUsedAt.plus(idleTimeout));
     }
 
     /**
-     * Whether {@code lastUsedAt} is stale enough to be worth rewriting at {@code now}. Used to coalesce
-     * the per-request "touch" so a busy client does not issue an {@code UPDATE} on every single request;
-     * with an idle timeout measured in days, a minute of granularity is immaterial.
+     * Whether {@code lastUsedAt} is stale enough to be worth rewriting at {@code now}. Used to coalesce the per-request "touch" so a busy client does
+     * not issue an {@code UPDATE} on every single request; with an idle timeout measured in days, a minute of granularity is immaterial.
      */
     static boolean shouldBumpLastUsed(final Instant lastUsedAt, final Instant now, final Duration minInterval) {
         return now.isAfter(lastUsedAt.plus(minInterval));

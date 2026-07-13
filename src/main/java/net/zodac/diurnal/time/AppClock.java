@@ -29,19 +29,17 @@ import net.zodac.diurnal.config.AppConfig;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The single source of "now" for all date-boundary business logic (streaks, the future-date
- * guard, the dashboard's pre-selected day, admin timestamp formatting).
+ * The single source of "now" for all date-boundary business logic (streaks, the future-date guard, the dashboard's pre-selected day, admin timestamp
+ * formatting).
  *
  * <p>
- * Every "today"/"now" that drives visible behaviour MUST go through this bean rather than
- * calling {@link LocalDate#now()} / {@link Instant#now()} directly, so a test can freeze time
- * and exercise edge cases (midnight rollover, non-UTC zones) deterministically. The clock is
- * built from {@code app.timezone}, so {@link #today()} is always "today in the configured zone".
+ * Every "today"/"now" that drives visible behaviour MUST go through this bean rather than calling {@link LocalDate#now()} / {@link Instant#now()}
+ * directly, so a test can freeze time and exercise edge cases (midnight rollover, non-UTC zones) deterministically. The clock is built from
+ * {@code app.timezone}, so {@link #today()} is always "today in the configured zone".
  *
  * <p>
- * Entity audit timestamps ({@code createdAt}/{@code updatedAt}/{@code lastLoginAt}) deliberately
- * stay on plain {@link Instant#now()} — they are zone-independent and not date-boundary sensitive,
- * so routing them through here would buy no determinism.
+ * Entity audit timestamps ({@code createdAt}/{@code updatedAt}/{@code lastLoginAt}) deliberately stay on plain {@link Instant#now()} — they are
+ * zone-independent and not date-boundary sensitive, so routing them through here would buy no determinism.
  */
 @ApplicationScoped
 public class AppClock {
@@ -88,8 +86,8 @@ public class AppClock {
     }
 
     /**
-     * Resolve a stored timezone id to a zone, falling back to the server-default zone when it is
-     * null/blank or not a valid {@link ZoneId} (defensive — stored values are sanitised on write).
+     * Resolve a stored timezone id to a zone, falling back to the server-default zone when it is null/blank or not a valid {@link ZoneId} (defensive
+     * — stored values are sanitised on write).
      */
     public ZoneId zoneFor(@Nullable final String timezoneId) {
         if (timezoneId == null || timezoneId.isBlank()) {

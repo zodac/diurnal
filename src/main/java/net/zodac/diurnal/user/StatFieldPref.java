@@ -18,13 +18,12 @@
 package net.zodac.diurnal.user;
 
 /**
- * One entry in a user's persisted "Action stats" arrangement: a stat field's stable key paired with
- * whether it is enabled (shown on the Stats page). The arrangement is stored as a JSON array of these
- * on {@code users.stats_fields} ({@code jsonb}), in the user's chosen order — so a field keeps its
- * position whether shown or hidden. Keys are resolved against the {@code ActionStatField} catalogue on
- * read; unknown keys are ignored, so removing a stat from the catalogue never breaks deserialisation.
+ * One entry in a user's persisted "Action stats" arrangement: a stat field's stable key paired with whether it is enabled (shown on the Stats page).
+ * The arrangement is stored as a JSON array of these on {@code users.stats_fields} ({@code jsonb}), in the user's chosen order — so a field keeps its
+ * position whether shown or hidden. Keys are resolved against the {@code ActionStatField} catalogue on read; unknown keys are ignored, so removing a
+ * stat from the catalogue never breaks deserialisation.
  *
- * @param key     the {@code ActionStatField} key
+ * @param key the {@code ActionStatField} key
  * @param enabled whether the stat is shown on the Stats page
  */
 public record StatFieldPref(String key, boolean enabled) {

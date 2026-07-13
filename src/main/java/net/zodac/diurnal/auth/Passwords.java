@@ -26,14 +26,13 @@ import net.zodac.diurnal.config.Argon2Config;
 /**
  * Single source of truth for password hashing and verification.
  *
- * <p>Passwords are hashed with <b>Argon2id</b> (a memory-hard function resistant to GPU/ASIC cracking),
- * tuned via {@link Argon2Config}; the resulting PHC string (e.g. {@code $argon2id$v=19$m=65536,t=3,p=1$...})
- * embeds a unique, per-password salt and every cost parameter, and the plaintext is never persisted.
- * Because each hash records the parameters it was made with, verification still works after the cost is
- * retuned; a caller upgrades an out-of-date hash to the current cost by re-hashing on the next successful
- * login (see {@link #needsRehash(String)}). All hashing and verification across the web and REST layers
- * routes through here, so the algorithm and its cost are defined in exactly one place. The rules a raw
- * password must satisfy live alongside in {@link PasswordConstraints}.
+ * <p>
+ * Passwords are hashed with <b>Argon2id</b> (a memory-hard function resistant to GPU/ASIC cracking), tuned via {@link Argon2Config}; the resulting
+ * PHC string (e.g. {@code $argon2id$v=19$m=65536,t=3,p=1$...}) embeds a unique, per-password salt and every cost parameter, and the plaintext is
+ * never persisted. Because each hash records the parameters it was made with, verification still works after the cost is retuned; a caller upgrades
+ * an out-of-date hash to the current cost by re-hashing on the next successful login (see {@link #needsRehash(String)}). All hashing and verification
+ * across the web and REST layers routes through here, so the algorithm and its cost are defined in exactly one place. The rules a raw password must
+ * satisfy live alongside in {@link PasswordConstraints}.
  */
 @ApplicationScoped
 public class Passwords {
@@ -73,10 +72,10 @@ public class Passwords {
     }
 
     /**
-     * Verifies a raw password against a stored Argon2id hash, using the exact cost parameters the hash
-     * embeds — so a hash made under earlier settings still verifies after the cost has been retuned.
+     * Verifies a raw password against a stored Argon2id hash, using the exact cost parameters the hash embeds — so a hash made under earlier settings
+     * still verifies after the cost has been retuned.
      *
-     * @param rawPassword  the plaintext password to check
+     * @param rawPassword the plaintext password to check
      * @param passwordHash the stored Argon2id hash to verify against
      * @return {@code true} if the password matches the hash
      */
@@ -85,10 +84,9 @@ public class Passwords {
     }
 
     /**
-     * Whether a stored hash should be re-hashed after a successful verification — i.e. its embedded cost
-     * parameters no longer match the current configuration. Callers persist a fresh {@link #hash(String)}
-     * when this returns {@code true}, transparently bringing accounts up to the current cost as their
-     * owners log in.
+     * Whether a stored hash should be re-hashed after a successful verification — i.e. its embedded cost parameters no longer match the current
+     * configuration. Callers persist a fresh {@link #hash(String)} when this returns {@code true}, transparently bringing accounts up to the current
+     * cost as their owners log in.
      *
      * @param passwordHash the stored hash the caller just verified successfully
      * @return {@code true} if the hash should be upgraded to the current Argon2id parameters
@@ -98,11 +96,9 @@ public class Passwords {
     }
 
     /**
-     * Verifies a raw password against a fixed, throwaway Argon2id hash and always fails. Its purpose is
-     * purely to spend the same time as a real {@link #matches(String, String)} check when there is no
-     * stored hash to verify against — so a login for a non-existent (or password-less) account is
-     * indistinguishable from a wrong password by response time, closing a user-enumeration timing side
-     * channel.
+     * Verifies a raw password against a fixed, throwaway Argon2id hash and always fails. Its purpose is purely to spend the same time as a real
+     * {@link #matches(String, String)} check when there is no stored hash to verify against — so a login for a non-existent (or password-less)
+     * account is indistinguishable from a wrong password by response time, closing a user-enumeration timing side channel.
      *
      * @param rawPassword the plaintext password to verify against the throwaway hash
      * @return {@code false}, always

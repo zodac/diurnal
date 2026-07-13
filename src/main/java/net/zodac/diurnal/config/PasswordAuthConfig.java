@@ -28,8 +28,8 @@ import io.smallrye.config.WithName;
 public interface PasswordAuthConfig {
 
     /**
-     * Whether password-based authentication (the login form and {@code /api/auth/register}) is
-     * enabled. When {@code false} the app relies on OIDC only.
+     * Whether password-based authentication (the login form and {@code /api/auth/register}) is enabled. When {@code false} the app relies on OIDC
+     * only.
      *
      * @return {@code true} when password auth is enabled, defaulting to {@code true}
      */
@@ -38,11 +38,10 @@ public interface PasswordAuthConfig {
     boolean enabled();
 
     /**
-     * Whether the login path should equalise its response time across existent and non-existent
-     * accounts. When {@code true}, a login for an account with no stored password hash still runs an
-     * Argon2id verification against a throwaway hash, so the response time cannot be used to enumerate
-     * which emails have accounts. When {@code false}, the hash check is skipped when there is no hash
-     * to verify against (faster, but leaks account existence via timing).
+     * Whether the login path should equalise its response time across existent and non-existent accounts. When {@code true}, a login for an account
+     * with no stored password hash still runs an Argon2id verification against a throwaway hash, so the response time cannot be used to enumerate
+     * which emails have accounts. When {@code false}, the hash check is skipped when there is no hash to verify against (faster, but leaks account
+     * existence via timing).
      *
      * @return {@code true} when uniform login timing is enabled, defaulting to {@code true}
      */

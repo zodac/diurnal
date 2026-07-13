@@ -40,14 +40,12 @@ import org.junit.jupiter.api.BeforeEach;
  * Base for all {@link io.quarkus.test.junit.QuarkusTest} integration tests.
  *
  * <p>
- * Truncates the three data tables before every test (FK order: logs → actions → users)
- * and re-creates any DB state needed by the subclass.
+ * Truncates the three data tables before every test (FK order: logs → actions → users) and re-creates any DB state needed by the subclass.
  *
  * <p>
- * NOTE: {@link io.quarkus.test.junit.QuarkusTest} must be on each concrete subclass, NOT here. Placing it on the
- * abstract base class causes Quarkus's CDI bean-lookup to fail when it tries to
- * resolve the abstract class itself. Inheritance of @Inject fields still works
- * correctly once the concrete class is annotated.
+ * NOTE: {@link io.quarkus.test.junit.QuarkusTest} must be on each concrete subclass, NOT here. Placing it on the abstract base class causes Quarkus's
+ * CDI bean-lookup to fail when it tries to resolve the abstract class itself. Inheritance of @Inject fields still works correctly once the concrete
+ * class is annotated.
  */
 @SuppressWarnings("PMD.AbstractClassWithoutAbstractMethod") // base for QuarkusTest subclasses; intentionally abstract
 public abstract class IntegrationTestBase {
@@ -61,9 +59,8 @@ public abstract class IntegrationTestBase {
     protected static final String TEST_PASSWORD = "test_password";
 
     /**
-     * The frozen "today" every IT runs at by default. A fixed date (rather than the real clock)
-     * removes the class-load-vs-request midnight race and lets date-relative tests assert against
-     * a stable anchor. Override per-test with {@link #freezeDate}/{@link #freezeInstant}.
+     * The frozen "today" every IT runs at by default. A fixed date (rather than the real clock) removes the class-load-vs-request midnight race and
+     * lets date-relative tests assert against a stable anchor. Override per-test with {@link #freezeDate}/{@link #freezeInstant}.
      */
     public static final LocalDate FIXED_TODAY = LocalDate.of(2026, 6, 15);
 
@@ -111,20 +108,18 @@ public abstract class IntegrationTestBase {
     }
 
     /**
-     * Override to insert additional rows needed by a test class.
-     * Called inside the setUp transaction — no need to manage your own transaction.
+     * Override to insert additional rows needed by a test class. Called inside the setUp transaction — no need to manage your own transaction.
      */
     protected void createDbState() {
     }
 
     /**
-     * Run a block inside a fresh JTA transaction. Use this in @Test methods that need
-     * to persist entities (newAction/newLog/newUser) before making an HTTP call, or to
-     * force a fresh EntityManager for DB read-back assertions (avoids L1 cache stale reads).
+     * Run a block inside a fresh JTA transaction. Use this in @Test methods that need to persist entities (newAction/newLog/newUser) before making an
+     * HTTP call, or to force a fresh EntityManager for DB read-back assertions (avoids L1 cache stale reads).
      *
      * <p>
-     * AssertionErrors and RuntimeExceptions are rethrown as-is; checked exceptions are
-     * wrapped in RuntimeException, so callers don't need a 'throws' declaration.
+     * AssertionErrors and RuntimeExceptions are rethrown as-is; checked exceptions are wrapped in RuntimeException, so callers don't need a 'throws'
+     * declaration.
      */
     @FunctionalInterface
     protected interface TxBlock {

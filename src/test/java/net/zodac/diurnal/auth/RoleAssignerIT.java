@@ -124,7 +124,7 @@ class RoleAssignerIT extends IntegrationTestBase {
         // Derives the expected value from the same config source the bean reads, so the
         // test passes in any environment (groups configured or not).
         final boolean expected = (oidcAdminGroup.isPresent() && !oidcAdminGroup.get().isBlank())
-                || (oidcUserGroup.isPresent() && !oidcUserGroup.get().isBlank());
+            || (oidcUserGroup.isPresent() && !oidcUserGroup.get().isBlank());
         assertThat(roleAssigner.isGroupCheckEnabled())
             .as("unexpected value")
             .isEqualTo(expected);

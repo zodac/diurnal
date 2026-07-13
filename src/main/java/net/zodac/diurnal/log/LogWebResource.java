@@ -67,18 +67,22 @@ public class LogWebResource {
     @Inject
     @Location("partials/day-panel")
     Template dayPanelTemplate;
+
     @Inject
     @Location("partials/day-actions-list")
     Template dayActionsListTemplate;
+
     @Inject
     @Location("partials/day-action-item")
     Template dayActionItemTemplate;
+
     @Inject
     @Location("partials/day-action-item-confirm-delete")
     Template dayActionItemConfirmDeleteTemplate;
 
     @Inject
     CurrentUser currentUser;
+
     @Inject
     AppClock clock;
 
@@ -123,14 +127,14 @@ public class LogWebResource {
     /**
      * Renders every day of a month in ONE response: a JSON map of ISO date → day-panel HTML.
      *
-     * <p>The dashboard loads the selected day on its own, then calls this once to back-fill the rest of
-     * the month into its client-side cache, so flicking between days is instant. Doing it as a single
-     * request with one range query avoids a per-day fan-out by fetching the action list and the whole month's counts once
-     * and paging each day from memory.
+     * <p>
+     * The dashboard loads the selected day on its own, then calls this once to back-fill the rest of the month into its client-side cache, so
+     * flicking between days is instant. Doing it as a single request with one range query avoids a per-day fan-out by fetching the action list and
+     * the whole month's counts once and paging each day from memory.
      *
      * @param month the month to render, as {@code yyyy-MM}
-     * @return {@code 200} with a JSON object mapping each {@code yyyy-MM-dd} to its day-panel HTML, or
-     *     {@code 400} when {@code month} is not a valid {@code yyyy-MM}
+     * @return {@code 200} with a JSON object mapping each {@code yyyy-MM-dd} to its day-panel HTML, or {@code 400} when {@code month} is not a valid
+     *     {@code yyyy-MM}
      */
     @GET
     @Path("/month/{month}")
@@ -152,9 +156,7 @@ public class LogWebResource {
         final List<Action> all = Action.findByUser(user.id);
         final Map<LocalDate, Map<UUID, Integer>> countsByDate = ActionLog.findByUserAndRange(user.id, start, end)
             .stream()
-            .collect(Collectors.groupingBy(
-                log -> log.logDate,
-                Collectors.toMap(log -> log.actionId, log -> log.count)));
+            .collect(Collectors.groupingBy(log -> log.logDate, Collectors.toMap(log -> log.actionId, log -> log.count)));
 
         final Map<String, String> panels = new LinkedHashMap<>();
         for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
@@ -185,10 +187,10 @@ public class LogWebResource {
     // Shared by the single-day fetch (which queries both per call) and the whole-month back-fill (which
     // queries the list and the month's counts ONCE, then pages every day from these without more queries).
     private static PaginatedDayActions paginate(final List<Action> all, final Map<UUID, Integer> counts,
-                                                final int pageNum, final String searchTerm, final int pageSize) {
+        final int pageNum, final String searchTerm, final int pageSize) {
         final var filtered = all.stream()
             .filter(a -> searchTerm == null || searchTerm.isBlank()
-                || a.name.toLowerCase(Locale.ROOT).contains(searchTerm.toLowerCase(Locale.ROOT)))
+            || a.name.toLowerCase(Locale.ROOT).contains(searchTerm.toLowerCase(Locale.ROOT)))
             .map(a -> new DayActionStatus(a, counts.getOrDefault(a.id, 0)))
             // Highest count first; equal counts (including 0) keep the DB's alphabetical
             // order, since `all` arrives sorted by name and sorted() is stable.
@@ -214,8 +216,7 @@ public class LogWebResource {
     // ── Single item ───────────────────────────────────────────────────────
 
     /**
-     * Returns the day-action-item partial for a single action on a given date.
-     * Used by the confirm-delete Cancel button to restore the normal view.
+     * Returns the day-action-item partial for a single action on a given date. Used by the confirm-delete Cancel button to restore the normal view.
      */
     @GET
     @Path("/{date}/{actionId}")
@@ -288,8 +289,8 @@ public class LogWebResource {
     // ── Increment ─────────────────────────────────────────────────────────
 
     /**
-     * Increments (or creates) the day's count for an action by {@code amount} (default 1),
-     * capped at {@code MAX_DAILY_COUNT}. Non-positive amounts leave the count unchanged.
+     * Increments (or creates) the day's count for an action by {@code amount} (default 1), capped at {@code MAX_DAILY_COUNT}. Non-positive amounts
+     * leave the count unchanged.
      */
     @POST
     @Path("/{date}/{actionId}/increment")
@@ -328,8 +329,8 @@ public class LogWebResource {
     // ── Decrement ─────────────────────────────────────────────────────────
 
     /**
-     * Decrements the day's count for an action by {@code amount} (default 1), deleting the
-     * entry when it reaches zero. Non-positive amounts leave the count unchanged.
+     * Decrements the day's count for an action by {@code amount} (default 1), deleting the entry when it reaches zero. Non-positive amounts leave the
+     * count unchanged.
      */
     @POST
     @Path("/{date}/{actionId}/decrement")
@@ -368,8 +369,8 @@ public class LogWebResource {
     // ── Set count ─────────────────────────────────────────────────────────
 
     /**
-     * Sets the day's count for an action to an explicit value, deleting the entry when zero or below.
-     * Values above {@code MAX_DAILY_COUNT} are silently clamped.
+     * Sets the day's count for an action to an explicit value, deleting the entry when zero or below. Values above {@code MAX_DAILY_COUNT} are
+     * silently clamped.
      */
     @POST
     @Path("/{date}/{actionId}/set")

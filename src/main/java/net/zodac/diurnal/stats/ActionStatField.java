@@ -29,18 +29,18 @@ import net.zodac.diurnal.user.StatFieldPref;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The catalogue of per-action statistics that can be shown on the Stats page, and the single source
- * of truth for the user-configurable "Action stats" display preference.
+ * The catalogue of per-action statistics that can be shown on the Stats page, and the single source of truth for the user-configurable "Action stats"
+ * display preference.
  *
- * <p>Each entry maps a stable {@link #key()} (persisted in {@code users.stats_fields} and posted by
- * the settings form) to its display {@link #label()}. Declaration order is the default display order,
- * matching the historical Stats-page layout. {@link #LAST_PERFORMED} is {@link #mandatory()}: a user
+ * <p>
+ * Each entry maps a stable {@link #key()} (persisted in {@code users.stats_fields} and posted by the settings form) to its display {@link #label()}.
+ * Declaration order is the default display order, matching the historical Stats-page layout. {@link #LAST_PERFORMED} is {@link #mandatory()}: a user
  * may reorder it but never remove it.
  *
- * <p><strong>Adding a new stat:</strong> any newly-computed statistic that should be user-visible on
- * the Stats page MUST be registered here as a new constant AND given a tile mapping in
- * {@link ActionStatsExtensions#tiles(ActionStats, List, int)} — otherwise it will never appear in the
- * picker or on the page.
+ * <p>
+ * <strong>Adding a new stat:</strong> any newly-computed statistic that should be user-visible on the Stats page MUST be registered here as a new
+ * constant AND given a tile mapping in {@link ActionStatsExtensions#tiles(ActionStats, List, int)} — otherwise it will never appear in the picker or
+ * on the page.
  */
 public enum ActionStatField {
 
@@ -174,21 +174,10 @@ public enum ActionStatField {
                 .findFirst();
     }
 
-    /*
-     * The resolved form of one stored {@link StatFieldPref}: the enum field paired with its enabled
-     * state, used internally to build both the render list and the picker rows.
-     */
     private record Entry(ActionStatField field, boolean enabled) {
 
     }
 
-    /*
-     * Parses the stored preference into the full, ordered arrangement of every field paired with its
-     * enabled state. A {@code null} or empty value (never customised) yields every field enabled in
-     * default order. Unknown/duplicate keys are dropped; any field absent from the stored value (a
-     * brand-new preference, or a newly-added stat for an existing user) is appended, enabled, at the
-     * end; and {@link #LAST_PERFORMED} is always forced enabled since it may never be removed.
-     */
     private static List<Entry> parse(@Nullable final List<StatFieldPref> stored) {
         final List<Entry> entries = new ArrayList<>();
         final Set<ActionStatField> seen = EnumSet.noneOf(ActionStatField.class);
@@ -209,9 +198,8 @@ public enum ActionStatField {
     }
 
     /**
-     * Resolves the user's stored preference into the ordered list of fields to actually RENDER on the
-     * Stats page: the enabled fields, in the user's arrangement order. Disabled fields are omitted but
-     * keep their slot in the stored arrangement (see {@link #choices(List)}).
+     * Resolves the user's stored preference into the ordered list of fields to actually RENDER on the Stats page: the enabled fields, in the user's
+     * arrangement order. Disabled fields are omitted but keep their slot in the stored arrangement (see {@link #choices(List)}).
      *
      * @param stored the stored arrangement (can be {@code null} → all fields, default order)
      * @return the enabled fields to render, in order (always contains {@link #LAST_PERFORMED})
@@ -224,17 +212,15 @@ public enum ActionStatField {
     }
 
     /**
-     * A single row in the settings "Action stats" picker: the field's {@link #key()}/{@link #label()},
-     * its {@link #description()} (tooltip), whether it is currently selected (enabled), and whether it
-     * is {@link #mandatory()}.
+     * A single row in the settings "Action stats" picker: the field's {@link #key()}/{@link #label()}, its {@link #description()} (tooltip), whether
+     * it is currently selected (enabled), and whether it is {@link #mandatory()}.
      */
     public record Choice(String key, String label, String description, boolean selected, boolean mandatory) {
     }
 
     /**
-     * Builds the ordered picker rows for the settings page: EVERY field, in the user's stored
-     * arrangement order, each flagged selected/unselected. Order is independent of the enabled state,
-     * so toggling a stat off never moves it.
+     * Builds the ordered picker rows for the settings page: EVERY field, in the user's stored arrangement order, each flagged selected/unselected.
+     * Order is independent of the enabled state, so toggling a stat off never moves it.
      *
      * @param stored the stored arrangement (can be {@code null} → all selected, default order)
      * @return the ordered list of picker choices (one per field)
@@ -247,13 +233,12 @@ public enum ActionStatField {
     }
 
     /**
-     * Encodes a settings submission into the stored arrangement. {@code order} is every row's key in
-     * the user's (drag-arranged) order; {@code enabledKeys} is the subset whose checkbox was ticked.
-     * The result lists every field in {@code order} (each with its enabled flag), with unknown or
-     * duplicate keys dropped, any field missing from {@code order} appended (enabled) at the end, and
-     * {@link #LAST_PERFORMED} always forced enabled.
+     * Encodes a settings submission into the stored arrangement. {@code order} is every row's key in the user's (drag-arranged) order;
+     * {@code enabledKeys} is the subset whose checkbox was ticked. The result lists every field in {@code order} (each with its enabled flag), with
+     * unknown or duplicate keys dropped, any field missing from {@code order} appended (enabled) at the end, and {@link #LAST_PERFORMED} always
+     * forced enabled.
      *
-     * @param order       every field key, in the arranged order (can be empty)
+     * @param order every field key, in the arranged order (can be empty)
      * @param enabledKeys the keys whose stat is enabled (checkbox ticked)
      * @return the arrangement to persist (one {@link StatFieldPref} per field)
      */

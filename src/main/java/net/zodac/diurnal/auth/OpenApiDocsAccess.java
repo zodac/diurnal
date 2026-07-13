@@ -21,10 +21,9 @@ import java.util.Optional;
 import net.zodac.diurnal.user.User;
 
 /**
- * The pure authorisation decision for the OpenAPI documentation surface (Swagger UI + the generated
- * OpenAPI document): only an authenticated administrator may see it. Kept free of any Vert.x/HTTP
- * types so the branching is unit-testable; {@link OpenApiDocsAuthFilter} owns the glue that resolves
- * the session and applies the outcome.
+ * The pure authorisation decision for the OpenAPI documentation surface (Swagger UI + the generated OpenAPI document): only an authenticated
+ * administrator may see it. Kept free of any Vert.x/HTTP types so the branching is unit-testable; {@link OpenApiDocsAuthFilter} owns the glue that
+ * resolves the session and applies the outcome.
  */
 final class OpenApiDocsAccess {
 
@@ -33,9 +32,8 @@ final class OpenApiDocsAccess {
     }
 
     /**
-     * Decides how a documentation request must be handled from the user resolved against its session
-     * token: served for an administrator, redirected to login when anonymous, and forbidden for an
-     * authenticated non-administrator.
+     * Decides how a documentation request must be handled from the user resolved against its session token: served for an administrator, redirected
+     * to login when anonymous, and forbidden for an authenticated non-administrator.
      *
      * @param resolvedUser the user the request's session token resolved to, or empty if anonymous
      * @return the {@link Outcome} the filter must apply

@@ -28,9 +28,8 @@ import net.zodac.diurnal.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies the login page in a password-only configuration (password auth enabled, OIDC disabled):
- * the local email/password form is rendered and no OIDC "Log in with …" button/link is offered.
- * Uses {@link PasswordOnlyAuthProfile} so the result does not depend on ambient {@code OIDC_ENABLED}.
+ * Verifies the login page in a password-only configuration (password auth enabled, OIDC disabled): the local email/password form is rendered and no
+ * OIDC "Log in with …" button/link is offered. Uses {@link PasswordOnlyAuthProfile} so the result does not depend on ambient {@code OIDC_ENABLED}.
  */
 @QuarkusTest
 @TestProfile(PasswordOnlyAuthProfile.class)
@@ -46,12 +45,12 @@ class PasswordOnlyAuthIT extends IntegrationTestBase {
     @Test
     void loginPage_passwordOnly_showsFormAndNoOidcButton() {
         given().get("/login")
-                .then().statusCode(200)
-                .body(allOf(
-                        containsString("name=\"email\""),
-                        containsString("name=\"password\""),
-                        containsString("Sign in"),
-                        not(containsString("/oidc-login")),
-                        not(containsString("Log in with"))));
+            .then().statusCode(200)
+            .body(allOf(
+            containsString("name=\"email\""),
+            containsString("name=\"password\""),
+            containsString("Sign in"),
+            not(containsString("/oidc-login")),
+            not(containsString("Log in with"))));
     }
 }

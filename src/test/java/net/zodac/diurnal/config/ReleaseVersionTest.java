@@ -26,9 +26,8 @@ import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link ReleaseVersion}, the shared reader for the packaged {@code VERSION} resource.
- * Most tests substitute the stream to exercise the trim/fallback branching in isolation; one asserts the
- * real resource is on the classpath.
+ * Unit tests for {@link ReleaseVersion}, the shared reader for the packaged {@code VERSION} resource. Most tests substitute the stream to exercise
+ * the trim/fallback branching in isolation; one asserts the real resource is on the classpath.
  */
 class ReleaseVersionTest {
 

@@ -24,47 +24,49 @@ import org.eclipse.microprofile.openapi.annotations.info.Info;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
 
 /**
- * Document-level OpenAPI metadata for the Diurnal API: the {@link Info} block plus the single HTTP
- * authentication scheme that Swagger UI's "Authorize" dialog offers.
+ * Document-level OpenAPI metadata for the Diurnal API: the {@link Info} block plus the single HTTP authentication scheme that Swagger UI's
+ * "Authorize" dialog offers.
  *
- * <p>One scheme is declared so the docs (and "Try it out") can authenticate:
+ * <p>
+ * One scheme is declared so the docs (and "Try it out") can authenticate:
  * <ul>
  *   <li>{@code BearerAuth} — an opaque session token obtained from {@code POST /api/auth/login}, sent
  *       as {@code Authorization: Bearer <token>} and revoked by {@code POST /api/auth/logout}.</li>
  * </ul>
  *
- * <p>HTTP Basic is deliberately NOT offered: enabling it would run Argon2id on every {@code /api/*}
- * request carrying a Basic header — an unthrottled password-guessing and CPU/memory-exhaustion surface.
- * The API authenticates with the Bearer session token alone (a cheap hashed-index lookup, no
+ * <p>
+ * HTTP Basic is deliberately NOT offered: enabling it would run Argon2id on every {@code /api/*} request carrying a Basic header — an unthrottled
+ * password-guessing and CPU/memory-exhaustion surface. The API authenticates with the Bearer session token alone (a cheap hashed-index lookup, no
  * per-request hashing).
  *
- * <p>Declaring it here (rather than via the {@code quarkus.smallrye-openapi.security-scheme} config)
- * pins it to a plain HTTP bearer scheme instead of the {@code openIdConnect} scheme SmallRye would
- * otherwise auto-derive from the enabled OIDC extension. Operations opt in per-endpoint with
+ * <p>
+ * Declaring it here (rather than via the {@code quarkus.smallrye-openapi.security-scheme} config) pins it to a plain HTTP bearer scheme instead of
+ * the {@code openIdConnect} scheme SmallRye would otherwise auto-derive from the enabled OIDC extension. Operations opt in per-endpoint with
  * {@code @SecurityRequirement(name = "BearerAuth")} ({@code auto-add-security-requirement=false}).
  *
- * <p>It is an (otherwise empty) JAX-RS {@link Application} purely to give these document-level
- * annotations a home SmallRye reliably scans. With no {@code @ApplicationPath} and no overridden
- * {@code getClasses()}, it keeps the default {@code /} base path and does not restrict resource
- * scanning — every resource is still picked up as before.
+ * <p>
+ * It is an (otherwise empty) JAX-RS {@link Application} purely to give these document-level annotations a home SmallRye reliably scans. With no
+ * {@code @ApplicationPath} and no overridden {@code getClasses()}, it keeps the default {@code /} base path and does not restrict resource scanning —
+ * every resource is still picked up as before.
  *
- * <p>The {@code version} declared below is only a build-time fallback: {@code PublicApiFilter} overwrites
- * {@code info.version} with the authoritative release version from the packaged {@code VERSION} file
- * (the same source the footer uses), so it stays in step with the running release automatically.
+ * <p>
+ * The {@code version} declared below is only a build-time fallback: {@code PublicApiFilter} overwrites {@code info.version} with the authoritative
+ * release version from the packaged {@code VERSION} file (the same source the footer uses), so it stays in step with the running release
+ * automatically.
  */
 @OpenAPIDefinition(
-        info = @Info(
-                title = "Diurnal API",
-                version = "0.0.1",
-                description = "REST API for the Diurnal application."
-        )
+    info = @Info(
+    title = "Diurnal API",
+    version = "0.0.1",
+    description = "REST API for the Diurnal application."
+    )
 )
 @SecurityScheme(
-        securitySchemeName = "BearerAuth",
-        type = SecuritySchemeType.HTTP,
-        scheme = "bearer",
-        bearerFormat = "Opaque",
-        description = "Opaque session token from POST /api/auth/login, sent as 'Authorization: Bearer <token>'."
+    securitySchemeName = "BearerAuth",
+    type = SecuritySchemeType.HTTP,
+    scheme = "bearer",
+    bearerFormat = "Opaque",
+    description = "Opaque session token from POST /api/auth/login, sent as 'Authorization: Bearer <token>'."
 )
 public class DiurnalApiDefinition extends Application {
 }

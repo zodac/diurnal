@@ -30,10 +30,9 @@ import net.zodac.diurnal.web.RegistrationDisabledProfile;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies the JSON API ({@code POST /api/auth/register}) honours {@code ENABLE_REGISTRATION=false} just
- * like the web form, so the API can never be used to bypass the registration switch. The first-run setup
- * account can still be created (so the switch can never lock out the very first user). Uses
- * {@link RegistrationDisabledProfile} to force {@code registration.enabled=false}.
+ * Verifies the JSON API ({@code POST /api/auth/register}) honours {@code ENABLE_REGISTRATION=false} just like the web form, so the API can never be
+ * used to bypass the registration switch. The first-run setup account can still be created (so the switch can never lock out the very first user).
+ * Uses {@link RegistrationDisabledProfile} to force {@code registration.enabled=false}.
  */
 @QuarkusTest
 @TestProfile(RegistrationDisabledProfile.class)

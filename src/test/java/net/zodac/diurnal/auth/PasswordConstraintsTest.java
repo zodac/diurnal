@@ -34,8 +34,8 @@ class PasswordConstraintsTest {
             .as("expected exactly the min- and max-length constraints, in order")
             .extracting(Constraint::type, Constraint::value)
             .containsExactly(
-                tuple("minLength", PasswordConstraints.MIN_LENGTH),
-                tuple("maxLength", PasswordConstraints.MAX_LENGTH));
+            tuple("minLength", PasswordConstraints.MIN_LENGTH),
+            tuple("maxLength", PasswordConstraints.MAX_LENGTH));
     }
 
     @Test

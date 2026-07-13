@@ -27,40 +27,41 @@ import org.jspecify.annotations.Nullable;
  */
 @Schema(description = "Public view of a user account: identity, role and display/behaviour preferences.")
 public record UserDto(
-        @Schema(examples = "3fa85f64-5717-4562-b3fc-2c963f66afa6", description = "Unique identifier for the user.") UUID id,
-        @Schema(examples = "ada@example.com", description = "Email address of the user.") String email,
-        @Schema(examples = "Ada Lovelace", description = "Human-readable name shown in the UI.") String displayName,
-        @Schema(examples = Role.Values.USER, description = "The user's role, e.g. 'user' or 'admin'.") String role,
-        @Schema(description = "The user's display and behaviour preferences.") Preferences preferences) {
+    @Schema(examples = "3fa85f64-5717-4562-b3fc-2c963f66afa6", description = "Unique identifier for the user.") UUID id,
+    @Schema(examples = "ada@example.com", description = "Email address of the user.") String email,
+    @Schema(examples = "Ada Lovelace", description = "Human-readable name shown in the UI.") String displayName,
+    @Schema(examples = Role.Values.USER, description = "The user's role, e.g. 'user' or 'admin'.") String role,
+    @Schema(description = "The user's display and behaviour preferences.") Preferences preferences) {
 
     /**
      * The user's display/behaviour preferences.
      *
-     * <p>Every {@link Preference}-annotated field on {@link User} must appear here (by matching name);
-     * {@code UserPreferencesExposureTest} enforces it, so the API cannot drift out of sync with the entity.
+     * <p>
+     * Every {@link Preference}-annotated field on {@link User} must appear here (by matching name); {@code UserPreferencesExposureTest} enforces it,
+     * so the API cannot drift out of sync with the entity.
      *
-     * @param theme            the UI theme: {@code light}, {@code dark} or {@code system}
-     * @param font             the UI font family: {@code nova} (brand typography) or {@code standard} (system sans)
-     * @param pageSize         the number of rows shown per page in list views
+     * @param theme the UI theme: {@code light}, {@code dark} or {@code system}
+     * @param font the UI font family: {@code nova} (brand typography) or {@code standard} (system sans)
+     * @param pageSize the number of rows shown per page in list views
      * @param showStatsSummary whether the dashboard renders the per-action stats-summary strip
-     * @param decimalPlaces    the number of decimal places used to render fractional stats
-     * @param calendarView     the dashboard calendar style: {@code full}, {@code minimal} or {@code stacked}
-     * @param statsFields      the ordered "Action stats" arrangement (key + enabled per stat), or {@code null} if never customised
-     * @param timezone         the user's IANA timezone override, or {@code null} to follow the server default
+     * @param decimalPlaces the number of decimal places used to render fractional stats
+     * @param calendarView the dashboard calendar style: {@code full}, {@code minimal} or {@code stacked}
+     * @param statsFields the ordered "Action stats" arrangement (key + enabled per stat), or {@code null} if never customised
+     * @param timezone the user's IANA timezone override, or {@code null} to follow the server default
      */
     @Schema(description = "A user's display and behaviour preferences.")
     public record Preferences(
-            @Schema(examples = "system", description = "The UI colour scheme: 'light', 'dark', or 'system'.") String theme,
-            @Schema(examples = "nova", description = "The UI font family: 'nova' or 'standard'.") String font,
-            @Schema(examples = "25", description = "Number of rows displayed per page in list views.") int pageSize,
-            @Schema(examples = "true", description = "Whether the dashboard renders the per-action stats-summary strip.")
-            boolean showStatsSummary,
-            @Schema(examples = "1", description = "Number of decimal places used to render fractional stats.") int decimalPlaces,
-            @Schema(examples = "full", description = "Dashboard calendar layout: 'full', 'minimal', or 'stacked'.") String calendarView,
-            @Schema(description = "The ordered 'Action stats' arrangement (key + enabled per stat); null if never customised.")
-            @Nullable List<StatFieldPref> statsFields,
-            @Schema(examples = "Europe/London", description = "IANA timezone override; null means the server default is used.")
-            @Nullable String timezone) {
+        @Schema(examples = "system", description = "The UI colour scheme: 'light', 'dark', or 'system'.") String theme,
+        @Schema(examples = "nova", description = "The UI font family: 'nova' or 'standard'.") String font,
+        @Schema(examples = "25", description = "Number of rows displayed per page in list views.") int pageSize,
+        @Schema(examples = "true", description = "Whether the dashboard renders the per-action stats-summary strip.")
+        boolean showStatsSummary,
+        @Schema(examples = "1", description = "Number of decimal places used to render fractional stats.") int decimalPlaces,
+        @Schema(examples = "full", description = "Dashboard calendar layout: 'full', 'minimal', or 'stacked'.") String calendarView,
+        @Schema(description = "The ordered 'Action stats' arrangement (key + enabled per stat); null if never customised.")
+        @Nullable List<StatFieldPref> statsFields,
+        @Schema(examples = "Europe/London", description = "IANA timezone override; null means the server default is used.")
+        @Nullable String timezone) {
     }
 
     /**
@@ -72,7 +73,7 @@ public record UserDto(
                 user.email,
                 user.displayName,
                 user.role,
-                new Preferences(
+            new Preferences(
                         user.theme,
                         user.font,
                         user.pageSize,

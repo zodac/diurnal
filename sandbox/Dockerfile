@@ -69,7 +69,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 RUN apt-get update && apt-get install -yqq --no-install-recommends \
         bash="5.2.37-2+b9" \
         ca-certificates="20250419" \
-        curl="8.14.1-2+deb13u3" \
+        curl="8.14.1-2+deb13u4" \
         fontconfig="2.15.0-2.3" \
         git="1:2.47.3-0+deb13u1" \
         gnupg="2.4.7-21+deb13u1" \
@@ -113,7 +113,7 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 RUN apt-get update && apt-get install -yqq --no-install-recommends \
         docker-ce="5:29.6.1-1~debian.13~trixie" \
         docker-ce-cli="5:29.6.1-1~debian.13~trixie" \
-        containerd.io="2.2.5-1~debian.13~trixie" \
+        containerd.io="2.2.6-1~debian.13~trixie" \
         docker-buildx-plugin="0.35.0-1~debian.13~trixie" \
         docker-compose-plugin="5.3.1-1~debian.13~trixie" \
     && \

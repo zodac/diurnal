@@ -26,9 +26,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Periodically deletes sessions past their absolute expiry, replacing the automatic TTL eviction a
- * cache store would provide. Idle-expired sessions are already pruned lazily when presented; this
- * mops up those never presented again so the table cannot grow unbounded.
+ * Periodically deletes sessions past their absolute expiry, replacing the automatic TTL eviction a cache store would provide. Idle-expired sessions
+ * are already pruned lazily when presented; this mops up those never presented again so the table cannot grow unbounded.
  */
 @ApplicationScoped
 public class SessionSweeper {
@@ -39,8 +38,7 @@ public class SessionSweeper {
     AppClock clock;
 
     /**
-     * Deletes all sessions whose absolute expiry has passed. The interval is configurable via
-     * {@code session.cleanup-interval} (default hourly).
+     * Deletes all sessions whose absolute expiry has passed. The interval is configurable via {@code session.cleanup-interval} (default hourly).
      */
     @Scheduled(every = "{session.cleanup-interval}", concurrentExecution = Scheduled.ConcurrentExecution.SKIP)
     @Transactional

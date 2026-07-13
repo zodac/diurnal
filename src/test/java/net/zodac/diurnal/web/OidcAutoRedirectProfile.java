@@ -21,19 +21,18 @@ import io.quarkus.test.junit.QuarkusTestProfile;
 import java.util.Map;
 
 /**
- * Test profile that enables OIDC with {@code oidc.auto.redirect=true} to exercise the
- * {@code /login} → {@code /oidc-login} auto-redirect branch in {@link WebResource}.
+ * Test profile that enables OIDC with {@code oidc.auto.redirect=true} to exercise the {@code /login} → {@code /oidc-login} auto-redirect branch in
+ * {@link WebResource}.
  *
- * <p>OIDC discovery is disabled and every endpoint path is pinned to a local placeholder so the
- * tenant is created without any network call to a real identity provider. The auto-redirect
- * decision is taken purely from config ({@code quarkus.oidc.tenant-enabled} + {@code oidc.auto.redirect}),
- * so no live IdP is needed and {@code /login} never actually initiates the code flow.
+ * <p>
+ * OIDC discovery is disabled and every endpoint path is pinned to a local placeholder so the tenant is created without any network call to a real
+ * identity provider. The auto-redirect decision is taken purely from config ({@code quarkus.oidc.tenant-enabled} + {@code oidc.auto.redirect}), so no
+ * live IdP is needed and {@code /login} never actually initiates the code flow.
  */
 public final class OidcAutoRedirectProfile implements QuarkusTestProfile {
 
     /**
-     * Turns OIDC on (with a placeholder issuer and manual endpoints, discovery off) and enables the
-     * auto-redirect behaviour.
+     * Turns OIDC on (with a placeholder issuer and manual endpoints, discovery off) and enables the auto-redirect behaviour.
      *
      * @return the config overrides applied for this profile
      */

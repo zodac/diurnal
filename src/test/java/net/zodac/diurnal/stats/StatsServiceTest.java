@@ -165,7 +165,7 @@ class StatsServiceTest {
     @Test
     void longestGap_multipleGapsTakesLargest() {
         final List<LocalDate> dates = List.of(
-                TODAY.minusDays(30), TODAY.minusDays(20), TODAY.minusDays(5), TODAY
+            TODAY.minusDays(30), TODAY.minusDays(20), TODAY.minusDays(5), TODAY
         );
         // today-30 to today-20: 10 - 1 = 9; today-20 to today-5: 15 - 1 = 14; today-5 to today: 5 - 1 = 4; open: 0
         assertThat(StatsService.longestGap(dates, TODAY))
@@ -176,7 +176,7 @@ class StatsServiceTest {
     @Test
     void longestGap_allConsecutiveEndingToday_returnsZero() {
         final List<LocalDate> dates = List.of(TODAY.minusDays(4), TODAY.minusDays(3),
-                TODAY.minusDays(2), TODAY.minusDays(1), TODAY);
+            TODAY.minusDays(2), TODAY.minusDays(1), TODAY);
         assertThat(StatsService.longestGap(dates, TODAY))
             .as("unexpected value")
             .isEqualTo(0);
@@ -215,13 +215,13 @@ class StatsServiceTest {
     @Test
     void longestStreak_longRunThenGapThenShortRun() {
         final List<LocalDate> dates = List.of(
-                TODAY.minusDays(10),
-                TODAY.minusDays(9),
-                TODAY.minusDays(8),
-                TODAY.minusDays(7),
-                // gap
-                TODAY.minusDays(2),
-                TODAY.minusDays(1)
+            TODAY.minusDays(10),
+            TODAY.minusDays(9),
+            TODAY.minusDays(8),
+            TODAY.minusDays(7),
+            // gap
+            TODAY.minusDays(2),
+            TODAY.minusDays(1)
         );
         assertThat(StatsService.longestStreak(dates))
             .as("unexpected value")
@@ -231,11 +231,11 @@ class StatsServiceTest {
     @Test
     void longestStreak_allConsecutive_returnsTotalLength() {
         final List<LocalDate> fiveDays = List.of(
-                TODAY.minusDays(4),
-                TODAY.minusDays(3),
-                TODAY.minusDays(2),
-                TODAY.minusDays(1),
-                TODAY
+            TODAY.minusDays(4),
+            TODAY.minusDays(3),
+            TODAY.minusDays(2),
+            TODAY.minusDays(1),
+            TODAY
         );
         assertThat(StatsService.longestStreak(fiveDays))
             .as("unexpected value")
@@ -245,9 +245,9 @@ class StatsServiceTest {
     @Test
     void longestStreak_multipleRunsPicksLongest() {
         final List<LocalDate> dates = List.of(
-                TODAY.minusDays(20), TODAY.minusDays(19),          // run of 2
-                TODAY.minusDays(10), TODAY.minusDays(9), TODAY.minusDays(8), // run of 3
-                TODAY                                               // run of 1
+            TODAY.minusDays(20), TODAY.minusDays(19),          // run of 2
+            TODAY.minusDays(10), TODAY.minusDays(9), TODAY.minusDays(8), // run of 3
+            TODAY                                               // run of 1
         );
         assertThat(StatsService.longestStreak(dates))
             .as("unexpected value")

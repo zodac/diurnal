@@ -22,8 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link RequestLoggingFilter#elapsedMillis(Object)}: a recorded start marker yields a
- * non-negative whole-millisecond count, while a missing or wrong-typed marker degrades to {@code "?"}.
+ * Unit tests for {@link RequestLoggingFilter#elapsedMillis(Object)}: a recorded start marker yields a non-negative whole-millisecond count, while a
+ * missing or wrong-typed marker degrades to {@code "?"}.
  */
 class RequestLoggingFilterTest {
 

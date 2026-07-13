@@ -30,29 +30,29 @@ class ActionStatsTest {
     private static final LocalDate TODAY = LocalDate.of(2025, 6, 15);
 
     private static ActionStats stats(
-            final int totalDays, final long totalCount,
-            @Nullable final LocalDate first, @Nullable final LocalDate last,
-            final int currentStreak, final int longestStreak,
-            final long thisMonth, final long lastMonth,
-            final long thisYear, final long lastYear,
-            final String bestMonthLabel, final long bestMonthCount,
-            final String bestYearLabel, final long bestYearCount) {
+        final int totalDays, final long totalCount,
+        @Nullable final LocalDate first, @Nullable final LocalDate last,
+        final int currentStreak, final int longestStreak,
+        final long thisMonth, final long lastMonth,
+        final long thisYear, final long lastYear,
+        final String bestMonthLabel, final long bestMonthCount,
+        final String bestYearLabel, final long bestYearCount) {
         return statsG(totalDays, totalCount, first, last, currentStreak, longestStreak, 0,
                 thisMonth, lastMonth, thisYear, lastYear,
                 bestMonthLabel, bestMonthCount, bestYearLabel, bestYearCount);
     }
 
     private static ActionStats statsG(
-            final int totalDays, final long totalCount,
-            @Nullable final LocalDate first, @Nullable final LocalDate last,
-            final int currentStreak, final int longestStreak,
-            final int longestGap,
-            final long thisMonth, final long lastMonth,
-            final long thisYear, final long lastYear,
-            final String bestMonthLabel, final long bestMonthCount,
-            final String bestYearLabel, final long bestYearCount) {
+        final int totalDays, final long totalCount,
+        @Nullable final LocalDate first, @Nullable final LocalDate last,
+        final int currentStreak, final int longestStreak,
+        final int longestGap,
+        final long thisMonth, final long lastMonth,
+        final long thisYear, final long lastYear,
+        final String bestMonthLabel, final long bestMonthCount,
+        final String bestYearLabel, final long bestYearCount) {
         return new ActionStats(
-                new Action(), totalDays, totalCount, first, last,
+            new Action(), totalDays, totalCount, first, last,
                 currentStreak, longestStreak, longestGap,
                 thisMonth, lastMonth,
                 thisYear, lastYear,

@@ -41,9 +41,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Exercises the single global per-IP lockout in isolation (small limit, its own profile). One shared
- * counter tallies both failed logins and failed registrations from the loopback IP, and once tripped it
- * blocks BOTH surfaces. There is no per-account dimension, and a success never resets the counter.
+ * Exercises the single global per-IP lockout in isolation (small limit, its own profile). One shared counter tallies both failed logins and failed
+ * registrations from the loopback IP, and once tripped it blocks BOTH surfaces. There is no per-account dimension, and a success never resets the
+ * counter.
  */
 @QuarkusTest
 @TestProfile(IpThrottleProfile.class)

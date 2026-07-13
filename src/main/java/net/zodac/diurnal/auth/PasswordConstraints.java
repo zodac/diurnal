@@ -22,9 +22,10 @@ import java.util.List;
 /**
  * Single source of truth for the rules a raw (pre-hash) password must satisfy.
  *
- * <p>Both the server-side validation (registration and password change) and the live requirements tooltip shown on the
- * registration and settings pages derive from the constants and {@link #all()} list here, so the two can never drift
- * apart: adding or changing a rule in one place updates every enforcement and display of it.
+ * <p>
+ * Both the server-side validation (registration and password change) and the live requirements tooltip shown on the registration and settings pages
+ * derive from the constants and {@link #all()} list here, so the two can never drift apart: adding or changing a rule in one place updates every
+ * enforcement and display of it.
  */
 public final class PasswordConstraints {
 
@@ -36,9 +37,10 @@ public final class PasswordConstraints {
     /**
      * Maximum accepted length of a raw password, in characters.
      *
-     * <p>A deliberate hygiene bound rather than an algorithm limit — Argon2id imposes none, and the password only feeds
-     * the fixed-size initial digest, so length barely affects hashing cost. The cap simply rejects abusive multi-kilobyte
-     * inputs up front while staying generous enough (128 characters) never to constrain a real passphrase.
+     * <p>
+     * A deliberate hygiene bound rather than an algorithm limit — Argon2id imposes none, and the password only feeds the fixed-size initial digest,
+     * so length barely affects hashing cost. The cap simply rejects abusive multi-kilobyte inputs up front while staying generous enough (128
+     * characters) never to constrain a real passphrase.
      */
     public static final int MAX_LENGTH = 128;
 
@@ -47,16 +49,15 @@ public final class PasswordConstraints {
     }
 
     /**
-     * The ordered list of password constraints, used to render the requirements tooltip and drive its live
-     * client-side red/green validation. Adding a constraint here makes a matching row appear in the tooltip on both
-     * the registration and settings pages automatically.
+     * The ordered list of password constraints, used to render the requirements tooltip and drive its live client-side red/green validation. Adding a
+     * constraint here makes a matching row appear in the tooltip on both the registration and settings pages automatically.
      *
      * @return the constraints, in display order
      */
     public static List<Constraint> all() {
         return List.of(
-                new Constraint("minLength", MIN_LENGTH, lengthLabel("At least", MIN_LENGTH)),
-                new Constraint("maxLength", MAX_LENGTH, lengthLabel("At most", MAX_LENGTH))
+            new Constraint("minLength", MIN_LENGTH, lengthLabel("At least", MIN_LENGTH)),
+            new Constraint("maxLength", MAX_LENGTH, lengthLabel("At most", MAX_LENGTH))
         );
     }
 
@@ -67,8 +68,7 @@ public final class PasswordConstraints {
     /**
      * A single password constraint: enough metadata for the tooltip to render it and for the client to check it live.
      *
-     * @param type  the client-side check token ({@code minLength} or {@code maxLength}); mirrored by the evaluator in
-     *              {@code layout.html}
+     * @param type the client-side check token ({@code minLength} or {@code maxLength}); mirrored by the evaluator in {@code layout.html}
      * @param value the numeric bound the check compares the password length against
      * @param label the human-readable requirement shown in the tooltip
      */

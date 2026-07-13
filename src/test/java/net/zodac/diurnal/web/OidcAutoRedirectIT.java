@@ -28,9 +28,8 @@ import net.zodac.diurnal.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies the OIDC auto-redirect: with OIDC enabled and {@code oidc.auto.redirect=true}, a plain
- * {@code GET /login} short-circuits to the OIDC trigger ({@code /oidc-login}) instead of rendering
- * the login form — but still renders the page when there is an error or success message to show.
+ * Verifies the OIDC auto-redirect: with OIDC enabled and {@code oidc.auto.redirect=true}, a plain {@code GET /login} short-circuits to the OIDC
+ * trigger ({@code /oidc-login}) instead of rendering the login form — but still renders the page when there is an error or success message to show.
  * Uses {@link OidcAutoRedirectProfile}.
  */
 @QuarkusTest

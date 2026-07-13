@@ -30,9 +30,8 @@ import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 /**
- * Integration tests for {@link OpenApiDocsAuthFilter}: the Swagger UI shell ({@code /api}) and the
- * generated OpenAPI document ({@code /q/openapi}) are reachable only by an administrator, redirect an
- * anonymous browser to {@code /login}, and are forbidden to an authenticated non-administrator.
+ * Integration tests for {@link OpenApiDocsAuthFilter}: the Swagger UI shell ({@code /api}) and the generated OpenAPI document ({@code /q/openapi})
+ * are reachable only by an administrator, redirect an anonymous browser to {@code /login}, and are forbidden to an authenticated non-administrator.
  */
 @QuarkusTest
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach

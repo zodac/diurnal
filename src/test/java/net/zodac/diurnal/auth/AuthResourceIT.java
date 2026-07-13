@@ -69,8 +69,8 @@ class AuthResourceIT extends IntegrationTestBase {
     @Test
     void register_duplicateEmail_returns409() {
         final String body = """
-                {"email":"dup@example.com","displayName":"First","password":"password1"}
-                """;
+            {"email":"dup@example.com","displayName":"First","password":"password1"}
+            """;
         given().contentType(ContentType.JSON).body(body).post("/api/auth/register")
                 .then().statusCode(201);
 
@@ -227,12 +227,12 @@ class AuthResourceIT extends IntegrationTestBase {
         registerUser("session@example.com", "Session User", "password123");
 
         final String token = given().contentType(ContentType.JSON)
-                .body("""
-                        {"email":"session@example.com","password":"password123"}
-                        """)
-                .post("/api/auth/login")
-                .then().statusCode(200)
-                .extract().path("token");
+            .body("""
+            {"email":"session@example.com","password":"password123"}
+            """)
+            .post("/api/auth/login")
+            .then().statusCode(200)
+            .extract().path("token");
 
         assertThat(token)
             .as("The session token must be an opaque string, not a dotted JWT")

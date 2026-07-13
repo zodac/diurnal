@@ -29,10 +29,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Verifies email/password credentials for both login surfaces (the web form and the REST API),
- * applying login throttling and recording the outcome. It performs only the credential check —
- * minting the actual session is the caller's job — so the same throttle + Argon2id path is shared and
- * cannot drift between the two surfaces.
+ * Verifies email/password credentials for both login surfaces (the web form and the REST API), applying login throttling and recording the outcome.
+ * It performs only the credential check — minting the actual session is the caller's job — so the same throttle + Argon2id path is shared and cannot
+ * drift between the two surfaces.
  */
 @ApplicationScoped
 public class AuthenticationService {
@@ -49,14 +48,13 @@ public class AuthenticationService {
     Passwords passwords;
 
     /**
-     * Checks the given credentials against the account store at {@code now}. Enforces the global per-IP
-     * lockout first, then verifies the Argon2id hash; on success the account's {@code lastLoginAt} is
-     * updated. A failure feeds the shared IP counter (the same one registration failures feed).
+     * Checks the given credentials against the account store at {@code now}. Enforces the global per-IP lockout first, then verifies the Argon2id
+     * hash; on success the account's {@code lastLoginAt} is updated. A failure feeds the shared IP counter (the same one registration failures feed).
      *
      * @param rawEmail the submitted email (any case/whitespace; normalised internally)
      * @param password the submitted password
      * @param clientIp the requesting client's IP, for throttling and security logging
-     * @param now      the current instant (from {@code AppClock})
+     * @param now the current instant (from {@code AppClock})
      * @return a {@link LoginResult} describing success, invalid credentials, or a lockout
      */
     @Transactional
@@ -73,7 +71,7 @@ public class AuthenticationService {
         }
 
         final Optional<User> account = User.findByEmail(email)
-                .filter(u -> u.passwordHash != null);
+            .filter(u -> u.passwordHash != null);
 
         final boolean credentialsValid;
         if (account.isPresent()) {

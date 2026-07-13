@@ -34,14 +34,12 @@ import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies the generated OpenAPI document (served at {@code /q/openapi}) declares exactly the one
- * authentication scheme Swagger UI's "Authorize" dialog relies on — the {@code BearerAuth} token
- * scheme from {@link DiurnalApiDefinition} — and that a secured operation requires it. HTTP Basic is
+ * Verifies the generated OpenAPI document (served at {@code /q/openapi}) declares exactly the one authentication scheme Swagger UI's "Authorize"
+ * dialog relies on — the {@code BearerAuth} token scheme from {@link DiurnalApiDefinition} — and that a secured operation requires it. HTTP Basic is
  * deliberately not offered (it would run Argon2id on every authenticated {@code /api/*} request).
  *
  * <p>
- * The document is admin-gated by {@code OpenApiDocsAuthFilter}, so every request here authenticates as
- * an administrator via a real session token.
+ * The document is admin-gated by {@code OpenApiDocsAuthFilter}, so every request here authenticates as an administrator via a real session token.
  */
 @QuarkusTest
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
@@ -76,13 +74,13 @@ class OpenApiDocumentIT extends IntegrationTestBase {
     @Test
     void securedOperation_requiresBearerScheme() {
         given().accept(ContentType.JSON)
-                .header("Authorization", "Bearer " + adminToken())
-                .get("/q/openapi")
-                .then().statusCode(200)
-                // A single requirement object naming exactly the Bearer scheme.
-                .body("paths.'/api/users/me'.get.security.size()", equalTo(1))
-                .body("paths.'/api/users/me'.get.security.collect { it.keySet() }.flatten()",
-                        containsInAnyOrder("BearerAuth"));
+            .header("Authorization", "Bearer " + adminToken())
+            .get("/q/openapi")
+            .then().statusCode(200)
+            // A single requirement object naming exactly the Bearer scheme.
+            .body("paths.'/api/users/me'.get.security.size()", equalTo(1))
+            .body("paths.'/api/users/me'.get.security.collect { it.keySet() }.flatten()",
+            containsInAnyOrder("BearerAuth"));
     }
 
     @Test

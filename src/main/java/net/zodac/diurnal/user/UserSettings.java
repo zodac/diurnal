@@ -38,7 +38,7 @@ public record UserSettings(String theme, int pageSize) {
     public static final int MAX_PAGE_SIZE = 100;
     // User-facing rejection message when an out-of-range or non-numeric page size is submitted.
     public static final String PAGE_SIZE_RANGE_MESSAGE =
-            "Items per page must be a whole number between " + MIN_PAGE_SIZE + " and " + MAX_PAGE_SIZE + ".";
+        "Items per page must be a whole number between " + MIN_PAGE_SIZE + " and " + MAX_PAGE_SIZE + ".";
     public static final List<String> THEME_OPTIONS = List.of("system", "light", "dark");
 
     // Whether the dashboard renders the per-action stats-summary strip.
@@ -53,7 +53,7 @@ public record UserSettings(String theme, int pageSize) {
     public static final List<Integer> DECIMAL_PLACES_OPTIONS = List.of(0, 1, 2);
     // User-facing rejection message when an out-of-range or non-numeric decimal-place count is submitted.
     public static final String DECIMAL_PLACES_RANGE_MESSAGE =
-            "Decimal places must be a whole number between " + MIN_DECIMAL_PLACES + " and " + MAX_DECIMAL_PLACES + ".";
+        "Decimal places must be a whole number between " + MIN_DECIMAL_PLACES + " and " + MAX_DECIMAL_PLACES + ".";
 
     public static final String DEFAULT_CALENDAR_VIEW = "full";
     public static final List<String> CALENDAR_VIEW_OPTIONS = List.of("full", "minimal", "stacked");
@@ -65,21 +65,21 @@ public record UserSettings(String theme, int pageSize) {
     // (not one of these) falls back to the server default (app.timezone). The picker orders every
     // zone by its current UTC offset (see timezoneChoices), not by this declaration order.
     public static final List<String> TIMEZONE_OPTIONS = List.of(
-            "UTC",
-            "Pacific/Auckland",
-            "Australia/Sydney",
-            "Asia/Tokyo",
-            "Asia/Shanghai",
-            "Asia/Kolkata",
-            "Asia/Dubai",
-            "Europe/Berlin",
-            "Europe/Paris",
-            "Europe/London",
-            "America/Sao_Paulo",
-            "America/New_York",
-            "America/Chicago",
-            "America/Denver",
-            "America/Los_Angeles");
+        "UTC",
+        "Pacific/Auckland",
+        "Australia/Sydney",
+        "Asia/Tokyo",
+        "Asia/Shanghai",
+        "Asia/Kolkata",
+        "Asia/Dubai",
+        "Europe/Berlin",
+        "Europe/Paris",
+        "Europe/London",
+        "America/Sao_Paulo",
+        "America/New_York",
+        "America/Chicago",
+        "America/Denver",
+        "America/Los_Angeles");
 
     /**
      * Extracts the display preferences from a {@link User} entity.
@@ -89,18 +89,16 @@ public record UserSettings(String theme, int pageSize) {
     }
 
     /**
-     * Whether the given page size is within the accepted range
-     * ({@link #MIN_PAGE_SIZE}–{@link #MAX_PAGE_SIZE}).
+     * Whether the given page size is within the accepted range ({@link #MIN_PAGE_SIZE}–{@link #MAX_PAGE_SIZE}).
      */
     public static boolean isValidPageSize(final int value) {
         return value >= MIN_PAGE_SIZE && value <= MAX_PAGE_SIZE;
     }
 
     /**
-     * Parses a submitted page size, returning the value only if it is a whole number within the
-     * accepted range ({@link #MIN_PAGE_SIZE}–{@link #MAX_PAGE_SIZE}), else {@code null}. Unlike the
-     * other preferences, an invalid page size is rejected (not coerced to a default) so the caller can
-     * surface an error and retain the user's previous value.
+     * Parses a submitted page size, returning the value only if it is a whole number within the accepted range
+     * ({@link #MIN_PAGE_SIZE}–{@link #MAX_PAGE_SIZE}), else {@code null}. Unlike the other preferences, an invalid page size is rejected (not coerced
+     * to a default) so the caller can surface an error and retain the user's previous value.
      *
      * @param raw the raw submitted value (may be {@code null}, blank, non-numeric or out of range)
      * @return the valid page size, or {@code null} if the input is not acceptable
@@ -118,18 +116,16 @@ public record UserSettings(String theme, int pageSize) {
     }
 
     /**
-     * Whether the given decimal-place count is within the accepted range
-     * ({@link #MIN_DECIMAL_PLACES}–{@link #MAX_DECIMAL_PLACES}).
+     * Whether the given decimal-place count is within the accepted range ({@link #MIN_DECIMAL_PLACES}–{@link #MAX_DECIMAL_PLACES}).
      */
     public static boolean isValidDecimalPlaces(final int value) {
         return value >= MIN_DECIMAL_PLACES && value <= MAX_DECIMAL_PLACES;
     }
 
     /**
-     * Parses a submitted decimal-place count, returning the value only if it is a whole number within
-     * the accepted range ({@link #MIN_DECIMAL_PLACES}–{@link #MAX_DECIMAL_PLACES}), else {@code null}.
-     * Like {@link #parsePageSize(String)}, an invalid value is rejected (not coerced to a default) so the
-     * caller can surface an error and retain the user's previous value.
+     * Parses a submitted decimal-place count, returning the value only if it is a whole number within the accepted range
+     * ({@link #MIN_DECIMAL_PLACES}–{@link #MAX_DECIMAL_PLACES}), else {@code null}. Like {@link #parsePageSize(String)}, an invalid value is rejected
+     * (not coerced to a default) so the caller can surface an error and retain the user's previous value.
      *
      * @param raw the raw submitted value (may be {@code null}, blank, non-numeric or out of range)
      * @return the valid decimal-place count, or {@code null} if the input is not acceptable
@@ -183,15 +179,13 @@ public record UserSettings(String theme, int pageSize) {
     }
 
     /**
-     * Builds the timezone picker options, ordered by their current UTC offset (most behind → most
-     * ahead) and evaluated at {@code now} (so the offsets reflect the current DST state). Every
-     * curated zone is offered with its own id as the form value. The option matching the user's
-     * stored timezone is pre-selected; when the user has no override (null), the server default zone
-     * is selected instead, so a new user's initial value mirrors the server default.
+     * Builds the timezone picker options, ordered by their current UTC offset (most behind → most ahead) and evaluated at {@code now} (so the offsets
+     * reflect the current DST state). Every curated zone is offered with its own id as the form value. The option matching the user's stored timezone
+     * is pre-selected; when the user has no override (null), the server default zone is selected instead, so a new user's initial value mirrors the
+     * server default.
      *
-     * @param serverZone       the server default zone, used as the initial selection when the user
-     *                         has no override
-     * @param now              the instant at which UTC offsets are evaluated
+     * @param serverZone the server default zone, used as the initial selection when the user has no override
+     * @param now the instant at which UTC offsets are evaluated
      * @param selectedTimezone the user's stored timezone (null = inheriting the server default)
      */
     public static List<TimezoneChoice> timezoneChoices(final ZoneId serverZone, final Instant now, @Nullable final String selectedTimezone) {

@@ -37,6 +37,7 @@ public class ForbiddenExceptionMapper implements ExceptionMapper<ForbiddenExcept
     @Inject
     @Location("error-403")
     Template errorTemplate;
+
     @Inject SecurityIdentity identity;
 
     @Override

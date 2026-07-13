@@ -41,16 +41,15 @@ import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Runs after every successful authentication. It only acts on OIDC web-app (authorisation code
- * flow) identities — those are the ones that carry an {@link IdTokenCredential}; form-auth and API
- * Bearer identities have none and pass straight through. For an OIDC identity it finds or creates
- * the local {@link User}, grants the {@code user} role and normalises the principal to the user's
- * email so all existing resource code (which looks users up by email) works unchanged.
+ * Runs after every successful authentication. It only acts on OIDC web-app (authorisation code flow) identities — those are the ones that carry an
+ * {@link IdTokenCredential}; form-auth and API Bearer identities have none and pass straight through. For an OIDC identity it finds or creates the
+ * local {@link User}, grants the {@code user} role and normalises the principal to the user's email so all existing resource code (which looks users
+ * up by email) works unchanged.
  *
- * <p>Note: in Quarkus the code-flow identity does NOT expose the ID token as a {@code "id_token"}
- * attribute, nor is the principal a {@code JsonWebToken}. The ID token is only available as an
- * {@link IdTokenCredential}, so we read the claims by decoding the token payload below. Without
- * this, no {@code user} role is ever added and the dashboard rejects OIDC logins with a 403.
+ * <p>
+ * Note: in Quarkus the code-flow identity does NOT expose the ID token as a {@code "id_token"} attribute, nor is the principal a
+ * {@code JsonWebToken}. The ID token is only available as an {@link IdTokenCredential}, so we read the claims by decoding the token payload below.
+ * Without this, no {@code user} role is ever added and the dashboard rejects OIDC logins with a 403.
  */
 @ApplicationScoped
 public class OidcUserProvisioner implements SecurityIdentityAugmentor {
@@ -114,21 +113,21 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
 
         final boolean[] created = {false};
         final User user = User.findByOidc(iss, sub)
-                .or(() -> User.findByEmail(normalised))
-                .orElseGet(() -> {
-                    String name = claims.getString("name");
-                    if (name == null || name.isBlank()) {
-                        name = normalised.contains("@") ? normalised.split("@")[0] : normalised;
-                    }
-                    final User u = new User();
-                    u.email = normalised;
-                    u.displayName = name;
-                    u.role = idpRole.orElseGet(roleAssigner::roleForNewUser);
-                    u.persist();
-                    created[0] = true;
-                    LOGGER.info("Provisioned new OIDC user: {} (role={})", normalised, u.role);
-                    return u;
-                });
+            .or(() -> User.findByEmail(normalised))
+            .orElseGet(() -> {
+                String name = claims.getString("name");
+                if (name == null || name.isBlank()) {
+                    name = normalised.contains("@") ? normalised.split("@")[0] : normalised;
+                }
+                final User u = new User();
+                u.email = normalised;
+                u.displayName = name;
+                u.role = idpRole.orElseGet(roleAssigner::roleForNewUser);
+                u.persist();
+                created[0] = true;
+                LOGGER.info("Provisioned new OIDC user: {} (role={})", normalised, u.role);
+                return u;
+            });
 
         if (user.oidcSubject == null) {
             user.oidcSubject = sub;
@@ -148,14 +147,14 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         // maps the token's groups claim to roles, so builder(identity) would copy any LDAP group
         // named "admin" as the admin role, bypassing our DB-backed role check.
         final var builder = QuarkusSecurityIdentity.builder()
-                .setPrincipal(new QuarkusPrincipal(user.email))
-                .addAttribute("userId", user.id.toString())
-                .addAttribute("displayName", user.displayName)
-                .addRole(Role.USER.storageValue())
-                // Re-attach the ID token credential so @IdToken injection works in oidcCallback().
-                // The fresh identity intentionally excludes all other OIDC credentials to prevent
-                // LDAP group names from mapping to roles, but the raw token is needed for logout.
-                .addCredential(idTokenCred);
+            .setPrincipal(new QuarkusPrincipal(user.email))
+            .addAttribute("userId", user.id.toString())
+            .addAttribute("displayName", user.displayName)
+            .addRole(Role.USER.storageValue())
+            // Re-attach the ID token credential so @IdToken injection works in oidcCallback().
+            // The fresh identity intentionally excludes all other OIDC credentials to prevent
+            // LDAP group names from mapping to roles, but the raw token is needed for logout.
+            .addCredential(idTokenCred);
         if (user.isAdmin()) {
             builder.addRole(Role.ADMIN.storageValue());
         }

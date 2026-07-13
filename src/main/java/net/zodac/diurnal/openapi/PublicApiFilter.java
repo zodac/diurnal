@@ -41,22 +41,20 @@ import org.eclipse.microprofile.openapi.models.tags.Tag;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Restricts the generated OpenAPI document (and thus the Swagger UI at {@code /api}) to the
- * <strong>public API</strong>: everything under {@code /api/*}, plus the small set of application
- * endpoints in {@link #PUBLIC_APP_PATHS} that are deliberately published for external use (the
- * {@code /logs/events} feed, which the in-app calendar and integrations share). SmallRye scans every
- * JAX-RS method, which would otherwise also surface the web UI's HTML page routes and HTMX partial
- * endpoints — those return {@code text/html} and take form params, so they do not belong in the API
- * reference. Registered via {@code mp.openapi.filter}.
+ * Restricts the generated OpenAPI document (and thus the Swagger UI at {@code /api}) to the <strong>public API</strong>: everything under
+ * {@code /api/*}, plus the small set of application endpoints in {@link #PUBLIC_APP_PATHS} that are deliberately published for external use (the
+ * {@code /logs/events} feed, which the in-app calendar and integrations share). SmallRye scans every JAX-RS method, which would otherwise also
+ * surface the web UI's HTML page routes and HTMX partial endpoints — those return {@code text/html} and take form params, so they do not belong in
+ * the API reference. Registered via {@code mp.openapi.filter}.
  *
- * <p>After pruning paths, it also prunes {@code components/schemas} down to those still reachable from
- * a surviving operation: SmallRye generates a schema for every type it scans (e.g. the whole Qute
- * {@code TemplateInstance} object graph behind the HTML routes), and removing the paths alone leaves
- * those schemas orphaned in the document.
+ * <p>
+ * After pruning paths, it also prunes {@code components/schemas} down to those still reachable from a surviving operation: SmallRye generates a
+ * schema for every type it scans (e.g. the whole Qute {@code TemplateInstance} object graph behind the HTML routes), and removing the paths alone
+ * leaves those schemas orphaned in the document.
  *
- * <p>It also stamps {@code info.version} with the authoritative release version from the packaged
- * {@code VERSION} file ({@link ReleaseVersion}) — the same source the footer uses — so the OpenAPI
- * document and Swagger UI report the real release rather than the static value declared on
+ * <p>
+ * It also stamps {@code info.version} with the authoritative release version from the packaged {@code VERSION} file ({@link ReleaseVersion}) — the
+ * same source the footer uses — so the OpenAPI document and Swagger UI report the real release rather than the static value declared on
  * {@code DiurnalApiDefinition}'s {@code @Info} (which serves only as a build-time fallback).
  */
 public final class PublicApiFilter implements OASFilter {
@@ -66,9 +64,8 @@ public final class PublicApiFilter implements OASFilter {
     private static final Set<String> PUBLIC_APP_PATHS = Set.of("/logs/events");
 
     /**
-     * Stamps the release version, then removes every path that is not part of the public API and drops
-     * any top-level tag and component schema left unreferenced, so the Swagger UI shows no empty sections
-     * or stray models.
+     * Stamps the release version, then removes every path that is not part of the public API and drops any top-level tag and component schema left
+     * unreferenced, so the Swagger UI shows no empty sections or stray models.
      *
      * @param openApi the document being generated
      */
@@ -82,8 +79,8 @@ public final class PublicApiFilter implements OASFilter {
         }
 
         final List<String> nonPublicPaths = paths.getPathItems().keySet().stream()
-                .filter(path -> !isPublic(path))
-                .toList();
+            .filter(path -> !isPublic(path))
+            .toList();
         nonPublicPaths.forEach(paths::removePathItem);
 
         pruneUnusedTags(openApi);
@@ -117,15 +114,15 @@ public final class PublicApiFilter implements OASFilter {
         }
 
         final Set<String> usedTags = paths.getPathItems().values().stream()
-                .flatMap(pathItem -> pathItem.getOperations().values().stream())
-                .map(Operation::getTags)
-                .filter(Objects::nonNull)
-                .flatMap(List::stream)
-                .collect(Collectors.toUnmodifiableSet());
+            .flatMap(pathItem -> pathItem.getOperations().values().stream())
+            .map(Operation::getTags)
+            .filter(Objects::nonNull)
+            .flatMap(List::stream)
+            .collect(Collectors.toUnmodifiableSet());
 
         final List<Tag> retainedTags = declaredTags.stream()
-                .filter(tag -> usedTags.contains(tag.getName()))
-                .toList();
+            .filter(tag -> usedTags.contains(tag.getName()))
+            .toList();
         openApi.setTags(retainedTags);
     }
 
@@ -150,8 +147,8 @@ public final class PublicApiFilter implements OASFilter {
         }
 
         final List<String> unused = schemas.keySet().stream()
-                .filter(name -> !used.contains(name))
-                .toList();
+            .filter(name -> !used.contains(name))
+            .toList();
         unused.forEach(components::removeSchema);
     }
 
