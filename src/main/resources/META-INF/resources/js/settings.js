@@ -315,10 +315,12 @@ document.getElementById('theme-options').addEventListener('change', function (e)
 })
 
 // Toggle the page font live when the Font radio changes so the rest of Settings updates
-// instantly (toggling `.font-nova` on <html>, the same class layout.html renders).
+// instantly (setting `.font-nova`/`.font-dyslexic` on <html>, the same classes layout.html
+// renders; 'standard' clears both and falls back to the system stack).
 document.getElementById('prefs-form').addEventListener('change', function (e) {
     if (e.target.name === 'font') {
         document.documentElement.classList.toggle('font-nova', e.target.value === 'nova')
+        document.documentElement.classList.toggle('font-dyslexic', e.target.value === 'dyslexic')
     }
 })
 

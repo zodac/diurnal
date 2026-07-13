@@ -392,9 +392,9 @@
                                  send the checked radio's value. !}
                             <div id="theme-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Theme"
                                  hx-patch="/settings/theme" hx-trigger="change" hx-swap="none" hx-include="#theme-options">
-                                {#include partials/preview-option group="theme" value="system" current=theme imgBase="page-nova-full-system" label="System" title="System theme" alt="Dashboard split diagonally between light and dark themes" /}
-                                {#include partials/preview-option group="theme" value="light"  current=theme imgBase="page-nova-full-light"  label="Light"  title="Light theme"  alt="Dashboard in light mode" /}
-                                {#include partials/preview-option group="theme" value="dark"   current=theme imgBase="page-nova-full-dark"   label="Dark"   title="Dark theme"   alt="Dashboard in dark mode" /}
+                                {#for option in themeOptions}
+                                {#include partials/preview-option group="theme" value=option.value current=theme imgBase=option.previewImage label=option.label title=option.title alt=option.alt /}
+                                {/for}
                             </div>
                         </div>
 
@@ -403,21 +403,21 @@
                             <span class="block text-sm font-medium text-ink mb-3">Calendar style</span>
                             <div id="calendar-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Calendar style"
                                  hx-patch="/settings/calendar-view" hx-trigger="change" hx-swap="none" hx-include="#calendar-options">
-                                {#include partials/preview-option group="calendarView" value="full"    current=calendarView imgBase="cal-nova-full-dark"    label="Full"    title="Full calendar"    alt="Dashboard calendar showing events as text" /}
-                                {#include partials/preview-option group="calendarView" value="minimal" current=calendarView imgBase="cal-nova-minimal-dark" label="Minimal" title="Minimal calendar" alt="Dashboard calendar showing a coloured dot per action" /}
-                                {#include partials/preview-option group="calendarView" value="stacked" current=calendarView imgBase="cal-nova-stacked-dark" label="Stacked" title="Stacked calendar" alt="Dashboard calendar showing horizontal bars per action" /}
+                                {#for option in calendarViewOptions}
+                                {#include partials/preview-option group="calendarView" value=option.value current=calendarView imgBase=option.previewImage label=option.label title=option.title alt=option.alt /}
+                                {/for}
                             </div>
                         </div>
 
-                        {! Font. grid-cols-3 (not -2) keeps each tile the SAME size as the
-                             theme/calendar pickers even though there are only two — the third column
-                             is simply left empty. Last block in the card, so no bottom divider. !}
+                        {! Font. grid-cols-3 matches the theme/calendar pickers' tile size, one column
+                             per option. Last block in the card, so no bottom divider. !}
                         <div>
                             <span class="block text-sm font-medium text-ink mb-3">Font</span>
                             <div id="font-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Font"
                                  hx-patch="/settings/font" hx-trigger="change" hx-swap="none" hx-include="#font-options">
-                                {#include partials/preview-option group="font" value="nova"     current=font imgBase="page-nova-full-dark"     label="Nova"     title="Nova font"     alt="Dashboard shown in the Nova font" /}
-                                {#include partials/preview-option group="font" value="standard" current=font imgBase="page-standard-full-dark" label="Standard" title="Standard font" alt="Dashboard shown in the standard system font" /}
+                                {#for option in fontOptions}
+                                {#include partials/preview-option group="font" value=option.value current=font imgBase=option.previewImage label=option.label title=option.title alt=option.alt /}
+                                {/for}
                             </div>
                         </div>
                     </div>

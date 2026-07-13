@@ -30,7 +30,6 @@ import org.jspecify.annotations.Nullable;
 public record UserSettings(String theme, int pageSize) {
 
     public static final int DEFAULT_PAGE_SIZE = 5;
-    public static final String DEFAULT_THEME = "system";
 
     // Presets offered in the picker; a user may also enter any value in [MIN_PAGE_SIZE, MAX_PAGE_SIZE].
     public static final List<Integer> PAGE_SIZE_OPTIONS = List.of(5, 10, 25, 50, 100);
@@ -39,7 +38,6 @@ public record UserSettings(String theme, int pageSize) {
     // User-facing rejection message when an out-of-range or non-numeric page size is submitted.
     public static final String PAGE_SIZE_RANGE_MESSAGE =
         "Items per page must be a whole number between " + MIN_PAGE_SIZE + " and " + MAX_PAGE_SIZE + ".";
-    public static final List<String> THEME_OPTIONS = List.of("system", "light", "dark");
 
     // Whether the dashboard renders the per-action stats-summary strip.
     public static final boolean DEFAULT_SHOW_STATS_SUMMARY = true;
@@ -54,12 +52,6 @@ public record UserSettings(String theme, int pageSize) {
     // User-facing rejection message when an out-of-range or non-numeric decimal-place count is submitted.
     public static final String DECIMAL_PLACES_RANGE_MESSAGE =
         "Decimal places must be a whole number between " + MIN_DECIMAL_PLACES + " and " + MAX_DECIMAL_PLACES + ".";
-
-    public static final String DEFAULT_CALENDAR_VIEW = "full";
-    public static final List<String> CALENDAR_VIEW_OPTIONS = List.of("full", "minimal", "stacked");
-
-    public static final String DEFAULT_FONT = "nova";
-    public static final List<String> FONT_OPTIONS = List.of("nova", "standard");
 
     // Curated list of common IANA zones offered in Settings. A user whose timezone is null
     // (not one of these) falls back to the server default (app.timezone). The picker orders every
@@ -140,29 +132,6 @@ public record UserSettings(String theme, int pageSize) {
         } catch (final NumberFormatException e) {
             return null;
         }
-    }
-
-    /**
-     * Returns the requested theme if it is an allowed option, else the default.
-     */
-    public static String sanitiseTheme(@Nullable final String requested) {
-        // The allow-lists are List.of(...) (immutable), whose contains(null) throws NPE — so guard
-        // null explicitly. null (an absent form param on a per-setting PATCH) → the default.
-        return requested != null && THEME_OPTIONS.contains(requested) ? requested : DEFAULT_THEME;
-    }
-
-    /**
-     * Returns the requested calendar view if it is an allowed option, else the default.
-     */
-    public static String sanitiseCalendarView(@Nullable final String requested) {
-        return requested != null && CALENDAR_VIEW_OPTIONS.contains(requested) ? requested : DEFAULT_CALENDAR_VIEW;
-    }
-
-    /**
-     * Returns the requested font if it is an allowed option, else the default.
-     */
-    public static String sanitiseFont(@Nullable final String requested) {
-        return requested != null && FONT_OPTIONS.contains(requested) ? requested : DEFAULT_FONT;
     }
 
     /**

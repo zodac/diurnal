@@ -117,7 +117,7 @@ Under `src/main/java/net/zodac/diurnal/`:
 | `log`    | `ActionLog` entity + `LogWebResource` (increment/decrement per day) + `CalendarResource` (`/logs/events` feed)    |
 | `stats`  | `StatsService` + `ActionStats` (data record) + `ActionStatsExtensions` (template extensions) + `ActionStatField` (Stats-page tile catalogue) + `StatTile` (tile view-model) + `StatsWebResource` |
 | `auth`   | `AuthResource` (register/login/logout → session token), `AuthenticationService`, `SessionStore`/`PostgresSessionStore` + `Session` entity + `SessionTokens` + `SessionAuthMechanism` + `SessionIdentityProvider` + `SessionSweeper` |
-| `user`   | `User` entity, `UserResource` (`/api/users/me`), `UserSettings`                                                   |
+| `user`   | `User` entity, `UserResource` (`/api/users/me`), `UserSettings`, and the settings-picker enums `Theme`/`Font`/`CalendarView` (each `implements PreviewOption`) |
 | `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings, theme toggle)            |
 
 ### Authentication
@@ -390,7 +390,7 @@ the dashboard's `full` calendar reads. `start`/`end` are mandatory ISO-8601 date
 
 ### Dashboard calendar (hand-rolled, no library)
 
-All three calendar styles (`full`/`minimal`/`stacked`, `UserSettings.CALENDAR_VIEW_OPTIONS`, default `full`) are drawn by **one** vanilla-JS engine,
+All three calendar styles (`full`/`minimal`/`stacked`, the `CalendarView` enum, default `full`) are drawn by **one** vanilla-JS engine,
 `buildGridCalendar()` in `dashboard.html` — a shared 7×6 / 42-cell, Sunday-first month grid with its own month cache, LRU eviction and idle prefetch (
 `±2` months). There is no FullCalendar (or any) calendar library. `calendarView` only changes (a) which feed `fetchMonth` reads — `full` →
 `/logs/events`, others → `/logs/minimal-events`, both normalised into a uniform `dayData[date] = [{colour, label}]` — and (b) how `renderGrid` paints
@@ -402,12 +402,26 @@ chrome (toolbar, jump picker, day-panel load, the verb-gated `htmx:afterRequest`
 
 ### Typography & Font setting
 
-Two Nova superfamily webfonts served as `woff2` from `src/main/resources/META-INF/resources/fonts/`: **Nova Flat** (body/UI) and **Nova Round** (
-display/headings). `@font-face` blocks in `app.css`.
+Webfonts served as `woff2` from `src/main/resources/META-INF/resources/fonts/`, with `@font-face` blocks in `app.css`: the **Nova** superfamily —
+**Nova Flat** (body/UI) and **Nova Round** (display/headings) — plus **OpenDyslexic** (an SIL-OFL accessibility face; Regular/Bold each with an italic,
+used as both body and display face). Master files live outside `src/` in `assets/Nova/` (`.ttf`) and `assets/OpenDyslexic/` (`.otf` + `OFL.txt`); the
+served `woff2` are generated from them (Nova via the curated masters, OpenDyslexic via fontTools `TTFont(otf).flavor='woff2'`).
 
-Font family is indirect via `--font-body`/`--font-display` CSS variables. The **Font setting** (`User.font`: `nova`|`standard`, default `nova`,
-migration V13) switches them. `layout.html` renders `.font-nova` on `<html>` server-side (`{#if font != 'standard'}`), no FOUC. **`font` must be
-passed to every full-page template** (mirror `theme` 1:1; HTMX day-panel partials need neither).
+Font family is indirect via `--font-body`/`--font-display` CSS variables. The **Font setting** is the `Font` enum (`nova`|`standard`|`dyslexic`,
+default `nova`; column `users.font` is `VARCHAR(16)`, no CHECK, migration V13, so new values need no migration) — the single source of truth for the
+picker, each constant carrying its value + label + preview metadata (see the picker-enum note below). `WebResource.updateFont` coerces the submitted
+value via `Font.from(raw).value()`. `layout.html` renders the class on `<html>` server-side
+(`{#if font == 'dyslexic'}font-dyslexic{#else if font != 'standard'}font-nova{/if}`), no FOUC, and preloads that theme's primary face; `standard`
+renders no class (system sans). The settings picker toggles the same classes live (`settings.js`). **`font` must be passed to every full-page
+template** (mirror `theme` 1:1; HTMX day-panel partials need neither).
+
+**Settings preview-tile pickers (Theme / Font / Calendar style) are enum-driven.** Each is a Java enum (`Theme`, `Font`, `CalendarView`) implementing
+`PreviewOption` (`value`/`label`/`title`/`alt`/`previewImage`), following the `ActionStatField` "single source of truth" pattern. `WebResource` passes
+`X.values()` to `settings.html`, which **loops** the constants into `partials/preview-option.html` (no hardcoded parallel tiles), and each
+`update*` endpoint validates via `X.from(raw).value()` (unknown/`null` → the enum's `DEFAULT`, coercion unit-tested to 100% PIT). The DB columns stay
+`String` (not `@Enumerated`) so a legacy/unknown stored value coerces to the default rather than throwing. To add an option: add a constant (+ its CSS
+class/preview WebP/JS branch) and it appears in the picker automatically — no template change. **Timezone is deliberately NOT an enum** (a curated
+`List<String>` of IANA ids ordered dynamically by offset via `UserSettings.timezoneChoices`).
 
 ### Brand assets
 
@@ -426,11 +440,11 @@ manifest pair), `apple-touch-icon.png` (180px iOS), `manifest.json`.
 Theme, Calendar style, and Font pickers show real dashboard screenshots (via `partials/preview-option.html`). WebP files in
 `src/main/resources/META-INF/resources/img/settings/`, one viewport set (web).
 
-**7 WebP files**, fixed per picker:
+**8 WebP files**, fixed per picker:
 
 - Theme: `page-nova-full-{system,light,dark}.webp`
 - Calendar: `cal-nova-{full,minimal,stacked}-dark.webp`
-- Font: `page-{nova,standard}-full-dark.webp`
+- Font: `page-{nova,standard,dyslexic}-full-dark.webp`
 
 `page-nova-full-dark` is shared by the Theme-dark and Font-nova tiles.
 

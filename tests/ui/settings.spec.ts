@@ -102,6 +102,41 @@ test.describe("Settings page", () => {
         expect(labels).toEqual(["System", "Light", "Dark"])
     })
 
+    test("font picker offers exactly Nova, Standard, and OpenDyslexic tiles", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        const values = await page.locator('input[name="font"]').evaluateAll(
+            els => els.map(e => (e as HTMLInputElement).value))
+        expect(values).toEqual(["nova", "standard", "dyslexic"])
+        const labels = await page.locator('[role="radiogroup"][aria-label="Font"] .preview-label').allInnerTexts()
+        expect(labels).toEqual(["Nova", "Standard", "OpenDyslexic"])
+    })
+
+    test("select OpenDyslexic font applies font-dyslexic and persists across reload", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        await selectTile(page, "font", "dyslexic")
+        // Live toggle sets the class immediately (before any reload).
+        await expect(page.locator("html")).toHaveClass(/font-dyslexic/)
+
+        await page.reload()
+        await expect(page.locator("html")).toHaveClass(/font-dyslexic/)
+        await expect(page.locator("html")).not.toHaveClass(/font-nova/)
+        await expect(page.locator('input[name="font"][value="dyslexic"]')).toBeChecked()
+    })
+
+    test("select Standard font clears font-dyslexic and font-nova", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        await selectTile(page, "font", "dyslexic")
+        await page.reload()
+
+        await page.goto("/settings")
+        await selectTile(page, "font", "standard")
+
+        await page.reload()
+        await expect(page.locator("html")).not.toHaveClass(/font-dyslexic/)
+        await expect(page.locator("html")).not.toHaveClass(/font-nova/)
+        await expect(page.locator('input[name="font"][value="standard"]')).toBeChecked()
+    })
+
     test("change page size to 25 via preset pill persists", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
         await establishNumericPref(page, "pageSizePresets", "pageSize", "25")

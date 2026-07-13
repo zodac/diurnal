@@ -26,7 +26,9 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
+import net.zodac.diurnal.user.Font;
 import net.zodac.diurnal.user.Role;
+import net.zodac.diurnal.user.Theme;
 
 /**
  * Renders the styled 403 page (instead of the default JSON error) when access is denied.
@@ -53,8 +55,8 @@ public class ForbiddenExceptionMapper implements ExceptionMapper<ForbiddenExcept
         }
         return Response.status(Response.Status.FORBIDDEN)
                 .entity(errorTemplate
-                        .data("theme", "system")
-                        .data("font", "nova")
+                        .data("theme", Theme.DEFAULT.value())
+                        .data("font", Font.DEFAULT.value())
                         .data("displayName", displayName)
                         .data("isAdmin", isAdmin))
                 .type(MediaType.TEXT_HTML_TYPE)

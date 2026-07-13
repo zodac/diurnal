@@ -18,10 +18,10 @@
  *
  * WHAT IT PRODUCES
  * ----------------
- * 7 WebP files (web/desktop viewport only):
- *   page-nova-full-{light,dark,system}.webp  — Theme picker (Nova font, Full calendar)
- *   cal-nova-{full,minimal,stacked}-dark.webp — Calendar picker (Nova font, dark)
- *   page-{nova,standard}-full-dark.webp      — Font picker (Full calendar, dark)
+ * 8 WebP files (web/desktop viewport only):
+ *   page-nova-full-{light,dark,system}.webp       — Theme picker (Nova font, Full calendar)
+ *   cal-nova-{full,minimal,stacked}-dark.webp      — Calendar picker (Nova font, dark)
+ *   page-{nova,standard,dyslexic}-full-dark.webp   — Font picker (Full calendar, dark)
  *
  * Note: page-nova-full-dark is shared between the Theme-dark tile and the Font-nova tile.
  *
@@ -268,6 +268,7 @@ async function compositeSystem(browser, { lightBuf, darkBuf, out }) {
 //   cal-nova-minimal-dark   — Calendar-minimal tile
 //   cal-nova-stacked-dark   — Calendar-stacked tile
 //   page-standard-full-dark — Font-standard tile
+//   page-dyslexic-full-dark — Font-OpenDyslexic tile
 //   page-nova-full-system   — Theme-system tile (composite of light + dark PNGs)
 async function captureAll(ctx, browser) {
   // Nova, full, light → Theme-light tile; store PNG for system composite
@@ -300,6 +301,12 @@ async function captureAll(ctx, browser) {
   const stdPage = await openDashboard(ctx, 'full')
   await shotFullPage(stdPage, 'page-standard-full-dark.webp')
   await stdPage.close()
+
+  // OpenDyslexic, full, dark → Font-dyslexic tile
+  await setPrefs(ctx, 'dark', 'full', 'dyslexic')
+  const dysPage = await openDashboard(ctx, 'full')
+  await shotFullPage(dysPage, 'page-dyslexic-full-dark.webp')
+  await dysPage.close()
 
   // System composite (light upper-left, dark lower-right) → Theme-system tile
   await compositeSystem(browser, { lightBuf, darkBuf, out: 'page-nova-full-system.webp' })

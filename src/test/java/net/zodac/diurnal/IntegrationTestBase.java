@@ -47,8 +47,7 @@ import org.junit.jupiter.api.BeforeEach;
  * CDI bean-lookup to fail when it tries to resolve the abstract class itself. Inheritance of @Inject fields still works correctly once the concrete
  * class is annotated.
  */
-@SuppressWarnings("PMD.AbstractClassWithoutAbstractMethod") // base for QuarkusTest subclasses; intentionally abstract
-public abstract class IntegrationTestBase {
+public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstractMethod - base for QuarkusTest subclasses; intentionally abstract
 
     // Minimal-cost Argon2id, matching the cheap parameters pinned in application-test.properties — safe
     // for tests and fast enough not to slow the suite. Kept in sync so a seeded user's hash already

@@ -67,8 +67,11 @@ import net.zodac.diurnal.config.SessionConfig;
 import net.zodac.diurnal.stats.ActionStatField;
 import net.zodac.diurnal.stats.StatsService;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.user.CalendarView;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.Font;
 import net.zodac.diurnal.user.Role;
+import net.zodac.diurnal.user.Theme;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.user.UserSettings;
 import org.apache.logging.log4j.LogManager;
@@ -79,12 +82,8 @@ import org.jspecify.annotations.Nullable;
 /**
  * Serves the top-level web UI pages: login, register, logout, settings and the dashboard.
  */
-// This is the app's single web-page controller: many injected collaborators (templates, config,
-// session + auth services) are inherent to that role rather than a design smell, so the field count
-// rule is suppressed here in the same spirit as the wide User entity.
 @Path("/")
-@SuppressWarnings("PMD.TooManyFields")
-public class WebResource {
+public class WebResource { // NOPMD: TooManyFields - single web-page controller; injected collaborators are inherent to the role
 
     private static final Logger LOGGER = LogManager.getLogger(WebResource.class);
 
@@ -211,8 +210,8 @@ public class WebResource {
         final Duration lockoutRemaining = lockoutRemaining(lockoutCookie);
         final boolean showError = error != null && !"false".equals(error) && !showOidcError && !showLocked;
         final Response.ResponseBuilder builder = Response.ok(loginTemplate
-            .data("error", showError, "registered", registered, "theme", "system")
-            .data("font", "nova")
+            .data("error", showError, "registered", registered, "theme", Theme.DEFAULT.value())
+            .data("font", Font.DEFAULT.value())
             .data("locked", showLocked)
             .data("lockedMessage", LockoutMessages.retryMessage(lockoutRemaining))
             .data("oidcError", showOidcError)
@@ -372,7 +371,7 @@ public class WebResource {
         if (!setupRequired() || !passwordAuthConfig.enabled()) {
             return Response.seeOther(URI.create("/login")).build();
         }
-        return Response.ok(setupTemplate.data("theme", "system").data("font", "nova")).build();
+        return Response.ok(setupTemplate.data("theme", Theme.DEFAULT.value()).data("font", Font.DEFAULT.value())).build();
     }
 
     // ── Register ───────────────────────────────────────────────────────────
@@ -518,8 +517,8 @@ public class WebResource {
                 .data("errors", errors)
                 .data("setup", setupRequired())
                 .data("registrationDisabled", false)
-                .data("theme", "system")
-                .data("font", "nova")
+                .data("theme", Theme.DEFAULT.value())
+                .data("font", Font.DEFAULT.value())
                 .data("maxPasswordLength", PasswordConstraints.MAX_LENGTH)
                 .data("passwordConstraints", PasswordConstraints.all());
     }
@@ -528,8 +527,8 @@ public class WebResource {
         return registerTemplate
                 .data("registrationDisabled", true)
                 .data("setup", false)
-                .data("theme", "system")
-                .data("font", "nova");
+                .data("theme", Theme.DEFAULT.value())
+                .data("font", Font.DEFAULT.value());
     }
 
     private boolean setupRequired() {
@@ -606,7 +605,7 @@ public class WebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateTheme(@FormParam("theme") final String theme) {
-        final String value = UserSettings.sanitiseTheme(theme);
+        final String value = Theme.from(theme).value();
         return updateSetting("Theme", value, user -> user.theme = value);
     }
 
@@ -619,7 +618,7 @@ public class WebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateFont(@FormParam("font") final String font) {
-        final String value = UserSettings.sanitiseFont(font);
+        final String value = Font.from(font).value();
         return updateSetting("Font", value, user -> user.font = value);
     }
 
@@ -632,7 +631,7 @@ public class WebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateCalendarView(@FormParam("calendarView") final String calendarView) {
-        final String value = UserSettings.sanitiseCalendarView(calendarView);
+        final String value = CalendarView.from(calendarView).value();
         return updateSetting("Calendar view", value, user -> user.calendarView = value);
     }
 
@@ -886,10 +885,10 @@ public class WebResource {
                 .data("showStatsSummary", user.showStatsSummary)
                 .data("decimalPlaces", user.decimalPlaces)
                 .data("decimalPlacesOptions", UserSettings.DECIMAL_PLACES_OPTIONS)
-                .data("themeOptions", UserSettings.THEME_OPTIONS)
-                .data("fontOptions", UserSettings.FONT_OPTIONS)
+                .data("themeOptions", Theme.values())
+                .data("fontOptions", Font.values())
                 .data("calendarView", user.calendarView)
-                .data("calendarViewOptions", UserSettings.CALENDAR_VIEW_OPTIONS)
+                .data("calendarViewOptions", CalendarView.values())
                 .data("statsFieldChoices", ActionStatField.choices(user.statsFields))
                 .data("timezoneChoices",
                         UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone));

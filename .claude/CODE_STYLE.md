@@ -212,6 +212,41 @@ ADMIN(Values.ADMIN, "Administrator"),
 USER(Values.USER, "User");
 ```
 
+### Suppress PMD rules with a `NOPMD:` line comment, never `@SuppressWarnings`
+
+When a PMD rule fires on code that is deliberately the way it is, suppress it with a **line comment** in the exact form:
+
+```
+// NOPMD: <RuleName> - <one-line reason>
+```
+
+**Never** use `@SuppressWarnings("PMD.<RuleName>")` for PMD rules. The `NOPMD` comment keeps the justification on the offending line (PMD records the reason in its report), reads without an extra annotation, and is the form the codebase already uses.
+
+Rules:
+
+- `<RuleName>` is the **bare** PMD rule name — `DataClass`, `TooManyFields`, `AvoidLiteralsInIfCondition` — **not** the `PMD.`-prefixed form.
+- The comment sits on the **line PMD reports the violation**. For a class/type-level rule (`DataClass`, `TooManyFields`, `AbstractClassWithoutAbstractMethod`, …) that is the **type-declaration line**, so the marker trails the `class`/`enum`/`interface` declaration — not an annotation line above it.
+- The reason is a **single concise line** stating why the rule legitimately does not apply. If the "why" needs more than a line, it belongs in the type's Javadoc; keep the marker's reason short.
+- The whole line still obeys the 150-char limit — shorten the reason (or the type's other content) rather than wrapping.
+
+❌ **Wrong** — the `@SuppressWarnings` annotation form:
+
+```java
+// This entity legitimately has many columns…
+@Entity
+@SuppressWarnings("PMD.TooManyFields")
+public class User extends PanacheEntityBase {
+```
+
+✅ **Right** — a trailing `NOPMD:` marker on the declaration line:
+
+```java
+@Entity
+public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA entity; every mapped column is a field
+```
+
+(This applies to **PMD** only. `@SuppressWarnings` is still correct for non-PMD tools — e.g. `@SuppressWarnings("unchecked")` for the compiler.)
+
 ### AssertJ assertions must be fluent-chained across multiple lines
 
 Place `assertThat(...)` and **each** chained call on its own line. Continuation lines are indented **4 spaces**; the terminating `;` stays on the final chained call.
