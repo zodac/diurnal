@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# Self-contained deployment-smoke runner, invoked from the `deployment-smoke` exec execution in
-# pom.xml (the `-Dall` profile), bound to the `install` phase alongside `e2e-run`. Where run-e2e.sh
+# Self-contained deployment-smoke runner, invoked as the second step of the `e2e-then-smoke` exec
+# execution in pom.xml (the `-Dall` profile), bound to the `install` phase. Where run-e2e.sh
 # exercises the packaged fast-jar on a full JDK, THIS script exercises the REAL production Docker
 # image (built from the Dockerfile) so the suite catches bugs that live only in the distroless /
 # jlink / non-root runtime — e.g. a missing jlink module (see the java.rmi incident), non-root write
@@ -13,14 +13,14 @@
 # the whole stack down — on success OR failure — and the script exits with Playwright's own exit
 # code, so a failing smoke run fails the Maven build.
 #
-# Ordering note: this script and run-e2e.sh are the two exec executions in the `install` phase.
-# sortpom reorders executions, so their relative order is NOT guaranteed — they are deliberately
-# order-independent (disjoint ports, disjoint compose projects/DBs, each self-cleaning, each failing
-# the build on its own). Never make one depend on the other running first.
+# Ordering note: run-e2e.sh and this script are chained (`&&`) inside the single `e2e-then-smoke`
+# exec, so this one runs strictly after — and only if — the E2E tier passed. They are still kept
+# fully independent (disjoint ports, disjoint compose projects/DBs, each self-cleaning, each failing
+# the build on its own), so running either alone is always safe.
 #
 # Args (passed positionally from the exec plugin so Maven properties resolve in the POM, not here):
 #   $1  host port to publish the app on (= Playwright base-URL port)
-#   $2  Maven ${project.basedir} (project root; holds the Dockerfile, the compose file and e2e/)
+#   $2  Maven ${project.basedir} (project root; holds the Dockerfile; the compose file and suite live in tests/)
 #
 # Readiness/Playwright use 127.0.0.1 (not 'localhost') because Node may otherwise resolve localhost
 # to IPv6 ::1 while the published port binds IPv4.
@@ -30,7 +30,7 @@ set -eu
 PORT="$1"
 BASEDIR="$2"
 
-COMPOSE_FILE="${BASEDIR}/docker-compose.smoke.yml"
+COMPOSE_FILE="${BASEDIR}/tests/docker-compose.smoke.yml"
 PROJECT="diurnal-smoke"
 
 cleanup() {
@@ -60,5 +60,5 @@ SMOKE_PORT="${PORT}" docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" \
 
 # Run the smoke suite against the live container; its exit code becomes the script's (cleanup runs
 # via the EXIT trap regardless), so a non-zero result fails the Maven build.
-(cd "${BASEDIR}/e2e" && BASE_URL="http://127.0.0.1:${PORT}" \
+(cd "${BASEDIR}/tests" && BASE_URL="http://127.0.0.1:${PORT}" \
   npx playwright test --config playwright.smoke.config.ts)

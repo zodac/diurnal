@@ -1,6 +1,6 @@
 # UI Patterns & Conventions
 
-Rules for templates (`src/main/resources/templates/`), the CSS source (`src/main/css/app.css`) and
+Rules for templates (`src/main/resources/templates/`), the CSS source (`frontend/css/app.css`) and
 front-end markup in general. Complements `CODE_STYLE.md` (Java) and the architecture notes in
 `CLAUDE.md`. Read this before writing or editing any template or CSS.
 
@@ -37,7 +37,7 @@ times**, or when it names a real design-system concept (button, card, field, bad
   `layout.html`'s inline script are the one documented exception).
 - One-off layout tweaking (margins, flex direction, gaps) stays as inline utilities on the
   element; component classes carry the *identity* of the element, utilities carry its *placement*.
-- Rebuild with `npm run css` after any class change, or the class gets purged.
+- Rebuild with `npm --prefix frontend run css` after any class change, or the class gets purged.
 
 ### Icons
 
@@ -64,7 +64,7 @@ decorative (`aria-hidden`) — the host control carries the accessible name. The
 - **Ids are API surface.** They are referenced from committed JS (`/js/*.js`), from Java
   (`HX-Retarget` headers, hx-target strings built in resources), and from Playwright specs.
   Renaming one is a coordinated change: grep `templates/`, `META-INF/resources/js/`,
-  `src/main/java/`, and `e2e/` before touching it, and update all in the same commit.
+  `src/main/java/`, and `tests/` before touching it, and update all in the same commit.
 
 ## 3. Page scaffolding
 

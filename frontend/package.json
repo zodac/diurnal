@@ -1,0 +1,19 @@
+{
+  "name": "diurnal-css",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Tailwind CSS build for the Diurnal UI (compiled to ../src/main/resources/META-INF/resources/css/app.css and served at /css/app.css).",
+  "scripts": {
+    "css": "tailwindcss -i ./css/app.css -o ../src/main/resources/META-INF/resources/css/app.css --minify",
+    "css:watch": "tailwindcss -i ./css/app.css -o ../src/main/resources/META-INF/resources/css/app.css --watch",
+    "vendor": "node ../scripts/vendor-assets.cjs",
+    "js:min": "esbuild ../src/main/resources/META-INF/resources/js/app.js ../src/main/resources/META-INF/resources/js/dashboard.js ../src/main/resources/META-INF/resources/js/settings.js ../src/main/resources/META-INF/resources/js/actions.js ../src/main/resources/META-INF/resources/js/admin-users.js ../src/main/resources/META-INF/resources/js/admin-api-docs.js --minify --charset=utf8 --allow-overwrite --outdir=../src/main/resources/META-INF/resources/js",
+    "brand": "python3 ../scripts/generate-brand.py && node ../scripts/generate-favicons.cjs && npm run css"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "4.3.2",
+    "esbuild": "0.28.1",
+    "htmx.org": "2.0.10",
+    "tailwindcss": "4.3.2"
+  }
+}

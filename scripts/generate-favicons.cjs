@@ -8,7 +8,7 @@
  * The source is the served favicon.svg — itself generated from the brand font by
  * scripts/generate-brand.py (run that FIRST if the mark changed). This script only rasterises it:
  * it writes the PNG/ICO favicons next to it in the served static web root
- * (src/main/resources/META-INF/resources/img/), mirroring how the CSS is compiled from src/main/css
+ * (src/main/resources/META-INF/resources/img/), mirroring how the CSS is compiled from frontend/css
  * into resources/css. Re-run it whenever favicon.svg changes; then review and commit the regenerated
  * files. Nothing references them by anything but name. (It does NOT touch favicon.svg/wordmark.svg —
  * those committed SVGs are the source of truth, owned by generate-brand.py.)

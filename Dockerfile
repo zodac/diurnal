@@ -8,18 +8,20 @@
 # stage so the Node toolchain never reaches the build or runtime images; the build stage copies the
 # outputs in below.
 FROM node:26.5.0-alpine AS css
-WORKDIR /css
-COPY package.json package-lock.json ./
+# Mirror the repo layout (frontend/ next to src/ and scripts/) so the npm scripts' relative
+# ../src and ../scripts paths resolve exactly as they do in the working tree.
+WORKDIR /css/frontend
+COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
-COPY tailwind.config.js ./
-COPY scripts/vendor-assets.cjs ./scripts/
-COPY src/main/css ./src/main/css
-COPY src/main/resources/templates ./src/main/resources/templates
-COPY src/main/java ./src/main/java
+COPY frontend/tailwind.config.js ./
+COPY frontend/css ./css
+COPY scripts/vendor-assets.cjs /css/scripts/
+COPY src/main/resources/templates /css/src/main/resources/templates
+COPY src/main/java /css/src/main/java
 # The served front-end scripts add Tailwind utility classes at runtime (e.g. classList.add('opacity-100')),
 # so Tailwind must scan them here too or those utilities are purged from the image's stylesheet and the
 # class silently does nothing (the committed *.js only — htmx.min.js is vendored by `npm run vendor` below).
-COPY src/main/resources/META-INF/resources/js ./src/main/resources/META-INF/resources/js
+COPY src/main/resources/META-INF/resources/js /css/src/main/resources/META-INF/resources/js
 RUN npm run css && npm run vendor && npm run js:min
 
 # ── Stage 2: generate the favicon raster assets ──────────────────────────────

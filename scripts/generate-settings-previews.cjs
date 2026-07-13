@@ -31,7 +31,7 @@
  *        docker compose -f docker-compose.dev.yml up -d dev-db
  *        mvn quarkus:dev
  *   2. Playwright's browser binaries (already installed for the e2e suite):
- *        cd e2e && npx playwright install
+ *        cd tests && npx playwright install
  *
  * USAGE
  * -----
@@ -46,8 +46,8 @@ const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const { execFileSync, execSync } = require('child_process')
-// Reuse Playwright from the e2e workspace so this script needs no dependencies of its own.
-const { chromium } = require(path.join(__dirname, '..', 'e2e', 'node_modules', 'playwright'))
+// Reuse Playwright from the tests/ workspace so this script needs no dependencies of its own.
+const { chromium } = require(path.join(__dirname, '..', 'tests', 'node_modules', 'playwright'))
 
 
 const BASE = process.env.BASE_URL || 'http://localhost:8081'

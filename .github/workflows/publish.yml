@@ -8,10 +8,9 @@ on:
     paths:
       - 'Dockerfile'
       - 'pom.xml'
-      - 'package.json'
+      - 'frontend/**' # the npm manifest, Tailwind config and CSS source all feed the image's stylesheet
       - 'src/**'
       - '!src/test/**' # test code never reaches the published image (packaged with -DskipTests)
-      - 'tailwind.config.js'
       - 'VERSION'
   workflow_dispatch: # allows manual trigger
 
@@ -78,8 +77,9 @@ jobs:
           java-version: '26'
           maven-version: '3.9.16'
 
-      # Node deps: the POM's css-build exec runs `npm run css`; the E2E run uses e2e/ deps + browsers.
+      # Node deps: the POM's css-build exec runs `npm run css` in frontend/; the E2E run uses tests/ deps + browsers.
       - name: Install CSS build dependencies
+        working-directory: frontend
         run: npm ci
 
       # Cache the downloaded Playwright browser binaries (the slow part). Keyed on the E2E lockfile so a
@@ -90,12 +90,12 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: ${{ runner.os }}-playwright-${{ hashFiles('e2e/package-lock.json') }}
+          key: ${{ runner.os }}-playwright-${{ hashFiles('tests/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-playwright-
 
       - name: Install E2E dependencies and browsers
-        working-directory: e2e
+        working-directory: tests
         run: |
           npm ci
           if [ "${{ steps.playwright-cache.outputs.cache-hit }}" = "true" ]; then
