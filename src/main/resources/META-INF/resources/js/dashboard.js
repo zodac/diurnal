@@ -352,15 +352,31 @@ document.addEventListener('DOMContentLoaded', function () {
             delete monthLoaded[key]
         }
 
-        // Evict the oldest RESOLVED months until at most CACHE_LIMIT remain resident. In-flight months
-        // (touched but not yet loaded) are skipped — they get trimmed once they resolve and re-run this.
+        // The current month and its two neighbours are PINNED: never evicted, regardless of recency. The
+        // 'Today' button snaps straight back to the current month (whose grid also spills into ±1), so those
+        // three are the months most likely to be revisited — keeping them resident makes that jump instant
+        // even after the user has hopped far enough away to LRU-evict everything else.
+        const prevMonth = stepMonth(todayYear, todayMonth, -1)
+        const nextMonth = stepMonth(todayYear, todayMonth,  1)
+        const PINNED_MONTHS = [
+            monthKey(prevMonth[0], prevMonth[1]),
+            monthKey(todayYear, todayMonth),
+            monthKey(nextMonth[0], nextMonth[1])
+        ]
+
+        // Evict the oldest RESOLVED, non-pinned month until at most CACHE_LIMIT remain resident. In-flight
+        // months (touched but not yet loaded) and the pinned current-month window are skipped — the former
+        // get trimmed once they resolve and re-run this; the latter stay resident for life. Pinned months
+        // still count toward `resident`, so the cap bounds total memory either way.
         function evictIfNeeded() {
             let resident = 0, i
             for (i = 0; i < lru.length; i++) { if (monthLoaded[lru[i]]) { resident++ } }
             while (resident > CACHE_LIMIT) {
                 let idx = -1
-                for (i = 0; i < lru.length; i++) { if (monthLoaded[lru[i]]) { idx = i; break } }
-                if (idx === -1) { break }
+                for (i = 0; i < lru.length; i++) {
+                    if (monthLoaded[lru[i]] && PINNED_MONTHS.indexOf(lru[i]) === -1) { idx = i; break }
+                }
+                if (idx === -1) { break }                          // nothing left but pinned months
                 const key = lru[idx]
                 lru.splice(idx, 1)
                 dropMonth(key)
