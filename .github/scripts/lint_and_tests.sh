@@ -163,17 +163,22 @@ run_grype() {
     # a package.json / JS-dependency change alters nothing here and is deliberately NOT a grype trigger.
     #
     # The grype run reads the just-built local image via the mounted Docker socket, and the repo as the
-    # working dir so the two -c config paths resolve. Order is load-bearing: across multiple -c files
+    # working dir so the -c config paths resolve. Order is load-bearing: across multiple -c files
     # grype lets the FIRST file win every scalar key (verified empirically — later files do NOT override
     # earlier scalars), while ignore lists from all files are appended. So the project-level .grype.yaml
     # is passed FIRST (its log level / fail-on-severity / etc. take precedence), and the shared
     # code-quality-config submodule config SECOND to supply the common won't-fix ignore list plus any
-    # scalar the project doesn't set. The vulnerability DB is persisted in a named Docker volume (mounted
+    # scalar the project doesn't set. The project-level .grype.yaml is OPTIONAL — a project that needs no
+    # overrides can rely on the submodule config alone, so it is only added when the file exists (keeping
+    # its FIRST position when present). The vulnerability DB is persisted in a named Docker volume (mounted
     # at /grype-db, pointed at by GRYPE_DB_CACHE_DIR) so it survives the --rm and is not re-downloaded
     # every run — grype only
     # re-pulls it when the cached copy is stale. The volume is auto-created by `docker run -v` on first
     # use; nothing lands in the working tree.
     local build_cmd=(docker build -t "${DIURNAL_RUNTIME_IMAGE}" -f Dockerfile .)
+    local grype_config_args=()
+    [[ -f .grype.yaml ]] && grype_config_args+=(-c .grype.yaml)
+    grype_config_args+=(-c code-quality-config/docker/.grype.yaml)
     local grype_cmd=(docker run --rm
         -v /var/run/docker.sock:/var/run/docker.sock
         -v "${PWD}":/app
@@ -181,8 +186,7 @@ run_grype() {
         -e GRYPE_DB_CACHE_DIR=/grype-db
         -w /app
         "${GRYPE_DOCKER_IMAGE}"
-        -c .grype.yaml
-        -c code-quality-config/docker/.grype.yaml
+        "${grype_config_args[@]}"
         "${DIURNAL_RUNTIME_IMAGE}")
 
     # Verbose streams the build and scan live (the scan is slow and, on a cold DB, downloads ~1.6GB —
