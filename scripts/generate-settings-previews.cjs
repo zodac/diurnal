@@ -1,29 +1,36 @@
 #!/usr/bin/env node
 /* eslint-disable no-console -- CLI build script: progress output to the console is intended */
 /**
- * Regenerates the Settings page preview thumbnails — the scaled-down dashboard screenshots shown
- * for the Theme, Calendar-style, and Font pickers (see settings.html → partials/preview-option.html).
+ * Regenerates two sets of committed screenshots, both from the same seeded demo account:
+ *
+ *   1. The Settings page preview thumbnails — the scaled-down dashboard screenshots shown for the
+ *      Theme, Calendar-style, and Font pickers (see settings.html → partials/preview-option.html),
+ *      written to src/main/resources/META-INF/resources/img/settings/.
+ *   2. The README page screenshots (Actions / Stats / Admin / Settings), written to docs/screenshots/.
  *
  * WHEN TO RUN THIS
  * ----------------
- * These WebP files are committed assets (src/main/resources/META-INF/resources/img/settings/). They
- * are NOT rebuilt by the app or the Maven/Docker build — they only change when you re-run this
- * script. Re-run it whenever the dashboard's appearance changes in a way the previews should
- * reflect, e.g.:
+ * These WebP files are committed assets. They are NOT rebuilt by the app or the Maven/Docker build —
+ * they only change when you re-run this script. Re-run it whenever the relevant page's appearance
+ * changes in a way the screenshots should reflect, e.g.:
  *   - the calendar (full / minimal / stacked) markup or styling changes,
  *   - the light/dark colour tokens or overall dashboard chrome change,
- *   - the navbar / day-panel / layout on the dashboard changes.
- * Afterwards just review and commit the WebP files. Nothing else needs to change — settings.html
- * references the files by name.
+ *   - the navbar / day-panel / layout changes,
+ *   - the Actions / Stats / Admin / Settings pages change (for the README shots).
+ * Afterwards just review and commit the WebP files. Nothing else needs to change — settings.html and
+ * the README reference the files by name.
  *
  * WHAT IT PRODUCES
  * ----------------
- * 8 WebP files (web/desktop viewport only):
+ * Settings picker thumbnails — 8 WebP files (web/desktop viewport only), in img/settings/:
  *   page-nova-full-{light,dark,system}.webp       — Theme picker (Nova font, Full calendar)
  *   cal-nova-{full,minimal,stacked}-dark.webp      — Calendar picker (Nova font, dark)
  *   page-{nova,standard,dyslexic}-full-dark.webp   — Font picker (Full calendar, dark)
+ *   (page-nova-full-dark is shared between the Theme-dark tile and the Font-nova tile.)
  *
- * Note: page-nova-full-dark is shared between the Theme-dark tile and the Font-nova tile.
+ * README page screenshots — 4 WebP files, in docs/screenshots/, all captured in the SAME fixed
+ * configuration (dark mode, Full calendar, Nova font, default stats order):
+ *   {actions,stats,admin,settings}-dark.webp
  *
  * PREREQUISITES
  * -------------
@@ -38,20 +45,37 @@
  *   node scripts/generate-settings-previews.cjs            # against http://localhost:8081
  *   BASE_URL=http://localhost:8080 node scripts/generate-settings-previews.cjs
  *
- * The script is self-contained: it registers a dedicated demo user, seeds a fixed set of actions
- * and logs over HTTP (idempotent — safe to re-run), then drives a headless browser to capture each
- * configuration. It does NOT touch the database directly, so it works against any running instance.
+ * The script registers a dedicated demo user, seeds a fixed set of actions and logs over HTTP
+ * (idempotent — safe to re-run), then drives a headless browser to capture each configuration. The
+ * ONE exception to being HTTP-only: it connects to the dev DB (same config as tests/helpers/db.ts,
+ * env-overridable) solely to grant the demo user the administrator role for the Admin-page shot —
+ * there is no HTTP endpoint for that.
  */
 const path = require('path')
 const fs = require('fs')
 const os = require('os')
 const { execFileSync, execSync } = require('child_process')
-// Reuse Playwright from the tests/ workspace so this script needs no dependencies of its own.
+// Reuse Playwright (and pg) from the tests/ workspace so this script needs no dependencies of its own.
 const { chromium } = require(path.join(__dirname, '..', 'tests', 'node_modules', 'playwright'))
+const { Client } = require(path.join(__dirname, '..', 'tests', 'node_modules', 'pg'))
 
 
 const BASE = process.env.BASE_URL || 'http://localhost:8081'
 const OUT = path.join(__dirname, '..', 'src', 'main', 'resources', 'META-INF', 'resources', 'img', 'settings')
+// README page screenshots (Actions / Stats / Admin / Settings) — NOT app-served assets, so they live
+// under docs/ rather than the packaged resources, keeping the Docker image lean.
+const SHOTS = path.join(__dirname, '..', 'docs', 'screenshots')
+
+// Direct DB access, used ONLY to promote the demo user to an administrator for the Admin-page
+// screenshot (there is no HTTP endpoint to grant the admin role). Mirrors tests/helpers/db.ts — same
+// dev DB, same env overrides. Everything else in this script is still driven purely over HTTP.
+const DB_CONFIG = {
+  host: process.env.TEST_DB_HOST || 'localhost',
+  port: Number(process.env.TEST_DB_PORT || 5432),
+  user: process.env.TEST_DB_USER || 'diurnal_user',
+  password: process.env.TEST_DB_PASSWORD || 'diurnal_password',
+  database: process.env.TEST_DB_NAME || 'diurnal_db',
+}
 // Web capture viewport (full-page/element shots ignore the height). The width is deliberately wide
 // enough that `.page-container` (width:75%, capped at --page-max-width = 1280px) reaches its cap, so
 // the previews show the true widest desktop layout. At a narrower viewport the column shrinks and the
@@ -76,6 +100,16 @@ const ACTIONS = [
   { name: 'Water',    colour: '#f59e0b', count: 3, daysAgo: [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] },
 ]
 
+// Extra accounts registered only to populate the Admin-page user table so its screenshot shows a
+// realistic list (the demo user alone would be a one-row table). All plain 'user' role; the demo
+// user above is the sole administrator (promoted via the DB below).
+const ADMIN_DEMO_USERS = [
+  { email: 'alex.rivera@diurnal.local',  password: 'preview_demo123', displayName: 'Alex Rivera' },
+  { email: 'sam.chen@diurnal.local',     password: 'preview_demo123', displayName: 'Sam Chen' },
+  { email: 'jordan.blake@diurnal.local', password: 'preview_demo123', displayName: 'Jordan Blake' },
+  { email: 'priya.nair@diurnal.local',   password: 'preview_demo123', displayName: 'Priya Nair' },
+]
+
 const pad = n => String(n).padStart(2, '0')
 
 // `base` minus `n` calendar days as a UTC `YYYY-MM-DD` string (n may be negative for future days).
@@ -85,11 +119,52 @@ const dateMinusDays = (base, n) => {
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
 }
 
+// ── Direct DB access (admin promotion only) ──────────────────────────────────────────────────────
+
+// The users.role storage value for an administrator (net.zodac.diurnal.user.Role.Values.ADMIN),
+// mirrored from tests/helpers/db.ts — a fixed schema contract, interpolated so the SQL string stays
+// single-quoted.
+const ROLE_ADMIN = 'admin'
+
+async function withDb(fn) {
+  const client = new Client(DB_CONFIG)
+  await client.connect()
+  try { return await fn(client) }
+  finally { await client.end() }
+}
+
+// Grant the demo user the administrator role so the Admin page is reachable. Roles are read live per
+// request (SessionIdentityProvider), so this takes effect on the already-authenticated session with no
+// re-login. Deliberately does NOT demote any other admin — the least-invasive write against a dev DB.
+async function promoteDemoUserToAdmin() {
+  const res = await withDb(c => c.query(`UPDATE users SET role = '${ROLE_ADMIN}' WHERE email = $1`, [USER.email]))
+  if (res.rowCount === 0) {throw new Error(`promoteDemoUserToAdmin: no user found with email ${USER.email}`)}
+  console.log('promoted demo user to admin')
+}
+
+// Emails (lower-cased) already present in the users table, so re-runs don't re-POST /register for
+// existing accounts — a duplicate registration is a *failed* attempt that feeds the per-IP throttle.
+async function existingEmails(emails) {
+  return withDb(async c => {
+    const res = await c.query('SELECT email FROM users WHERE email = ANY($1)', [emails.map(e => e.toLowerCase())])
+    return new Set(res.rows.map(r => r.email.toLowerCase()))
+  })
+}
+
 // ── Seeding (over HTTP, via the logged-in browser-context cookies) ───────────────────────────────
 
 async function registerDemoUser(ctx) {
   // Idempotent: a 409 (already registered) is expected on re-runs and ignored.
   await ctx.request.post(`${BASE  }/api/auth/register`, { data: USER }).catch(() => {})
+}
+
+// Register the extra Admin-table demo accounts, skipping any that already exist (see existingEmails).
+async function registerAdminDemoUsers(ctx) {
+  const have = await existingEmails(ADMIN_DEMO_USERS.map(u => u.email))
+  for (const user of ADMIN_DEMO_USERS) {
+    if (have.has(user.email.toLowerCase())) {continue}
+    await ctx.request.post(`${BASE}/api/auth/register`, { data: user }).catch(() => {})
+  }
 }
 
 async function login(ctx) {
@@ -127,6 +202,8 @@ async function existingLogKeys(ctx, start, end) {
 
 async function seed(ctx) {
   await registerDemoUser(ctx)
+  await registerAdminDemoUsers(ctx)
+  await promoteDemoUserToAdmin()
   await login(ctx)
 
   const now = new Date()
@@ -230,6 +307,19 @@ async function shotCalendar(page, file) {
   console.log('wrote', file)
 }
 
+// README page screenshot: the WHOLE page in dark mode, written to docs/screenshots/ (not the served
+// img/settings/ assets). Waits for the page's key content to render before the full-page capture.
+async function shotReadmePage(ctx, url, waitSelector, file) {
+  const page = await ctx.newPage()
+  await page.goto(`${BASE}${url}`, { waitUntil: 'networkidle' })
+  await page.waitForSelector(waitSelector, { timeout: 15000 })
+  await page.waitForTimeout(600) // settle fonts/layout
+  const pngBuf = await page.screenshot({ fullPage: true })
+  fs.writeFileSync(path.join(SHOTS, file), pngToLosslessWebp(pngBuf))
+  console.log('wrote', path.join('docs', 'screenshots', file))
+  await page.close()
+}
+
 // System theme = diagonal split of the light & dark dashboards (light upper-left, dark lower-right;
 // divider runs corner-to-corner top-right → bottom-left). Receives PNG buffers (captured by
 // shotFullPage) so no file reads are needed. The canvas matches the sources' actual pixel size.
@@ -312,8 +402,21 @@ async function captureAll(ctx, browser) {
   await compositeSystem(browser, { lightBuf, darkBuf, out: 'page-nova-full-system.webp' })
 }
 
+// Capture the README page screenshots (docs/screenshots/) — Actions / Stats / Admin / Settings, all
+// in the same fixed configuration: dark mode, Full calendar, Nova font, default (uncustomised) stats
+// order. setPrefs pins theme/font/calendar; the demo user never customises statsFields, so the Stats
+// page renders every tile in its default declaration order.
+async function captureReadmePages(ctx) {
+  await setPrefs(ctx, 'dark', 'full', 'nova')
+  await shotReadmePage(ctx, '/actions',     '#action-list .dt-row',   'actions-dark.webp')
+  await shotReadmePage(ctx, '/stats',       '#stats-list .card',      'stats-dark.webp')
+  await shotReadmePage(ctx, '/admin/users', '#admin-users-list .dt-table', 'admin-dark.webp')
+  await shotReadmePage(ctx, '/settings',    '#prefs-form',            'settings-dark.webp')
+}
+
 (async () => {
   fs.mkdirSync(OUT, { recursive: true })
+  fs.mkdirSync(SHOTS, { recursive: true })
   const browser = await chromium.launch()
 
   const ctx = await browser.newContext({
@@ -324,9 +427,11 @@ async function captureAll(ctx, browser) {
   })
   await seed(ctx)
   await captureAll(ctx, browser)
+  await captureReadmePages(ctx)
   await ctx.close()
 
   await browser.close()
 
-  console.log(`\nDone — review and commit the WebP files in\n  ${  path.relative(path.join(__dirname, '..'), OUT)}`)
+  const rel = d => path.relative(path.join(__dirname, '..'), d)
+  console.log(`\nDone — review and commit the WebP files in\n  ${rel(OUT)}\n  ${rel(SHOTS)}`)
 })().catch(e => { console.error(e); process.exit(1) })
