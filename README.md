@@ -79,6 +79,8 @@ Expand the section below to view screenshots.
 |------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
 | **Dashboard (dark)**<br><img src="src/main/resources/META-INF/resources/img/settings/page-nova-full-dark.webp" alt="Dashboard in dark mode">   | **Dashboard (light)**<br><img src="src/main/resources/META-INF/resources/img/settings/page-nova-full-light.webp" alt="Dashboard in light mode"> |
 | **Minimal Calendar**<br><img src="src/main/resources/META-INF/resources/img/settings/cal-nova-minimal-dark.webp" alt="Minimal calendar style"> | **Stacked Calendar**<br><img src="src/main/resources/META-INF/resources/img/settings/cal-nova-stacked-dark.webp" alt="Stacked calendar style">  |
+| **Actions**<br><img src="docs/screenshots/actions-dark.webp" alt="Actions page">                                                               | **Stats**<br><img src="docs/screenshots/stats-dark.webp" alt="Stats page">                                                                      |
+| **Administrator**<br><img src="docs/screenshots/admin-dark.webp" alt="Admin user-management page">                                             | **Settings**<br><img src="docs/screenshots/settings-dark.webp" alt="Settings page">                                                             |
 
 </details>
 <!-- markdownlint-enable MD033 -->
