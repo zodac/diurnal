@@ -31,22 +31,30 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Verifies the JSON API ({@code POST /api/auth/register}) honours {@code ENABLE_REGISTRATION=false} just like the web form, so the API can never be
- * used to bypass the registration switch. The first-run setup account can still be created (so the switch can never lock out the very first user).
- * Uses {@link RegistrationDisabledProfile} to force {@code registration.enabled=false}.
+ * used to bypass the registration switch. Nor can it be used to create the very first account — that must be done locally via the web setup flow,
+ * regardless of the registration switch. Uses {@link RegistrationDisabledProfile} to force {@code registration.enabled=false}.
  */
 @QuarkusTest
 @TestProfile(RegistrationDisabledProfile.class)
 class AuthRegistrationDisabledIT extends IntegrationTestBase {
 
     @Test
-    void register_firstRun_createsInitialAccountDespiteRegistrationDisabled() {
-        // No users exist (setUp truncates), so the first account is always permitted.
+    void register_firstRun_isForbiddenAndCreatesNoUser() {
+        // No users exist (setUp truncates): the API must not create the initial account — it must be
+        // created locally via the web setup flow. The first-run refusal takes precedence over (and is
+        // reported distinctly from) the registration-disabled message.
         given().contentType(ContentType.JSON)
                 .body("""
                         {"email":"first@example.com","displayName":"First","password":"password1"}
                         """)
                 .post("/api/auth/register")
-                .then().statusCode(201);
+                .then()
+                .statusCode(403)
+                .body("message", containsStringIgnoringCase("must be created via the setup page"));
+
+        runInTx(() -> assertThat(User.count())
+            .as("No user may be created via the API before the initial account exists")
+            .isZero());
     }
 
     @Test

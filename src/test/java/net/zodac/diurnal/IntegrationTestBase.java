@@ -168,10 +168,19 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
      * Persists a new user with the given role and the shared test password.
      */
     protected static User newUser(final String email, final String displayName, final String role) {
+        return newUser(email, displayName, role, TEST_PASSWORD);
+    }
+
+    /**
+     * Persists a new user with the given role and an explicit plaintext password (hashed with the cheap test Argon2id parameters). Use when a test
+     * must authenticate as the seeded user with a password other than {@link #TEST_PASSWORD} — e.g. seeding the initial account locally now that the
+     * API/OIDC user-creation paths refuse to create it.
+     */
+    protected static User newUser(final String email, final String displayName, final String role, final String plaintextPassword) {
         final User u = new User();
         u.email = email;
         u.displayName = displayName;
-        u.passwordHash = TEST_ARGON2.hash(TEST_PASSWORD).getResult();
+        u.passwordHash = TEST_ARGON2.hash(plaintextPassword).getResult();
         u.role = role;
         u.persist();
         return u;

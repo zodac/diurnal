@@ -36,7 +36,14 @@ import org.junit.jupiter.api.Test;
 @QuarkusTest
 class AuthResourceIT extends IntegrationTestBase {
 
-    // AuthResourceIT creates its own users — base setUp() just wipes the tables.
+    // The API register endpoint refuses to create the very first account — that must be created locally
+    // via the web setup flow (covered by FirstRunIT), and the API's refusal is covered by
+    // FirstUserCreationBlockedIT. Seed an initial admin here so these tests exercise the normal
+    // "subsequent user" registration path (registration enabled by the test profile).
+    @Override
+    protected void createDbState() {
+        newUser("seed-admin@example.com", "Seed Admin", Role.ADMIN.storageValue());
+    }
 
     // ── Register ──────────────────────────────────────────────────────────────
 
@@ -288,30 +295,13 @@ class AuthResourceIT extends IntegrationTestBase {
     // Global per-IP throttling (login + registration) is exercised in isolation by IpThrottleIT; it is
     // disabled in the default test profile so the tests above stay deterministic on the shared loopback.
 
-    // ── First-user-admin ──────────────────────────────────────────────────────
+    // ── Role assignment ────────────────────────────────────────────────────────
 
     @Test
-    void register_firstUser_getsAdminRole() {
-        // Table is empty at the start of every test (setUp truncates)
-        given().contentType(ContentType.JSON)
-                .body("""
-                        {"email":"first@example.com","displayName":"First","password":"password1"}
-                        """)
-                .post("/api/auth/register")
-                .then().statusCode(201);
-
-        runInTx(() -> {
-            final User u = User.findByEmail("first@example.com").orElseThrow();
-            assertThat(u.role)
-                .as("First registered user should be admin")
-                .isEqualTo(Role.ADMIN.storageValue());
-        });
-    }
-
-    @Test
-    void register_secondUser_getsUserRole() {
-        registerUser("first@example.com", "First", "password1");
-
+    void register_viaApi_alwaysGetsUserRole() {
+        // The first (admin) account is seeded via createDbState(), so any account created through the
+        // API is necessarily a subsequent user and must never be granted the administrator role — the
+        // API can never mint an admin (see FirstUserCreationBlockedIT for the first-run refusal).
         given().contentType(ContentType.JSON)
                 .body("""
                         {"email":"second@example.com","displayName":"Second","password":"password1"}
@@ -322,7 +312,7 @@ class AuthResourceIT extends IntegrationTestBase {
         runInTx(() -> {
             final User u = User.findByEmail("second@example.com").orElseThrow();
             assertThat(u.role)
-                .as("Subsequent users should be user role")
+                .as("Users created via the API should always be plain users, never admins")
                 .isEqualTo(Role.USER.storageValue());
         });
     }

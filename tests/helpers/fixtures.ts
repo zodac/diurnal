@@ -21,8 +21,43 @@ export async function setupTestUser(page: Page, user: TestUser): Promise<void> {
 }
 
 /**
+ * The initial administrator account. The API and OIDC user-creation paths are blocked until this
+ * account has been created locally via the web setup flow, so every per-spec API registration
+ * depends on it existing first. Created once by the Playwright globalSetup (see global-setup.ts).
+ */
+export const BOOTSTRAP_ADMIN: TestUser = {
+    email: "e2e-bootstrap-admin@example.com",
+    password: "bootstrap_password123",
+    displayName: "E2E Bootstrap Admin",
+}
+
+/**
+ * Create the very first (administrator) account via the web /register form — the ONLY sanctioned
+ * first-user path now that the API and OIDC user-creation flows refuse to create the initial account.
+ * A cookieless form POST is not a CSRF vector, so CsrfProtectionFilter allows it. Idempotent: once the
+ * admin exists a repeat POST just gets a 400 ("already registered"), which is fine.
+ */
+export async function bootstrapAdmin(): Promise<void> {
+    const apiCtx = await baseRequest.newContext({
+        baseURL: process.env.BASE_URL ?? "http://localhost:8080",
+    })
+    await apiCtx.post("/register", {
+        form: {
+            email: BOOTSTRAP_ADMIN.email,
+            displayName: BOOTSTRAP_ADMIN.displayName,
+            password: BOOTSTRAP_ADMIN.password,
+            confirmPassword: BOOTSTRAP_ADMIN.password,
+        },
+    })
+    await apiCtx.dispose()
+}
+
+/**
  * Register a test user via the REST API. Idempotent: a 409 (already registered) is ignored.
  * Does NOT log in — pair with loginAs (and optionally ensureAdmin in between).
+ *
+ * Requires the initial admin to already exist (see {@link bootstrapAdmin}); the API rejects
+ * registration until it does.
  */
 export async function registerUser(user: TestUser): Promise<void> {
     const apiCtx = await baseRequest.newContext({

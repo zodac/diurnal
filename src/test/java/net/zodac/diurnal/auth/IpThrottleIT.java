@@ -199,11 +199,11 @@ class IpThrottleIT extends IntegrationTestBase {
         postLogin(SEED_EMAIL, "wrong_password").then().statusCode(401);
     }
 
-    private static void registerSeedUser() {
-        given().contentType(ContentType.JSON)
-                .body("{\"email\":\"" + SEED_EMAIL + "\",\"displayName\":\"Seed\",\"password\":\"" + SEED_PASSWORD + "\"}")
-                .post("/api/auth/register")
-                .then().statusCode(201);
+    // Seed the initial account locally: the API register endpoint now refuses to create the first
+    // user (that must happen via the web setup flow), so registering it over HTTP would 403. The
+    // per-IP lockout under test is independent of how the seed user was created.
+    private void registerSeedUser() {
+        runInTx(() -> newUser(SEED_EMAIL, "Seed", Role.ADMIN.storageValue(), SEED_PASSWORD));
     }
 
     private static Response postLogin(final String email, final String password) {

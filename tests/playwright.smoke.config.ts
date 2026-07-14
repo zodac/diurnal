@@ -7,6 +7,9 @@ import { defineConfig, devices } from "@playwright/test"
 // browser project (smoke is a thin pass/fail gate, not cross-device feature coverage).
 export default defineConfig({
     testDir: "./smoke",
+    // The smoke stack boots with an empty DB; create the initial admin locally before the spec's
+    // API registration (which the app refuses until that initial account exists).
+    globalSetup: "./global-setup.ts",
     fullyParallel: false,
     forbidOnly: process.env.CI !== undefined,
     retries: process.env.CI !== undefined ? 1 : 0,
