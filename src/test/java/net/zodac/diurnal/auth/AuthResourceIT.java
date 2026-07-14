@@ -96,6 +96,45 @@ class AuthResourceIT extends IntegrationTestBase {
     }
 
     @Test
+    void register_emailBelongsToOidcUser_returns409() {
+        // An OIDC-provisioned account owns a `users` row keyed only on its email (no password hash);
+        // a subsequent local registration must not be able to hijack or clobber that email. The
+        // duplicate check (User.findByEmail) is auth-source-agnostic, and users.email is UNIQUE.
+        runInTx(() -> newOidcUser("oidc-user@example.com", "OIDC User"));
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"email":"oidc-user@example.com","displayName":"Impostor","password":"password1"}
+                        """)
+                .post("/api/auth/register")
+                .then()
+                .statusCode(409)
+                .body("message", containsStringIgnoringCase("already registered"));
+
+        assertThat(User.findByEmail("oidc-user@example.com"))
+                .as("The existing OIDC account must be untouched by the rejected registration")
+                .hasValueSatisfying(user -> {
+                    assertThat(user.displayName).as("displayName must not be overwritten").isEqualTo("OIDC User");
+                    assertThat(user.passwordHash).as("no password hash may be attached to the OIDC account").isNull();
+                    assertThat(user.oidcSubject).as("the OIDC subject must be preserved").isNotNull();
+                });
+    }
+
+    @Test
+    void register_emailBelongsToOidcUser_caseInsensitive_returns409() {
+        runInTx(() -> newOidcUser("cased-oidc@example.com", "OIDC User"));
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"email":"Cased-OIDC@Example.com","displayName":"Impostor","password":"password1"}
+                        """)
+                .post("/api/auth/register")
+                .then()
+                .statusCode(409)
+                .body("message", containsStringIgnoringCase("already registered"));
+    }
+
+    @Test
     void register_blankEmail_returns400() {
         given().contentType(ContentType.JSON)
                 .body("""
@@ -297,5 +336,19 @@ class AuthResourceIT extends IntegrationTestBase {
                         email, displayName, password))
                 .post("/api/auth/register")
                 .then().statusCode(201);
+    }
+
+    /**
+     * Persists an OIDC-provisioned account (no password hash; issuer/subject set), mirroring what
+     * {@link net.zodac.diurnal.auth.OidcUserProvisioner} writes on first login. Must be called inside a transaction.
+     */
+    private static void newOidcUser(final String email, final String displayName) {
+        final User user = new User();
+        user.email = email;
+        user.displayName = displayName;
+        user.oidcIssuer = "https://diurnal.example.com/idp";
+        user.oidcSubject = "subject-" + email;
+        user.role = Role.USER.storageValue();
+        user.persist();
     }
 }
