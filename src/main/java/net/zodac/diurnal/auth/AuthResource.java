@@ -60,6 +60,7 @@ public class AuthResource {
 
     private static final Logger LOGGER = LogManager.getLogger(AuthResource.class);
     private static final String BEARER_PREFIX = "Bearer ";
+    private static final String SETUP_REQUIRED_MESSAGE = "The initial administrator account must be created via the setup page";
 
     @Inject
     AuthenticationService authenticationService;
@@ -91,8 +92,10 @@ public class AuthResource {
 
     /**
      * Registers a new password-based user, returning {@code 201} with a session token, or {@code 409} if the email exists. Returns {@code 404} when
-     * password auth is disabled and {@code 403} when registration is disabled, mirroring the web registration guard so the API can never bypass
-     * {@code PASSWORD_AUTH_ENABLED}/{@code ENABLE_REGISTRATION}.
+     * password auth is disabled and {@code 403} when either registration is disabled or the initial account has not yet been created. The very first
+     * (administrator) account can never be created through this endpoint — it must be created locally via the web setup flow ({@code /welcome} →
+     * {@code POST /register}), so an unauthenticated caller can never seize the initial admin account. This also mirrors the web registration guard,
+     * so the API can never bypass {@code PASSWORD_AUTH_ENABLED}/{@code ENABLE_REGISTRATION}.
      */
     @POST
     @Path("/register")
@@ -100,14 +103,25 @@ public class AuthResource {
     @Operation(
         hidden = true,
         summary = "Register a new user",
-        description = "Creates an account and returns a Bearer session token for it. The first account ever created becomes an administrator."
+        description = "Creates an account and returns a Bearer session token for it. The initial administrator account cannot be created here — it "
+        + "must be created locally through the setup page first."
     )
     public Response register(@Valid final RegisterRequest request) {
         if (!passwordAuthConfig.enabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
-        if (!registrationAllowed()) {
+        // First-run guard: the initial account must be created locally through the web setup flow
+        // (/welcome → POST /register), never via the API. Until it exists the API refuses to register
+        // anyone, so an unauthenticated caller cannot claim the first (administrator) account.
+        if (User.count() == 0) {
+            LOGGER.warn("Refusing API registration before the initial account exists — it must be created via the setup page");
+            return Response.status(Response.Status.FORBIDDEN)
+                    .entity(new ErrorResponse(SETUP_REQUIRED_MESSAGE))
+                    .build();
+        }
+
+        if (!registrationConfig.enabled()) {
             return Response.status(Response.Status.FORBIDDEN)
                     .entity(new ErrorResponse("Registration is disabled"))
                     .build();
@@ -216,10 +230,6 @@ public class AuthResource {
                 .header("Retry-After", Math.max(1L, remaining.toSeconds()))
                 .entity(new ErrorResponse(LockoutMessages.retryMessage(remaining)))
                 .build();
-    }
-
-    private boolean registrationAllowed() {
-        return User.count() == 0 || registrationConfig.enabled();
     }
 
     /**

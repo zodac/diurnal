@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test"
 
 export default defineConfig({
     testDir: "./ui",
+    // Create the initial admin locally before any spec runs; the per-spec API registrations depend on it.
+    globalSetup: "./global-setup.ts",
     fullyParallel: false, // tests within a file stay sequential; parallelism is file/project-level
     forbidOnly: process.env.CI !== undefined,
     retries: process.env.CI !== undefined ? 1 : 0,
