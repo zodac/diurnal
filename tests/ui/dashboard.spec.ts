@@ -37,6 +37,39 @@ function otherDayThisMonth(): string {
     return d.toISOString().slice(0, 10)
 }
 
+// Reset every logged action for *today* back to zero — deterministically, entirely through the API.
+//
+// This replaces the old approach of clicking the day panel's Decrease button in a loop and awaiting a
+// POST /logs/ response, which was flaky: the panel re-renders asynchronously (initial load + the
+// post-mutation cal.refresh()), so the located button could detach between the visibility check and the
+// click, dispatching the click to a stale node that fired no request — and the awaited response then
+// timed out the whole hook (the observed "increment twice" flake).
+//
+// Instead: read the (nonzero-first, paginated) day panel's action ids straight from its HTML and POST a
+// `set` count=0 for each, looping until the /logs/events feed reports nothing left for today. No UI
+// timing is involved, so there is no race to lose.
+async function resetTodayLogs(page: Page): Promise<void> {
+    await page.evaluate(async () => {
+        const today = new Date().toISOString().slice(0, 10)
+        // The day panel lists highest-count actions first and is paginated, so re-read page 1 and zero
+        // every action it lists until the events feed for today is empty. The guard bounds the loop.
+        for (let guard = 0; guard < 50; guard++) {
+            const events = await (await fetch(`/logs/events?start=${today}&end=${today}`)).json()
+            if (!Array.isArray(events) || events.length === 0) {break}
+
+            const html = await (await fetch(`/logs/day/${today}`)).text()
+            // Each log row wraps as id="log-<yyyy-MM-dd>-<action UUID>"; capture the UUID.
+            const ids = [...html.matchAll(/id="log-\d{4}-\d{2}-\d{2}-([0-9a-f-]+)"/g)].map(m => m[1])
+            await Promise.all(ids.map(id =>
+                fetch(`/logs/${today}/${id}/set`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: "count=0",
+                })))
+        }
+    })
+}
+
 // Calendar style is chosen from a preview tile backed by a hidden radio. Tests share one user, so
 // the target value may already be selected — we set the radio and always dispatch `change` so the
 // htmx auto-save PATCH fires regardless, then await it (the page must be on /settings).
@@ -65,18 +98,9 @@ test.describe("Dashboard", () => {
             })
         }, DASH_NAME)
 
-        // Navigate to dashboard and reset today's log count to 0 before each test.
-        // Tests that increment/decrement need a clean starting state.
-        await page.goto("/")
-        for (let i = 0; i < 10; i++) {
-            const decBtn = page.locator("#day-logger-panel").getByLabel("Decrease").first()
-            // Button is invisible (not clickable) when count is 0; if we can't see it, we're done.
-            if (!(await decBtn.isVisible().catch(() => false))) {break}
-            await Promise.all([
-                page.waitForResponse(r => r.url().includes("/logs/") && r.request().method() === "POST"),
-                decBtn.click(),
-            ])
-        }
+        // Reset today's log counts to 0 before each test. Tests that increment/decrement need a clean
+        // starting state. Done via the API (see resetTodayLogs) so it can't race the UI.
+        await resetTodayLogs(page)
     })
 
     test("page load: today is pre-selected and day panel loads automatically", async ({ authenticatedPage: page }) => {
@@ -333,16 +357,9 @@ test.describe("Dashboard – Minimal calendar", () => {
     })
 
     test("dot appears under today after logging an action", async ({ authenticatedPage: page }) => {
+        // Ensure today's log is at 0 first (deterministic API reset before loading the page).
+        await resetTodayLogs(page)
         await page.goto("/")
-        // Ensure today's log is at 0 first
-        for (let i = 0; i < 10; i++) {
-            const decBtn = page.locator("#day-logger-panel").getByLabel("Decrease").first()
-            if (!(await decBtn.isVisible().catch(() => false))) {break}
-            await Promise.all([
-                page.waitForResponse(r => r.url().includes("/logs/") && r.request().method() === "POST"),
-                decBtn.click(),
-            ])
-        }
 
         const today = todayStr()
         await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-min-dot`)).toHaveCount(0)
@@ -426,16 +443,9 @@ test.describe("Dashboard – Stacked calendar", () => {
     })
 
     test("bar appears under today after logging an action", async ({ authenticatedPage: page }) => {
+        // Reset log count to 0 (deterministic API reset before loading the page).
+        await resetTodayLogs(page)
         await page.goto("/")
-        // Reset log count to 0
-        for (let i = 0; i < 10; i++) {
-            const decBtn = page.locator("#day-logger-panel").getByLabel("Decrease").first()
-            if (!(await decBtn.isVisible().catch(() => false))) {break}
-            await Promise.all([
-                page.waitForResponse(r => r.url().includes("/logs/") && r.request().method() === "POST"),
-                decBtn.click(),
-            ])
-        }
 
         const today = todayStr()
         await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-stk-bar`)).toHaveCount(0)
