@@ -6,14 +6,14 @@
    popping in after it. Its tagline font is embedded as a subset data: URI inside the SVG, so
    there is no secondary font fetch to flash either. !}
 {#head}
-    <link rel="preload" href="/img/wordmark-readme.svg" as="image">
+    <link rel="preload" href="/img/{inject:appInfo.image('wordmark-readme.svg')}" as="image">
 {/head}
 
 {#body}
 {#include partials/centered-card}
 
     <h1 class="mb-5">
-        <img src="/img/wordmark-readme.svg" alt="Diurnal — {inject:appInfo.tagline}" fetchpriority="high" class="w-full max-w-[260px] h-auto mx-auto" width="6314" height="2340">
+        <img src="/img/{inject:appInfo.image('wordmark-readme.svg')}" alt="Diurnal — {inject:appInfo.tagline}" fetchpriority="high" class="w-full max-w-[260px] h-auto mx-auto" width="6314" height="2340">
     </h1>
     <p class="text-sm text-ink-muted mb-6 text-center">Sign in to your account</p>
 

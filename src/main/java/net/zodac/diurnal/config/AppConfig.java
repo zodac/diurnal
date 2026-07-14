@@ -20,6 +20,7 @@ package net.zodac.diurnal.config;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 import io.smallrye.config.WithName;
+import java.util.Map;
 
 /**
  * Typed view over the application's own {@code app.*} settings — general metadata and runtime behaviour that is specific to Diurnal rather than to
@@ -137,4 +138,27 @@ public interface AppConfig {
     @WithName("assets.js-settings-file")
     @WithDefault("settings.js")
     String jsSettingsFile();
+
+    /**
+     * Base-name → content-hashed filename map for the settings preview thumbnails served under {@code /img/settings/} (e.g.
+     * {@code page-nova-full-dark} → {@code page-nova-full-dark.9f3a1c2b4d5e.webp}). Populated at image-build time — one entry per WebP, baked into
+     * the build config by the Dockerfile — so each thumbnail gets a fresh URL only when its bytes change, and is served {@code immutable}. Empty for a
+     * non-Docker {@code mvn package} / dev run, where {@link net.zodac.diurnal.web.AppInfo#settingsImage(String)} falls back to the un-hashed base name.
+     *
+     * @return the settings preview base-name to hashed-filename map, empty when un-hashed
+     */
+    @WithName("assets.settings-images")
+    Map<String, String> settingsImages();
+
+    /**
+     * Base-name → content-hashed filename map for the top-level {@code /img/} vector marks — the wordmarks and scalable favicon (e.g. {@code wordmark}
+     * → {@code wordmark.9f3a1c2b4d5e.svg}). Populated at image-build time (one entry per SVG, baked in by the Dockerfile's hashing script), so each
+     * mark gets a fresh URL only when its bytes change and is served {@code immutable}. Empty for a non-Docker {@code mvn package} / dev run, where
+     * {@link net.zodac.diurnal.web.AppInfo#image(String)} falls back to the un-hashed filename. Separate from {@link #settingsImages()} (a different
+     * path and fallback extension); the raster app-icons, fonts, {@code favicon.ico} and {@code manifest.json} are deliberately NOT hashed.
+     *
+     * @return the vector-mark base-name to hashed-filename map, empty when un-hashed
+     */
+    @WithName("assets.hashed-images")
+    Map<String, String> hashedImages();
 }

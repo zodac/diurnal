@@ -72,54 +72,18 @@ COPY --from=icons /icons/src/main/resources/META-INF/resources/img/apple-touch-i
                   /icons/src/main/resources/META-INF/resources/img/icon-192.png \
                   /icons/src/main/resources/META-INF/resources/img/icon-512.png \
                   ./src/main/resources/META-INF/resources/img/
-# Content-hash the compiled stylesheet for cache-busting. Rename app.css -> app.<hash>.css so every
-# build that changes the CSS yields a new URL (defeating reverse-proxy/CDN caches, which key on path
-# and may ignore query strings), then bake the resulting filename into the build-time config source
-# that AppInfo reads — so layout.html's <link> and the served file always agree. The hashed file is
-# then served `immutable` (application.properties). A non-Docker `mvn package` skips this and keeps
-# the un-hashed app.css default. The hash is folded straight into the rename (no intermediate shell
-# var) and read back from the glob for the config line — after the mv, only the hashed file matches.
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-RUN cd src/main/resources/META-INF/resources/css \
-    && mv app.css "app.$(sha256sum app.css | cut -c1-12).css" \
-    && printf '\napp.assets.css-file=%s\n' app.*.css \
-       >> /build/src/main/resources/META-INF/microprofile-config.properties
-# Content-hash the self-hosted htmx script for cache-busting, mirroring the stylesheet rename above:
-# htmx.min.js -> htmx.<hash>.min.js, then bake the resulting filename into the build-time config source
-# that AppInfo.jsFile reads — so layout.html's <script src> and the served file always agree. Served
-# `immutable` (application.properties). A non-Docker `mvn package` skips this and keeps the un-hashed
-# htmx.min.js default. htmx is a committed vendored file (arrives via `COPY src`), so unlike the CSS it
-# needs no build stage — only the rename.
-RUN cd src/main/resources/META-INF/resources/js \
-    && mv htmx.min.js "htmx.$(sha256sum htmx.min.js | cut -c1-12).min.js" \
-    && printf '\napp.assets.js-file=%s\n' htmx.*.min.js \
-       >> /build/src/main/resources/META-INF/microprofile-config.properties
-# Content-hash the app's own hand-written scripts, extracted from the templates so they ride the
-# immutable cache instead of being re-parsed on every no-cache navigation: app.js (shared, every
-# page), dashboard.js (the calendar engine, dashboard only), actions.js (actions page), admin-users.js
-# (admin users page), admin-api-docs.js (admin API-docs page) and settings.js (settings page). Same
-# rename+bake as htmx/CSS above; all are committed files (arrive via `COPY src`), so they need only
-# the rename. The globs are anchored (app.*.js / dashboard.*.js / …) so each matches ONLY its own
-# hashed output after the mv.
-RUN cd src/main/resources/META-INF/resources/js \
-    && mv app.js "app.$(sha256sum app.js | cut -c1-12).js" \
-    && mv dashboard.js "dashboard.$(sha256sum dashboard.js | cut -c1-12).js" \
-    && mv actions.js "actions.$(sha256sum actions.js | cut -c1-12).js" \
-    && mv admin-users.js "admin-users.$(sha256sum admin-users.js | cut -c1-12).js" \
-    && mv admin-api-docs.js "admin-api-docs.$(sha256sum admin-api-docs.js | cut -c1-12).js" \
-    && mv settings.js "settings.$(sha256sum settings.js | cut -c1-12).js" \
-    && printf '\napp.assets.js-app-file=%s\n' app.*.js \
-       >> /build/src/main/resources/META-INF/microprofile-config.properties \
-    && printf '\napp.assets.js-dashboard-file=%s\n' dashboard.*.js \
-       >> /build/src/main/resources/META-INF/microprofile-config.properties \
-    && printf '\napp.assets.js-actions-file=%s\n' actions.*.js \
-       >> /build/src/main/resources/META-INF/microprofile-config.properties \
-    && printf '\napp.assets.js-admin-file=%s\n' admin-users.*.js \
-       >> /build/src/main/resources/META-INF/microprofile-config.properties \
-    && printf '\napp.assets.js-api-docs-file=%s\n' admin-api-docs.*.js \
-       >> /build/src/main/resources/META-INF/microprofile-config.properties \
-    && printf '\napp.assets.js-settings-file=%s\n' settings.*.js \
-       >> /build/src/main/resources/META-INF/microprofile-config.properties
+# Content-hash EVERY served static asset for cache-busting in ONE place: scripts/hash-static-assets.sh
+# renames each (app.css -> app.<hash>.css, htmx.min.js -> htmx.<hash>.min.js, the preview thumbnails and
+# the vector marks likewise) and bakes the resulting filename into the build-time config source that
+# AppConfig/AppInfo read — so every template reference / <link> and the served file always agree, and each
+# hashed asset is served `immutable` (application.properties). A non-Docker `mvn package` never runs this,
+# so the un-hashed default filenames / base names are served instead. All assets arrive via `COPY src`
+# (plus the compiled CSS / vendored+minified JS copied from the `css` stage above). Fonts, the raster
+# app-icons, favicon.ico and manifest.json are deliberately left un-hashed (see the script's header).
+COPY scripts/hash-static-assets.sh ./scripts/hash-static-assets.sh
+RUN bash scripts/hash-static-assets.sh \
+        src/main/resources/META-INF/resources \
+        /build/src/main/resources/META-INF/microprofile-config.properties
 # -Dcss.build.skip=true: the stylesheet is already compiled by the `css` stage and copied in above,
 # and this maven image has no Node toolchain — so skip the POM's `css-build` exec.
 RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -Dcss.build.skip=true -q
