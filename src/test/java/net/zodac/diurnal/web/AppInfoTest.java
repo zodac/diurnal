@@ -19,6 +19,7 @@ package net.zodac.diurnal.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.Map;
 import net.zodac.diurnal.config.AppConfig;
 import net.zodac.diurnal.config.ReleaseVersion;
 import org.junit.jupiter.api.Test;
@@ -152,6 +153,55 @@ class AppInfoTest {
     }
 
     @Test
+    void settingsImage_knownBase_returnsHashedFilename() {
+        // When the base name is present in the build-time map (image-hashed Docker build), the hashed
+        // filename is returned so the template emits the immutable, cache-busted URL.
+        final AppInfo appInfo = appInfoWith("", "", "app.css");
+        assertThat(appInfo.settingsImage("page-nova-full-dark"))
+            .as("a hashed base name should resolve to its content-hashed filename")
+            .isEqualTo("page-nova-full-dark.9f3a1c2b4d5e.webp");
+    }
+
+    @Test
+    void settingsImage_unknownBase_fallsBackToUnhashedName() {
+        // Un-packaged dev / mvn package runs have an empty map, so any base falls back to <base>.webp —
+        // the un-hashed on-disk filename.
+        final AppInfo appInfo = appInfoWith("", "", "app.css");
+        assertThat(appInfo.settingsImage("cal-nova-minimal-dark"))
+            .as("an unmapped base name should fall back to the un-hashed <base>.webp filename")
+            .isEqualTo("cal-nova-minimal-dark.webp");
+    }
+
+    @Test
+    void image_knownMark_returnsHashedFilename() {
+        // The passed filename's base (part before the first dot) is looked up in the build-time map; a hit
+        // returns the content-hashed filename so the template emits the immutable, cache-busted URL.
+        final AppInfo appInfo = appInfoWith("", "", "app.css");
+        assertThat(appInfo.image("wordmark.svg"))
+            .as("a hashed mark should resolve via its base name to the content-hashed filename")
+            .isEqualTo("wordmark.9f3a1c2b4d5e.svg");
+    }
+
+    @Test
+    void image_unknownMark_fallsBackToPassedFilename() {
+        // Un-packaged dev / mvn package runs have an empty map, so the passed filename is returned verbatim
+        // (the un-hashed on-disk name).
+        final AppInfo appInfo = appInfoWith("", "", "app.css");
+        assertThat(appInfo.image("favicon.svg"))
+            .as("an unmapped mark should fall back to the passed (un-hashed) filename")
+            .isEqualTo("favicon.svg");
+    }
+
+    @Test
+    void image_filenameWithoutExtension_looksUpWholeNameAndFallsBack() {
+        // Defensive: a name with no dot is its own base and, when unmapped, is returned unchanged.
+        final AppInfo appInfo = appInfoWith("", "", "app.css");
+        assertThat(appInfo.image("wordmark-readme"))
+            .as("an extensionless, unmapped name should be returned verbatim")
+            .isEqualTo("wordmark-readme");
+    }
+
+    @Test
     void buildYear_fullTimestamp_returnsLeadingYear() {
         final AppInfo appInfo = appInfoWith("", "2099-06-22T06:07:35Z", "app.css");
         assertThat(appInfo.getBuildYear())
@@ -199,6 +249,16 @@ class AppInfoTest {
         @Override
         public String timezone() {
             return "UTC";
+        }
+
+        @Override
+        public Map<String, String> settingsImages() {
+            return Map.of("page-nova-full-dark", "page-nova-full-dark.9f3a1c2b4d5e.webp");
+        }
+
+        @Override
+        public Map<String, String> hashedImages() {
+            return Map.of("wordmark", "wordmark.9f3a1c2b4d5e.svg");
         }
     }
 }

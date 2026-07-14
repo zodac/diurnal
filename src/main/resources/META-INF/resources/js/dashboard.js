@@ -384,6 +384,22 @@ document.addEventListener('DOMContentLoaded', function () {
             }
         }
 
+        // Order a `full`-view day's events the same way the server pre-sorts minimal/stacked: highest count
+        // first, then name (alphabetical) as a stable tiebreak. The count/name live inside the "name ×N"
+        // label (the multiplier is omitted when the count is 1), so parse them back out — mirroring the same
+        // ` ×` split renderGrid uses to draw the name/count spans.
+        function labelCount(label) {
+            const i = label.lastIndexOf(' ×')
+            return i !== -1 ? (parseInt(label.slice(i + 2), 10) || 1) : 1
+        }
+        function labelName(label) {
+            const i = label.lastIndexOf(' ×')
+            return i !== -1 ? label.slice(0, i) : label
+        }
+        function fullDaySort(a, b) {
+            return (labelCount(b.label) - labelCount(a.label)) || labelName(a.label).localeCompare(labelName(b.label))
+        }
+
         // `force` re-fetches a month even if it's already cached (used by refresh() after a log change).
         // A forced fetch is AUTHORITATIVE for the month: when its data lands it drops the month's old day
         // entries before merging the fresh set, so a day whose last action was removed loses its dot.
@@ -414,9 +430,9 @@ document.addEventListener('DOMContentLoaded', function () {
                             (dayData[ev.start] = dayData[ev.start] || []).push({ colour: ev.backgroundColor, label: ev.title })
                             touched[ev.start] = true
                         })
-                        // Stable, alphabetical order within a day (matches the old widget's event sort).
+                        // Highest count first, then name (matches the minimal/stacked server-side ordering).
                         Object.keys(touched).forEach(function (d) {
-                            dayData[d].sort(function (a, b) { return a.label.localeCompare(b.label) })
+                            dayData[d].sort(fullDaySort)
                         })
                     } else {
                         data.forEach(function (day) {
@@ -471,7 +487,7 @@ document.addEventListener('DOMContentLoaded', function () {
                             touched[ev.start] = true
                         })
                         Object.keys(touched).forEach(function (d) {
-                            dayData[d].sort(function (a, b) { return a.label.localeCompare(b.label) })
+                            dayData[d].sort(fullDaySort)
                         })
                     } else {
                         data.forEach(function (day) {

@@ -154,8 +154,13 @@ async function existingEmails(emails) {
 // ── Seeding (over HTTP, via the logged-in browser-context cookies) ───────────────────────────────
 
 async function registerDemoUser(ctx) {
-  // Idempotent: a 409 (already registered) is expected on re-runs and ignored.
-  await ctx.request.post(`${BASE  }/api/auth/register`, { data: USER }).catch(() => {})
+  // The initial account MUST be created through the web setup flow (POST /register) — the API refuses
+  // to register the first user until an account exists, so it can never claim the admin account. Once
+  // this demo user exists the rest of the accounts can register via the API (see registerAdminDemoUsers).
+  // Idempotent: on re-runs the account already exists, so the failure is expected and ignored.
+  await ctx.request.post(`${BASE  }/register`, {
+    form: { email: USER.email, displayName: USER.displayName, password: USER.password, confirmPassword: USER.password }
+  }).catch(() => {})
 }
 
 // Register the extra Admin-table demo accounts, skipping any that already exist (see existingEmails).

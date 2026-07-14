@@ -26,9 +26,9 @@ import net.zodac.diurnal.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies the HTTP cache-control strategy configured in {@code application.properties}: the content-hashed stylesheet is cached immutably for a
- * year, the stable-URL img/font assets keep a one-day ceiling, and dynamic HTML pages are marked {@code no-cache} so a reverse proxy never serves a
- * stale page pointing at an obsolete asset URL.
+ * Verifies the HTTP cache-control strategy configured in {@code application.properties}: the content-hashed stylesheet, scripts and settings preview
+ * thumbnails are cached immutably for a year, the remaining stable-URL img/font assets keep a seven-day ceiling, and dynamic HTML pages are marked
+ * {@code no-cache} so a reverse proxy never serves a stale page pointing at an obsolete asset URL.
  *
  * <p>
  * Runs under the {@code test} profile, which (unlike {@code dev}) does not relax these headers, so the production caching behaviour is exercised. The
@@ -64,13 +64,37 @@ class CacheHeadersIT extends IntegrationTestBase {
     }
 
     @Test
-    void staticImageAsset_hasOneDayCacheCeilingNotImmutable() {
-        // Stable-URL assets (no content hash) must NOT be immutable — a redeployment reuses the URL, so a
-        // one-day ceiling bounds how long a changed image/font can be served stale.
-        given().get("/img/favicon.svg")
+    void staticImageAsset_hasSevenDayCacheCeilingNotImmutable() {
+        // Stable-URL assets that CANNOT be content-hashed (the raster app-icons, fonts, favicon.ico,
+        // manifest.json) must NOT be immutable, since a redeployment reuses the URL. They keep a bounded
+        // seven-day ceiling (app-static) that caps how long a changed one can be served stale.
+        given().get("/img/icon-192.png")
                 .then().statusCode(200)
-                .header("Cache-Control", containsString("max-age=86400"))
+                .header("Cache-Control", containsString("max-age=604800"))
                 .header("Cache-Control", not(containsString("immutable")));
+    }
+
+    @Test
+    void settingsPreviewImage_isCachedImmutablyForAYear() {
+        // The settings preview thumbnails are content-hashed at image-build time (AppInfo.settingsImage /
+        // partials/preview-thumb.html), so — like the CSS/JS — each gets a fresh URL only on a real change
+        // and is cached a year as immutable via the single app-immutable filter (which owns /img/settings/
+        // and /img/*.svg, disjoint from the raster /img/*.png handled by app-static). Here (test profile,
+        // no Docker rename) the un-hashed name is served, but under the same immutable filter.
+        given().get("/img/settings/cal-nova-full-dark.webp")
+                .then().statusCode(200)
+                .header("Cache-Control", containsString("immutable"))
+                .header("Cache-Control", containsString("max-age=31536000"));
+    }
+
+    @Test
+    void vectorMark_isCachedImmutablyForAYear() {
+        // The top-level vector marks (wordmark/favicon SVGs) are content-hashed too (AppInfo.image), so
+        // /img/*.svg rides the same app-immutable filter as the CSS/JS/settings thumbnails.
+        given().get("/img/wordmark.svg")
+                .then().statusCode(200)
+                .header("Cache-Control", containsString("immutable"))
+                .header("Cache-Control", containsString("max-age=31536000"));
     }
 
     @Test

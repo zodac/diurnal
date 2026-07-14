@@ -5,5 +5,5 @@
     imgBase - image base name without extension, e.g. "page-nova-full-dark"
 !}
 <span class="preview-thumb">
-    <img data-src="/img/settings/{imgBase}.webp" alt="{alt}" class="preview-img">
+    <img data-src="/img/settings/{inject:appInfo.settingsImage(imgBase)}" alt="{alt}" class="preview-img">
 </span>

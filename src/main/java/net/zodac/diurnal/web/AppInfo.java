@@ -108,6 +108,36 @@ public class AppInfo {
     }
 
     /**
+     * The content-hashed filename of a settings preview thumbnail (e.g. {@code page-nova-full-dark} →
+     * {@code page-nova-full-dark.9f3a1c2b4d5e.webp}), referenced by {@code partials/preview-thumb.html} as {@code /img/settings/{...}} so each deploy
+     * busts client and reverse-proxy caches only when that image's bytes change — the same per-file cache-busting the {@code /css/} and {@code /js/}
+     * assets get. The map is baked in at image-build time ({@link AppConfig#settingsImages()}); un-hashed dev/{@code mvn package} runs have no entry, so
+     * this falls back to the plain {@code <base>.webp} name (served {@code no-store} in dev).
+     *
+     * @param base the preview image base name, without extension (e.g. {@code page-nova-full-dark})
+     * @return the served thumbnail filename under {@code /img/settings/}
+     */
+    public String settingsImage(final String base) {
+        return appConfig.settingsImages().getOrDefault(base, base + ".webp");
+    }
+
+    /**
+     * The content-hashed filename of a top-level {@code /img/} vector mark (e.g. {@code wordmark.svg} → {@code wordmark.9f3a1c2b4d5e.svg}), referenced
+     * by the templates as {@code /img/{...}} so each deploy busts caches only when the mark's bytes change — the same per-file cache-busting the
+     * {@code /css/} and {@code /js/} assets get. The map ({@link AppConfig#hashedImages()}) is keyed by the base name (the part before the first dot),
+     * so this looks up that base; un-hashed dev/{@code mvn package} runs have no entry and fall back to the passed filename verbatim (served
+     * {@code no-store} in dev).
+     *
+     * @param filename the mark's un-hashed filename, with extension (e.g. {@code wordmark.svg})
+     * @return the served filename under {@code /img/}
+     */
+    public String image(final String filename) {
+        final int firstDot = filename.indexOf('.');
+        final String base = firstDot < 0 ? filename : filename.substring(0, firstDot);
+        return appConfig.hashedImages().getOrDefault(base, filename);
+    }
+
+    /**
      * The content-hashed compiled stylesheet filename (e.g. {@code app.9f3a1c2b4d5e.css}), referenced by {@code layout.html} as
      * {@code /css/{cssFile}} so each deploy busts client and reverse-proxy caches without serving a stale stylesheet.
      *

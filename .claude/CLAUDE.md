@@ -324,9 +324,13 @@ sheet), so it still wins over Tailwind's layered utilities — which is why the 
 Seven scripts are served from `META-INF/resources/js/` and referenced from the templates via
 `{inject:appInfo.*}`, all sharing one cache-busting pattern: served un-hashed in dev (`no-store`), and at image-build
 time the Dockerfile esbuild-minifies the six hand-written scripts (`npm run js:min` in the `css` stage — the committed
-sources stay readable; only the image ships the minified form), renames each to `name.<sha256-12>.ext`, bakes the
-hashed name into `microprofile-config.properties` (read by `AppConfig`/`AppInfo`), and serves it
-`public, max-age=31536000, immutable` (`application.properties`, the `/js/` filter).
+sources stay readable; only the image ships the minified form), then content-hashes them. **All asset hashing lives in
+one place — `scripts/hash-static-assets.sh`** (invoked by a single `RUN` in the Dockerfile's build stage): it renames
+every fingerprinted asset (CSS, the 7 scripts, the settings thumbnails, the vector marks) to `name.<sha256-12>.ext`
+(the hash is inserted after the first name segment, so `htmx.min.js` → `htmx.<hash>.min.js`) and bakes the hashed name
+into `microprofile-config.properties` (read by `AppConfig`/`AppInfo`). All are then served
+`public, max-age=31536000, immutable` by the single `app-immutable` filter (`application.properties`). See
+"Static-asset caching" below for the full model.
 
 - `htmx.min.js` (`AppInfo.jsFile`) — **vendored** from npm by `scripts/vendor-assets.cjs` (`.gitignored` build artifact).
 - `app.js` (`AppInfo.jsAppFile`) — the shared per-page behaviour extracted from `layout.html` (dt edit/confirm toggles,
@@ -454,6 +458,36 @@ rest.
 Thumbnails use a fixed-ratio frame (`aspect-[3/4] sm:aspect-[3/2]` in `.preview-thumb`), cropped to the top — not tied to image aspect ratios. Route
 any future settings thumbnail through `partials/preview-thumb.html`.
 
+**Cache-busting (content-hashed, like CSS/JS).** These WebP files are **content-hashed at image-build time** (by
+`scripts/hash-static-assets.sh`) exactly like the `/css/`+`/js/` assets: each is renamed `<base>.<hash>.webp` and a
+`base→hashed` map is baked into `microprofile-config.properties` (`app.assets.settings-images.<base>=…`).
+`AppConfig.settingsImages()` exposes that map; `AppInfo.settingsImage(base)` resolves it (falling back to the un-hashed
+`<base>.webp` when the map is empty — a non-Docker `mvn package`/dev run); `preview-thumb.html` emits
+`/img/settings/{inject:appInfo.settingsImage(imgBase)}`. Because the enum-driven `imgBase` (`PreviewOption.previewImage`) can't
+carry a per-file config key like the fixed CSS/JS names, the map is the indirection (the top-level `/img/` vector marks use the
+same trick — `AppConfig.hashedImages()` / `AppInfo.image('wordmark.svg')`). See "Static-asset caching" below for how the served
+URLs are cached.
+
+### Static-asset caching
+
+Two `quarkus.http.filter` rules cover every served static asset (`application.properties`; both overridden to `no-store` in dev):
+
+- **`app-immutable`** — `public, max-age=31536000, immutable`, for everything the build **content-hashes**
+  (`scripts/hash-static-assets.sh`): `/css/*`, `/js/*`, the settings thumbnails `/img/settings/*`, and the top-level vector
+  marks `/img/*.svg` (wordmarks + `favicon.svg`). A hashed URL changes only when the bytes change, so caching it forever is
+  safe. Referenced via `AppInfo` (`cssFile`/`js*File`/`settingsImage`/`image`), all falling back to the un-hashed name when the
+  build config is absent (dev/`mvn package`).
+- **`app-static`** — `public, max-age=604800` (7-day, **not** `immutable`), for the assets that **cannot** be hashed and so
+  keep a stable URL: the woff2 fonts (referenced by `@font-face` inside the compiled CSS — deliberately NOT rewritten, too
+  brittle), the raster app-icons `/img/*.png` (`icon-192`/`512` are pinned by `manifest.json`; `apple-touch`), `/favicon.ico`
+  (browsers probe that fixed root path) and `/manifest.json`. Bounded so a re-brand propagates within a week.
+
+The two regexes are provably disjoint (`/img/*.svg`+`/img/settings/` vs `/img/*.png`), so they never fight over `Cache-Control`.
+`html-pages` (`no-cache`) and `swagger-ui-assets` are unchanged. Covered by `CacheHeadersIT` (immutable on css/js/svg/settings,
+7-day on `/img/*.png`), `AppInfoTest`/`AppConfigTest` (the map lookups, fallbacks and hyphenated-key binding). **To hash a new
+asset:** add a `bake` line to `scripts/hash-static-assets.sh` + wire its `AppInfo` reference; to add one that can't be hashed,
+ensure it falls under an `app-static` alternative.
+
 **Regenerate when dashboard appearance changes:**
 
 ```bash
@@ -461,6 +495,15 @@ scripts/dev-up.sh
 node scripts/generate-settings-previews.cjs
 scripts/dev-teardown.sh
 ```
+
+> **"Generate fresh screenshots / images" ALWAYS means regenerate BOTH sets — never just one.** The single
+> `generate-settings-previews.cjs` run produces *all* committed screenshots from the same seeded demo account: the **8
+> Settings preview thumbnails** (`img/settings/`, listed above) AND the **4 README page screenshots**
+> (`docs/screenshots/{actions,stats,admin,settings}-dark.webp`). There is no separate command per set — running the
+> script above emits everything. So when asked to "generate fresh screenshots" (or "images"), run it once and expect
+> **all 12 WebP files** to be rewritten; review and commit the full set, not a subset. If some files come back
+> byte-identical that is fine (the change didn't affect that page), but never assume "images" means only the README
+> shots or only the Settings thumbnails — it means both.
 
 ### Pagination
 
