@@ -62,7 +62,7 @@ jobs:
     env:
       SONARQUBE_ANALYSIS: 'true'
       SONARQUBE_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
-      SONARQUBE_PAT: ${{ secrets.SONARQUBE_PAT }}
+      SONARQUBE_PAT: ${{ secrets.SONARQUBE_RW_PAT }}
 
     steps:
       # submodules: code-quality-config holds the linter configs used by the -Dall gate.
