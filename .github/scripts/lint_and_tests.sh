@@ -133,9 +133,13 @@ overall_exit_code=0
 # output (e.g. CI logs) stays plain so the escape sequences don't leak into it.
 if [[ -t 1 ]]; then
     YELLOW=$'\033[1;33m'
+    GREEN=$'\033[1;32m'
+    RED=$'\033[1;31m'
     RESET=$'\033[0m'
 else
     YELLOW=""
+    GREEN=""
+    RED=""
     RESET=""
 fi
 
@@ -150,6 +154,53 @@ HOST_GID="$(id -g)"
 # rather than sitting silent until the final summary.
 substep() {
     echo "   → ${1}"
+}
+
+# Convert an elapsed nanosecond count into a human-readable "natural time" string with millisecond
+# precision. The format adapts to the magnitude of the duration:
+#   - 123ms          (< 1 second)
+#   - 4s:037ms       (< 1 minute)
+#   - 2m:04s         (< 1 hour)
+#   - 1h:02m         (>= 1 hour)
+# Milliseconds are dropped once the time exceeds 1 minute, and seconds once it exceeds 1 hour. The
+# result is printed to stdout (no trailing newline) so callers can interpolate it inline.
+to_natural_time() {
+    local elapsed_ns="${1}"
+    local total_millis=$((elapsed_ns / 1000000))
+
+    if ((total_millis < 1000)); then
+        printf '%dms' "${total_millis}"
+        return
+    fi
+
+    local total_seconds=$((total_millis / 1000))
+    local millis_part=$((total_millis % 1000))
+    if ((total_seconds < 60)); then
+        printf '%ds:%03dms' "${total_seconds}" "${millis_part}"
+        return
+    fi
+
+    local minutes=$((total_seconds / 60))
+    local seconds_part=$((total_seconds % 60))
+    if ((total_seconds < 3600)); then
+        printf '%dm:%02ds' "${minutes}" "${seconds_part}"
+        return
+    fi
+
+    local hours=$((total_seconds / 3600))
+    local minutes_part=$(((total_seconds % 3600) / 60))
+    printf '%dh:%02dm' "${hours}" "${minutes_part}"
+}
+
+# Nanosecond wall-clock start of the step currently running, set in the execution loop before each
+# step is dispatched. `step_time` reads it to render how long the step has taken so far as natural
+# time, so each run_* function can fold the elapsed time straight into its own pass/fail summary line
+# (assign it to a local first — a bare $(step_time) inside echo masks its return value, SC2312).
+STEP_START_NS=0
+step_time() {
+    local now
+    now="$(date +%s%N)"
+    to_natural_time "$((now - STEP_START_NS))"
 }
 
 # Run one substep's command: in verbose mode stream its output live; otherwise capture combined
@@ -208,10 +259,14 @@ run_docker() {
         hadolint --config code-quality-config/docker/.hadolint.yaml \
         Dockerfile sandbox/Dockerfile 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
-        echo "✅ Dockerfile lint passed"
+        local done_in
+        done_in="$(step_time)"
+        echo "✅ Dockerfile lint passed, finished in ${GREEN}${done_in}${RESET}"
     else
         echo "${output}" | jq .
-        echo "❌ Dockerfile lint failed: re-run ${YELLOW}'${SCRIPT_PATH} -v docker'${RESET} for the full output"
+        local done_in
+        done_in="$(step_time)"
+        echo "❌ Dockerfile lint failed after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v docker'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -256,9 +311,11 @@ run_grype() {
     # Two substeps — build then scan — each with a progress line (even non-verbose) and its output
     # captured until it fails (run_quietly). The scan is slow and, on a cold DB, downloads ~1.6GB, so
     # the progress lines matter; -v streams both live. Both paths share the command arrays above.
+    local done_in
     substep "docker build ${DIURNAL_RUNTIME_IMAGE}  (production runtime image)"
     if ! run_quietly "${build_cmd[@]}"; then
-        echo "❌ Grype scan failed (could not build ${DIURNAL_RUNTIME_IMAGE}): re-run ${YELLOW}'${SCRIPT_PATH} -v grype'${RESET} for the full output"
+        done_in="$(step_time)"
+        echo "❌ Grype scan failed after ${RED}${done_in}${RESET} (could not build ${DIURNAL_RUNTIME_IMAGE}): re-run ${YELLOW}'${SCRIPT_PATH} -v grype'${RESET} for the full output"
         overall_exit_code=1
         return
     fi
@@ -267,9 +324,11 @@ run_grype() {
 
     substep "grype scan ${DIURNAL_RUNTIME_IMAGE}  (CVE scan via ${GRYPE_DOCKER_IMAGE})"
     if run_quietly "${grype_cmd[@]}"; then
-        echo "✅ Grype scan passed"
+        done_in="$(step_time)"
+        echo "✅ Grype scan passed, finished in ${GREEN}${done_in}${RESET}"
     else
-        echo "❌ Grype scan failed: re-run ${YELLOW}'${SCRIPT_PATH} -v grype'${RESET} for the full output"
+        done_in="$(step_time)"
+        echo "❌ Grype scan failed after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v grype'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -314,10 +373,12 @@ run_java() {
             || failed_at="tests/run-smoke.sh"
     fi
 
+    local done_in
+    done_in="$(step_time)"
     if [[ -z "${failed_at}" ]]; then
-        echo "✅ Java gate passed (build + tests + E2E + smoke)"
+        echo "✅ Java gate passed (build + tests + E2E + smoke), finished in ${GREEN}${done_in}${RESET}"
     else
-        echo "❌ Java gate failed at [${failed_at}]: re-run ${YELLOW}'${SCRIPT_PATH} -v java'${RESET} for the full output"
+        echo "❌ Java gate failed at [${failed_at}] after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v java'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -331,11 +392,14 @@ run_perf() {
     # post-boot RSS, seeds a heavy account, then drives one k6 scenario per public-API use-case group.
     # k6's threshold breaches make it exit non-zero, which the runner (and this substep) propagate as a
     # failure. Fully self-contained: an EXIT trap tears the stack down on success OR failure.
+    local done_in
     substep "tests/run-perf.sh  (k6 boot + load suite on :${PERF_HTTP_PORT}, real prod image)"
     if run_quietly "${PWD}/tests/run-perf.sh" "${PERF_HTTP_PORT}" "${PWD}"; then
-        echo "✅ Performance suite passed (boot budget + all k6 thresholds)"
+        done_in="$(step_time)"
+        echo "✅ Performance suite passed (boot budget + all k6 thresholds), finished in ${GREEN}${done_in}${RESET}"
     else
-        echo "❌ Performance suite failed: re-run ${YELLOW}'${SCRIPT_PATH} -v perf'${RESET} for the full output"
+        done_in="$(step_time)"
+        echo "❌ Performance suite failed after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v perf'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -348,8 +412,10 @@ run_javascript() {
     # and any node_modules/target build output — same approach as the shellcheck step below.
     local files=()
     mapfile -t files < <(git ls-files '*.js' '*.cjs' || true)
+    local done_in
     if [[ "${#files[@]}" -eq 0 ]]; then
-        echo "✅ JavaScript lint passed (no JavaScript files found)"
+        done_in="$(step_time)"
+        echo "✅ JavaScript lint passed (no JavaScript files found), finished in ${GREEN}${done_in}${RESET}"
         return
     fi
     substep "preparing eslint image (${ESLINT_BUILD_IMAGE})"
@@ -368,10 +434,12 @@ run_javascript() {
         --config code-quality-config/javascript/eslint.config.cjs \
         "${files[@]}" 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
-        echo "✅ JavaScript lint passed"
+        done_in="$(step_time)"
+        echo "✅ JavaScript lint passed, finished in ${GREEN}${done_in}${RESET}"
     else
         echo "${output}"
-        echo "❌ JavaScript lint failed: re-run ${YELLOW}'${SCRIPT_PATH} -v javascript'${RESET} for the full output"
+        done_in="$(step_time)"
+        echo "❌ JavaScript lint failed after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v javascript'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -401,10 +469,14 @@ run_typescript() {
             --config ../code-quality-config/typescript/eslint.config.mjs \
             '**/*.ts'" 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
-        echo "✅ TypeScript lint passed"
+        local done_in
+        done_in="$(step_time)"
+        echo "✅ TypeScript lint passed, finished in ${GREEN}${done_in}${RESET}"
     else
         echo "${output}"
-        echo "❌ TypeScript lint failed: re-run ${YELLOW}'${SCRIPT_PATH} -v typescript'${RESET} for the full output"
+        local done_in
+        done_in="$(step_time)"
+        echo "❌ TypeScript lint failed after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v typescript'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -421,10 +493,14 @@ run_markdown() {
         "**/*.md" "!code-quality-config/**" "!**/node_modules/**" "!**/target/**" \
         "!.claude/**" "!RELEASE_NOTES.md" "!tests/playwright-report/**" "!tests/test-results/**" 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
-        echo "✅ Markdown lint passed"
+        local done_in
+        done_in="$(step_time)"
+        echo "✅ Markdown lint passed, finished in ${GREEN}${done_in}${RESET}"
     else
         echo "${output}"
-        echo "❌ Markdown lint failed: re-run ${YELLOW}'${SCRIPT_PATH} -v markdown'${RESET} for the full output"
+        local done_in
+        done_in="$(step_time)"
+        echo "❌ Markdown lint failed after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v markdown'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -436,8 +512,10 @@ run_shellcheck() {
     # submodule (its files belong to that repo) and any node_modules/target build output.
     local files=()
     mapfile -t files < <(git ls-files '*.sh' || true)
+    local done_in
     if [[ "${#files[@]}" -eq 0 ]]; then
-        echo "✅ Shell script lint passed (no shell scripts found)"
+        done_in="$(step_time)"
+        echo "✅ Shell script lint passed (no shell scripts found), finished in ${GREEN}${done_in}${RESET}"
         return
     fi
     docker pull "${SHELLCHECK_DOCKER_IMAGE}" >/dev/null
@@ -454,10 +532,12 @@ run_shellcheck() {
         "${SHELLCHECK_DOCKER_IMAGE}" \
         "${files[@]}" 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
-        echo "✅ Shell script lint passed"
+        done_in="$(step_time)"
+        echo "✅ Shell script lint passed, finished in ${GREEN}${done_in}${RESET}"
     else
         echo "${output}"
-        echo "❌ Shell script lint failed: re-run ${YELLOW}'${SCRIPT_PATH} -v shellcheck'${RESET} for the full output"
+        done_in="$(step_time)"
+        echo "❌ Shell script lint failed after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v shellcheck'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -657,8 +737,14 @@ else
     done
 fi
 
-# Execute steps
+# Execute steps, timing each one. `date +%s%N` (nanoseconds since epoch) fits a 64-bit shell integer,
+# so the differences feed straight into to_natural_time. Each run_* function reads STEP_START_NS via
+# step_time to fold its own elapsed time into its pass/fail summary line. Assigned on their own lines
+# so the command substitution's exit status isn't masked (SC2312).
+overall_start=""
+overall_start="$(date +%s%N)"
 for step in "${steps[@]}"; do
+    STEP_START_NS="$(date +%s%N)"
     case "${step}" in
     docker) run_docker ;;
     grype) run_grype ;;
@@ -671,6 +757,13 @@ for step in "${steps[@]}"; do
     *) ;; # unreachable: steps are validated against VALID_STEPS above
     esac
 done
+
+overall_end=""
+overall_end="$(date +%s%N)"
+total_elapsed=""
+total_elapsed="$(to_natural_time "$((overall_end - overall_start))")"
+echo
+echo "⏱  Total time: ${total_elapsed}"
 
 if [[ "${overall_exit_code}" -ne 0 ]]; then
     echo
