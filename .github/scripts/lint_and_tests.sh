@@ -21,6 +21,11 @@
 #                    Run ALL steps, skipping the git-diff auto-detection (equivalent to passing
 #                    the full step list). Cannot be combined with an explicit [steps] argument.
 #
+#                  -e, --exit-on-failure
+#                    Stop at the first failing step instead of running the remaining steps. Off by
+#                    default (every step runs and all failures are reported together); used by the
+#                    release pipeline (publish.yml) to fail fast rather than burn time on later steps.
+#
 #                  Valid steps:
 #                    - docker      Lint the Dockerfiles with hadolint
 #                    - grype       Build the runtime image and scan it for CVEs with grype
@@ -125,6 +130,11 @@ VERBOSE=false
 # Force off by default: with -f/--force (parsed below), the git-diff auto-detection is skipped and
 # every step runs. Ignored when an explicit step list is passed (that combination is rejected).
 FORCE=false
+
+# Fail-fast off by default: every step runs and all failures are reported together. With
+# -e/--exit-on-failure (parsed below), the execution loop breaks as soon as a step fails, skipping
+# the remaining steps (used by the release pipeline so a failing gate stops promptly).
+FAIL_FAST=false
 
 overall_exit_code=0
 
@@ -690,9 +700,10 @@ while [[ $# -gt 0 ]]; do
     case "${1}" in
     -v | --verbose) VERBOSE=true ;;
     -f | --force) FORCE=true ;;
+    -e | --exit-on-failure) FAIL_FAST=true ;;
     --) shift; positional+=("$@"); break ;;
     -*)
-        echo "❌ Unknown option: '${1}'. Supported: -v, --verbose, -f, --force"
+        echo "❌ Unknown option: '${1}'. Supported: -v, --verbose, -f, --force, -e, --exit-on-failure"
         exit 1
         ;;
     *) positional+=("${1}") ;;
@@ -756,14 +767,26 @@ for step in "${steps[@]}"; do
     typescript) run_typescript ;;
     *) ;; # unreachable: steps are validated against VALID_STEPS above
     esac
+    # -e/--exit-on-failure: stop as soon as a step fails, skipping the remaining steps.
+    if [[ "${FAIL_FAST}" == true && "${overall_exit_code}" -ne 0 ]]; then
+        echo
+        echo "⏹  Stopping early after first failure (-e/--exit-on-failure)"
+        break
+    fi
 done
 
 overall_end=""
 overall_end="$(date +%s%N)"
 total_elapsed=""
 total_elapsed="$(to_natural_time "$((overall_end - overall_start))")"
+# Colour the total green when every step passed, red when any failed — matching the per-step timings.
+if [[ "${overall_exit_code}" -eq 0 ]]; then
+    total_colour="${GREEN}"
+else
+    total_colour="${RED}"
+fi
 echo
-echo "⏱  Total time: ${total_elapsed}"
+echo "⏱  Total time: ${total_colour}${total_elapsed}${RESET}"
 
 if [[ "${overall_exit_code}" -ne 0 ]]; then
     echo
