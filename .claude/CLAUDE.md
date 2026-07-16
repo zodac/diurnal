@@ -54,14 +54,14 @@ mvn package
 mvn test -Dtests
 mvn test -Dtests -Dtest=MyTestClass
 
-# Run Playwright E2E tests (the specs live in tests/ui/)
-cd tests && npm test                                  # against :8080
-cd tests && BASE_URL=http://localhost:8081 npm test   # against dev / -Dall port
-
-# Run the deployment-smoke suite against the REAL production image (the only tier that exercises the
-# distroless/jlink/non-root runtime). Self-contained: builds the image, runs an isolated app+DB stack
-# on :8082, runs the smoke specs, tears it all down. Included automatically in `mvn clean install -Dall`.
-bash tests/run-smoke.sh 8082 "$(pwd)"
+# The Playwright E2E/UI suite (specs in tests/ui/) and the deployment-smoke suite are chained onto the
+# wrapper's `java` step (mvn gate → E2E → smoke), NOT part of any `mvn` command. Run the whole JVM gate:
+.github/scripts/lint_and_tests.sh java
+# Or drive the tiers directly (e.g. iterating on one spec against an already-running app):
+cd tests && npm test                                  # E2E against :8080
+cd tests && BASE_URL=http://localhost:8081 npm test   # E2E against a dev instance
+bash tests/run-e2e.sh 8081 "$(pwd)/target" "$(pwd)"   # E2E runner (needs a built target/quarkus-app)
+bash tests/run-smoke.sh 8082 "$(pwd)"                 # deployment-smoke runner (self-contained)
 
 # Full Docker deployment
 cp .env.example .env   # fill in DB_PASSWORD and SESSION_ENCRYPTION_KEY
@@ -70,12 +70,21 @@ docker compose logs -f app
 ```
 
 > **Always run the quality gate through `.github/scripts/lint_and_tests.sh`, never `mvn clean install -Dall`
-> directly.** The wrapper runs the same Java gate (its `java` step *is* `mvn clean install -Dall`) plus every
-> other linter CI enforces (docker/grype/js/ts/markdown/shellcheck), captures the output, and prints only a
-> pass/fail summary unless a step fails (or `-v`). **Scope it to the language/step you touched** rather than
-> running the whole thing: `… java` after Java/template/CSS changes, `… shellcheck` after a `*.sh` edit, `…
-> markdown` after docs, etc. — comma-separate to combine. Bare (no args) it auto-detects changed steps since
-> the last tag. Unit-tests-only (`mvn test -Dtests`) is the one exception — it has no scoped wrapper step.
+> directly.** The wrapper's `java` step is the whole JVM gate: it runs `mvn clean install -Dall` (unit + `*IT`
+> + linters) and then, only if that passed, chains on the Playwright E2E/UI suite (`tests/run-e2e.sh`, reusing
+> the jar the build just made) and the deployment-smoke suite (`tests/run-smoke.sh`, the real prod image). The
+> other steps are the non-JVM linters: docker/grype/js/ts/markdown/shellcheck. Each step prints a `→` progress
+> line per substep (e.g. java shows mvn → e2e → smoke; grype shows build → scan) and hides that substep's own
+> output until it fails; `-v` streams everything live. **Scope it to the language/step you touched** rather
+> than running the whole thing: `… java` after ANY Java/template/CSS/UI-spec/Dockerfile change (it covers the
+> build, ITs, E2E and smoke), `… shellcheck` after a `*.sh` edit, `… markdown` after docs, etc. —
+> comma-separate to combine. Bare (no args) it auto-detects changed steps since the last tag; `-f`/`--force`
+> runs every step regardless of the diff (can't be combined with an explicit step list). Unit-tests-only
+> (`mvn test -Dtests`) is the one exception — it has no scoped wrapper step.
+>
+> **The `mvn`/Maven build is unit + ITs (+ linters) ONLY — the E2E and deployment-smoke tiers are NOT wired
+> into any `mvn` command.** They were deliberately split out of the `-Dall` profile and are instead chained
+> onto the wrapper's `java` step (after the Maven gate). Do not re-add them to the pom.
 
 > **Always use `docker compose` (v2 plugin), never `docker-compose` (hyphenated).** Only the filenames keep the hyphen.
 
@@ -94,13 +103,13 @@ Config layers: `application.properties` (base/prod), `application-dev.properties
 profile files must stay in `src/main/resources` — the E2E jar runs with `-Dquarkus.profile=test` and only reads bundled config.
 
 **Port map**: 8080 = production; 8081 = dev mode, `@QuarkusTest`, and the E2E jar (never simultaneous); 8082 = the deployment-smoke stack (isolated
-compose project, coexists with a running prod stack). Under `-Dall`, phase binding is the load-bearing detail — the inherited sortpom plugin re-sorts
-plugins alphabetically, so `exec-maven-plugin` always sorts before `maven-failsafe-plugin`. `*IT` tests run in `integration-test`; the E2E run and the
-deployment-smoke run are bound to `install` (after `verify`), ensuring ITs are confirmed green first. Both live in a **single** `install`-phase exec
-(`e2e-then-smoke`) that chains `run-e2e.sh && run-smoke.sh` — smoke runs strictly after (and only if) E2E passes. Ordering is enforced by the `&&`,
-not
-by phase/declaration order: `install` is the only post-`verify` phase `mvn clean install` runs, and sortpom would reorder two separate execs, so they
-must share one exec. Their stacks use disjoint ports/DBs and each self-cleans, so running back-to-back is safe.
+compose project, coexists with a running prod stack). The `mvn clean install -Dall` build runs unit tests (`test`), packages the fast-jar, then the
+`*IT` tests (`integration-test`, DB brought up/down in `pre`/`post-integration-test`), gated at `verify` — and stops there. **The E2E and
+deployment-smoke tiers are NOT in the Maven build**: they are chained onto the wrapper's `java` step, which runs `mvn clean install -Dall &&
+tests/run-e2e.sh && tests/run-smoke.sh`. The E2E runner reuses the fast-jar the build just produced (own DB, Playwright UI suite on 8081); the smoke
+runner builds the real prod image and brings up an isolated app+DB stack on 8082 (black-box smoke suite). Each runner is self-contained (brings up its
+own deps, tears them down via an EXIT trap) and exits with Playwright's code; the `&&` chain gates each tier on the previous passing (E2E after the ITs
+are green, smoke after E2E) and their stacks use disjoint ports/DBs. So a single `.github/scripts/lint_and_tests.sh java` is the whole JVM gate.
 
 ## Architecture
 
@@ -114,7 +123,7 @@ Quality gates (opt-in):
 - `-Dlint` — ErrorProne+NullAway (also run on every compile), Checkstyle, PMD, SpotBugs, Javadoc, Enforcer, license headers, dependency analysis,
   PITest. Compiles test sources but does not run tests.
 - `-Dtests` — surefire unit tests (`*Test`) only.
-- `-Dall` — everything: unit + `*IT` + E2E + deployment-smoke + full linters.
+- `-Dall` — unit + `*IT` + full linters (NOT E2E/smoke — those are chained onto the wrapper's `java` step, outside Maven).
 
 **All linters currently pass clean (Checkstyle/PMD/SpotBugs = 0, PITest strength = 100%); keep them that way.** Code must be NullAway-annotated (
 JSpecify `@Nullable`), every public/package method and type carries Javadoc, locals/params are `final`, unit-test assertions carry messages.
@@ -647,6 +656,8 @@ desync.
   E2E suite.
 - **Isolation:** dedicated compose project (`-p diurnal-smoke`), ephemeral tmpfs DB, host port **8082**. Coexists with a running prod stack. (The app
   writes nothing to the filesystem now — session state is in Postgres — so no writable secrets mount is needed.)
-- **CI wiring:** run by the `e2e-then-smoke` exec in the `-Dall` profile (chained `run-e2e.sh && run-smoke.sh`, bound to `install`, gated after the
-  `verify` IT check) — smoke runs only if E2E passed; the image's own HEALTHCHECK drives `up --wait`, so a boot failure fails the build before
-  Playwright starts.
+- **CI wiring:** chained onto the `java` step of `.github/scripts/lint_and_tests.sh` (which runs `mvn clean install -Dall && tests/run-e2e.sh &&
+  tests/run-smoke.sh`) — **not** part of any `mvn` command. The Maven build (`-Dall`) is unit + `*IT` + linters only; the E2E and deployment-smoke
+  tiers were split out of the pom and are now chained after the Maven gate (smoke runs only if the build, ITs and E2E all passed). The image's own
+  HEALTHCHECK drives `up --wait`, so a boot failure fails the step before Playwright starts. In the wrapper's auto-detect mode any app-code or
+  Dockerfile/runtime change selects `java`; run the whole JVM gate explicitly with `.github/scripts/lint_and_tests.sh java`.

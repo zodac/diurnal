@@ -4,7 +4,7 @@
 #
 # Description:     Lints and tests the project using Docker.
 #
-# Usage:           ./lint_and_tests.sh [-v|--verbose] [steps]
+# Usage:           ./lint_and_tests.sh [-v|--verbose] [-f|--force] [steps]
 #
 #                  [steps] is an optional comma-separated list of steps to run.
 #                  If omitted, only steps whose relevant files have changed since
@@ -13,14 +13,19 @@
 #
 #                  -v, --verbose
 #                    Show each step's full output. Off by default: steps print only a
-#                    pass/fail summary (the long-running java/Maven gate is hidden
-#                    entirely). Turn it on to stream the Maven build live and see every
-#                    linter's output — useful when a run fails and you need the detail.
+#                    per-substep progress line and a pass/fail summary (the long-running
+#                    substeps' own output is hidden until one fails). Turn it on to stream
+#                    every substep's output live — useful when a run fails and you need the detail.
+#
+#                  -f, --force
+#                    Run ALL steps, skipping the git-diff auto-detection (equivalent to passing
+#                    the full step list). Cannot be combined with an explicit [steps] argument.
 #
 #                  Valid steps:
 #                    - docker      Lint the Dockerfiles with hadolint
 #                    - grype       Build the runtime image and scan it for CVEs with grype
-#                    - java        Run the full Maven gate (mvn clean install -Dall)
+#                    - java        The full JVM gate: mvn clean install -Dall (unit + *IT + linters),
+#                                  then the Playwright E2E/UI suite, then the deployment-smoke suite
 #                    - javascript  Lint JavaScript files with eslint
 #                    - markdown    Lint Markdown files with markdownlint-cli2
 #                    - shellcheck  Lint shell scripts (*.sh) with shellcheck
@@ -28,6 +33,7 @@
 #
 #                  Examples:
 #                    ./lint_and_tests.sh
+#                    ./lint_and_tests.sh -f
 #                    ./lint_and_tests.sh docker
 #                    ./lint_and_tests.sh docker,javascript
 #                    ./lint_and_tests.sh -v java
@@ -37,11 +43,14 @@
 #   - Docker must be installed and available on the system PATH
 #   - The code-quality-config submodule must be checked out
 #     (git submodule update --init) - it holds every linter's CI config
-#   - The `java` step additionally needs the host toolchain the Docker steps don't: a JDK + Maven,
-#     Node/npm (the POM css-build exec and the E2E deps), and Playwright browsers
-#     (cd tests && npx playwright install --with-deps). It runs `mvn clean install -Dall` directly on the
-#     host, not in the Maven Docker image, because -Dall drives Docker itself (the managed test DB, the
-#     E2E stack, and the deployment-smoke image build).
+#   - The `java` step needs the host toolchain the Docker steps don't: a JDK + Maven, Node/npm (the POM
+#     css-build exec) and Playwright browsers (cd tests && npx playwright install --with-deps). It runs
+#     `mvn clean install -Dall` directly on the host (because -Dall drives Docker itself for the managed
+#     IT test DB), then — only if that passed — the E2E suite (tests/run-e2e.sh, reusing the fast-jar the
+#     build just produced) and the deployment-smoke suite (tests/run-smoke.sh, which builds the REAL
+#     production image and brings up an isolated app+DB stack). The `mvn` gate itself stays unit + ITs +
+#     linters; the E2E and smoke tiers are deliberately NOT in the Maven build — they are chained into
+#     this step instead, so a single `java` run is the whole JVM-side gate.
 #   - The `grype` step builds the production runtime image and scans it, so it needs a Docker daemon
 #     the current user can build with; the scan runs from the grype image with the Docker
 #     socket mounted so it can read that just-built local image.
@@ -84,9 +93,22 @@ GRYPE_DB_CACHE_VOLUME="${GRYPE_DB_CACHE_VOLUME:-diurnal-grype-db}"
 
 VALID_STEPS=("docker" "grype" "java" "javascript" "markdown" "shellcheck" "typescript")
 
-# Verbose off by default: steps print only a pass/fail summary and the java/Maven gate is hidden.
-# The -v/--verbose flag (parsed below) flips this to stream/echo every step's full output.
+# HTTP ports for the E2E and deployment-smoke tiers the `java` step chains after the Maven gate
+# (formerly Maven properties in the pom's `all` profile). The E2E jar reuses 8081 (the @QuarkusTest
+# default, released by the time the jar starts); the smoke stack uses 8082 with an isolated compose
+# project — both distinct from 8080 (production), so either can run alongside a live deployment.
+# Override on a port conflict.
+E2E_HTTP_PORT="${E2E_HTTP_PORT:-8081}"
+SMOKE_HTTP_PORT="${SMOKE_HTTP_PORT:-8082}"
+
+# Verbose off by default: steps print a per-substep progress line plus a pass/fail summary, and each
+# substep's own output is hidden until it fails. The -v/--verbose flag (parsed below) flips this to
+# stream/echo every substep's full output live.
 VERBOSE=false
+
+# Force off by default: with -f/--force (parsed below), the git-diff auto-detection is skipped and
+# every step runs. Ignored when an explicit step list is passed (that combination is rejected).
+FORCE=false
 
 overall_exit_code=0
 
@@ -106,6 +128,32 @@ fi
 # not masked (SC2312).
 HOST_UID="$(id -u)"
 HOST_GID="$(id -g)"
+
+# Emit an indented progress line naming the substep about to run. Always printed — even in non-verbose
+# mode — so a long multi-part step (java's mvn/e2e/smoke, grype's build/scan) shows what it is doing
+# rather than sitting silent until the final summary.
+substep() {
+    echo "   → ${1}"
+}
+
+# Run one substep's command: in verbose mode stream its output live; otherwise capture combined
+# stdout+stderr and echo it ONLY if the command fails (so a passing run stays quiet, a failing one is
+# still fully reviewable without a re-run). Returns the command's own exit code so callers can chain
+# and short-circuit on failure; it deliberately does NOT touch overall_exit_code — the calling step
+# decides how a substep failure maps to its own pass/fail.
+run_quietly() {
+    if [[ "${VERBOSE}" == true ]]; then
+        "$@"
+        return $?
+    fi
+    local out rc
+    out=$("$@" 2>&1)
+    rc=$?
+    if [[ "${rc}" -ne 0 && -n "${out}" ]]; then
+        echo "${out}"
+    fi
+    return "${rc}"
+}
 
 # The eslint image is shared by the javascript and typescript steps. It installs eslint plus the
 # TypeScript plugins referenced by code-quality-config/typescript/eslint.config.mjs into the root
@@ -189,41 +237,22 @@ run_grype() {
         "${grype_config_args[@]}"
         "${DIURNAL_RUNTIME_IMAGE}")
 
-    # Verbose streams the build and scan live (the scan is slow and, on a cold DB, downloads ~1.6GB —
-    # so live progress matters); non-verbose captures each and prints only on failure. Both paths share
-    # the command arrays above so the invocation is defined once.
-    if [[ "${VERBOSE}" == true ]]; then
-        echo "→ Building ${DIURNAL_RUNTIME_IMAGE}"
-        if ! "${build_cmd[@]}"; then
-            echo "❌ Grype scan failed (could not build ${DIURNAL_RUNTIME_IMAGE})"
-            overall_exit_code=1
-            return
-        fi
-        docker pull "${GRYPE_DOCKER_IMAGE}" >/dev/null
-        echo "→ Starting Grype scan on ${DIURNAL_RUNTIME_IMAGE}"
-        if "${grype_cmd[@]}"; then
-            echo "✅ Grype scan passed"
-        else
-            echo "❌ Grype scan failed: re-run ${YELLOW}'${SCRIPT_PATH} -v grype'${RESET} for the full output"
-            overall_exit_code=1
-        fi
-        return
-    fi
-
-    local build_output
-    if ! build_output=$("${build_cmd[@]}" 2>&1); then
-        echo "${build_output}" | tail -30
-        echo "❌ Grype scan failed (could not build ${DIURNAL_RUNTIME_IMAGE})"
+    # Two substeps — build then scan — each with a progress line (even non-verbose) and its output
+    # captured until it fails (run_quietly). The scan is slow and, on a cold DB, downloads ~1.6GB, so
+    # the progress lines matter; -v streams both live. Both paths share the command arrays above.
+    substep "docker build ${DIURNAL_RUNTIME_IMAGE}  (production runtime image)"
+    if ! run_quietly "${build_cmd[@]}"; then
+        echo "❌ Grype scan failed (could not build ${DIURNAL_RUNTIME_IMAGE}): re-run ${YELLOW}'${SCRIPT_PATH} -v grype'${RESET} for the full output"
         overall_exit_code=1
         return
     fi
 
     docker pull "${GRYPE_DOCKER_IMAGE}" >/dev/null
 
-    if output=$("${grype_cmd[@]}" 2>&1); then
+    substep "grype scan ${DIURNAL_RUNTIME_IMAGE}  (CVE scan via ${GRYPE_DOCKER_IMAGE})"
+    if run_quietly "${grype_cmd[@]}"; then
         echo "✅ Grype scan passed"
     else
-        echo "${output}"
         echo "❌ Grype scan failed: re-run ${YELLOW}'${SCRIPT_PATH} -v grype'${RESET} for the full output"
         overall_exit_code=1
     fi
@@ -231,26 +260,39 @@ run_grype() {
 
 run_java() {
     echo
-    echo "Running the full Java gate with [mvn clean install -Dall]"
-    # -Dall drives the CSS build (Node), a managed test DB, the E2E stack and the deployment-smoke image
-    # build (all via Docker), so — unlike the other steps — it runs against the host toolchain (JDK +
-    # Maven + Node + Playwright + a Docker daemon) rather than the Node-less Maven Docker image.
-    #
-    # The build is long and its output is enormous, so on success only the pass/fail summary is printed
-    # (matching the other steps). Verbose streams the full Maven output live; non-verbose captures it and
-    # prints it on failure so a failed run is always reviewable without a re-run — like every other step.
-    if [[ "${VERBOSE}" == true ]]; then
-        if mvn clean install -Dall; then
-            echo "✅ Java lints and tests passed"
-        else
-            echo "❌ Java lints and tests failed"
-            overall_exit_code=1
-        fi
-    elif output=$(mvn clean install -Dall 2>&1); then
-        echo "✅ Java lints and tests passed"
+    echo "Running the full JVM gate [java]: Maven build + E2E + deployment-smoke"
+    # The java step is the whole JVM-side gate: three substeps, each run only if the previous passed
+    # (so a failure short-circuits and the later, slower tiers are skipped). Each substep prints a
+    # progress line first (even in non-verbose mode); run_quietly hides its output unless it fails.
+    #   1. mvn clean install -Dall — unit tests + *IT + the full inherited lint suite. Drives the CSS
+    #      build (Node) and a managed IT test DB (Docker), and packages the fast-jar the E2E run reuses;
+    #      so it runs against the host toolchain (JDK + Maven + Node + Docker), not a Maven Docker image.
+    #   2. tests/run-e2e.sh — Playwright UI suite against the packaged jar (its own DB, port 8081). No
+    #      rebuild needed: it reuses ${PWD}/target/quarkus-app from the install above.
+    #   3. tests/run-smoke.sh — deployment-smoke suite against the REAL production image (port 8082),
+    #      fully self-contained (builds the image, isolated app+DB stack, readiness-gating check).
+    # This mirrors the old -Dall pom wiring (E2E after the ITs are green, smoke after E2E).
+    local failed_at=""
+
+    substep "mvn clean install -Dall  (unit + *IT + linters; packages the fast-jar)"
+    run_quietly mvn clean install -Dall || failed_at="mvn clean install -Dall"
+
+    if [[ -z "${failed_at}" ]]; then
+        substep "tests/run-e2e.sh  (Playwright E2E/UI suite on :${E2E_HTTP_PORT}, reusing the built jar)"
+        run_quietly "${PWD}/tests/run-e2e.sh" "${E2E_HTTP_PORT}" "${PWD}/target" "${PWD}" \
+            || failed_at="tests/run-e2e.sh"
+    fi
+
+    if [[ -z "${failed_at}" ]]; then
+        substep "tests/run-smoke.sh  (deployment-smoke against the real prod image on :${SMOKE_HTTP_PORT})"
+        run_quietly "${PWD}/tests/run-smoke.sh" "${SMOKE_HTTP_PORT}" "${PWD}" \
+            || failed_at="tests/run-smoke.sh"
+    fi
+
+    if [[ -z "${failed_at}" ]]; then
+        echo "✅ Java gate passed (build + tests + E2E + smoke)"
     else
-        echo "${output}"
-        echo "❌ Java lints and tests failed: re-run ${YELLOW}'${SCRIPT_PATH} -v java'${RESET} for the full output"
+        echo "❌ Java gate failed at [${failed_at}]: re-run ${YELLOW}'${SCRIPT_PATH} -v java'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -267,10 +309,12 @@ run_javascript() {
         echo "✅ JavaScript lint passed (no JavaScript files found)"
         return
     fi
+    substep "preparing eslint image (${ESLINT_BUILD_IMAGE})"
     if ! ensure_eslint_image; then
         overall_exit_code=1
         return
     fi
+    substep "eslint (${#files[@]} JavaScript file(s))"
     if output=$(docker run --rm \
         -u "${HOST_UID}:${HOST_GID}" \
         -e HOME=/tmp \
@@ -292,6 +336,7 @@ run_javascript() {
 run_typescript() {
     echo
     echo "Running TypeScript lint using [${ESLINT_NODE_IMAGE}]"
+    substep "preparing eslint image (${ESLINT_BUILD_IMAGE})"
     if ! ensure_eslint_image; then
         overall_exit_code=1
         return
@@ -299,6 +344,7 @@ run_typescript() {
     # The TS config is type-aware (parserOptions.project) so the tests/ dependencies must be installed
     # for the type-checker to resolve imports. eslint is run from within tests/ so it picks up
     # tests/tsconfig.json and tests/node_modules; the config path is relative to that dir.
+    substep "npm ci + eslint (tests/**/*.ts)"
     if output=$(docker run --rm \
         -u "${HOST_UID}:${HOST_GID}" \
         -e HOME=/tmp \
@@ -397,9 +443,20 @@ detect_changed_steps() {
         # pom.xml path (bundled Java deps) is handled below with the same version-bump suppression as
         # java; sandbox/Dockerfile and docker-compose don't affect the published runtime image.
         [[ "${file}" == "Dockerfile" || "${file}" == ".dockerignore" || "${file}" == ".grype.yaml" ]] && run_grype=true
-        # frontend/ (the Tailwind source + npm build) feeds the compiled stylesheet the -Dall gate
-        # builds and the E2E suite exercises, so it triggers the java step like src/ does.
-        if [[ "${file}" =~ ^src/ || "${file}" =~ ^frontend/ || "${file}" == "pom.xml" || "${file}" =~ ^code-quality-config/java/ ]]; then
+        # The `java` step is the whole JVM gate (Maven build + ITs + the E2E and deployment-smoke
+        # suites), so anything feeding ANY of those three tiers triggers it:
+        #   - src/, frontend/ (Tailwind source feeding the compiled stylesheet), pom.xml, the java lint config;
+        #   - the E2E suite's own files — the ui specs, shared helpers/global-setup, its Playwright config,
+        #     the runner, and the tests/ npm/ts deps;
+        #   - the deployment-smoke inputs — the runtime Dockerfile/.dockerignore, the smoke stack/suite,
+        #     its Playwright config and runner.
+        if [[ "${file}" =~ ^src/ || "${file}" =~ ^frontend/ || "${file}" == "pom.xml" || "${file}" =~ ^code-quality-config/java/ \
+           || "${file}" =~ ^tests/ui/ || "${file}" =~ ^tests/helpers/ || "${file}" == "tests/global-setup.ts" \
+           || "${file}" == "tests/playwright.config.ts" || "${file}" == "tests/run-e2e.sh" \
+           || "${file}" =~ ^tests/package(-lock)?\.json$ || "${file}" == "tests/tsconfig.json" \
+           || "${file}" == "Dockerfile" || "${file}" == ".dockerignore" || "${file}" =~ ^tests/smoke/ \
+           || "${file}" == "tests/docker-compose.smoke.yml" || "${file}" == "tests/playwright.smoke.config.ts" \
+           || "${file}" == "tests/run-smoke.sh" ]]; then
             run_java=true
             java_changed_files+=("${file}")
         fi
@@ -494,9 +551,10 @@ positional=()
 while [[ $# -gt 0 ]]; do
     case "${1}" in
     -v | --verbose) VERBOSE=true ;;
+    -f | --force) FORCE=true ;;
     --) shift; positional+=("$@"); break ;;
     -*)
-        echo "❌ Unknown option: '${1}'. Supported: -v, --verbose"
+        echo "❌ Unknown option: '${1}'. Supported: -v, --verbose, -f, --force"
         exit 1
         ;;
     *) positional+=("${1}") ;;
@@ -509,8 +567,18 @@ else
     set --
 fi
 
+# -f/--force runs every step, so it is mutually exclusive with an explicit step list — reject the
+# ambiguous combination rather than silently picking one.
+if [[ "${FORCE}" == true && $# -gt 0 ]]; then
+    echo "❌ -f/--force runs ALL steps and cannot be combined with an explicit step list ('${1}')"
+    exit 1
+fi
+
 # Parse and validate steps
-if [[ $# -eq 0 ]]; then
+if [[ "${FORCE}" == true ]]; then
+    steps=("${VALID_STEPS[@]}")
+    echo "Running ALL steps (forced): $(IFS=', '; echo "${steps[*]}")"
+elif [[ $# -eq 0 ]]; then
     mapfile -t steps < <(detect_changed_steps || true)
     if [[ ${#steps[@]} -eq 0 ]]; then
         echo "No relevant changes detected since last tag; nothing to run"

@@ -1,20 +1,19 @@
 #!/usr/bin/env bash
 #
-# Self-contained E2E runner, invoked from the `e2e-then-smoke` exec execution in pom.xml (the `-Dall`
-# profile). It is bound to the `install` phase — strictly AFTER the `verify` phase where failsafe
-# reports `*IT` failures — so it only runs once the integration tests have been confirmed green. If
-# the ITs fail, the build stops at `verify` and this script is never reached.
+# Self-contained E2E runner, invoked by the `java` step of .github/scripts/lint_and_tests.sh — chained
+# after `mvn clean install -Dall` (and only if it passed), so the fast-jar in $2/quarkus-app/ that this
+# script starts is the one that build just produced. The E2E tier is deliberately NOT part of the Maven
+# build itself (the `mvn` gate is unit + ITs + linters); the java step chains it on afterwards.
 #
-# It is fully self-contained so its steps never share a Maven phase with another exec execution
-# (which sortpom could reorder): it brings up its own test DB, starts the packaged fast-jar, polls
-# /login until ready (max ~120s), then runs the Playwright suite. An EXIT trap always tears the jar
-# and test DB down — on success OR failure — and the script exits with Playwright's own exit code, so
-# a failing E2E run fails the Maven build.
+# It is fully self-contained: it brings up its own test DB, starts the packaged fast-jar, polls /login
+# until ready (max ~120s), then runs the Playwright suite. An EXIT trap always tears the jar and test
+# DB down — on success OR failure — and the script exits with Playwright's own exit code, so a failing
+# E2E run fails the java step.
 #
-# Args (passed positionally from the exec plugin so Maven properties resolve in the POM, not here):
+# Args (passed positionally by the java step):
 #   $1  HTTP port for the app + E2E base URL
-#   $2  Maven ${project.build.directory} (the `target` dir)
-#   $3  Maven ${project.basedir} (project root; holds docker-compose.dev.yml and the tests/ dir)
+#   $2  the Maven `target` build directory (holds quarkus-app/quarkus-run.jar)
+#   $3  project root (holds docker-compose.dev.yml and the tests/ dir)
 #
 # Readiness/E2E use 127.0.0.1 (not 'localhost') because the app binds IPv4 (0.0.0.0) and Node may
 # otherwise resolve localhost to IPv6 ::1.
