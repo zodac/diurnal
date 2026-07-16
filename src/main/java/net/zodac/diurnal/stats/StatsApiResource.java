@@ -123,7 +123,7 @@ public class StatsApiResource {
      */
     @Schema(description = "Computed statistics for a single action.")
     public record ActionStatsDto(
-        @Schema(description = "The action's id.") UUID actionId,
+        @Schema(description = "The action's ID.") UUID actionId,
         @Schema(examples = "Morning run", description = "The action's name.") String name,
         @Schema(examples = "#6366f1", description = "The action's display colour as a CSS hex value.") String colour,
         @Schema(examples = "42", description = "The number of distinct days the action was logged.") int totalDays,

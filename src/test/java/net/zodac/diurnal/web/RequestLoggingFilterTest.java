@@ -66,14 +66,14 @@ class RequestLoggingFilterTest {
 
     @Test
     void shouldLog_healthProbe_isExcluded() {
-        assertThat(RequestLoggingFilter.shouldLog("health"))
+        assertThat(RequestLoggingFilter.shouldLog("api/v1/status"))
             .as("the container health-check path must never be logged")
             .isFalse();
     }
 
     @Test
     void shouldLog_healthProbeWithLeadingSlash_isExcluded() {
-        assertThat(RequestLoggingFilter.shouldLog("/health"))
+        assertThat(RequestLoggingFilter.shouldLog("/api/v1/status"))
             .as("the health-check path must be excluded regardless of a leading slash")
             .isFalse();
     }

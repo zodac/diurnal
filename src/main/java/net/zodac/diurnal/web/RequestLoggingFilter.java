@@ -40,8 +40,9 @@ import org.jspecify.annotations.Nullable;
  * on.
  *
  * <p>
- * High-frequency infrastructure probes are excluded entirely (at every level): the container's Docker {@code HEALTHCHECK} hammers {@code /health} on
- * a short interval, which would otherwise drown the trace stream in self-generated noise. Those paths ({@link #UNLOGGED_PATHS}) are never logged.
+ * High-frequency infrastructure probes are excluded entirely (at every level): the container's Docker {@code HEALTHCHECK} hammers
+ * {@code /api/v1/status} on a short interval, which would otherwise drown the trace stream in self-generated noise. Those paths
+ * ({@link #UNLOGGED_PATHS}) are never logged.
  */
 @Provider
 // Innermost request filter / outermost response filter, so the timing brackets the resource method as tightly as possible.
@@ -52,7 +53,7 @@ public class RequestLoggingFilter implements ContainerRequestFilter, ContainerRe
     private static final String START_NANOS_PROPERTY = "net.zodac.diurnal.requestStartNanos";
 
     // Infrastructure probe paths (Docker HEALTHCHECK etc.) that are never logged, at any level.
-    private static final Set<String> UNLOGGED_PATHS = Set.of("health");
+    private static final Set<String> UNLOGGED_PATHS = Set.of("api/v1/status");
 
     @Override
     public void filter(final ContainerRequestContext requestContext) {

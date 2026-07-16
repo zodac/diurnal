@@ -131,8 +131,15 @@ Under `src/main/java/net/zodac/diurnal/`:
   leaking into the docs) fails CI until the contract is consciously updated. Breaking changes to `/api/v1/*` are MAJOR-version events (see README).
 - **`/internal/*` — web-UI plumbing** (HTMX fragments, fragment mutations, UI-cache JSON like `/internal/logs/month`). Never documented, no
   stability guarantees, anonymous requests get the browser `302 /login` challenge (vs `401` for `/api/*`).
-- **Page routes stay top-level** (`/`, `/actions`, `/stats`, `/settings`, `/admin/*`, `/login`, `/register`, `/logout`), as do the operational
-  `/health` endpoint and the OIDC routes.
+- **Page routes stay top-level** (`/`, `/actions`, `/stats`, `/settings`, `/admin/*`, `/login`, `/register`, `/logout`), as do the OIDC routes.
+  **The operational status/health probe is `GET /api/v1/status`** (a public API endpoint like any other, fully OpenAPI-annotated and in the
+  `OpenApiSurfaceIT.PUBLIC_API_CONTRACT`): it returns JSON `{liveness, readiness, version, uptime}`, is anonymous (container `HEALTHCHECK`s / load
+  balancers reach it tokenless), and is **readiness-gated** — `200` when the database is reachable, `503` when not — so the Docker `HEALTHCHECK` (and
+  any probe keying on the status code) only reports healthy when the app can serve real traffic. Logic lives in `status/StatusService` +
+  `status/StatusAssembler` (pure, unit-tested); the resource is a thin translator. There is no longer a top-level `/health` route.
+- **Swagger descriptions capitalise the `id` acronym as `ID`** (never a standalone lowercase "id") — enforced by
+  `OpenApiSurfaceIT.document_capitalisesTheIdAcronymInEveryDescription`, which scans every `description`/`summary` in the generated document. The
+  `@Parameter(name = "id")` path-param *name* stays lowercase (it is the literal path token); only the human-readable text is affected.
 - The full consolidation history and phase plan live in [`APIS.md`](APIS.md).
 
 ### Single business logic (the rule for every mutation)

@@ -63,8 +63,7 @@ class EndpointNamespaceTest {
         "/stats",
         "/settings",
         "/admin/users",
-        "/admin/api-docs",
-        "/health");
+        "/admin/api-docs");
 
     @Test
     void everyEndpointLivesInSanctionedNamespace() {

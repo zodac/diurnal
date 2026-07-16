@@ -206,7 +206,7 @@ public class LogsApiResource {
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to write, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
         @PathParam("date") final String date,
-        @Parameter(name = "actionId", in = ParameterIn.PATH, required = true, description = "The id of the action being logged against.")
+        @Parameter(name = "actionId", in = ParameterIn.PATH, required = true, description = "The ID of the action being logged against.")
         @PathParam("actionId") final UUID actionId,
         final @Nullable SetCountRequest request) {
 
@@ -257,7 +257,7 @@ public class LogsApiResource {
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to write, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
         @PathParam("date") final String date,
-        @Parameter(name = "actionId", in = ParameterIn.PATH, required = true, description = "The id of the action being logged against.")
+        @Parameter(name = "actionId", in = ParameterIn.PATH, required = true, description = "The ID of the action being logged against.")
         @PathParam("actionId") final UUID actionId,
         @RequestBody(required = false, description = "Optional adjustment amount; omit the body (or the field) to adjust by 1.")
         final @Nullable AmountRequest request) {
@@ -293,7 +293,7 @@ public class LogsApiResource {
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to write, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
         @PathParam("date") final String date,
-        @Parameter(name = "actionId", in = ParameterIn.PATH, required = true, description = "The id of the action being logged against.")
+        @Parameter(name = "actionId", in = ParameterIn.PATH, required = true, description = "The ID of the action being logged against.")
         @PathParam("actionId") final UUID actionId,
         @RequestBody(required = false, description = "Optional adjustment amount; omit the body (or the field) to adjust by 1.")
         final @Nullable AmountRequest request) {
@@ -325,7 +325,7 @@ public class LogsApiResource {
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to clear, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
         @PathParam("date") final String date,
-        @Parameter(name = "actionId", in = ParameterIn.PATH, required = true, description = "The id of the action being logged against.")
+        @Parameter(name = "actionId", in = ParameterIn.PATH, required = true, description = "The ID of the action being logged against.")
         @PathParam("actionId") final UUID actionId) {
         final User user = currentUser.get();
         final LocalDate day = DateRanges.requireDate("date", date);
@@ -411,7 +411,7 @@ public class LogsApiResource {
      */
     @Schema(description = "One action's resulting count for a day.")
     public record LogEntryDto(
-        @Schema(description = "The action's id.") UUID actionId,
+        @Schema(description = "The action's ID.") UUID actionId,
         @Schema(examples = "2026-06-15", description = "The day, as an ISO-8601 date string.") String date,
         @Schema(examples = "3", description = "The resulting count for the day; 0 means no entry remains.") int count) {
     }
@@ -426,7 +426,7 @@ public class LogsApiResource {
      */
     @Schema(description = "One action's logged count on a given day.")
     public record DayLogEntryDto(
-        @Schema(description = "The action's id.") UUID actionId,
+        @Schema(description = "The action's ID.") UUID actionId,
         @Schema(examples = "Morning run", description = "The action's name.") String name,
         @Schema(examples = "#6366f1", description = "The action's display colour as a CSS hex value.") String colour,
         @Schema(examples = "3", description = "The logged count for the day.") int count) {

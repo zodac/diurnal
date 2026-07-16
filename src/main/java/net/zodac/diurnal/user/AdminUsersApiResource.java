@@ -114,7 +114,7 @@ public class AdminUsersApiResource {
     @GET
     @Path("{id}")
     @Transactional
-    @Operation(summary = "Get a user account", description = "Returns a single account by id.")
+    @Operation(summary = "Get a user account", description = "Returns a single account by ID.")
     @SecurityRequirement(name = "BearerAuth")
     @APIResponses({
         @APIResponse(responseCode = "200", description = "The account.",
@@ -124,7 +124,7 @@ public class AdminUsersApiResource {
         @APIResponse(responseCode = "404", description = "No such account.")
     })
     public Response getUser(
-        @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The user's id.")
+        @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The user's ID.")
         @PathParam("id") final UUID id) {
         final User user = adminUserService.find(id);
         if (user == null) {
@@ -159,7 +159,7 @@ public class AdminUsersApiResource {
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public Response changeRole(
-        @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The user's id.")
+        @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The user's ID.")
         @PathParam("id") final UUID id,
         final @Nullable RoleChangeRequest request) {
         final String role = request == null ? null : request.role();
@@ -198,7 +198,7 @@ public class AdminUsersApiResource {
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public Response deleteUser(
-        @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The user's id.")
+        @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The user's ID.")
         @PathParam("id") final UUID id) {
         return switch (adminUserService.deleteUser(identity.getPrincipal().getName(), id)) {
             case AdminUserResult.NotFound ignored -> Response.status(Response.Status.NOT_FOUND).build();
@@ -232,7 +232,7 @@ public class AdminUsersApiResource {
      */
     @Schema(description = "A user account as seen by an administrator.")
     public record AdminUserDto(
-        @Schema(description = "The user's id.") UUID id,
+        @Schema(description = "The user's ID.") UUID id,
         @Schema(examples = "ada@example.com", description = "Email address of the account.") String email,
         @Schema(examples = "Ada Lovelace", description = "Human-readable name shown in the UI.") String displayName,
         @Schema(examples = Role.Values.USER, description = "The account's role: 'user' or 'admin'.") String role,
