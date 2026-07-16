@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
 #
-# Self-contained deployment-smoke runner, invoked as the second step of the `e2e-then-smoke` exec
-# execution in pom.xml (the `-Dall` profile), bound to the `install` phase. Where run-e2e.sh
-# exercises the packaged fast-jar on a full JDK, THIS script exercises the REAL production Docker
-# image (built from the Dockerfile) so the suite catches bugs that live only in the distroless /
-# jlink / non-root runtime — e.g. a missing jlink module (see the java.rmi incident), non-root write
-# permissions, or a CSS-hash / favicon build-stage desync.
+# Self-contained deployment-smoke runner, invoked by the `java` step of
+# .github/scripts/lint_and_tests.sh — chained last, after `mvn clean install -Dall` and run-e2e.sh (and
+# only if both passed). The smoke tier is deliberately NOT part of the Maven build (the `mvn` gate is
+# unit + ITs + linters); the java step chains it on afterwards. Where run-e2e.sh exercises the packaged
+# fast-jar on a full JDK, THIS script exercises the REAL production Docker image (built from the
+# Dockerfile) so the suite catches bugs that live only in the distroless / jlink / non-root runtime —
+# e.g. a missing jlink module (see the java.rmi incident), non-root write permissions, or a CSS-hash /
+# favicon build-stage desync.
 #
 # It is fully self-contained and namespaced so it never collides with a running production stack
 # (docker-compose.yml) or with run-e2e.sh: a dedicated compose project (`-p diurnal-smoke`), an
 # ephemeral tmpfs DB, and host port 8082 (!= 8080 prod, != 8081 dev/E2E). An EXIT trap always tears
 # the whole stack down — on success OR failure — and the script exits with Playwright's own exit
-# code, so a failing smoke run fails the Maven build.
+# code, so a failing smoke run fails the java step.
 #
-# Ordering note: run-e2e.sh and this script are chained (`&&`) inside the single `e2e-then-smoke`
-# exec, so this one runs strictly after — and only if — the E2E tier passed. They are still kept
-# fully independent (disjoint ports, disjoint compose projects/DBs, each self-cleaning, each failing
-# the build on its own), so running either alone is always safe.
+# It is fully independent of run-e2e.sh (disjoint ports, disjoint compose projects/DBs, each
+# self-cleaning, each failing on its own), so running it alone is always safe.
 #
-# Args (passed positionally from the exec plugin so Maven properties resolve in the POM, not here):
+# Args (passed positionally by the java step):
 #   $1  host port to publish the app on (= Playwright base-URL port)
-#   $2  Maven ${project.basedir} (project root; holds the Dockerfile; the compose file and suite live in tests/)
+#   $2  project root (holds the Dockerfile; the compose file and suite live in tests/)
 #
 # Readiness/Playwright use 127.0.0.1 (not 'localhost') because Node may otherwise resolve localhost
 # to IPv6 ::1 while the published port binds IPv4.

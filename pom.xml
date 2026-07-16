@@ -386,45 +386,17 @@
 
     <profiles>
         <!--
-            Run ALL test tiers in one command — starts and stops the test DB automatically:
+            Run the unit + integration test tiers plus the full inherited lint suite in one command —
+            starting and stopping the test DB automatically:
                 mvn clean install -Dall
 
-            The shared `all` property also activates the parent's `activate_all` profile, which
-            enables the full inherited lint suite AND the unit tests. So -Dall = unit + *IT + E2E
-            tests PLUS every inherited linter, in a single command.
-
-            Phase sequence (correctness comes ONLY from PHASE binding, never from declaration order —
-            the inherited sortpom plugin re-sorts plugins AND executions on every build, and it orders
-            plugins by artifactId, so e.g. exec-maven-plugin sorts before maven-failsafe-plugin. Two
-            steps that must be ordered therefore must live in DIFFERENT phases; never two in one phase):
-              test                 – surefire: unit tests (*Test) only
-              package              – Quarkus builds the fast-jar
-              pre-integration-test – docker compose up (test DB) for the ITs
-              integration-test     – failsafe runs the *IT tests (@QuarkusTest on 8081); failure is
-                                     deferred to the verify phase (so post-IT teardown still runs)
+              test                  – surefire: unit tests (*Test) only
+              package               – Quarkus builds the fast-jar
+              pre-integration-test  – docker compose up (test DB) for the ITs
+              integration-test      – failsafe runs the *IT tests (@QuarkusTest on 8081); failure is
+                                      deferred to the verify phase (so post-IT teardown still runs)
               post-integration-test – docker compose down (test DB)
-              verify               – failsafe GATE: the build fails here if any *IT failed
-              install              – e2e THEN deployment-smoke, chained in one exec ('e2e-then-smoke'):
-                                     runs ONLY because the build passed the verify gate (ITs confirmed
-                                     green first). The single execution runs run-e2e.sh (packaged jar on
-                                     8081, Playwright E2E suite, feature coverage on a full JDK) and then,
-                                     only if it passed (`&&`), run-smoke.sh (builds the REAL production
-                                     Docker image, runs an isolated app+DB stack on 8082, black-box smoke
-                                     suite. Each script is self-contained (brings up its own deps, tears
-                                     them down via a trap) and exits with Playwright's code, so a failure in
-                                     either tier fails the build. Ordering is enforced by the `&&` inside the
-                                     single exec (NOT by phase/declaration order): the only phase after
-                                     `verify` that `install` runs is `install` itself, and sortpom re-sorts
-                                     executions, so two separate execs could not be ordered — hence one exec.
-
-            Why e2e + smoke are in `install`, not `integration-test`: failsafe only raises *IT failures
-            in the `verify` phase, so they must run AFTER verify to be gated on the ITs passing.
-            `install` is the first phase after `verify`, and the project's full gate is
-            `mvn clean install -Dall`. The E2E jar reuses 8081 (the @QuarkusTest default, long released
-            by install) and the smoke stack uses 8082 with an isolated compose project — both distinct
-            from 8080 (production), so -Dall coexists with a running deployment. Readiness/E2E/smoke use
-            127.0.0.1 (not 'localhost') because the app binds IPv4 (0.0.0.0) and Node may resolve
-            localhost to ::1.
+              verify                – failsafe GATE: the build fails here if any *IT failed
         -->
         <profile>
             <id>all</id>
@@ -433,15 +405,6 @@
                     <name>all</name>
                 </property>
             </activation>
-            <properties>
-                <!-- Single "testing" HTTP port, shared by both IT & E2E test suites. Consumed only by the
-                     E2E exec execution below; override with -De2e.http.port=<port> on a port conflict. -->
-                <e2e.http.port>8081</e2e.http.port>
-                <!-- Host port the deployment-smoke stack (tests/docker-compose.smoke.yml) publishes the real
-                     production image on. != 8081 (IT/E2E) and != 8080 (production) so the smoke run
-                     coexists with both; override with -Dsmoke.http.port=<port> on a conflict. -->
-                <smoke.http.port>8082</smoke.http.port>
-            </properties>
             <build>
                 <plugins>
                     <plugin>
@@ -486,51 +449,6 @@
                                         <argument>-s</argument>
                                         <argument>-f</argument>
                                         <argument>diurnal-db-dev</argument>
-                                    </arguments>
-                                </configuration>
-                            </execution>
-
-                            <!--
-                                E2E then deployment-smoke, in ONE execution, bound to `install` — i.e.
-                                strictly AFTER the verify-phase failsafe gate, so both run only once the
-                                ITs are confirmed green (if they fail, the build stops at verify and this
-                                never runs).
-
-                                Why one execution and not two: the only lifecycle phase after `verify`
-                                that `mvn clean install` runs is `install`, and sortpom re-sorts executions
-                                on every build, so two separate `install`-bound execs have NO guaranteed
-                                order. To make smoke run strictly AFTER e2e we chain them inside a single
-                                shell command (`&&`), where ordering is deterministic and independent of
-                                sortpom. e2e runs first (fail-fast: an E2E failure short-circuits before the
-                                expensive production-image build); smoke runs only if e2e passed.
-
-                                Step 1 — tests/run-e2e.sh: self-contained; brings up its own test DB, starts
-                                the packaged jar on ${e2e.http.port}, polls /login until ready (max 120s),
-                                runs Playwright, tears the jar + test DB down via an EXIT trap. Feature
-                                coverage on a full JDK.
-
-                                Step 2 — tests/run-smoke.sh: builds the REAL production image from the
-                                Dockerfile, brings up an isolated full stack (tests/docker-compose.smoke.yml:
-                                app + ephemeral DB) on ${smoke.http.port}, runs the small black-box smoke
-                                suite against it, tears the stack down via an EXIT trap. The ONLY tier that
-                                exercises the packaged distroless / jlink / non-root runtime.
-
-                                Both scripts exit with Playwright's code and `&&` propagates a non-zero
-                                exit, so a failure in either tier fails the build. Ports/compose
-                                projects/DBs are disjoint, so the two stacks never collide even back-to-back.
-                                Args are passed positionally so the Maven properties resolve here, in the POM.
-                            -->
-                            <execution>
-                                <id>e2e-then-smoke</id>
-                                <goals>
-                                    <goal>exec</goal>
-                                </goals>
-                                <phase>install</phase>
-                                <configuration>
-                                    <executable>bash</executable>
-                                    <arguments>
-                                        <argument>-c</argument>
-                                        <argument>"${project.basedir}/tests/run-e2e.sh" "${e2e.http.port}" "${project.build.directory}" "${project.basedir}" &amp;&amp; "${project.basedir}/tests/run-smoke.sh" "${smoke.http.port}" "${project.basedir}"</argument>
                                     </arguments>
                                 </configuration>
                             </execution>
