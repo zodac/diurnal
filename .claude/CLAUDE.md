@@ -41,14 +41,16 @@ mvn quarkus:dev
 # Build JAR (no tests by default)
 mvn package
 
-# Run ALL tests + linters (full CI gate)
-mvn clean install -Dall
-# Prerequisite: cd tests && npx playwright install
+# Run the quality gate via the wrapper — NOT `mvn clean install -Dall` directly (see the note below).
+# No args = auto-detects which steps changed since the last tag; pass explicit steps to scope it.
+.github/scripts/lint_and_tests.sh                 # only the steps whose files changed
+.github/scripts/lint_and_tests.sh java            # the full Java gate (== mvn clean install -Dall)
+.github/scripts/lint_and_tests.sh java,shellcheck # multiple steps, comma-separated
+.github/scripts/lint_and_tests.sh -v java         # stream full output (default hides it, prints on fail)
+# Valid steps: docker, grype, java, javascript, markdown, shellcheck, typescript
+# Prerequisite for the java step: cd tests && npx playwright install
 
-# Run linters only (no tests)
-mvn clean install -Dlint
-
-# Run unit tests only (no DB needed)
+# Run unit tests only (no DB needed) — the one gate the wrapper has no scoped step for
 mvn test -Dtests
 mvn test -Dtests -Dtest=MyTestClass
 
@@ -66,6 +68,14 @@ cp .env.example .env   # fill in DB_PASSWORD and SESSION_ENCRYPTION_KEY
 docker compose up -d --build
 docker compose logs -f app
 ```
+
+> **Always run the quality gate through `.github/scripts/lint_and_tests.sh`, never `mvn clean install -Dall`
+> directly.** The wrapper runs the same Java gate (its `java` step *is* `mvn clean install -Dall`) plus every
+> other linter CI enforces (docker/grype/js/ts/markdown/shellcheck), captures the output, and prints only a
+> pass/fail summary unless a step fails (or `-v`). **Scope it to the language/step you touched** rather than
+> running the whole thing: `… java` after Java/template/CSS changes, `… shellcheck` after a `*.sh` edit, `…
+> markdown` after docs, etc. — comma-separate to combine. Bare (no args) it auto-detects changed steps since
+> the last tag. Unit-tests-only (`mvn test -Dtests`) is the one exception — it has no scoped wrapper step.
 
 > **Always use `docker compose` (v2 plugin), never `docker-compose` (hyphenated).** Only the filenames keep the hyphen.
 
