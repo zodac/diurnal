@@ -8,8 +8,8 @@ error_found=0
 while IFS= read -r line || [[ -n "${line}" ]]; do
 	line_number=$((line_number + 1))
 
-	# Allow empty lines
-	if [[ -z "${line}" ]]; then
+	# Allow empty lines and skip Git comment lines (e.g. the help text added on `git commit --amend`)
+	if [[ -z "${line}" || "${line}" == "#"* ]]; then
 		continue
 	fi
 
