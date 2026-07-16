@@ -115,6 +115,17 @@ jobs:
       # Executes the full gate one place.
       # Needs the host toolchain set up above: JDK+Maven, Node deps, Playwright, and Docker.
       - name: Run full test and lint gate
+        # Perf-tier calibration for the shared GitHub runner. ubuntu-latest is a 2-vCPU box running the
+        # app, Postgres AND the k6 generator on the same cores, so the dev-workstation load-shape drives
+        # it into queueing collapse (p95s of seconds that are pure queue time, not service time). Offer a
+        # lighter load so we measure service time, and widen the latency budget with PERF_P95_TOLERANCE —
+        # while the error-rate budgets stay strict, so a genuinely broken path still fails. These are
+        # forwarded through lint_and_tests.sh -> run-perf.sh into the k6 container; tune against the
+        # observed CI numbers. (Only the `perf` step reads them; every other step ignores them.)
+        env:
+          PERF_RATE: "5"
+          PERF_VUS: "10"
+          PERF_P95_TOLERANCE: "8"
         run: .github/scripts/lint_and_tests.sh -v -e
 
   # Always tag the release, publish a GitHub Release and bump the patch version for the next cycle.

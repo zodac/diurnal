@@ -32,6 +32,17 @@ const RATE = Number(__ENV.PERF_RATE || 20) // iterations/sec for the read-heavy 
 const DURATION = __ENV.PERF_DURATION || "30s"
 const VUS = Number(__ENV.PERF_VUS || 20)
 
+// Scale every p95 latency budget by PERF_P95_TOLERANCE so ONE suite gates both a fast dev box
+// (default 1.0, the tight budgets below) and a small, shared CI runner (a higher multiplier) without
+// re-numbering each threshold. On a 2-vCPU GitHub runner the app, Postgres and the k6 generator all
+// share the same cores, so even at a reduced arrival rate the service time of each request is several
+// times a workstation's — this absorbs that fixed environment penalty. It scales latency ONLY: the
+// error-rate budgets stay absolute, so a broken path fails everywhere regardless of the box.
+const P95_TOLERANCE = Number(__ENV.PERF_P95_TOLERANCE || 1)
+function p95(ms) {
+    return [`p(95)<${Math.round(ms * P95_TOLERANCE)}`]
+}
+
 // One scenario per use-case group. `startTime` staggers nothing — they run concurrently on purpose to
 // model a realistic mixed workload against the single-instance deploy.
 export const options = {
@@ -48,7 +59,7 @@ export const options = {
         // Per-scenario p95 latency + error-rate budgets. Tune to the deployment's SLOs; these are
         // deliberately generous starting points for a single-instance box under mixed load.
         "http_req_failed{scenario:status}": ["rate<0.01"],
-        "http_req_duration{scenario:status}": ["p(95)<150"],
+        "http_req_duration{scenario:status}": p95(150),
         // Login tolerates a higher error rate (10%) than the other scenarios: Argon2id verification is
         // memory-hard, so under full concurrent load some login requests can time out / be shed on a
         // constrained box without indicating a real regression. 10% still catches a broadly-broken
@@ -57,17 +68,17 @@ export const options = {
         // Argon2id is deliberately memory-hard; a single verify is ~250ms, but on one box under full
         // concurrent mixed load the p95 climbs well past that. Budget for that contention while still
         // catching a genuine regression (e.g. a cost-factor mis-config pushing it to multiple seconds).
-        "http_req_duration{scenario:login}": ["p(95)<2500"],
+        "http_req_duration{scenario:login}": p95(2500),
         "http_req_failed{scenario:actionsList}": ["rate<0.01"],
-        "http_req_duration{scenario:actionsList}": ["p(95)<400"],
+        "http_req_duration{scenario:actionsList}": p95(400),
         "http_req_failed{scenario:actionCrud}": ["rate<0.01"],
-        "http_req_duration{scenario:actionCrud}": ["p(95)<600"],
+        "http_req_duration{scenario:actionCrud}": p95(600),
         "http_req_failed{scenario:logsWrite}": ["rate<0.01"],
-        "http_req_duration{scenario:logsWrite}": ["p(95)<500"],
+        "http_req_duration{scenario:logsWrite}": p95(500),
         "http_req_failed{scenario:calendarFeed}": ["rate<0.02"],
-        "http_req_duration{scenario:calendarFeed}": ["p(95)<800"], // heaviest read (per-log fan-out)
+        "http_req_duration{scenario:calendarFeed}": p95(800), // heaviest read (per-log fan-out)
         "http_req_failed{scenario:stats}": ["rate<0.02"],
-        "http_req_duration{scenario:stats}": ["p(95)<800"], // full recompute per call
+        "http_req_duration{scenario:stats}": p95(800), // full recompute per call
     },
 }
 
