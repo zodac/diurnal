@@ -83,6 +83,33 @@ if [[ "${RUN_SETUP:-0}" = "1" ]]; then
   ( while sleep 15; do snapshot_now; done ) &
 fi
 
+# ── Force Remote Control on for every session ────────────────────────────────
+# `remoteControlAtStartup` is a Claude user setting (settings.json under
+# CLAUDE_CONFIG_DIR) — "Start Remote Control bridge automatically each session".
+# There is NO CLI flag for it, so it must be written into settings.json; and
+# because that file lives in the persisted volume (not the image), we re-assert
+# it on every launch rather than baking it into the Dockerfile (the volume mount
+# would shadow anything the image wrote there). `daemonColdStart=transient`
+# spawns the background bridge for this login session without the interactive
+# "install it persistently?" prompt, so it also works for non-TTY sessions. The
+# jq merge preserves any other keys and is a cheap no-op once set.
+SETTINGS="${CCD}/settings.json"
+if command -v jq >/dev/null 2>&1; then
+  base='{}'
+  [[ -s "${SETTINGS}" ]] && jq -e . "${SETTINGS}" >/dev/null 2>&1 && base="$(cat "${SETTINGS}")"
+  if ! printf '%s' "${base}" \
+        | jq -e '.remoteControlAtStartup == true and .daemonColdStart == "transient"' >/dev/null 2>&1; then
+    tmp="${SETTINGS}.tmp.$$"
+    if printf '%s' "${base}" \
+         | jq '.remoteControlAtStartup = true | .daemonColdStart = "transient"' > "${tmp}" 2>/dev/null; then
+      mv -f "${tmp}" "${SETTINGS}" && echo "[sandbox] enabled Remote Control at startup"
+    else
+      rm -f "${tmp}"
+      echo "[sandbox] WARN: could not update ${SETTINGS} for Remote Control" >&2
+    fi
+  fi
+fi
+
 if [[ "${RUN_SETUP:-0}" = "1" ]]; then
   /usr/local/bin/sandbox-setup.sh || true
 fi
