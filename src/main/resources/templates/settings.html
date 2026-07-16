@@ -82,7 +82,7 @@
                                  endpoint — kept intact by wrapping the prefs area in a <div>. !}
                             <form id="account-form"
                                   class="hidden"
-                                  hx-post="/settings/display-name"
+                                  hx-patch="/internal/settings"
                                   hx-swap="none">
                                 <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
                                     <input type="text"
@@ -145,7 +145,7 @@
                                  the 422 off the console while still surfacing the inline error (mirrors the
                                  login/register cards, which fetch for the same reason). !}
                             <form id="password-current-form" class="hidden" method="post"
-                                  action="/settings/password/verify">
+                                  action="/internal/settings/password/verify">
                                 <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
                                     <input type="password"
                                            id="currentPassword"
@@ -196,7 +196,7 @@
                                  final POST returns 422 on a wrong current password or a mismatch, which fetch
                                  surfaces inline without htmx's console error. !}
                             <form id="password-confirm-form" class="hidden" method="post"
-                                  action="/settings/password">
+                                  action="/internal/settings/password">
                                 <input type="hidden" id="pendingCurrent" name="currentPassword">
                                 <input type="hidden" id="pendingPassword" name="newPassword">
                                 <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
@@ -247,7 +247,7 @@
 
                             {! Confirm (hidden until armed): destructive action left, Cancel right. !}
                             <form id="logout-all-confirm"
-                                  method="post" action="/settings/sessions/revoke-all"
+                                  method="post" action="/internal/settings/sessions/revoke-all"
                                   class="hidden settings-field settings-field-confirm flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg">
                                 <span class="text-sm text-ink-muted">Log out on all devices?</span>
                                 <div class="dt-actions">
@@ -266,7 +266,7 @@
                     {#include partials/card-header title='Preferences' /}
 
                     {! Timezone !}
-                    {#include partials/select-field id="timezone" label="Timezone" endpoint="/settings/timezone" border=true}
+                    {#include partials/select-field id="timezone" label="Timezone" endpoint="/internal/settings" border=true}
                         {#options}
                         {#for choice in timezoneChoices}
                         <option value="{choice.value}" {#if choice.selected}selected{/if}>{choice.label}</option>
@@ -289,7 +289,7 @@
                                 <input type="checkbox" id="showStatsSummary" name="showStatsSummary" value="true"
                                        class="sr-only peer"
                                        {#if showStatsSummary}checked{/if}
-                                       hx-patch="/settings/show-stats-summary" hx-trigger="change" hx-swap="none"
+                                       hx-patch="/internal/settings" hx-trigger="change" hx-swap="none"
                                        hx-include="#stats-summary-row">
                                 <span class="block w-11 h-6 rounded-full bg-surface-muted border border-line transition-colors
                                              peer-checked:bg-brand peer-checked:border-brand
@@ -305,11 +305,11 @@
                          partials/num-pref-row.html). Both surfaces are wired by the shared
                          wireNumericPref() helper in settings.js. !}
                     {#include partials/num-pref-row rowId='decimal-places-row' id='decimalPlaces' label='Decimal places'
-                        endpoint='/settings/decimal-places' min=0 max=5 value=decimalPlaces options=decimalPlacesOptions
+                        endpoint='/internal/settings' min=0 max=5 value=decimalPlaces options=decimalPlacesOptions
                         minusLabel='Fewer decimal places' plusLabel='More decimal places' border=true /}
 
                     {#include partials/num-pref-row rowId='page-size-row' id='pageSize' label='Items per page'
-                        endpoint='/settings/page-size' min=1 max=100 value=pageSize options=pageSizeOptions
+                        endpoint='/internal/settings' min=1 max=100 value=pageSize options=pageSizeOptions
                         minusLabel='Fewer items per page' plusLabel='More items per page' border=false /}
                 </div>
 
@@ -330,7 +330,7 @@
                          including hidden stats, is captured) plus the ticked `statsEnabled` checkboxes.
                          Disabling a stat therefore never moves it: only its checkbox state changes. !}
                     <ul id="stats-fields-list" class="space-y-1"
-                        hx-patch="/settings/stats-fields" hx-trigger="change, reorder"
+                        hx-patch="/internal/settings" hx-trigger="change, reorder"
                         hx-include="#stats-fields-list" hx-swap="none">
                         {#for choice in statsFieldChoices}
                         <li class="stats-field-row relative flex items-center gap-3 rounded-lg border border-line px-3 py-2 bg-surface select-none{#if !choice.mandatory} cursor-pointer{/if}"
@@ -391,7 +391,7 @@
                                  inputs (only a <form>/named field does), so include this group to
                                  send the checked radio's value. !}
                             <div id="theme-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Theme"
-                                 hx-patch="/settings/theme" hx-trigger="change" hx-swap="none" hx-include="#theme-options">
+                                 hx-patch="/internal/settings" hx-trigger="change" hx-swap="none" hx-include="#theme-options">
                                 {#for option in themeOptions}
                                 {#include partials/preview-option group="theme" value=option.value current=theme imgBase=option.previewImage label=option.label title=option.title alt=option.alt /}
                                 {/for}
@@ -402,7 +402,7 @@
                         <div class="pb-4 border-b border-line">
                             <span class="block text-sm font-medium text-ink mb-3">Calendar style</span>
                             <div id="calendar-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Calendar style"
-                                 hx-patch="/settings/calendar-view" hx-trigger="change" hx-swap="none" hx-include="#calendar-options">
+                                 hx-patch="/internal/settings" hx-trigger="change" hx-swap="none" hx-include="#calendar-options">
                                 {#for option in calendarViewOptions}
                                 {#include partials/preview-option group="calendarView" value=option.value current=calendarView imgBase=option.previewImage label=option.label title=option.title alt=option.alt /}
                                 {/for}
@@ -414,7 +414,7 @@
                         <div>
                             <span class="block text-sm font-medium text-ink mb-3">Font</span>
                             <div id="font-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Font"
-                                 hx-patch="/settings/font" hx-trigger="change" hx-swap="none" hx-include="#font-options">
+                                 hx-patch="/internal/settings" hx-trigger="change" hx-swap="none" hx-include="#font-options">
                                 {#for option in fontOptions}
                                 {#include partials/preview-option group="font" value=option.value current=font imgBase=option.previewImage label=option.label title=option.title alt=option.alt /}
                                 {/for}

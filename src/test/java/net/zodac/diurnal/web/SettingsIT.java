@@ -58,13 +58,13 @@ class SettingsIT extends IntegrationTestBase {
         oidcId = oidc.id;
     }
 
-    // ── POST /settings/display-name ──────────────────────────────────────────
+    // ── PATCH /internal/settings (display name) ──────────────────────────────
 
     @Test
     void updateDisplayName_validName_persists() {
         given().formParam("displayName", "New Name")
-                .post("/settings/display-name")
-                .then().statusCode(200);
+                .patch("/internal/settings")
+                .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().displayName)
             .as("unexpected value")
@@ -74,7 +74,7 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updateDisplayName_blankName_returns422() {
         given().formParam("displayName", "   ")
-                .post("/settings/display-name")
+                .patch("/internal/settings")
                 .then().statusCode(422);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().displayName)
@@ -83,9 +83,15 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateDisplayName_missingParam_returns422() {
-        given().post("/settings/display-name")
-                .then().statusCode(422);
+    void updateSettings_noFieldsSubmitted_isNoOp204() {
+        // PATCH semantics on the consolidated endpoint: absent fields keep their values, so an empty
+        // submission changes nothing and succeeds.
+        given().patch("/internal/settings")
+                .then().statusCode(204);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().displayName)
+            .as("unexpected value")
+            .isEqualTo("Settings User"));
     }
 
     // ── POST /settings/password (local account) ──────────────────────────────
@@ -95,7 +101,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("currentPassword", TEST_PASSWORD)
                 .formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "new_secret_123")
-                .post("/settings/password")
+                .post("/internal/settings/password")
                 .then().statusCode(200);
 
         runInTx(() -> {
@@ -117,7 +123,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("currentPassword", "not_the_current_password")
                 .formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "new_secret_123")
-                .post("/settings/password")
+                .post("/internal/settings/password")
                 .then().statusCode(422);
 
         runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
@@ -129,7 +135,7 @@ class SettingsIT extends IntegrationTestBase {
     void updatePassword_missingCurrentPassword_returns422AndKeepsOldHash() {
         given().formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "new_secret_123")
-                .post("/settings/password")
+                .post("/internal/settings/password")
                 .then().statusCode(422);
 
         runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
@@ -142,7 +148,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("currentPassword", TEST_PASSWORD)
                 .formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "different_456")
-                .post("/settings/password")
+                .post("/internal/settings/password")
                 .then().statusCode(422);
 
         runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
@@ -155,7 +161,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("currentPassword", TEST_PASSWORD)
                 .formParam("newPassword", "")
                 .formParam("confirmPassword", "")
-                .post("/settings/password")
+                .post("/internal/settings/password")
                 .then().statusCode(422);
 
         runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
@@ -165,7 +171,7 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updatePassword_missingParams_returns422() {
-        given().post("/settings/password")
+        given().post("/internal/settings/password")
                 .then().statusCode(422);
     }
 
@@ -174,27 +180,27 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void verifyCurrentPassword_correct_returns204() {
         given().formParam("currentPassword", TEST_PASSWORD)
-                .post("/settings/password/verify")
+                .post("/internal/settings/password/verify")
                 .then().statusCode(204);
     }
 
     @Test
     void verifyCurrentPassword_wrong_returns422() {
         given().formParam("currentPassword", "not_the_current_password")
-                .post("/settings/password/verify")
+                .post("/internal/settings/password/verify")
                 .then().statusCode(422);
     }
 
     @Test
     void verifyCurrentPassword_empty_returns422() {
         given().formParam("currentPassword", "")
-                .post("/settings/password/verify")
+                .post("/internal/settings/password/verify")
                 .then().statusCode(422);
     }
 
     @Test
     void verifyCurrentPassword_missingParam_returns422() {
-        given().post("/settings/password/verify")
+        given().post("/internal/settings/password/verify")
                 .then().statusCode(422);
     }
 
@@ -202,7 +208,7 @@ class SettingsIT extends IntegrationTestBase {
     @TestSecurity(user = OIDC_USER, roles = Role.Values.USER)
     void verifyCurrentPassword_oidcAccount_returns403() {
         given().formParam("currentPassword", "anything")
-                .post("/settings/password/verify")
+                .post("/internal/settings/password/verify")
                 .then().statusCode(403);
     }
 
@@ -211,7 +217,7 @@ class SettingsIT extends IntegrationTestBase {
     void updatePassword_oidcAccount_returns403AndSetsNoPassword() {
         given().formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "new_secret_123")
-                .post("/settings/password")
+                .post("/internal/settings/password")
                 .then().statusCode(403);
 
         runInTx(() -> assertThat(User.findByEmail(OIDC_USER).orElseThrow().passwordHash)
@@ -254,7 +260,7 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updateTheme_returns204AndPersists() {
         given().formParam("theme", "dark")
-                .patch("/settings/theme")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
@@ -265,7 +271,7 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updateTheme_light_persists() {
         given().formParam("theme", "light")
-                .patch("/settings/theme")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
@@ -275,10 +281,10 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updateTheme_system_persists() {
-        given().formParam("theme", "dark").patch("/settings/theme");
+        given().formParam("theme", "dark").patch("/internal/settings");
 
         given().formParam("theme", "system")
-                .patch("/settings/theme")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
@@ -287,37 +293,39 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateTheme_invalid_fallsBackToSystem() {
-        // Move off the default first so the fallback is proven, not merely the unchanged state.
-        given().formParam("theme", "dark").patch("/settings/theme");
+    void updateTheme_invalid_isRejectedKeepingCurrentValue() {
+        given().formParam("theme", "dark").patch("/internal/settings");
 
         given().formParam("theme", "midnight")
-                .patch("/settings/theme")
-                .then().statusCode(204);
+                .patch("/internal/settings")
+                .then().statusCode(422)
+                .body(containsString("Theme must be one of"));
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
-            .as("unexpected value")
-            .isEqualTo("system"));
+            .as("an unrecognised theme must be rejected, keeping the previous value")
+            .isEqualTo("dark"));
     }
 
     @Test
-    void updateTheme_missingParam_fallsBackToSystem() {
-        given().formParam("theme", "dark").patch("/settings/theme");
+    void updateTheme_absentField_keepsCurrentValue() {
+        given().formParam("theme", "dark").patch("/internal/settings");
 
-        given().patch("/settings/theme")
+        // PATCH semantics on the consolidated endpoint: a request without the field leaves it alone
+        // (a PRESENT-but-unknown value still coerces to the default — covered above).
+        given().patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
             .as("unexpected value")
-            .isEqualTo("system"));
+            .isEqualTo("dark"));
     }
 
     @Test
     void updateTheme_leavesOtherSettingsUntouched() {
         // The whole point of per-setting endpoints: changing theme must not touch page size.
-        given().formParam("pageSize", "25").patch("/settings/page-size").then().statusCode(204);
+        given().formParam("pageSize", "25").patch("/internal/settings").then().statusCode(204);
 
-        given().formParam("theme", "dark").patch("/settings/theme").then().statusCode(204);
+        given().formParam("theme", "dark").patch("/internal/settings").then().statusCode(204);
 
         runInTx(() -> {
             final User user = User.findByEmail(PRIMARY).orElseThrow();
@@ -335,7 +343,7 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updateFont_standard_persists() {
         given().formParam("font", "standard")
-                .patch("/settings/font")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().font)
@@ -345,10 +353,10 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updateFont_nova_persists() {
-        given().formParam("font", "standard").patch("/settings/font");
+        given().formParam("font", "standard").patch("/internal/settings");
 
         given().formParam("font", "nova")
-                .patch("/settings/font")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().font)
@@ -357,16 +365,17 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateFont_invalid_fallsBackToNova() {
-        given().formParam("font", "standard").patch("/settings/font");
+    void updateFont_invalid_isRejectedKeepingCurrentValue() {
+        given().formParam("font", "standard").patch("/internal/settings");
 
         given().formParam("font", "comic")
-                .patch("/settings/font")
-                .then().statusCode(204);
+                .patch("/internal/settings")
+                .then().statusCode(422)
+                .body(containsString("Font must be one of"));
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().font)
-            .as("unexpected value")
-            .isEqualTo("nova"));
+            .as("an unrecognised font must be rejected, keeping the previous value")
+            .isEqualTo("standard"));
     }
 
     // ── PATCH /settings/page-size ────────────────────────────────────────────────
@@ -374,7 +383,7 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updatePageSize_valid_persists() {
         given().formParam("pageSize", "25")
-                .patch("/settings/page-size")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         final User user = User.findByEmail(PRIMARY).orElseThrow();
@@ -386,10 +395,10 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updatePageSize_minimum_persists() {
         // 5 is the smallest allow-listed option (added so it fits better with most calendars).
-        given().formParam("pageSize", "25").patch("/settings/page-size");
+        given().formParam("pageSize", "25").patch("/internal/settings");
 
         given().formParam("pageSize", "5")
-                .patch("/settings/page-size")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         final User user = User.findByEmail(PRIMARY).orElseThrow();
@@ -402,7 +411,7 @@ class SettingsIT extends IntegrationTestBase {
     void updatePageSize_customValue_persists() {
         // 7 is not a preset, but any value in [1, 100] is now accepted as a custom page size.
         given().formParam("pageSize", "7")
-                .patch("/settings/page-size")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         final User user = User.findByEmail(PRIMARY).orElseThrow();
@@ -413,10 +422,10 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updatePageSize_aboveRange_rejectedAndValueUnchanged() {
-        given().formParam("pageSize", "25").patch("/settings/page-size");
+        given().formParam("pageSize", "25").patch("/internal/settings");
 
         given().formParam("pageSize", "999")
-                .patch("/settings/page-size")
+                .patch("/internal/settings")
                 .then().statusCode(422)
                 .body(containsString("100"));
 
@@ -427,10 +436,10 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updatePageSize_belowRange_rejectedAndValueUnchanged() {
-        given().formParam("pageSize", "25").patch("/settings/page-size");
+        given().formParam("pageSize", "25").patch("/internal/settings");
 
         given().formParam("pageSize", "0")
-                .patch("/settings/page-size")
+                .patch("/internal/settings")
                 .then().statusCode(422);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
@@ -440,10 +449,10 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updatePageSize_negative_rejectedAndValueUnchanged() {
-        given().formParam("pageSize", "25").patch("/settings/page-size");
+        given().formParam("pageSize", "25").patch("/internal/settings");
 
         given().formParam("pageSize", "-1")
-                .patch("/settings/page-size")
+                .patch("/internal/settings")
                 .then().statusCode(422);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
@@ -453,10 +462,10 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updatePageSize_nonNumeric_rejectedAndValueUnchanged() {
-        given().formParam("pageSize", "25").patch("/settings/page-size");
+        given().formParam("pageSize", "25").patch("/internal/settings");
 
         given().formParam("pageSize", "lots")
-                .patch("/settings/page-size")
+                .patch("/internal/settings")
                 .then().statusCode(422);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
@@ -469,7 +478,7 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updateDecimalPlaces_valid_persists() {
         given().formParam("decimalPlaces", "2")
-                .patch("/settings/decimal-places")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().decimalPlaces)
@@ -479,10 +488,10 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updateDecimalPlaces_outOfRange_rejectedAndValueUnchanged() {
-        given().formParam("decimalPlaces", "2").patch("/settings/decimal-places");
+        given().formParam("decimalPlaces", "2").patch("/internal/settings");
 
         given().formParam("decimalPlaces", "9")
-                .patch("/settings/decimal-places")
+                .patch("/internal/settings")
                 .then().statusCode(422);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().decimalPlaces)
@@ -492,10 +501,10 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updateDecimalPlaces_nonNumeric_rejectedAndValueUnchanged() {
-        given().formParam("decimalPlaces", "2").patch("/settings/decimal-places");
+        given().formParam("decimalPlaces", "2").patch("/internal/settings");
 
         given().formParam("decimalPlaces", "lots")
-                .patch("/settings/decimal-places")
+                .patch("/internal/settings")
                 .then().statusCode(422);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().decimalPlaces)
@@ -509,7 +518,7 @@ class SettingsIT extends IntegrationTestBase {
     void updateShowStatsSummary_unticked_disables() {
         // An unticked checkbox posts only the hidden "false"; the setting turns off.
         given().formParam("showStatsSummary", "false")
-                .patch("/settings/show-stats-summary")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().showStatsSummary)
@@ -520,11 +529,11 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updateShowStatsSummary_ticked_enables() {
         // First disable, then re-enable: a ticked checkbox posts "false" AND "true".
-        given().formParam("showStatsSummary", "false").patch("/settings/show-stats-summary");
+        given().formParam("showStatsSummary", "false").patch("/internal/settings");
 
         given().formParam("showStatsSummary", "false")
                 .formParam("showStatsSummary", "true")
-                .patch("/settings/show-stats-summary")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().showStatsSummary)
@@ -535,13 +544,13 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updatePageSize_options_include50And100() {
         given().formParam("pageSize", "50")
-                .patch("/settings/page-size").then().statusCode(204);
+                .patch("/internal/settings").then().statusCode(204);
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
             .as("unexpected value")
             .isEqualTo(50));
 
         given().formParam("pageSize", "100")
-                .patch("/settings/page-size").then().statusCode(204);
+                .patch("/internal/settings").then().statusCode(204);
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
             .as("unexpected value")
             .isEqualTo(100));
@@ -552,7 +561,7 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updateCalendarView_minimal_persists() {
         given().formParam("calendarView", "minimal")
-                .patch("/settings/calendar-view")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
@@ -562,10 +571,10 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updateCalendarView_full_persists() {
-        given().formParam("calendarView", "minimal").patch("/settings/calendar-view");
+        given().formParam("calendarView", "minimal").patch("/internal/settings");
 
         given().formParam("calendarView", "full")
-                .patch("/settings/calendar-view")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
@@ -576,7 +585,7 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updateCalendarView_stacked_persists() {
         given().formParam("calendarView", "stacked")
-                .patch("/settings/calendar-view")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
@@ -585,16 +594,17 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateCalendarView_invalid_fallsBackToDefault() {
-        given().formParam("calendarView", "minimal").patch("/settings/calendar-view");
+    void updateCalendarView_invalid_isRejectedKeepingCurrentValue() {
+        given().formParam("calendarView", "minimal").patch("/internal/settings");
 
         given().formParam("calendarView", "grid")
-                .patch("/settings/calendar-view")
-                .then().statusCode(204);
+                .patch("/internal/settings")
+                .then().statusCode(422)
+                .body(containsString("Calendar style must be one of"));
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
-            .as("unexpected value")
-            .isEqualTo("full"));
+            .as("an unrecognised calendar style must be rejected, keeping the previous value")
+            .isEqualTo("minimal"));
     }
 
     // ── PATCH /settings/timezone ──────────────────────────────────────────────────
@@ -602,7 +612,7 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updateTimezone_offered_persists() {
         given().formParam("timezone", "Pacific/Auckland")
-                .patch("/settings/timezone")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().timezone)
@@ -613,10 +623,10 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updateTimezone_blank_clearsToServerDefault() {
         // First set a zone, then submit blank ("Server default") to confirm it clears to null.
-        given().formParam("timezone", "UTC").patch("/settings/timezone").then().statusCode(204);
+        given().formParam("timezone", "UTC").patch("/internal/settings").then().statusCode(204);
 
         given().formParam("timezone", "")
-                .patch("/settings/timezone")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().timezone)
@@ -625,16 +635,17 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateTimezone_unoffered_fallsBackToServerDefault() {
-        given().formParam("timezone", "UTC").patch("/settings/timezone");
+    void updateTimezone_unoffered_isRejectedKeepingCurrentValue() {
+        given().formParam("timezone", "UTC").patch("/internal/settings");
 
         given().formParam("timezone", "Mars/Phobos")
-                .patch("/settings/timezone")
-                .then().statusCode(204);
+                .patch("/internal/settings")
+                .then().statusCode(422)
+                .body(containsString("Timezone must be one of"));
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().timezone)
-            .as("expected null")
-            .isNull());
+            .as("an unoffered timezone must be rejected, keeping the previous value")
+            .isEqualTo("UTC"));
     }
 
     // ── PATCH /settings/stats-fields ─────────────────────────────────────────────
@@ -645,7 +656,7 @@ class SettingsIT extends IntegrationTestBase {
         // total-days is present but unticked → stored disabled IN PLACE, not dropped.
         given().formParam("statsOrder", "best-year", "total-days", "current-streak", "last-performed")
                 .formParam("statsEnabled", "best-year", "current-streak")
-                .patch("/settings/stats-fields")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> {
@@ -667,7 +678,7 @@ class SettingsIT extends IntegrationTestBase {
         // still be stored enabled.
         given().formParam("statsOrder", "last-performed", "current-streak")
                 .formParam("statsEnabled", "current-streak")
-                .patch("/settings/stats-fields")
+                .patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
@@ -676,29 +687,24 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void updateStatsFields_emptySubmission_storesAllEnabled() {
-        given().patch("/settings/stats-fields")
+    void updateStatsFields_absentField_keepsCurrentArrangement() {
+        // PATCH semantics on the consolidated endpoint: a request without statsOrder leaves the
+        // arrangement alone (null here = never customised, so the default order still applies).
+        given().patch("/internal/settings")
                 .then().statusCode(204);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
-            .as("an empty submission resets to every field, all enabled, in default order")
-            .isNotNull()
-            .containsExactly(
-                new StatFieldPref("current-streak", true), new StatFieldPref("longest-streak", true),
-                new StatFieldPref("biggest-gap", true), new StatFieldPref("total-days", true),
-                new StatFieldPref("total-count", true), new StatFieldPref("weekly-average", true),
-                new StatFieldPref("last-performed", true), new StatFieldPref("vs-last-month", true),
-                new StatFieldPref("vs-last-year", true), new StatFieldPref("best-month", true),
-                new StatFieldPref("best-year", true)));
+            .as("an absent statsOrder must leave the stored arrangement untouched")
+            .isNull());
     }
 
     @Test
     void updateStatsFields_leavesOtherSettingsUntouched() {
-        given().formParam("theme", "dark").patch("/settings/theme").then().statusCode(204);
+        given().formParam("theme", "dark").patch("/internal/settings").then().statusCode(204);
 
         given().formParam("statsOrder", "current-streak", "last-performed")
                 .formParam("statsEnabled", "current-streak")
-                .patch("/settings/stats-fields").then().statusCode(204);
+                .patch("/internal/settings").then().statusCode(204);
 
         runInTx(() -> {
             final User user = User.findByEmail(PRIMARY).orElseThrow();

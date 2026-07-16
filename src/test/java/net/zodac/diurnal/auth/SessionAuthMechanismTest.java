@@ -30,7 +30,7 @@ class SessionAuthMechanismTest {
 
     @Test
     void challengeFor_apiPath_isPlainUnauthorized() {
-        final ChallengeData challenge = SessionAuthMechanism.challengeFor("/api/users/me");
+        final ChallengeData challenge = SessionAuthMechanism.challengeFor("/api/v1/users/me");
         assertThat(challenge.status)
                 .as("A REST API path must get a plain 401, not a browser redirect")
                 .isEqualTo(401);
@@ -38,7 +38,7 @@ class SessionAuthMechanismTest {
 
     @Test
     void challengeFor_apiRoot_isPlainUnauthorized() {
-        final ChallengeData challenge = SessionAuthMechanism.challengeFor("/api/auth/logout");
+        final ChallengeData challenge = SessionAuthMechanism.challengeFor("/api/v1/auth/logout");
         assertThat(challenge.status)
                 .as("Every /api/ path must get a 401")
                 .isEqualTo(401);

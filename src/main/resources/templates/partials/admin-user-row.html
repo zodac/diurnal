@@ -7,7 +7,7 @@
         </span>
         <span data-dt-edit class="hidden flex items-center gap-2">
             <form id="user-form-{u.id}"
-                  hx-post="/admin/users/{u.id}/role"
+                  hx-post="/internal/admin/users/{u.id}/role"
                   hx-target="#user-row-{u.id}"
                   hx-swap="outerHTML">
                 <select name="role" class="dt-select">
@@ -28,5 +28,5 @@
         {#include partials/tooltip-text text=u.lastLoginLabel tip=u.zoneTooltip /}
         {/if}
     </td>
-    {#include partials/dt-row-actions id=u.id rowPrefix="user-row" formPrefix="user-form" confirmBase="/admin/users" /}
+    {#include partials/dt-row-actions id=u.id rowPrefix="user-row" formPrefix="user-form" confirmBase="/internal/admin/users" /}
 </tr>

@@ -18,8 +18,8 @@
         <span class="text-[0.8125rem] font-medium text-ink truncate">{action.name}</span>
     </div>
     {#include partials/confirm-actions prompt='Erase entries?' confirmLabel='Erase'
-        confirmUrl=str:fmt('/logs/%s/%s/delete', date, action.id) confirmTarget=logTarget confirmSwap='innerHTML'
-        cancelUrl=str:fmt('/logs/%s/%s', date, action.id) cancelTarget=logTarget cancelSwap='innerHTML'
+        confirmUrl=str:fmt('/internal/logs/%s/%s/delete', date, action.id) confirmTarget=logTarget confirmSwap='innerHTML'
+        cancelUrl=str:fmt('/internal/logs/%s/%s', date, action.id) cancelTarget=logTarget cancelSwap='innerHTML'
         promptCls='shrink-0 ml-2 text-right' actionsCls='ml-2' /}
 </div>
 {/let}

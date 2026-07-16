@@ -28,7 +28,7 @@ import io.smallrye.config.WithName;
 public interface PasswordAuthConfig {
 
     /**
-     * Whether password-based authentication (the login form and {@code /api/auth/register}) is enabled. When {@code false} the app relies on OIDC
+     * Whether password-based authentication (the login form and {@code /api/v1/auth/register}) is enabled. When {@code false} the app relies on OIDC
      * only.
      *
      * @return {@code true} when password auth is enabled, defaulting to {@code true}

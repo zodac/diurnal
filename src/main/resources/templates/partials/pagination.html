@@ -4,7 +4,7 @@
     page       — paginated result with currentPage / totalPages / totalCount / items
     pageUrl    — full-page URL for the non-JS href fallback (e.g. "/actions"); pass "" for lists
                  with no full-page equivalent (the dashboard day panel), which renders href="#"
-    listUrl    — HTMX partial URL swapped into `target` (e.g. "/actions/list")
+    listUrl    — HTMX partial URL swapped into `target` (e.g. "/internal/actions/list")
     target     — CSS selector that receives the swapped list (e.g. "#action-list")
     extraQuery — optional pre-encoded query suffix, e.g. "&q=foo" (pass "" when unused)
     alwaysShow — true to render the footer even on a single page (real .dt-tables do this);

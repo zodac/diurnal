@@ -185,13 +185,13 @@ class IpThrottleIT extends IntegrationTestBase {
         // never a 429 — the endpoint applies no lockout of its own, however many times it is wrong.
         for (int i = 0; i < MAX_ATTEMPTS * 2; i++) {
             given().formParam("currentPassword", "wrong_password")
-                    .post("/settings/password/verify")
+                    .post("/internal/settings/password/verify")
                     .then().statusCode(422);
         }
 
         // The correct current password still verifies (204): those failures caused no self-inflicted lock.
         given().formParam("currentPassword", SEED_PASSWORD)
-                .post("/settings/password/verify")
+                .post("/internal/settings/password/verify")
                 .then().statusCode(204);
 
         // ...and none of them touched the shared IP counter: a fresh wrong login is an ordinary 401. It
@@ -209,13 +209,13 @@ class IpThrottleIT extends IntegrationTestBase {
     private static Response postLogin(final String email, final String password) {
         return given().contentType(ContentType.JSON)
                 .body("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}")
-                .post("/api/auth/login");
+                .post("/api/v1/auth/login");
     }
 
     private static Response postApiRegister(final String email) {
         return given().contentType(ContentType.JSON)
                 .body("{\"email\":\"" + email + "\",\"displayName\":\"Dup\",\"password\":\"password1\"}")
-                .post("/api/auth/register");
+                .post("/api/v1/auth/register");
     }
 
     private static Response postFormRegister() {

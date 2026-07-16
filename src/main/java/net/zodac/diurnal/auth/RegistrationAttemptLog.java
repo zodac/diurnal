@@ -20,8 +20,8 @@ package net.zodac.diurnal.auth;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Shared failure logging for both registration surfaces (the web form and {@code POST /api/auth/register}), so they emit identical lines. The caller
- * passes its own {@link Logger} so the log still names the originating class. Mirrors {@link LoginAttemptLog}.
+ * Shared failure logging for both registration surfaces (the web form and {@code POST /api/v1/auth/register}), so they emit identical lines. The
+ * caller passes its own {@link Logger} so the log still names the originating class. Mirrors {@link LoginAttemptLog}.
  */
 public final class RegistrationAttemptLog {
 

@@ -8,7 +8,7 @@
     <div class="flex items-center gap-0.5 shrink-0">
         {! Decrement: hidden (not just disabled) at 0, since there is nothing to decrement.
              `invisible` keeps the cell's width so the count stays put. !}
-        <button hx-post="/logs/{date}/{action.id}/decrement"
+        <button hx-post="/internal/logs/{date}/{action.id}/decrement"
                 hx-vals='{"amount": 1}'
                 hx-target="#log-{date}-{action.id}"
                 hx-swap="innerHTML"
@@ -21,7 +21,7 @@
         <input type="text" inputmode="numeric" maxlength="3"
                name="count"
                value="{count}"
-               hx-post="/logs/{date}/{action.id}/set"
+               hx-post="/internal/logs/{date}/{action.id}/set"
                hx-trigger="change"
                hx-target="#log-{date}-{action.id}"
                hx-swap="innerHTML"
@@ -30,7 +30,7 @@
 
         {! Increment: hidden (not just disabled) at the 999 cap, since it can go no higher.
              `invisible` keeps the cell's width so the count stays put. !}
-        <button hx-post="/logs/{date}/{action.id}/increment"
+        <button hx-post="/internal/logs/{date}/{action.id}/increment"
                 hx-vals='{"amount": 1}'
                 hx-target="#log-{date}-{action.id}"
                 hx-swap="innerHTML"
@@ -43,7 +43,7 @@
              confirm state's Cancel, keeping Cancel in exactly the same position on swap.
              Always rendered; invisible (not just opacity-0) when there is no log to erase. !}
         <div class="dt-actions ml-[0.2rem]">
-            <button hx-get="/logs/{date}/{action.id}/confirm-delete"
+            <button hx-get="/internal/logs/{date}/{action.id}/confirm-delete"
                     hx-target="#log-{date}-{action.id}"
                     hx-swap="innerHTML"
                     aria-label="Erase this action's entries"

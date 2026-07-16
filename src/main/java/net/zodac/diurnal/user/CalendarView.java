@@ -96,15 +96,13 @@ public enum CalendarView implements PreviewOption { // NOPMD: DataClass - thin s
     }
 
     /**
-     * Resolves a calendar style from its stored/submitted value, coercing any unrecognised or {@code null} value to {@link #DEFAULT}.
+     * Whether the submitted value matches one of the offered options. Submissions with an unrecognised value are rejected by the caller
+     * ({@code ProfileService}) rather than coerced.
      *
-     * @param value the value to resolve (can be {@code null})
-     * @return the matching calendar style, or {@link #DEFAULT} if none matches
+     * @param value the submitted value (can be {@code null})
+     * @return {@code true} when the value is one of the offered options
      */
-    public static CalendarView from(final @Nullable String value) {
-        return Arrays.stream(values())
-            .filter(view -> view.value.equals(value))
-            .findFirst()
-            .orElse(DEFAULT);
+    public static boolean isValid(final @Nullable String value) {
+        return Arrays.stream(values()).anyMatch(option -> option.value.equals(value));
     }
 }

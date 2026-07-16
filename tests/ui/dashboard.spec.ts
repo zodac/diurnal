@@ -40,13 +40,13 @@ function otherDayThisMonth(): string {
 // Reset every logged action for *today* back to zero — deterministically, entirely through the API.
 //
 // This replaces the old approach of clicking the day panel's Decrease button in a loop and awaiting a
-// POST /logs/ response, which was flaky: the panel re-renders asynchronously (initial load + the
+// POST /internal/logs/ response, which was flaky: the panel re-renders asynchronously (initial load + the
 // post-mutation cal.refresh()), so the located button could detach between the visibility check and the
 // click, dispatching the click to a stale node that fired no request — and the awaited response then
 // timed out the whole hook (the observed "increment twice" flake).
 //
 // Instead: read the (nonzero-first, paginated) day panel's action ids straight from its HTML and POST a
-// `set` count=0 for each, looping until the /logs/events feed reports nothing left for today. No UI
+// `set` count=0 for each, looping until the /api/v1/logs/events feed reports nothing left for today. No UI
 // timing is involved, so there is no race to lose.
 async function resetTodayLogs(page: Page): Promise<void> {
     await page.evaluate(async () => {
@@ -54,14 +54,14 @@ async function resetTodayLogs(page: Page): Promise<void> {
         // The day panel lists highest-count actions first and is paginated, so re-read page 1 and zero
         // every action it lists until the events feed for today is empty. The guard bounds the loop.
         for (let guard = 0; guard < 50; guard++) {
-            const events = await (await fetch(`/logs/events?start=${today}&end=${today}`)).json()
+            const events = await (await fetch(`/api/v1/logs/events?start=${today}&end=${today}`)).json()
             if (!Array.isArray(events) || events.length === 0) {break}
 
-            const html = await (await fetch(`/logs/day/${today}`)).text()
+            const html = await (await fetch(`/internal/logs/day/${today}`)).text()
             // Each log row wraps as id="log-<yyyy-MM-dd>-<action UUID>"; capture the UUID.
             const ids = [...html.matchAll(/id="log-\d{4}-\d{2}-\d{2}-([0-9a-f-]+)"/g)].map(m => m[1])
             await Promise.all(ids.map(id =>
-                fetch(`/logs/${today}/${id}/set`, {
+                fetch(`/internal/logs/${today}/${id}/set`, {
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
                     body: "count=0",
@@ -75,7 +75,7 @@ async function resetTodayLogs(page: Page): Promise<void> {
 // htmx auto-save PATCH fires regardless, then await it (the page must be on /settings).
 async function setCalendarView(page: Page, value: string): Promise<void> {
     await Promise.all([
-        page.waitForResponse(r => r.url().includes("/settings/calendar-view") && r.request().method() === "PATCH"),
+        page.waitForResponse(r => r.url().includes("/internal/settings") && r.request().method() === "PATCH"),
         page.locator(`input[name="calendarView"][value="${value}"]`).evaluate(
             (el: HTMLInputElement) => {
                 el.checked = true
@@ -91,7 +91,7 @@ test.describe("Dashboard", () => {
         await page.goto("/actions")
         await page.evaluate(async (name: string) => {
             const params = new URLSearchParams({ name, colour: "#6366f1" })
-            await fetch("/actions", {
+            await fetch("/internal/actions", {
                 method: "POST",
                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
                 body: params.toString(),
@@ -199,7 +199,7 @@ test.describe("Dashboard", () => {
         await page.locator(`.d-min-cell[data-date="${first}"]`).click()
         if ((await firstEvent.count()) === 0) {
             await Promise.all([
-                page.waitForResponse(r => r.url().includes("/logs/events")),
+                page.waitForResponse(r => r.url().includes("/api/v1/logs/events")),
                 page.locator("#day-logger-panel").getByLabel("Increase").first().click(),
             ])
         }
@@ -208,12 +208,12 @@ test.describe("Dashboard", () => {
         // Go to the previous month and log there. The mutation force-refreshes the *previous* month, whose
         // range (pre-fix) overran into the 1st of the current month and re-appended its event.
         await Promise.all([
-            page.waitForResponse(r => r.url().includes("/logs/events")),
+            page.waitForResponse(r => r.url().includes("/api/v1/logs/events")),
             page.locator("#cal-prev").click(),
         ])
         await page.locator(`.d-min-cell[data-date="${prevFirst}"]`).click()
         await Promise.all([
-            page.waitForResponse(r => r.url().includes("/logs/events")), // the force-refresh of the previous month
+            page.waitForResponse(r => r.url().includes("/api/v1/logs/events")), // the force-refresh of the previous month
             page.locator("#day-logger-panel").getByLabel("Increase").first().click(),
         ])
 
@@ -365,7 +365,7 @@ test.describe("Dashboard – Minimal calendar", () => {
         await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-min-dot`)).toHaveCount(0)
 
         await Promise.all([
-            page.waitForResponse(r => r.url().includes("/logs/") && r.request().method() === "POST"),
+            page.waitForResponse(r => r.url().includes("/internal/logs/") && r.request().method() === "POST"),
             page.locator("#day-logger-panel").getByLabel("Increase").first().click(),
         ])
 
@@ -451,7 +451,7 @@ test.describe("Dashboard – Stacked calendar", () => {
         await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-stk-bar`)).toHaveCount(0)
 
         await Promise.all([
-            page.waitForResponse(r => r.url().includes("/logs/") && r.request().method() === "POST"),
+            page.waitForResponse(r => r.url().includes("/internal/logs/") && r.request().method() === "POST"),
             page.locator("#day-logger-panel").getByLabel("Increase").first().click(),
         ])
 

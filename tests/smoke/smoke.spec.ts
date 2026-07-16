@@ -96,7 +96,7 @@ test.describe("deployment smoke", () => {
         }
         const actionName = `Smoke ${RUN}`
 
-        // Registers via /api/auth/register (Bearer API) then logs in via the web form — exercising
+        // Registers via /api/v1/auth/register (Bearer API) then logs in via the web form — exercising
         // both auth surfaces and the shared server-side session store (opaque tokens in Postgres).
         await registerUser(user)
         await loginAs(page, user)
@@ -107,7 +107,7 @@ test.describe("deployment smoke", () => {
         await page.fill('input[name="name"]', actionName)
         await Promise.all([
             page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
-            page.locator('form[hx-post="/actions"] button[type="submit"]').click(),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
         ])
         await expect(page.locator("#action-list")).toContainText(actionName)
 
@@ -116,7 +116,7 @@ test.describe("deployment smoke", () => {
         await page.goto("/")
         const increment = page.locator("#day-logger-panel").getByLabel("Increase").first()
         await Promise.all([
-            page.waitForResponse(r => r.url().includes("/logs/") && r.request().method() === "POST"),
+            page.waitForResponse(r => r.url().includes("/internal/logs/") && r.request().method() === "POST"),
             increment.click(),
         ])
         await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-full-event`)).toHaveCount(1, { timeout: 5000 })

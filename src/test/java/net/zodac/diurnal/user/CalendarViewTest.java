@@ -94,22 +94,22 @@ class CalendarViewTest {
             .isEqualTo(CalendarView.FULL);
     }
 
-    // ── from ────────────────────────────────────────────────────────────────
+    // ── isValid ─────────────────────────────────────────────────────────────
 
     @ParameterizedTest
     @ValueSource(strings = {"full", "minimal", "stacked"})
-    void from_knownValue_returnsMatchingView(final String value) {
-        assertThat(CalendarView.from(value).value())
-            .as("expected the value to round-trip through the matching calendar view")
-            .isEqualTo(value);
+    void isValid_offeredValue_returnsTrue(final String value) {
+        assertThat(CalendarView.isValid(value))
+            .as("expected an offered calendar style value to be accepted")
+            .isTrue();
     }
 
     @ParameterizedTest
     @NullSource
     @ValueSource(strings = {"grid", "compact", "", "FULL", "Minimal", "none", "list", " full "})
-    void from_unknownValue_returnsDefault(final String value) {
-        assertThat(CalendarView.from(value))
-            .as("expected an unrecognised value to default to the default calendar view")
-            .isEqualTo(CalendarView.DEFAULT);
+    void isValid_unknownValue_returnsFalse(final String value) {
+        assertThat(CalendarView.isValid(value))
+            .as("expected an unrecognised calendar style value to be rejected, never coerced")
+            .isFalse();
     }
 }

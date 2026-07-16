@@ -180,19 +180,20 @@ class UserSettingsTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"UTC", "Pacific/Auckland", "Europe/London", "America/New_York"})
-    void sanitiseTimezone_offeredValues_passedThrough(final String tz) {
-        assertThat(UserSettings.sanitiseTimezone(tz))
-            .as("unexpected value")
-            .isEqualTo(tz);
+    void isValidTimezone_offeredValues_accepted(final String tz) {
+        assertThat(UserSettings.isValidTimezone(tz))
+            .as("expected an offered zone to be accepted")
+            .isTrue();
     }
 
     @ParameterizedTest
-    // Blank, unknown, mis-cased, or valid-but-not-offered zones all collapse to "use server default".
+    // Blank, unknown, mis-cased, or valid-but-not-offered zones are all rejected (a blank submission is
+    // handled by ProfileService as the explicit server-default reset before validity is consulted).
     @ValueSource(strings = {"", " ", "utc", "Mars/Phobos", "Asia/Atlantis", "Europe/Atlantis", "GMT+5"})
-    void sanitiseTimezone_invalidOrUnoffered_returnsNull(final String tz) {
-        assertThat(UserSettings.sanitiseTimezone(tz))
-            .as("expected null")
-            .isNull();
+    void isValidTimezone_invalidOrUnoffered_rejected(final String tz) {
+        assertThat(UserSettings.isValidTimezone(tz))
+            .as("expected an unoffered zone to be rejected, never coerced")
+            .isFalse();
     }
 
     @Test

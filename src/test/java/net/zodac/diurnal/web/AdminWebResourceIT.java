@@ -92,7 +92,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
         final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
         given().formParam("role", "admin")
-                .post("/admin/users/" + userId + "/role")
+                .post("/internal/admin/users/" + userId + "/role")
                 .then().statusCode(403);
     }
 
@@ -147,7 +147,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
         final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
         given().formParam("role", "admin")
-                .post("/admin/users/" + userId + "/role")
+                .post("/internal/admin/users/" + userId + "/role")
                 .then().statusCode(200);
 
         runInTx(() -> {
@@ -164,7 +164,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
         final UUID adminId = runInTxReturning(() -> User.findByEmail("admin@lt.test").orElseThrow().id);
 
         given().formParam("role", "user")
-                .post("/admin/users/" + adminId + "/role")
+                .post("/internal/admin/users/" + adminId + "/role")
                 .then().statusCode(409)
                 .body(containsString("last administrator"));
     }
@@ -181,7 +181,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
 
         final UUID adminId = runInTxReturning(() -> User.findByEmail("admin@lt.test").orElseThrow().id);
         given().formParam("role", "user")
-                .post("/admin/users/" + adminId + "/role")
+                .post("/internal/admin/users/" + adminId + "/role")
                 .then().statusCode(200);
         runInTx(() -> assertThat(User.findByEmail("admin@lt.test").orElseThrow().role)
             .as("unexpected value")
@@ -195,7 +195,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     void confirmDeleteUser_showsConfirmRow() {
         final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
-        given().get("/admin/users/" + userId + "/confirm-delete")
+        given().get("/internal/admin/users/" + userId + "/confirm-delete")
                 .then().statusCode(200)
                 .contentType(containsString("text/html"))
                 .body(containsString("user@lt.test"))
@@ -206,7 +206,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @Test
     @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void confirmDeleteUser_notFound_returns409() {
-        given().get("/admin/users/" + UUID.randomUUID() + "/confirm-delete")
+        given().get("/internal/admin/users/" + UUID.randomUUID() + "/confirm-delete")
                 .then().statusCode(409);
     }
 
@@ -215,7 +215,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     void userRow_cancelRestoresRow() {
         final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
-        given().get("/admin/users/" + userId)
+        given().get("/internal/admin/users/" + userId)
                 .then().statusCode(200)
                 .contentType(containsString("text/html"))
                 .body(containsString("user@lt.test"))
@@ -229,7 +229,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     void deleteUser_regularUser_removesUser() {
         final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
-        given().post("/admin/users/" + userId + "/delete")
+        given().post("/internal/admin/users/" + userId + "/delete")
                 .then().statusCode(200);
 
         runInTx(() -> assertThat(User.findByEmail("user@lt.test").isPresent())
@@ -242,7 +242,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     void deleteUser_lastAdmin_returns409() {
         final UUID adminId = runInTxReturning(() -> User.findByEmail("admin@lt.test").orElseThrow().id);
 
-        given().post("/admin/users/" + adminId + "/delete")
+        given().post("/internal/admin/users/" + adminId + "/delete")
                 .then().statusCode(409)
                 .body(containsString("last administrator"));
     }
@@ -250,7 +250,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @Test
     @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
     void deleteUser_notFound_returns409() {
-        given().post("/admin/users/" + UUID.randomUUID() + "/delete")
+        given().post("/internal/admin/users/" + UUID.randomUUID() + "/delete")
                 .then().statusCode(409)
                 .body(containsString("not found"));
     }

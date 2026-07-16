@@ -94,22 +94,22 @@ class ThemeTest {
             .isEqualTo(Theme.SYSTEM);
     }
 
-    // ── from ────────────────────────────────────────────────────────────────
+    // ── isValid ─────────────────────────────────────────────────────────────
 
     @ParameterizedTest
     @ValueSource(strings = {"system", "light", "dark"})
-    void from_knownValue_returnsMatchingTheme(final String value) {
-        assertThat(Theme.from(value).value())
-            .as("expected the value to round-trip through the matching theme")
-            .isEqualTo(value);
+    void isValid_offeredValue_returnsTrue(final String value) {
+        assertThat(Theme.isValid(value))
+            .as("expected an offered theme value to be accepted")
+            .isTrue();
     }
 
     @ParameterizedTest
     @NullSource
     @ValueSource(strings = {"midnight", "solarized", "", "System", "Dark", "none", "blue", " dark "})
-    void from_unknownValue_returnsDefault(final String value) {
-        assertThat(Theme.from(value))
-            .as("expected an unrecognised value to default to the default theme")
-            .isEqualTo(Theme.DEFAULT);
+    void isValid_unknownValue_returnsFalse(final String value) {
+        assertThat(Theme.isValid(value))
+            .as("expected an unrecognised theme value to be rejected, never coerced")
+            .isFalse();
     }
 }

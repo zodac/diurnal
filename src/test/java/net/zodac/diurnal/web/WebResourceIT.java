@@ -227,6 +227,34 @@ class WebResourceIT extends IntegrationTestBase {
     }
 
     @Test
+    void register_singleCharacterDisplayName_rendersErrorBannerInPage() {
+        // The 2-100 rule comes from the shared RegistrationService, so the web form enforces the same
+        // display-name bounds the API always documented.
+        given().redirects().follow(false)
+                .formParam("email", "shortname@example.com")
+                .formParam("displayName", "A")
+                .formParam("password", "password123")
+                .formParam("confirmPassword", "password123")
+                .post("/register")
+                .then()
+                .statusCode(400)
+                .body(containsString("Display name must be between 2 and 100 characters."));
+    }
+
+    @Test
+    void register_overlongDisplayName_rendersErrorBannerInPage() {
+        given().redirects().follow(false)
+                .formParam("email", "longname@example.com")
+                .formParam("displayName", "x".repeat(101))
+                .formParam("password", "password123")
+                .formParam("confirmPassword", "password123")
+                .post("/register")
+                .then()
+                .statusCode(400)
+                .body(containsString("Display name must be between 2 and 100 characters."));
+    }
+
+    @Test
     void register_passwordTooLong_rendersErrorBannerInPage() {
         final String tooLong = "a".repeat(129);
         given().redirects().follow(false)

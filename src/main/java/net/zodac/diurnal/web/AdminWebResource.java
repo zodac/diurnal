@@ -17,47 +17,31 @@
 
 package net.zodac.diurnal.web;
 
-import io.quarkus.panache.common.Page;
-import io.quarkus.panache.common.Sort;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
-import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.DefaultValue;
-import jakarta.ws.rs.FormParam;
 import jakarta.ws.rs.GET;
-import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
-import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
-import jakarta.ws.rs.core.Response;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
-import java.util.List;
-import java.util.UUID;
-import net.zodac.diurnal.action.Action;
-import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.user.AdminUserService;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
- * Admin-only user management: list, change role, and delete users (with last-admin safeguards).
+ * Serves the admin-only full pages: user management and the embedded API documentation. The user-management HTMX partials and mutations live under
+ * {@code /internal/admin/users} ({@link AdminUsersInternalResource}).
  */
 @Path("/admin")
 @RolesAllowed(Role.Values.ADMIN)
 public class AdminWebResource {
-
-    private static final Logger LOGGER = LogManager.getLogger(AdminWebResource.class);
 
     @Inject
     @Location("admin-users")
@@ -67,30 +51,20 @@ public class AdminWebResource {
     @Location("admin-api-docs")
     Template adminApiDocsTemplate;
 
-    @Inject
-    @Location("partials/admin-users-list")
-    Template adminUsersListTemplate;
-
-    @Inject
-    @Location("partials/admin-user-row")
-    Template adminUserRowTemplate;
-
-    @Inject
-    @Location("partials/dt-confirm-delete-row")
-    Template confirmDeleteRowTemplate;
-
-    @Inject SecurityIdentity identity;
-
     @Inject CurrentUser currentUser;
+
+    @Inject AdminUserService adminUserService;
 
     @Inject AppClock clock;
 
     /**
      * Renders the paginated admin users page.
+     *
+     * @param pageNum the 1-based page to render
+     * @return the rendered page
      */
     @GET
     @Path("users")
-    @RolesAllowed(Role.Values.ADMIN)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance usersPage(@QueryParam("page") @DefaultValue("1") final int pageNum) {
@@ -101,15 +75,16 @@ public class AdminWebResource {
                 .data("theme", actor.theme)
                 .data("font", actor.font)
                 .data("isAdmin", true)
-                .data("page", getUsersPage(pageNum, actor.pageSize));
+                .data("page", AdminUsersInternalResource.toRows(adminUserService.usersPage(pageNum, actor.pageSize), clock.zoneFor(actor.timezone)));
     }
 
     /**
      * Renders the embedded API documentation page (Swagger UI in an in-app iframe).
+     *
+     * @return the rendered page
      */
     @GET
     @Path("api-docs")
-    @RolesAllowed(Role.Values.ADMIN)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public TemplateInstance apiDocsPage() {
@@ -120,168 +95,5 @@ public class AdminWebResource {
                 .data("theme", actor.theme)
                 .data("font", actor.font)
                 .data("isAdmin", true);
-    }
-
-    /**
-     * Returns just the users list partial for HTMX pagination.
-     */
-    @GET
-    @Path("users/list")
-    @RolesAllowed(Role.Values.ADMIN)
-    @Produces(MediaType.TEXT_HTML)
-    @Transactional
-    public TemplateInstance usersList(@QueryParam("page") @DefaultValue("1") final int pageNum) {
-        final User actor = currentUser.get();
-        return adminUsersListTemplate.data("page", getUsersPage(pageNum, actor.pageSize));
-    }
-
-    /**
-     * Returns the single table row for one user (used to restore a row after cancel).
-     */
-    @GET
-    @Path("users/{id}")
-    @RolesAllowed(Role.Values.ADMIN)
-    @Produces(MediaType.TEXT_HTML)
-    @Transactional
-    public Response userRow(@PathParam("id") final UUID id) {
-        final User target = User.findById(id);
-        if (target == null) {
-            return HtmxResponses.conflictBanner("#admin-error", "User not found.");
-        }
-        return Response.ok(adminUserRowTemplate.data("u", toRow(target))).build();
-    }
-
-    /**
-     * Returns the in-place confirm-delete row for a user.
-     */
-    @GET
-    @Path("users/{id}/confirm-delete")
-    @RolesAllowed(Role.Values.ADMIN)
-    @Produces(MediaType.TEXT_HTML)
-    @Transactional
-    public Response confirmDeleteUser(@PathParam("id") final UUID id) {
-        final User target = User.findById(id);
-        if (target == null) {
-            return HtmxResponses.conflictBanner("#admin-error", "User not found.");
-        }
-        // Admin delete re-renders the whole list (innerHTML), so the confirmation row's destructive
-        // POST targets #admin-users-list; Cancel restores just this row from /admin/users/{id}.
-        return Response.ok(confirmDeleteRowTemplate
-                .data("rowId", "user-row-" + id)
-                .data("cols", 6)
-                .data("swatchColour", null)
-                .data("label", target.email)
-                .data("prompt", "Delete this user, their actions and logs?")
-                .data("deleteUrl", "/admin/users/" + id + "/delete")
-                .data("deleteTarget", "#admin-users-list")
-                .data("deleteSwap", "innerHTML")
-                .data("restoreUrl", "/admin/users/" + id)).build();
-    }
-
-    /**
-     * Changes a user's role, refusing to demote the last administrator.
-     */
-    @POST
-    @Path("users/{id}/role")
-    @RolesAllowed(Role.Values.ADMIN)
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    @Produces(MediaType.TEXT_HTML)
-    @Transactional
-    public Response changeRole(@PathParam("id") final UUID id, @FormParam("role") final String role) {
-        if (!Role.isValid(role)) {
-            return HtmxResponses.conflictBanner("#admin-error", "Invalid role value.");
-        }
-        final User target = User.findById(id);
-        if (target == null) {
-            return HtmxResponses.conflictBanner("#admin-error", "User not found.");
-        }
-        if (Role.USER.storageValue().equals(role) && isLastAdmin(target)) {
-            LOGGER.warn("Admin {} attempted to demote the last administrator {}",
-                identity.getPrincipal().getName(), target.email);
-            return HtmxResponses.conflictBanner("#admin-error", "Cannot remove the last administrator.");
-        }
-        target.role = role;
-        target.persist();
-        LOGGER.info("Admin {} changed role of {} to {}", identity.getPrincipal().getName(), target.email, role);
-
-        // Re-render just this row (outerHTML) so the surrounding rows don't repaint — the edited row
-        // swaps straight from its edit state to a fresh view state, with no whole-list flash.
-        return Response.ok(adminUserRowTemplate.data("u", toRow(target))).build();
-    }
-
-    /**
-     * Hard-deletes a user and all their actions/logs, refusing to delete the last administrator.
-     */
-    @POST
-    @Path("users/{id}/delete")
-    @RolesAllowed(Role.Values.ADMIN)
-    @Produces(MediaType.TEXT_HTML)
-    @Transactional
-    public Response deleteUser(@PathParam("id") final UUID id) {
-        final User target = User.findById(id);
-        if (target == null) {
-            return HtmxResponses.conflictBanner("#admin-error", "User not found.");
-        }
-        if (isLastAdmin(target)) {
-            LOGGER.warn("Admin {} attempted to delete the last administrator {}",
-                identity.getPrincipal().getName(), target.email);
-            return HtmxResponses.conflictBanner("#admin-error", "Cannot delete the last administrator.");
-        }
-
-        // Hard-delete in FK order: logs → actions → user
-        final List<Action> actions = Action.list("userId", target.id);
-        for (final Action a : actions) {
-            ActionLog.deleteByAction(target.id, a.id);
-        }
-        Action.delete("userId", target.id);
-        target.delete();
-        LOGGER.info("Admin {} deleted user {}", identity.getPrincipal().getName(), target.email);
-
-        final User actor = currentUser.get();
-        return Response.ok(adminUsersListTemplate.data("page", getUsersPage(1, actor.pageSize))).build();
-    }
-
-    // ── Helpers ───────────────────────────────────────────────────────────
-
-    private record PaginatedUsers(List<UserRow> items, long totalCount, int totalPages, int currentPage) {
-
-    }
-
-    private PaginatedUsers getUsersPage(final int pageNum, final int pageSize) {
-        final ZoneId zone = actorZone();
-        final DateTimeFormatter fmt = formatter(zone);
-        final String zoneLabel = zone.getId();
-        final long totalCount = User.count();
-        final int totalPages = (int) ((totalCount + pageSize - 1) / pageSize);
-        final int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
-
-        final List<UserRow> items = User.<User>findAll(Sort.by("createdAt"))
-            .page(Page.of(actualPage - 1, pageSize))
-            .list()
-            .stream()
-            .map(u -> UserRow.of(u, fmt, zoneLabel))
-            .toList();
-
-        return new PaginatedUsers(items, totalCount, totalPages, actualPage);
-    }
-
-    private UserRow toRow(final User u) {
-        final ZoneId zone = actorZone();
-        return UserRow.of(u, formatter(zone), zone.getId());
-    }
-
-    // The timestamps are rendered in the viewing administrator's configured timezone (falling back to
-    // the server default when unset), so the admin reads them in their own local time rather than the
-    // server's; the zone id is surfaced as a tooltip on each date cell.
-    private ZoneId actorZone() {
-        return clock.zoneFor(currentUser.get().timezone);
-    }
-
-    private DateTimeFormatter formatter(final ZoneId zone) {
-        return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(zone);
-    }
-
-    private boolean isLastAdmin(final User target) {
-        return Role.ADMIN.storageValue().equals(target.role) && User.count("role", Role.ADMIN.storageValue()) <= 1;
     }
 }

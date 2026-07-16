@@ -30,8 +30,8 @@ import net.zodac.diurnal.web.RegistrationDisabledProfile;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies the JSON API ({@code POST /api/auth/register}) honours {@code ENABLE_REGISTRATION=false} just like the web form, so the API can never be
- * used to bypass the registration switch. Nor can it be used to create the very first account — that must be done locally via the web setup flow,
+ * Verifies the JSON API ({@code POST /api/v1/auth/register}) honours {@code ENABLE_REGISTRATION=false} just like the web form, so the API can never
+ * be used to bypass the registration switch. Nor can it be used to create the very first account — that must be done locally via the web setup flow,
  * regardless of the registration switch. Uses {@link RegistrationDisabledProfile} to force {@code registration.enabled=false}.
  */
 @QuarkusTest
@@ -47,7 +47,7 @@ class AuthRegistrationDisabledIT extends IntegrationTestBase {
                 .body("""
                         {"email":"first@example.com","displayName":"First","password":"password1"}
                         """)
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then()
                 .statusCode(403)
                 .body("message", containsStringIgnoringCase("must be created via the setup page"));
@@ -65,7 +65,7 @@ class AuthRegistrationDisabledIT extends IntegrationTestBase {
                 .body("""
                         {"email":"second@example.com","displayName":"Second","password":"password1"}
                         """)
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then()
                 .statusCode(403)
                 .body("message", containsStringIgnoringCase("registration is disabled"));

@@ -39,7 +39,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Locks down the first-run bootstrap: until the initial (administrator) account has been created locally through the web setup flow, neither the JSON
- * API ({@code POST /api/auth/register}) nor OIDC provisioning ({@link OidcUserProvisioner}) may create a user. This prevents an unauthenticated
+ * API ({@code POST /api/v1/auth/register}) nor OIDC provisioning ({@link OidcUserProvisioner}) may create a user. This prevents an unauthenticated
  * caller from seizing the very first account — which is always granted administrator rights. Once that account exists, both paths resume normally.
  *
  * <p>
@@ -64,7 +64,7 @@ class FirstUserCreationBlockedIT extends IntegrationTestBase {
     @Inject
     OidcUserProvisioner oidcUserProvisioner;
 
-    // ── JSON API (POST /api/auth/register) ─────────────────────────────────────
+    // ── JSON API (POST /api/v1/auth/register) ─────────────────────────────────────
 
     @Test
     void apiRegister_firstRun_isForbiddenAndCreatesNoUser() {
@@ -72,7 +72,7 @@ class FirstUserCreationBlockedIT extends IntegrationTestBase {
                 .body("""
                         {"email":"first@example.com","displayName":"First","password":"password1"}
                         """)
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then()
                 .statusCode(403)
                 .body("message", containsStringIgnoringCase("must be created via the setup page"));
@@ -91,7 +91,7 @@ class FirstUserCreationBlockedIT extends IntegrationTestBase {
                 .body("""
                         {"email":"api-user@example.com","displayName":"API User","password":"password1"}
                         """)
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then()
                 .statusCode(201);
 

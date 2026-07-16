@@ -31,6 +31,13 @@ public record UserSettings(String theme, int pageSize) {
 
     public static final int DEFAULT_PAGE_SIZE = 5;
 
+    // Display-name bounds, shared by registration and every display-name update surface.
+    public static final int MIN_DISPLAY_NAME_LENGTH = 2;
+    public static final int MAX_DISPLAY_NAME_LENGTH = 100;
+    // User-facing rejection message when an out-of-bounds display name is submitted.
+    public static final String DISPLAY_NAME_RANGE_MESSAGE =
+        "Display name must be between " + MIN_DISPLAY_NAME_LENGTH + " and " + MAX_DISPLAY_NAME_LENGTH + " characters.";
+
     // Presets offered in the picker; a user may also enter any value in [MIN_PAGE_SIZE, MAX_PAGE_SIZE].
     public static final List<Integer> PAGE_SIZE_OPTIONS = List.of(5, 10, 25, 50, 100);
     public static final int MIN_PAGE_SIZE = 1;
@@ -88,6 +95,16 @@ public record UserSettings(String theme, int pageSize) {
     }
 
     /**
+     * Whether the (stripped) display name is within the accepted bounds ({@link #MIN_DISPLAY_NAME_LENGTH}–{@link #MAX_DISPLAY_NAME_LENGTH}).
+     *
+     * @param strippedDisplayName the display name, already stripped of surrounding whitespace
+     * @return {@code true} when the length is within bounds
+     */
+    public static boolean isValidDisplayName(final String strippedDisplayName) {
+        return strippedDisplayName.length() >= MIN_DISPLAY_NAME_LENGTH && strippedDisplayName.length() <= MAX_DISPLAY_NAME_LENGTH;
+    }
+
+    /**
      * Parses a submitted page size, returning the value only if it is a whole number within the accepted range
      * ({@link #MIN_PAGE_SIZE}–{@link #MAX_PAGE_SIZE}), else {@code null}. Unlike the other preferences, an invalid page size is rejected (not coerced
      * to a default) so the caller can surface an error and retain the user's previous value.
@@ -135,10 +152,14 @@ public record UserSettings(String theme, int pageSize) {
     }
 
     /**
-     * Returns the requested zone if it is one of the offered options, else null ("use server default").
+     * Whether the requested zone is one of the offered timezone options. Submissions with an unrecognised zone are rejected by the caller
+     * ({@code ProfileService}) rather than coerced; a blank submission is the explicit "follow the server default" reset instead.
+     *
+     * @param requested the submitted timezone id
+     * @return {@code true} when the zone is offered
      */
-    public static @Nullable String sanitiseTimezone(@Nullable final String requested) {
-        return requested != null && TIMEZONE_OPTIONS.contains(requested) ? requested : null;
+    public static boolean isValidTimezone(final String requested) {
+        return TIMEZONE_OPTIONS.contains(requested);
     }
 
     /**

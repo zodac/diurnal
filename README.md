@@ -22,11 +22,13 @@
     - [Login Throttling](#login-throttling)
     - [Sessions](#sessions)
     - [Reverse Proxy](#reverse-proxy)
+    - [CORS](#cors)
     - [OIDC](#oidc)
 - [User Settings](#user-settings)
     - [Account](#account)
     - [Preferences](#preferences)
 - [Administrator User](#administrator-users)
+- [REST API](#rest-api)
 - [Versioning](#versioning)
 - [License](#license)
 
@@ -214,6 +216,20 @@ certificate, any HTTP→HTTPS redirect, and the `Strict-Transport-Security` (HST
 |-----------------------------|---------|------------------------------------------------------|
 | `TRUST_X_FORWARDED_HEADERS` | `true`  | Trust `X-Forwarded-*` headers from the reverse proxy |
 
+### CORS
+
+By default, only same-origin browsers can call Diurnal, so any third-party web app running in a **browser** on another origin is blocked by CORS. To
+let a web app from `https://myapp.example.com` call your Diurnal instance, for example, set this on the `diurnal` container:
+
+```yaml
+environment:
+  CORS_ALLOWED_ORIGINS: "https://myapp.example.com"
+```
+
+| Variable               | Default | Description                                                                           |
+|------------------------|---------|---------------------------------------------------------------------------------------|
+| `CORS_ALLOWED_ORIGINS` |         | Comma-separated list of origins allowed to call the API from a browser (unset = none) |
+
 ### OIDC
 
 OIDC is disabled by default. When enabled, users can sign in through your identity provider alongside (or instead of) password login. Register
@@ -320,6 +336,19 @@ The first account to register is an **administrator**. Administrators get two ex
 - **Admin → Users**: View and manage user accounts (delete or edit role)
 - **API**: The Swagger UI for the session-token-secured REST API, useful for scripting or integrating Diurnal with other tools.
 
+## REST API
+
+Diurnal exposes a versioned public REST API at **`/api/v1`** for building integrations and mobile apps. Administrators can open the Swagger UI from
+the **API** link in the navbar. Authenticate by exchanging credentials for a session token, then send it as a Bearer header:
+
+```bash
+TOKEN=$(curl -s -X POST https://diurnal.example.com/api/v1/auth/login \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"ada@example.com","password":"correct horse battery staple"}' | jq -r .token)
+
+curl -s https://diurnal.example.com/api/v1/actions -H "Authorization: Bearer ${TOKEN}"
+```
+
 ## Versioning
 
 This project follows [Semantic Versioning](https://semver.org/) (`MAJOR.MINOR.PATCH`). Generally, if a user must change something it's a **MAJOR**
@@ -327,7 +356,7 @@ update, if they *can* use something new it's a **MINOR**, else it's a **PATCH**.
 
 - **MAJOR**: A change that breaks an existing deployment or integration on upgrade.
     - Database migration that cannot be applied to an existing database
-    - Incompatible changes to the REST API (`/api/*`) or the public `/logs/events` feed
+    - Incompatible changes to the public REST API (`/api/v1/*`)
     - Removed or renamed configuration options / environment variables
     - Removal of a user-facing feature that existing users actively rely on
 - **MINOR**: Backwards-compatible new functionality.

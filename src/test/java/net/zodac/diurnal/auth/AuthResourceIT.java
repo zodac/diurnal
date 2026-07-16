@@ -53,7 +53,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body("""
                         {"email":"new@example.com","displayName":"New User","password":"password1"}
                         """)
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then()
                 .statusCode(201)
                 .body("token", not(emptyOrNullString()))
@@ -67,7 +67,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body("""
                         {"email":"UPPER@Example.COM","displayName":"Cased","password":"password1"}
                         """)
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then()
                 .statusCode(201)
                 .body("email", equalTo("upper@example.com"));
@@ -78,10 +78,10 @@ class AuthResourceIT extends IntegrationTestBase {
         final String body = """
             {"email":"dup@example.com","displayName":"First","password":"password1"}
             """;
-        given().contentType(ContentType.JSON).body(body).post("/api/auth/register")
+        given().contentType(ContentType.JSON).body(body).post("/api/v1/auth/register")
                 .then().statusCode(201);
 
-        given().contentType(ContentType.JSON).body(body).post("/api/auth/register")
+        given().contentType(ContentType.JSON).body(body).post("/api/v1/auth/register")
                 .then().statusCode(409)
                 .body("message", containsStringIgnoringCase("already registered"));
     }
@@ -92,13 +92,13 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body("""
                         {"email":"Case@Example.com","displayName":"First","password":"password1"}
                         """)
-                .post("/api/auth/register").then().statusCode(201);
+                .post("/api/v1/auth/register").then().statusCode(201);
 
         given().contentType(ContentType.JSON)
                 .body("""
                         {"email":"case@example.com","displayName":"Second","password":"password1"}
                         """)
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then().statusCode(409);
     }
 
@@ -113,18 +113,18 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body("""
                         {"email":"oidc-user@example.com","displayName":"Impostor","password":"password1"}
                         """)
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then()
                 .statusCode(409)
                 .body("message", containsStringIgnoringCase("already registered"));
 
         assertThat(User.findByEmail("oidc-user@example.com"))
-                .as("The existing OIDC account must be untouched by the rejected registration")
-                .hasValueSatisfying(user -> {
-                    assertThat(user.displayName).as("displayName must not be overwritten").isEqualTo("OIDC User");
-                    assertThat(user.passwordHash).as("no password hash may be attached to the OIDC account").isNull();
-                    assertThat(user.oidcSubject).as("the OIDC subject must be preserved").isNotNull();
-                });
+            .as("The existing OIDC account must be untouched by the rejected registration")
+            .hasValueSatisfying(user -> {
+                assertThat(user.displayName).as("displayName must not be overwritten").isEqualTo("OIDC User");
+                assertThat(user.passwordHash).as("no password hash may be attached to the OIDC account").isNull();
+                assertThat(user.oidcSubject).as("the OIDC subject must be preserved").isNotNull();
+            });
     }
 
     @Test
@@ -135,7 +135,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body("""
                         {"email":"Cased-OIDC@Example.com","displayName":"Impostor","password":"password1"}
                         """)
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then()
                 .statusCode(409)
                 .body("message", containsStringIgnoringCase("already registered"));
@@ -147,7 +147,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body("""
                         {"email":"","displayName":"User","password":"password1"}
                         """)
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then().statusCode(400);
     }
 
@@ -157,7 +157,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body("""
                         {"email":"valid@example.com","displayName":"","password":"password1"}
                         """)
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then().statusCode(400);
     }
 
@@ -167,7 +167,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body("""
                         {"email":"blankpw@example.com","displayName":"User","password":""}
                         """)
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then().statusCode(400);
     }
 
@@ -177,8 +177,41 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body(String.format(
                         "{\"email\":\"longpw@example.com\",\"displayName\":\"User\",\"password\":\"%s\"}",
                         "a".repeat(129)))
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then().statusCode(400);
+    }
+
+    @Test
+    void register_emailWithoutAtSign_returns400() {
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"email":"no-at-sign","displayName":"User","password":"password1"}
+                        """)
+                .post("/api/v1/auth/register")
+                .then().statusCode(400)
+                .body("message", containsStringIgnoringCase("@ symbol"));
+    }
+
+    @Test
+    void register_singleCharacterDisplayName_returns400() {
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"email":"shortname@example.com","displayName":"A","password":"password1"}
+                        """)
+                .post("/api/v1/auth/register")
+                .then().statusCode(400)
+                .body("message", containsStringIgnoringCase("between 2 and 100"));
+    }
+
+    @Test
+    void register_setsLastLoginAt() {
+        // Registration logs the account straight in (a token is returned), so the shared
+        // RegistrationService stamps the first login on both surfaces.
+        registerUser("first-login@example.com", "First Login", "password1");
+
+        runInTx(() -> assertThat(User.findByEmail("first-login@example.com").orElseThrow().lastLoginAt)
+            .as("an API-registered account should have its first login stamped")
+            .isNotNull());
     }
 
     @Test
@@ -188,7 +221,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body("""
                         {"email":"short@example.com","displayName":"User","password":"short"}
                         """)
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then().statusCode(201);
     }
 
@@ -202,7 +235,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body("""
                         {"email":"login@example.com","password":"password123"}
                         """)
-                .post("/api/auth/login")
+                .post("/api/v1/auth/login")
                 .then()
                 .statusCode(200)
                 .body("token", not(emptyOrNullString()))
@@ -224,7 +257,7 @@ class AuthResourceIT extends IntegrationTestBase {
 
         given().contentType(ContentType.JSON)
                 .body("{\"email\":\"outdated@example.com\",\"password\":\"" + TEST_PASSWORD + "\"}")
-                .post("/api/auth/login")
+                .post("/api/v1/auth/login")
                 .then().statusCode(200);
 
         runInTx(() -> assertThat(User.findByEmail("outdated@example.com").orElseThrow().passwordHash)
@@ -241,7 +274,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body("""
                         {"email":"wrongpw@example.com","password":"wrong_password"}
                         """)
-                .post("/api/auth/login")
+                .post("/api/v1/auth/login")
                 .then().statusCode(401);
     }
 
@@ -251,7 +284,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body("""
                         {"email":"nobody@example.com","password":"password123"}
                         """)
-                .post("/api/auth/login")
+                .post("/api/v1/auth/login")
                 .then().statusCode(401);
     }
 
@@ -263,7 +296,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body("""
                         {"email":"casedlogin@example.com","password":"password123"}
                         """)
-                .post("/api/auth/login")
+                .post("/api/v1/auth/login")
                 .then().statusCode(200)
                 .body("token", not(emptyOrNullString()));
     }
@@ -276,7 +309,7 @@ class AuthResourceIT extends IntegrationTestBase {
             .body("""
             {"email":"session@example.com","password":"password123"}
             """)
-            .post("/api/auth/login")
+            .post("/api/v1/auth/login")
             .then().statusCode(200)
             .extract().path("token");
 
@@ -287,7 +320,7 @@ class AuthResourceIT extends IntegrationTestBase {
 
         // The opaque token must authenticate a protected API call as a Bearer credential.
         given().header("Authorization", "Bearer " + token)
-                .get("/api/users/me")
+                .get("/api/v1/users/me")
                 .then().statusCode(200)
                 .body("email", equalTo("session@example.com"));
     }
@@ -306,7 +339,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body("""
                         {"email":"second@example.com","displayName":"Second","password":"password1"}
                         """)
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then().statusCode(201);
 
         runInTx(() -> {
@@ -324,7 +357,7 @@ class AuthResourceIT extends IntegrationTestBase {
                 .body(String.format(
                         "{\"email\":\"%s\",\"displayName\":\"%s\",\"password\":\"%s\"}",
                         email, displayName, password))
-                .post("/api/auth/register")
+                .post("/api/v1/auth/register")
                 .then().statusCode(201);
     }
 

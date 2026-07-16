@@ -30,8 +30,9 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
  * <p>
  * One scheme is declared so the docs (and "Try it out") can authenticate:
  * <ul>
- *   <li>{@code BearerAuth} — an opaque session token obtained from {@code POST /api/auth/login}, sent
- *       as {@code Authorization: Bearer <token>} and revoked by {@code POST /api/auth/logout}.</li>
+ *   <li>{@code BearerAuth} — an opaque session token obtained from {@code POST /api/v1/auth/login}, sent
+ *       as {@code Authorization: Bearer <token>}; revoked by {@code POST /api/v1/auth/logout} (this token) or
+ *       {@code POST /api/v1/auth/revoke} (every session for the account).</li>
  * </ul>
  *
  * <p>
@@ -58,7 +59,7 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
     info = @Info(
     title = "Diurnal API",
     version = "0.0.1",
-    description = "REST API for the Diurnal application."
+    description = "The public REST API for Diurnal, a self-hosted daily habit tracker."
     )
 )
 @SecurityScheme(
@@ -66,7 +67,7 @@ import org.eclipse.microprofile.openapi.annotations.security.SecurityScheme;
     type = SecuritySchemeType.HTTP,
     scheme = "bearer",
     bearerFormat = "Opaque",
-    description = "Opaque session token from POST /api/auth/login, sent as 'Authorization: Bearer <token>'."
+    description = "Opaque session token from POST /api/v1/auth/login, sent as 'Authorization: Bearer <token>'."
 )
 public class DiurnalApiDefinition extends Application {
 }

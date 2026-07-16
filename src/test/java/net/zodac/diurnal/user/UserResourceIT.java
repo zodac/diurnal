@@ -52,7 +52,7 @@ class UserResourceIT extends IntegrationTestBase {
     @Test
     void me_withToken_returnsOwnProfile() {
         given().header(bearer())
-                .get("/api/users/me")
+                .get("/api/v1/users/me")
                 .then().statusCode(200)
                 .body("id", not(nullValue()))
                 .body("email", equalTo("me-api@lt.test"))
@@ -90,7 +90,7 @@ class UserResourceIT extends IntegrationTestBase {
             .isNotNull();
 
         given().header(bearerFor(admin))
-                .get("/api/users/me")
+                .get("/api/v1/users/me")
                 .then().statusCode(200)
                 .body("role", equalTo("admin"))
                 .body("preferences.theme", equalTo("dark"))
@@ -108,14 +108,14 @@ class UserResourceIT extends IntegrationTestBase {
         // even valid account credentials sent as Basic are ignored, so the request is anonymous → 401.
         // Argon2id therefore never runs for a Basic header, so this cannot be used to guess passwords.
         given().auth().preemptive().basic("me-api@lt.test", TEST_PASSWORD)
-                .get("/api/users/me")
+                .get("/api/v1/users/me")
                 .then().statusCode(401);
     }
 
     @Test
     void me_withoutToken_returns401() {
         given()
-                .get("/api/users/me")
+                .get("/api/v1/users/me")
                 .then().statusCode(401);
     }
 

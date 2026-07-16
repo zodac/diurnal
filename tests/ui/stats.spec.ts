@@ -15,7 +15,7 @@ test.describe("Stats page", () => {
     test("logged actions show stats cards with streak and total", async ({ authenticatedPage: page }) => {
         const apiCtx = page.context().request
         // Create an action and log it today
-        await apiCtx.post("/actions", { form: { name: "StatsAction", colour: "#6366f1" } })
+        await apiCtx.post("/internal/actions", { form: { name: "StatsAction", colour: "#6366f1" } })
         // Get the action ID from the actions list to build the log URL
         await page.goto("/actions")
         const actionIdMatch = await page.locator('#action-list [id^="action-"]').first().getAttribute("id")
@@ -23,7 +23,7 @@ test.describe("Stats page", () => {
 
         if (actionId !== undefined) {
             const today = new Date().toISOString().slice(0, 10)
-            await apiCtx.post(`/logs/${today}/${actionId}/increment`)
+            await apiCtx.post(`/internal/logs/${today}/${actionId}/increment`)
         }
 
         await page.goto("/stats")
@@ -37,14 +37,14 @@ test.describe("Stats page", () => {
 
         // Create and log 11 actions to exceed one page
         for (let i = 1; i <= 11; i++) {
-            const createResp = await apiCtx.post("/actions", {
+            const createResp = await apiCtx.post("/internal/actions", {
                 form: { name: `StatsPageAction${i.toString().padStart(2, "0")}`, colour: "#6366f1" },
             })
             // Extract action id from the returned HTML fragment
             const html = await createResp.text()
             const match = html.match(/id="action-([^"]+)"/)
             if (match) {
-                await apiCtx.post(`/logs/${today}/${match[1]}/increment`)
+                await apiCtx.post(`/internal/logs/${today}/${match[1]}/increment`)
             }
         }
 

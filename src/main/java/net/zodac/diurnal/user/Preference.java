@@ -25,8 +25,8 @@ import java.lang.annotation.Target;
 
 /**
  * Marks a {@link User} field as a user-facing display/behaviour <em>preference</em> — the subset of the entity that must be surfaced through the
- * public API ({@code GET /api/users/me}, {@link UserDto.Preferences}) as well as the Settings page, as opposed to identity, credential, audit or role
- * columns.
+ * public API ({@code GET /api/v1/users/me}, {@link UserDto.Preferences}) as well as the Settings page, as opposed to identity, credential, audit or
+ * role columns.
  *
  * <p>
  * This annotation is the single source of truth for "what counts as a preference": adding a new preference column means annotating it here, and

@@ -27,7 +27,7 @@ public final class OpenApiDocsPaths {
 
     /**
      * The Swagger UI shell: {@code /api}, {@code /api/} and {@code /api/index.html} only — NOT the JAX-RS endpoints under {@code /api/...} (e.g.
-     * {@code /api/auth/login}), which carry further path segments and must stay reachable under the strict policy.
+     * {@code /api/v1/auth/login}), which carry further path segments and must stay reachable under the strict policy.
      */
     public static final String SWAGGER_UI_PATH_REGEX = "^/api(/|/index\\.html)?$";
 

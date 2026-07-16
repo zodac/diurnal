@@ -106,7 +106,7 @@ class StatsResourceIT extends IntegrationTestBase {
             }
         });
 
-        given().queryParam("page", 1).get("/stats/list")
+        given().queryParam("page", 1).get("/internal/stats/list")
                 .then().statusCode(200)
                 .body(containsString("Next"));
     }
@@ -120,7 +120,7 @@ class StatsResourceIT extends IntegrationTestBase {
             }
         });
 
-        given().queryParam("page", 2).get("/stats/list")
+        given().queryParam("page", 2).get("/internal/stats/list")
                 .then().statusCode(200)
                 .body(containsString("Previous"));
     }

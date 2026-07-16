@@ -36,7 +36,7 @@ test.describe("Cursor — interactive controls show the pointer", () => {
         await page.goto("/actions")
         await page.evaluate(async () => {
             const params = new URLSearchParams({ name: `CursorAction${Date.now()}`, colour: "#6366f1" })
-            await fetch("/actions", {
+            await fetch("/internal/actions", {
                 method: "POST",
                 headers: { "Content-Type": "application/x-www-form-urlencoded" },
                 body: params.toString(),

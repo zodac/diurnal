@@ -83,7 +83,7 @@ decorative (`aria-hidden`) — the host control carries the accessible name. The
 
 - Semantic utilities only: `bg-surface(-muted)`, `text-ink(-muted)`, `border-line(-subtle)`,
   `text-brand`/`bg-brand`/`ring-brand-ring`, `text-success`, `text-danger`. New accents route
-  through the brand tokens; new colour needs get a new `--color-*` token pair (`:root` + `.dark`),
+  through the brand tokens; new colour needs to get a new `--color-*` token pair (`:root` + `.dark`),
   not a raw palette class.
 - Message banners use `.banner .banner-{error|success|warning}` via `partials/banner.html` — never
   hand-rolled alert divs (Java-built HTMX error HTML uses the same classes).
@@ -97,17 +97,16 @@ decorative (`aria-hidden`) — the host control carries the accessible name. The
 
 ## 5. Review outcomes (2026-07-13 UI review)
 
-Everything from the 2026-07-13 review has been **applied** — the shared partials
-(`centered-card`, `error-page`, `card-wordmark`, `num-pref-row`, `card-header`, `search-input`,
-`stat-tile-compact`, `account-links`, `confirm-actions`, `colour-picker`, `tooltip-text`, the
-named `icon` catalogue), the
-component classes/tokens (`--color-canvas` body base rule, `.page-shell`, `.page-title`,
-`.page-subtitle`, `.link-brand`, `.empty-note`, `.icon-chip*`, `.inline-num-input`,
-`.day-item-btn`, tokenised `.field-label`/`.nav-link`/hamburger), the landmark ids
-(`stats-summary`, `{page}-main`, `settings-*` cards, `site-header`/`site-footer`, the
-`day-panel` → `day-logger-panel` rename), the shared Java `HtmxResponses.conflictBanner(...)`, and
-the JS consolidation (`Diurnal.bannerHtml`/`requiredFilled`/`postForm`, the merged AJAX-form
-scaffolding, `flashStatus`, `swapField`, the `beforeSwap`/`HX-Retarget` 409 mechanism everywhere).
+Everything from the 2026-07-13 review has been **applied**:
+
+- the shared partials (`centered-card`, `error-page`, `card-wordmark`, `num-pref-row`, `card-header`, `search-input`, `stat-tile-compact`,
+  `account-links`, `confirm-actions`, `colour-picker`, `tooltip-text`, the named `icon` catalogue)
+- the component classes/tokens (`--color-canvas` body base rule, `.page-shell`, `.page-title`, `.page-subtitle`, `.link-brand`, `.empty-note`,
+  `.icon-chip*`, `.inline-num-input`, `.day-item-btn`, tokenised `.field-label`/`.nav-link`/hamburger)
+- the landmark ids (`stats-summary`, `{page}-main`, `settings-*` cards, `site-header`/`site-footer`, the `day-panel` → `day-logger-panel` rename)
+- the shared Java `HtmxResponses.conflictBanner(...)`
+- the JS consolidation (`Diurnal.bannerHtml`/`requiredFilled`/`postForm` the merged AJAX-form scaffolding, `flashStatus`, `swapField`, the
+  `beforeSwap`/`HX-Retarget` 409 mechanism everywhere).
 
 Two candidates were examined and **deliberately rejected** — do not re-propose them without new
 evidence:

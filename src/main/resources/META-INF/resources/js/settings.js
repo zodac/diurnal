@@ -220,7 +220,7 @@ function advanceToNewPassword() {
     input.focus()
 }
 
-// The Next button on step 1 posts the current password to /settings/password/verify via fetch (NOT
+// The Next button on step 1 posts the current password to /internal/settings/password/verify via fetch (NOT
 // htmx): a wrong current password is an expected, handled outcome, and htmx would log every 4xx to
 // the console unsuppressably (it console.errors before the client can react). fetch keeps that 422
 // off the console while still showing the inline error, mirroring the login/register cards. Advancing
