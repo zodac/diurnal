@@ -28,6 +28,9 @@
 #                                  then the Playwright E2E/UI suite, then the deployment-smoke suite
 #                    - javascript  Lint JavaScript files with eslint
 #                    - markdown    Lint Markdown files with markdownlint-cli2
+#                    - perf        k6 load/performance suite against the real prod image
+#                                  (tests/run-perf.sh). Auto-detected on the SAME file set as `java`
+#                                  (app/runtime/deps changes) plus the perf suite's own files.
 #                    - shellcheck  Lint shell scripts (*.sh) with shellcheck
 #                    - typescript  Lint TypeScript files with eslint
 #
@@ -91,7 +94,7 @@ DIURNAL_RUNTIME_IMAGE="zodac/diurnal:latest"
 # remove it with `docker volume rm ${GRYPE_DB_CACHE_VOLUME}`.
 GRYPE_DB_CACHE_VOLUME="${GRYPE_DB_CACHE_VOLUME:-diurnal-grype-db}"
 
-VALID_STEPS=("docker" "grype" "java" "javascript" "markdown" "shellcheck" "typescript")
+VALID_STEPS=("docker" "grype" "java" "javascript" "markdown" "perf" "shellcheck" "typescript")
 
 # HTTP ports for the E2E and deployment-smoke tiers the `java` step chains after the Maven gate
 # (formerly Maven properties in the pom's `all` profile). The E2E jar reuses 8081 (the @QuarkusTest
@@ -100,6 +103,10 @@ VALID_STEPS=("docker" "grype" "java" "javascript" "markdown" "shellcheck" "types
 # Override on a port conflict.
 E2E_HTTP_PORT="${E2E_HTTP_PORT:-8081}"
 SMOKE_HTTP_PORT="${SMOKE_HTTP_PORT:-8082}"
+
+# HTTP port for the opt-in `perf` step's isolated stack (tests/run-perf.sh). 8083 keeps it disjoint
+# from 8080 (prod), 8081 (dev/E2E) and 8082 (smoke), so a perf run coexists with all of them.
+PERF_HTTP_PORT="${PERF_HTTP_PORT:-8083}"
 
 # Verbose off by default: steps print a per-substep progress line plus a pass/fail summary, and each
 # substep's own output is hidden until it fails. The -v/--verbose flag (parsed below) flips this to
@@ -297,6 +304,24 @@ run_java() {
     fi
 }
 
+run_perf() {
+    echo
+    echo "Running the k6 performance/load suite [perf] against the real production image"
+    # Auto-detected on the same file set as `java` (plus the perf suite's own files): tests/run-perf.sh
+    # builds the prod image, brings up an isolated app+DB stack on :${PERF_HTTP_PORT}, measures cold-boot
+    # latency +
+    # post-boot RSS, seeds a heavy account, then drives one k6 scenario per public-API use-case group.
+    # k6's threshold breaches make it exit non-zero, which the runner (and this substep) propagate as a
+    # failure. Fully self-contained: an EXIT trap tears the stack down on success OR failure.
+    substep "tests/run-perf.sh  (k6 boot + load suite on :${PERF_HTTP_PORT}, real prod image)"
+    if run_quietly "${PWD}/tests/run-perf.sh" "${PERF_HTTP_PORT}" "${PWD}"; then
+        echo "✅ Performance suite passed (boot budget + all k6 thresholds)"
+    else
+        echo "❌ Performance suite failed: re-run ${YELLOW}'${SCRIPT_PATH} -v perf'${RESET} for the full output"
+        overall_exit_code=1
+    fi
+}
+
 run_javascript() {
     echo
     echo "Running JavaScript lint using [${ESLINT_NODE_IMAGE}]"
@@ -432,7 +457,11 @@ detect_changed_steps() {
     echo "Checking changes since tag [${latest_tag}]..." >&2
 
     local run_docker=false run_grype=false run_java=false run_javascript=false run_markdown=false run_shellcheck=false run_typescript=false
+    local run_perf=false
     local java_changed_files=()
+    # Perf's own inputs (the k6 scripts, the runner, the perf compose stack). A change to any of these
+    # triggers `perf` even when no `java`-set file changed — the suite's own definition changed.
+    local perf_own_files=false
     local file
 
     while IFS= read -r file; do
@@ -464,6 +493,8 @@ detect_changed_steps() {
         [[ "${file}" =~ ^tests/.*\.ts$ || "${file}" =~ ^tests/tsconfig\.json$ || "${file}" =~ ^tests/package(-lock)?\.json$ || "${file}" =~ ^code-quality-config/typescript/ ]] && run_typescript=true
         [[ "${file}" =~ \.md$ || "${file}" =~ ^code-quality-config/markdown/ ]] && run_markdown=true
         [[ "${file}" =~ \.sh$ || "${file}" =~ ^code-quality-config/shellscript/ ]] && run_shellcheck=true
+        # The perf suite's own inputs — its k6 scripts (tests/perf/), the runner, and its compose stack.
+        [[ "${file}" =~ ^tests/perf/ || "${file}" == "tests/run-perf.sh" || "${file}" == "tests/docker-compose.perf.yml" ]] && perf_own_files=true
     done < <(
         {
             git diff --name-only "${latest_tag}..HEAD" || true
@@ -495,6 +526,14 @@ detect_changed_steps() {
             run_java=false
             echo "Skipping java: only comment or project version-bump changes detected" >&2
         fi
+    fi
+
+    # `perf` (the k6 load suite) runs on the SAME trigger as `java` — any change feeding the runtime,
+    # app code or dependencies plausibly moves performance — PLUS the perf suite's own files. It keys
+    # off run_java's FINAL value (computed above), so java's comment-only / project version-bump
+    # suppression applies to perf too; a perf-only change (its scripts/stack) fires it independently.
+    if [[ "${run_java}" == true || "${perf_own_files}" == true ]]; then
+        run_perf=true
     fi
 
     # The runtime image bundles the app's Java dependency jars, so a genuine pom.xml dependency or
@@ -542,6 +581,7 @@ detect_changed_steps() {
     [[ "${run_java}"       == true ]] && echo "java"
     [[ "${run_javascript}" == true ]] && echo "javascript"
     [[ "${run_markdown}"   == true ]] && echo "markdown"
+    [[ "${run_perf}"       == true ]] && echo "perf"
     [[ "${run_shellcheck}" == true ]] && echo "shellcheck"
     [[ "${run_typescript}" == true ]] && echo "typescript"
 }
@@ -607,6 +647,7 @@ for step in "${steps[@]}"; do
     java) run_java ;;
     javascript) run_javascript ;;
     markdown) run_markdown ;;
+    perf) run_perf ;;
     shellcheck) run_shellcheck ;;
     typescript) run_typescript ;;
     *) ;; # unreachable: steps are validated against VALID_STEPS above

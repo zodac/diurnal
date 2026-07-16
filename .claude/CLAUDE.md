@@ -159,7 +159,6 @@ Under `src/main/java/net/zodac/diurnal/`:
 - **Swagger descriptions capitalise the `id` acronym as `ID`** (never a standalone lowercase "id") — enforced by
   `OpenApiSurfaceIT.document_capitalisesTheIdAcronymInEveryDescription`, which scans every `description`/`summary` in the generated document. The
   `@Parameter(name = "id")` path-param *name* stays lowercase (it is the literal path token); only the human-readable text is affected.
-- The full consolidation history and phase plan live in [`APIS.md`](APIS.md).
 
 ### Single business logic (the rule for every mutation)
 
@@ -661,3 +660,33 @@ desync.
   tiers were split out of the pom and are now chained after the Maven gate (smoke runs only if the build, ITs and E2E all passed). The image's own
   HEALTHCHECK drives `up --wait`, so a boot failure fails the step before Playwright starts. In the wrapper's auto-detect mode any app-code or
   Dockerfile/runtime change selects `java`; run the whole JVM gate explicitly with `.github/scripts/lint_and_tests.sh java`.
+
+### Performance/load tier (`tests/perf/`)
+
+The fifth tier: a k6 load suite that — like the smoke tier — runs against the **real production Docker image** (not the fast-jar), because the jlink
+JRE's startup, JIT warm-up and memory profile are what actually ship. It exists to catch performance regressions (an N+1 query, an unindexed scan, a
+jlink/heap bloat, a slow cold boot) that no functional tier can see. It is a standalone `lint_and_tests.sh` step (**not** part of any `mvn` command and
+**not** chained onto the `java` gate — a perf regression must not fail the functional build, and vice versa), but it **is auto-detected on the SAME
+file set as `java`** (any `src/`, `frontend/`, `pom.xml`, Dockerfile or java-config change — the things that plausibly move performance), **plus** the
+perf suite's own files (`tests/perf/**`, `tests/run-perf.sh`, `tests/docker-compose.perf.yml`). It keys off `java`'s final detection outcome, so the
+same comment-only / project version-bump suppression applies. Run it explicitly with **`.github/scripts/lint_and_tests.sh perf`**, scoped alongside
+others (`… java,perf`), or via `tests/run-perf.sh <port> <projectRoot>` directly; `-f/--force` and a no-tag run include it like any other step.
+
+- **Files:** `tests/docker-compose.perf.yml` (isolated app+DB stack from the `Dockerfile`), `tests/run-perf.sh` (build → boot-timing → seed → k6 load
+  → trap-teardown), `tests/perf/seed.mjs` (k6 seeder) and `tests/perf/load.mjs` (k6 scenarios + thresholds). The k6 scripts are **`.mjs`** (ES
+  modules, like `tests/measure.mjs`) so the CommonJS `javascript` lint step doesn't try to parse them; k6 itself accepts `.mjs`.
+- **What it measures:** (1) **cold-boot** latency — container start → first `200 /api/v1/status` with readiness `UP` — plus post-boot RSS, asserted
+  against `PERF_BOOT_BUDGET_S` / `PERF_RSS_MAX_MB` (RSS is best-effort: skipped if `docker stats` can't be parsed); (2) **steady-state throughput** —
+  one k6 `constant-arrival-rate` scenario per public-API use-case group (`= OpenApiSurfaceIT.PUBLIC_API_CONTRACT`: status, login, actions list, action
+  CRUD, log write, calendar feed, stats), each with its own p95-latency + error-rate **threshold** (a breach makes k6 exit non-zero → the runner and
+  the `perf` step fail); (3) **heavy-data edge cases** — the seed populates a large account (`PERF_SEED_ACTIONS` × `PERF_SEED_LOG_DAYS`) so the list /
+  stats / calendar-feed scenarios exercise real fan-out, not empty-DB best cases.
+- **Runs the prod profile** against a live Postgres — **NO frozen clock, NO pre-seeded DB** (like smoke). `seed.mjs` self-seeds (bootstraps the
+  first-user admin via the web `/register` form, then seeds via the API) and hands credentials/IDs to `load.mjs` via a base64 `PERFSTATE:…` stdout
+  token the runner decodes (k6's `handleSummary` runs in a separate isolate and can't see iteration state, so a file-write handover isn't possible).
+  The per-IP auth throttle is disabled in the perf stack (`AUTH_IP_THROTTLE_ENABLED=false`) so the single-source load generator isn't locked out.
+- **Isolation:** dedicated compose project (`-p diurnal-perf`), ephemeral tmpfs DB, host port **8083** (!= 8080 prod / 8081 dev+E2E / 8082 smoke), so
+  a perf run coexists with everything. An EXIT/INT/TERM/HUP trap always tears the stack down and removes the scratch state dir.
+- **Tuning knobs** (env, all with sensible defaults): `PERF_SEED_ACTIONS`, `PERF_SEED_LOG_DAYS`, `PERF_DURATION`, `PERF_RATE`, `PERF_VUS`,
+  `PERF_BOOT_BUDGET_S`, `PERF_RSS_MAX_MB`; the per-scenario latency/error budgets live in `load.mjs`'s `options.thresholds` — tune them to the
+  deployment's SLOs. The k6 image is pinned (`grafana/k6`), matching the containerised-tool pattern of the lint steps (no host k6 install needed).
