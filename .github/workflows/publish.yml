@@ -55,6 +55,14 @@ jobs:
     timeout-minutes: 30
     permissions:
       contents: read
+    # Fold SonarQube analysis into the existing full gate (no duplicate build): SONARQUBE_ANALYSIS=true
+    # makes lint_and_tests.sh append -Dsonarqube to its `mvn clean install -Dall`, and the parent-pom
+    # reads the host URL + token straight from these env vars (sonar.host.url / sonar.token). Because a
+    # release only ever runs on a master push / manual dispatch, every release is analysed and uploaded.
+    env:
+      SONARQUBE_ANALYSIS: 'true'
+      SONARQUBE_HOST_URL: ${{ secrets.SONARQUBE_HOST_URL }}
+      SONARQUBE_PAT: ${{ secrets.SONARQUBE_PAT }}
 
     steps:
       # submodules: code-quality-config holds the linter configs used by the -Dall gate.

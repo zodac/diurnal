@@ -108,6 +108,15 @@ SMOKE_HTTP_PORT="${SMOKE_HTTP_PORT:-8082}"
 # from 8080 (prod), 8081 (dev/E2E) and 8082 (smoke), so a perf run coexists with all of them.
 PERF_HTTP_PORT="${PERF_HTTP_PORT:-8083}"
 
+# Opt-in SonarQube analysis, folded into the `java` step's Maven gate (NOT a separate build). Off by
+# default so local/PR runs never attempt an upload; the release pipeline (publish.yml) sets it to
+# "true" so each release is analysed. When on, `-Dsonarqube` is appended to `mvn clean install -Dall`,
+# activating the parent-pom's `activate_sonarqube` profile — which flips `skip-sonarqube` to false so
+# the sonar-maven-plugin (bound to `install`) runs, ingesting the Checkstyle/PMD/SpotBugs report XMLs
+# the same -Dall build just produced. It needs the SONARQUBE_HOST_URL and SONARQUBE_PAT env vars that
+# the parent-pom reads (sonar.host.url / sonar.token); without them the analysis step fails.
+SONARQUBE_ANALYSIS="${SONARQUBE_ANALYSIS:-false}"
+
 # Verbose off by default: steps print a per-substep progress line plus a pass/fail summary, and each
 # substep's own output is hidden until it fails. The -v/--verbose flag (parsed below) flips this to
 # stream/echo every substep's full output live.
@@ -281,8 +290,17 @@ run_java() {
     # This mirrors the old -Dall pom wiring (E2E after the ITs are green, smoke after E2E).
     local failed_at=""
 
-    substep "mvn clean install -Dall  (unit + *IT + linters; packages the fast-jar)"
-    run_quietly mvn clean install -Dall || failed_at="mvn clean install -Dall"
+    # The Maven gate, optionally with SonarQube analysis appended (see SONARQUBE_ANALYSIS above). The
+    # label mirrors the exact args so the progress + "re-run …" hints stay copy/paste-accurate.
+    local -a mvn_args=(clean install -Dall)
+    local mvn_label="mvn clean install -Dall"
+    if [[ "${SONARQUBE_ANALYSIS}" == "true" ]]; then
+        mvn_args+=(-Dsonarqube)
+        mvn_label+=" -Dsonarqube"
+    fi
+
+    substep "${mvn_label}  (unit + *IT + linters; packages the fast-jar)"
+    run_quietly mvn "${mvn_args[@]}" || failed_at="${mvn_label}"
 
     if [[ -z "${failed_at}" ]]; then
         substep "tests/run-e2e.sh  (Playwright E2E/UI suite on :${E2E_HTTP_PORT}, reusing the built jar)"
