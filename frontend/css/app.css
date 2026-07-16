@@ -325,6 +325,48 @@
     background-color: var(--color-canvas);
     color: var(--color-text);
   }
+
+  /*
+   * Scrollbars — themed to match the app instead of the browser default. Token-backed, so the
+   * `.dark` variable overrides recolour them automatically (no dark twin needed): a thumb the
+   * colour of faint text (gray-400 light / gray-500 dark — enough contrast over a white canvas),
+   * darkening toward the muted-text colour on hover, over a
+   * transparent track so it blends into whatever surface it sits on (page canvas, cards, the
+   * Settings panels). Declared on `html` so the standard `scrollbar-*` properties inherit to every
+   * scroll container; the `::-webkit-scrollbar` block is global for Blink/WebKit, which ignore the
+   * standard properties. `scrollbar-gutter: stable` reserves the track so content doesn't shift
+   * when a scrollbar appears/disappears.
+   */
+  html {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-text-faint) transparent;
+    scrollbar-gutter: stable;
+  }
+
+  ::-webkit-scrollbar {
+    width: 12px;
+    height: 12px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: var(--color-text-faint);
+    border-radius: 9999px;
+    /* Transparent border clipped to the padding box insets the thumb, leaving a gap around it. */
+    border: 3px solid transparent;
+    background-clip: padding-box;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: var(--color-text-muted);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
 }
 
 /*
