@@ -1,0 +1,63 @@
+# Isolated full-stack performance environment — builds and runs the REAL production image (Dockerfile)
+# so the load suite measures the packaged distroless / jlink / non-root runtime that actually ships,
+# NOT a fast-jar on a full JDK (whose startup and JIT characteristics differ). Brought up by
+# tests/run-perf.sh, an opt-in tier that is deliberately NOT part of any `mvn` command and NOT chained
+# onto the `java` gate (perf runs are long and environment-sensitive) — it is the `perf` step of
+# .github/scripts/lint_and_tests.sh, run explicitly.
+#
+# Deliberately self-contained and namespaced so it NEVER collides with a running production stack
+# (docker-compose.yml), the smoke stack, or the dev/E2E jar: a distinct compose project
+# (`-p diurnal-perf`, set by run-perf.sh), no fixed container_name / network name, an ephemeral tmpfs
+# DB, and host port 8083 (!= 8080 prod, != 8081 dev/E2E, != 8082 smoke). Every secret here is a
+# throwaway test value — nothing in this file is sensitive.
+services:
+
+  app:
+    build:
+      # Context is the repo root (this file lives in tests/); the Dockerfile sits at that root.
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      # Host 8083 (!= 8080 production, != 8081 dev / IT / E2E, != 8082 smoke) so perf coexists with all.
+      # Overridden by run-perf.sh via PERF_PORT.
+      - "${PERF_PORT:-8083}:8080"
+    environment:
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: diurnal_perf
+      DB_USER: diurnal_perf
+      DB_PASSWORD: perf_db_password
+      # UTC so the server's "today" matches the UTC clock the k6 scenarios compute dates against.
+      TZ: UTC
+      LOG_LEVEL: INFO
+      PASSWORD_AUTH_ENABLED: "true"
+      ENABLE_REGISTRATION: "true"
+      OIDC_ENABLED: "false"
+      # The per-IP auth throttle would otherwise lock out the load generator after 15 failed/rapid
+      # auth calls from k6's single source IP. The login scenario reuses one pre-seeded credential and
+      # a persistent token, so it never trips a *failed*-login lockout — but a burst of *successful*
+      # logins must not be throttled either, and the shared counter keys on IP. Disable it for the
+      # isolated, single-tenant perf stack so throughput numbers reflect the app, not the throttle.
+      AUTH_IP_THROTTLE_ENABLED: "false"
+    depends_on:
+      db:
+        condition: service_healthy
+    # The image's own HEALTHCHECK (busybox wget -> /api/v1/status) drives `docker compose up --wait`, so
+    # a boot failure fails the perf run fast — but run-perf.sh ALSO measures cold-boot latency itself.
+
+  db:
+    image: postgres:18.4-alpine
+    environment:
+      TZ: UTC
+      POSTGRES_DB: diurnal_perf
+      POSTGRES_USER: diurnal_perf
+      POSTGRES_PASSWORD: perf_db_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    tmpfs:
+      # Ephemeral DB — no named volume, wiped with the container (mirrors docker-compose.smoke.yml).
+      - /var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U diurnal_perf -d diurnal_perf"]
+      interval: 5s
+      timeout: 3s
+      retries: 10

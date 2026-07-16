@@ -13,6 +13,7 @@
 #                   (node when confirmed; hadolint + markdownlint-cli2 + shellcheck + grype best-effort)
 #                   Note: shellcheck installed as an apt/apk package instead (pinned in a
 #                   # BEGIN/END … PACKAGES block) is handled generically by the package updaters.
+#                 - k6 Docker image pin in tests/run-perf.sh (the perf tier's load generator; best-effort)
 #                 - Ubuntu packages (# BEGIN/END UBUNTU PACKAGES blocks)
 #                 - Debian packages (# BEGIN/END DEBIAN PACKAGES blocks)
 #                 - Alpine packages (# BEGIN/END ALPINE PACKAGES blocks)
@@ -43,6 +44,7 @@ POM_XML="./pom.xml"
 WORKFLOWS_DIR=".github/workflows"
 GITMODULES_FILE=".gitmodules"
 LINT_SCRIPT=".github/scripts/lint_and_tests.sh"
+PERF_SCRIPT="./tests/run-perf.sh"
 
 # Node version resolved (and confirmed to exist) by update_node, consumed by update_lint_script for
 # the ESLINT_NODE_IMAGE bump. Empty = not confirmed this run. (The lint script no longer pins a Maven
@@ -347,6 +349,39 @@ update_lint_script() {
     fi
 
     ok "Lint script Docker images processed"
+}
+
+# ── 3b-perf. k6 image pin (tests/run-perf.sh) ─────────────────────────────────
+# Keeps the pinned k6 Docker image in tests/run-perf.sh (K6_IMAGE) in sync — the perf tier's load
+# generator, run from the grafana/k6 image (its JS API modules — k6, k6/http, k6/encoding — are built
+# into that binary, so there is no npm package to bump; the image tag IS the dependency). Best-effort,
+# mirroring the grype/hadolint/shellcheck blocks in update_lint_script: bump to the latest GitHub
+# release whose Docker Hub tag is confirmed. k6's release tags carry a leading 'v' (v0.54.0) but the
+# Docker Hub tag omits it (0.54.0), so strip it before checking/pinning.
+
+update_perf_script() {
+    echo
+    echo "🔍 Updating the k6 Docker image pin in ${PERF_SCRIPT}..."
+
+    if [[ ! -f "${PERF_SCRIPT}" ]]; then
+        warn "No ${PERF_SCRIPT}, skipping"
+        return 0
+    fi
+
+    local k6_tag k6_ver
+    k6_tag=$(github_curl "https://api.github.com/repos/grafana/k6/releases/latest" \
+        | jq -r '.tag_name // empty')
+    if [[ -z "${k6_tag}" ]]; then
+        warn "Could not fetch k6 version, skipping"
+        return 0
+    fi
+    k6_ver="${k6_tag#v}"
+    if ! hub_tag_exists "grafana/k6" "${k6_ver}"; then
+        warn "grafana/k6:${k6_ver} not on Docker Hub, skipping"
+        return 0
+    fi
+    sed -i "s|K6_IMAGE=\"grafana/k6:[^\"]*\"|K6_IMAGE=\"grafana/k6:${k6_ver}\"|" "${PERF_SCRIPT}"
+    ok "k6 image → grafana/k6:${k6_ver}"
 }
 
 # ── 3c. npm packages ──────────────────────────────────────────────────────────
@@ -916,6 +951,9 @@ update_node       || warn "Node update failed, continuing..."
 
 # After java/maven/node: propagate the resolved (and confirmed) versions into the lint script.
 update_lint_script || warn "Lint script image update failed, continuing..."
+
+# The perf tier's k6 image pin lives in tests/run-perf.sh (best-effort, independent of the above).
+update_perf_script || warn "k6 image update failed, continuing..."
 
 update_npm_packages || warn "npm package update failed, continuing..."
 
