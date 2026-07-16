@@ -148,12 +148,13 @@ ENV PATH="/opt/jdk/bin:${PATH}"
 
 EXPOSE 8080
 
-# App health lives at /health over plain HTTP on 8080 (TLS is terminated at the reverse proxy).
+# App status lives at /api/v1/status over plain HTTP on 8080 (TLS is terminated at the reverse proxy). It
+# reports 200 only when the database is reachable (readiness-gated), so a non-2xx marks the app unhealthy.
 # Exec-form CMD invokes busybox-wget directly so no shell is required; --spider makes it a HEAD-style
 # probe that exits non-zero on any non-2xx response.
 COPY --from=shell /bin/busybox /bin/wget
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD ["/bin/wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/health"]
+  CMD ["/bin/wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/api/v1/status"]
 
 # Quarkus fast-jar layout: quarkus-run.jar alongside lib/ app/ quarkus/. Deploy the whole directory.
 # Files land root-owned but world-readable, so UID 65532 can read/exec them; the app never writes here

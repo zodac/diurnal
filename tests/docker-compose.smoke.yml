@@ -33,8 +33,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    # The image's own HEALTHCHECK (busybox wget -> /health) drives `docker compose up --wait`, so a
-    # boot failure — e.g. a missing jlink module, see the java.rmi incident — fails the smoke run fast.
+    # The image's own HEALTHCHECK (busybox wget -> /api/v1/status) drives `docker compose up --wait`, so
+    # a boot failure — e.g. a missing jlink module, see the java.rmi incident — fails the smoke run fast.
 
   db:
     image: postgres:18.4-alpine

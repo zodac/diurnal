@@ -79,9 +79,13 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
         "DELETE /api/v1/logs/{date}/{actionId}",
         "POST /api/v1/logs/{date}/{actionId}/increment",
         "POST /api/v1/logs/{date}/{actionId}/decrement",
-        "GET /api/v1/stats");
+        "GET /api/v1/stats",
+        "GET /api/v1/status");
 
     private static final Set<String> HTTP_METHODS = Set.of("get", "put", "post", "delete", "options", "head", "patch", "trace");
+
+    // The standalone lowercase word "id" — the acronym must be written "ID" in every user-facing description/summary.
+    private static final java.util.regex.Pattern LOWERCASE_ID = java.util.regex.Pattern.compile("\\bid\\b");
 
     @Inject
     SessionStore sessionStore;
@@ -185,6 +189,41 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
             .as("Every operation parameter, component schema, and schema property must carry a user-friendly description "
                 + "(@Parameter/@Schema annotations; the shared UUID/LocalDate schemas are described by PublicApiFilter)")
             .isEmpty();
+    }
+
+    @Test
+    void document_capitalisesTheIdAcronymInEveryDescription() {
+        final Map<String, Object> document = given().accept(ContentType.JSON)
+            .header("Authorization", "Bearer " + adminToken())
+            .get("/q/openapi")
+            .then().statusCode(200)
+            .extract().jsonPath().getMap("$");
+
+        final List<String> offenders = new ArrayList<>();
+        collectLowercaseIdText(null, document, offenders);
+
+        assertThat(offenders)
+            .as("Every human-readable Swagger 'description'/'summary' must capitalise the acronym as 'ID', never a standalone lowercase 'id'")
+            .isEmpty();
+    }
+
+    // Walks the whole document and flags any 'description'/'summary' string containing the standalone
+    // word "id" (lowercase) — the acronym must be written "ID". \bid\b matches only the bare word, so
+    // "identifier", "valid", "considered" etc. are untouched.
+    private static void collectLowercaseIdText(final @Nullable String key, final @Nullable Object node, final List<String> sink) {
+        if (node instanceof final Map<?, ?> map) {
+            for (final Map.Entry<?, ?> entry : map.entrySet()) {
+                collectLowercaseIdText(String.valueOf(entry.getKey()), entry.getValue(), sink);
+            }
+        } else if (node instanceof final List<?> list) {
+            for (final Object element : list) {
+                collectLowercaseIdText(key, element, sink);
+            }
+        } else if (node instanceof final String text
+            && ("description".equals(key) || "summary".equals(key))
+            && LOWERCASE_ID.matcher(text).find()) {
+            sink.add("'" + key + "' contains a lowercase 'id': \"" + text + "\"");
+        }
     }
 
     @SuppressWarnings("unchecked")

@@ -154,7 +154,7 @@ public class ActionsApiResource {
         @APIResponse(responseCode = "404", description = "No such action owned by this user.")
     })
     public Response getAction(
-        @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The action's id.")
+        @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The action's ID.")
         @PathParam("id") final UUID id) {
         final Action action = actionService.findOwned(currentUser.get(), id);
         if (action == null) {
@@ -189,7 +189,7 @@ public class ActionsApiResource {
             content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public Response updateAction(
-        @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The action's id.")
+        @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The action's ID.")
         @PathParam("id") final UUID id,
         final @Nullable ActionRequest request) {
         // PATCH semantics: absent fields stay null and the shared service keeps their current values.
@@ -217,7 +217,7 @@ public class ActionsApiResource {
         @APIResponse(responseCode = "404", description = "No such action owned by this user.")
     })
     public Response deleteAction(
-        @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The action's id.")
+        @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The action's ID.")
         @PathParam("id") final UUID id) {
         if (actionService.delete(currentUser.get(), id) instanceof ActionResult.NotFound) {
             return Response.status(Response.Status.NOT_FOUND).build();
@@ -269,7 +269,7 @@ public class ActionsApiResource {
      */
     @Schema(description = "A single trackable action (habit).")
     public record ActionDto(
-        @Schema(description = "The action's id.") UUID id,
+        @Schema(description = "The action's ID.") UUID id,
         @Schema(examples = "Morning run", description = "The action's name.") String name,
         @Schema(examples = "#6366f1", description = "The action's display colour as a CSS hex value.") String colour) {
 

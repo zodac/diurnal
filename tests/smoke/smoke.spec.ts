@@ -22,13 +22,17 @@ const RUN = `smoke_${Date.now()}`
 
 test.describe("deployment smoke", () => {
 
-    test("health endpoint reports OK", async ({ request }) => {
-        // HealthResource is a custom DB-backed liveness check (not SmallRye Health): plain-text
-        // "OK" + 200 only when the database connection is valid, else 503 "DB unavailable". Asserting
-        // the exact body confirms the DB-connected path, not merely that something answered 200.
-        const res = await request.get("/health")
+    test("status endpoint reports ready", async ({ request }) => {
+        // StatusResource is a custom DB-backed status endpoint (not SmallRye Health): 200 + readiness
+        // "UP" only when the database connection is valid, else 503 with readiness "DOWN". Asserting the
+        // JSON body confirms the DB-connected path, not merely that something answered 200.
+        const res = await request.get("/api/v1/status")
         expect(res.status()).toBe(200)
-        expect((await res.text()).trim()).toBe("OK")
+        const body = await res.json()
+        expect(body.liveness).toBe("UP")
+        expect(body.readiness).toBe("UP")
+        expect(typeof body.version).toBe("string")
+        expect(body.uptime).toMatch(/^\d+(:\d{2}){0,2}\.\d{3}$/)
     })
 
     test("hashed stylesheet and favicon are served by the image", async ({ page, request }) => {

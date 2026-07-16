@@ -58,7 +58,60 @@ trap 'exit 129' HUP
 SMOKE_PORT="${PORT}" docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" \
   up -d --build --wait --wait-timeout 240
 
-# Run the smoke suite against the live container; its exit code becomes the script's (cleanup runs
-# via the EXIT trap regardless), so a non-zero result fails the Maven build.
+# Run the smoke suite against the live container; a non-zero result trips `set -e` here (cleanup runs
+# via the EXIT trap regardless), so a failing suite fails the Maven build before the checks below.
 (cd "${BASEDIR}/tests" && BASE_URL="http://127.0.0.1:${PORT}" \
   npx playwright test --config playwright.smoke.config.ts)
+
+# ── Readiness-gating check: the HEALTHCHECK is only valid if it reports UNHEALTHY when the app cannot
+# serve traffic. Stop the database and assert (1) GET /api/v1/status (the exact URL the image's
+# HEALTHCHECK probes) returns 503 with readiness DOWN, and (2) the container's own Docker health
+# converges to `unhealthy`. A 200 — or a stuck `healthy` — here would mean the probe cannot detect an
+# unready app. This runs only after the suite above passed, right before the EXIT-trap teardown, so
+# leaving the stack degraded is harmless.
+echo "[smoke] readiness-gating check: stopping the database…"
+docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" stop db >/dev/null
+
+STATUS_URL="http://127.0.0.1:${PORT}/api/v1/status"
+http_code=""
+body=""
+# The connection pool may serve one last cached connection, so poll briefly until it observes the loss.
+status_deadline=$((SECONDS + 30))
+while (( SECONDS < status_deadline )); do
+  response="$(curl -s -w $'\n%{http_code}' "${STATUS_URL}" 2>/dev/null || true)"
+  http_code="${response##*$'\n'}"
+  body="${response%$'\n'*}"
+  if [[ "${http_code}" == "503" ]]; then
+    break
+  fi
+  sleep 2
+done
+if [[ "${http_code}" != "503" ]]; then
+  echo "[smoke] FAIL: /api/v1/status returned '${http_code}' (expected 503) with the DB stopped: ${body}"
+  exit 1
+fi
+case "${body}" in
+  *'"readiness":"DOWN"'*) : ;;
+  *)
+    echo "[smoke] FAIL: /api/v1/status did not report readiness DOWN with the DB stopped: ${body}"
+    exit 1
+    ;;
+esac
+echo "[smoke] /api/v1/status correctly reports 503 / readiness DOWN"
+
+# The container's own HEALTHCHECK (interval 30s × 3 retries) must now converge to `unhealthy`.
+app_cid="$(docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" ps -q app)"
+health=""
+health_deadline=$((SECONDS + 150))
+while (( SECONDS < health_deadline )); do
+  health="$(docker inspect -f '{{.State.Health.Status}}' "${app_cid}" 2>/dev/null || true)"
+  if [[ "${health}" == "unhealthy" ]]; then
+    break
+  fi
+  sleep 5
+done
+if [[ "${health}" != "unhealthy" ]]; then
+  echo "[smoke] FAIL: container HEALTHCHECK did not report unhealthy after the DB stopped (last: '${health}')"
+  exit 1
+fi
+echo "[smoke] container HEALTHCHECK correctly reports unhealthy — readiness gating verified"
