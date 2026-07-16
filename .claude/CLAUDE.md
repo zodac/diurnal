@@ -687,6 +687,11 @@ others (`… java,perf`), or via `tests/run-perf.sh <port> <projectRoot>` direct
   The per-IP auth throttle is disabled in the perf stack (`AUTH_IP_THROTTLE_ENABLED=false`) so the single-source load generator isn't locked out.
 - **Isolation:** dedicated compose project (`-p diurnal-perf`), ephemeral tmpfs DB, host port **8083** (!= 8080 prod / 8081 dev+E2E / 8082 smoke), so
   a perf run coexists with everything. An EXIT/INT/TERM/HUP trap always tears the stack down and removes the scratch state dir.
-- **Tuning knobs** (env, all with sensible defaults): `PERF_SEED_ACTIONS`, `PERF_SEED_LOG_DAYS`, `PERF_DURATION`, `PERF_RATE`, `PERF_VUS`,
-  `PERF_BOOT_BUDGET_S`, `PERF_RSS_MAX_MB`; the per-scenario latency/error budgets live in `load.mjs`'s `options.thresholds` — tune them to the
-  deployment's SLOs. The k6 image is pinned (`grafana/k6`), matching the containerised-tool pattern of the lint steps (no host k6 install needed).
+- **Tuning knobs** (env, all with sensible defaults, forwarded by name into the k6 container by `run-perf.sh`):
+  `PERF_SEED_ACTIONS`, `PERF_SEED_LOG_DAYS`, `PERF_DURATION`, `PERF_RATE`, `PERF_VUS`, `PERF_P95_TOLERANCE`, `PERF_BOOT_BUDGET_S`,
+  `PERF_RSS_MAX_MB`; the per-scenario latency/error budgets live in `load.mjs`'s `options.thresholds` — tune them to the deployment's
+  SLOs. `PERF_P95_TOLERANCE` (default `1`) scales **every** p95 latency budget by a single multiplier so the same suite gates both a
+  fast dev box and a small shared CI runner without re-numbering each threshold — it scales latency ONLY (error-rate budgets stay
+  absolute). `publish.yml` sets a lighter `PERF_RATE`/`PERF_VUS` + a `PERF_P95_TOLERANCE` on the gate step because `ubuntu-latest` is a
+  2-vCPU box co-running the app, Postgres and k6, so the dev-workstation load-shape collapses into queueing (seconds of pure queue
+  time). The k6 image is pinned (`grafana/k6`), matching the containerised-tool pattern of the lint steps (no host k6 install needed).

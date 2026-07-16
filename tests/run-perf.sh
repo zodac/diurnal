@@ -159,10 +159,19 @@ fi
 # k6's exit code is non-zero iff a threshold was breached; `set -e` turns that into this script's exit
 # code (cleanup runs via the EXIT trap regardless), so a perf regression fails the perf step.
 echo "[perf] running the load suite…"
+# Forward the load-shape + threshold knobs by NAME (no `=value`): docker passes each through from this
+# process's environment only when it is actually set, so an unset knob falls through to load.mjs's own
+# default rather than being clobbered with an empty string (Number("") === 0). This is how a caller —
+# e.g. the CI step on a small shared runner — lowers the offered rate and relaxes the latency budget
+# without editing load.mjs.
 docker run --rm --network host \
   -v "${BASEDIR}/tests/perf":/scripts:ro \
   -v "${STATE_DIR}":/state:ro \
   -e PERF_STATE_FILE=/state/perf-state.json \
+  -e PERF_RATE \
+  -e PERF_VUS \
+  -e PERF_DURATION \
+  -e PERF_P95_TOLERANCE \
   "${K6_IMAGE}" run /scripts/load.mjs
 
 echo "[perf] load suite passed all thresholds"
