@@ -54,7 +54,7 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
     // reflects the current test config (a login therefore does not trigger a re-hash).
     private static final Argon2Function TEST_ARGON2 = Argon2Function.getInstance(1024, 1, 1, 32, Argon2.ID);
     // The plaintext password every newUser() is seeded with; protected so subclasses (in other
-    // packages) can authenticate as a seeded user, e.g. via the login form or POST /api/auth/login.
+    // packages) can authenticate as a seeded user, e.g. via the login form or POST /api/v1/auth/login.
     protected static final String TEST_PASSWORD = "test_password";
 
     /**

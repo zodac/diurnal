@@ -75,14 +75,14 @@ document.addEventListener('DOMContentLoaded', function () {
     function pad2(n) { return String(n).padStart(2, '0') }
 
     // ── Day-panel cache ──────────────────────────────────────────────────────
-    // Each /logs/day/<date> partial is cached so re-opening a day by clicking around the calendar is
+    // Each /internal/logs/day/<date> partial is cached so re-opening a day by clicking around the calendar is
     // instant instead of paying the edge round-trip every time (the public origin sits behind Cloudflare,
     // so each call is a ~250ms+ round-trip). We cache the PRISTINE default view (page 1, no search
     // filter) — exactly what a fresh load returns — so a cached swap is indistinguishable from a network
     // one. The selected day is fetched on its own (fast first paint); the REST of its month is then
-    // back-filled by a SINGLE /logs/month/<yyyy-MM> request that returns every day's HTML in one map,
+    // back-filled by a SINGLE /internal/logs/month/<yyyy-MM> request that returns every day's HTML in one map,
     // rather than fanning out ~30 concurrent per-day requests (which would exhaust the small JDBC pool).
-    const dayPanelCache    = {} // dateStr -> HTML string (the /logs/day response body)
+    const dayPanelCache    = {} // dateStr -> HTML string (the /internal/logs/day response body)
     const dayPanelInflight = {} // dateStr -> Promise, dedupes concurrent single-day fetches
     const monthBackfilled  = {} // "YYYY-MM" -> true once its whole-month back-fill has been requested
 
@@ -113,7 +113,7 @@ document.addEventListener('DOMContentLoaded', function () {
     function fetchDayPanel(dateStr) {
         if (dayPanelCache[dateStr] !== undefined) { touchPanelMonth(dateStr); return Promise.resolve(dayPanelCache[dateStr]) }
         if (dayPanelInflight[dateStr]) { return dayPanelInflight[dateStr] }
-        const p = fetch(`/logs/day/${  dateStr}`)
+        const p = fetch(`/internal/logs/day/${  dateStr}`)
             .then(function (r) { return r.text() })
             .then(function (html) { dayPanelCache[dateStr] = html; delete dayPanelInflight[dateStr]; touchPanelMonth(dateStr); return html })
             .catch(function (err) { delete dayPanelInflight[dateStr]; throw err }) // drop so a later view retries
@@ -131,7 +131,7 @@ document.addEventListener('DOMContentLoaded', function () {
         monthBackfilled[ym] = true
         const schedule = window.requestIdleCallback || function (fn) { return setTimeout(fn, 200) }
         schedule(function () {
-            fetch(`/logs/month/${  ym}`)
+            fetch(`/internal/logs/month/${  ym}`)
                 .then(function (r) { return r.json() })
                 .then(function (panels) {
                     Object.keys(panels).forEach(function (d) {
@@ -305,7 +305,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // Each month's dots are fetched once and merged into `dayData`; `monthPromises` dedupes in-flight
         // and resolved fetches, and `monthLoaded` flags a month whose data is already in `dayData` so we
         // can render it WITHOUT a network wait. This is what makes month navigation feel instant: the public
-        // origin sits behind Cloudflare, so every `/logs/minimal-events` call is a ~250ms+ edge round-trip.
+        // origin sits behind Cloudflare, so every `/internal/logs/minimal-events` call is a ~250ms+ edge round-trip.
         // We pay that once per month (eagerly for the visible month, on idle for its neighbours) instead of
         // on every prev/next click.
         //
@@ -321,6 +321,21 @@ document.addEventListener('DOMContentLoaded', function () {
         const CACHE_LIMIT     = 12 // max RESOLVED months retained (>> 2*PREFETCH_RADIUS+1 = 5, the live window)
 
         function monthKey(y, m) { return `${y  }-${  pad2(m + 1)}` }
+
+        function feedEndpoint() {
+            return (calendarView === 'full') ? '/api/v1/logs/events' : '/internal/logs/minimal-events'
+        }
+
+        // The full view reads the public /api/v1 feed, whose anonymous challenge is a plain 401 (no
+        // redirect for a programmatic client) — so an expired session must be turned into the /login
+        // navigation the internal endpoints get via their 302.
+        function feedJson(r) {
+            if (r.status === 401) {
+                window.location.assign('/login')
+                throw new Error('session expired')
+            }
+            return r.json()
+        }
 
         function stepMonth(year, month, delta) {
             let y = year
@@ -413,12 +428,12 @@ document.addEventListener('DOMContentLoaded', function () {
             const end   = monthEnd(y, m)
             // Each style is fed by the endpoint shaped for it, normalised into a uniform
             // `dayData[date] = [{ colour, label }]` so renderGrid stays feed-agnostic:
-            //   • full           → /logs/events: the public, UNCAPPED feed (one event per logged action,
-            //                      title already carries the "×N" multiplier). A flat list we group by date.
-            //   • minimal/stacked→ /logs/minimal-events: up to four dots/bars per day, pre-sorted.
-            const endpoint = (calendarView === 'full') ? '/logs/events' : '/logs/minimal-events'
-            const p = fetch(`${endpoint  }?start=${  start  }&end=${  end}`)
-                .then(function (r) { return r.json() })
+            //   • full           → /api/v1/logs/events: the public, UNCAPPED feed (one event per logged
+            //                      action, title already carries the "×N" multiplier). A flat list we
+            //                      group by date.
+            //   • minimal/stacked→ /internal/logs/minimal-events: up to four dots/bars per day, pre-sorted.
+            const p = fetch(`${feedEndpoint()  }?start=${  start  }&end=${  end}`)
+                .then(feedJson)
                 .then(function (data) {
                     if (force) {                                   // authoritative refresh: clear then merge
                         const prefix = `${key  }-`
@@ -475,9 +490,8 @@ document.addEventListener('DOMContentLoaded', function () {
             const pendingKeys = {}
             pending.forEach(function (ym) { pendingKeys[monthKey(ym[0], ym[1])] = true })
 
-            const endpoint = (calendarView === 'full') ? '/logs/events' : '/logs/minimal-events'
-            const p = fetch(`${endpoint  }?start=${  start  }&end=${  end}`)
-                .then(function (r) { return r.json() })
+            const p = fetch(`${feedEndpoint()  }?start=${  start  }&end=${  end}`)
+                .then(feedJson)
                 .then(function (data) {
                     if (calendarView === 'full') {
                         const touched = {}
@@ -874,7 +888,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // Open the day panel immediately, without clicking the calendar. Restore the day chosen earlier this
     // working session (retained per-tab via sessionStorage) if there is a valid one; otherwise fall back to
     // today. The format guard is load-bearing: selectedDate is interpolated straight into the
-    // /logs/day/<date> fetch URL, so only a well-formed ISO date is accepted. The regex uses \d\d… rather
+    // /internal/logs/day/<date> fetch URL, so only a well-formed ISO date is accepted. The regex uses \d\d… rather
     // than \d{4} on purpose: Qute would read the {4}/{2} quantifiers as template expressions (see the
     // brace-parsing note in CLAUDE.md) and corrupt the pattern.
     const ISO_DATE = /^\d\d\d\d-\d\d-\d\d$/

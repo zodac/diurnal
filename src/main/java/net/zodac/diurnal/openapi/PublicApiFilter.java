@@ -42,10 +42,9 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Restricts the generated OpenAPI document (and thus the Swagger UI at {@code /api}) to the <strong>public API</strong>: everything under
- * {@code /api/*}, plus the small set of application endpoints in {@link #PUBLIC_APP_PATHS} that are deliberately published for external use (the
- * {@code /logs/events} feed, which the in-app calendar and integrations share). SmallRye scans every JAX-RS method, which would otherwise also
- * surface the web UI's HTML page routes and HTMX partial endpoints — those return {@code text/html} and take form params, so they do not belong in
- * the API reference. Registered via {@code mp.openapi.filter}.
+ * {@code /api/*} (the versioned {@code /api/v1/*} namespace). SmallRye scans every JAX-RS method, which would otherwise also surface the web UI's
+ * HTML page routes and HTMX partial endpoints — those return {@code text/html} and take form params, so they do not belong in the API reference.
+ * Registered via {@code mp.openapi.filter}.
  *
  * <p>
  * After pruning paths, it also prunes {@code components/schemas} down to those still reachable from a surviving operation: SmallRye generates a
@@ -61,7 +60,10 @@ public final class PublicApiFilter implements OASFilter {
 
     private static final String API_PREFIX = "/api/";
 
-    private static final Set<String> PUBLIC_APP_PATHS = Set.of("/logs/events");
+    private static final Map<String, String> SHARED_SCHEMA_DESCRIPTIONS = Map.of(
+        "UUID", "A universally unique identifier in canonical form (8-4-4-4-12 hexadecimal digits).",
+        "LocalDate", "A calendar date in ISO-8601 format (yyyy-MM-dd).",
+        "Instant", "An instantaneous point in time in ISO-8601 format (e.g. 2026-06-15T07:30:00Z), always UTC.");
 
     /**
      * Stamps the release version, then removes every path that is not part of the public API and drops any top-level tag and component schema left
@@ -72,6 +74,11 @@ public final class PublicApiFilter implements OASFilter {
     @Override
     public void filterOpenAPI(final OpenAPI openApi) {
         stampVersion(openApi);
+        describeSharedSchemas(openApi);
+        // Drop the auto-generated servers block (http://localhost:8080 etc.) — noise in the docs, and
+        // with no servers declared Swagger UI targets the origin it is served from, which is right for
+        // every deployment.
+        openApi.setServers(null);
 
         final Paths paths = openApi.getPaths();
         if (paths == null || paths.getPathItems() == null) {
@@ -85,6 +92,21 @@ public final class PublicApiFilter implements OASFilter {
 
         pruneUnusedTags(openApi);
         pruneUnusedSchemas(openApi);
+    }
+
+    // SmallRye auto-generates bare schemas for the JDK value types the DTOs use; give them the
+    // user-friendly descriptions the hand-written schemas get from their @Schema annotations.
+    private static void describeSharedSchemas(final OpenAPI openApi) {
+        final Components components = openApi.getComponents();
+        if (components == null || components.getSchemas() == null) {
+            return;
+        }
+        SHARED_SCHEMA_DESCRIPTIONS.forEach((name, description) -> {
+            final Schema schema = components.getSchemas().get(name);
+            if (schema != null) {
+                schema.setDescription(description);
+            }
+        });
     }
 
     private static void stampVersion(final OpenAPI openApi) {
@@ -103,7 +125,7 @@ public final class PublicApiFilter implements OASFilter {
     }
 
     private static boolean isPublic(final String path) {
-        return path.startsWith(API_PREFIX) || PUBLIC_APP_PATHS.contains(path);
+        return path.startsWith(API_PREFIX);
     }
 
     private static void pruneUnusedTags(final OpenAPI openApi) {

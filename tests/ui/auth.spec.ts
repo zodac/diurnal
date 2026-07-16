@@ -9,7 +9,7 @@ const USER = {
 test.describe("Authentication", () => {
     test.beforeAll(async ({ request }) => {
         // Pre-register the shared test user (409 is fine if already exists)
-        await request.post("/api/auth/register", {
+        await request.post("/api/v1/auth/register", {
             data: { email: USER.email, password: USER.password, displayName: USER.displayName },
         })
     })

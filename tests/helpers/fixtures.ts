@@ -63,7 +63,7 @@ export async function registerUser(user: TestUser): Promise<void> {
     const apiCtx = await baseRequest.newContext({
         baseURL: process.env.BASE_URL ?? "http://localhost:8080",
     })
-    await apiCtx.post("/api/auth/register", {
+    await apiCtx.post("/api/v1/auth/register", {
         data: { email: user.email, password: user.password, displayName: user.displayName },
     })
     await apiCtx.dispose()

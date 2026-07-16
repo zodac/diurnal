@@ -26,3 +26,7 @@ src/main/resources/META-INF/resources/js/htmx.min.js
 node_modules/
 tests/playwright-report/
 tests/test-results/
+
+# Per-user Claude Code state (the checked-in .claude docs are CLAUDE.md, APIS.md, CODE_STYLE.md, UI_PATTERNS.md)
+.claude/settings.local.json
+.claude/scheduled_tasks.lock

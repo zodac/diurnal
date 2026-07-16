@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Guards that the public API's {@link UserDto.Preferences} projection stays in lock-step with the {@link Preference}-annotated fields on
- * {@link User}. Adding a new preference column without exposing it through {@code GET /api/users/me} — the recurring de-sync this guard exists to
+ * {@link User}. Adding a new preference column without exposing it through {@code GET /api/v1/users/me} — the recurring de-sync this guard exists to
  * prevent — fails here.
  */
 class UserPreferencesExposureTest {
@@ -50,6 +50,23 @@ class UserPreferencesExposureTest {
         assertThat(exposedFields)
             .as("every @Preference field on User must be exposed by UserDto.Preferences (same name), and the DTO "
                     + "must expose nothing that is not a @Preference field")
+            .containsExactlyInAnyOrderElementsOf(preferenceFields);
+    }
+
+    @Test
+    void everyPreferenceFieldIsUpdatableViaTheApi() {
+        final List<String> preferenceFields = Arrays.stream(User.class.getDeclaredFields())
+            .filter(field -> field.isAnnotationPresent(Preference.class))
+            .map(Field::getName)
+            .toList();
+
+        final List<String> updatableFields = Arrays.stream(UserResource.PreferencesUpdate.class.getRecordComponents())
+            .map(RecordComponent::getName)
+            .toList();
+
+        assertThat(updatableFields)
+            .as("every @Preference field on User must be updatable via PATCH /api/v1/users/me (same name in "
+                    + "UserResource.PreferencesUpdate) — a new preference must ship with its API twin, not just its Settings control")
             .containsExactlyInAnyOrderElementsOf(preferenceFields);
     }
 }

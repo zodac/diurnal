@@ -32,10 +32,12 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Locale;
+import java.util.ArrayList;
+import java.util.List;
 import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.config.RegistrationConfig;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
@@ -50,10 +52,11 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jspecify.annotations.Nullable;
 
 /**
- * REST API authentication endpoints: register a new password user, exchange credentials for an opaque session token, and revoke the current token.
+ * REST API authentication endpoints: register a new password user, exchange credentials for an opaque session token, and revoke the current
+ * token ({@code /logout}) or every session for the account ({@code /revoke}).
  */
 @Tag(name = "Auth", description = "Create an account and exchange credentials for a Bearer session token.")
-@Path("/api/auth")
+@Path("/api/v1/auth")
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 public class AuthResource {
@@ -66,22 +69,19 @@ public class AuthResource {
     AuthenticationService authenticationService;
 
     @Inject
-    Passwords passwords;
+    CurrentUser currentUser;
+
+    @Inject
+    RegistrationService registrationService;
 
     @Inject
     SessionStore sessionStore;
-
-    @Inject
-    RoleAssigner roleAssigner;
 
     @Inject
     PasswordAuthConfig passwordAuthConfig;
 
     @Inject
     RegistrationConfig registrationConfig;
-
-    @Inject
-    IpThrottle ipThrottle;
 
     @Inject
     AppClock clock;
@@ -94,68 +94,83 @@ public class AuthResource {
      * Registers a new password-based user, returning {@code 201} with a session token, or {@code 409} if the email exists. Returns {@code 404} when
      * password auth is disabled and {@code 403} when either registration is disabled or the initial account has not yet been created. The very first
      * (administrator) account can never be created through this endpoint — it must be created locally via the web setup flow ({@code /welcome} →
-     * {@code POST /register}), so an unauthenticated caller can never seize the initial admin account. This also mirrors the web registration guard,
-     * so the API can never bypass {@code PASSWORD_AUTH_ENABLED}/{@code ENABLE_REGISTRATION}.
+     * {@code POST /register}), so an unauthenticated caller can never seize the initial admin account. Validation and account creation are the shared
+     * {@link RegistrationService} the web form also calls, so the rules cannot diverge; the {@code PASSWORD_AUTH_ENABLED}/{@code ENABLE_REGISTRATION}
+     * guards are enforced here too, so the API can never bypass them.
      */
     @POST
     @Path("/register")
     @Transactional
     @Operation(
-        hidden = true,
         summary = "Register a new user",
         description = "Creates an account and returns a Bearer session token for it. The initial administrator account cannot be created here — it "
         + "must be created locally through the setup page first."
     )
-    public Response register(@Valid final RegisterRequest request) {
+    @APIResponses({
+        @APIResponse(responseCode = "201", description = "The account was created; returns a Bearer session token and basic profile.",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = TokenResponse.class))),
+        @APIResponse(responseCode = "400", description = "The email, display name or password is missing or invalid."),
+        @APIResponse(responseCode = "403",
+                description = "Registration is disabled, or the initial administrator account has not been created via the setup page yet.",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class))),
+        @APIResponse(responseCode = "404", description = "Password-based authentication is disabled on this deployment."),
+        @APIResponse(responseCode = "409", description = "The email is already registered.",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class))),
+        @APIResponse(responseCode = "429",
+                description = "Too many failed attempts; retry after the period in the Retry-After header.",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    public Response register(final @Nullable RegisterRequest request) {
+        // Surface policy (deliberately different from the web form): the API can never create the very
+        // first (administrator) account — that must be done locally through the web setup flow
+        // (/welcome → POST /register), so an unauthenticated caller cannot claim it. The shared
+        // validation/creation rules live in RegistrationService.
         if (!passwordAuthConfig.enabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-
-        // First-run guard: the initial account must be created locally through the web setup flow
-        // (/welcome → POST /register), never via the API. Until it exists the API refuses to register
-        // anyone, so an unauthenticated caller cannot claim the first (administrator) account.
         if (User.count() == 0) {
             LOGGER.warn("Refusing API registration before the initial account exists — it must be created via the setup page");
             return Response.status(Response.Status.FORBIDDEN)
                     .entity(new ErrorResponse(SETUP_REQUIRED_MESSAGE))
                     .build();
         }
-
         if (!registrationConfig.enabled()) {
             return Response.status(Response.Status.FORBIDDEN)
                     .entity(new ErrorResponse("Registration is disabled"))
                     .build();
         }
 
-        // Global per-IP lockout (the same counter failed logins feed). The lockout is revealed on the
-        // first attempt made WHILE locked — the entry check here — not on the threshold-tripping one below.
-        final String clientIp = ClientAddress.of(routingContext);
-        final Instant now = clock.now();
-        if (ipThrottle.isLocked(clientIp, now)) {
-            LOGGER.debug("Throttled registration attempt (IP: {})", clientIp);
-            return lockedResponse(ipThrottle.lockoutRemaining(clientIp, now));
-        }
+        // No confirmPassword: an API client confirms the password on its own side.
+        final RegistrationResult result = registrationService.register(
+            request == null ? null : request.email(),
+            request == null ? null : request.displayName(),
+            request == null ? null : request.password(),
+            null, ClientAddress.of(routingContext), clock.now());
 
-        final String email = request.email().toLowerCase(Locale.ROOT).strip();
-        if (User.findByEmail(email).isPresent()) {
-            RegistrationAttemptLog.logFailure(LOGGER, ipThrottle.recordFailure(clientIp, now), email, clientIp);
-            return Response.status(Response.Status.CONFLICT)
+        return switch (result) {
+            case RegistrationResult.Success success -> {
+                final User user = success.user();
+                yield Response.status(Response.Status.CREATED)
+                        .entity(new TokenResponse(newSession(user), user.email, user.displayName))
+                        .build();
+            }
+            case RegistrationResult.LockedOut locked -> lockedResponse(locked.remaining());
+            case RegistrationResult.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
+                    .entity(new ErrorResponse(invalidMessage(invalid)))
+                    .build();
+            case RegistrationResult.DuplicateEmail ignored -> Response.status(Response.Status.CONFLICT)
                     .entity(new ErrorResponse("Email already registered"))
                     .build();
+        };
+    }
+
+    private static String invalidMessage(final RegistrationResult.Invalid invalid) {
+        final List<String> parts = new ArrayList<>();
+        if (!invalid.missingFields().isEmpty()) {
+            parts.add("Missing required fields: " + String.join(", ", invalid.missingFields()));
         }
-
-        final User user = new User();
-        user.email = email;
-        user.displayName = request.displayName().strip();
-        user.passwordHash = passwords.hash(request.password());
-        user.role = roleAssigner.roleForNewUser();
-        user.persist();
-
-        LOGGER.info("New user registered: {} (role={})", email, user.role);
-        final String token = newSession(user);
-        return Response.status(Response.Status.CREATED)
-                .entity(new TokenResponse(token, user.email, user.displayName))
-                .build();
+        parts.addAll(invalid.errors());
+        return String.join(" ", parts);
     }
 
     /**
@@ -204,6 +219,9 @@ public class AuthResource {
      */
     @POST
     @Path("/logout")
+    // Overrides the class-level JSON @Consumes: this endpoint takes no body, so any (or no)
+    // Content-Type must be accepted rather than rejected with a 415 (same as /revoke).
+    @Consumes(MediaType.WILDCARD)
     @RolesAllowed(Role.Values.USER)
     @SecurityRequirement(name = "BearerAuth")
     @Operation(summary = "Log out", description = "Revokes the Bearer session token used to make this request.")
@@ -215,6 +233,35 @@ public class AuthResource {
         if (authorization != null && authorization.startsWith(BEARER_PREFIX)) {
             sessionStore.revoke(authorization.substring(BEARER_PREFIX.length()).strip());
         }
+        return Response.noContent().build();
+    }
+
+    /**
+     * Revokes <strong>every</strong> session for the authenticated account — web logins and API tokens alike, including the token used to make this
+     * request — returning {@code 204}. The API twin of the Settings page's "Log out from everywhere": both call the same
+     * {@link SessionStore#revokeAllForUser(java.util.UUID)}, so the semantics cannot diverge. Intended as the panic switch after a suspected token
+     * leak; the caller must log in again afterwards.
+     */
+    @POST
+    @Path("/revoke")
+    // Overrides the class-level JSON @Consumes: this endpoint takes no body, so any (or no)
+    // Content-Type must be accepted rather than rejected with a 415.
+    @Consumes(MediaType.WILDCARD)
+    @RolesAllowed(Role.Values.USER)
+    @SecurityRequirement(name = "BearerAuth")
+    @Operation(
+        summary = "Revoke all sessions (log out from everywhere)",
+        description = "Revokes EVERY session for the account — web logins and API tokens alike, including the token used to make this request. "
+        + "Equivalent to the Settings page's 'Log out from everywhere'. All clients must re-authenticate afterwards."
+    )
+    @APIResponses({
+        @APIResponse(responseCode = "204", description = "Every session for the account was revoked, including this request's token."),
+        @APIResponse(responseCode = "401", description = "No valid session token was supplied.")
+    })
+    public Response revokeAllSessions() {
+        final User user = currentUser.get();
+        sessionStore.revokeAllForUser(user.id);
+        LOGGER.info("All sessions revoked for user: {} (log out from everywhere)", user.email);
         return Response.noContent().build();
     }
 

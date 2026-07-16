@@ -17,6 +17,8 @@
 
 package net.zodac.diurnal.user;
 
+import org.eclipse.microprofile.openapi.annotations.media.Schema;
+
 /**
  * One entry in a user's persisted "Action stats" arrangement: a stat field's stable key paired with whether it is enabled (shown on the Stats page).
  * The arrangement is stored as a JSON array of these on {@code users.stats_fields} ({@code jsonb}), in the user's chosen order — so a field keeps its
@@ -26,5 +28,8 @@ package net.zodac.diurnal.user;
  * @param key the {@code ActionStatField} key
  * @param enabled whether the stat is shown on the Stats page
  */
-public record StatFieldPref(String key, boolean enabled) {
+@Schema(description = "One entry in the user's 'Action stats' arrangement: a stat's key and whether it is shown, in the user's chosen order.")
+public record StatFieldPref(
+    @Schema(examples = "current-streak", description = "The stat field's stable key.") String key,
+    @Schema(examples = "true", description = "Whether the stat is shown on the Stats page.") boolean enabled) {
 }

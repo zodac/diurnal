@@ -19,7 +19,7 @@
    dashboard day panel), searchSource carries the live search term into the page links via the
    delegated htmx:configRequest listener in app.js, and scrollTop=false keeps the dashboard from
    jumping to the top when the panel pages. !}
-{#include partials/pagination page=page pageUrl="" listUrl=str:fmt('/logs/day/%s/list', date)
+{#include partials/pagination page=page pageUrl="" listUrl=str:fmt('/internal/logs/day/%s/list', date)
     target="#day-actions-list" extraQuery="" alwaysShow=false borderless=false
     searchSource="day-search-input" scrollTop=false /}
 {/if}

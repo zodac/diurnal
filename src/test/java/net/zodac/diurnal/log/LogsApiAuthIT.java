@@ -18,8 +18,6 @@
 package net.zodac.diurnal.log;
 
 import static io.restassured.RestAssured.given;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -35,14 +33,13 @@ import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies the shared {@code /logs/events} feed works as the public API — i.e. it authenticates a real opaque session token as a Bearer header (not
- * just the in-app session that {@link CalendarResourceIT} exercises via {@code @TestSecurity}), and that an anonymous request is challenged. The
- * {@code /logs/*} surface is unpinned, so {@code SessionAuthMechanism} authenticates a present token while redirecting an anonymous request to
- * {@code /login}.
+ * Verifies the {@code /api/v1/logs/events} feed works as the public API — i.e. it authenticates a real opaque session token as a Bearer header (not
+ * just the in-app session that {@link LogsApiResourceIT} exercises via {@code @TestSecurity}), and that an anonymous request is challenged with the
+ * REST API's {@code 401} (the {@code /api/*} branch of {@code SessionAuthMechanism.challengeFor}, not the browser {@code /login} redirect).
  */
 @QuarkusTest
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
-class CalendarApiAuthIT extends IntegrationTestBase {
+class LogsApiAuthIT extends IntegrationTestBase {
 
     private static final LocalDate DAY = LocalDate.of(2026, 6, 15);
 
@@ -68,7 +65,7 @@ class CalendarApiAuthIT extends IntegrationTestBase {
         given().header(bearer())
                 .queryParam("start", DAY.toString())
                 .queryParam("end", DAY.toString())
-                .get("/logs/events")
+                .get("/api/v1/logs/events")
                 .then().statusCode(200)
                 .body("size()", equalTo(1))
                 .body("[0].title", equalTo("Running ×3"));
@@ -77,19 +74,18 @@ class CalendarApiAuthIT extends IntegrationTestBase {
     @Test
     void events_withBearerToken_stillRequiresRangeParams() {
         given().header(bearer())
-                .get("/logs/events")
+                .get("/api/v1/logs/events")
                 .then().statusCode(400);
     }
 
     @Test
-    void events_anonymous_isChallengedToLogin() {
+    void events_anonymous_isChallengedWith401() {
         given().redirects().follow(false)
                 .queryParam("start", DAY.toString())
                 .queryParam("end", DAY.toString())
-                .get("/logs/events")
+                .get("/api/v1/logs/events")
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
-                .header("Location", containsString("/login"));
+                .statusCode(401);
     }
 
     private Header bearer() {

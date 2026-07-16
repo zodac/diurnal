@@ -9,7 +9,7 @@
 </p>
 {#else}
 {! Search bar !}
-{#include partials/search-input id="day-search-input" url=str:fmt('/logs/day/%s/list?page=1', date) target="#day-actions-list" /}
+{#include partials/search-input id="day-search-input" url=str:fmt('/internal/logs/day/%s/list?page=1', date) target="#day-actions-list" /}
 
 {! Actions list !}
 <div id="day-actions-list" class="flex flex-col gap-1">

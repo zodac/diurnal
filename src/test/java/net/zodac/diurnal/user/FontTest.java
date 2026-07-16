@@ -94,22 +94,22 @@ class FontTest {
             .isEqualTo(Font.NOVA);
     }
 
-    // ── from ────────────────────────────────────────────────────────────────
+    // ── isValid ─────────────────────────────────────────────────────────────
 
     @ParameterizedTest
     @ValueSource(strings = {"nova", "standard", "dyslexic"})
-    void from_knownValue_returnsMatchingFont(final String value) {
-        assertThat(Font.from(value).value())
-            .as("expected the value to round-trip through the matching font")
-            .isEqualTo(value);
+    void isValid_offeredValue_returnsTrue(final String value) {
+        assertThat(Font.isValid(value))
+            .as("expected an offered font value to be accepted")
+            .isTrue();
     }
 
     @ParameterizedTest
     @NullSource
     @ValueSource(strings = {"serif", "system", "", "Nova", "Standard", "none", "mono", " nova "})
-    void from_unknownValue_returnsDefault(final String value) {
-        assertThat(Font.from(value))
-            .as("expected an unrecognised value to default to the default font")
-            .isEqualTo(Font.DEFAULT);
+    void isValid_unknownValue_returnsFalse(final String value) {
+        assertThat(Font.isValid(value))
+            .as("expected an unrecognised font value to be rejected, never coerced")
+            .isFalse();
     }
 }

@@ -50,90 +50,13 @@ class CalendarResourceIT extends IntegrationTestBase {
         primaryAction = newAction(primaryId, "Running");
     }
 
-    // ── Events ────────────────────────────────────────────────────────────────
-
-    @Test
-    void events_singleLog_titleHasNoMultiplier() {
-        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 1));
-
-        given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
-                .get("/logs/events")
-                .then().statusCode(200)
-                .body("$.size()", equalTo(1))
-                .body("[0].title", equalTo("Running"));
-    }
-
-    @Test
-    void events_countThree_titleHasMultiplier() {
-        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 3));
-
-        given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
-                .get("/logs/events")
-                .then().statusCode(200)
-                .body("[0].title", equalTo("Running ×3"));
-    }
-
-    @Test
-    void events_emptyRange_returnsEmptyArray() {
-        given().queryParam("start", TODAY.minusYears(1).toString())
-                .queryParam("end", TODAY.minusYears(1).toString())
-                .get("/logs/events")
-                .then().statusCode(200)
-                .body("$.size()", equalTo(0));
-    }
-
-    @Test
-    void events_multipleActionsOnSameDay_allReturned() {
-        final Action[] holder = new Action[1];
-        runInTx(() -> {
-            holder[0] = newAction(primaryId, "Cycling");
-            newLog(primaryId, primaryAction.id, TODAY, 1);
-            newLog(primaryId, holder[0].id, TODAY, 1);
-        });
-
-        given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
-                .get("/logs/events")
-                .then().statusCode(200)
-                .body("$.size()", equalTo(2));
-    }
-
-    @Test
-    void events_onlyCurrentUsersEvents() {
-        // Other user logs the same action type (their own action)
-        runInTx(() -> {
-            final Action otherAction = newAction(otherId, "Yoga");
-            newLog(primaryId, primaryAction.id, TODAY, 1);
-            newLog(otherId,   otherAction.id,   TODAY, 1);
-        });
-
-        given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
-                .get("/logs/events")
-                .then().statusCode(200)
-                .body("$.size()", equalTo(1))
-                .body("[0].title", equalTo("Running"));
-    }
-
-    @Test
-    void events_isoDatetimeStringWithTime_onlyDatePartUsed() {
-        runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 1));
-
-        // Clients may send ISO datetime strings like "2025-06-15T00:00:00"; only the date part is used.
-        final String startWithTime = TODAY + "T00:00:00";
-        final String endWithTime   = TODAY + "T23:59:59";
-
-        given().queryParam("start", startWithTime).queryParam("end", endWithTime)
-                .get("/logs/events")
-                .then().statusCode(200)
-                .body("$.size()", equalTo(1));
-    }
-
     // ── Minimal Events ────────────────────────────────────────────────────────
 
     @Test
     void minimalEvents_emptyRange_returnsEmptyArray() {
         given().queryParam("start", TODAY.minusYears(1).toString())
                 .queryParam("end",   TODAY.minusYears(1).toString())
-                .get("/logs/minimal-events")
+                .get("/internal/logs/minimal-events")
                 .then().statusCode(200)
                 .body("$.size()", equalTo(0));
     }
@@ -143,7 +66,7 @@ class CalendarResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 2));
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
-                .get("/logs/minimal-events")
+                .get("/internal/logs/minimal-events")
                 .then().statusCode(200)
                 .body("$.size()", equalTo(1))
                 .body("[0].date", equalTo(TODAY.toString()))
@@ -164,7 +87,7 @@ class CalendarResourceIT extends IntegrationTestBase {
         });
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
-                .get("/logs/minimal-events")
+                .get("/internal/logs/minimal-events")
                 .then().statusCode(200)
                 .body("[0].actions.size()", equalTo(3))
                 .body("[0].actions[0].name", equalTo("Bravo"))   // highest count first
@@ -182,7 +105,7 @@ class CalendarResourceIT extends IntegrationTestBase {
         });
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
-                .get("/logs/minimal-events")
+                .get("/internal/logs/minimal-events")
                 .then().statusCode(200)
                 .body("[0].actions[0].name", equalTo("Aerobics")) // A before R
                 .body("[0].actions[1].name", equalTo("Running"));
@@ -204,7 +127,7 @@ class CalendarResourceIT extends IntegrationTestBase {
         });
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
-                .get("/logs/minimal-events")
+                .get("/internal/logs/minimal-events")
                 .then().statusCode(200)
                 .body("[0].actions.size()", equalTo(4))
                 .body("[0].actions[0].name", equalTo("Running"))   // count 5
@@ -220,7 +143,7 @@ class CalendarResourceIT extends IntegrationTestBase {
         });
 
         given().queryParam("start", yesterday.toString()).queryParam("end", TODAY.toString())
-                .get("/logs/minimal-events")
+                .get("/internal/logs/minimal-events")
                 .then().statusCode(200)
                 .body("$.size()", equalTo(2));
     }
@@ -234,7 +157,7 @@ class CalendarResourceIT extends IntegrationTestBase {
         });
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
-                .get("/logs/minimal-events")
+                .get("/internal/logs/minimal-events")
                 .then().statusCode(200)
                 .body("$.size()", equalTo(1))
                 .body("[0].actions[0].name", equalTo("Running"));
@@ -248,61 +171,9 @@ class CalendarResourceIT extends IntegrationTestBase {
         final String endWithTime   = TODAY.plusDays(1) + "T00:00:00";
 
         given().queryParam("start", startWithTime).queryParam("end", endWithTime)
-                .get("/logs/minimal-events")
+                .get("/internal/logs/minimal-events")
                 .then().statusCode(200)
                 .body("$.size()", equalTo(1));
     }
 
-    // ── Events (colour) ───────────────────────────────────────────────────────
-
-    @Test
-    void events_colourSetOnEvent() {
-        // Create via API to persist the coloured action
-        final String html = given().formParam("name", "Coloured2").formParam("colour", "#ff5500")
-            .post("/actions")
-            .then().statusCode(200).extract().body().asString();
-
-        final java.util.regex.Matcher m = java.util.regex.Pattern
-            .compile("id=\"action-([0-9a-f-]+)\"").matcher(html);
-        if (!m.find()) {
-            return; // skip if extraction fails
-        }
-
-        final UUID actionId = UUID.fromString(m.group(1));
-        runInTx(() -> newLog(primaryId, actionId, TODAY, 1));
-
-        given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
-                .get("/logs/events")
-                .then().statusCode(200)
-                .body("find { it.title == 'Coloured2' }.backgroundColor", equalTo("#ff5500"));
-    }
-
-    // ── Mandatory range params ──────────────────────────────────────────────────
-
-    @Test
-    void events_missingStart_returns400() {
-        given().queryParam("end", TODAY.toString())
-                .get("/logs/events")
-                .then().statusCode(400);
-    }
-
-    @Test
-    void events_missingEnd_returns400() {
-        given().queryParam("start", TODAY.toString())
-                .get("/logs/events")
-                .then().statusCode(400);
-    }
-
-    @Test
-    void events_missingBothParams_returns400() {
-        given().get("/logs/events")
-                .then().statusCode(400);
-    }
-
-    @Test
-    void events_invalidDate_returns400() {
-        given().queryParam("start", "not-a-date").queryParam("end", TODAY.toString())
-                .get("/logs/events")
-                .then().statusCode(400);
-    }
 }

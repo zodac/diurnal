@@ -4,7 +4,7 @@ test.describe("404 page", () => {
     test.beforeAll(async ({ request }) => {
         // Ensure at least one user exists so the app is past first-run setup (409 if already present),
         // making the unauthenticated redirect target /login rather than /welcome.
-        await request.post("/api/auth/register", {
+        await request.post("/api/v1/auth/register", {
             data: { email: "e2e-notfound@example.com", password: "test_password123", displayName: "NotFound" },
         })
     })

@@ -24,7 +24,7 @@ test.describe("Actions page", () => {
                 const id = (await item.getAttribute("id"))?.replace("action-", "")
                 if (id !== undefined) {
                     await page.evaluate(async (actionId: string) => {
-                        await fetch(`/actions/${actionId}/delete`, { method: "POST" })
+                        await fetch(`/internal/actions/${actionId}/delete`, { method: "POST" })
                     }, id)
                 }
             }
@@ -38,7 +38,7 @@ test.describe("Actions page", () => {
         await page.fill('input[name="name"]', name)
         await Promise.all([
             page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
-            page.locator('form[hx-post="/actions"] button[type="submit"]').click(),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
         ])
         await expect(page.locator("#action-list")).toContainText("Running")
     })
@@ -50,7 +50,7 @@ test.describe("Actions page", () => {
         await page.fill('input[name="name"]', name)
         await Promise.all([
             page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
-            page.locator('form[hx-post="/actions"] button[type="submit"]').click(),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
         ])
         await expect(page.locator("#action-list")).toContainText("Cycling")
 
@@ -58,7 +58,7 @@ test.describe("Actions page", () => {
         await page.fill('input[name="name"]', name)
         await Promise.all([
             page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
-            page.locator('form[hx-post="/actions"] button[type="submit"]').click(),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
         ])
         await expect(page.locator("#action-error")).toBeVisible()
         await expect(page.locator("#action-error")).toContainText(/already exists/i)
@@ -72,7 +72,7 @@ test.describe("Actions page", () => {
         await page.fill('input[name="name"]', origName)
         await Promise.all([
             page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
-            page.locator('form[hx-post="/actions"] button[type="submit"]').click(),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
         ])
         await expect(page.locator("#action-list")).toContainText("OldName")
 
@@ -99,7 +99,7 @@ test.describe("Actions page", () => {
         await page.fill('input[name="name"]', origName)
         await Promise.all([
             page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
-            page.locator('form[hx-post="/actions"] button[type="submit"]').click(),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
         ])
         await expect(page.locator("#action-list")).toContainText(origName)
 
@@ -133,7 +133,7 @@ test.describe("Actions page", () => {
         await page.fill('input[name="name"]', name)
         await Promise.all([
             page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
-            page.locator('form[hx-post="/actions"] button[type="submit"]').click(),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
         ])
         await expect(page.locator("#action-list")).toContainText("ToDelete")
 
@@ -155,7 +155,7 @@ test.describe("Actions page", () => {
         await page.evaluate(async (names: string[]) => {
             for (const name of names) {
                 const params = new URLSearchParams({ name, colour: "#6366f1" })
-                await fetch("/actions", {
+                await fetch("/internal/actions", {
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
                     body: params.toString(),
@@ -189,7 +189,7 @@ test.describe("Actions page", () => {
         await page.evaluate(async (names: string[]) => {
             for (const name of names) {
                 const params = new URLSearchParams({ name, colour: "#6366f1" })
-                await fetch("/actions", {
+                await fetch("/internal/actions", {
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
                     body: params.toString(),
@@ -221,7 +221,7 @@ test.describe("Actions page", () => {
         for (let i = 1; i <= 11; i++) {
             await page.evaluate(async ({ name, colour }: { name: string; colour: string }) => {
                 const params = new URLSearchParams({ name, colour })
-                await fetch("/actions", {
+                await fetch("/internal/actions", {
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
                     body: params.toString(),
@@ -243,7 +243,7 @@ test.describe("Actions page", () => {
         await page.evaluate(async ({ morning, evening }: { morning: string; evening: string }) => {
             for (const name of [morning, evening]) {
                 const params = new URLSearchParams({ name, colour: "#6366f1" })
-                await fetch("/actions", {
+                await fetch("/internal/actions", {
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
                     body: params.toString(),
@@ -269,14 +269,14 @@ test.describe("Actions page", () => {
         await expect(page.locator("#search-input")).toBeHidden()
         await expect(page.locator(".dt-table")).toBeHidden()
         // The New action form is always available.
-        await expect(page.locator('form[hx-post="/actions"]')).toBeVisible()
+        await expect(page.locator('form[hx-post="/internal/actions"]')).toBeVisible()
 
         // Adding the first action reveals the search bar and table.
         const name = unique("FirstAction")
         await page.fill('input[name="name"]', name)
         await Promise.all([
             page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
-            page.locator('form[hx-post="/actions"] button[type="submit"]').click(),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
         ])
         await expect(page.locator("#search-input")).toBeVisible()
         await expect(page.locator(".dt-table")).toBeVisible()
@@ -298,7 +298,7 @@ test.describe("Actions page", () => {
         await page.fill('input[name="name"]', name)
         await Promise.all([
             page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
-            page.locator('form[hx-post="/actions"] button[type="submit"]').click(),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
         ])
         await expect(page.locator("#action-list")).toContainText(name)
 

@@ -82,7 +82,7 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void confirmDeleteEntry_showsConfirmationWithActionName() {
-        given().get("/logs/" + TODAY + "/" + primaryAction.id + "/confirm-delete")
+        given().get("/internal/logs/" + TODAY + "/" + primaryAction.id + "/confirm-delete")
                 .then().statusCode(200)
                 .body(containsString("PrimaryAction"))
                 // The day-entry confirm action is labelled "Erase" (see day-action-item-confirm-delete.html).
@@ -91,35 +91,35 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void confirmDeleteEntry_otherUsersAction_returns404() {
-        given().get("/logs/" + TODAY + "/" + otherAction.id + "/confirm-delete")
+        given().get("/internal/logs/" + TODAY + "/" + otherAction.id + "/confirm-delete")
                 .then().statusCode(404);
     }
 
     @Test
     void dayActionItem_returnsItemAtCurrentCount() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 7));
-        given().get("/logs/" + TODAY + "/" + primaryAction.id)
+        given().get("/internal/logs/" + TODAY + "/" + primaryAction.id)
                 .then().statusCode(200)
                 .body(containsString("value=\"7\""));
     }
 
     @Test
     void dayActionItem_noLog_returnsItemAtZero() {
-        given().get("/logs/" + TODAY + "/" + primaryAction.id)
+        given().get("/internal/logs/" + TODAY + "/" + primaryAction.id)
                 .then().statusCode(200)
                 .body(containsString("value=\"0\""));
     }
 
     @Test
     void dayActionItem_otherUsersAction_returns404() {
-        given().get("/logs/" + TODAY + "/" + otherAction.id)
+        given().get("/internal/logs/" + TODAY + "/" + otherAction.id)
                 .then().statusCode(404);
     }
 
     @Test
     void deleteEntry_withExistingLog_deletesAndReturnsZero() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 3));
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/delete")
+        given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/delete")
                 .then().statusCode(200)
                 .body(containsString("value=\"0\""));
 
@@ -130,20 +130,20 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void deleteEntry_noExistingLog_returns200WithZeroIdempotently() {
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/delete")
+        given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/delete")
                 .then().statusCode(200)
                 .body(containsString("value=\"0\""));
     }
 
     @Test
     void deleteEntry_futureDate_returns400() {
-        given().post("/logs/" + TOMORROW + "/" + primaryAction.id + "/delete")
+        given().post("/internal/logs/" + TOMORROW + "/" + primaryAction.id + "/delete")
                 .then().statusCode(400);
     }
 
     @Test
     void deleteEntry_otherUsersAction_returns404() {
-        given().post("/logs/" + TODAY + "/" + otherAction.id + "/delete")
+        given().post("/internal/logs/" + TODAY + "/" + otherAction.id + "/delete")
                 .then().statusCode(404);
     }
 
@@ -151,7 +151,7 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void increment_firstTime_createsLogWithCountOne() {
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+        given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
                 .body(containsString("value=\"1\""));
 
@@ -166,8 +166,8 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void increment_twice_countBecomesTwo() {
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment");
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+        given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/increment");
+        given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
                 .body(containsString("value=\"2\""));
     }
@@ -175,7 +175,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void increment_at998_countBecomes999() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 998));
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+        given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
                 .body(containsString("value=\"999\""));
     }
@@ -183,7 +183,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void increment_at999_countStays999AndReturns200() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 999));
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+        given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
                 .body(containsString("value=\"999\""));
 
@@ -195,19 +195,19 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void increment_futureDate_returns400() {
-        given().post("/logs/" + TOMORROW + "/" + primaryAction.id + "/increment")
+        given().post("/internal/logs/" + TOMORROW + "/" + primaryAction.id + "/increment")
                 .then().statusCode(400);
     }
 
     @Test
     void increment_otherUsersAction_returns404() {
-        given().post("/logs/" + TODAY + "/" + otherAction.id + "/increment")
+        given().post("/internal/logs/" + TODAY + "/" + otherAction.id + "/increment")
                 .then().statusCode(404);
     }
 
     @Test
     void increment_withAmount_firstTime_createsLogWithThatCount() {
-        given().formParam("amount", 5).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+        given().formParam("amount", 5).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
                 .body(containsString("value=\"5\""));
 
@@ -219,7 +219,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void increment_withAmount_existingLog_addsAmount() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 3));
-        given().formParam("amount", 5).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+        given().formParam("amount", 5).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
                 .body(containsString("value=\"8\""));
 
@@ -231,7 +231,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void increment_withAmount_existingLog_capsAtMax() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 995));
-        given().formParam("amount", 10).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+        given().formParam("amount", 10).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
                 .body(containsString("value=\"999\""));
 
@@ -242,7 +242,7 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void increment_withAmount_firstTime_capsAtMax() {
-        given().formParam("amount", 9999).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+        given().formParam("amount", 9999).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
                 .body(containsString("value=\"999\""));
 
@@ -253,7 +253,7 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void increment_amountZero_noExistingLog_returns200WithZeroAndCreatesNothing() {
-        given().formParam("amount", 0).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+        given().formParam("amount", 0).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
                 .body(containsString("value=\"0\""));
 
@@ -265,7 +265,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void increment_negativeAmount_existingLog_leavesCountUnchanged() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
-        given().formParam("amount", -1).post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+        given().formParam("amount", -1).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200)
                 .body(containsString("value=\"5\""));
 
@@ -279,7 +279,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void decrement_fromTwo_becomesOne() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 2));
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
+        given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
                 .body(containsString("value=\"1\""));
 
@@ -291,7 +291,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void decrement_fromOne_deletesLogAndReturnsZero() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 1));
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
+        given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
                 .body(containsString("value=\"0\""));
 
@@ -303,27 +303,27 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void decrement_noExistingLog_returns200WithZeroIdempotently() {
         // No log exists — should not error
-        given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
+        given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
                 .body(containsString("value=\"0\""));
     }
 
     @Test
     void decrement_futureDate_returns400() {
-        given().post("/logs/" + TOMORROW + "/" + primaryAction.id + "/decrement")
+        given().post("/internal/logs/" + TOMORROW + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(400);
     }
 
     @Test
     void decrement_otherUsersAction_returns404() {
-        given().post("/logs/" + TODAY + "/" + otherAction.id + "/decrement")
+        given().post("/internal/logs/" + TODAY + "/" + otherAction.id + "/decrement")
                 .then().statusCode(404);
     }
 
     @Test
     void decrement_withAmount_subtractsAmount() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 8));
-        given().formParam("amount", 5).post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
+        given().formParam("amount", 5).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
                 .body(containsString("value=\"3\""));
 
@@ -335,7 +335,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void decrement_withAmount_overshoot_deletesLogAndReturnsZero() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
-        given().formParam("amount", 10).post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
+        given().formParam("amount", 10).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
                 .body(containsString("value=\"0\""));
 
@@ -347,7 +347,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void decrement_withAmount_exactlyToZero_deletesLog() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
-        given().formParam("amount", 5).post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
+        given().formParam("amount", 5).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
                 .body(containsString("value=\"0\""));
 
@@ -359,7 +359,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void decrement_negativeAmount_existingLog_leavesCountUnchanged() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
-        given().formParam("amount", -1).post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
+        given().formParam("amount", -1).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200)
                 .body(containsString("value=\"5\""));
 
@@ -372,7 +372,7 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void setCount_createsNewLog() {
-        given().formParam("count", 42).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
+        given().formParam("count", 42).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/set")
                 .then().statusCode(200)
                 .body(containsString("value=\"42\""));
 
@@ -384,7 +384,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void setCount_updatesExistingLog() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
-        given().formParam("count", 20).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
+        given().formParam("count", 20).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/set")
                 .then().statusCode(200)
                 .body(containsString("value=\"20\""));
 
@@ -396,7 +396,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void setCount_toZero_deletesLog() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
-        given().formParam("count", 0).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
+        given().formParam("count", 0).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/set")
                 .then().statusCode(200)
                 .body(containsString("value=\"0\""));
 
@@ -408,7 +408,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void setCount_toNegative_deletesLog() {
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY, 5));
-        given().formParam("count", -1).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
+        given().formParam("count", -1).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/set")
                 .then().statusCode(200)
                 .body(containsString("value=\"0\""));
 
@@ -419,7 +419,7 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void setCount_aboveMax_clampsToMax() {
-        given().formParam("count", 9999).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
+        given().formParam("count", 9999).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/set")
                 .then().statusCode(200)
                 .body(containsString("value=\"999\""));
 
@@ -430,20 +430,20 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void setCount_noExistingLog_toZero_returns200WithZeroIdempotently() {
-        given().formParam("count", 0).post("/logs/" + TODAY + "/" + primaryAction.id + "/set")
+        given().formParam("count", 0).post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/set")
                 .then().statusCode(200)
                 .body(containsString("value=\"0\""));
     }
 
     @Test
     void setCount_futureDate_returns400() {
-        given().formParam("count", 5).post("/logs/" + TOMORROW + "/" + primaryAction.id + "/set")
+        given().formParam("count", 5).post("/internal/logs/" + TOMORROW + "/" + primaryAction.id + "/set")
                 .then().statusCode(400);
     }
 
     @Test
     void setCount_otherUsersAction_returns404() {
-        given().formParam("count", 5).post("/logs/" + TODAY + "/" + otherAction.id + "/set")
+        given().formParam("count", 5).post("/internal/logs/" + TODAY + "/" + otherAction.id + "/set")
                 .then().statusCode(404);
     }
 
@@ -458,7 +458,7 @@ class LogResourceIT extends IntegrationTestBase {
             newLog(primaryId, holder[0].id, YESTERDAY, 1);
         });
 
-        final String body = given().get("/logs/day/" + YESTERDAY)
+        final String body = given().get("/internal/logs/day/" + YESTERDAY)
             .then().statusCode(200)
             .extract().body().asString();
 
@@ -473,7 +473,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void dayPanel_pastDateNoLogs_showsAllActionsAtZero() {
         // count=0 hides the decrement button (there is nothing to decrement) via the `invisible` class
-        given().get("/logs/day/" + YESTERDAY)
+        given().get("/internal/logs/day/" + YESTERDAY)
                 .then().statusCode(200)
                 .body(containsString("PrimaryAction"))
                 .body(containsString("invisible"));
@@ -481,7 +481,7 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void dayPanel_futureDate_showsFutureMessage() {
-        given().get("/logs/day/" + TOMORROW)
+        given().get("/internal/logs/day/" + TOMORROW)
                 .then().statusCode(200)
                 .body(anyOf(containsString("future"), containsString("cannot")));
     }
@@ -491,7 +491,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void monthPanels_returnsAPanelForEveryDayOfMonth() {
         // FIXED_TODAY is in June 2026 (30 days); the map must hold one entry per day, keyed by ISO date.
-        given().get("/logs/month/2026-06")
+        given().get("/internal/logs/month/2026-06")
                 .then().statusCode(200)
                 .body("size()", is(30))
                 .body("$", hasKey("2026-06-01"))
@@ -502,7 +502,7 @@ class LogResourceIT extends IntegrationTestBase {
     void monthPanels_rendersLoggedCountForEachDay() {
         // A logged past day carries the action + its count; an unlogged past day shows the action at 0.
         runInTx(() -> newLog(primaryId, primaryAction.id, TODAY.withDayOfMonth(10), 42));
-        given().get("/logs/month/2026-06")
+        given().get("/internal/logs/month/2026-06")
                 .then().statusCode(200)
                 .body("'2026-06-10'", containsString("PrimaryAction"))
                 .body("'2026-06-10'", containsString("value=\"42\""))
@@ -513,7 +513,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void monthPanels_futureDaysShowFuturePlaceholderNotTheActionList() {
         // FIXED_TODAY = 2026-06-15: the 10th is loggable (action list), the 20th is a future placeholder.
-        given().get("/logs/month/2026-06")
+        given().get("/internal/logs/month/2026-06")
                 .then().statusCode(200)
                 .body("'2026-06-10'", containsString("PrimaryAction"))
                 .body("'2026-06-20'", not(containsString("PrimaryAction")))
@@ -522,7 +522,7 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void monthPanels_invalidMonth_returns400() {
-        given().get("/logs/month/not-a-month")
+        given().get("/internal/logs/month/not-a-month")
                 .then().statusCode(400);
     }
 
@@ -531,7 +531,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void dayList_pageClampedWhenExceedsTotal() {
         // Only 1 action in DB, default pageSize=5 → only 1 page
-        given().queryParam("page", 99).get("/logs/day/" + TODAY + "/list")
+        given().queryParam("page", 99).get("/internal/logs/day/" + TODAY + "/list")
                 .then().statusCode(200)
                 .body(containsString("PrimaryAction")); // clamped to page 1
     }
@@ -539,7 +539,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void dayList_searchFilterWorks() {
         runInTx(() -> newAction(primaryId, "Swimming"));
-        given().queryParam("q", "swim").get("/logs/day/" + TODAY + "/list")
+        given().queryParam("q", "swim").get("/internal/logs/day/" + TODAY + "/list")
                 .then().statusCode(200)
                 .body(containsString("Swimming"))
                 .body(not(containsString("PrimaryAction")));
@@ -548,7 +548,7 @@ class LogResourceIT extends IntegrationTestBase {
     @Test
     void dayList_fillerRowsOnlyWhenMultiplePages() {
         // With default pageSize=5 and 2 actions, only 1 page — no filler rows needed
-        given().get("/logs/day/" + TODAY + "/list")
+        given().get("/internal/logs/day/" + TODAY + "/list")
                 .then().statusCode(200)
                 .body(not(containsString("filler")));
     }
@@ -561,14 +561,14 @@ class LogResourceIT extends IntegrationTestBase {
 
         // 23:59:59 on day d → today() == d; d+1 is still the future and is blocked.
         freezeInstant(d.atTime(23, 59, 59).toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
-        given().post("/logs/" + d.plusDays(1) + "/" + primaryAction.id + "/increment")
+        given().post("/internal/logs/" + d.plusDays(1) + "/" + primaryAction.id + "/increment")
                 .then().statusCode(400);
-        given().post("/logs/" + d + "/" + primaryAction.id + "/increment")
+        given().post("/internal/logs/" + d + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200);
 
         // One second later the clock has rolled into the next day → d+1 is now "today" and allowed.
         freezeInstant(d.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneOffset.UTC);
-        given().post("/logs/" + d.plusDays(1) + "/" + primaryAction.id + "/increment")
+        given().post("/internal/logs/" + d.plusDays(1) + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200);
     }
 
@@ -579,11 +579,11 @@ class LogResourceIT extends IntegrationTestBase {
         final LocalDate the16th = LocalDate.of(2026, 6, 16);
 
         freezeInstant(noonUtc, ZoneOffset.UTC);                 // today == 15th
-        given().post("/logs/" + the16th + "/" + primaryAction.id + "/increment")
+        given().post("/internal/logs/" + the16th + "/" + primaryAction.id + "/increment")
                 .then().statusCode(400);                        // the 16th is the future
 
         freezeInstant(noonUtc, ZoneId.of("Pacific/Auckland"));  // same instant, today == 16th
-        given().post("/logs/" + the16th + "/" + primaryAction.id + "/increment")
+        given().post("/internal/logs/" + the16th + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200);                        // the 16th is now "today"
     }
 
@@ -601,7 +601,7 @@ class LogResourceIT extends IntegrationTestBase {
         // In UTC, it is still the 15th, but the guard reads the user's zone where it is already the
         // 16th — so logging the 16th is allowed even though the server clock is on the 15th.
         freezeInstant(noonUtc, ZoneOffset.UTC);
-        given().post("/logs/" + the16th + "/" + primaryAction.id + "/increment")
+        given().post("/internal/logs/" + the16th + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200);
     }
 
@@ -666,12 +666,12 @@ class LogResourceIT extends IntegrationTestBase {
     }
 
     private Runnable incrementOnce() {
-        return () -> given().post("/logs/" + TODAY + "/" + primaryAction.id + "/increment")
+        return () -> given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200);
     }
 
     private Runnable decrementOnce() {
-        return () -> given().post("/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
+        return () -> given().post("/internal/logs/" + TODAY + "/" + primaryAction.id + "/decrement")
                 .then().statusCode(200);
     }
 

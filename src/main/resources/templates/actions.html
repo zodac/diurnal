@@ -17,7 +17,7 @@
         <div class="card p-4 mb-6">
             <h3 class="card-title mb-3">New action</h3>
             <form id="new-action-form"
-                  hx-post="/actions"
+                  hx-post="/internal/actions"
                   hx-target="#actions-tbody"
                   hx-swap="afterbegin"
                   class="flex items-center gap-3">
@@ -44,7 +44,7 @@
              none — that case still shows the (empty) table. !}
         <div id="actions-section" data-total="{page.totalCount}" class="{#if page.totalCount == 0}hidden{/if}">
             {! Search bar !}
-            {#include partials/search-input id="search-input" url="/actions/list?page=1" target="#action-list" /}
+            {#include partials/search-input id="search-input" url="/internal/actions/list?page=1" target="#action-list" /}
 
             {! Action list !}
             <div class="card overflow-hidden">

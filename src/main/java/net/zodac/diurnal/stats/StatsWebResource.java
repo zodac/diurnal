@@ -29,15 +29,13 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
-import java.util.List;
-import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 
 /**
- * Serves the paginated stats page and its HTMX list partial.
+ * Serves the full, paginated stats page. The page's HTMX list partial lives under {@code /internal/stats} ({@link StatsInternalResource}).
  */
 @Path("/stats")
 @RolesAllowed(Role.Values.USER)
@@ -47,16 +45,15 @@ public class StatsWebResource {
     @Location("stats")
     Template statsTemplate;
 
-    @Inject
-    @Location("partials/stats-cards")
-    Template statsCardsTemplate;
-
     @Inject CurrentUser currentUser;
 
     @Inject StatsService statsService;
 
     /**
      * Renders the full stats page for the current user at the requested page.
+     *
+     * @param pageNum the 1-based page to render
+     * @return the rendered page
      */
     @GET
     @Produces(MediaType.TEXT_HTML)
@@ -72,44 +69,6 @@ public class StatsWebResource {
                 .data("hasActions", !Action.findByUser(user.id).isEmpty())
                 .data("decimalPlaces", user.decimalPlaces)
                 .data("statsFields", ActionStatField.displayFields(user.statsFields))
-                .data("page", getStatsPage(user.id, pageNum, user.pageSize));
+                .data("page", StatsInternalResource.paginate(statsService.forAllActiveActions(user.id), pageNum, user.pageSize));
     }
-
-    /**
-     * Returns just the stats-cards list partial for HTMX pagination.
-     */
-    @GET
-    @Path("list")
-    @Produces(MediaType.TEXT_HTML)
-    @Transactional
-    public TemplateInstance statsList(@QueryParam("page") @DefaultValue("1") final int pageNum) {
-        final User user = currentUser.get();
-        return statsCardsTemplate
-                .data("decimalPlaces", user.decimalPlaces)
-                .data("statsFields", ActionStatField.displayFields(user.statsFields))
-                .data("page", getStatsPage(user.id, pageNum, user.pageSize));
-    }
-
-    // Only actions with at least one logged entry are returned by forAllActiveActions;
-    // pagination slices that filtered list into pages of PAGE_SIZE.
-    private record PaginatedStats(List<ActionStats> items, int totalCount, int totalPages, int currentPage) {
-
-    }
-
-    private PaginatedStats getStatsPage(final UUID userId, final int pageNum, final int pageSize) {
-        final List<ActionStats> all = statsService.forAllActiveActions(userId);
-
-        final int totalCount = all.size();
-        final int totalPages = (totalCount + pageSize - 1) / pageSize;
-        final int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
-        final int skip = (actualPage - 1) * pageSize;
-
-        final List<ActionStats> items = all.stream()
-            .skip(skip)
-            .limit(pageSize)
-            .toList();
-
-        return new PaginatedStats(items, totalCount, totalPages, actualPage);
-    }
-
 }

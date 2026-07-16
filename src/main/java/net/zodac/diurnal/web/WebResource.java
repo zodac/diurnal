@@ -43,20 +43,17 @@ import jakarta.ws.rs.core.Response;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
-import java.util.function.Consumer;
 import net.zodac.diurnal.auth.AuthenticationService;
 import net.zodac.diurnal.auth.ClientAddress;
-import net.zodac.diurnal.auth.IpThrottle;
 import net.zodac.diurnal.auth.LockoutMessages;
 import net.zodac.diurnal.auth.LoginResult;
+import net.zodac.diurnal.auth.PasswordChangeResult;
+import net.zodac.diurnal.auth.PasswordChangeService;
 import net.zodac.diurnal.auth.PasswordConstraints;
-import net.zodac.diurnal.auth.Passwords;
-import net.zodac.diurnal.auth.RegistrationAttemptLog;
-import net.zodac.diurnal.auth.RoleAssigner;
+import net.zodac.diurnal.auth.RegistrationResult;
+import net.zodac.diurnal.auth.RegistrationService;
 import net.zodac.diurnal.auth.Session;
 import net.zodac.diurnal.auth.SessionStore;
 import net.zodac.diurnal.config.IpThrottleConfig;
@@ -70,6 +67,8 @@ import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.CalendarView;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Font;
+import net.zodac.diurnal.user.ProfileResult;
+import net.zodac.diurnal.user.ProfileService;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.Theme;
 import net.zodac.diurnal.user.User;
@@ -88,13 +87,6 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     private static final Logger LOGGER = LogManager.getLogger(WebResource.class);
 
     // Password-change error bodies. Returned to (and matched by) the settings client so it can route the
-    // user back to the correct step: a wrong current password → back to step 1; a mismatch → stay on the
-    // confirmation step. Kept in sync with the checks in settings.html's password-change script.
-    private static final String CURRENT_PASSWORD_ERROR = "Current password is incorrect";
-    private static final String NEW_PASSWORD_ERROR = "Passwords do not match";
-    private static final String NEW_PASSWORD_TOO_LONG_ERROR =
-        "Password must be at most " + PasswordConstraints.MAX_LENGTH + " characters";
-
     // Carries the exact seconds left on a lockout to the AJAX form handlers (app.js), which post via fetch
     // and so never render the server-side banner — they run a live mm:ss countdown from this value instead.
     // Shared by both the login (GET /login render) and registration (POST /register 429) surfaces.
@@ -132,13 +124,15 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
 
     @Inject StatsService statsService;
 
-    @Inject RoleAssigner roleAssigner;
-
     @Inject AppClock clock;
 
     @Inject AuthenticationService authenticationService;
 
-    @Inject Passwords passwords;
+    @Inject RegistrationService registrationService;
+
+    @Inject ProfileService profileService;
+
+    @Inject PasswordChangeService passwordChangeService;
 
     @Inject SessionStore sessionStore;
 
@@ -162,9 +156,6 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
 
     @Inject
     IpThrottleConfig ipThrottleConfig;
-
-    @Inject
-    IpThrottle ipThrottle;
 
     // ── Login ──────────────────────────────────────────────────────────────
 
@@ -421,91 +412,38 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         // The password fields are deliberately NOT preserved (never re-echoed into the HTML).
         final String emailValue = email == null ? "" : email;
         final String displayNameValue = displayName == null ? "" : displayName;
-        final String passwordValue = password == null ? "" : password;
-        final String confirmValue = confirmPassword == null ? "" : confirmPassword;
 
-        // Global per-IP lockout (the same counter failed logins feed). Revealed on the first attempt made
-        // WHILE locked — the entry check here — not on the threshold-tripping one below; the banner rides
-        // the same [data-form-errors] slot every other registration error uses.
-        final String clientIp = ClientAddress.of(routingContext);
+        // The web form collects a confirmPassword (normalised to blank so an empty field is reported as
+        // missing rather than skipped); everything else — throttle, validation, duplicate check, account
+        // creation — is the shared RegistrationService the API also calls, so the rules cannot diverge.
         final Instant now = clock.now();
-        if (ipThrottle.isLocked(clientIp, now)) {
-            LOGGER.debug("Throttled registration attempt (IP: {})", clientIp);
-            final Duration remaining = ipThrottle.lockoutRemaining(clientIp, now);
-            // The form posts via fetch (data-ajax-errors), so app.js reads the exact seconds from this
-            // header and runs a live mm:ss countdown; the rendered banner (exact-seconds message) is the
-            // no-JS fallback shown by a native form submit.
-            final String lockedMessage = LockoutMessages.retryMessage(remaining);
-            return Response.status(Response.Status.TOO_MANY_REQUESTS)
-                    .header(LOCKOUT_RETRY_AFTER_HEADER, Math.max(1L, remaining.toSeconds()))
-                    .entity(renderRegister(emailValue, displayNameValue, List.of(), List.of(lockedMessage)))
+        final RegistrationResult result = registrationService.register(
+            email, displayName, password, confirmPassword == null ? "" : confirmPassword,
+            ClientAddress.of(routingContext), now);
+
+        return switch (result) {
+            case RegistrationResult.Success success -> {
+                final String token = sessionStore.create(
+                    success.user(), Session.AUTH_SOURCE_PASSWORD, userAgent(), ClientAddress.of(routingContext), now);
+                yield Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
+            }
+            case RegistrationResult.LockedOut locked -> {
+                // The form posts via fetch (data-ajax-errors), so app.js reads the exact seconds from this
+                // header and runs a live mm:ss countdown; the rendered banner (exact-seconds message) is
+                // the no-JS fallback shown by a native form submit.
+                yield Response.status(Response.Status.TOO_MANY_REQUESTS)
+                        .header(LOCKOUT_RETRY_AFTER_HEADER, Math.max(1L, locked.remaining().toSeconds()))
+                        .entity(renderRegister(emailValue, displayNameValue, List.of(),
+                        List.of(LockoutMessages.retryMessage(locked.remaining()))))
+                        .build();
+            }
+            case RegistrationResult.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
+                    .entity(renderRegister(emailValue, displayNameValue, invalid.missingFields(), invalid.errors()))
                     .build();
-        }
-
-        final List<String> missingFields = missingFields(emailValue, displayNameValue, passwordValue, confirmValue);
-        final List<String> errors = validateRegistration(emailValue, passwordValue, confirmValue);
-        final String normalised = emailValue.toLowerCase(Locale.ROOT).strip();
-        if (missingFields.isEmpty() && errors.isEmpty() && User.findByEmail(normalised).isPresent()) {
-            errors.add("That email is already registered.");
-        }
-        if (!missingFields.isEmpty() || !errors.isEmpty()) {
-            // Record the rejected attempt against the IP throttle and log it (running count + a WARN if
-            // this failure tripped the lockout), mirroring the shared failed-login logging.
-            RegistrationAttemptLog.logFailure(LOGGER, ipThrottle.recordFailure(clientIp, now), emailValue, clientIp);
-            return Response.status(Response.Status.BAD_REQUEST)
-                    .entity(renderRegister(emailValue, displayNameValue, missingFields, errors))
+            case RegistrationResult.DuplicateEmail ignored -> Response.status(Response.Status.BAD_REQUEST)
+                    .entity(renderRegister(emailValue, displayNameValue, List.of(), List.of("That email is already registered.")))
                     .build();
-        }
-
-        final User user = new User();
-        user.email = normalised;
-        user.displayName = displayNameValue.strip();
-        user.passwordHash = passwords.hash(passwordValue);
-        user.role = roleAssigner.roleForNewUser();
-        user.lastLoginAt = Instant.now();
-        user.persist();
-
-        LOGGER.info("New user registered: {} (role={})", normalised, user.role);
-        final String token = sessionStore.create(
-            user, Session.AUTH_SOURCE_PASSWORD, userAgent(), ClientAddress.of(routingContext), now);
-        return Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
-    }
-
-    private static List<String> missingFields(final String email, final String displayName,
-        final String password, final String confirmPassword) {
-        final List<String> missing = new ArrayList<>();
-        if (email.isBlank()) {
-            missing.add("Email");
-        }
-        if (displayName.isBlank()) {
-            missing.add("Display name");
-        }
-        if (password.isEmpty()) {
-            missing.add("Password");
-        }
-        if (confirmPassword.isEmpty()) {
-            missing.add("Confirm password");
-        }
-        return missing;
-    }
-
-    private static List<String> validateRegistration(final String email, final String password,
-        final String confirmPassword) {
-        final List<String> errors = new ArrayList<>();
-
-        if (!email.isBlank() && !email.contains("@")) {
-            errors.add("Email must contain an @ symbol.");
-        }
-
-        if (password.length() > PasswordConstraints.MAX_LENGTH) {
-            errors.add("Password must be at most " + PasswordConstraints.MAX_LENGTH + " characters.");
-        }
-
-        if (!password.isEmpty() && !confirmPassword.isEmpty() && !password.equals(confirmPassword)) {
-            errors.add("The passwords did not match.");
-        }
-
-        return errors;
+        };
     }
 
     private TemplateInstance renderRegister(final String email, final String displayName,
@@ -589,173 +527,94 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     }
 
     // ── Preferences ────────────────────────────────────────────────────────
-    //
-    // Each preference is its own PATCH endpoint so updating one never touches the others (a partial
-    // update, not a whole-object replace). The client posts only the changed control on its `change`
-    // event and shows the saved indicator via {@code htmx:afterRequest}; every endpoint returns
-    // {@code 204}. All values are sanitised against their allow-list, so an unoffered/absent value
-    // falls back to the setting's default (timezone → server default).
 
     /**
-     * Updates the current user's theme to the sanitised {@code theme}. Returns {@code 204}.
+     * The single settings endpoint: partially updates the current user's display name and/or preferences — only the form fields PRESENT in the
+     * request change (PATCH semantics). The Settings page's controls each auto-save themselves on {@code change} by PATCHing here with just their
+     * own field included, so every request deliberately carries one setting's data; a request may equally carry several. Every submitted value is
+     * validated and an unrecognised one is rejected with {@code 422} (and the reason) so the client keeps the previous value — nothing is silently
+     * coerced (a blank timezone is the explicit server-default reset). Every rule is the shared {@link ProfileService} the API's
+     * {@code PATCH /api/v1/users/me} also calls. Returns {@code 204} when everything applied.
+     *
+     * @param displayName      the new display name, when submitted
+     * @param theme            the new theme, when submitted
+     * @param font             the new font, when submitted
+     * @param calendarView     the new dashboard calendar style, when submitted
+     * @param timezone         the new IANA timezone, when submitted
+     * @param pageSize         the new list page size, when submitted
+     * @param decimalPlaces    the new decimal-place count, when submitted
+     * @param showStatsSummary the stats-summary checkbox values (hidden {@code "false"} + ticked {@code "true"}), when submitted
+     * @param statsOrder       every "Action stats" field key in the arranged order, when submitted
+     * @param statsEnabled     the ticked "Action stats" field keys, when submitted alongside {@code statsOrder}
+     * @return {@code 204} on success, {@code 422} with the reason when a submitted value is rejected
      */
     @PATCH
-    @Path("settings/theme")
+    @Path("internal/settings")
     @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
-    public Response updateTheme(@FormParam("theme") final String theme) {
-        final String value = Theme.from(theme).value();
-        return updateSetting("Theme", value, user -> user.theme = value);
-    }
-
-    /**
-     * Updates the current user's font to the sanitised {@code font}. Returns {@code 204}.
-     */
-    @PATCH
-    @Path("settings/font")
-    @RolesAllowed(Role.Values.USER)
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    @Transactional
-    public Response updateFont(@FormParam("font") final String font) {
-        final String value = Font.from(font).value();
-        return updateSetting("Font", value, user -> user.font = value);
-    }
-
-    /**
-     * Updates the current user's calendar view to the sanitised {@code calendarView}. Returns {@code 204}.
-     */
-    @PATCH
-    @Path("settings/calendar-view")
-    @RolesAllowed(Role.Values.USER)
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    @Transactional
-    public Response updateCalendarView(@FormParam("calendarView") final String calendarView) {
-        final String value = CalendarView.from(calendarView).value();
-        return updateSetting("Calendar view", value, user -> user.calendarView = value);
-    }
-
-    /**
-     * Updates the current user's timezone to the sanitised {@code timezone} (blank or unoffered → server default). Returns {@code 204}.
-     */
-    @PATCH
-    @Path("settings/timezone")
-    @RolesAllowed(Role.Values.USER)
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    @Transactional
-    public Response updateTimezone(@FormParam("timezone") final String timezone) {
-        final String value = UserSettings.sanitiseTimezone(timezone);
-        return updateSetting("Timezone", value, user -> user.timezone = value);
-    }
-
-    /**
-     * Updates the current user's page size. Unlike the other preferences, an out-of-range or non-numeric value is rejected with {@code 422} (and the
-     * {@link UserSettings#PAGE_SIZE_RANGE_MESSAGE} body) rather than coerced, so the client can show an error and keep the previous value. A valid
-     * value persists and returns {@code 204}.
-     */
-    @PATCH
-    @Path("settings/page-size")
-    @RolesAllowed(Role.Values.USER)
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    @Transactional
-    public Response updatePageSize(@FormParam("pageSize") final String pageSize) {
-        final Integer parsed = UserSettings.parsePageSize(pageSize);
-        if (parsed == null) {
-            return Response.status(422).entity(UserSettings.PAGE_SIZE_RANGE_MESSAGE).build();
-        }
-        final int value = parsed;
-        return updateSetting("Page size", value, user -> user.pageSize = value);
-    }
-
-    /**
-     * Updates the current user's decimal-place preference. Like the page size, an out-of-range or non-numeric value is rejected with {@code 422} (and
-     * the {@link UserSettings#DECIMAL_PLACES_RANGE_MESSAGE} body) rather than coerced, so the client can show an error and keep the previous value. A
-     * valid value persists and returns {@code 204}.
-     */
-    @PATCH
-    @Path("settings/decimal-places")
-    @RolesAllowed(Role.Values.USER)
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    @Transactional
-    public Response updateDecimalPlaces(@FormParam("decimalPlaces") final String decimalPlaces) {
-        final Integer parsed = UserSettings.parseDecimalPlaces(decimalPlaces);
-        if (parsed == null) {
-            return Response.status(422).entity(UserSettings.DECIMAL_PLACES_RANGE_MESSAGE).build();
-        }
-        final int value = parsed;
-        return updateSetting("Decimal places", value, user -> user.decimalPlaces = value);
-    }
-
-    /**
-     * Updates which per-action stats show on the Stats page, and in what order. The client posts EVERY row's key in its (drag-arranged) DOM order as
-     * {@code statsOrder}, plus the ticked subset as {@code statsEnabled}; these are encoded into the stored arrangement (disabled fields kept in
-     * place, {@code last-performed} forced enabled). A display-only preference — it never affects how statistics are computed. Returns {@code 204}.
-     */
-    @PATCH
-    @Path("settings/stats-fields")
-    @RolesAllowed(Role.Values.USER)
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    @Transactional
-    public Response updateStatsFields(
-        @FormParam("statsOrder")   final List<String> statsOrder,
-        @FormParam("statsEnabled") final List<String> statsEnabled) {
-        final List<String> order = statsOrder == null ? List.of() : statsOrder;
-        final List<String> enabled = statsEnabled == null ? List.of() : statsEnabled;
-        final String value = "order=" + order + " enabled=" + enabled;
-        return updateSetting("Action stats", value, user -> user.statsFields = ActionStatField.encode(order, enabled));
-    }
-
-    /**
-     * Toggles whether the dashboard shows the stats-summary strip. The checkbox posts a hidden {@code "false"} plus (when ticked) {@code "true"}, so
-     * the setting is on iff the values contain {@code "true"}. Returns {@code 204}.
-     */
-    @PATCH
-    @Path("settings/show-stats-summary")
-    @RolesAllowed(Role.Values.USER)
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    @Transactional
-    public Response updateShowStatsSummary(@FormParam("showStatsSummary") final List<String> showStatsSummary) {
-        final boolean show = showStatsSummary != null && showStatsSummary.contains("true");
-        return updateSetting("Show stats summary", show, user -> user.showStatsSummary = show);
-    }
-
-    private Response updateSetting(final String settingName, final @Nullable Object newValue, final Consumer<User> mutator) {
+    public Response updateSettings(
+        @FormParam("displayName") @Nullable final String displayName,
+        @FormParam("theme") @Nullable final String theme,
+        @FormParam("font") @Nullable final String font,
+        @FormParam("calendarView") @Nullable final String calendarView,
+        @FormParam("timezone") @Nullable final String timezone,
+        @FormParam("pageSize") @Nullable final String pageSize,
+        @FormParam("decimalPlaces") @Nullable final String decimalPlaces,
+        @FormParam("showStatsSummary") @Nullable final List<String> showStatsSummary,
+        @FormParam("statsOrder") @Nullable final List<String> statsOrder,
+        @FormParam("statsEnabled") @Nullable final List<String> statsEnabled) {
         final User user = currentUser.get();
-        mutator.accept(user);
-        user.persist();
-        LOGGER.debug("Setting '{}' changed to '{}' for user {}", settingName, newValue, user.email);
-        return Response.noContent().build();
-    }
 
-    /**
-     * Updates the current user's display name, returning {@code 422} if it is blank.
-     */
-    @POST
-    @Path("settings/display-name")
-    @RolesAllowed(Role.Values.USER)
-    @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    @Transactional
-    public Response updateDisplayName(@FormParam("displayName") final String displayName) {
-        if (displayName == null || displayName.isBlank()) {
-            return Response.status(422).build();
+        ProfileResult result = new ProfileResult.Updated();
+        if (displayName != null) {
+            result = profileService.updateDisplayName(user, displayName);
         }
-        final User user = currentUser.get();
-        user.displayName = displayName.strip();
-        user.persist();
-        LOGGER.info("Display name changed to '{}' for user {}", user.displayName, user.email);
-        return Response.ok().build();
+        if (theme != null && !(result instanceof ProfileResult.Invalid)) {
+            result = profileService.updateTheme(user, theme);
+        }
+        if (font != null && !(result instanceof ProfileResult.Invalid)) {
+            result = profileService.updateFont(user, font);
+        }
+        if (calendarView != null && !(result instanceof ProfileResult.Invalid)) {
+            result = profileService.updateCalendarView(user, calendarView);
+        }
+        if (timezone != null && !(result instanceof ProfileResult.Invalid)) {
+            result = profileService.updateTimezone(user, timezone);
+        }
+        if (pageSize != null && !(result instanceof ProfileResult.Invalid)) {
+            result = profileService.updatePageSize(user, pageSize);
+        }
+        if (decimalPlaces != null && !(result instanceof ProfileResult.Invalid)) {
+            result = profileService.updateDecimalPlaces(user, decimalPlaces);
+        }
+        // The checkbox posts a hidden "false" plus (when ticked) "true", so presence = any value and
+        // the setting is on iff the values contain "true".
+        if (showStatsSummary != null && !showStatsSummary.isEmpty() && !(result instanceof ProfileResult.Invalid)) {
+            result = profileService.updateShowStatsSummary(user, showStatsSummary.contains("true"));
+        }
+        // The stats picker posts EVERY row's key in its (drag-arranged) DOM order as statsOrder, plus
+        // the ticked subset as statsEnabled.
+        if (statsOrder != null && !statsOrder.isEmpty() && !(result instanceof ProfileResult.Invalid)) {
+            result = profileService.updateStatsFields(user, statsOrder, statsEnabled == null ? List.of() : statsEnabled);
+        }
+
+        return switch (result) {
+            case ProfileResult.Updated ignored -> Response.noContent().build();
+            case ProfileResult.Invalid invalid -> Response.status(422).entity(invalid.message()).build();
+        };
     }
 
     /**
      * Changes the current (local) user's password. To defend against a hijacked session silently taking over the account, the caller must prove
      * knowledge of the existing password: the flow first asks for the {@code currentPassword}, then the new password entered and re-entered to
      * confirm ({@code newPassword} + {@code confirmPassword}). All three values arrive here. Returns {@code 422} when the current password does not
-     * match (body {@link #CURRENT_PASSWORD_ERROR}) or when the new password is empty or the two copies do not match (body
-     * {@link #NEW_PASSWORD_ERROR}). {@code 403} for a non-local (OIDC-only) account or when password auth is disabled, and {@code 200} once the new
-     * hash is persisted. The response body drives which step the client returns the user to.
+     * match (body {@link PasswordChangeService#CURRENT_PASSWORD_ERROR}) or when the new password is empty or the two copies do not match (body
+     * {@link PasswordChangeService#NEW_PASSWORD_ERROR}). {@code 403} for a non-local (OIDC-only) account or when password auth is disabled, and
+     * {@code 200} once the new hash is persisted. The response body drives which step the client returns the user to.
      */
     @POST
-    @Path("settings/password")
+    @Path("internal/settings/password")
     @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
@@ -764,55 +623,25 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         @FormParam("newPassword")     final String newPassword,
         @FormParam("confirmPassword") final String confirmPassword,
         @CookieParam("diurnal_session") @Nullable final String sessionToken) {
-        final User user = currentUser.get();
-        // Only local accounts have a password to change; OIDC-only users (and deployments with password
-        // auth switched off entirely) have none. The UI already hides the field for them — this guards
-        // the endpoint directly.
-        if (!passwordAuthConfig.enabled() || user.passwordHash == null || user.passwordHash.isBlank()) {
-            return Response.status(Response.Status.FORBIDDEN).build();
-        }
-        // The caller must know the current password — this is what stops a hijacked session from silently
-        // resetting it. Checked before the new-password rules so a wrong current password is reported (and
-        // the client sent back to the first step) regardless of the new/confirm values. The client also
-        // verifies this up front via verifyCurrentPassword, but that is only a UX aid: this is the
-        // authoritative check on the mutating request.
-        //
-        // NO LOCKOUT HERE (deliberate): this is an already-authenticated user changing their OWN password,
-        // so they get unlimited attempts. It is entirely separate from the per-IP login/registration
-        // lockout (IpThrottle) — a wrong current password neither consults that shared counter nor feeds
-        // it (it never calls recordFailure), so failed password changes can never lock the IP out of
-        // logging in or registering, and vice versa. The WARN below is an audit trail only, not a throttle.
-        if (currentPasswordMismatch(user.passwordHash, currentPassword)) {
-            LOGGER.warn("Failed current-password check on password change for user: {} (IP: {})",
-                user.email, ClientAddress.of(routingContext));
-            return Response.status(422).entity(CURRENT_PASSWORD_ERROR).build();
-        }
-        // The new password cannot be empty, and the re-entered confirmation must match.
-        if (newPassword == null || newPassword.isEmpty() || !newPassword.equals(confirmPassword)) {
-            return Response.status(422).entity(NEW_PASSWORD_ERROR).build();
-        }
-        // Cap the length to bound the hashing cost (an over-long input is a cheap CPU-exhaustion lever) —
-        // mirrors the registration guard so the new password is capped identically however the account
-        // was created.
-        if (newPassword.length() > PasswordConstraints.MAX_LENGTH) {
-            return Response.status(422).entity(NEW_PASSWORD_TOO_LONG_ERROR).build();
-        }
-        user.passwordHash = passwords.hash(newPassword);
-        user.persist();
-        // A password change evicts every other device (a common response to suspected compromise) while
-        // keeping the session that made the change signed in, so the user is not logged out mid-action.
-        if (sessionToken != null && !sessionToken.isBlank()) {
-            sessionStore.revokeOthersForUser(user.id, sessionToken);
-        }
-        LOGGER.info("Password changed for user: {} (other sessions revoked)", user.email);
-        return Response.ok().build();
+        // The web form collects a confirmPassword (normalised to blank so an empty field is rejected);
+        // everything else — the local-account guard, current-password proof, new-password rules, re-hash
+        // and other-session revocation — is the shared PasswordChangeService the API also calls.
+        final PasswordChangeResult result = passwordChangeService.change(currentUser.get(), currentPassword, newPassword,
+            confirmPassword == null ? "" : confirmPassword, sessionToken, ClientAddress.of(routingContext));
+        return switch (result) {
+            case PasswordChangeResult.Success ignored -> Response.ok().build();
+            case PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
+            case PasswordChangeResult.WrongCurrentPassword ignored ->
+                Response.status(422).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
+            case PasswordChangeResult.InvalidNewPassword invalid -> Response.status(422).entity(invalid.message()).build();
+        };
     }
 
     /**
      * Verifies the current (local) user's existing password without changing anything, so the settings client can confirm step 1 of the
      * password-change flow before asking for the new password. Returns {@code 204} when it matches, {@code 422} when it does not (or is empty, body
-     * {@link #CURRENT_PASSWORD_ERROR}), and {@code 403} for a non-local (OIDC-only) account or when password auth is disabled. This is a UX aid only
-     * — {@link #updatePassword} re-verifies the current password authoritatively on the mutating request.
+     * {@link PasswordChangeService#CURRENT_PASSWORD_ERROR}), and {@code 403} for a non-local (OIDC-only) account or when password auth is disabled.
+     * This is a UX aid only — {@link #updatePassword} re-verifies the current password authoritatively on the mutating request.
      *
      * <p>
      * Like {@link #updatePassword}, this applies <b>no</b> lockout: an already-authenticated user confirming their own password gets unlimited tries,
@@ -823,27 +652,18 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
      * @return the verification outcome as an empty response
      */
     @POST
-    @Path("settings/password/verify")
+    @Path("internal/settings/password/verify")
     @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response verifyCurrentPassword(@FormParam("currentPassword") final String currentPassword) {
-        final User user = currentUser.get();
-        // Only local accounts have a password to verify; mirror updatePassword's guard exactly.
-        if (!passwordAuthConfig.enabled() || user.passwordHash == null || user.passwordHash.isBlank()) {
-            return Response.status(Response.Status.FORBIDDEN).build();
-        }
-        if (currentPasswordMismatch(user.passwordHash, currentPassword)) {
-            LOGGER.warn("Failed current-password check on password-change verify for user: {} (IP: {})",
-                user.email, ClientAddress.of(routingContext));
-            return Response.status(422).entity(CURRENT_PASSWORD_ERROR).build();
-        }
-        return Response.noContent().build();
-    }
-
-    private boolean currentPasswordMismatch(final String passwordHash, final String currentPassword) {
-        return currentPassword == null || currentPassword.isEmpty()
-                || !passwords.matches(currentPassword, passwordHash);
+        return switch (passwordChangeService.verify(currentUser.get(), currentPassword, ClientAddress.of(routingContext))) {
+            case PasswordChangeResult.Success ignored -> Response.noContent().build();
+            case PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
+            case PasswordChangeResult.WrongCurrentPassword ignored ->
+                Response.status(422).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
+            case PasswordChangeResult.InvalidNewPassword ignored -> Response.status(422).build();
+        };
     }
 
     /**
@@ -851,7 +671,7 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
      * cookies and redirects to {@code /login}, forcing a fresh login on every device.
      */
     @POST
-    @Path("settings/sessions/revoke-all")
+    @Path("internal/settings/sessions/revoke-all")
     @RolesAllowed(Role.Values.USER)
     @Transactional
     public Response revokeAllSessions() {

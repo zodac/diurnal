@@ -52,17 +52,14 @@ import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
 /**
  * Increment/decrement endpoints for a day's action counts, plus the dashboard day-panel partials.
  */
-@Path("/logs")
+@Path("/internal/logs")
 @RolesAllowed(Role.Values.USER)
 public class LogWebResource {
 
-    private static final Logger LOGGER = LogManager.getLogger(LogWebResource.class);
     private static final DateTimeFormatter DAY_LABEL = DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.ENGLISH);
 
     @Inject
@@ -87,6 +84,9 @@ public class LogWebResource {
     @Inject
     AppClock clock;
 
+    @Inject
+    LogService logService;
+
     // ── Day panel ──────────────────────────────────────────────────────────
 
     /**
@@ -98,7 +98,7 @@ public class LogWebResource {
     @Transactional
     public TemplateInstance dayPanel(@PathParam("date") final LocalDate date) {
         final User user = currentUser.get();
-        final boolean future = isFuture(date, user);
+        final boolean future = LogGuards.isFuture(date, user, clock);
         final var page = future ? null : getActions(user.id, date, 1, "", user.pageSize);
 
         return dayPanelTemplate
@@ -168,7 +168,7 @@ public class LogWebResource {
 
         final Map<String, String> panels = new LinkedHashMap<>();
         for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
-            final boolean future = isFuture(date, user);
+            final boolean future = LogGuards.isFuture(date, user, clock);
             final var page = future ? null : paginate(all, countsByDate.getOrDefault(date, Map.of()), 1, "", user.pageSize);
             panels.put(date.toString(), dayPanelTemplate
                 .data("date", date)
@@ -234,7 +234,7 @@ public class LogWebResource {
         @PathParam("actionId") final UUID actionId) {
 
         final User user = currentUser.get();
-        final Action action = ownedAction(user, actionId);
+        final Action action = LogGuards.ownedAction(user, actionId);
         if (action == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
@@ -255,7 +255,7 @@ public class LogWebResource {
         @PathParam("actionId") final UUID actionId) {
 
         final User user = currentUser.get();
-        final Action action = ownedAction(user, actionId);
+        final Action action = LogGuards.ownedAction(user, actionId);
         if (action == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
@@ -273,24 +273,7 @@ public class LogWebResource {
     public Response deleteEntry(
         @PathParam("date") final LocalDate date,
         @PathParam("actionId") final UUID actionId) {
-
-        final User user = currentUser.get();
-        if (isFuture(date, user)) {
-            return Response.status(Response.Status.BAD_REQUEST).build();
-        }
-
-        final Action action = ownedAction(user, actionId);
-        if (action == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-
-        final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
-        if (entry != null) {
-            entry.delete();
-        }
-
-        LOGGER.info("Log entry deleted: action {} on {} for user {}", actionId, date, user.email);
-        return Response.ok(item(date, action, 0)).build();
+        return translate(date, logService.deleteEntry(currentUser.get(), date, actionId));
     }
 
     // ── Increment ─────────────────────────────────────────────────────────
@@ -308,29 +291,7 @@ public class LogWebResource {
         @PathParam("date") final LocalDate date,
         @PathParam("actionId") final UUID actionId,
         @DefaultValue("1") @FormParam("amount") final int amount) {
-
-        final User user = currentUser.get();
-        if (isFuture(date, user)) {
-            return Response.status(Response.Status.BAD_REQUEST).build();
-        }
-
-        final Action action = ownedAction(user, actionId);
-        if (action == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-
-        final int delta = Math.max(amount, 0);
-        if (delta == 0) {
-            // No-op: don't create a (zero-count) row; just report the current count.
-            final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
-            return Response.ok(item(date, action, entry == null ? 0 : entry.count)).build();
-        }
-
-        // Atomic upsert: a plain find-then-insert would let two rapid taps on a not-yet-logged
-        // action both INSERT and race the loser into the unique-constraint violation (a 500).
-        final int newCount = ActionLog.incrementCount(user.id, actionId, date, delta);
-        LOGGER.debug("Log incremented by {}: action {} on {} -> {} for user {}", delta, actionId, date, newCount, user.email);
-        return Response.ok(item(date, action, newCount)).build();
+        return adjust(date, actionId, amount, true);
     }
 
     // ── Decrement ─────────────────────────────────────────────────────────
@@ -348,29 +309,7 @@ public class LogWebResource {
         @PathParam("date") final LocalDate date,
         @PathParam("actionId") final UUID actionId,
         @DefaultValue("1") @FormParam("amount") final int amount) {
-
-        final User user = currentUser.get();
-        if (isFuture(date, user)) {
-            return Response.status(Response.Status.BAD_REQUEST).build();
-        }
-
-        final Action action = ownedAction(user, actionId);
-        if (action == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-
-        final int delta = Math.max(amount, 0);
-        if (delta == 0) {
-            // No-op: report the current count without touching the row.
-            final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
-            return Response.ok(item(date, action, entry == null ? 0 : entry.count)).build();
-        }
-
-        // Atomic decrement for the same reason as increment(): a find-then-write race lets two
-        // concurrent decrements (e.g. the same action tapped down on two devices) lose an update.
-        final int newCount = ActionLog.decrementCount(user.id, actionId, date, delta);
-        LOGGER.debug("Log decremented by {}: action {} on {} -> {} for user {}", delta, actionId, date, newCount, user.email);
-        return Response.ok(item(date, action, newCount)).build();
+        return adjust(date, actionId, amount, false);
     }
 
     // ── Set count ─────────────────────────────────────────────────────────
@@ -388,50 +327,36 @@ public class LogWebResource {
         @PathParam("date") final LocalDate date,
         @PathParam("actionId") final UUID actionId,
         @DefaultValue("0") @FormParam("count") final int requestedCount) {
-
-        final User user = currentUser.get();
-        if (isFuture(date, user)) {
-            return Response.status(Response.Status.BAD_REQUEST).build();
-        }
-
-        final Action action = ownedAction(user, actionId);
-        if (action == null) {
-            return Response.status(Response.Status.NOT_FOUND).build();
-        }
-
-        final int newCount = Math.clamp(requestedCount, 0, ActionLog.MAX_DAILY_COUNT);
-
-        if (newCount <= 0) {
-            final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
-            if (entry != null) {
-                entry.delete();
-            }
-            LOGGER.debug("Log set to zero (entry removed): action {} on {} for user {}", actionId, date, user.email);
-            return Response.ok(item(date, action, 0)).build();
-        }
-
-        // Atomic upsert for the same reason as increment(): a find-then-insert race on a
-        // not-yet-logged action would trip the unique constraint as a 500.
-        ActionLog.setCount(user.id, actionId, date, newCount);
-        LOGGER.debug("Log count set: action {} on {} -> {} for user {}", actionId, date, newCount, user.email);
-        return Response.ok(item(date, action, newCount)).build();
+        // The web form's input contract: a negative count is coerced to zero, i.e. "clear the day"
+        // (the API instead rejects it with a 400) — a per-surface translation of intent, not a
+        // different write rule; the shared LogService owns the cap and delete-at-zero semantics.
+        return translate(date, logService.updateCount(currentUser.get(), date, actionId, Math.max(requestedCount, 0)));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
+    private Response adjust(final LocalDate date, final UUID actionId, final int amount, final boolean increment) {
+        // The web form's input contract: a non-positive amount is a no-op that just re-renders the
+        // current count (the API instead rejects it with a 400) — a per-surface translation of intent,
+        // not a different write rule; the shared LogService owns the atomic adjust semantics.
+        final User user = currentUser.get();
+        final int delta = Math.max(amount, 0);
+        final LogResult result = delta == 0
+            ? logService.readCount(user, date, actionId)
+            : logService.adjust(user, date, actionId, delta, increment);
+        return translate(date, result);
+    }
+
+    private Response translate(final LocalDate date, final LogResult result) {
+        return switch (result) {
+            case LogResult.FutureDate ignored -> Response.status(Response.Status.BAD_REQUEST).build();
+            case LogResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
+            case LogResult.Updated updated -> Response.ok(item(date, updated.action(), updated.count())).build();
+        };
+    }
+
     private TemplateInstance item(final LocalDate date, final Action action, final int count) {
         return dayActionItemTemplate.data("date", date, "action", action, "count", count);
-    }
-
-    // Actions can only be logged for today or earlier, in the user's configured timezone
-    // (falling back to the server default when the user hasn't chosen one).
-    private boolean isFuture(final LocalDate date, final User user) {
-        return date.isAfter(clock.today(clock.zoneFor(user.timezone)));
-    }
-
-    private Action ownedAction(final User user, final UUID actionId) {
-        return Action.<Action>find("id = ?1 and userId = ?2", actionId, user.id)
-            .firstResult();
     }
 
     /**

@@ -28,8 +28,8 @@ import org.junit.jupiter.api.Test;
 /**
  * Unit tests for {@link AppConfig}'s {@code @ConfigMapping} binding, focused on {@link AppConfig#settingsImages()} — the base-name → content-hashed
  * filename map the Dockerfile bakes in for the settings preview thumbnails. Its keys are the hyphenated image base names (e.g.
- * {@code page-nova-full-dark}), so this pins that SmallRye binds those keys correctly (a mis-parse would leave {@link net.zodac.diurnal.web.AppInfo} serving un-hashed names
- * against hashed files) and that the map is optional (empty for a non-Docker build), by building the mapping in isolation.
+ * {@code page-nova-full-dark}), so this pins that SmallRye binds those keys correctly (a mis-parse would leave {@link net.zodac.diurnal.web.AppInfo}
+ * serving un-hashed names against hashed files) and that the map is optional (empty for a non-Docker build), by building the mapping in isolation.
  */
 class AppConfigTest {
 

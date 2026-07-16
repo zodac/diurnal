@@ -1,13 +1,13 @@
 import type { Page } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
 
-// Each preference auto-saves via its own HTMX PATCH to /settings/<name> (e.g. /settings/theme,
-// /settings/page-size) fired on the control's `change` event. That PATCH is asynchronous, so a test
-// MUST wait for it to finish before reloading/navigating — otherwise the reload races the save and
-// reads the stale value (the root cause of the previous flakiness).
+// Every preference (and the display name) auto-saves via an HTMX PATCH to the single consolidated
+// /internal/settings endpoint, each control submitting just its own field on `change`. That PATCH is
+// asynchronous, so a test MUST wait for it to finish before reloading/navigating — otherwise the
+// reload races the save and reads the stale value (the root cause of the previous flakiness).
 async function waitForSave(page: Page, action: Promise<unknown>): Promise<void> {
     await Promise.all([
-        page.waitForResponse(r => r.url().includes("/settings/") && r.request().method() === "PATCH"),
+        page.waitForResponse(r => new URL(r.url()).pathname === "/internal/settings" && r.request().method() === "PATCH"),
         action,
     ])
 }
@@ -180,7 +180,7 @@ test.describe("Settings page", () => {
         await field.fill("9")
         await Promise.all([
             page.waitForResponse(r =>
-                r.url().includes("/settings/decimal-places")
+                r.url().includes("/internal/settings")
                 && r.request().method() === "PATCH"
                 && r.status() === 422),
             field.blur(),
@@ -209,7 +209,7 @@ test.describe("Settings page", () => {
         await field.fill("0")
         await Promise.all([
             page.waitForResponse(r =>
-                r.url().includes("/settings/page-size")
+                r.url().includes("/internal/settings")
                 && r.request().method() === "PATCH"
                 && r.status() === 422),
             field.blur(),
@@ -265,7 +265,7 @@ test.describe("Settings page", () => {
         await clickDisplayNameEdit(page)
         await page.fill('input[name="displayName"]', "Updated Name")
         await Promise.all([
-            page.waitForResponse(r => r.url().includes("/settings/display-name") && r.request().method() === "POST"),
+            page.waitForResponse(r => new URL(r.url()).pathname === "/internal/settings" && r.request().method() === "PATCH"),
             page.getByRole("button", { name: "Save" }).click(),
         ])
         await expect(page.locator("#display-name-text")).toHaveText("Updated Name")
@@ -278,7 +278,7 @@ test.describe("Settings page", () => {
         await clickDisplayNameEdit(page)
         await page.fill('input[name="displayName"]', testUser.displayName)
         await Promise.all([
-            page.waitForResponse(r => r.url().includes("/settings/display-name") && r.request().method() === "POST"),
+            page.waitForResponse(r => new URL(r.url()).pathname === "/internal/settings" && r.request().method() === "PATCH"),
             page.getByRole("button", { name: "Save" }).click(),
         ])
         await expect(page.locator("#display-name-text")).toHaveText(testUser.displayName)
@@ -291,16 +291,16 @@ test.describe("Settings page", () => {
     })
 
     // Advance step 1 → 2: the current password is verified server-side, so Next only advances once
-    // /settings/password/verify accepts it. Waits on the new-password step becoming visible.
+    // /internal/settings/password/verify accepts it. Waits on the new-password step becoming visible.
     async function passwordStep1Next(page: Page, currentPassword: string): Promise<void> {
         await page.fill("#currentPassword", currentPassword)
         await page.locator("#password-current-form").getByRole("button", { name: "Next" }).click()
         await expect(page.locator("#password-new-form")).toBeVisible()
     }
 
-    // A path-exact match for the final (mutating) POST, since /settings/password/verify shares the prefix.
+    // A path-exact match for the final (mutating) POST, since /internal/settings/password/verify shares the prefix.
     function isPasswordCommit(url: string): boolean {
-        return new URL(url).pathname === "/settings/password"
+        return new URL(url).pathname === "/internal/settings/password"
     }
 
     // The password change starts by asking for the CURRENT password (a hijacked session cannot silently
@@ -334,10 +334,10 @@ test.describe("Settings page", () => {
         await page.goto("/settings")
         await clickPasswordEdit(page)
 
-        // The Next click posts to /settings/password/verify, which rejects the wrong current password.
+        // The Next click posts to /internal/settings/password/verify, which rejects the wrong current password.
         await page.fill("#currentPassword", "definitely-not-the-password")
         await Promise.all([
-            page.waitForResponse(r => r.url().includes("/settings/password/verify")
+            page.waitForResponse(r => r.url().includes("/internal/settings/password/verify")
                 && r.request().method() === "POST" && r.status() === 422),
             page.locator("#password-current-form").getByRole("button", { name: "Next" }).click(),
         ])

@@ -78,8 +78,8 @@ class OpenApiDocumentIT extends IntegrationTestBase {
             .get("/q/openapi")
             .then().statusCode(200)
             // A single requirement object naming exactly the Bearer scheme.
-            .body("paths.'/api/users/me'.get.security.size()", equalTo(1))
-            .body("paths.'/api/users/me'.get.security.collect { it.keySet() }.flatten()",
+            .body("paths.'/api/v1/users/me'.get.security.size()", equalTo(1))
+            .body("paths.'/api/v1/users/me'.get.security.collect { it.keySet() }.flatten()",
             containsInAnyOrder("BearerAuth"));
     }
 

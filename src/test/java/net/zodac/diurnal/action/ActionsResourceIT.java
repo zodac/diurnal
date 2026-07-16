@@ -52,7 +52,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     @Test
     void createAction_validNameAndColour_returnsHtmlWithNameAndColour() {
         given().formParam("name", "Running").formParam("colour", "#ff0000")
-            .post("/actions")
+            .post("/internal/actions")
             .then().statusCode(200)
             .contentType("text/html")
             .body(containsString("Running"))
@@ -62,7 +62,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     @Test
     void createAction_trimsName() {
         given().formParam("name", "  Yoga  ").formParam("colour", "#6366f1")
-            .post("/actions")
+            .post("/internal/actions")
             .then().statusCode(200)
             .body(containsString("Yoga"))
             .body(not(containsString("  Yoga  ")));
@@ -71,17 +71,17 @@ class ActionsResourceIT extends IntegrationTestBase {
     @Test
     void createAction_blankName_returns409WithHxRetarget() {
         given().formParam("name", "   ").formParam("colour", "#6366f1")
-            .post("/actions")
+            .post("/internal/actions")
             .then().statusCode(409)
             .header("HX-Retarget", "#action-error");
     }
 
     @Test
     void createAction_duplicateName_returns409() {
-        given().formParam("name", "Cycling").formParam("colour", "#6366f1").post("/actions")
+        given().formParam("name", "Cycling").formParam("colour", "#6366f1").post("/internal/actions")
             .then().statusCode(200);
 
-        given().formParam("name", "Cycling").formParam("colour", "#6366f1").post("/actions")
+        given().formParam("name", "Cycling").formParam("colour", "#6366f1").post("/internal/actions")
             .then().statusCode(409)
             .header("HX-Retarget", "#action-error");
     }
@@ -92,7 +92,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         // must not block this user from creating their own action of the same name.
         runInTx(() -> newAction(otherId, "Cycling"));
 
-        given().formParam("name", "Cycling").formParam("colour", "#6366f1").post("/actions")
+        given().formParam("name", "Cycling").formParam("colour", "#6366f1").post("/internal/actions")
             .then().statusCode(200)
             .body(containsString("Cycling"));
 
@@ -102,17 +102,19 @@ class ActionsResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    void createAction_invalidColour_sanitisedToDefault() {
+    void createAction_invalidColour_isRejected() {
+        // The colour rule lives in the shared ActionService, so a malformed colour is rejected on the web
+        // surface too (never silently corrected), not just on the API.
         given().formParam("name", "Swimming").formParam("colour", "not-a-colour")
-            .post("/actions")
-            .then().statusCode(200)
-            .body(containsString("#64748b"));
+            .post("/internal/actions")
+            .then().statusCode(409)
+            .body(containsString("colour is invalid"));
     }
 
     @Test
     void createAction_validHexColour_preserved() {
         given().formParam("name", "Hiking").formParam("colour", "#abcdef")
-            .post("/actions")
+            .post("/internal/actions")
             .then().statusCode(200)
             .body(containsString("#abcdef"));
     }
@@ -121,7 +123,7 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void actionsList_noActions_returnsEmptyBody() {
-        given().get("/actions/list")
+        given().get("/internal/actions/list")
             .then().statusCode(200)
             .body(not(containsString("<div id=\"action-")));
     }
@@ -130,7 +132,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     void actionsList_exactlyOnePage_noPaginationControls() {
         // Exactly a full page of actions fits without spilling onto a second page.
         runInTx(() -> createActions(UserSettings.DEFAULT_PAGE_SIZE));
-        given().queryParam("page", 1).get("/actions/list")
+        given().queryParam("page", 1).get("/internal/actions/list")
             .then().statusCode(200)
             .body(not(containsString("Next")))
             .body(not(containsString("Previous")));
@@ -140,7 +142,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     void actionsList_multiplePages_page1_showsNextButton() {
         // One more than a page forces a second page, so page 1 offers a Next control.
         runInTx(() -> createActions(UserSettings.DEFAULT_PAGE_SIZE + 1));
-        given().queryParam("page", 1).get("/actions/list")
+        given().queryParam("page", 1).get("/internal/actions/list")
             .then().statusCode(200)
             .body(containsString("Next"));
     }
@@ -148,7 +150,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     @Test
     void actionsList_multiplePages_page2_showsPreviousButton() {
         runInTx(() -> createActions(UserSettings.DEFAULT_PAGE_SIZE + 1));
-        given().queryParam("page", 2).get("/actions/list")
+        given().queryParam("page", 2).get("/internal/actions/list")
             .then().statusCode(200)
             .body(containsString("Previous"));
     }
@@ -156,17 +158,17 @@ class ActionsResourceIT extends IntegrationTestBase {
     @Test
     void actionsList_pageNumberBeyondTotal_clampsToLastPage() {
         runInTx(() -> createActions(UserSettings.DEFAULT_PAGE_SIZE));
-        given().queryParam("page", 99).get("/actions/list")
+        given().queryParam("page", 99).get("/internal/actions/list")
             .then().statusCode(200)
             .body(not(containsString("Next")));
     }
 
     @Test
     void actionsList_searchFiltersCaseInsensitively() {
-        given().formParam("name", "Morning Run").formParam("colour", "#6366f1").post("/actions");
-        given().formParam("name", "Evening Walk").formParam("colour", "#6366f1").post("/actions");
+        given().formParam("name", "Morning Run").formParam("colour", "#6366f1").post("/internal/actions");
+        given().formParam("name", "Evening Walk").formParam("colour", "#6366f1").post("/internal/actions");
 
-        given().queryParam("q", "MORNING").get("/actions/list")
+        given().queryParam("q", "MORNING").get("/internal/actions/list")
             .then().statusCode(200)
             .body(containsString("Morning Run"))
             .body(not(containsString("Evening Walk")));
@@ -178,7 +180,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     void updateAction_validChange_returnsUpdatedHtml() {
         final UUID id = createActionAndGetId("OldName");
         given().formParam("name", "NewName").formParam("colour", "#123456")
-            .post("/actions/" + id)
+            .post("/internal/actions/" + id)
             .then().statusCode(200)
             .body(containsString("NewName"))
             .body(containsString("#123456"));
@@ -188,7 +190,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     void updateAction_blankName_returns409() {
         final UUID id = createActionAndGetId("ToRename");
         given().formParam("name", "").formParam("colour", "#6366f1")
-            .post("/actions/" + id)
+            .post("/internal/actions/" + id)
             .then().statusCode(409)
             .header("HX-Retarget", "#action-error");
     }
@@ -198,7 +200,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         createActionAndGetId("Existing");
         final UUID id = createActionAndGetId("ToRename");
         given().formParam("name", "Existing").formParam("colour", "#6366f1")
-            .post("/actions/" + id)
+            .post("/internal/actions/" + id)
             .then().statusCode(409);
     }
 
@@ -206,7 +208,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     void updateAction_renameToOwnCurrentName_returns200() {
         final UUID id = createActionAndGetId("SameName");
         given().formParam("name", "SameName").formParam("colour", "#6366f1")
-            .post("/actions/" + id)
+            .post("/internal/actions/" + id)
             .then().statusCode(200);
     }
 
@@ -216,7 +218,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         final Action[] holder = new Action[1];
         runInTx(() -> holder[0] = newAction(otherId, "OtherAction"));
         given().formParam("name", "Hacked").formParam("colour", "#6366f1")
-            .post("/actions/" + holder[0].id)
+            .post("/internal/actions/" + holder[0].id)
             .then().statusCode(404);
     }
 
@@ -225,7 +227,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     @Test
     void deleteAction_ownAction_returns204AndHardDeletesIt() {
         final UUID id = createActionAndGetId("ToDelete");
-        given().post("/actions/" + id + "/delete")
+        given().post("/internal/actions/" + id + "/delete")
             .then().statusCode(204);
 
         final Action found = Action.<Action>find("id = ?1", id).firstResult();
@@ -242,7 +244,7 @@ class ActionsResourceIT extends IntegrationTestBase {
             newLog(primaryId, holder[0].id, java.time.LocalDate.now(), 1);
         });
 
-        given().post("/actions/" + holder[0].id + "/delete")
+        given().post("/internal/actions/" + holder[0].id + "/delete")
             .then().statusCode(204);
 
         final long logCount = net.zodac.diurnal.log.ActionLog.count("actionId = ?1", holder[0].id);
@@ -255,7 +257,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     void deleteAction_otherUsersAction_returns404() {
         final Action[] holder = new Action[1];
         runInTx(() -> holder[0] = newAction(otherId, "OtherToDelete"));
-        given().post("/actions/" + holder[0].id + "/delete")
+        given().post("/internal/actions/" + holder[0].id + "/delete")
             .then().statusCode(404);
     }
 
@@ -264,7 +266,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         // Hard-delete frees the name at the DB level, so the same name can be reused
         // (a soft-delete would leave the row and trip the (user_id, name) unique constraint).
         final UUID firstId = createActionAndGetId("Recreatable");
-        given().post("/actions/" + firstId + "/delete")
+        given().post("/internal/actions/" + firstId + "/delete")
             .then().statusCode(204);
 
         final UUID secondId = createActionAndGetId("Recreatable");
@@ -282,28 +284,28 @@ class ActionsResourceIT extends IntegrationTestBase {
     @Test
     void viewItem_ownAction_returns200WithRow() {
         final UUID id = createActionAndGetId("ViewMe");
-        given().get("/actions/" + id)
+        given().get("/internal/actions/" + id)
             .then().statusCode(200)
             .body(containsString("ViewMe"));
     }
 
     @Test
     void viewItem_unknownId_returns404() {
-        given().get("/actions/" + UUID.randomUUID())
+        given().get("/internal/actions/" + UUID.randomUUID())
             .then().statusCode(404);
     }
 
     @Test
     void confirmDelete_ownAction_returns200() {
         final UUID id = createActionAndGetId("ConfirmMe");
-        given().get("/actions/" + id + "/confirm-delete")
+        given().get("/internal/actions/" + id + "/confirm-delete")
             .then().statusCode(200)
             .body(containsString("Delete this action?"));
     }
 
     @Test
     void confirmDelete_unknownId_returns404() {
-        given().get("/actions/" + UUID.randomUUID() + "/confirm-delete")
+        given().get("/internal/actions/" + UUID.randomUUID() + "/confirm-delete")
             .then().statusCode(404);
     }
 
@@ -317,7 +319,7 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     private UUID createActionAndGetId(final String name) {
         final String html = given().formParam("name", name).formParam("colour", "#6366f1")
-            .post("/actions")
+            .post("/internal/actions")
             .then().statusCode(200)
             .extract().body().asString();
         // The returned HTML contains id="action-{uuid}"

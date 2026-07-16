@@ -23,7 +23,9 @@ import jakarta.validation.constraints.Size;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
- * Payload submitted to the JSON registration endpoint.
+ * Payload submitted to the JSON registration endpoint. The bean-validation annotations here feed the OpenAPI schema (required/min/max constraints)
+ * but are NOT the enforcement — the endpoint deliberately does not use {@code @Valid}; the authoritative rules live in {@link RegistrationService},
+ * shared with the web form, and must be kept in step with these annotations.
  */
 @Schema(description = "Details for a new password-based account: email, display name and password.")
 public record RegisterRequest(

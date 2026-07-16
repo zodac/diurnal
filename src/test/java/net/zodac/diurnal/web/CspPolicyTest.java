@@ -67,7 +67,7 @@ class CspPolicyTest {
 
     @Test
     void forPath_apiJaxRsEndpoint_isStrict() {
-        final String policy = CspPolicy.forPath("/api/auth/login");
+        final String policy = CspPolicy.forPath("/api/v1/auth/login");
         assertThat(policy)
                 .as("A JAX-RS endpoint nested under /api/... must NOT get the relaxed documentation policy — the"
                         + " only 'unsafe-inline' the strict policy ever carries is style-src-attr's pragmatic"

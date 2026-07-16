@@ -24,9 +24,9 @@ import java.time.Instant;
 import net.zodac.diurnal.config.IpThrottleConfig;
 
 /**
- * The single, global per-IP lockout consulted by <em>every</em> credential surface — the login form, {@code POST /api/auth/login}, the registration
- * form and {@code POST /api/auth/register}. One shared counter per client IP tallies both failed logins and failed registrations together; once it
- * reaches the configured limit within the window, that IP is locked out of <em>both</em> logging in and registering.
+ * The single, global per-IP lockout consulted by <em>every</em> credential surface — the login form, {@code POST /api/v1/auth/login}, the
+ * registration form and {@code POST /api/v1/auth/register}. One shared counter per client IP tallies both failed logins and failed registrations
+ * together; once it reaches the configured limit within the window, that IP is locked out of <em>both</em> logging in and registering.
  *
  * <p>
  * There is deliberately <strong>no per-account (email) dimension</strong>: keying a lockout on the submitted email lets an attacker deny service to a
