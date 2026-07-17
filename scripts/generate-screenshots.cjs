@@ -130,6 +130,23 @@ const pad = n => String(n).padStart(2, '0')
 
 // `base` minus `n` calendar days as a UTC `YYYY-MM-DD` string (n may be negative for future days).
 // Date.UTC normalises an out-of-range day-of-month, so this rolls correctly across month/year edges.
+//
+// UTC is deliberate, and safe ONLY because the whole pipeline agrees on UTC: the seed dates here, the
+// Playwright browser context (`timezoneId: 'UTC'`) and the seeded user's `timezone` preference (set to
+// 'UTC' below) all match the app's own "today". The app computes "today" — the highlighted calendar
+// cell (WebResource) and the future-date log guard (LogGuards) — via `clock.today(zoneFor(user.timezone))`,
+// which falls back to `app.timezone` = `${TZ:UTC}`; that resolves to UTC by default and in the Docker
+// `screenshots` stage (the app boots there with no TZ set), which is the path that produces the baked/
+// committed previews. So script-UTC == app-UTC == browser-UTC and every seeded day lands where intended.
+//
+// The one way this desyncs is running the generator against an app whose `app.timezone`/`TZ` is a
+// NON-UTC zone (e.g. a `dev-up.sh` box with `TZ` exported): the app's "today" becomes the local date
+// while the seed keeps using the UTC date, so near midnight the newest day (offset 0 = UTC today) can
+// be the app's "tomorrow". The increment API then 400s it as a future date and the seed silently skips
+// it (the POST response is intentionally not checked), leaving the highlighted "today" cell unseeded.
+// That only affects a manual non-UTC dev run — the CI/Docker previews are unaffected — so it is left
+// as-is; if it ever needs fixing, derive "today" from the app (the dashboard's `data-today` attribute)
+// rather than the local UTC instant.
 const dateMinusDays = (base, n) => {
   const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() - n))
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`

@@ -112,6 +112,20 @@ jobs:
             npx playwright install --with-deps
           fi
 
+      # Cache Grype's ~1.6GB vulnerability DB across runs. Locally the wrapper persists it in a named
+      # Docker volume (diurnal-grype-db); a fresh runner has no such volume, so Grype re-downloads the
+      # whole DB every run (3-5m). We point GRYPE_DB_CACHE_VOLUME at an absolute host path below so the
+      # `docker run -v` becomes a bind mount into this cached directory instead of a named volume.
+      # The DB updates ~daily; keying on run_id (with a date-prefixed restore-keys fallback) always
+      # restores the most recent copy so Grype only pulls the delta, and writes a fresh entry each run.
+      - name: Cache Grype vulnerability DB
+        uses: actions/cache@v6.1.0
+        with:
+          path: ~/.cache/grype-db
+          key: ${{ runner.os }}-grype-db-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-grype-db-
+
       # Executes the full gate one place.
       # Needs the host toolchain set up above: JDK+Maven, Node deps, Playwright, and Docker.
       - name: Run full test and lint gate
@@ -126,7 +140,17 @@ jobs:
           PERF_RATE: "5"
           PERF_VUS: "10"
           PERF_P95_TOLERANCE: "8"
+          # Absolute path => the wrapper's `docker run -v` bind-mounts this cached dir as Grype's DB
+          # cache (instead of the default named volume), so the actions/cache step above persists it.
+          GRYPE_DB_CACHE_VOLUME: /home/runner/.cache/grype-db
         run: .github/scripts/lint_and_tests.sh -v -e
+
+      # The Grype scanner runs as root, so the cached DB files are root-owned; hand them back to the
+      # runner user so actions/cache's post-job tar can read them when saving. `always()` so the cache
+      # is still saved (and the next run stays warm) even if the gate above failed.
+      - name: Fix Grype DB cache ownership
+        if: always()
+        run: sudo chown -R "$USER" /home/runner/.cache/grype-db || true
 
   # Always tag the release, publish a GitHub Release and bump the patch version for the next cycle.
   # The Docker image is built & pushed only for stable (>= 1.0.0) versions. Runs after `test` is green.
