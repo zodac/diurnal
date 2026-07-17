@@ -168,25 +168,16 @@ roughly **100–500 ms** on my hardware. For resource-constrained hardware, you 
 
 ### Login Throttling
 
-Failed login/registration attempts can be rate-limited with the below options. Lockouts are done per IP address, and trigger when the maximum attempts
-have been exceeded. When blocked, the API returns `429` (with a `Retry-After` header) and the login form shows a countdown. Durations
-are [ISO-8601](https://en.wikipedia.org/wiki/ISO_8601#Durations) (e.g. `PT5M` = 5 minutes, `PT1H` = 1 hour, `PT30S` = 30 seconds).
+Failed login and registration attempts are rate-limited per client IP address. Once an IP exceeds
+`AUTH_IP_THROTTLE_MAX_ATTEMPTS` failures within the `AUTH_IP_THROTTLE_LOCKOUT_DURATION` window, it is locked out of **both** logging in and
+registering. When blocked, the API returns `429` (with a `Retry-After` header). The IP comes from [`TRUST_X_FORWARDED_HEADERS`](#reverse-proxy).
+Durations are [ISO-8601](https://en.wikipedia.org/wiki/ISO_8601#Durations) (e.g. `PT5M` = 5 minutes, `PT1H` = 1 hour, `PT30S` = 30 seconds).
 
-| Variable                                  | Default | Description                                                  |
-|-------------------------------------------|---------|--------------------------------------------------------------|
-| `PASSWORD_AUTH_THROTTLE_ENABLED`          | `true`  | Set to `false` to disable per-account throttling             |
-| `PASSWORD_AUTH_THROTTLE_MAX_ATTEMPTS`     | `5`     | Consecutive failures for one account before it is locked out |
-| `PASSWORD_AUTH_THROTTLE_LOCKOUT_DURATION` | `PT5M`  | How long an account stays locked                             |
-
-**Per-IP** — locks a single client IP after too many failures across *any* accounts, slowing a single host that rotates through many accounts. The IP
-comes from the connection, honouring [`TRUST_X_FORWARDED_HEADERS`](#reverse-proxy), so this is only meaningful behind a trusted proxy. The default
-limit is higher than the per-account one because many users can share one IP (NAT/CGNAT).
-
-| Variable                                     | Default | Description                                                    |
-|----------------------------------------------|---------|----------------------------------------------------------------|
-| `PASSWORD_AUTH_IP_THROTTLE_ENABLED`          | `true`  | Set to `false` to disable per-IP throttling                    |
-| `PASSWORD_AUTH_IP_THROTTLE_MAX_ATTEMPTS`     | `15`    | Failures from one IP (across accounts) before it is locked out |
-| `PASSWORD_AUTH_IP_THROTTLE_LOCKOUT_DURATION` | `PT15M` | How long an IP stays locked                                    |
+| Variable                            | Default | Description                                  |
+|-------------------------------------|---------|----------------------------------------------|
+| `AUTH_IP_THROTTLE_ENABLED`          | `true`  | Set to `false` to disable throttling         |
+| `AUTH_IP_THROTTLE_MAX_ATTEMPTS`     | `15`    | Failures from one IP before it is locked out |
+| `AUTH_IP_THROTTLE_LOCKOUT_DURATION` | `PT15M` | How long an IP stays locked                  |
 
 ### Sessions
 
