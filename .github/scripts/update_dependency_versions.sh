@@ -6,9 +6,16 @@
 #                 - parent-pom version in pom.xml
 #                 - Java (major) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
 #                 - Maven (full) in pom.xml, Dockerfile, sandbox/Dockerfile, workflows
-#                 - Node (full/major) in Dockerfile, sandbox/Dockerfile
+#                 - Node (full/major), as ONE atomic "like" group kept in lockstep: Dockerfile
+#                   (css/icons -alpine + the screenshots stage's -trixie node source), sandbox/Dockerfile,
+#                   AND the workflows' setup-node node-version
+#                 - PostgreSQL image (within the current major) as ONE atomic group: the compose files
+#                   (postgres:X-alpine) and the Dockerfile screenshots stage (postgres:X, Debian variant)
+#                 - A final verify step HARD-FAILS if either group (node / postgres) has drifted apart
 #                 - npm packages in frontend/package.json + tests/package.json (exact pins, no ^/~ ranges),
 #                   regenerating each package-lock.json so `npm ci` stays in sync
+#                 - Debian packages in the main Dockerfile's screenshots stage (# BEGIN/END DEBIAN
+#                   PACKAGES block — cwebp, on the Postgres/Debian base)
 #                 - Docker image pins in .github/scripts/lint_and_tests.sh
 #                   (node when confirmed; hadolint + markdownlint-cli2 + shellcheck + grype best-effort)
 #                   Note: shellcheck installed as an apt/apk package instead (pinned in a
@@ -207,10 +214,14 @@ update_maven() {
 }
 
 # ── 3. Node ───────────────────────────────────────────────────────────────────
-# Updates: Dockerfile node stages (full version-alpine tag),
-#          sandbox/Dockerfile node source stage (full version-trixie tag).
-# Pre-condition: node:{version}-alpine (Dockerfile) AND node:{version}-trixie
-#                (sandbox/Dockerfile) both exist on Docker Hub.
+# Updates the WHOLE node "like" group to one version, atomically (all together, or — if the pre-condition
+# below fails — none): the Dockerfile node stages (css/icons -alpine + the screenshots stage's -trixie
+# source, Debian/glibc so Playwright's Chromium runs), the sandbox/Dockerfile node source stage, AND the
+# workflows' setup-node `node-version` (the CI toolchain node, kept identical to the image node). The
+# post-run verify_version_sync guard hard-fails if any of these ever drift apart.
+# Pre-condition: node:{version}-alpine AND node:{version}-trixie both exist on Docker Hub (the -trixie
+#                tag now backs both the Dockerfile screenshots source and the sandbox source). If either
+#                is missing the whole group is left unchanged, so it never half-updates.
 
 update_node() {
     echo
@@ -249,13 +260,91 @@ update_node() {
 
     # ── Apply ──────────────────────────────────────────────────────────────────
 
-    # Dockerfile: both node stages use the same alpine tag
+    # Dockerfile: the css + icons stages use the same alpine tag
     sed -i "s|FROM node:[0-9.]*-alpine|FROM node:${alpine_tag}|g" "${DOCKERFILE}"
+
+    # Dockerfile: the screenshots stage's node source uses the trixie (Debian/glibc) tag
+    sed -i "s|FROM node:[0-9.]*-trixie|FROM node:${trixie_tag}|g" "${DOCKERFILE}"
 
     # sandbox/Dockerfile: node source stage uses the trixie tag
     sed -i "s|FROM node:[0-9.]*-trixie|FROM node:${trixie_tag}|g" "${SANDBOX_DOCKERFILE}"
 
+    # All workflow files: the setup-node toolchain version (full), kept identical to the image node so
+    # the whole node group moves in lockstep.
+    for workflow in "${WORKFLOWS_DIR}"/*.yml; do
+        sed -i "s|node-version: '[0-9.]*'|node-version: '${latest_version}'|g" "${workflow}"
+    done
+
     ok "Node updated → ${latest_version} (major: ${latest_major})"
+}
+
+# ── 3a. PostgreSQL ─────────────────────────────────────────────────────────────
+# Updates the pinned Postgres image everywhere it appears — the runtime/dev/test/docs compose files
+# (postgres:X-alpine) AND the Dockerfile screenshots stage (postgres:X, the Debian variant used because
+# Playwright's Chromium needs glibc). Deliberately stays WITHIN the current major: a Postgres major
+# upgrade needs a manual data migration for existing deployments, so it is not automated here. Bumps to
+# the highest minor/patch whose -alpine (compose) AND Debian (Dockerfile) tags both exist. Best-effort.
+
+update_postgres() {
+    echo
+    echo "🔍 Fetching latest PostgreSQL version (within the current major)..."
+
+    local compose_files=(
+        "./docker-compose.yml" "./docker-compose.dev.yml" "./docs/docker-compose.example.yml"
+        "./tests/docker-compose.smoke.yml" "./tests/docker-compose.perf.yml"
+    )
+
+    # Current pinned version (major.minor) from the primary compose file.
+    local current major
+    current=$(grep -hoP 'postgres:\K[0-9]+\.[0-9]+(?=-alpine)' "./docker-compose.yml" 2>/dev/null | head -1)
+    if [[ -z "${current}" ]]; then
+        warn "No postgres:*-alpine pin found in docker-compose.yml, skipping"
+        return 0
+    fi
+    major="${current%%.*}"
+    echo "  Current: ${current} (major ${major})"
+
+    # Highest ${major}.x-alpine tag on Docker Hub (sorted semver-aware; API order is not guaranteed).
+    local latest
+    latest=$(curl_get "https://hub.docker.com/v2/repositories/library/postgres/tags?name=${major}.&page_size=100" \
+        | jq -r '.results[].name' \
+        | grep -E "^${major}\.[0-9]+-alpine$" \
+        | sed 's/-alpine$//' \
+        | sort -V | tail -1)
+    if [[ -z "${latest}" ]]; then
+        warn "Could not resolve latest postgres ${major}.x from Docker Hub, skipping"
+        return 0
+    fi
+
+    # Both variants must exist: -alpine (compose) and the plain Debian tag (Dockerfile screenshots stage).
+    if ! hub_tag_exists "library/postgres" "${latest}-alpine"; then
+        warn "postgres:${latest}-alpine not on Docker Hub, skipping"
+        return 0
+    fi
+    if ! hub_tag_exists "library/postgres" "${latest}"; then
+        warn "postgres:${latest} (Debian) not on Docker Hub, skipping"
+        return 0
+    fi
+    echo "  postgres:${latest}-alpine + postgres:${latest} confirmed on Docker Hub"
+
+    if [[ "${current}" == "${latest}" ]]; then
+        echo "  postgres=${latest} (already up-to-date)"
+    else
+        echo "  postgres: ${current} → ${latest}"
+    fi
+
+    # ── Apply ──────────────────────────────────────────────────────────────────
+    # Compose files: the -alpine pin.
+    local f
+    for f in "${compose_files[@]}"; do
+        [[ -f "${f}" ]] || continue
+        sed -i -E "s|postgres:[0-9]+\.[0-9]+-alpine|postgres:${latest}-alpine|g" "${f}"
+    done
+    # Dockerfile: the plain Debian tag in the screenshots stage FROM (require a following " AS " so the
+    # -alpine form is never matched).
+    sed -i -E "s|postgres:[0-9]+\.[0-9]+( +AS )|postgres:${latest}\1|g" "${DOCKERFILE}"
+
+    ok "PostgreSQL updated → ${latest}"
 }
 
 # ── 3b. lint_and_tests.sh Docker image pins ───────────────────────────────────
@@ -932,6 +1021,63 @@ update_github_actions() {
     ok "GitHub Actions updated in ${WORKFLOWS_DIR}"
 }
 
+# ── 9. Consistency guard: like-version groups must stay in sync ────────────────
+# Node (every node:X.Y.Z-<variant> across the Dockerfile + sandbox/Dockerfile, PLUS the workflows'
+# setup-node node-version) and Postgres (every postgres:X.Y across the compose files + the Dockerfile
+# screenshots stage) are each ONE logical version. update_node / update_postgres already move each whole
+# group together or not at all. This is the belt-and-braces check that they did NOT drift — a split
+# (e.g. the dev compose on a newer Postgres than the Dockerfile, or the CI node ahead of the image node)
+# is a broken, mismatched setup, so a divergence is a HARD failure, not a warning.
+
+verify_version_sync() {
+    echo
+    echo "🔍 Verifying node/postgres version groups are in sync..."
+    local failed=0
+
+    # ── Node: image tags (both Dockerfiles) + the workflow setup-node version ──
+    local node_versions node_count
+    node_versions=$(
+        {
+            grep -hoE 'node:[0-9]+\.[0-9]+\.[0-9]+' "${DOCKERFILE}" "${SANDBOX_DOCKERFILE}" | sed 's|node:||'
+            grep -rhoE "node-version: '[0-9]+\.[0-9]+\.[0-9]+'" "${WORKFLOWS_DIR}"/*.yml \
+                | grep -oE '[0-9]+\.[0-9]+\.[0-9]+'
+        } 2>/dev/null | sort -u
+    )
+    node_count=$(printf '%s\n' "${node_versions}" | grep -c . || true)
+    if [[ "${node_count}" -gt 1 ]]; then
+        warn "Node versions DIVERGED: $(printf '%s' "${node_versions}" | paste -sd',' - || true)"
+        failed=1
+    elif [[ "${node_count}" -eq 1 ]]; then
+        ok "Node in sync → ${node_versions}"
+    else
+        warn "No node:X.Y.Z pins found to verify"
+    fi
+
+    # ── Postgres: every postgres:X.Y across the compose files + the Dockerfile ──
+    local pg_files=() pg
+    for pg in ./docker-compose.yml ./docker-compose.dev.yml ./docs/docker-compose.example.yml \
+              ./tests/docker-compose.smoke.yml ./tests/docker-compose.perf.yml "${DOCKERFILE}"; do
+        [[ -f "${pg}" ]] && pg_files+=("${pg}")
+    done
+    local pg_versions pg_count
+    pg_versions=$(grep -hoE 'postgres:[0-9]+\.[0-9]+' "${pg_files[@]}" 2>/dev/null | sed 's|postgres:||' | sort -u)
+    pg_count=$(printf '%s\n' "${pg_versions}" | grep -c . || true)
+    if [[ "${pg_count}" -gt 1 ]]; then
+        warn "Postgres versions DIVERGED: $(printf '%s' "${pg_versions}" | paste -sd',' - || true)"
+        failed=1
+    elif [[ "${pg_count}" -eq 1 ]]; then
+        ok "Postgres in sync → ${pg_versions}"
+    else
+        warn "No postgres:X.Y pins found to verify"
+    fi
+
+    if [[ "${failed}" -ne 0 ]]; then
+        echo "❌ A version 'like' group diverged — it must move together or not at all. Fix before committing." >&2
+        exit 1
+    fi
+    ok "Version groups in sync"
+}
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 for f in "${DOCKERFILE}" "${SANDBOX_DOCKERFILE}" "${POM_XML}"; do
@@ -948,6 +1094,7 @@ update_parent_pom || warn "Parent POM update failed, continuing..."
 update_java       || warn "Java update failed, continuing..."
 update_maven      || warn "Maven update failed, continuing..."
 update_node       || warn "Node update failed, continuing..."
+update_postgres   || warn "PostgreSQL update failed, continuing..."
 
 # After java/maven/node: propagate the resolved (and confirmed) versions into the lint script.
 update_lint_script || warn "Lint script image update failed, continuing..."
@@ -958,11 +1105,16 @@ update_perf_script || warn "k6 image update failed, continuing..."
 update_npm_packages || warn "npm package update failed, continuing..."
 
 update_apt_packages "${DOCKERFILE}"         "UBUNTU" || warn "Ubuntu packages update failed for Dockerfile, continuing..."
+update_apt_packages "${DOCKERFILE}"         "DEBIAN" || warn "Debian packages update failed for Dockerfile, continuing..."
 update_apt_packages "${SANDBOX_DOCKERFILE}" "DEBIAN" || warn "Debian packages update failed for sandbox/Dockerfile, continuing..."
 update_alpine_packages "${DOCKERFILE}"              || warn "Alpine packages update failed for Dockerfile, continuing..."
 
 update_submodules      || warn "Submodules update failed, continuing..."
 update_github_actions  || warn "GitHub Actions update failed, continuing..."
+
+# Final guard (NOT best-effort): the node + postgres like-groups must not have drifted apart. A
+# divergence here means a broken/mismatched build, so this hard-fails the whole run.
+verify_version_sync
 
 echo
 echo "✅ Dependency version update complete."

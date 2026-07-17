@@ -527,6 +527,17 @@ manifest pair), `apple-touch-icon.png` (180px iOS), `manifest.json`.
 Theme, Calendar style, and Font pickers show real dashboard screenshots (via `partials/preview-option.html`). WebP files in
 `src/main/resources/META-INF/resources/img/settings/`, one viewport set (web).
 
+> **These 8 thumbnails are NOT committed — they are generated INSIDE the Docker build** (`.gitignore`d, like the compiled CSS
+> / vendored htmx). The Dockerfile's `screenshots` stage boots a throwaway Postgres + a `previewbuild` fast-jar + headless
+> Chromium and runs `scripts/generate-screenshots.cjs app` (via `scripts/run-screenshot-build.sh`) to capture them, then the
+> `build` stage copies them in and content-hashes them. So **any** `docker build` / `docker compose up --build` produces fresh
+> previews with nothing committed — no wrapper, no CI plumbing. The cost is a heavier build (extra app build + Postgres +
+> Chromium); the **smoke/perf** compose files pass the `GENERATE_PREVIEWS=false` build arg to skip the whole preview
+> toolchain (those tiers don't use the previews), and `hash-static-assets.sh` then skips them (`AppInfo.settingsImage` falls
+> back to the un-hashed `<base>.webp` name). A dev / `mvn package` run likewise has none — the `<img>` attribute is still
+> present (fallback name), the file just 404s locally. The committed README shots live under `docs/screenshots/` instead (see
+> below).
+
 **8 WebP files**, fixed per picker:
 
 - Theme: `page-nova-full-{system,light,dark}.webp`
@@ -542,7 +553,8 @@ Thumbnails use a fixed-ratio frame (`aspect-[3/4] sm:aspect-[3/2]` in `.preview-
 any future settings thumbnail through `partials/preview-thumb.html`.
 
 **Cache-busting (content-hashed, like CSS/JS).** These WebP files are **content-hashed at image-build time** (by
-`scripts/hash-static-assets.sh`) exactly like the `/css/`+`/js/` assets: each is renamed `<base>.<hash>.webp` and a
+`scripts/hash-static-assets.sh`, which now first asserts the generated thumbnails are present — see the uncommitted-artifact
+note above) exactly like the `/css/`+`/js/` assets: each is renamed `<base>.<hash>.webp` and a
 `base→hashed` map is baked into `microprofile-config.properties` (`app.assets.settings-images.<base>=…`).
 `AppConfig.settingsImages()` exposes that map; `AppInfo.settingsImage(base)` resolves it (falling back to the un-hashed
 `<base>.webp` when the map is empty — a non-Docker `mvn package`/dev run); `preview-thumb.html` emits
@@ -571,22 +583,28 @@ The two regexes are provably disjoint (`/img/*.svg`+`/img/settings/` vs `/img/*.
 asset:** add a `bake` line to `scripts/hash-static-assets.sh` + wire its `AppInfo` reference; to add one that can't be hashed,
 ensure it falls under an `app-static` alternative.
 
-**Regenerate when dashboard appearance changes:**
+**Regenerate screenshots — `scripts/generate-screenshots.cjs <mode>`** (needs a live dev server; `scripts/dev-up.sh`
+first, `scripts/dev-teardown.sh` after). There are **two independent sets**, split by mode — pick the one you mean:
 
 ```bash
 scripts/dev-up.sh
-node scripts/generate-settings-previews.cjs
+node scripts/generate-screenshots.cjs app             # the 8 in-app thumbnails (img/settings/, UNCOMMITTED)
+node scripts/generate-screenshots.cjs documentation   # the 9 README shots (docs/screenshots/, COMMITTED)
+node scripts/generate-screenshots.cjs all             # both (default)
 scripts/dev-teardown.sh
 ```
 
-> **"Generate fresh screenshots / images" ALWAYS means regenerate BOTH sets — never just one.** The single
-> `generate-settings-previews.cjs` run produces *all* committed screenshots from the same seeded demo account: the **8
-> Settings preview thumbnails** (`img/settings/`, listed above) AND the **4 README page screenshots**
-> (`docs/screenshots/{actions,stats,admin,settings}-dark.webp`). There is no separate command per set — running the
-> script above emits everything. So when asked to "generate fresh screenshots" (or "images"), run it once and expect
-> **all 12 WebP files** to be rewritten; review and commit the full set, not a subset. If some files come back
-> byte-identical that is fine (the change didn't affect that page), but never assume "images" means only the README
-> shots or only the Settings thumbnails — it means both.
+> **`app` vs `documentation` are NOT the same set and are refreshed on different cadences.**
+> - **`app`** → the **8** Settings preview thumbnails in `img/settings/` (Theme/Calendar/Font pickers, listed above).
+>   These are **uncommitted build artifacts** — you rarely run this by hand; the Docker build's `screenshots` stage runs
+>   `generate-screenshots.cjs app` for you (see the note under "Settings preview thumbnails"), so every image has current
+>   previews. Running it manually just writes them into the (gitignored) `img/settings/` for a local eyeball.
+> - **`documentation`** → the **9** committed README screenshots in `docs/screenshots/`: `dashboard-{system,dark,light}`,
+>   `cal-{minimal,stacked}-dark`, and `{actions,stats,admin,settings}-dark`. These are allowed to **lag**; regenerate and
+>   commit them manually when a README-visible page changes.
+>
+> So when asked to "regenerate the in-app previews" run `app`; to "update the README screenshots" run `documentation`; only
+> "regenerate everything" means `all`. Only the `documentation` (or `all`) output is committed — the `app` output is gitignored.
 
 ### Pagination
 

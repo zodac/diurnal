@@ -40,7 +40,7 @@ longest streaks, weekly averages, month-over-month trends, and more.
 
 <!-- markdownlint-disable MD013 MD033 -- centered dashboard screenshot: intentional inline HTML -->
 <p align="center">
-  <img src="src/main/resources/META-INF/resources/img/settings/page-nova-full-system.webp" alt="The Diurnal dashboard shown in both light and dark themes" width="600">
+  <img src="docs/screenshots/dashboard-system.webp" alt="The Diurnal dashboard shown in both light and dark themes" width="600">
 </p>
 <!-- markdownlint-enable MD013 MD033 -->
 
@@ -77,12 +77,12 @@ Expand the section below to view screenshots.
 
 <br>
 
-|                                                                                                                                                |                                                                                                                                                 |
-|------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------|
-| **Dashboard (dark)**<br><img src="src/main/resources/META-INF/resources/img/settings/page-nova-full-dark.webp" alt="Dashboard in dark mode">   | **Dashboard (light)**<br><img src="src/main/resources/META-INF/resources/img/settings/page-nova-full-light.webp" alt="Dashboard in light mode"> |
-| **Minimal Calendar**<br><img src="src/main/resources/META-INF/resources/img/settings/cal-nova-minimal-dark.webp" alt="Minimal calendar style"> | **Stacked Calendar**<br><img src="src/main/resources/META-INF/resources/img/settings/cal-nova-stacked-dark.webp" alt="Stacked calendar style">  |
-| **Actions**<br><img src="docs/screenshots/actions-dark.webp" alt="Actions page">                                                               | **Stats**<br><img src="docs/screenshots/stats-dark.webp" alt="Stats page">                                                                      |
-| **Administrator**<br><img src="docs/screenshots/admin-dark.webp" alt="Admin user-management page">                                             | **Settings**<br><img src="docs/screenshots/settings-dark.webp" alt="Settings page">                                                             |
+|                                                                                                         |                                                                                                          |
+|---------------------------------------------------------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| **Dashboard (dark)**<br><img src="docs/screenshots/dashboard-dark.webp" alt="Dashboard in dark mode">   | **Dashboard (light)**<br><img src="docs/screenshots/dashboard-light.webp" alt="Dashboard in light mode"> |
+| **Minimal Calendar**<br><img src="docs/screenshots/cal-minimal-dark.webp" alt="Minimal calendar style"> | **Stacked Calendar**<br><img src="docs/screenshots/cal-stacked-dark.webp" alt="Stacked calendar style">  |
+| **Actions**<br><img src="docs/screenshots/actions-dark.webp" alt="Actions page">                        | **Stats**<br><img src="docs/screenshots/stats-dark.webp" alt="Stats page">                               |
+| **Administrator**<br><img src="docs/screenshots/admin-dark.webp" alt="Admin user-management page">      | **Settings**<br><img src="docs/screenshots/settings-dark.webp" alt="Settings page">                      |
 
 </details>
 <!-- markdownlint-enable MD033 -->
@@ -168,12 +168,9 @@ roughly **100–500 ms** on my hardware. For resource-constrained hardware, you 
 
 ### Login Throttling
 
-Failed logins are rate-limited on two independent dimensions to slow password guessing. A login is blocked if **either** trips. When blocked, the API
-returns `429` (with a `Retry-After` header) and the login form shows a countdown; the response never reveals whether the account exists. All counters
-are held in memory (they reset on restart) and decay after a quiet window. Durations are [ISO-8601](https://en.wikipedia.org/wiki/ISO_8601#Durations)
-(e.g. `PT5M` = 5 minutes, `PT1H` = 1 hour, `PT30S` = 30 seconds).
-
-**Per-account** — locks a single email after too many consecutive failures, protecting a targeted account regardless of where the attempts come from.
+Failed login/registration attempts can be rate-limited with the below options. Lockouts are done per IP address, and trigger when the maximum attempts
+have been exceeded. When blocked, the API returns `429` (with a `Retry-After` header) and the login form shows a countdown. Durations
+are [ISO-8601](https://en.wikipedia.org/wiki/ISO_8601#Durations) (e.g. `PT5M` = 5 minutes, `PT1H` = 1 hour, `PT30S` = 30 seconds).
 
 | Variable                                  | Default | Description                                                  |
 |-------------------------------------------|---------|--------------------------------------------------------------|

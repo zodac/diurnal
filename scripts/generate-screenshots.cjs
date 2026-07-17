@@ -1,55 +1,59 @@
 #!/usr/bin/env node
 /* eslint-disable no-console -- CLI build script: progress output to the console is intended */
 /**
- * Regenerates two sets of committed screenshots, both from the same seeded demo account:
+ * Regenerates the project's screenshots from a seeded demo account. There are two independent sets,
+ * selected by the mode argument (see USAGE), that used to be produced together but are now split:
  *
- *   1. The Settings page preview thumbnails — the scaled-down dashboard screenshots shown for the
- *      Theme, Calendar-style, and Font pickers (see settings.html → partials/preview-option.html),
- *      written to src/main/resources/META-INF/resources/img/settings/.
- *   2. The README page screenshots (Actions / Stats / Admin / Settings), written to docs/screenshots/.
+ *   1. `app`           — the Settings-page preview thumbnails (Theme / Calendar-style / Font pickers,
+ *                        see settings.html -> partials/preview-option.html), written to
+ *                        src/main/resources/META-INF/resources/img/settings/. These are the LIVE in-app
+ *                        previews. They are NO LONGER COMMITTED: they are a build artifact, generated
+ *                        INSIDE the Docker build (the Dockerfile `screenshots` stage runs this in `app`
+ *                        mode via scripts/run-screenshot-build.sh) and baked into the image. A dev /
+ *                        `mvn package` run simply has no thumbnails.
+ *   2. `documentation` — the README screenshots, written to docs/screenshots/. These ARE committed and
+ *                        are allowed to lag: regenerate them manually when a page's appearance changes.
  *
  * WHEN TO RUN THIS
  * ----------------
- * These WebP files are committed assets. They are NOT rebuilt by the app or the Maven/Docker build —
- * they only change when you re-run this script. Re-run it whenever the relevant page's appearance
- * changes in a way the screenshots should reflect, e.g.:
- *   - the calendar (full / minimal / stacked) markup or styling changes,
- *   - the light/dark colour tokens or overall dashboard chrome change,
- *   - the navbar / day-panel / layout changes,
- *   - the Actions / Stats / Admin / Settings pages change (for the README shots).
- * Afterwards just review and commit the WebP files. Nothing else needs to change — settings.html and
- * the README reference the files by name.
+ *   - `app`: not by hand in the normal flow — the image build runs it for you. Run it manually only to
+ *     eyeball the thumbnails locally (they land in img/settings/, gitignored).
+ *   - `documentation`: whenever a README-visible page changes (dashboard/calendar styling, the
+ *     Actions / Stats / Admin / Settings pages, the light/dark tokens, navbar/day-panel/layout). Then
+ *     review and commit the WebP files under docs/screenshots/.
  *
  * WHAT IT PRODUCES
  * ----------------
- * Settings picker thumbnails — 8 WebP files (web/desktop viewport only), in img/settings/:
+ * `app` — 8 WebP files (web/desktop viewport) in img/settings/:
  *   page-nova-full-{light,dark,system}.webp       — Theme picker (Nova font, Full calendar)
  *   cal-nova-{full,minimal,stacked}-dark.webp      — Calendar picker (Nova font, dark)
  *   page-{nova,standard,dyslexic}-full-dark.webp   — Font picker (Full calendar, dark)
  *   (page-nova-full-dark is shared between the Theme-dark tile and the Font-nova tile.)
  *
- * README page screenshots — 4 WebP files, in docs/screenshots/, all captured in the SAME fixed
- * configuration (dark mode, Full calendar, Nova font, default stats order):
- *   {actions,stats,admin,settings}-dark.webp
+ * `documentation` — 9 WebP files in docs/screenshots/, all captured dark / Full / Nova unless noted:
+ *   dashboard-{system,dark,light}.webp             — dashboard banner + gallery (system = light/dark split)
+ *   cal-{minimal,stacked}-dark.webp                — the two extra calendar styles shown in the README
+ *   {actions,stats,admin,settings}-dark.webp       — the four page screenshots
  *
  * PREREQUISITES
  * -------------
  *   1. A running dev server (defaults to http://localhost:8081):
- *        docker compose -f docker-compose.dev.yml up -d dev-db
- *        mvn quarkus:dev
+ *        scripts/dev-up.sh          # brings up diurnal-db-dev + quarkus:dev on 8081
  *   2. Playwright's browser binaries (already installed for the e2e suite):
  *        cd tests && npx playwright install
  *
  * USAGE
  * -----
- *   node scripts/generate-settings-previews.cjs            # against http://localhost:8081
- *   BASE_URL=http://localhost:8080 node scripts/generate-settings-previews.cjs
+ *   node scripts/generate-screenshots.cjs app             # in-app thumbnails only  (no DB access needed)
+ *   node scripts/generate-screenshots.cjs documentation   # README screenshots only
+ *   node scripts/generate-screenshots.cjs all             # both (default)
+ *   BASE_URL=http://localhost:8080 node scripts/generate-screenshots.cjs app
  *
  * The script registers a dedicated demo user, seeds a fixed set of actions and logs over HTTP
  * (idempotent — safe to re-run), then drives a headless browser to capture each configuration. The
- * ONE exception to being HTTP-only: it connects to the dev DB (same config as tests/helpers/db.ts,
- * env-overridable) solely to grant the demo user the administrator role for the Admin-page shot —
- * there is no HTTP endpoint for that.
+ * ONE exception to being HTTP-only: `documentation`/`all` connect to the dev DB (same config as
+ * tests/helpers/db.ts, env-overridable) solely to grant the demo user the administrator role for the
+ * Admin-page shot — there is no HTTP endpoint for that. `app` mode never touches the DB.
  */
 const path = require('path')
 const fs = require('fs')
@@ -61,14 +65,26 @@ const { Client } = require(path.join(__dirname, '..', 'tests', 'node_modules', '
 
 
 const BASE = process.env.BASE_URL || 'http://localhost:8081'
+// In-app preview thumbnails — served, content-hashed assets baked into the image (uncommitted).
 const OUT = path.join(__dirname, '..', 'src', 'main', 'resources', 'META-INF', 'resources', 'img', 'settings')
-// README page screenshots (Actions / Stats / Admin / Settings) — NOT app-served assets, so they live
-// under docs/ rather than the packaged resources, keeping the Docker image lean.
+// README page screenshots — NOT app-served assets, so they live under docs/ (committed), keeping the
+// Docker image lean.
 const SHOTS = path.join(__dirname, '..', 'docs', 'screenshots')
 
-// Direct DB access, used ONLY to promote the demo user to an administrator for the Admin-page
-// screenshot (there is no HTTP endpoint to grant the admin role). Mirrors tests/helpers/db.ts — same
-// dev DB, same env overrides. Everything else in this script is still driven purely over HTTP.
+// Mode: which set(s) to generate. `app` = in-app thumbnails (OUT), `documentation` = README shots
+// (SHOTS), `all` = both. Default `all` for a full local regen.
+const MODE = (process.argv[2] || 'all').toLowerCase()
+if (!['app', 'documentation', 'all'].includes(MODE)) {
+  console.error(`Unknown mode "${MODE}". Use one of: app | documentation | all`)
+  process.exit(2)
+}
+const wantApp = MODE === 'app' || MODE === 'all'
+const wantDocs = MODE === 'documentation' || MODE === 'all'
+
+// Direct DB access, used ONLY (in documentation/all mode) to promote the demo user to an administrator
+// for the Admin-page screenshot (there is no HTTP endpoint to grant the admin role). Mirrors
+// tests/helpers/db.ts — same dev DB, same env overrides. Everything else in this script is driven
+// purely over HTTP.
 const DB_CONFIG = {
   host: process.env.TEST_DB_HOST || 'localhost',
   port: Number(process.env.TEST_DB_PORT || 5432),
@@ -102,7 +118,7 @@ const ACTIONS = [
 
 // Extra accounts registered only to populate the Admin-page user table so its screenshot shows a
 // realistic list (the demo user alone would be a one-row table). All plain 'user' role; the demo
-// user above is the sole administrator (promoted via the DB below).
+// user above is the sole administrator (promoted via the DB below). Only seeded in documentation/all.
 const ADMIN_DEMO_USERS = [
   { email: 'alex.rivera@diurnal.local',  password: 'preview_demo123', displayName: 'Alex Rivera' },
   { email: 'sam.chen@diurnal.local',     password: 'preview_demo123', displayName: 'Sam Chen' },
@@ -158,7 +174,7 @@ async function registerDemoUser(ctx) {
   // to register the first user until an account exists, so it can never claim the admin account. Once
   // this demo user exists the rest of the accounts can register via the API (see registerAdminDemoUsers).
   // Idempotent: on re-runs the account already exists, so the failure is expected and ignored.
-  await ctx.request.post(`${BASE  }/register`, {
+  await ctx.request.post(`${BASE}/register`, {
     form: { email: USER.email, displayName: USER.displayName, password: USER.password, confirmPassword: USER.password }
   }).catch(() => {})
 }
@@ -168,13 +184,13 @@ async function registerAdminDemoUsers(ctx) {
   const have = await existingEmails(ADMIN_DEMO_USERS.map(u => u.email))
   for (const user of ADMIN_DEMO_USERS) {
     if (have.has(user.email.toLowerCase())) {continue}
-    await ctx.request.post(`${BASE}/api/auth/register`, { data: user }).catch(() => {})
+    await ctx.request.post(`${BASE}/api/v1/auth/register`, { data: user }).catch(() => {})
   }
 }
 
 async function login(ctx) {
   const page = await ctx.newPage()
-  await page.goto(`${BASE  }/login`)
+  await page.goto(`${BASE}/login`)
   await page.fill('input[name="email"]', USER.email)
   await page.fill('input[name="password"]', USER.password)
   await Promise.all([page.waitForLoadState('networkidle'), page.click('button[type="submit"]')])
@@ -183,7 +199,7 @@ async function login(ctx) {
 
 // Map existing action name -> id by parsing the actions list (rows are `<tr id="action-{uuid}">`).
 async function existingActions(ctx) {
-  const html = await (await ctx.request.get(`${BASE  }/actions/list`)).text()
+  const html = await (await ctx.request.get(`${BASE}/internal/actions/list`)).text()
   const map = {}
   const re = /id="action-([0-9a-fA-F-]{36})"[\s\S]*?<span data-dt-view>([^<]+)<\/span>/g
   let m
@@ -193,7 +209,7 @@ async function existingActions(ctx) {
 
 async function ensureAction(ctx, existing, { name, colour }) {
   if (existing[name]) {return existing[name]}
-  const res = await ctx.request.post(`${BASE  }/actions`, { form: { name, colour } })
+  const res = await ctx.request.post(`${BASE}/internal/actions`, { form: { name, colour } })
   const id = (await res.text()).match(/id="action-([0-9a-fA-F-]{36})"/)
   if (!id) {throw new Error(`Could not create or locate action "${name}"`)}
   return id[1]
@@ -201,19 +217,23 @@ async function ensureAction(ctx, existing, { name, colour }) {
 
 // Keys (`date|colour`) for logs already present in [start, end), so re-runs don't inflate counts.
 async function existingLogKeys(ctx, start, end) {
-  const events = await (await ctx.request.get(`${BASE}/logs/events?start=${start}&end=${end}`)).json()
+  const events = await (await ctx.request.get(`${BASE}/api/v1/logs/events?start=${start}&end=${end}`)).json()
   return new Set(events.map(e => `${e.start}|${(e.backgroundColor || '').toLowerCase()}`))
 }
 
 async function seed(ctx) {
   await registerDemoUser(ctx)
-  await registerAdminDemoUsers(ctx)
-  await promoteDemoUserToAdmin()
+  if (wantDocs) {
+    // The Admin-page screenshot needs a populated user table and an admin session; app mode skips both
+    // (and so needs no DB access at all).
+    await registerAdminDemoUsers(ctx)
+    await promoteDemoUserToAdmin()
+  }
   await login(ctx)
 
   const now = new Date()
-  // The seed window: from the oldest offset through today (the /logs/events `end` is exclusive, so
-  // pass today + 1). Covers the whole range even when it straddles a month/year boundary.
+  // The seed window: from the oldest offset through today (the events `end` is exclusive, so pass
+  // today + 1). Covers the whole range even when it straddles a month/year boundary.
   const maxAgo = Math.max(...ACTIONS.flatMap(a => a.daysAgo))
   const existing = await existingActions(ctx)
   const have = await existingLogKeys(ctx, dateMinusDays(now, maxAgo), dateMinusDays(now, -1))
@@ -224,7 +244,7 @@ async function seed(ctx) {
       const date = dateMinusDays(now, daysAgo) // offsets are never future, so nothing is skipped
       if (have.has(`${date}|${action.colour.toLowerCase()}`)) {continue} // already logged
       for (let i = 0; i < action.count; i++) {
-        await ctx.request.post(`${BASE}/logs/${date}/${id}/increment`)
+        await ctx.request.post(`${BASE}/api/v1/logs/${date}/${id}/increment`)
       }
     }
   }
@@ -234,24 +254,21 @@ async function seed(ctx) {
 // ── Screenshot capture ───────────────────────────────────────────────────────────────────────────
 
 async function setPrefs(ctx, theme, calendarView, font = 'nova') {
-  // Preferences are updated one field at a time via dedicated PATCH endpoints (there is no longer a
-  // single POST /settings). Each expects a form-encoded body and returns 204.
-  const patch = async (endpoint, form) => {
-    const res = await ctx.request.fetch(`${BASE}/settings/${endpoint}`, { method: 'PATCH', form })
-    if (!res.ok()) {throw new Error(`setPrefs ${endpoint} failed: ${res.status()}`)}
-  }
-  await patch('theme', { theme })
-  await patch('font', { font })
-  await patch('calendar-view', { calendarView })
-  await patch('page-size', { pageSize: '10' })
-  await patch('timezone', { timezone: 'UTC' })
+  // Preferences are updated in one shot via the consolidated PATCH /internal/settings endpoint (a
+  // form-encoded body; returns 204). Only the fields this script cares about are sent — the resource
+  // treats absent fields as "keep".
+  const res = await ctx.request.fetch(`${BASE}/internal/settings`, {
+    method: 'PATCH',
+    form: { theme, font, calendarView, pageSize: '10', timezone: 'UTC' },
+  })
+  if (!res.ok()) {throw new Error(`setPrefs failed: ${res.status()}`)}
 }
 
 // Open the dashboard and wait until the chosen calendar style's activity markers are painted.
 // Caller closes the page.
 async function openDashboard(ctx, calendarView) {
   const page = await ctx.newPage()
-  await page.goto(`${BASE  }/`, { waitUntil: 'networkidle' })
+  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' })
   const sel = calendarView === 'full' ? '.d-full-event'
             : calendarView === 'stacked' ? '.d-stk-bar'
             : '.d-min-dot'
@@ -290,11 +307,11 @@ function pngSize(buf) {
 }
 
 // Theme preview: the WHOLE dashboard page (navbar, heading, calendar, day panel, stats) — fullPage
-// captures the entire scroll height, not just the viewport.
-// Returns the PNG buffer so captureSet can pass it to compositeSystem for compositing.
-async function shotFullPage(page, file) {
+// captures the entire scroll height, not just the viewport. Returns the PNG buffer so the caller can
+// pass it to compositeSystem for compositing.
+async function shotFullPage(page, dir, file) {
   const pngBuf = await page.screenshot({ fullPage: true })
-  fs.writeFileSync(path.join(OUT, file), pngToLosslessWebp(pngBuf))
+  fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf))
   console.log('wrote', file)
   return pngBuf // PNG for compositing — compositeSystem re-encodes the composite
 }
@@ -306,29 +323,29 @@ async function shotFullPage(page, file) {
 // theme (full-page) shots don't have. Shooting the wrap keeps the calendar flush to the edge, so both
 // pickers' full-size previews are framed identically. An element screenshot captures the whole element
 // even where it overflows the viewport, so it is never cut off.
-async function shotCalendar(page, file) {
+async function shotCalendar(page, dir, file) {
   const pngBuf = await page.locator('#calendar-wrap').screenshot()
-  fs.writeFileSync(path.join(OUT, file), pngToLosslessWebp(pngBuf))
+  fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf))
   console.log('wrote', file)
 }
 
-// README page screenshot: the WHOLE page in dark mode, written to docs/screenshots/ (not the served
-// img/settings/ assets). Waits for the page's key content to render before the full-page capture.
-async function shotReadmePage(ctx, url, waitSelector, file) {
+// Full page screenshot at a URL (whole page), written to `dir`. Waits for the page's key content to
+// render before the full-page capture.
+async function shotPage(ctx, url, waitSelector, dir, file) {
   const page = await ctx.newPage()
   await page.goto(`${BASE}${url}`, { waitUntil: 'networkidle' })
   await page.waitForSelector(waitSelector, { timeout: 15000 })
   await page.waitForTimeout(600) // settle fonts/layout
   const pngBuf = await page.screenshot({ fullPage: true })
-  fs.writeFileSync(path.join(SHOTS, file), pngToLosslessWebp(pngBuf))
-  console.log('wrote', path.join('docs', 'screenshots', file))
+  fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf))
+  console.log('wrote', file)
   await page.close()
 }
 
 // System theme = diagonal split of the light & dark dashboards (light upper-left, dark lower-right;
 // divider runs corner-to-corner top-right → bottom-left). Receives PNG buffers (captured by
 // shotFullPage) so no file reads are needed. The canvas matches the sources' actual pixel size.
-async function compositeSystem(browser, { lightBuf, darkBuf, out }) {
+async function compositeSystem(browser, { lightBuf, darkBuf, dir, out }) {
   const lightB64 = lightBuf.toString('base64')
   const darkB64  = darkBuf.toString('base64')
   const { w: PW, h: PH } = pngSize(lightBuf)
@@ -349,14 +366,14 @@ async function compositeSystem(browser, { lightBuf, darkBuf, out }) {
   await page.evaluate(() => Promise.all([...document.images].map(i => i.decode().catch(() => {}))))
   await page.waitForTimeout(200)
   const compositePng = await (await page.$('#cmp')).screenshot()
-  fs.writeFileSync(path.join(OUT, out), pngToLosslessWebp(compositePng))
+  fs.writeFileSync(path.join(dir, out), pngToLosslessWebp(compositePng))
   await ctx.close()
   console.log('wrote', out)
 }
 
-// ── Main ───────────────────────────────────────────────────────────────────────────────────────
+// ── Capture: in-app preview thumbnails (`app`) ─────────────────────────────────────────────────────
 
-// Capture all 7 images. Captures (in order):
+// Capture all 8 in-app thumbnails into OUT (img/settings/). Captures (in order):
 //   page-nova-full-light    — Theme-light tile
 //   page-nova-full-dark     — Theme-dark tile + Font-nova tile (shared image)
 //   cal-nova-full-dark      — Calendar-full tile
@@ -365,64 +382,102 @@ async function compositeSystem(browser, { lightBuf, darkBuf, out }) {
 //   page-standard-full-dark — Font-standard tile
 //   page-dyslexic-full-dark — Font-OpenDyslexic tile
 //   page-nova-full-system   — Theme-system tile (composite of light + dark PNGs)
-async function captureAll(ctx, browser) {
+async function captureAppPreviews(ctx, browser) {
   // Nova, full, light → Theme-light tile; store PNG for system composite
   await setPrefs(ctx, 'light', 'full', 'nova')
   const lightPage = await openDashboard(ctx, 'full')
-  const lightBuf = await shotFullPage(lightPage, 'page-nova-full-light.webp')
+  const lightBuf = await shotFullPage(lightPage, OUT, 'page-nova-full-light.webp')
   await lightPage.close()
 
   // Nova, full, dark → Theme-dark + Font-nova tiles; store PNG for system composite; cal-full-dark
   await setPrefs(ctx, 'dark', 'full', 'nova')
   const darkFullPage = await openDashboard(ctx, 'full')
-  const darkBuf = await shotFullPage(darkFullPage, 'page-nova-full-dark.webp')
-  await shotCalendar(darkFullPage, 'cal-nova-full-dark.webp')
+  const darkBuf = await shotFullPage(darkFullPage, OUT, 'page-nova-full-dark.webp')
+  await shotCalendar(darkFullPage, OUT, 'cal-nova-full-dark.webp')
   await darkFullPage.close()
 
   // Nova, minimal, dark → Calendar-minimal tile
   await setPrefs(ctx, 'dark', 'minimal', 'nova')
   const minPage = await openDashboard(ctx, 'minimal')
-  await shotCalendar(minPage, 'cal-nova-minimal-dark.webp')
+  await shotCalendar(minPage, OUT, 'cal-nova-minimal-dark.webp')
   await minPage.close()
 
   // Nova, stacked, dark → Calendar-stacked tile
   await setPrefs(ctx, 'dark', 'stacked', 'nova')
   const stkPage = await openDashboard(ctx, 'stacked')
-  await shotCalendar(stkPage, 'cal-nova-stacked-dark.webp')
+  await shotCalendar(stkPage, OUT, 'cal-nova-stacked-dark.webp')
   await stkPage.close()
 
   // Standard, full, dark → Font-standard tile
   await setPrefs(ctx, 'dark', 'full', 'standard')
   const stdPage = await openDashboard(ctx, 'full')
-  await shotFullPage(stdPage, 'page-standard-full-dark.webp')
+  await shotFullPage(stdPage, OUT, 'page-standard-full-dark.webp')
   await stdPage.close()
 
   // OpenDyslexic, full, dark → Font-dyslexic tile
   await setPrefs(ctx, 'dark', 'full', 'dyslexic')
   const dysPage = await openDashboard(ctx, 'full')
-  await shotFullPage(dysPage, 'page-dyslexic-full-dark.webp')
+  await shotFullPage(dysPage, OUT, 'page-dyslexic-full-dark.webp')
   await dysPage.close()
 
   // System composite (light upper-left, dark lower-right) → Theme-system tile
-  await compositeSystem(browser, { lightBuf, darkBuf, out: 'page-nova-full-system.webp' })
+  await compositeSystem(browser, { lightBuf, darkBuf, dir: OUT, out: 'page-nova-full-system.webp' })
 }
 
-// Capture the README page screenshots (docs/screenshots/) — Actions / Stats / Admin / Settings, all
-// in the same fixed configuration: dark mode, Full calendar, Nova font, default (uncustomised) stats
-// order. setPrefs pins theme/font/calendar; the demo user never customises statsFields, so the Stats
-// page renders every tile in its default declaration order.
-async function captureReadmePages(ctx) {
+// ── Capture: README documentation screenshots (`documentation`) ────────────────────────────────────
+
+// Capture the README screenshots into SHOTS (docs/screenshots/):
+//   dashboard-{system,dark,light}  — the banner + gallery dashboards (system = light/dark split)
+//   cal-{minimal,stacked}-dark     — the two extra calendar styles shown in the README gallery
+//   {actions,stats,admin,settings}-dark — the four page screenshots
+// All in one fixed configuration (dark / Full / Nova, default uncustomised stats order) except the
+// light + system dashboards which drive the Theme banner.
+async function captureDocsScreenshots(ctx, browser) {
+  // Nova, full, light → the light dashboard; store PNG for the system composite.
+  await setPrefs(ctx, 'light', 'full', 'nova')
+  const lightPage = await openDashboard(ctx, 'full')
+  const lightBuf = await shotFullPage(lightPage, SHOTS, 'dashboard-light.webp')
+  await lightPage.close()
+
+  // Nova, full, dark → the dark dashboard; store PNG for the system composite.
   await setPrefs(ctx, 'dark', 'full', 'nova')
-  await shotReadmePage(ctx, '/actions',     '#action-list .dt-row',   'actions-dark.webp')
-  await shotReadmePage(ctx, '/stats',       '#stats-list .card',      'stats-dark.webp')
-  await shotReadmePage(ctx, '/admin/users', '#admin-users-list .dt-table', 'admin-dark.webp')
-  await shotReadmePage(ctx, '/settings',    '#prefs-form',            'settings-dark.webp')
+  const darkPage = await openDashboard(ctx, 'full')
+  const darkBuf = await shotFullPage(darkPage, SHOTS, 'dashboard-dark.webp')
+  await darkPage.close()
+
+  // System composite (light upper-left, dark lower-right) → the README banner.
+  await compositeSystem(browser, { lightBuf, darkBuf, dir: SHOTS, out: 'dashboard-system.webp' })
+
+  // The two extra calendar styles the README shows.
+  await setPrefs(ctx, 'dark', 'minimal', 'nova')
+  const minPage = await openDashboard(ctx, 'minimal')
+  await shotCalendar(minPage, SHOTS, 'cal-minimal-dark.webp')
+  await minPage.close()
+
+  await setPrefs(ctx, 'dark', 'stacked', 'nova')
+  const stkPage = await openDashboard(ctx, 'stacked')
+  await shotCalendar(stkPage, SHOTS, 'cal-stacked-dark.webp')
+  await stkPage.close()
+
+  // The four page screenshots (dark / Full / Nova). setPrefs pins theme/font/calendar; the demo user
+  // never customises statsFields, so the Stats page renders every tile in its default order.
+  await setPrefs(ctx, 'dark', 'full', 'nova')
+  await shotPage(ctx, '/actions',     '#action-list .dt-row',        SHOTS, 'actions-dark.webp')
+  await shotPage(ctx, '/stats',       '#stats-list .card',           SHOTS, 'stats-dark.webp')
+  await shotPage(ctx, '/admin/users', '#admin-users-list .dt-table', SHOTS, 'admin-dark.webp')
+  await shotPage(ctx, '/settings',    '#prefs-form',                 SHOTS, 'settings-dark.webp')
 }
+
+// ── Main ───────────────────────────────────────────────────────────────────────────────────────
 
 (async () => {
-  fs.mkdirSync(OUT, { recursive: true })
-  fs.mkdirSync(SHOTS, { recursive: true })
-  const browser = await chromium.launch()
+  if (wantApp) {fs.mkdirSync(OUT, { recursive: true })}
+  if (wantDocs) {fs.mkdirSync(SHOTS, { recursive: true })}
+  // Extra Chromium flags via PW_CHROMIUM_ARGS (space-separated). Used by the in-image build
+  // (Dockerfile screenshots stage) to pass `--no-sandbox`, since Chromium refuses to run as root
+  // without it; a normal local run leaves it empty (sandbox on).
+  const launchArgs = (process.env.PW_CHROMIUM_ARGS || '').split(' ').filter(Boolean)
+  const browser = await chromium.launch({ args: launchArgs })
 
   const ctx = await browser.newContext({
     viewport: { width: VW, height: VH },
@@ -431,12 +486,13 @@ async function captureReadmePages(ctx) {
     colorScheme: 'light',
   })
   await seed(ctx)
-  await captureAll(ctx, browser)
-  await captureReadmePages(ctx)
+  if (wantApp) {await captureAppPreviews(ctx, browser)}
+  if (wantDocs) {await captureDocsScreenshots(ctx, browser)}
   await ctx.close()
 
   await browser.close()
 
   const rel = d => path.relative(path.join(__dirname, '..'), d)
-  console.log(`\nDone — review and commit the WebP files in\n  ${rel(OUT)}\n  ${rel(SHOTS)}`)
+  const dirs = [wantApp ? rel(OUT) : null, wantDocs ? rel(SHOTS) : null].filter(Boolean)
+  console.log(`\nDone (${MODE}) — WebP files written to\n  ${dirs.join('\n  ')}`)
 })().catch(e => { console.error(e); process.exit(1) })

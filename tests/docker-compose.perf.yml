@@ -17,6 +17,10 @@ services:
       # Context is the repo root (this file lives in tests/); the Dockerfile sits at that root.
       context: ..
       dockerfile: Dockerfile
+      args:
+        # The in-app preview thumbnails are generated inside the image build and the perf suite doesn't
+        # use them — skip the heavy generation (Postgres + Chromium + an extra app build).
+        GENERATE_PREVIEWS: "false"
     ports:
       # Host 8083 (!= 8080 production, != 8081 dev / IT / E2E, != 8082 smoke) so perf coexists with all.
       # Overridden by run-perf.sh via PERF_PORT.
