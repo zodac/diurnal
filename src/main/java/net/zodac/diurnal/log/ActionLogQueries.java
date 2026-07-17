@@ -62,11 +62,12 @@ final class ActionLogQueries {
 
     /**
      * JPQL producing a cheap change-signature for a user's log entries within the inclusive {@code [:from, :to]} date range: the row {@code COUNT}
-     * paired with the latest {@code updated_at}. The pair changes on any insert, update or delete in the range — a delete lowers the count even when
-     * it does not move the maximum — so it is a sound weak-ETag validator that never has to read the entries themselves.
+     * paired with the latest {@code updated_at}, projected into a typed {@link net.zodac.diurnal.http.ChangeSignature} (never a positional
+     * {@code Object[]}). The pair changes on any insert, update or delete in the range — a delete lowers the count even when it does not move the
+     * maximum — so it is a sound weak-ETag validator that never has to read the entries themselves.
      */
     static final String RANGE_VERSION_JPQL = """
-            SELECT COUNT(l), MAX(l.updatedAt)
+            SELECT new net.zodac.diurnal.http.ChangeSignature(COUNT(l), MAX(l.updatedAt))
             FROM ActionLog l
             WHERE l.userId = :userId AND l.logDate >= :from AND l.logDate <= :to""";
 
