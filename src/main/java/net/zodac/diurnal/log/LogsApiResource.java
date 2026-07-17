@@ -30,7 +30,10 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
 import java.util.List;
@@ -39,6 +42,7 @@ import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
@@ -87,11 +91,12 @@ public class LogsApiResource {
     @Inject LogService logService;
 
     /**
-     * Returns one calendar event per logged entry in the range.
+     * Returns one calendar event per logged entry in the range, or {@code 304} when the range is unchanged since the caller's ETag.
      *
-     * @param start inclusive start of the range (ISO-8601 date)
-     * @param end   inclusive end of the range (ISO-8601 date)
-     * @return the logged events in the range
+     * @param start   inclusive start of the range (ISO-8601 date)
+     * @param end     inclusive end of the range (ISO-8601 date)
+     * @param request the JAX-RS request, used to evaluate the {@code If-None-Match} conditional against the range's ETag
+     * @return the logged events in the range, or an empty {@code 304} response
      */
     @Compressed
     @GET
@@ -106,11 +111,13 @@ public class LogsApiResource {
         @APIResponse(responseCode = "200", description = "Logged events in the range (one entry per logged action per day).",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON,
                         schema = @Schema(type = SchemaType.ARRAY, implementation = CalendarEventDto.class))),
+        @APIResponse(responseCode = "304", description = "Not modified: the range is unchanged since the ETag in the 'If-None-Match' request "
+                + "header, so no body is returned."),
         @APIResponse(responseCode = "400",
                 description = "The 'start' or 'end' query parameter is missing or not a valid ISO-8601 date."),
         @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     })
-    public List<CalendarEventDto> events(
+    public Response events(
         @Parameter(name = "start", in = ParameterIn.QUERY, required = true,
         description = "Inclusive start of the range, as an ISO-8601 date (yyyy-MM-dd); only the date part is used.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-01"))
@@ -118,31 +125,44 @@ public class LogsApiResource {
         @Parameter(name = "end", in = ParameterIn.QUERY, required = true,
         description = "Inclusive end of the range, as an ISO-8601 date (yyyy-MM-dd); only the date part is used.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-30"))
-        @QueryParam("end") final String end) {
+        @QueryParam("end") final String end,
+        @Context final Request request) {
 
         final UUID userId = currentUser.get().id;
 
         final LocalDate startDate = DateRanges.requireDate("start", start);
         final LocalDate endDate   = DateRanges.requireDate("end", end);
 
+        // The response embeds each action's name/colour, so the validator folds in both the range's log signature
+        // and the user's action signature — a rename or recolour must invalidate an otherwise-unchanged range.
+        final EntityTag tag = EntityTags.weak(userId, startDate, endDate,
+            ActionLog.rangeVersion(userId, startDate, endDate), Action.userVersion(userId));
+        final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
+        if (notModified != null) {
+            return EntityTags.withPrivateValidator(notModified, tag).build();
+        }
+
         final Map<UUID, Action> actionMap = Action.<Action>list("userId = ?1", userId)
             .stream().collect(Collectors.toMap(a -> a.id, a -> a));
 
-        return ActionLog.findByUserAndRange(userId, startDate, endDate).stream()
-                .filter(log -> actionMap.containsKey(log.actionId))
-                .map(log -> {
-                    final Action a = Objects.requireNonNull(actionMap.get(log.actionId));
-                    final String title = log.count > 1 ? a.name + " ×" + log.count : a.name;
-                    return new CalendarEventDto(title, log.logDate.toString(), a.colour, a.colour);
-                })
-                .toList();
+        final List<CalendarEventDto> events = ActionLog.findByUserAndRange(userId, startDate, endDate).stream()
+            .filter(log -> actionMap.containsKey(log.actionId))
+            .map(log -> {
+                final Action a = Objects.requireNonNull(actionMap.get(log.actionId));
+                final String title = log.count > 1 ? a.name + " ×" + log.count : a.name;
+                return new CalendarEventDto(title, log.logDate.toString(), a.colour, a.colour);
+            })
+            .toList();
+        return EntityTags.withPrivateValidator(Response.ok(events), tag).build();
     }
 
     /**
-     * Returns one entry per action logged on the given day (actions without a log entry that day are omitted).
+     * Returns one entry per action logged on the given day (actions without a log entry that day are omitted), or {@code 304} when the day is
+     * unchanged since the caller's ETag.
      *
-     * @param date the day to read, as an ISO-8601 date
-     * @return the day's logged counts
+     * @param date    the day to read, as an ISO-8601 date
+     * @param request the JAX-RS request, used to evaluate the {@code If-None-Match} conditional against the day's ETag
+     * @return the day's logged counts, or an empty {@code 304} response
      */
     @GET
     @Path("/{date}")
@@ -155,25 +175,36 @@ public class LogsApiResource {
         @APIResponse(responseCode = "200", description = "The day's logged counts.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON,
                         schema = @Schema(type = SchemaType.ARRAY, implementation = DayLogEntryDto.class))),
+        @APIResponse(responseCode = "304", description = "Not modified: the day is unchanged since the ETag in the 'If-None-Match' request header, "
+                + "so no body is returned."),
         @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date."),
         @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     })
     public Response dayLogs(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to read, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
-        @PathParam("date") final String date) {
+        @PathParam("date") final String date,
+        @Context final Request request) {
         final User user = currentUser.get();
         final LocalDate day = DateRanges.requireDate("date", date);
 
+        // A single day is just a one-day range; the response embeds action name/colour, so fold in the action signature too.
+        final EntityTag tag = EntityTags.weak(user.id, day,
+            ActionLog.rangeVersion(user.id, day, day), Action.userVersion(user.id));
+        final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
+        if (notModified != null) {
+            return EntityTags.withPrivateValidator(notModified, tag).build();
+        }
+
         final Map<UUID, Integer> counts = ActionLog.countsByAction(user.id, day);
         if (counts.isEmpty()) {
-            return Response.ok(List.of()).build();
+            return EntityTags.withPrivateValidator(Response.ok(List.of()), tag).build();
         }
         final List<DayLogEntryDto> entries = Action.findByUserAndIds(user.id, counts.keySet()).stream()
             .map(a -> new DayLogEntryDto(a.id, a.name, a.colour, Objects.requireNonNull(counts.get(a.id))))
             .sorted(java.util.Comparator.comparing(DayLogEntryDto::name))
             .toList();
-        return Response.ok(entries).build();
+        return EntityTags.withPrivateValidator(Response.ok(entries), tag).build();
     }
 
     /**

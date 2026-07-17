@@ -30,12 +30,15 @@ import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 import net.zodac.diurnal.auth.ClientAddress;
 import net.zodac.diurnal.auth.PasswordChangeResult;
 import net.zodac.diurnal.auth.PasswordChangeService;
+import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -74,7 +77,10 @@ public class UserResource {
     RoutingContext routingContext;
 
     /**
-     * Returns the current user as a {@link UserDto} ({@code 200}), or {@code 404} if not found.
+     * Returns the current user as a {@link UserDto} ({@code 200}), {@code 304} when unchanged since the caller's ETag, or {@code 404} if not found.
+     *
+     * @param request the JAX-RS request, used to evaluate the {@code If-None-Match} conditional against the profile's ETag
+     * @return the authenticated user's profile, an empty {@code 304} response, or {@code 404}
      */
     @GET
     @Path("/me")
@@ -88,16 +94,27 @@ public class UserResource {
     @APIResponses({
         @APIResponse(responseCode = "200", description = "The authenticated user's profile.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = UserDto.class))),
+        @APIResponse(responseCode = "304", description = "Not modified: the profile is unchanged since the ETag in the 'If-None-Match' request "
+                + "header, so no body is returned."),
         @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
         @APIResponse(responseCode = "404", description = "The authenticated account no longer exists.")
     })
-    public Response me() {
+    public Response me(@Context final Request request) {
         // CurrentUser resolves the account from the SecurityIdentity built by session auth
         // (UserIdentities.of): the userId attribute is preferred, with the principal email as the
         // fallback. The Bearer credential is an opaque session token, not a JWT — there is no token
         // subject to read.
         return currentUser.find()
-                .map(u -> Response.ok(UserDto.from(u)).build())
+                .map(u -> {
+                    // The user row is already loaded, so its updatedAt (bumped on every profile/preference/role change) is a
+                    // free, exact validator — the conditional just skips building and serialising the DTO.
+                    final EntityTag tag = EntityTags.weak(u.id, u.updatedAt.toEpochMilli());
+                    final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
+                    if (notModified != null) {
+                        return EntityTags.withPrivateValidator(notModified, tag).build();
+                    }
+                    return EntityTags.withPrivateValidator(Response.ok(UserDto.from(u)), tag).build();
+                })
                 .orElse(Response.status(Response.Status.NOT_FOUND).build());
     }
 

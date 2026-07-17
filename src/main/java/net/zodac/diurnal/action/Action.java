@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.action;
 
+import io.quarkus.hibernate.orm.panache.Panache;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -72,6 +73,24 @@ public class Action extends PanacheEntityBase {
      */
     public static List<Action> findByUserAndIds(final UUID userId, final Collection<UUID> actionIds) {
         return list("userId = ?1 and id in ?2", userId, actionIds);
+    }
+
+    /**
+     * Returns a cheap change-signature for the user's actions — the row count paired with the latest {@code updatedAt} — used as an HTTP
+     * conditional-request (ETag) validator. Because the calendar feeds and day reads embed each action's name and colour, a rename, recolour,
+     * creation or deletion must invalidate those cached responses; folding this signature into their ETag ensures it does.
+     *
+     * @param userId the owning user
+     * @return an opaque {@code count:timestamp} signature that changes on any create, update or delete of the user's actions
+     */
+    public static String userVersion(final UUID userId) {
+        // NB: never hold Panache.getEntityManager() in a local — it is a container-managed
+        // EntityManager that must NOT be closed, but PMD's CloseResource rule would demand it.
+        final Object[] row = (Object[]) Panache.getEntityManager()
+            .createQuery("SELECT COUNT(a), MAX(a.updatedAt) FROM Action a WHERE a.userId = :userId")
+            .setParameter("userId", userId)
+            .getSingleResult();
+        return row[0] + ":" + row[1];
     }
 
     /**

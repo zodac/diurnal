@@ -26,8 +26,11 @@ OUT_DIR="${GEN_DIR}/src/main/resources/META-INF/resources/img/settings"
 export PGDATA=/tmp/pgdata
 
 # ── Postgres (throwaway; official-image binaries via initdb/pg_ctl) ────────────────────────────────
-PG_BIN="$(dirname "$(command -v initdb)")"
-echo "→ Initialising Postgres ($("${PG_BIN}/postgres" --version))…"
+initdb_path="$(command -v initdb)"
+PG_BIN="$(dirname "${initdb_path}")"
+
+postgres_version="$("${PG_BIN}/postgres" --version)"
+echo "→ Initialising Postgres (${postgres_version})…"
 install -d -o postgres -g postgres "${PGDATA}"
 # -A trust: local/host connections need no password (throwaway DB), so the app connects with the
 # datasource defaults unmodified.
