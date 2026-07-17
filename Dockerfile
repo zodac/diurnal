@@ -168,6 +168,9 @@ FROM screenshots AS previews-true
 FROM busybox:1.37.0-musl AS previews-false
 RUN mkdir -p /gen/src/main/resources/META-INF/resources/img/settings
 # GENERATE_PREVIEWS is the global ARG declared at the top of the file; it is usable directly in a FROM.
+# hadolint can't statically resolve the ARG-interpolated stage name to an internal stage alias, so it
+# mistakes it for an untagged external image (DL3006) — the two candidates are the tagged stages above.
+# hadolint ignore=DL3006
 FROM previews-${GENERATE_PREVIEWS} AS previews
 
 # ── Stage 7: build the Quarkus app ───────────────────────────────────────────

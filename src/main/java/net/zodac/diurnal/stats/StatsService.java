@@ -35,6 +35,8 @@ import java.util.Set;
 import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
+import net.zodac.diurnal.log.ActionPerformedDate;
+import net.zodac.diurnal.log.MonthlyActionTotal;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 
@@ -106,7 +108,7 @@ public class StatsService {
 
     private static List<ActionStats> assembleAll(final UUID userId, final List<Action> actions,
         final List<UUID> actionIds, final LocalDate today) {
-        final Map<UUID, List<MonthlyTotal>> monthly = groupMonthly(ActionLog.monthlyTotalsForActions(userId, actionIds));
+        final Map<UUID, List<MonthlyActionTotal>> monthly = groupMonthly(ActionLog.monthlyTotalsForActions(userId, actionIds));
         final Map<UUID, List<LocalDate>> dates = groupDates(ActionLog.distinctDatesForActions(userId, actionIds));
         return actions.stream()
                 .map(action -> assemble(action, monthly.getOrDefault(action.id, List.of()),
@@ -114,26 +116,24 @@ public class StatsService {
                 .toList();
     }
 
-    private static Map<UUID, List<MonthlyTotal>> groupMonthly(final List<Object[]> rows) {
-        final Map<UUID, List<MonthlyTotal>> byAction = new HashMap<>();
-        for (final Object[] row : rows) {
-            final MonthlyTotal total = new MonthlyTotal(
-                ((Number) row[1]).intValue(), ((Number) row[2]).intValue(), ((Number) row[3]).longValue());
-            byAction.computeIfAbsent((UUID) row[0], _ -> new ArrayList<>()).add(total);
+    private static Map<UUID, List<MonthlyActionTotal>> groupMonthly(final List<MonthlyActionTotal> rows) {
+        final Map<UUID, List<MonthlyActionTotal>> byAction = new HashMap<>();
+        for (final MonthlyActionTotal row : rows) {
+            byAction.computeIfAbsent(row.actionId(), _ -> new ArrayList<>()).add(row);
         }
         return byAction;
     }
 
-    private static Map<UUID, List<LocalDate>> groupDates(final List<Object[]> rows) {
+    private static Map<UUID, List<LocalDate>> groupDates(final List<ActionPerformedDate> rows) {
         // Rows arrive ordered by (action, date), so each action's list is ascending and distinct.
         final Map<UUID, List<LocalDate>> byAction = new HashMap<>();
-        for (final Object[] row : rows) {
-            byAction.computeIfAbsent((UUID) row[0], _ -> new ArrayList<>()).add((LocalDate) row[1]);
+        for (final ActionPerformedDate row : rows) {
+            byAction.computeIfAbsent(row.actionId(), _ -> new ArrayList<>()).add(row.date());
         }
         return byAction;
     }
 
-    private static ActionStats assemble(final Action action, final List<MonthlyTotal> monthlyTotals,
+    private static ActionStats assemble(final Action action, final List<MonthlyActionTotal> monthlyTotals,
         final List<LocalDate> sortedDates, final LocalDate today) {
         if (sortedDates.isEmpty()) {
             return new ActionStats(action, 0, 0L, null, null, 0, 0, 0,
@@ -147,7 +147,7 @@ public class StatsService {
         final Map<YearMonth, Long> byMonth = new HashMap<>();
         final Map<Integer, Long> byYear = new HashMap<>();
         long totalCount = 0L;
-        for (final MonthlyTotal monthlyTotal : monthlyTotals) {
+        for (final MonthlyActionTotal monthlyTotal : monthlyTotals) {
             byMonth.merge(YearMonth.of(monthlyTotal.year(), monthlyTotal.month()), monthlyTotal.total(), Long::sum);
             byYear.merge(monthlyTotal.year(), monthlyTotal.total(), Long::sum);
             totalCount += monthlyTotal.total();
@@ -176,10 +176,6 @@ public class StatsService {
                 bestYear  != null ? String.valueOf(bestYear.getKey()) : "—",
                 bestYear  != null ? bestYear.getValue() : 0L,
                 today);
-    }
-
-    private record MonthlyTotal(int year, int month, long total) {
-
     }
 
     /**

@@ -30,10 +30,14 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 import java.util.UUID;
+import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
@@ -73,7 +77,8 @@ public class ActionsApiResource {
      *
      * @param pageNum    the 1-based page to return
      * @param searchTerm the optional case-insensitive name filter
-     * @return the requested page of actions
+     * @param request    the JAX-RS request, used to evaluate the {@code If-None-Match} conditional against the page's ETag
+     * @return the requested page of actions, or an empty {@code 304} response
      */
     @GET
     @Transactional
@@ -85,6 +90,8 @@ public class ActionsApiResource {
     @APIResponses({
         @APIResponse(responseCode = "200", description = "The requested page of actions.",
             content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionPageDto.class))),
+        @APIResponse(responseCode = "304", description = "Not modified: the user's actions are unchanged since the ETag in the 'If-None-Match' "
+            + "request header, so no body is returned."),
         @APIResponse(responseCode = "400", description = "The requested page is out of range.",
             content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
         @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
@@ -93,8 +100,18 @@ public class ActionsApiResource {
         @Parameter(name = "page", in = ParameterIn.QUERY, description = "The 1-based page to return (default 1); out-of-range values are rejected.")
         @QueryParam("page") @DefaultValue("1") final int pageNum,
         @Parameter(name = "q", in = ParameterIn.QUERY, description = "Optional case-insensitive name filter.")
-        @QueryParam("q") @DefaultValue("") final String searchTerm) {
+        @QueryParam("q") @DefaultValue("") final String searchTerm,
+        @Context final Request request) {
         final User user = currentUser.get();
+
+        // The validator folds in the page, filter and page-size (all of which change the response) plus the user's action
+        // signature. It is computed before the page query so an unchanged listing can return 304 without building the page.
+        final EntityTag tag = EntityTags.weak(user.id, pageNum, searchTerm, user.pageSize, Action.userVersion(user.id));
+        final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
+        if (notModified != null) {
+            return EntityTags.withPrivateValidator(notModified, tag).build();
+        }
+
         final ActionsInternalResource.PaginatedActions page = ActionsInternalResource.getActions(user.id, pageNum, searchTerm, user.pageSize);
         // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range) so a
         // page number is never silently changed to some other page.
@@ -103,7 +120,7 @@ public class ActionsApiResource {
                 .entity(new ApiErrorResponse("Page " + pageNum + " is out of range"))
                 .build();
         }
-        return Response.ok(ActionPageDto.from(page)).build();
+        return EntityTags.withPrivateValidator(Response.ok(ActionPageDto.from(page)), tag).build();
     }
 
     /**

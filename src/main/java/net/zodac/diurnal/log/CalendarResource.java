@@ -25,7 +25,11 @@ import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Request;
+import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -36,6 +40,7 @@ import java.util.TreeMap;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 
@@ -63,22 +68,33 @@ public class CalendarResource {
     /**
      * Returns up to four coloured dots per day for the compact "minimal" calendar view (internal to the dashboard).
      *
-     * @param start inclusive start of the range (ISO-8601 date)
-     * @param end   inclusive end of the range (ISO-8601 date)
-     * @return one entry per day carrying up to four dots, sorted by date
+     * @param start   inclusive start of the range (ISO-8601 date)
+     * @param end     inclusive end of the range (ISO-8601 date)
+     * @param request the JAX-RS request, used to evaluate the {@code If-None-Match} conditional against the range's ETag
+     * @return one entry per day carrying up to four dots, sorted by date, or an empty {@code 304} response
      */
     @Compressed
     @GET
     @Path("/minimal-events")
     @Transactional
-    public List<MinimalCalendarDayDto> minimalEvents(
+    public Response minimalEvents(
         @QueryParam("start") final String start,
-        @QueryParam("end") final String end) {
+        @QueryParam("end") final String end,
+        @Context final Request request) {
 
         final UUID userId = currentUser.get().id;
 
         final LocalDate startDate = DateRanges.requireDate("start", start);
         final LocalDate endDate   = DateRanges.requireDate("end", end);
+
+        // Same validator as the public events feed: the dots carry each action's colour/name, so fold in the action
+        // signature too. The Cache-Control here is supplied by the html-pages filter (no-cache); only the ETag is added.
+        final EntityTag tag = EntityTags.weak(userId, startDate, endDate,
+            ActionLog.rangeVersion(userId, startDate, endDate), Action.userVersion(userId));
+        final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
+        if (notModified != null) {
+            return EntityTags.withValidator(notModified, tag).build();
+        }
 
         final Map<UUID, Action> actionMap = Action.<Action>list("userId = ?1", userId)
             .stream().collect(Collectors.toMap(a -> a.id, a -> a));
@@ -93,16 +109,17 @@ public class CalendarResource {
                           .add(new ActionDotDto(a.colour, a.name, log.count));
             });
 
-        return byDate.entrySet().stream()
-                .map(e -> {
-                    final List<ActionDotDto> sorted = e.getValue().stream()
-                        .sorted(Comparator.comparingInt(ActionDotDto::count).reversed()
-                        .thenComparing(ActionDotDto::name))
-                        .limit(MAX_DOTS_PER_DAY)
-                        .toList();
-                    return new MinimalCalendarDayDto(e.getKey(), sorted);
-                })
-                .toList();
+        final List<MinimalCalendarDayDto> days = byDate.entrySet().stream()
+            .map(e -> {
+                final List<ActionDotDto> sorted = e.getValue().stream()
+                    .sorted(Comparator.comparingInt(ActionDotDto::count).reversed()
+                    .thenComparing(ActionDotDto::name))
+                    .limit(MAX_DOTS_PER_DAY)
+                    .toList();
+                return new MinimalCalendarDayDto(e.getKey(), sorted);
+            })
+            .toList();
+        return EntityTags.withValidator(Response.ok(days), tag).build();
     }
 
     /**

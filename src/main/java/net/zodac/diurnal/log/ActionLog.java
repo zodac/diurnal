@@ -83,6 +83,26 @@ public class ActionLog extends PanacheEntityBase {
     }
 
     /**
+     * Returns a cheap change-signature for the user's log entries in the inclusive {@code [start, end]} date range — the row count paired with the
+     * latest {@code updatedAt} — used as an HTTP conditional-request (ETag) validator so an unchanged range can be answered with a {@code 304}
+     * without reading the entries. The signature changes on any insert, update or delete in the range (a delete lowers the count even when it does
+     * not move the maximum).
+     *
+     * @param userId the owning user
+     * @param start  the inclusive start of the date window
+     * @param end    the inclusive end of the date window
+     * @return an opaque {@code count:timestamp} signature ({@code count:null} when the range is empty)
+     */
+    public static String rangeVersion(final UUID userId, final LocalDate start, final LocalDate end) {
+        final Object[] row = (Object[]) Panache.getEntityManager().createQuery(ActionLogQueries.RANGE_VERSION_JPQL)
+            .setParameter("userId", userId)
+            .setParameter("from", start)
+            .setParameter("to", end)
+            .getSingleResult();
+        return row[0] + ":" + row[1];
+    }
+
+    /**
      * Returns the ids of the user's actions logged at least once within the inclusive {@code [from, to]} date range, ordered most-recently-performed
      * first (ties broken by action name, ascending) and capped at {@code limit}.
      *
@@ -100,15 +120,7 @@ public class ActionLog extends PanacheEntityBase {
         final int limit) {
         // NB: never hold Panache.getEntityManager() in a local — it is a container-managed
         // EntityManager that must NOT be closed, but PMD's CloseResource rule would demand it.
-        final List<?> rows = Panache.getEntityManager().createNativeQuery("""
-                SELECT al.action_id
-                FROM action_logs al
-                JOIN actions a ON a.id = al.action_id
-                WHERE al.user_id = :userId
-                  AND al.log_date >= :from AND al.log_date <= :to
-                GROUP BY al.action_id, a.name
-                ORDER BY MAX(al.log_date) DESC, a.name ASC
-                LIMIT :limit""")
+        final List<?> rows = Panache.getEntityManager().createNativeQuery(ActionLogQueries.MOST_RECENT_ACTIVE_ACTION_IDS_SQL)
             .setParameter("userId", userId)
             .setParameter("from", from)
             .setParameter("to", to)
@@ -118,40 +130,32 @@ public class ActionLog extends PanacheEntityBase {
     }
 
     /**
-     * Returns the per-month summed {@code count} for each of the given actions, as {@code [actionId (UUID), year (int), month (int), total (long)]}
-     * rows — the database-side monthly aggregation behind the Stats page. {@code actionIds} must be non-empty.
+     * Returns the per-month summed {@code count} for each of the given actions — the database-side monthly aggregation behind the Stats page.
+     * {@code actionIds} must be non-empty.
      *
      * @param userId the owning user (constrains the query to the indexed {@code (user_id, …)} prefix)
      * @param actionIds the actions to aggregate
-     * @return one row per {@code (action, calendar-month)} that has at least one log entry
+     * @return one {@link MonthlyActionTotal} per {@code (action, calendar-month)} that has at least one log entry
      */
-    public static List<Object[]> monthlyTotalsForActions(final UUID userId, final Collection<UUID> actionIds) {
+    public static List<MonthlyActionTotal> monthlyTotalsForActions(final UUID userId, final Collection<UUID> actionIds) {
         // NB: never hold Panache.getEntityManager() in a local — it is a container-managed
         // EntityManager that must NOT be closed, but PMD's CloseResource rule would demand it.
-        return Panache.getEntityManager().createQuery("""
-                SELECT l.actionId, YEAR(l.logDate), MONTH(l.logDate), SUM(l.count)
-                FROM ActionLog l
-                WHERE l.userId = :userId AND l.actionId IN (:actionIds)
-                GROUP BY l.actionId, YEAR(l.logDate), MONTH(l.logDate)""", Object[].class)
+        return Panache.getEntityManager().createQuery(ActionLogQueries.MONTHLY_TOTALS_JPQL, MonthlyActionTotal.class)
             .setParameter("userId", userId)
             .setParameter("actionIds", actionIds)
             .getResultList();
     }
 
     /**
-     * Returns the distinct performed dates for each of the given actions, as {@code [actionId (UUID), logDate (LocalDate)]} rows ordered by action
-     * then date — the minimal data needed to compute streaks and gaps. {@code actionIds} must be non-empty.
+     * Returns the distinct performed dates for each of the given actions, ordered by action then date — the minimal data needed to compute streaks
+     * and gaps. {@code actionIds} must be non-empty.
      *
      * @param userId the owning user (constrains the query to the indexed {@code (user_id, …)} prefix)
      * @param actionIds the actions whose performed dates to read
-     * @return one row per {@code (action, logged-day)}, ascending within each action
+     * @return one {@link ActionPerformedDate} per {@code (action, logged-day)}, ascending within each action
      */
-    public static List<Object[]> distinctDatesForActions(final UUID userId, final Collection<UUID> actionIds) {
-        return Panache.getEntityManager().createQuery("""
-                SELECT l.actionId, l.logDate
-                FROM ActionLog l
-                WHERE l.userId = :userId AND l.actionId IN (:actionIds)
-                ORDER BY l.actionId, l.logDate""", Object[].class)
+    public static List<ActionPerformedDate> distinctDatesForActions(final UUID userId, final Collection<UUID> actionIds) {
+        return Panache.getEntityManager().createQuery(ActionLogQueries.DISTINCT_DATES_JPQL, ActionPerformedDate.class)
             .setParameter("userId", userId)
             .setParameter("actionIds", actionIds)
             .getResultList();
@@ -202,11 +206,7 @@ public class ActionLog extends PanacheEntityBase {
     public static int incrementCount(final UUID userId, final UUID actionId, final LocalDate date, final int delta) {
         // NB: never hold Panache.getEntityManager() in a local — it is a container-managed
         // EntityManager that must NOT be closed, but PMD's CloseResource rule would demand it.
-        Panache.getEntityManager().createNativeQuery("""
-                INSERT INTO action_logs (id, user_id, action_id, log_date, count, created_at, updated_at)
-                VALUES (:id, :userId, :actionId, :date, LEAST(:delta, :max), :now, :now)
-                ON CONFLICT ON CONSTRAINT action_logs_unique
-                DO UPDATE SET count = LEAST(action_logs.count + LEAST(:delta, :max), :max), updated_at = :now""")
+        Panache.getEntityManager().createNativeQuery(ActionLogQueries.INCREMENT_UPSERT_SQL)
             .setParameter("id", UUID.randomUUID())
             .setParameter("userId", userId)
             .setParameter("actionId", actionId)
@@ -216,8 +216,7 @@ public class ActionLog extends PanacheEntityBase {
             .setParameter("now", Instant.now())
             .executeUpdate();
 
-        final Object current = Panache.getEntityManager().createNativeQuery(
-            "SELECT count FROM action_logs WHERE user_id = :userId AND action_id = :actionId AND log_date = :date")
+        final Object current = Panache.getEntityManager().createNativeQuery(ActionLogQueries.SELECT_COUNT_SQL)
             .setParameter("userId", userId)
             .setParameter("actionId", actionId)
             .setParameter("date", date)
@@ -237,11 +236,7 @@ public class ActionLog extends PanacheEntityBase {
      * @param count the exact count to store (must be {@code >= 1})
      */
     public static void setCount(final UUID userId, final UUID actionId, final LocalDate date, final int count) {
-        Panache.getEntityManager().createNativeQuery("""
-                INSERT INTO action_logs (id, user_id, action_id, log_date, count, created_at, updated_at)
-                VALUES (:id, :userId, :actionId, :date, :count, :now, :now)
-                ON CONFLICT ON CONSTRAINT action_logs_unique
-                DO UPDATE SET count = EXCLUDED.count, updated_at = :now""")
+        Panache.getEntityManager().createNativeQuery(ActionLogQueries.SET_COUNT_UPSERT_SQL)
             .setParameter("id", UUID.randomUUID())
             .setParameter("userId", userId)
             .setParameter("actionId", actionId)
@@ -258,8 +253,8 @@ public class ActionLog extends PanacheEntityBase {
      * <p>
      * The row is locked up front with {@code SELECT ... FOR UPDATE} and the update-or-delete decision is then made while that lock is held. This
      * serialises against a concurrent {@link #incrementCount} (whose {@code INSERT ... ON CONFLICT DO UPDATE} contends on the same row lock) in every
-     * case, including the boundary where the count is at or below {@code delta}: an increment cannot slip in between the decision and the delete to
-     * raise the count past the delete threshold and thereby lose the decrement. Under {@code READ COMMITTED} the second writer blocks on the lock
+     * case, including the boundary where the count is at or below {@code delta}: an increment cannot slip in between the decision and the delete call
+     * to raise the count past the delete threshold and thereby lose the decrement. Under {@code READ COMMITTED} the second writer blocks on the lock
      * and, once it commits, either re-applies over the fresh value (increment) or observes it here; if this method deletes the row, a blocked
      * increment re-runs its {@code ON CONFLICT} as a fresh insert. When the row does not exist there is nothing to lock or subtract, so the call is a
      * no-op returning {@code 0} (a concurrent increment may still create the row — a legitimate {@code +delta} from empty). {@code delta} must be at
@@ -272,10 +267,7 @@ public class ActionLog extends PanacheEntityBase {
      * @return the resulting count after the decrement, or {@code 0} if the row was removed or absent
      */
     public static int decrementCount(final UUID userId, final UUID actionId, final LocalDate date, final int delta) {
-        final List<?> locked = Panache.getEntityManager().createNativeQuery("""
-                SELECT count FROM action_logs
-                WHERE user_id = :userId AND action_id = :actionId AND log_date = :date
-                FOR UPDATE""")
+        final List<?> locked = Panache.getEntityManager().createNativeQuery(ActionLogQueries.SELECT_FOR_UPDATE_SQL)
             .setParameter("userId", userId)
             .setParameter("actionId", actionId)
             .setParameter("date", date)
@@ -287,13 +279,11 @@ public class ActionLog extends PanacheEntityBase {
             return 0;
         }
 
-        final int newCount = ((Number) locked.get(0)).intValue() - delta;
+        final int newCount = ((Number) locked.getFirst()).intValue() - delta;
 
         if (newCount <= 0) {
             // We still hold the FOR UPDATE lock, so no increment can raise the count before we delete.
-            Panache.getEntityManager().createNativeQuery("""
-                    DELETE FROM action_logs
-                    WHERE user_id = :userId AND action_id = :actionId AND log_date = :date""")
+            Panache.getEntityManager().createNativeQuery(ActionLogQueries.DELETE_ENTRY_SQL)
                 .setParameter("userId", userId)
                 .setParameter("actionId", actionId)
                 .setParameter("date", date)
@@ -301,10 +291,7 @@ public class ActionLog extends PanacheEntityBase {
             return 0;
         }
 
-        Panache.getEntityManager().createNativeQuery("""
-                UPDATE action_logs
-                SET count = :newCount, updated_at = :now
-                WHERE user_id = :userId AND action_id = :actionId AND log_date = :date""")
+        Panache.getEntityManager().createNativeQuery(ActionLogQueries.DECREMENT_UPDATE_SQL)
             .setParameter("newCount", newCount)
             .setParameter("userId", userId)
             .setParameter("actionId", actionId)
