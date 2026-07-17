@@ -335,6 +335,13 @@ parameter. Template-facing methods are annotated `@io.quarkus.qute.TemplateExten
 **When a record grows branching instance logic called by a template** (watch for `@SuppressWarnings("unused")`), move it to a `<Type>Extensions` class
 and add a unit test. Exceptions: pure-data records, factory methods (`from`/`of`), and static validators/sanitisers.
 
+> **Multi-column query projections MUST be a typed record via a JPQL `SELECT new <fqcn>(…)` constructor expression — NEVER a positional
+> `Object[]` tuple** (no `(Object[]) …getSingleResult()` / `.getResultList()` then `row[0]`/`row[1]` casting). The `Object[]` form is untyped,
+> re-orders silently, and needs manual casts; it was deliberately removed project-wide. Add a top-level record next to the query (see
+> `MonthlyActionTotal`, `ActionPerformedDate`, `http.ChangeSignature`), pass its class to `createQuery(jpql, X.class)`, and let a nullable component
+> (`@Nullable Instant`) carry a possibly-absent aggregate (`MAX(...)` over an empty set). Single-column scalar reads (a lone `COUNT`/id column) stay
+> as-is — this rule is about **multi-column** rows only.
+
 ### User-configurable Stats-page tiles (`ActionStatField`)
 
 The Stats page (`partials/stats-cards.html`) renders one tile per **enabled** stat, in the user's chosen order — the "Action stats"

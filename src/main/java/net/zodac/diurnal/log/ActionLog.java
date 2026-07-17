@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import net.zodac.diurnal.http.ChangeSignature;
 
 /**
  * A per-day tally of how many times an {@link net.zodac.diurnal.action.Action} was performed.
@@ -91,15 +92,14 @@ public class ActionLog extends PanacheEntityBase {
      * @param userId the owning user
      * @param start  the inclusive start of the date window
      * @param end    the inclusive end of the date window
-     * @return an opaque {@code count:timestamp} signature ({@code count:null} when the range is empty)
+     * @return the range's {@link ChangeSignature} (count {@code 0}, {@code null} timestamp when the range is empty)
      */
-    public static String rangeVersion(final UUID userId, final LocalDate start, final LocalDate end) {
-        final Object[] row = (Object[]) Panache.getEntityManager().createQuery(ActionLogQueries.RANGE_VERSION_JPQL)
+    public static ChangeSignature rangeVersion(final UUID userId, final LocalDate start, final LocalDate end) {
+        return Panache.getEntityManager().createQuery(ActionLogQueries.RANGE_VERSION_JPQL, ChangeSignature.class)
             .setParameter("userId", userId)
             .setParameter("from", start)
             .setParameter("to", end)
             .getSingleResult();
-        return row[0] + ":" + row[1];
     }
 
     /**

@@ -30,6 +30,7 @@ import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
+import net.zodac.diurnal.http.ChangeSignature;
 
 /**
  * A user-defined habit that can be tracked day-to-day; hard-deleted (along with its logs) when removed.
@@ -81,16 +82,16 @@ public class Action extends PanacheEntityBase {
      * creation or deletion must invalidate those cached responses; folding this signature into their ETag ensures it does.
      *
      * @param userId the owning user
-     * @return an opaque {@code count:timestamp} signature that changes on any create, update or delete of the user's actions
+     * @return the user's actions {@link ChangeSignature} that changes on any create, update or delete of the user's actions
      */
-    public static String userVersion(final UUID userId) {
+    public static ChangeSignature userVersion(final UUID userId) {
         // NB: never hold Panache.getEntityManager() in a local — it is a container-managed
         // EntityManager that must NOT be closed, but PMD's CloseResource rule would demand it.
-        final Object[] row = (Object[]) Panache.getEntityManager()
-            .createQuery("SELECT COUNT(a), MAX(a.updatedAt) FROM Action a WHERE a.userId = :userId")
+        return Panache.getEntityManager()
+            .createQuery("SELECT new net.zodac.diurnal.http.ChangeSignature(COUNT(a), MAX(a.updatedAt)) FROM Action a WHERE a.userId = :userId",
+                ChangeSignature.class)
             .setParameter("userId", userId)
             .getSingleResult();
-        return row[0] + ":" + row[1];
     }
 
     /**
