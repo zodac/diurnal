@@ -80,7 +80,9 @@ class CacheHeadersIT extends IntegrationTestBase {
         // partials/preview-thumb.html), so — like the CSS/JS — each gets a fresh URL only on a real change
         // and is cached a year as immutable via the single app-immutable filter (which owns /img/settings/
         // and /img/*.svg, disjoint from the raster /img/*.png handled by app-static). Here (test profile,
-        // no Docker rename) the un-hashed name is served, but under the same immutable filter.
+        // no Docker rename) the un-hashed name is served, but under the same immutable filter. The real
+        // thumbnails are uncommitted build artifacts (generated into the image), so this asserts against a
+        // tiny fixture at src/test/resources/META-INF/resources/img/settings/cal-nova-full-dark.webp.
         given().get("/img/settings/cal-nova-full-dark.webp")
                 .then().statusCode(200)
                 .header("Cache-Control", containsString("immutable"))

@@ -13,6 +13,11 @@ src/main/resources/META-INF/resources/css/app.css
 # css stage. The source of truth is the exact-pinned devDependency in frontend/package.json.
 src/main/resources/META-INF/resources/js/htmx.min.js
 
+# In-app Settings preview thumbnails — build artifacts generated INSIDE the Docker build (the
+# Dockerfile `screenshots` stage runs `scripts/generate-screenshots.cjs app`) and baked into the image.
+# Deliberately NOT committed so the shipped image always has current previews; a dev / `mvn package` run
+# simply has none. (The committed README shots live under docs/screenshots/.)
+src/main/resources/META-INF/resources/img/settings/*.webp
 
 # IDE
 .idea/

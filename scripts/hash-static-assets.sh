@@ -49,14 +49,22 @@ bake js/admin-api-docs.js app.assets.js-api-docs-file
 bake js/settings.js       app.assets.js-settings-file
 
 # Settings preview thumbnails — base-name-keyed map (AppConfig.settingsImages / AppInfo.settingsImage).
-bake img/settings/cal-nova-full-dark.webp      app.assets.settings-images.cal-nova-full-dark
-bake img/settings/cal-nova-minimal-dark.webp   app.assets.settings-images.cal-nova-minimal-dark
-bake img/settings/cal-nova-stacked-dark.webp   app.assets.settings-images.cal-nova-stacked-dark
-bake img/settings/page-dyslexic-full-dark.webp app.assets.settings-images.page-dyslexic-full-dark
-bake img/settings/page-nova-full-dark.webp     app.assets.settings-images.page-nova-full-dark
-bake img/settings/page-nova-full-light.webp    app.assets.settings-images.page-nova-full-light
-bake img/settings/page-nova-full-system.webp   app.assets.settings-images.page-nova-full-system
-bake img/settings/page-standard-full-dark.webp app.assets.settings-images.page-standard-full-dark
+# These are NOT committed: the image build generates them (the Dockerfile `screenshots` stage) and drops
+# them in via the `previews` stage just before this script runs. Bake them when present; when absent
+# (a GENERATE_PREVIEWS=false build — smoke/perf — copies an empty dir) simply skip them, and AppInfo
+# falls back to the un-hashed `<base>.webp` name at runtime.
+if [[ -f "${RES}/img/settings/page-nova-full-system.webp" ]]; then
+  bake img/settings/cal-nova-full-dark.webp      app.assets.settings-images.cal-nova-full-dark
+  bake img/settings/cal-nova-minimal-dark.webp   app.assets.settings-images.cal-nova-minimal-dark
+  bake img/settings/cal-nova-stacked-dark.webp   app.assets.settings-images.cal-nova-stacked-dark
+  bake img/settings/page-dyslexic-full-dark.webp app.assets.settings-images.page-dyslexic-full-dark
+  bake img/settings/page-nova-full-dark.webp     app.assets.settings-images.page-nova-full-dark
+  bake img/settings/page-nova-full-light.webp    app.assets.settings-images.page-nova-full-light
+  bake img/settings/page-nova-full-system.webp   app.assets.settings-images.page-nova-full-system
+  bake img/settings/page-standard-full-dark.webp app.assets.settings-images.page-standard-full-dark
+else
+  echo "ℹ settings preview thumbnails absent — skipping (a GENERATE_PREVIEWS=false build, e.g. smoke/perf)." >&2
+fi
 
 # Top-level vector marks — base-name-keyed map (AppConfig.hashedImages / AppInfo.image). footer-mark has
 # no current reference but is hashed too so every /img/*.svg is hashed (keeps the immutable filter exact).

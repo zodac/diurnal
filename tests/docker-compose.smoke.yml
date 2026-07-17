@@ -14,6 +14,10 @@ services:
       # Context is the repo root (this file lives in tests/); the Dockerfile sits at that root.
       context: ..
       dockerfile: Dockerfile
+      args:
+        # The in-app preview thumbnails are generated inside the image build and the smoke suite doesn't
+        # use them — skip the heavy generation (Postgres + Chromium + an extra app build).
+        GENERATE_PREVIEWS: "false"
     ports:
       # Host 8082 (!= 8080 production, != 8081 dev / IT / E2E) so smoke coexists with both.
       # Overridden by run-smoke.sh via SMOKE_PORT (Maven ${smoke.http.port}).
