@@ -75,7 +75,8 @@ public class AuthenticationService {
 
         final boolean credentialsValid;
         if (account.isPresent()) {
-            credentialsValid = passwords.matches(password, account.get().passwordHash);
+            // The filter above has already established a non-null stored hash.
+            credentialsValid = passwords.matches(password, java.util.Objects.requireNonNull(account.get().passwordHash));
         } else {
             // No stored hash to verify against. Spend the same time as a real check so a non-existent
             // account cannot be told apart from a wrong password by response time (user enumeration).
@@ -88,7 +89,7 @@ public class AuthenticationService {
             // IP's brute-force budget (see IpThrottle); it decays on its own after a quiet window.
             // Transparently upgrade a hash made under weaker Argon2id parameters to the current cost now
             // that we hold the verified plaintext.
-            if (passwords.needsRehash(user.passwordHash)) {
+            if (passwords.needsRehash(java.util.Objects.requireNonNull(user.passwordHash))) {
                 user.passwordHash = passwords.hash(password);
             }
             user.lastLoginAt = Instant.now();

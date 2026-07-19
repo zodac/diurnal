@@ -90,7 +90,7 @@ public class AppLifecycle {
     void validateAuthConfig() {
         if (!passwordAuthConfig.enabled() && !oidcEnabled) {
             throw new IllegalStateException(
-                "Both PASSWORD_AUTH_ENABLED and OIDC_ENABLED are false — "
+                "Both PASSWORD_AUTH_ENABLED and OIDC_ENABLED are false - "
                 + "at least one authentication method must be enabled.");
         }
 

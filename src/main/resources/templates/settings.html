@@ -13,6 +13,12 @@
             Manage your account preferences and appearance.
         </p>
 
+        {! One-shot status banner for the redirect-based account-link actions (connect/disconnect the
+             identity provider, remove password); the msg query param selects the text and variant. !}
+        {#if settingsMessage}
+        {#include partials/banner variant=settingsBannerVariant cls='mb-4' message=settingsMessage /}
+        {/if}
+
         {! Two-column settings layout (flex, not grid). On desktop the left column stacks Account
              (top) then Preferences (below); the taller Appearance picker card fills the right column.
              Flex columns (rather than a grid) let each column pack its cards flush from the top
@@ -218,11 +224,52 @@
                                 </div>
                             </form>
                         </div>
-                        {#else if isOidcUser}
-                        {! OIDC-only account: no password exists to view or change. !}
+                        {/if}
+                        {! OIDC-only accounts render no Password section at all — the Identity Provider
+                             section below already states the connection. !}
+
+                        {! Identity-provider connection. Linking is an explicit act from here — an OIDC
+                             login whose email merely matches an unlinked local account is refused (while
+                             password auth is enabled). Connecting is a ONE-WAY conversion: the password is
+                             removed in the same step and there is no disconnect, so the confirm warns
+                             about exactly that (in-place confirm idiom: destructive left, Cancel right). !}
+                        {#if oidcEnabled}
                         <div>
-                            <label class="field-label-caps">Password</label>
-                            <p class="text-sm text-ink-muted">User authentication is managed by {oidcProviderName}.</p>
+                            <label class="field-label-caps">Identity Provider</label>
+
+                            {#if isOidcUser}
+                            <div class="settings-field flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg">
+                                {! The provider name links to the IdP itself (OIDC_ISSUER_URL), brand-coloured
+                                     via link-brand — the same resting colour the Connect button had. !}
+                                <p class="text-sm text-ink-muted">Connected to
+                                    <a href="{oidcIssuerUrl}" target="_blank" rel="noopener noreferrer"
+                                       class="link-brand">{oidcProviderName}</a>.</p>
+                            </div>
+
+                            {#else}
+                            {! Any unlinked account: offer the explicit connect flow — deliberately NOT
+                                 gated on canChangePassword, which is false whenever PASSWORD_AUTH_ENABLED
+                                 is off and would hide the button from the very accounts migrating to OIDC.
+                                 Arming reveals the confirm (a plain POST — the server sets the one-shot
+                                 link-intent cookie and forwards into the code flow); the conversion
+                                 removes any password. !}
+                            <div id="oidc-connect-view"
+                                 class="settings-field flex items-center px-2 -mx-2 rounded-lg">
+                                <button type="button" id="oidc-connect-arm-btn"
+                                        class="dt-btn-connect">Connect to {oidcProviderName}</button>
+                            </div>
+
+                            <form id="oidc-connect-confirm"
+                                  method="post" action="/internal/settings/oidc/connect"
+                                  class="hidden settings-field settings-field-confirm flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg">
+                                <span class="text-sm text-ink-muted">Sign in with {oidcProviderName} only from now on? Your password will be removed.</span>
+                                <div class="dt-actions">
+                                    <button type="submit" class="dt-btn dt-btn-danger">Connect</button>
+                                    <button type="button" id="oidc-connect-cancel-btn"
+                                            class="dt-btn dt-btn-cancel">Cancel</button>
+                                </div>
+                            </form>
+                            {/if}
                         </div>
                         {/if}
 

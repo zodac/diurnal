@@ -129,7 +129,7 @@ public class AuthResource {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         if (User.count() == 0) {
-            LOGGER.warn("Refusing API registration before the initial account exists — it must be created via the setup page");
+            LOGGER.warn("Refusing API registration before the initial account exists - it must be created via the setup page");
             return Response.status(Response.Status.FORBIDDEN)
                     .entity(new ErrorResponse(SETUP_REQUIRED_MESSAGE))
                     .build();

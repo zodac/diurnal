@@ -32,11 +32,12 @@ import net.zodac.diurnal.user.User;
  * @param email the user's email
  * @param displayName the user's display name
  * @param role the user's role
+ * @param authSource the account's sign-in source(s) ({@code local} / {@code oidc} / {@code local+oidc})
  * @param createdLabel the formatted account-creation timestamp
  * @param lastLoginLabel the formatted last-login timestamp, or "Never"
  * @param zoneLabel the id of the timezone the timestamps are rendered in (shown as a tooltip)
  */
-public record UserRow(UUID id, String email, String displayName, String role,
+public record UserRow(UUID id, String email, String displayName, String role, String authSource,
     String createdLabel, String lastLoginLabel, String zoneLabel) {
 
     /**
@@ -49,7 +50,7 @@ public record UserRow(UUID id, String email, String displayName, String role,
      */
     static UserRow of(final User u, final DateTimeFormatter fmt, final String zoneLabel) {
         return new UserRow(
-                u.id, u.email, u.displayName, u.role,
+                u.id, u.email, u.displayName, u.role, u.authSource(),
                 fmt.format(u.createdAt),
                 u.lastLoginAt != null ? fmt.format(u.lastLoginAt) : "Never",
                 zoneLabel);

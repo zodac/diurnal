@@ -106,7 +106,7 @@ class FirstUserCreationBlockedIT extends IntegrationTestBase {
     void oidcProvisioning_firstRun_isRefusedAndCreatesNoUser() {
         final JsonObject claims = oidcClaims("oidc-first@example.com", "OIDC First");
 
-        assertThatThrownBy(() -> oidcUserProvisioner.linkOrCreate(claims, new IdTokenCredential("dummy.token")))
+        assertThatThrownBy(() -> oidcUserProvisioner.linkOrCreate(claims, new IdTokenCredential("dummy.token"), null))
             .as("OIDC must not provision the initial account while local auth is available")
             .isInstanceOf(AuthenticationFailedException.class);
 
@@ -124,7 +124,7 @@ class FirstUserCreationBlockedIT extends IntegrationTestBase {
         // and derive the role it must map to from the same config the provisioner uses.
         final List<String> groups = authorisingGroup().map(List::of).orElseGet(List::of);
         final JsonObject claims = oidcClaims("oidc-user@example.com", "OIDC User").put("groups", groups);
-        final SecurityIdentity identity = oidcUserProvisioner.linkOrCreate(claims, new IdTokenCredential("dummy.token"));
+        final SecurityIdentity identity = oidcUserProvisioner.linkOrCreate(claims, new IdTokenCredential("dummy.token"), null);
 
         assertThat(identity.getPrincipal().getName())
             .as("The provisioned identity is normalised to the user's email")

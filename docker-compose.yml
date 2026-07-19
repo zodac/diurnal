@@ -32,7 +32,7 @@ services:
       # (needed for https:// OIDC redirect URIs and Secure cookies). Disabled by default in
       # application.properties — only safe because a trusted proxy fronts the app here.
       TRUST_X_FORWARDED_HEADERS: ${TRUST_X_FORWARDED_HEADERS:-true}
-      PASSWORD_AUTH_ENABLED: "true"
+      PASSWORD_AUTH_ENABLED: ${PASSWORD_AUTH_ENABLED:-true}
       ENABLE_REGISTRATION: ${ENABLE_REGISTRATION:-true}
       # Sessions are server-side (the sessions table); tune the lifetimes if desired (ISO-8601):
       SESSION_IDLE_TIMEOUT: ${SESSION_IDLE_TIMEOUT:-P30D}

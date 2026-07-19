@@ -171,14 +171,15 @@ public class UserResource {
     @Operation(
         summary = "Change the current user's password",
         description = "Changes the password after verifying the current one, then revokes every OTHER session for the account (web and API alike); "
-        + "the calling token stays signed in. Rejected for OIDC-only accounts and deployments without password authentication.")
+        + "the calling token stays signed in. Rejected for accounts holding no password (OIDC-only accounts) — but works regardless of whether "
+        + "password LOGIN is enabled, so a break-glass administrator can maintain its credential.")
     @SecurityRequirement(name = "BearerAuth")
     @APIResponses({
         @APIResponse(responseCode = "204", description = "The password was changed and every other session revoked."),
         @APIResponse(responseCode = "400", description = "The current password is incorrect, or the new password is missing or too long.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
         @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "403", description = "The account is OIDC-only, or password authentication is disabled.")
+        @APIResponse(responseCode = "403", description = "The account holds no password to change (OIDC-only sign-in).")
     })
     public Response changePassword(
         final @Nullable ChangePasswordRequest request,

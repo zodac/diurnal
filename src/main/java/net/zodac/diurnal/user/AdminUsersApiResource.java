@@ -227,6 +227,7 @@ public class AdminUsersApiResource {
      * @param email       the account's email
      * @param displayName the account's display name
      * @param role        the account's role
+     * @param authSource  the account's sign-in source(s)
      * @param createdAt   when the account was created
      * @param lastLoginAt when the account last logged in, or {@code null} if never
      */
@@ -236,6 +237,8 @@ public class AdminUsersApiResource {
         @Schema(examples = "ada@example.com", description = "Email address of the account.") String email,
         @Schema(examples = "Ada Lovelace", description = "Human-readable name shown in the UI.") String displayName,
         @Schema(examples = Role.Values.USER, description = "The account's role: 'user' or 'admin'.") String role,
+        @Schema(examples = "local", description = "How the account signs in: 'local' (password), 'oidc' (identity provider) or 'local+oidc' (both).")
+        String authSource,
         @Schema(examples = "2026-01-03T09:15:00Z", description = "When the account was created (ISO-8601 instant).") Instant createdAt,
         @Schema(examples = "2026-06-15T07:30:00Z", description = "When the account last logged in (ISO-8601 instant); null if never.")
         @Nullable Instant lastLoginAt) {
@@ -247,7 +250,7 @@ public class AdminUsersApiResource {
          * @return the DTO
          */
         public static AdminUserDto from(final User user) {
-            return new AdminUserDto(user.id, user.email, user.displayName, user.role, user.createdAt, user.lastLoginAt);
+            return new AdminUserDto(user.id, user.email, user.displayName, user.role, user.authSource(), user.createdAt, user.lastLoginAt);
         }
     }
 

@@ -346,6 +346,11 @@
                         <!-- Quarkus's logging backend is JBoss LogManager; the test JVM must install it before JUL inits (log4j-core is not a JUL LogManager, so it can't substitute). -->
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
+                        <!-- SmallRye Config reads the repo-root .env at HIGHER priority than the bundled %test profile, so a deployer flipping
+                             PASSWORD_AUTH_ENABLED/ENABLE_REGISTRATION there would silently fail the whole auth suite. System properties outrank
+                             .env, pinning the defaults the tests assume; a QuarkusTestProfile still overrides them for its own keys. -->
+                        <password.auth.enabled>true</password.auth.enabled>
+                        <registration.enabled>true</registration.enabled>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
@@ -479,6 +484,9 @@
                                         <!-- Quarkus's logging backend is JBoss LogManager; the test JVM must install it before JUL inits (log4j-core is not a JUL LogManager, so it can't substitute). -->
                                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                                         <maven.home>${maven.home}</maven.home>
+                                        <!-- Same .env-immunity pin as the surefire block above (see the comment there). -->
+                                        <password.auth.enabled>true</password.auth.enabled>
+                                        <registration.enabled>true</registration.enabled>
                                     </systemPropertyVariables>
                                 </configuration>
                             </execution>
