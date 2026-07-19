@@ -49,6 +49,8 @@ import net.zodac.diurnal.auth.AuthenticationService;
 import net.zodac.diurnal.auth.ClientAddress;
 import net.zodac.diurnal.auth.LockoutMessages;
 import net.zodac.diurnal.auth.LoginResult;
+import net.zodac.diurnal.auth.OidcDenialReason;
+import net.zodac.diurnal.auth.OidcUserProvisioner;
 import net.zodac.diurnal.auth.PasswordChangeResult;
 import net.zodac.diurnal.auth.PasswordChangeService;
 import net.zodac.diurnal.auth.PasswordConstraints;
@@ -98,6 +100,12 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     private static final String LOCKOUT_COOKIE = "diurnal_login_lockout";
     private static final int LOCKOUT_COOKIE_MAX_AGE_SECONDS = 30;
 
+    // The Settings "Connect {provider}" intent marker only needs to survive the round trip to the IdP.
+    private static final int LINK_INTENT_COOKIE_MAX_AGE_SECONDS = 300;
+
+    // The ?msg= code for a successful connect round trip (failure codes are OidcDenialReason codes).
+    private static final String MSG_OIDC_CONNECTED = "oidc-connected";
+
     @Inject
     @Location("login")
     Template loginTemplate;
@@ -145,6 +153,11 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @ConfigProperty(name = "quarkus.oidc.tenant-enabled", defaultValue = "false")
     boolean oidcEnabled;
 
+    // The IdP's base URL (OIDC_ISSUER_URL): the Settings "Connected to {provider}" text links the provider name to it.
+    // Initialised to satisfy NullAway; CDI overwrites it with the config value on bean creation.
+    @ConfigProperty(name = "quarkus.oidc.auth-server-url", defaultValue = "")
+    String oidcIssuerUrl = "";
+
     @Inject
     OidcConfig oidcConfig;
 
@@ -169,13 +182,15 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     public Response loginPage(
         @QueryParam("error")      final String error,
         @QueryParam("registered") @DefaultValue("false") final boolean registered,
-        @CookieParam(LOCKOUT_COOKIE) final String lockoutCookie) {
+        @CookieParam(LOCKOUT_COOKIE) final String lockoutCookie,
+        @CookieParam(OidcUserProvisioner.ERROR_COOKIE) final String oidcErrorCookie) {
         // First run: no users exist yet. Send the deployer to the setup landing page to create the
         // initial local account, and short-circuit any OIDC auto-redirect below — the first account
-        // must be local. During set up the initial account can always be created (ENABLE_REGISTRATION
-        // is ignored until a user exists), so this is gated only on password auth being enabled; a
-        // pure-OIDC deployment (no local auth) falls through to the normal login/OIDC flow.
-        if (setupRequired() && passwordAuthConfig.enabled()) {
+        // must ALWAYS be local, even in a pure-OIDC deployment (PASSWORD_AUTH_ENABLED=false): that
+        // initial administrator is the sysops break-glass credential should the IdP be unavailable.
+        // During setup the local registration is always usable (both ENABLE_REGISTRATION and
+        // PASSWORD_AUTH_ENABLED are ignored until a user exists).
+        if (setupRequired()) {
             return Response.seeOther(URI.create("/welcome")).build();
         }
         // Auto-redirect to OIDC flow when configured, but not when there is an error or
@@ -200,12 +215,18 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         final boolean showLocked = lockoutCookie != null;
         final Duration lockoutRemaining = lockoutRemaining(lockoutCookie);
         final boolean showError = error != null && !"false".equals(error) && !showOidcError && !showLocked;
+        // A refused OIDC login carries its reason code in the short-lived cookie set by OidcUserProvisioner (the code-flow failure redirect
+        // cannot carry it); an unknown/absent code falls back to the generic banner text.
+        final String oidcErrorMessage = OidcDenialReason.fromCode(oidcErrorCookie)
+            .map(reason -> reason.message(oidcConfig.providerName()))
+            .orElse("You are not authorized to access this application. Contact your administrator.");
         final Response.ResponseBuilder builder = Response.ok(loginTemplate
             .data("error", showError, "registered", registered, "theme", Theme.DEFAULT.value())
             .data("font", Font.DEFAULT.value())
             .data("locked", showLocked)
             .data("lockedMessage", LockoutMessages.retryMessage(lockoutRemaining))
             .data("oidcError", showOidcError)
+            .data("oidcErrorMessage", oidcErrorMessage)
             .data("passwordAuthEnabled", passwordAuthConfig.enabled())
             .data("registrationEnabled", passwordAuthConfig.enabled() && registrationConfig.enabled())
             .data("oidcEnabled", oidcEnabled)
@@ -215,6 +236,12 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
             // Clear the stale OIDC session cookie so the next "Log in with Authelia" click
             // starts a fresh code flow instead of retrying the same failed session.
             builder.cookie(new NewCookie.Builder("q_session").value("").path("/").maxAge(0).httpOnly(true).build());
+            // Also drop any stale Settings connect-intent marker so a later ordinary login is not misread as a link attempt.
+            builder.cookie(new NewCookie.Builder(OidcUserProvisioner.LINK_COOKIE).value("").path("/").maxAge(0).httpOnly(true).build());
+            if (oidcErrorCookie != null) {
+                // One-shot: the reason banner is rendered now, so a later reload shows the generic text.
+                builder.cookie(new NewCookie.Builder(OidcUserProvisioner.ERROR_COOKIE).value("").path("/").maxAge(0).httpOnly(true).build());
+            }
         }
         if (showLocked) {
             // One-shot: clear it so a later reload of the login page shows the normal form.
@@ -321,7 +348,7 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @Path("oauth2/callback/oidc")
     @PermitAll
     @Transactional
-    public Response oidcCallback() {
+    public Response oidcCallback(@CookieParam(OidcUserProvisioner.LINK_COOKIE) @Nullable final String linkIntent) {
         // The oidc-trigger permission pins this path to the code mechanism, so when the IdP
         // redirects back here CodeAuthenticationMechanism exchanges the code, validates the
         // tokens and creates the OIDC session cookie. The request then reaches JAX-RS — this
@@ -332,34 +359,42 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         // here on SessionAuthMechanism authenticates every request from that cookie, so OIDC and
         // password users share one revocable session model. The q_session cookie is left in place
         // only so logout can still trigger RP-initiated IdP logout.
-        if (!identity.isAnonymous()) {
-            final Optional<User> found = currentUser.find();
-            if (found.isPresent()) {
-                final User user = found.get();
-                user.lastLoginAt = Instant.now();
-                user.persist();
-                LOGGER.debug("OIDC login: name={} email={} role={}", user.displayName, user.email, user.role);
-                final String token = sessionStore.create(
-                    user, Session.AUTH_SOURCE_OIDC, userAgent(), ClientAddress.of(routingContext), clock.now());
-                return Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
-            }
+        final Optional<User> found = identity.isAnonymous() ? Optional.empty() : currentUser.find();
+        if (found.isEmpty()) {
+            return Response.seeOther(URI.create("/")).build();
         }
 
-        return Response.seeOther(URI.create("/")).build();
+        final User user = found.get();
+        user.lastLoginAt = Instant.now();
+        user.persist();
+        LOGGER.debug("OIDC login: name={} email={} role={}", user.displayName, user.email, user.role);
+        final String token = sessionStore.create(
+            user, Session.AUTH_SOURCE_OIDC, userAgent(), ClientAddress.of(routingContext), clock.now());
+        if (linkIntent != null) {
+            // A Settings "Connect" round trip: the link itself was applied during authentication (OidcUserProvisioner + OidcLinkPolicy);
+            // clear the one-shot intent marker and land back on Settings with a success banner instead of the dashboard.
+            final NewCookie clearIntent =
+                new NewCookie.Builder(OidcUserProvisioner.LINK_COOKIE).value("").path("/").maxAge(0).httpOnly(true).build();
+            return Response.seeOther(URI.create("/settings?msg=" + MSG_OIDC_CONNECTED)).cookie(sessionCookie(token), clearIntent).build();
+        }
+        return Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
     }
 
     // ── First-run setup ──────────────────────────────────────────────────────
 
     /**
      * First-run landing page: introduces the application and guides the deployer to register the initial (local, administrator) account. Once any
-     * user exists — or when local registration is unavailable — it redirects to {@code /login}, so it is only ever visible during setup.
+     * user exists it redirects to {@code /login}, so it is only ever visible during setup. Deliberately independent of {@code PASSWORD_AUTH_ENABLED}:
+     * the initial account is always created locally — in a pure-OIDC deployment it is the sysops break-glass administrator (its password becomes
+     * usable by re-enabling password auth). The page content is identical in both modes — the deployer configured the auth mode and owns that
+     * context.
      */
     @GET
     @Path("welcome")
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response welcomePage() {
-        if (!setupRequired() || !passwordAuthConfig.enabled()) {
+        if (!setupRequired()) {
             return Response.seeOther(URI.create("/login")).build();
         }
         return Response.ok(setupTemplate.data("theme", Theme.DEFAULT.value()).data("font", Font.DEFAULT.value())).build();
@@ -377,7 +412,8 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response registerPage() {
-        if (!passwordAuthConfig.enabled()) {
+        // During setup the page must render even with password auth disabled — the initial (break-glass) account is always created locally.
+        if (!passwordAuthConfig.enabled() && !setupRequired()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         if (registrationNotAllowed()) {
@@ -401,7 +437,8 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         @FormParam("password")        final String password,
         @FormParam("confirmPassword") final String confirmPassword) {
 
-        if (!passwordAuthConfig.enabled()) {
+        // Mirrors registerPage: setup always permits creating the initial (break-glass) account locally.
+        if (!passwordAuthConfig.enabled() && !setupRequired()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         if (registrationNotAllowed()) {
@@ -474,7 +511,8 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     }
 
     private boolean registrationNotAllowed() {
-        return !passwordAuthConfig.enabled() || (!setupRequired() && !registrationConfig.enabled());
+        // Setup overrides everything: the initial (break-glass) account is always created locally.
+        return !setupRequired() && (!passwordAuthConfig.enabled() || !registrationConfig.enabled());
     }
 
     // ── Logout ────────────────────────────────────────────────────────────
@@ -514,17 +552,51 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     // ── Settings ───────────────────────────────────────────────────────────
 
     /**
-     * Renders the settings page for the current user.
+     * Renders the settings page for the current user. The one-shot {@code msg} query parameter (set by the redirect-based account-link actions
+     * below and by the OIDC connect callback) selects a status banner; unknown values render nothing.
+     *
+     * @param msg the status-banner code, when present
+     * @return the rendered settings page
      */
     @GET
     @Path("settings")
     @RolesAllowed(Role.Values.USER)
     @Produces(MediaType.TEXT_HTML)
     @Transactional
-    public TemplateInstance settingsPage() {
+    public TemplateInstance settingsPage(@QueryParam("msg") @Nullable final String msg) {
         final User user = currentUser.get();
-        return settingsView(user);
+        return settingsView(user, msg);
     }
+
+    // ── Identity-provider connection (Settings → Account) ──────────────────
+
+    /**
+     * Starts the Settings "Connect {provider}" flow: sets the short-lived link-intent cookie and forwards into the OIDC code flow. The actual link
+     * is applied during the callback's authentication ({@code OidcUserProvisioner} + {@code OidcLinkPolicy}), keyed on this cookie plus the
+     * signed-in session — an email match alone can never link while password auth is enabled. Connecting is a one-way conversion: the account's
+     * password is removed in the same step ({@code net.zodac.diurnal.auth.AccountLinkService#link}), so the confirm step in the Settings UI warns
+     * about exactly that.
+     *
+     * <p>
+     * Surface policy: the flow is a browser redirect dance with the identity provider, so it deliberately has no {@code /api/v1} twin — an API
+     * client has no user agent to send through the code flow.
+     */
+    @POST
+    @Path("internal/settings/oidc/connect")
+    @RolesAllowed(Role.Values.USER)
+    public Response connectOidc() {
+        if (!oidcEnabled) {
+            return Response.status(Response.Status.NOT_FOUND).build();
+        }
+        final NewCookie intent = new NewCookie.Builder(OidcUserProvisioner.LINK_COOKIE)
+            .value("1")
+            .path("/")
+            .maxAge(LINK_INTENT_COOKIE_MAX_AGE_SECONDS)
+            .httpOnly(true)
+            .build();
+        return Response.seeOther(URI.create("/oidc-login")).cookie(intent).build();
+    }
+
 
     // ── Preferences ────────────────────────────────────────────────────────
 
@@ -610,7 +682,7 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
      * knowledge of the existing password: the flow first asks for the {@code currentPassword}, then the new password entered and re-entered to
      * confirm ({@code newPassword} + {@code confirmPassword}). All three values arrive here. Returns {@code 422} when the current password does not
      * match (body {@link PasswordChangeService#CURRENT_PASSWORD_ERROR}) or when the new password is empty or the two copies do not match (body
-     * {@link PasswordChangeService#NEW_PASSWORD_ERROR}). {@code 403} for a non-local (OIDC-only) account or when password auth is disabled, and
+     * {@link PasswordChangeService#NEW_PASSWORD_ERROR}). {@code 403} for an account holding no password (OIDC-only), and
      * {@code 200} once the new hash is persisted. The response body drives which step the client returns the user to.
      */
     @POST
@@ -640,7 +712,7 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     /**
      * Verifies the current (local) user's existing password without changing anything, so the settings client can confirm step 1 of the
      * password-change flow before asking for the new password. Returns {@code 204} when it matches, {@code 422} when it does not (or is empty, body
-     * {@link PasswordChangeService#CURRENT_PASSWORD_ERROR}), and {@code 403} for a non-local (OIDC-only) account or when password auth is disabled.
+     * {@link PasswordChangeService#CURRENT_PASSWORD_ERROR}), and {@code 403} for an account holding no password (OIDC-only).
      * This is a UX aid only — {@link #updatePassword} re-verifies the current password authoritatively on the mutating request.
      *
      * <p>
@@ -683,16 +755,33 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         return Response.seeOther(URI.create("/login")).cookie(clearForm, clearOidc).build();
     }
 
-    private TemplateInstance settingsView(final User user) {
+    private TemplateInstance settingsView(final User user, @Nullable final String msg) {
+        final String providerName = oidcConfig.providerName();
+        // The one-shot status banner for the connect flow's redirect back: the success code, or a refused connect's OidcDenialReason code
+        // (the provisioner sends link denials back HERE — the session is still valid, and bouncing to the login page read as a logout).
+        // An unknown (or absent) code renders no banner.
+        final String settingsMessage;
+        final boolean settingsMessageIsError;
+        if (MSG_OIDC_CONNECTED.equals(msg)) {
+            settingsMessage = "Connected to " + providerName + ", and your password has been removed.";
+            settingsMessageIsError = false;
+        } else {
+            settingsMessage = OidcDenialReason.fromCode(msg).map(reason -> reason.message(providerName)).orElse(null);
+            settingsMessageIsError = settingsMessage != null;
+        }
         return settingsTemplate
+                .data("settingsMessage", settingsMessage)
+                .data("settingsBannerVariant", settingsMessageIsError ? "error" : "success")
+                .data("oidcEnabled", oidcEnabled)
+                .data("oidcIssuerUrl", oidcIssuerUrl)
                 .data("email", user.email)
                 .data("displayName", user.displayName)
-                // Local accounts (a password hash present) can change their password; OIDC-only accounts
-                // — and any deployment with password auth disabled — cannot, so the field is hidden.
-                .data("canChangePassword",
-                        passwordAuthConfig.enabled() && user.passwordHash != null && !user.passwordHash.isBlank())
-                // OIDC-only accounts have no password at all; instead of the password field the Account
-                // card shows a note that their authentication is managed by the identity provider.
+                // Any account HOLDING a password (in practice the break-glass administrator when password
+                // login is off) can change it; OIDC-only accounts have none, so the field is hidden.
+                // Deliberately independent of PASSWORD_AUTH_ENABLED — matches PasswordChangeService.
+                .data("canChangePassword", user.passwordHash != null && !user.passwordHash.isBlank())
+                // OIDC-only accounts have no password at all: they render no Password section (the
+                // Identity Provider section states the connection) and no Connect button.
                 .data("isOidcUser", user.oidcSubject != null && !user.oidcSubject.isBlank())
                 .data("maxPasswordLength", PasswordConstraints.MAX_LENGTH)
                 .data("passwordConstraints", PasswordConstraints.all())

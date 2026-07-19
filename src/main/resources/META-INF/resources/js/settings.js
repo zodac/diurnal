@@ -86,208 +86,214 @@ document.getElementById('account-form').addEventListener('htmx:afterRequest', fu
 // so the row never grows or reflows. The current password is required so a hijacked session
 // cannot silently reset it; the server verifies it on the final POST.
 
-const passwordEls = {
-    view:       document.getElementById('password-view'),
-    currentForm: document.getElementById('password-current-form'),
-    newForm:    document.getElementById('password-new-form'),
-    confirm:    document.getElementById('password-confirm-form')
-}
+// The whole flow only renders for local accounts (canChangePassword) — an OIDC-only account has
+// no password rows at all, so skip this block entirely rather than crash on the missing elements.
+;(function () {
+    if (!document.getElementById('password-view')) { return }
 
-// The "Next"/"Save" button of each step, gated below so a step can't be advanced until its field
-// is correctly filled (current: non-empty; new: meets every requirement; confirm: matches new).
-const passwordBtns = {
-    current: passwordEls.currentForm.querySelector('button[type="submit"]'),
-    new:     passwordEls.newForm.querySelector('button[type="submit"]'),
-    confirm: passwordEls.confirm.querySelector('button[type="submit"]')
-}
-const newPasswordTip = document.querySelector('[data-pw-tooltip][data-pw-for="newPassword"]')
+    const passwordEls = {
+        view:       document.getElementById('password-view'),
+        currentForm: document.getElementById('password-current-form'),
+        newForm:    document.getElementById('password-new-form'),
+        confirm:    document.getElementById('password-confirm-form')
+    }
 
-// Per-step gate predicates. These are a UX affordance only — the server re-verifies the current
-// password and the match authoritatively on the final POST, and the error banner still fires if the
-// disabled state is ever bypassed (no JS, a forced submit).
-function currentStepValid() {
-    return document.getElementById('currentPassword').value.length > 0
-}
-function newStepValid() {
-    const len = document.getElementById('newPassword').value.length
-    // Fall back to non-empty if the popover is somehow absent, mirroring the server's minimum.
-    if (!newPasswordTip) {return len > 0}
-    // Evaluate the same server-rendered requirement rows the popover in app.js recolours. Read straight
-    // off the DOM (no cross-file dependency, so a stale/cached app.js can't break this), applying the
-    // same minLength/maxLength tokens — which mirror net.zodac.diurnal.auth.PasswordConstraints.Constraint.type.
-    return Array.prototype.every.call(newPasswordTip.querySelectorAll('[data-pw-check]'), function (row) {
-        const bound = parseInt(row.getAttribute('data-pw-value'), 10)
-        const type = row.getAttribute('data-pw-type')
-        if (type === 'minLength') {return len >= bound}
-        if (type === 'maxLength') {return len <= bound}
-        return true                                     // unknown token: never block
-    })
-}
-function confirmStepValid() {
-    const confirm = document.getElementById('confirmPassword').value
-    return confirm.length > 0 && confirm === document.getElementById('pendingPassword').value
-}
+    // The "Next"/"Save" button of each step, gated below so a step can't be advanced until its field
+    // is correctly filled (current: non-empty; new: meets every requirement; confirm: matches new).
+    const passwordBtns = {
+        current: passwordEls.currentForm.querySelector('button[type="submit"]'),
+        new:     passwordEls.newForm.querySelector('button[type="submit"]'),
+        confirm: passwordEls.confirm.querySelector('button[type="submit"]')
+    }
+    const newPasswordTip = document.querySelector('[data-pw-tooltip][data-pw-for="newPassword"]')
 
-// Reflect the current field values onto the three step buttons' disabled state. Called on every
-// keystroke in the password area and after each step transition (which clears the next field).
-function syncPasswordButtons() {
-    passwordBtns.current.disabled = !currentStepValid()
-    passwordBtns.new.disabled = !newStepValid()
-    passwordBtns.confirm.disabled = !confirmStepValid()
-}
-
-// Reset an input to hidden (type=password), clear its value, and restore its eye toggle to
-// the "reveal" icon.
-function resetRevealInput(input) {
-    if (!input) {return}
-    input.value = ''
-    input.type = 'password'
-    const btn = input.parentElement.querySelector('.settings-eye')
-    if (btn) {setEyeState(btn, false)}
-}
-
-// Point an eye toggle at the correct icon: `revealed` true shows the slashed eye (click to
-// hide), false shows the plain eye (click to reveal).
-function setEyeState(btn, revealed) {
-    btn.querySelector('[data-eye-show]').classList.toggle('hidden', revealed)
-    btn.querySelector('[data-eye-hide]').classList.toggle('hidden', !revealed)
-}
-
-// Toggle an input between password/text and flip its eye icon to match.
-window.toggleReveal = function (inputId, btn) {
-    const input = document.getElementById(inputId)
-    const revealed = input.type === 'password'
-    input.type = revealed ? 'text' : 'password'
-    setEyeState(btn, revealed)
-}
-
-// Show step 1 (current password) and hide the other password states. Used both when opening
-// the editor and (belt-and-braces) if the final POST ever rejects the current password.
-function showCurrentStep() {
-    passwordEls.view.classList.add('hidden')
-    passwordEls.newForm.classList.add('hidden')
-    passwordEls.confirm.classList.add('hidden')
-    passwordEls.currentForm.classList.remove('hidden')
-    const input = document.getElementById('currentPassword')
-    resetRevealInput(input)
-    syncPasswordButtons()
-    input.focus()
-}
-
-window.startEditPassword = function () {
-    showCurrentStep()
-}
-
-// Cancel from any step: clear everything (including the stashed values) and return to the read
-// view.
-window.cancelEditPassword = function () {
-    passwordEls.currentForm.classList.add('hidden')
-    passwordEls.newForm.classList.add('hidden')
-    passwordEls.confirm.classList.add('hidden')
-    passwordEls.view.classList.remove('hidden')
-    resetRevealInput(document.getElementById('currentPassword'))
-    resetRevealInput(document.getElementById('newPassword'))
-    resetRevealInput(document.getElementById('confirmPassword'))
-    document.getElementById('pendingCurrent').value = ''
-    document.getElementById('pendingPassword').value = ''
-    syncPasswordButtons()
-}
-
-document.getElementById('password-edit-btn').addEventListener('click', window.startEditPassword)
-document.querySelectorAll('.password-cancel-btn').forEach(function (btn) {
-    btn.addEventListener('click', window.cancelEditPassword)
-})
-document.querySelectorAll('[data-reveal-target]').forEach(function (btn) {
-    btn.addEventListener('click', function () { window.toggleReveal(btn.dataset.revealTarget, btn) })
-})
-
-// Keep each step's button in sync as the user types (current non-empty / new meets every rule /
-// confirm matches). The confirm field also re-checks against the stashed new password.
-;['currentPassword', 'newPassword', 'confirmPassword'].forEach(function (id) {
-    document.getElementById(id).addEventListener('input', syncPasswordButtons)
-})
-syncPasswordButtons()   // reflect the initial (empty → disabled) state on first paint
-
-// Step 1 → 2, run only once the server has confirmed the current password: stash it for the
-// final POST and swap to the new-password input in the same slot.
-function advanceToNewPassword() {
-    document.getElementById('pendingCurrent').value = document.getElementById('currentPassword').value
-    passwordEls.currentForm.classList.add('hidden')
-    passwordEls.newForm.classList.remove('hidden')
-    const input = document.getElementById('newPassword')
-    resetRevealInput(input)
-    syncPasswordButtons()
-    input.focus()
-}
-
-// The Next button on step 1 posts the current password to /internal/settings/password/verify via fetch (NOT
-// htmx): a wrong current password is an expected, handled outcome, and htmx would log every 4xx to
-// the console unsuppressably (it console.errors before the client can react). fetch keeps that 422
-// off the console while still showing the inline error, mirroring the login/register cards. Advancing
-// to step 2 is gated on the check succeeding (204): a wrong (or empty) password keeps the user here
-// with an inline error, so they never fill in the new password for nothing. This is only a UX aid —
-// updatePassword re-verifies the current password authoritatively on the final POST (the password
-// could change between steps, and a client could skip this call entirely).
-passwordEls.currentForm.addEventListener('submit', function (e) {
-    e.preventDefault()
-    window.Diurnal.postForm(passwordEls.currentForm, 'text/plain').then(function (resp) {
-        if (resp.status === 204) {
-            advanceToNewPassword()
-            return undefined
-        }
-        return resp.text().then(function (body) {
-            showAccountStatus(body || 'Current password is incorrect', true)
+    // Per-step gate predicates. These are a UX affordance only — the server re-verifies the current
+    // password and the match authoritatively on the final POST, and the error banner still fires if the
+    // disabled state is ever bypassed (no JS, a forced submit).
+    function currentStepValid() {
+        return document.getElementById('currentPassword').value.length > 0
+    }
+    function newStepValid() {
+        const len = document.getElementById('newPassword').value.length
+        // Fall back to non-empty if the popover is somehow absent, mirroring the server's minimum.
+        if (!newPasswordTip) {return len > 0}
+        // Evaluate the same server-rendered requirement rows the popover in app.js recolours. Read straight
+        // off the DOM (no cross-file dependency, so a stale/cached app.js can't break this), applying the
+        // same minLength/maxLength tokens — which mirror net.zodac.diurnal.auth.PasswordConstraints.Constraint.type.
+        return Array.prototype.every.call(newPasswordTip.querySelectorAll('[data-pw-check]'), function (row) {
+            const bound = parseInt(row.getAttribute('data-pw-value'), 10)
+            const type = row.getAttribute('data-pw-type')
+            if (type === 'minLength') {return len >= bound}
+            if (type === 'maxLength') {return len <= bound}
+            return true                                     // unknown token: never block
         })
-    }).catch(function () {
-        showAccountStatus('Something went wrong. Please try again.', true)
-    })
-})
+    }
+    function confirmStepValid() {
+        const confirm = document.getElementById('confirmPassword').value
+        return confirm.length > 0 && confirm === document.getElementById('pendingPassword').value
+    }
 
-// Step 2 → 3: validate non-empty (the only rule), stash the value for the confirm POST, then
-// swap the input for the confirm input in the same slot.
-window.submitNewPassword = function (event) {
-    event.preventDefault()
-    const value = document.getElementById('newPassword').value
-    if (value.length === 0) {
-        showAccountStatus('Password cannot be empty', true)
+    // Reflect the current field values onto the three step buttons' disabled state. Called on every
+    // keystroke in the password area and after each step transition (which clears the next field).
+    function syncPasswordButtons() {
+        passwordBtns.current.disabled = !currentStepValid()
+        passwordBtns.new.disabled = !newStepValid()
+        passwordBtns.confirm.disabled = !confirmStepValid()
+    }
+
+    // Reset an input to hidden (type=password), clear its value, and restore its eye toggle to
+    // the "reveal" icon.
+    function resetRevealInput(input) {
+        if (!input) {return}
+        input.value = ''
+        input.type = 'password'
+        const btn = input.parentElement.querySelector('.settings-eye')
+        if (btn) {setEyeState(btn, false)}
+    }
+
+    // Point an eye toggle at the correct icon: `revealed` true shows the slashed eye (click to
+    // hide), false shows the plain eye (click to reveal).
+    function setEyeState(btn, revealed) {
+        btn.querySelector('[data-eye-show]').classList.toggle('hidden', revealed)
+        btn.querySelector('[data-eye-hide]').classList.toggle('hidden', !revealed)
+    }
+
+    // Toggle an input between password/text and flip its eye icon to match.
+    window.toggleReveal = function (inputId, btn) {
+        const input = document.getElementById(inputId)
+        const revealed = input.type === 'password'
+        input.type = revealed ? 'text' : 'password'
+        setEyeState(btn, revealed)
+    }
+
+    // Show step 1 (current password) and hide the other password states. Used both when opening
+    // the editor and (belt-and-braces) if the final POST ever rejects the current password.
+    function showCurrentStep() {
+        passwordEls.view.classList.add('hidden')
+        passwordEls.newForm.classList.add('hidden')
+        passwordEls.confirm.classList.add('hidden')
+        passwordEls.currentForm.classList.remove('hidden')
+        const input = document.getElementById('currentPassword')
+        resetRevealInput(input)
+        syncPasswordButtons()
+        input.focus()
+    }
+
+    window.startEditPassword = function () {
+        showCurrentStep()
+    }
+
+    // Cancel from any step: clear everything (including the stashed values) and return to the read
+    // view.
+    window.cancelEditPassword = function () {
+        passwordEls.currentForm.classList.add('hidden')
+        passwordEls.newForm.classList.add('hidden')
+        passwordEls.confirm.classList.add('hidden')
+        passwordEls.view.classList.remove('hidden')
+        resetRevealInput(document.getElementById('currentPassword'))
+        resetRevealInput(document.getElementById('newPassword'))
+        resetRevealInput(document.getElementById('confirmPassword'))
+        document.getElementById('pendingCurrent').value = ''
+        document.getElementById('pendingPassword').value = ''
+        syncPasswordButtons()
+    }
+
+    document.getElementById('password-edit-btn').addEventListener('click', window.startEditPassword)
+    document.querySelectorAll('.password-cancel-btn').forEach(function (btn) {
+        btn.addEventListener('click', window.cancelEditPassword)
+    })
+    document.querySelectorAll('[data-reveal-target]').forEach(function (btn) {
+        btn.addEventListener('click', function () { window.toggleReveal(btn.dataset.revealTarget, btn) })
+    })
+
+    // Keep each step's button in sync as the user types (current non-empty / new meets every rule /
+    // confirm matches). The confirm field also re-checks against the stashed new password.
+    ;['currentPassword', 'newPassword', 'confirmPassword'].forEach(function (id) {
+        document.getElementById(id).addEventListener('input', syncPasswordButtons)
+    })
+    syncPasswordButtons()   // reflect the initial (empty → disabled) state on first paint
+
+    // Step 1 → 2, run only once the server has confirmed the current password: stash it for the
+    // final POST and swap to the new-password input in the same slot.
+    function advanceToNewPassword() {
+        document.getElementById('pendingCurrent').value = document.getElementById('currentPassword').value
+        passwordEls.currentForm.classList.add('hidden')
+        passwordEls.newForm.classList.remove('hidden')
+        const input = document.getElementById('newPassword')
+        resetRevealInput(input)
+        syncPasswordButtons()
+        input.focus()
+    }
+
+    // The Next button on step 1 posts the current password to /internal/settings/password/verify via fetch (NOT
+    // htmx): a wrong current password is an expected, handled outcome, and htmx would log every 4xx to
+    // the console unsuppressably (it console.errors before the client can react). fetch keeps that 422
+    // off the console while still showing the inline error, mirroring the login/register cards. Advancing
+    // to step 2 is gated on the check succeeding (204): a wrong (or empty) password keeps the user here
+    // with an inline error, so they never fill in the new password for nothing. This is only a UX aid —
+    // updatePassword re-verifies the current password authoritatively on the final POST (the password
+    // could change between steps, and a client could skip this call entirely).
+    passwordEls.currentForm.addEventListener('submit', function (e) {
+        e.preventDefault()
+        window.Diurnal.postForm(passwordEls.currentForm, 'text/plain').then(function (resp) {
+            if (resp.status === 204) {
+                advanceToNewPassword()
+                return undefined
+            }
+            return resp.text().then(function (body) {
+                showAccountStatus(body || 'Current password is incorrect', true)
+            })
+        }).catch(function () {
+            showAccountStatus('Something went wrong. Please try again.', true)
+        })
+    })
+
+    // Step 2 → 3: validate non-empty (the only rule), stash the value for the confirm POST, then
+    // swap the input for the confirm input in the same slot.
+    window.submitNewPassword = function (event) {
+        event.preventDefault()
+        const value = document.getElementById('newPassword').value
+        if (value.length === 0) {
+            showAccountStatus('Password cannot be empty', true)
+            return false
+        }
+        document.getElementById('pendingPassword').value = value
+        passwordEls.newForm.classList.add('hidden')
+        passwordEls.confirm.classList.remove('hidden')
+        const input = document.getElementById('confirmPassword')
+        resetRevealInput(input)
+        syncPasswordButtons()
+        input.focus()
         return false
     }
-    document.getElementById('pendingPassword').value = value
-    passwordEls.newForm.classList.add('hidden')
-    passwordEls.confirm.classList.remove('hidden')
-    const input = document.getElementById('confirmPassword')
-    resetRevealInput(input)
-    syncPasswordButtons()
-    input.focus()
-    return false
-}
 
-passwordEls.newForm.addEventListener('submit', window.submitNewPassword)
+    passwordEls.newForm.addEventListener('submit', window.submitNewPassword)
 
-// Step 3 result: the final POST is fetch()-submitted too (same rationale as step 1 — keep the 422 a
-// wrong current password / mismatch returns off the console). On success (200) return to the read
-// view and flash "Saved". On failure show the server's message in red; a wrong CURRENT password can't
-// be fixed from the confirm step, so send the user back to step 1 (matched by the server's "current
-// password" wording). A simple mismatch is corrected in place, so the confirm field is left untouched.
-passwordEls.confirm.addEventListener('submit', function (e) {
-    e.preventDefault()
-    window.Diurnal.postForm(passwordEls.confirm, 'text/plain').then(function (resp) {
-        if (resp.ok) {
-            window.cancelEditPassword()
-            showAccountStatus('Saved', false)
-            return undefined
-        }
-        return resp.text().then(function (body) {
-            const msg = body || 'Passwords do not match'
-            showAccountStatus(msg, true)
-            if (/current password/i.test(msg)) {
-                showCurrentStep()
+    // Step 3 result: the final POST is fetch()-submitted too (same rationale as step 1 — keep the 422 a
+    // wrong current password / mismatch returns off the console). On success (200) return to the read
+    // view and flash "Saved". On failure show the server's message in red; a wrong CURRENT password can't
+    // be fixed from the confirm step, so send the user back to step 1 (matched by the server's "current
+    // password" wording). A simple mismatch is corrected in place, so the confirm field is left untouched.
+    passwordEls.confirm.addEventListener('submit', function (e) {
+        e.preventDefault()
+        window.Diurnal.postForm(passwordEls.confirm, 'text/plain').then(function (resp) {
+            if (resp.ok) {
+                window.cancelEditPassword()
+                showAccountStatus('Saved', false)
+                return undefined
             }
+            return resp.text().then(function (body) {
+                const msg = body || 'Passwords do not match'
+                showAccountStatus(msg, true)
+                if (/current password/i.test(msg)) {
+                    showCurrentStep()
+                }
+            })
+        }).catch(function () {
+            showAccountStatus('Something went wrong. Please try again.', true)
         })
-    }).catch(function () {
-        showAccountStatus('Something went wrong. Please try again.', true)
     })
-})
+})()
 
 // Each preference control PATCHes itself, so update the status indicator on the card that
 // owns whichever control just saved. e.detail.elt is the element that issued the request
@@ -671,3 +677,17 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
         if (!e.target.closest('.stats-field-label.tip-open')) {closeTips()}
     })
 })()
+
+// ── Identity-provider connection (Settings → Account) ─────────────
+// Arm/cancel confirm for Connect, mirroring the logout-all in-place confirm — connecting is a
+// one-way conversion (the password is removed), so it must be armed deliberately. The elements
+// only render for an unlinked local account with OIDC enabled, so the pair is wired defensively.
+const oidcConnectArm = document.getElementById('oidc-connect-arm-btn')
+if (oidcConnectArm) {
+    oidcConnectArm.addEventListener('click', function () {
+        swapField('oidc-connect-view', 'oidc-connect-confirm')
+    })
+    document.getElementById('oidc-connect-cancel-btn').addEventListener('click', function () {
+        swapField('oidc-connect-confirm', 'oidc-connect-view')
+    })
+}

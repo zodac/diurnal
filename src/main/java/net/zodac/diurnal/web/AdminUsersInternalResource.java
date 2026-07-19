@@ -129,7 +129,7 @@ public class AdminUsersInternalResource {
         // POST targets #admin-users-list; Cancel restores just this row from /internal/admin/users/{id}.
         return Response.ok(confirmDeleteRowTemplate
                 .data("rowId", "user-row-" + id)
-                .data("cols", 6)
+                .data("cols", 7)
                 .data("swatchColour", null)
                 .data("label", target.email)
                 .data("prompt", "Delete this user, their actions and logs?")

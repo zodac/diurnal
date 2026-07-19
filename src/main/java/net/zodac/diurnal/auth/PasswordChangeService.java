@@ -19,7 +19,6 @@ package net.zodac.diurnal.auth;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -66,9 +65,6 @@ public class PasswordChangeService {
 
     @Inject
     SessionStore sessionStore;
-
-    @Inject
-    PasswordAuthConfig passwordAuthConfig;
 
     /**
      * Verifies the current password without changing anything (the Settings page confirms step 1 of its flow with this before asking for the new
@@ -132,10 +128,11 @@ public class PasswordChangeService {
         return new PasswordChangeResult.Success();
     }
 
-    // Only local accounts have a password to verify or change; OIDC-only users (and deployments with
-    // password auth switched off entirely) have none.
-    private boolean notLocalAccount(final User user) {
-        return !passwordAuthConfig.enabled() || user.passwordHash == null || user.passwordHash.isBlank();
+    // Only accounts HOLDING a password can verify or change one; OIDC-only accounts have none. Deliberately
+    // independent of PASSWORD_AUTH_ENABLED: with password login off, the one password-holding account is the
+    // break-glass administrator from the first-run setup, and it must be able to maintain that credential.
+    private static boolean notLocalAccount(final User user) {
+        return user.passwordHash == null || user.passwordHash.isBlank();
     }
 
     private boolean currentPasswordMismatch(final User user, final @Nullable String currentPassword) {

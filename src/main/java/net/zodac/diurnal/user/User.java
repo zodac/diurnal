@@ -54,13 +54,13 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     public String displayName;
 
     @Column(name = "password_hash")
-    public String passwordHash;
+    public @Nullable String passwordHash;
 
     @Column(name = "oidc_subject")
-    public String oidcSubject;
+    public @Nullable String oidcSubject;
 
     @Column(name = "oidc_issuer")
-    public String oidcIssuer;
+    public @Nullable String oidcIssuer;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     public Instant createdAt = Instant.now();
@@ -119,6 +119,21 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
 
     public boolean isAdmin() {
         return Role.fromStorageValue(role) == Role.ADMIN;
+    }
+
+    /**
+     * The account's sign-in source(s), derived from which credentials it holds: {@code "local"} (password only), {@code "oidc"} (identity provider
+     * only) or {@code "local+oidc"} (a hybrid account holding both).
+     *
+     * @return the machine-readable auth source value
+     */
+    public String authSource() {
+        final boolean hasPassword = passwordHash != null && !passwordHash.isBlank();
+        final boolean linked = oidcSubject != null && !oidcSubject.isBlank();
+        if (hasPassword && linked) {
+            return "local+oidc";
+        }
+        return linked ? "oidc" : "local";
     }
 
     /**

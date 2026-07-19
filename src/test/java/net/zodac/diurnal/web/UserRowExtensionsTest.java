@@ -26,7 +26,11 @@ import org.junit.jupiter.api.Test;
 class UserRowExtensionsTest {
 
     private static UserRow row(final String role) {
-        return new UserRow(UUID.randomUUID(), "user@example.com", "Test User", role, "2026-01-01 00:00", "Never", "UTC");
+        return row(role, "local");
+    }
+
+    private static UserRow row(final String role, final String authSource) {
+        return new UserRow(UUID.randomUUID(), "user@example.com", "Test User", role, authSource, "2026-01-01 00:00", "Never", "UTC");
     }
 
     @Test
@@ -58,9 +62,37 @@ class UserRowExtensionsTest {
     }
 
     @Test
+    void authSourceLabel_localSource_returnsLocal() {
+        assertThat(UserRowExtensions.authSourceLabel(row(Role.USER.storageValue(), "local")))
+            .as("unexpected value")
+            .isEqualTo("Local");
+    }
+
+    @Test
+    void authSourceLabel_oidcSource_returnsOidc() {
+        assertThat(UserRowExtensions.authSourceLabel(row(Role.USER.storageValue(), "oidc")))
+            .as("unexpected value")
+            .isEqualTo("OIDC");
+    }
+
+    @Test
+    void authSourceLabel_hybridSource_returnsBoth() {
+        assertThat(UserRowExtensions.authSourceLabel(row(Role.USER.storageValue(), "local+oidc")))
+            .as("unexpected value")
+            .isEqualTo("Local + OIDC");
+    }
+
+    @Test
+    void authSourceLabel_unknownSource_fallsBackToLocal() {
+        assertThat(UserRowExtensions.authSourceLabel(row(Role.USER.storageValue(), "saml")))
+            .as("unexpected value")
+            .isEqualTo("Local");
+    }
+
+    @Test
     void zoneTooltip_prefixesZoneLabel() {
         final UserRow row = new UserRow(UUID.randomUUID(), "user@example.com", "Test User",
-            Role.USER.storageValue(), "2026-01-01 00:00", "Never", "Europe/London");
+            Role.USER.storageValue(), "local", "2026-01-01 00:00", "Never", "Europe/London");
 
         assertThat(UserRowExtensions.zoneTooltip(row))
             .as("unexpected timezone tooltip label")

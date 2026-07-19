@@ -63,6 +63,21 @@ public final class UserRowExtensions {
     }
 
     /**
+     * The human-readable sign-in-source label shown in the table's "Sign-in" column.
+     *
+     * @param row the row to inspect
+     * @return {@code "Local"}, {@code "OIDC"} or {@code "Local + OIDC"} (falls back to {@code "Local"} for unknown values)
+     */
+    @TemplateExtension
+    public static String authSourceLabel(final UserRow row) {
+        return switch (row.authSource()) {
+            case "oidc" -> "OIDC";
+            case "local+oidc" -> "Local + OIDC";
+            default -> "Local";
+        };
+    }
+
+    /**
      * The role catalogue for the admin role picker: every {@link Role} ordered alphabetically by display name. Exposed as the {@code role:options}
      * namespace expression so the {@code <select>} is generated from the backend enum rather than hard-coded, and a new role appears automatically.
      *

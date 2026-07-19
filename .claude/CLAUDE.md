@@ -9,6 +9,11 @@
 `http://127.0.0.1:8080` as placeholder values. Never use production hostnames, LAN addresses (`192.168.*`, `10.*`,
 `172.16–31.*`), or any other real hostname.
 
+> **Log output must be plain ASCII — never an em-dash (`—`) or any other non-ASCII character in a string that reaches the logs**: `LOGGER.*`
+> messages, exception messages, and startup-failure text alike. The production container's console encoding renders non-ASCII as `?` (e.g.
+> `... already exists ? sign in locally ...`). Use a plain hyphen `-` instead. UI/template/OpenAPI strings are unaffected (browser-rendered UTF-8),
+> as are code comments and Javadoc.
+
 > **Never overwrite `RELEASE_NOTES.md` or `VERSION` unless explicitly asked.** These are hand-authored release
 artefacts owned by the maintainer — leave them untouched (even if they appear modified in the working tree) unless the
 request explicitly says to update them.
@@ -267,8 +272,42 @@ freeze/advance the clock; keep the branching in `AttemptThrottle`/`IpThrottle` (
 `User.findByIdOptional`** (see `CurrentUser`). The session identity (`UserIdentities.of`) sets the email principal plus `userId`/`displayName`
 attributes; there is no JWT/`JsonWebToken` in play.
 
-OIDC users store `oidcSubject` + `oidcIssuer` instead of a password hash; composite unique index
-`(oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL`. OIDC is disabled by default (`quarkus.oidc.enabled=false`).
+OIDC users store `oidcSubject` + `oidcIssuer` and **no password** — connecting an identity provider is a one-way conversion that removes the
+password in the same step (`AccountLinkService.link`; migration `V22` normalised pre-existing rows), so there is no hybrid state and no disconnect
+(`User.authSource()`: `local`/`oidc` — the `local+oidc` label survives only as a defensive fallback — shown in the admin users table and
+`AdminUserDto`); composite unique index
+`(oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL`. OIDC is disabled by default (`OIDC_ENABLED=false`); `OIDC_SCOPES` (default
+`email,profile,groups` — set `email,profile` for providers like Google that reject the non-standard `groups` scope) and `OIDC_PKCE_ENABLED`
+(default `true`) tune the handshake.
+
+**OIDC sign-in is decided by pure policies (100% PIT), with `OidcUserProvisioner` as glue** (see `.claude/OIDC.md` for the full review/decisions):
+
+- **Accounts resolve by `iss`+`sub` ONLY — there is deliberately NO email-based auto-linking while password auth is enabled** (a
+  Grafana-CVE-2023-3128-class takeover vector; removed as a conscious breaking change). An OIDC login whose email matches an unlinked local account
+  is refused and directed to Settings → Connect. **The one exception is `PASSWORD_AUTH_ENABLED=false`** (the migration path): Settings → Connect
+  cannot exist without a password login, and the IdP is the deployment's sole authority anyway, so a **verified** email ADOPTS the unlinked local
+  account (`OidcLoginDecision.AdoptByEmail` → `AccountLinkService.link`: identity attached, password removed) — still subject to the last-admin
+  guard. `email_verified: false` never provisions OR adopts; group sync never demotes the last administrator (denied with a neutral banner +
+  detailed `WARN`). `OidcLoginPolicy.decide(OidcLoginFacts)` → `OidcLoginDecision`; every refusal is an `OidcDenialReason` whose code rides the
+  short-lived `diurnal_oidc_error` cookie so `loginPage` can show a specific banner after the `/login?error=oidc` redirect (the lockout-cookie
+  pattern). **Denials on a live request throw `AuthenticationRedirectException`**, never `AuthenticationFailedException` — anything else is wrapped
+  by the code mechanism into an `AuthenticationCompletionException` and surfaces as a bare 401 + ERROR stack trace.
+- **Linking is an explicit act** (password-auth-enabled deployments): Settings → "Connect {provider}" (`POST /internal/settings/oidc/connect`) sets
+  the one-shot `diurnal_oidc_link` intent cookie and enters the code flow; at the callback the provisioner sees intent + valid `diurnal_session`
+  and applies `OidcLinkPolicy` → `AccountLinkService.link`, landing on `/settings?msg=oidc-connected`. The Settings confirm warns that the password
+  will be removed. Surface policy: the connect flow has no API twin (browser redirect dance).
+- **The initial account is ALWAYS created locally** — the first-run setup flow (`/welcome` + `/register`) ignores BOTH `ENABLE_REGISTRATION` and
+  `PASSWORD_AUTH_ENABLED` until a user exists, and OIDC never provisions user number one. In a pure-OIDC deployment that first administrator is the
+  sysops break-glass credential. Converting it later (adoption/connect) is allowed so long as the account remains an administrator (IdP-asserted
+  admin group, or no group mapping) — only a demotion of the last administrator is refused. A deployer keeps a password-capable backup by giving
+  the break-glass admin a dedicated email the IdP never presents.
+- **The `q_session` cookie alone never grants page access** (`OidcLoginPolicy.revocationGuardSatisfied`): outside the code-flow callback, an
+  OIDC-authenticated request must also carry a live `diurnal_session` for the same user, or authentication fails and the code flow re-runs
+  (re-minting a session at the callback) — so "log out from everywhere" is authoritative for OIDC devices too; `q_session` survives only for token
+  refresh and RP-initiated logout.
+- **There is deliberately NO disconnect and NO standalone password-removal** — connecting (or being adopted) IS the password removal, and a linked
+  account stays IdP-managed. Two permanently-live credentials would double the attack surface; a stray linked-with-password row (only possible by
+  hand-editing the DB) still renders defensively.
 
 ### Security headers / CSP
 
@@ -631,8 +670,9 @@ All list views (actions, day-panel, stats) use in-memory pagination: fetch all, 
   silently corrected to the default.
 - Dark-mode checkbox: hidden `<input value="false">` + real `<input value="true">`. Checked posts `["false","true"]`; unchecked posts `["false"]`.
   `updateSettings` checks for `"true"` in the list.
-- `password.auth.enabled=false` disables register (404) and skips `PasswordIdentityProvider`. `AppLifecycle` enforces at least one auth mechanism at
-  startup.
+- `password.auth.enabled=false` disables register (404, except during first-run setup) and skips `PasswordIdentityProvider`. `AppLifecycle` enforces
+  at least one auth mechanism at startup. Password MANAGEMENT stays available regardless: any account holding a password (the break-glass admin)
+  can change it via Settings / `PUT /api/v1/users/me/password` — `PasswordChangeService` keys on the hash, not on `PASSWORD_AUTH_ENABLED`.
 - Login uses query params: `?error` = failed login; `?registered=true` = success after registration.
 - `ActionStatsExtensions` exposes `sinceLabel()`, `monthTrend()`, `monthTrendClass()` etc. as Qute template extensions over `ActionStats`.
 - **UI text must use correct singular/plural** — never "1 days". `ActionStatsExtensions` centralises the rule via `plural(count, unit)`, exposed as

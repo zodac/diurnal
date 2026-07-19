@@ -36,7 +36,10 @@ trap cleanup EXIT
 # Bring up the DB and block until its healthcheck passes.
 docker compose -f "${COMPOSE_FILE}" up -d --wait diurnal-db-dev
 
+# The -D pins outrank the repo-root .env (which Quarkus also reads at runtime): a deployer flipping
+# PASSWORD_AUTH_ENABLED/ENABLE_REGISTRATION there must not fail the E2E auth specs.
 java -Dquarkus.profile=test -Dquarkus.http.port="${PORT}" \
+  -Dpassword.auth.enabled=true -Dregistration.enabled=true \
   -jar "${TARGET_DIR}/quarkus-app/quarkus-run.jar" >"${TARGET_DIR}/app.log" 2>&1 &
 APP_PID=$!
 

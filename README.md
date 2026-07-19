@@ -18,12 +18,14 @@
     - [Required](#required)
     - [Database](#database)
     - [Application](#application)
-    - [Password Hashing](#password-hashing)
-    - [Login Throttling](#login-throttling)
-    - [Sessions](#sessions)
+    - [Authentication](#authentication)
+        - [Password Sign-in](#password-sign-in)
+        - [Password Hashing](#password-hashing)
+        - [OIDC](#oidc)
+        - [Login Throttling](#login-throttling)
+        - [Sessions](#sessions)
     - [Reverse Proxy](#reverse-proxy)
     - [CORS](#cors)
-    - [OIDC](#oidc)
 - [User Settings](#user-settings)
     - [Account](#account)
     - [Preferences](#preferences)
@@ -100,7 +102,7 @@ Download [`docker-compose.example.yml`](docs/docker-compose.example.yml) from th
 curl -o docker-compose.yml https://raw.githubusercontent.com/zodac/diurnal/master/docs/docker-compose.example.yml
 ```
 
-**2. Set your secret:**
+**2. Set your secrets:**
 
 Edit `docker-compose.yml` and change the required value (in **both** the `diurnal` and `diurnal-db` services where noted):
 
@@ -122,8 +124,8 @@ Diurnal will be available at **<http://localhost:8080>**. The database schema is
 
 **4. Create your account:**
 
-Open the app and **register**. The first account created becomes the **administrator**. Once you have your account, you may wish to set
-`ENABLE_REGISTRATION=false` to prevent anyone else from signing up.
+Open the app and **register**. The first account created becomes the **administrator**. Even if using `OIDC_ENABLED`, this account is created locally.
+It may later be linked to your OIDC provider, though I would suggest keeping it as a super-user in case of any IdP issues.
 
 ## Environment Variables
 
@@ -147,15 +149,30 @@ sensible default.
 
 ### Application
 
+| Variable       | Default | Description                                                                                          |
+|----------------|---------|------------------------------------------------------------------------------------------------------|
+| `TZ`           | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                                         |
+| `LOG_LEVEL`    | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                     |
+| `DB_LOG_LEVEL` | `WARN`  | Set to `TRACE` to log every SQL statement + bound parameters (verbose; may expose parameter values)  |
+
+### Authentication
+
+Diurnal supports two sign-in methods (local **password** accounts and **[OIDC](#oidc)**) which can run separately or together; at least one must
+be enabled or the app refuses to start. Regardless of how it is configured, the **first account is always created locally** through the setup page.
+
+#### Password Sign-in
+
 | Variable                       | Default | Description                                                                                                  |
 |--------------------------------|---------|--------------------------------------------------------------------------------------------------------------|
-| `TZ`                           | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                                                 |
-| `LOG_LEVEL`                    | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                             |
 | `PASSWORD_AUTH_ENABLED`        | `true`  | Set to `false` to disable password login entirely (requires OIDC to be enabled)                              |
 | `PASSWORD_AUTH_UNIFORM_TIMING` | `true`  | Keep login response time constant whether or not the email exists, so accounts can't be enumerated by timing |
 | `ENABLE_REGISTRATION`          | `true`  | Set to `false` to close the `/register` page                                                                 |
 
-### Password Hashing
+Please note that if `PASSWORD_AUTH_ENABLED` is changed to **false**, previously password-only accounts will be converted to OIDC accounts upon login.
+If both `PASSWORD_AUTH_ENABLED` and `OIDC_ENABLED` are **true**, this auto-conversion is not done. Users must explicitly link to an OIDC account in
+the user settings page.
+
+#### Password Hashing
 
 Passwords are stored as [Argon2id](https://en.wikipedia.org/wiki/Argon2) hashes. The three cost parameters below were chosen so a single hash takes
 roughly **100–500 ms** on my hardware. For resource-constrained hardware, you may need to tune these values.
@@ -166,59 +183,7 @@ roughly **100–500 ms** on my hardware. For resource-constrained hardware, you 
 | `PASSWORD_HASH_ARGON2_ITERATIONS`  | `3`     | Number of passes for hashing                            |
 | `PASSWORD_HASH_ARGON2_PARALLELISM` | `4`     | Number of lanes; cuts latency at the cost of more cores |
 
-### Login Throttling
-
-Failed login and registration attempts are rate-limited per client IP address. Once an IP exceeds
-`AUTH_IP_THROTTLE_MAX_ATTEMPTS` failures within the `AUTH_IP_THROTTLE_LOCKOUT_DURATION` window, it is locked out of **both** logging in and
-registering. When blocked, the API returns `429` (with a `Retry-After` header). The IP comes from [`TRUST_X_FORWARDED_HEADERS`](#reverse-proxy).
-Durations are [ISO-8601](https://en.wikipedia.org/wiki/ISO_8601#Durations) (e.g. `PT5M` = 5 minutes, `PT1H` = 1 hour, `PT30S` = 30 seconds).
-
-| Variable                            | Default | Description                                  |
-|-------------------------------------|---------|----------------------------------------------|
-| `AUTH_IP_THROTTLE_ENABLED`          | `true`  | Set to `false` to disable throttling         |
-| `AUTH_IP_THROTTLE_MAX_ATTEMPTS`     | `15`    | Failures from one IP before it is locked out |
-| `AUTH_IP_THROTTLE_LOCKOUT_DURATION` | `PT15M` | How long an IP stays locked                  |
-
-### Sessions
-
-Both the web UI and the REST API authenticate against a **server-side session store** (the `sessions` table). Logging in mints a random opaque token,
-delivered as the `diurnal_session` cookie (web) or a Bearer token (API); only its hash is stored, and every session is **revocable**. Logging out,
-changing your password (which signs out every *other* device), or "Log out from everywhere" in Settings all delete session rows. No keys or secrets to
-manage.
-
-A session ends at whichever comes first: `SESSION_IDLE_TIMEOUT` since it was last used, or `SESSION_ABSOLUTE_LIFETIME` since it was created. Both are
-[ISO-8601](https://en.wikipedia.org/wiki/ISO_8601#Durations) durations (e.g. `P30D` = 30 days, `P7D` = 7 days, `PT12H` = 12 hours).
-
-| Variable                    | Default | Description                                                       |
-|-----------------------------|---------|-------------------------------------------------------------------|
-| `SESSION_IDLE_TIMEOUT`      | `P30D`  | Sliding idle timeout; a session dies this long after its last use |
-| `SESSION_ABSOLUTE_LIFETIME` | `P90D`  | Hard cap on a session's age regardless of activity                |
-| `SESSION_CLEANUP_INTERVAL`  | `PT1H`  | How often expired sessions are swept from the database            |
-
-### Reverse Proxy
-
-Diurnal serves plaintext HTTP and is designed to run behind a TLS-terminating reverse proxy. The proxy should handle everything TLS-related: the
-certificate, any HTTP→HTTPS redirect, and the `Strict-Transport-Security` (HSTS) header.
-
-| Variable                    | Default | Description                                          |
-|-----------------------------|---------|------------------------------------------------------|
-| `TRUST_X_FORWARDED_HEADERS` | `true`  | Trust `X-Forwarded-*` headers from the reverse proxy |
-
-### CORS
-
-By default, only same-origin browsers can call Diurnal, so any third-party web app running in a **browser** on another origin is blocked by CORS. To
-let a web app from `https://myapp.example.com` call your Diurnal instance, for example, set this on the `diurnal` container:
-
-```yaml
-environment:
-  CORS_ALLOWED_ORIGINS: "https://myapp.example.com"
-```
-
-| Variable               | Default | Description                                                                           |
-|------------------------|---------|---------------------------------------------------------------------------------------|
-| `CORS_ALLOWED_ORIGINS` |         | Comma-separated list of origins allowed to call the API from a browser (unset = none) |
-
-### OIDC
+#### OIDC
 
 OIDC is disabled by default. When enabled, users can sign in through your identity provider alongside (or instead of) password login. Register
 `{your-base-url}/oidc-callback` as the redirect URI with your IdP.
@@ -231,6 +196,8 @@ OIDC is disabled by default. When enabled, users can sign in through your identi
 | `OIDC_CLIENT_SECRET` |                          | Client secret for the registered client                               |
 | `OIDC_PROVIDER_NAME` | `your identity provider` | Name shown on the login button ("Log in with your identity provider") |
 | `OIDC_AUTO_REDIRECT` | `false`                  | If `true`, `/login` redirects straight to the provider                |
+| `OIDC_SCOPES`        | `email,profile,groups`   | Extra scopes requested with `openid` (use `email,profile` for Google) |
+| `OIDC_PKCE_ENABLED`  | `true`                   | PKCE on the code flow; disable only if the provider rejects it        |
 | `OIDC_ADMIN_GROUP`   |                          | IdP group whose members are granted the `Administrator` role          |
 | `OIDC_USER_GROUP`    |                          | IdP group whose members are granted the `User` role                   |
 | `OIDC_LOGOUT_URL`    |                          | OIDC users are redirected here after logging out                      |
@@ -289,6 +256,58 @@ identity_providers:
 
 </details>
 <!-- markdownlint-enable MD033 -->
+
+#### Login Throttling
+
+Failed login and registration attempts are rate-limited per client IP address. Once an IP exceeds
+`AUTH_IP_THROTTLE_MAX_ATTEMPTS` failures within the `AUTH_IP_THROTTLE_LOCKOUT_DURATION` window, it is locked out of **both** logging in and
+registering. When blocked, the API returns `429` (with a `Retry-After` header). The IP comes from [`TRUST_X_FORWARDED_HEADERS`](#reverse-proxy).
+Durations are [ISO-8601](https://en.wikipedia.org/wiki/ISO_8601#Durations) (e.g. `PT5M` = 5 minutes, `PT1H` = 1 hour, `PT30S` = 30 seconds).
+
+| Variable                            | Default | Description                                  |
+|-------------------------------------|---------|----------------------------------------------|
+| `AUTH_IP_THROTTLE_ENABLED`          | `true`  | Set to `false` to disable throttling         |
+| `AUTH_IP_THROTTLE_MAX_ATTEMPTS`     | `15`    | Failures from one IP before it is locked out |
+| `AUTH_IP_THROTTLE_LOCKOUT_DURATION` | `PT15M` | How long an IP stays locked                  |
+
+#### Sessions
+
+Both the web UI and the REST API authenticate against a **server-side session store** (the `sessions` table). Logging in mints a random opaque token,
+delivered as the `diurnal_session` cookie (web) or a Bearer token (API); only its hash is stored, and every session is **revocable**. Logging out,
+changing your password (which signs out every *other* device), or "Log out from everywhere" in Settings all delete session rows. No keys or secrets to
+manage.
+
+A session ends at whichever comes first: `SESSION_IDLE_TIMEOUT` since it was last used, or `SESSION_ABSOLUTE_LIFETIME` since it was created. Both are
+[ISO-8601](https://en.wikipedia.org/wiki/ISO_8601#Durations) durations (e.g. `P30D` = 30 days, `P7D` = 7 days, `PT12H` = 12 hours).
+
+| Variable                    | Default | Description                                                       |
+|-----------------------------|---------|-------------------------------------------------------------------|
+| `SESSION_IDLE_TIMEOUT`      | `P30D`  | Sliding idle timeout; a session dies this long after its last use |
+| `SESSION_ABSOLUTE_LIFETIME` | `P90D`  | Hard cap on a session's age regardless of activity                |
+| `SESSION_CLEANUP_INTERVAL`  | `PT1H`  | How often expired sessions are swept from the database            |
+
+### Reverse Proxy
+
+Diurnal serves plaintext HTTP and is designed to run behind a TLS-terminating reverse proxy. The proxy should handle everything TLS-related: the
+certificate, any HTTP→HTTPS redirect, and the `Strict-Transport-Security` (HSTS) header.
+
+| Variable                    | Default | Description                                          |
+|-----------------------------|---------|------------------------------------------------------|
+| `TRUST_X_FORWARDED_HEADERS` | `true`  | Trust `X-Forwarded-*` headers from the reverse proxy |
+
+### CORS
+
+By default, only same-origin browsers can call Diurnal, so any third-party web app running in a **browser** on another origin is blocked by CORS. To
+let a web app from `https://myapp.example.com` call your Diurnal instance, for example, set this on the `diurnal` container:
+
+```yaml
+environment:
+  CORS_ALLOWED_ORIGINS: "https://myapp.example.com"
+```
+
+| Variable               | Default | Description                                                                           |
+|------------------------|---------|---------------------------------------------------------------------------------------|
+| `CORS_ALLOWED_ORIGINS` |         | Comma-separated list of origins allowed to call the API from a browser (unset = none) |
 
 ## User settings
 

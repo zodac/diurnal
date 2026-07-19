@@ -34,7 +34,7 @@ public sealed interface PasswordChangeResult
     }
 
     /**
-     * The account has no password to verify or change: it is OIDC-only, or password authentication is disabled on this deployment.
+     * The account has no password to verify or change (OIDC-only sign-in).
      */
     record NotLocalAccount() implements PasswordChangeResult {
 

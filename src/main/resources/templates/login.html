@@ -18,8 +18,7 @@
     <p class="text-sm text-ink-muted mb-6 text-center">Sign in to your account</p>
 
     {#if oidcError}
-    {#include partials/banner variant='error' cls='mb-4'
-        message='You are not authorized to access this application. Contact your administrator.' /}
+    {#include partials/banner variant='error' cls='mb-4' message=oidcErrorMessage /}
     {/if}
 
     {#if passwordAuthEnabled}

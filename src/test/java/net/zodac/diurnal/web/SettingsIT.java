@@ -30,6 +30,7 @@ import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.StatFieldPref;
 import net.zodac.diurnal.user.User;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
@@ -246,12 +247,12 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     @TestSecurity(user = OIDC_USER, roles = Role.Values.USER)
-    void settingsPage_oidcAccount_showsProviderNoteNotPasswordField() {
-        // Assert only the stable prefix: the trailing provider name comes from OIDC_PROVIDER_NAME and
-        // varies by environment (default "your identity provider", but e.g. "Authelia" when configured).
+    void settingsPage_oidcAccount_rendersNoPasswordSection() {
+        // An OIDC account gets no Password section at all — no change form and no provider note
+        // (the Identity Provider section states the connection when OIDC is enabled).
         given().get("/settings")
                 .then().statusCode(200)
-                .body(containsString("User authentication is managed by"))
+                .body(not(containsString("User authentication is managed by")))
                 .body(not(containsString("id=\"password-view\"")));
     }
 
@@ -719,7 +720,8 @@ class SettingsIT extends IntegrationTestBase {
         });
     }
 
-    private static boolean argon2Matches(final String passwordHash) {
-        return Argon2Function.getInstanceFromHash(passwordHash).check(TEST_PASSWORD, passwordHash);
+    private static boolean argon2Matches(final @Nullable String passwordHash) {
+        final String hash = java.util.Objects.requireNonNull(passwordHash, "seeded user must hold a password hash");
+        return Argon2Function.getInstanceFromHash(hash).check(TEST_PASSWORD, hash);
     }
 }
