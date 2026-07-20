@@ -82,6 +82,32 @@ export async function loginAs(page: Page, user: TestUser): Promise<void> {
     await page.waitForURL("/")
 }
 
+/**
+ * Log out via the navbar and wait for the redirect to /login. On narrow (mobile) viewports the
+ * logout button lives inside the hamburger dropdown (partials/navbar.html), which opens via a
+ * `grid-template-rows` CSS transition (`duration-200`) — the settings link sits directly above
+ * logout in the DOM, and clicking before that transition finishes can mis-click it instead. This
+ * waits for the transition's `transitionend` before clicking, with a generous fallback timeout in
+ * case the event never fires (e.g. transitions disabled), so it can't hang indefinitely either.
+ */
+export async function logout(page: Page): Promise<void> {
+    const hamburger = page.locator('button[aria-label="Toggle menu"]')
+    if (await hamburger.isVisible()) {
+        const menu = page.locator("#mobile-menu")
+        const transitionEnded = menu.evaluate(el =>
+            new Promise<void>(resolve => {
+                el.addEventListener("transitionend", () => resolve(), { once: true })
+            }),
+        )
+        await hamburger.click()
+        await Promise.race([transitionEnded, page.waitForTimeout(1000)])
+        await page.locator('#mobile-menu form[action="/logout"] button').click()
+    } else {
+        await page.locator('form[action="/logout"] button').first().click()
+    }
+    await page.waitForURL("/login")
+}
+
 // ── Typed fixture extension ────────────────────────────────────────────────────
 
 interface Fixtures {
