@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test"
-import { test, expect, loginAs } from "../helpers/fixtures"
+import { test, expect, loginAs, logout } from "../helpers/fixtures"
 
 // Unique action name for this test run — kept live, so no DB unique-constraint collision
 // across repeated runs or across chromium/mobile-chrome sharing the same user+DB.
@@ -491,19 +491,7 @@ test.describe("Dashboard – Stacked calendar", () => {
         await expect(page.locator(`.d-min-cell[data-date="${other}"]`)).toHaveClass(/d-min-selected/)
 
         // Log out (POST /logout → redirect to /login, which clears the retained day), then log back in.
-        // On mobile the desktop logout button is hidden; open the hamburger menu first (mirrors auth.spec.ts).
-        await Promise.all([
-            page.waitForURL("/login"),
-            (async (): Promise<void> => {
-                const hamburger = page.locator('button[aria-label="Toggle menu"]')
-                if (await hamburger.isVisible()) {
-                    await hamburger.click()
-                    await page.locator('#mobile-menu form[action="/logout"] button').click()
-                } else {
-                    await page.locator('form[action="/logout"] button').first().click()
-                }
-            })(),
-        ])
+        await logout(page)
         await loginAs(page, testUser)
 
         // Fresh working session: back to the today default, not the previously chosen day.

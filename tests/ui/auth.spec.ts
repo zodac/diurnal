@@ -1,4 +1,4 @@
-import { test, expect, setupTestUser } from "../helpers/fixtures"
+import { test, expect, setupTestUser, logout } from "../helpers/fixtures"
 
 const USER = {
     email: "e2e-auth@example.com",
@@ -48,14 +48,7 @@ test.describe("Authentication", () => {
         await setupTestUser(page, USER)
         await expect(page).toHaveURL("/")
 
-        // On mobile the desktop logout button is hidden; open hamburger menu first
-        const hamburger = page.locator('button[aria-label="Toggle menu"]')
-        if (await hamburger.isVisible()) {
-            await hamburger.click()
-            await page.locator('#mobile-menu form[action="/logout"] button').click()
-        } else {
-            await page.locator('form[action="/logout"] button').first().click()
-        }
+        await logout(page)
         await expect(page).toHaveURL(/\/login/)
 
         // Session is gone — navigating to / redirects back to login page

@@ -362,6 +362,11 @@
                     <excludedTestClasses>
                         <param>*IT</param>
                     </excludedTestClasses>
+                    <!-- Set the JBoss LogManager property before JUL is touched in minion JVMs, to silence the
+                         "LogManager accessed before ... system property was set" warning. -->
+                    <jvmArgs>
+                        <value>-Djava.util.logging.manager=org.jboss.logmanager.LogManager</value>
+                    </jvmArgs>
                 </configuration>
                 <!-- Re-bound install -> prepare-package (see checkstyle note: lints before IT/e2e). -->
                 <executions>
