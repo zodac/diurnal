@@ -39,7 +39,15 @@ set -eu
 PORT="$1"
 BASEDIR="$2"
 
-COMPOSE_FILE="${BASEDIR}/tests/docker-compose.perf.yml"
+# cd into tests/ and reference the compose file by a bare relative name rather than an absolute path
+# built from BASEDIR. On Windows/Git Bash, BASEDIR is POSIX-style (e.g. "/c/Users/..."); passed as an
+# absolute "-f" path, the Go-based docker compose CLI mis-resolves the leading "/" as "root of the
+# current drive" instead of translating "/c" to "C:", producing "C:\c\Users\...\docker-compose.perf.yml"
+# and failing to open it. A relative filename has no leading "/" to mangle, so it works unchanged on
+# every platform. (Build context inside the compose file is resolved relative to the compose file's own
+# location, not the CWD, so this cd doesn't affect it.)
+cd "${BASEDIR}/tests"
+COMPOSE_FILE="docker-compose.perf.yml"
 PROJECT="diurnal-perf"
 K6_IMAGE="grafana/k6:2.1.0"
 
@@ -51,10 +59,18 @@ BOOT_BUDGET_S="${PERF_BOOT_BUDGET_S:-20}"
 RSS_MAX_MB="${PERF_RSS_MAX_MB:-512}"
 
 # Per-run scratch dir for the k6 seed->load handover state file. Created now, removed by cleanup.
-# `mktemp -d` is mode 700 owned by the host user; the k6 container runs as a non-root UID, so it must
-# be world-writable for the seed step to write the state file into the bind mount. The dir is ephemeral
-# (removed by cleanup) and holds only throwaway test credentials, so 777 is harmless.
-STATE_DIR="$(mktemp -d)"
+# Deliberately placed INSIDE the project tree (tests/), not the system temp dir plain `mktemp -d`
+# would use: on Windows/Git Bash, `mktemp -d`'s default location is under MSYS's internal "/tmp"
+# mapping, which Docker Desktop's path translation does NOT recognise (unlike a drive-letter-rooted
+# path such as "/c/Users/..." — see the `${BASEDIR}/tests/perf` mount below, which already works). A
+# bare "/tmp/..." bind-mount source is forwarded as-is and silently resolved INSIDE the daemon's own
+# Linux VM instead — no error, just an unrelated empty directory — so the load container fails with
+# "no such file" even though the seed step wrote the file correctly on the host. `mktemp -d` still
+# supplies the random-suffix template so the dir stays unique per run; only its location changes.
+# `chmod 777`: the k6 container runs as a non-root UID and must be able to write the state file into
+# the bind mount. The dir is ephemeral (removed by cleanup) and holds only throwaway test credentials,
+# so 777 is harmless.
+STATE_DIR="$(mktemp -d "${BASEDIR}/tests/.perf-state.XXXXXX")"
 chmod 777 "${STATE_DIR}"
 STATE_FILE="${STATE_DIR}/perf-state.json"
 

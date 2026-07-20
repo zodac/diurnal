@@ -30,7 +30,15 @@ set -eu
 PORT="$1"
 BASEDIR="$2"
 
-COMPOSE_FILE="${BASEDIR}/tests/docker-compose.smoke.yml"
+# cd into tests/ and reference the compose file by a bare relative name rather than an absolute path
+# built from BASEDIR. On Windows/Git Bash, BASEDIR is POSIX-style (e.g. "/c/Users/..."); passed as an
+# absolute "-f" path, the Go-based docker compose CLI mis-resolves the leading "/" as "root of the
+# current drive" instead of translating "/c" to "C:", producing "C:\c\Users\...\docker-compose.smoke.yml"
+# and failing to open it. A relative filename has no leading "/" to mangle, so it works unchanged on
+# every platform. (Build context inside the compose file is resolved relative to the compose file's own
+# location, not the CWD, so this cd doesn't affect it.)
+cd "${BASEDIR}/tests"
+COMPOSE_FILE="docker-compose.smoke.yml"
 PROJECT="diurnal-smoke"
 
 cleanup() {

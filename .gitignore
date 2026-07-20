@@ -32,6 +32,10 @@ node_modules/
 tests/playwright-report/
 tests/test-results/
 
+# Perf suite (tests/run-perf.sh) seed->load handover scratch dir — normally removed by the script's
+# own cleanup trap; ignored as a safety net if a run is killed before that trap fires.
+tests/.perf-state.*
+
 # Per-user Claude Code state (the checked-in .claude docs are CLAUDE.md, APIS.md, CODE_STYLE.md, UI_PATTERNS.md)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
