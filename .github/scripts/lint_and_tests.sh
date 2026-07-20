@@ -127,6 +127,12 @@ PERF_HTTP_PORT="${PERF_HTTP_PORT:-8083}"
 # analysis then fails anyway, that still fails the build normally.
 SONARQUBE_ANALYSIS="${SONARQUBE_ANALYSIS:-false}"
 
+# Read by sonarqube_reachable/mvn (sonar.host.url / sonar.token) when SONARQUBE_ANALYSIS=true. Only
+# publish.yml ever sets these (as secrets); defaulted to empty here purely so shellcheck (SC2154) sees
+# them assigned and every other run doesn't reference an unset var.
+SONARQUBE_HOST_URL="${SONARQUBE_HOST_URL:-}"
+SONARQUBE_PAT="${SONARQUBE_PAT:-}"
+
 # Verbose off by default: steps print a per-substep progress line plus a pass/fail summary, and each
 # substep's own output is hidden until it fails. The -v/--verbose flag (parsed below) flips this to
 # stream/echo every substep's full output live.
