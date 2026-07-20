@@ -69,7 +69,7 @@ bash tests/run-e2e.sh 8081 "$(pwd)/target" "$(pwd)"   # E2E runner (needs a buil
 bash tests/run-smoke.sh 8082 "$(pwd)"                 # deployment-smoke runner (self-contained)
 
 # Full Docker deployment
-cp .env.example .env   # fill in DB_PASSWORD and SESSION_ENCRYPTION_KEY
+cp docs/.env.example .env   # fill in DB_PASSWORD and SESSION_ENCRYPTION_KEY
 docker compose up -d --build
 docker compose logs -f app
 ```

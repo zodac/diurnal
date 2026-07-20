@@ -114,6 +114,8 @@ A quick way to generate a good value:
 openssl rand -base64 32
 ```
 
+You can see other environment variables in [`.env.example`](docs/.env.example).
+
 **3. Start the application:**
 
 ```bash
