@@ -24,7 +24,14 @@ PORT="$1"
 TARGET_DIR="$2"
 BASEDIR="$3"
 
-COMPOSE_FILE="${BASEDIR}/docker-compose.dev.yml"
+# cd into BASEDIR and reference the compose file by a bare relative name rather than an absolute path.
+# On Windows/Git Bash, BASEDIR is POSIX-style (e.g. "/c/Users/..."); passed as an absolute "-f" path,
+# the Go-based docker compose CLI mis-resolves the leading "/" as "root of the current drive" instead
+# of translating "/c" to "C:", producing "C:\c\Users\...\docker-compose.dev.yml" and failing to open it.
+# A relative filename has no leading "/" to mangle, so it works unchanged on every platform. (TARGET_DIR
+# below stays absolute, so it is unaffected by this cd.)
+cd "${BASEDIR}"
+COMPOSE_FILE="docker-compose.dev.yml"
 APP_PID=""
 
 cleanup() {
