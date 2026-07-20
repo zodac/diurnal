@@ -90,16 +90,24 @@ test.describe("Authentication", () => {
         await expect(page.locator('input[name="confirmPassword"]')).toHaveValue("valid_password1")
     })
 
-    test("register form with mismatched confirmation shows error", async ({ page }) => {
+    test("register submit button stays disabled while the password confirmation does not match", async ({ page }) => {
+        // The one format rule folded into the presence-based lock (see data-disable-until-complete in
+        // app.js): every required field is non-blank here, so ONLY the mismatch keeps the button down.
+        // The server-side rule this shortcut front-runs is the authoritative one and is covered without
+        // a browser by WebResourceIT.register_mismatchedConfirmPassword_rendersErrorBannerInPage.
         await page.goto("/register")
+        const submit = page.locator('button[type="submit"]')
         await page.fill('input[name="email"]', `mismatch-${Date.now()}@example.com`)
         await page.fill('input[name="displayName"]', "Mismatch User")
         await page.fill('input[name="password"]', "valid_password1")
         await page.fill('input[name="confirmPassword"]', "valid_password2")
-        await page.click('button[type="submit"]')
+        await expect(submit).toBeDisabled()
 
-        await expect(page).toHaveURL(/\/register$/)
-        await expect(page.locator("body")).toContainText(/did not match/i)
+        // Correcting the confirmation releases the lock, and re-introducing a mismatch re-applies it.
+        await page.fill('input[name="confirmPassword"]', "valid_password1")
+        await expect(submit).toBeEnabled()
+        await page.fill('input[name="confirmPassword"]', "valid_password3")
+        await expect(submit).toBeDisabled()
     })
 
     test("register submit button is disabled until every required field is filled", async ({ page }) => {
