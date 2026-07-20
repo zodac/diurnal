@@ -93,10 +93,29 @@ RUN apt-get update && apt-get install -yqq --no-install-recommends \
 #   jdk.naming.dns                     – DNS resolution for OIDC discovery
 #   java.security.jgss / .sasl          – GSS/SASL chains pulled in by TLS + auth
 #   jdk.crypto.cryptoki / jdk.crypto.ec – PKCS#11 + EC crypto (modern TLS handshakes)
-#   java.desktop                       – java.beans, required reflectively by Hibernate / Jackson
 #   java.instrument                    – bytecode instrumentation agents
 #   jdk.unsupported                    – sun.misc.Unsafe (Netty, Hibernate, et al.)
 #   jdk.zipfs                          – zip filesystem provider used when opening nested jars
+#
+# java.desktop is deliberately ABSENT, and is worth ~11MB of the final image (by far the largest single
+# module — every other module above costs <=1MB combined, measured by jlinking each in isolation). It
+# carries java.beans plus the whole AWT/2D native set (libfontmanager, libawt, libfreetype, liblcms...),
+# none of which a headless server can use — the distroless base ships no X11 or libasound, so those
+# natives could never load anyway.
+#
+# It USED to be included "for java.beans, required reflectively by Hibernate / Jackson". A scan of all
+# shipped jars shows java.beans is indeed referenced, but only by 7 library classes that all degrade
+# gracefully when it is absent: jakarta.el BeanSupportFull + expressly (Hibernate Validator message
+# interpolation), Jackson's Java7SupportImpl (@ConstructorProperties/@Transient — irrelevant here, the
+# DTOs are records), snakeyaml MethodProperty (no YAML config in this app), jaxb-runtime (unused, we use
+# Jackson) and smallrye-open-api's parameter scanner (build-time). The app's own code never touches
+# java.beans. Verified on the real image: boot, every /api/v1 endpoint, every page, OIDC login, and
+# bean-validation message interpolation all behave identically to a java.desktop build, and the
+# generated OpenAPI document is byte-identical.
+#
+# If a future dependency does need java.beans it will fail at RUNTIME, not build time — the smoke tier
+# (tests/smoke/, the only tier running this image) is the guard, as it was for the java.rmi incident.
+#
 # --add-options bakes default JVM options into the JRE so every `java` launch includes them without
 # cluttering the ENTRYPOINT. --enable-native-access=ALL-UNNAMED opts the app in to JNI/native-library
 # loading, silencing the JDK's "restricted method ... System::loadLibrary" startup warning and keeping
@@ -108,7 +127,7 @@ RUN jlink --compress=zip-9 \
         --no-man-pages \
         --strip-debug \
         --add-options="--enable-native-access=ALL-UNNAMED" \
-        --add-modules java.base,java.logging,java.xml,java.sql,java.rmi,java.naming,java.management,java.net.http,jdk.naming.dns,java.security.jgss,java.security.sasl,jdk.crypto.cryptoki,jdk.crypto.ec,java.desktop,java.instrument,jdk.unsupported,jdk.management,jdk.zipfs \
+        --add-modules java.base,java.logging,java.xml,java.sql,java.rmi,java.naming,java.management,java.net.http,jdk.naming.dns,java.security.jgss,java.security.sasl,jdk.crypto.cryptoki,jdk.crypto.ec,java.instrument,jdk.unsupported,jdk.management,jdk.zipfs \
         --output /opt/jdk \
     && strip -p --strip-unneeded /opt/jdk/lib/server/libjvm.so
 
@@ -226,13 +245,55 @@ RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -Dcss.build.skip
 # ── Stage 8: static busybox (single-binary wget for the healthcheck) ─────────
 # busybox:*-musl is fully statically linked, so the binary runs unchanged on the glibc distroless
 # base. It is the only "shell tool" we add — distroless ships no wget/curl/sh of its own.
+#
+# It stays despite being the one non-distroless addition: at 1.2MB it is ~1% of the image, and every
+# alternative is worse. A JVM-based probe (`java -cp ...`) would cost a JVM boot — hundreds of ms and
+# tens of MB RSS — on every 30s interval, trading 1.2MB of disk for a permanent runtime cost; dropping
+# HEALTHCHECK altogether would break the `up --wait` gating in tests/run-smoke.sh and tests/run-perf.sh
+# and forfeit the readiness gating that /api/v1/status exists to provide; and a hand-rolled static
+# probe binary would save ~1MB in exchange for another toolchain stage.
 FROM busybox:1.37.0-musl AS shell
 
 # ── Stage 9: runtime (distroless, non-root) ──────────────────────────────────
-# distroless/base-debian13 = glibc + libssl + ca-certificates + tzdata + /tmp, and nothing else
-# (no shell, no package manager). The :nonroot tag defaults the process to UID 65532. No `apk add
-# tzdata` is needed — tzdata is already present, so `app.timezone` / TZ resolve as on a full distro.
-FROM gcr.io/distroless/base-debian13:nonroot AS runtime
+# distroless/base-nossl-debian13 = glibc + ca-certificates + tzdata + /tmp, and nothing else (no shell,
+# no package manager). The :nonroot tag defaults the process to UID 65532.
+#
+# Zone data: the JVM does NOT read the base image's /usr/share/zoneinfo — it resolves zone rules from
+# its own bundled /opt/jdk/lib/tzdb.dat (102KB, comes with the jlink JRE). Verified by masking
+# /usr/share/zoneinfo with an empty dir: all 604 zone ids still resolve, DST offsets included. So the
+# OS tzdata (tzdata + tzdata-legacy, ~4.4MB of base layers) is dead weight here, and is retained ONLY
+# because distroless has no shell to `RUN rm -rf` it — hand-assembling a rootfs to reclaim ~4MB would
+# forfeit a maintained, security-patched base for ~3% of the image. Re-evaluate only if the base ever
+# gains a variant without it.
+#
+# NOTE: with TZ unset the JVM defaults to GMT, not UTC. The compose files set TZ explicitly (and it
+# must match app.timezone); that is load-bearing, not decorative.
+#
+# The -nossl variant (vs the plain base-debian13 used previously) drops libssl/libcrypto, worth ~3.4MB.
+# Nothing here links against them: `ldd` over every .so in the jlink JRE shows zero libssl/libcrypto
+# linkage, because Java's TLS is SunJSSE — a pure-Java implementation — not OpenSSL. That covers the
+# PostgreSQL JDBC connection, OIDC discovery/token refresh (java.net.http) and outbound REST alike. The
+# JDK also carries its own truststore (lib/security/cacerts), so it does not depend on the system CA
+# bundle either. Adding a dependency with a native OpenSSL binding (e.g. netty-tcnative) would need this
+# reverted to base-debian13.
+#
+# ── Measuring this image ─────────────────────────────────────────────────────
+# The shipped image is ~122MB, split roughly:
+#     49MB  app/lib      third-party jars (202 of them)
+#     48MB  opt/jdk      the jlink JRE
+#     19MB  base         glibc ~14MB + tzdata ~4.4MB + the rest
+#      3MB  app/quarkus
+#      1MB  app/app      this project's own classes
+# So the JRE + jars are ~79% of the image and are effectively irreducible while this stays a JVM
+# deployment; the remaining levers (busybox 1.2MB, OS tzdata 4.4MB, pruning transitive jars ~1-3MB)
+# are each ~1-3% and carry the fragility documented at their respective stages. A step change would
+# need a Quarkus native build, which trades peak JIT throughput (see the p95 thresholds in
+# tests/perf/load.mjs) for size and boot time — deliberately NOT taken.
+#
+# Measure with `docker history` (sum the layer sizes) or a flattened `docker export`; those two agree.
+# `docker images` SIZE reports ~204MB here because the containerd/overlayfs snapshotter counts unpacked
+# snapshots — that is NOT the shipped size, so do not track image-size work against that column.
+FROM gcr.io/distroless/base-nossl-debian13:nonroot AS runtime
 
 # Custom jlink JRE (glibc, matches this debian base) + its tools on PATH.
 COPY --from=jre /opt/jdk /opt/jdk
@@ -252,7 +313,16 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
 # Quarkus fast-jar layout: quarkus-run.jar alongside lib/ app/ quarkus/. Deploy the whole directory.
 # Files land root-owned but world-readable, so UID 65532 can read/exec them; the app never writes here
 # (session state lives in Postgres, logs go to stdout).
+#
+# Copied as four layers rather than one, in ascending order of change frequency (this is Quarkus's own
+# documented container layering). lib/ is ~49MB of third-party jars that only change when a dependency
+# version does, whereas app/ is ~1MB of this project's own classes and changes on every commit. Split
+# this way an ordinary code change re-pushes/re-pulls ~1MB instead of the whole 53MB; as one layer, any
+# byte touched anywhere invalidated all 53MB. Total image size is unchanged.
 WORKDIR /app
-COPY --from=build /build/target/quarkus-app/ ./
+COPY --from=build /build/target/quarkus-app/lib/ ./lib/
+COPY --from=build /build/target/quarkus-app/quarkus/ ./quarkus/
+COPY --from=build /build/target/quarkus-app/app/ ./app/
+COPY --from=build /build/target/quarkus-app/*.jar ./
 
 ENTRYPOINT ["/opt/jdk/bin/java", "-jar", "quarkus-run.jar"]
