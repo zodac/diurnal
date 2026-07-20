@@ -283,19 +283,30 @@ document.addEventListener('click', function (e) {
 // A form marked `data-disable-until-complete` (the register card) keeps its submit button disabled
 // until every [required] field holds a non-blank value, so an obviously incomplete submission can't
 // be fired — a clearer signal than only surfacing the missing-fields banner after a click. This is a
-// UX affordance ONLY, and deliberately a strict subset of the real validation: it checks presence,
-// not format (a filled-but-malformed email or a password mismatch still enables the button and is
-// caught by the data-validate banner above); the server remains the authoritative validator. If the
-// lock is ever bypassed (no JS, a forced submit), both backstops still fire. Listening on the form
-// (input + change) keeps the button state in sync as the user types; both cards keep their fields
-// (incl. passwords) on a failed AJAX submit, so the button simply stays in whatever state the fields
-// warrant.
+// UX affordance ONLY, and deliberately a strict subset of the real validation: it checks presence
+// (plus the one extra rule below), not format — a filled-but-malformed email still enables the
+// button and is caught by the data-validate banner above; the server remains the authoritative
+// validator. If the lock is ever bypassed (no JS, a forced submit), both backstops still fire.
+// Listening on the form (input + change) keeps the button state in sync as the user types; both
+// cards keep their fields (incl. passwords) on a failed AJAX submit, so the button simply stays in
+// whatever state the fields warrant.
 // A button carrying `data-hold-disabled` is owned by another controller (the shared lockout countdown,
 // which greys it out for a fixed duration) — this handler leaves it alone so the two don't fight.
 (function () {
+    // The one format rule folded into this presence check: a non-blank confirmPassword that doesn't
+    // yet match password keeps the button disabled, mirroring the Settings change-password flow's
+    // confirmStepValid (settings.js) instead of letting the user submit a doomed request.
+    function passwordsMismatched(form) {
+        const pwd = form.querySelector('input[name="password"]')
+        const confirm = form.querySelector('input[name="confirmPassword"]')
+        if (!pwd || !confirm) { return false }
+        return confirm.value.length > 0 && confirm.value !== pwd.value
+    }
     function sync(form) {
         const btn = form.querySelector('button[type="submit"]')
-        if (btn && !btn.hasAttribute('data-hold-disabled')) { btn.disabled = !window.Diurnal.requiredFilled(form) }
+        if (btn && !btn.hasAttribute('data-hold-disabled')) {
+            btn.disabled = !window.Diurnal.requiredFilled(form) || passwordsMismatched(form)
+        }
     }
     document.querySelectorAll('form[data-disable-until-complete]').forEach(function (form) {
         sync(form)   // reflect the server-rendered state (blank fields → disabled) on first paint
