@@ -120,6 +120,11 @@ PERF_HTTP_PORT="${PERF_HTTP_PORT:-8083}"
 # the sonar-maven-plugin (bound to `install`) runs, ingesting the Checkstyle/PMD/SpotBugs report XMLs
 # the same -Dall build just produced. It needs the SONARQUBE_HOST_URL and SONARQUBE_PAT env vars that
 # the parent-pom reads (sonar.host.url / sonar.token); without them the analysis step fails.
+#
+# run_java pre-flight-checks the server (sonarqube_reachable, using this same host/token) before
+# deciding whether to append -Dsonarqube at all: if it's unreachable, the analysis is skipped for this
+# run instead of letting a bootstrap failure fail the whole release gate. If it IS reachable but the
+# analysis then fails anyway, that still fails the build normally.
 SONARQUBE_ANALYSIS="${SONARQUBE_ANALYSIS:-false}"
 
 # Verbose off by default: steps print a per-substep progress line plus a pass/fail summary, and each
@@ -230,6 +235,21 @@ run_quietly() {
         echo "${out}"
     fi
     return "${rc}"
+}
+
+# Pre-flight reachability check for the SonarQube server, hit with the SAME host/token the
+# sonar-maven-plugin itself would use (SONARQUBE_HOST_URL / SONARQUBE_PAT). run_java calls this BEFORE
+# deciding whether to append -Dsonarqube: if the server doesn't answer (down, unreachable, any non-200 —
+# including the 502 that prompted this check), the analysis is skipped for this run entirely rather than
+# letting a bootstrap failure fail the whole gate. If the server IS reachable but the analysis itself
+# then fails for some other reason (bad token, quality-gate failure, ...), that still fails the build
+# normally — this only gates whether the analysis is attempted at all.
+sonarqube_reachable() {
+    local http_code
+    http_code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+        -u "${SONARQUBE_PAT}:" \
+        "${SONARQUBE_HOST_URL%/}/api/server/version" 2>/dev/null) || return 1
+    [[ "${http_code}" == "200" ]]
 }
 
 # The eslint image is shared by the javascript and typescript steps. It installs eslint plus the
@@ -364,8 +384,13 @@ run_java() {
     local -a mvn_args=(clean install -Dall)
     local mvn_label="mvn clean install -Dall"
     if [[ "${SONARQUBE_ANALYSIS}" == "true" ]]; then
-        mvn_args+=(-Dsonarqube)
-        mvn_label+=" -Dsonarqube"
+        substep "checking SonarQube server reachability (${SONARQUBE_HOST_URL})"
+        if sonarqube_reachable; then
+            mvn_args+=(-Dsonarqube)
+            mvn_label+=" -Dsonarqube"
+        else
+            echo "⚠️  SonarQube server at ${SONARQUBE_HOST_URL} is unreachable - skipping analysis for this run"
+        fi
     fi
 
     substep "${mvn_label}  (unit + *IT + linters; packages the fast-jar)"
