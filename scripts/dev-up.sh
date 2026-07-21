@@ -9,6 +9,13 @@
 # Safe to re-run: if 8081 already serves, it skips starting a second server.
 #
 # Usage:  scripts/dev-up.sh
+#         OIDC_PREVIEW=1 scripts/dev-up.sh   # additionally enable OIDC against a DUMMY IdP
+#
+# OIDC_PREVIEW exists only to generate the login screenshot (scripts/generate-screenshots.cjs
+# documentation): its committed image shows the "Log in with <provider>" button beside the password
+# form. The issuer below is a placeholder that is NEVER contacted - the button is server-rendered from
+# the OIDC_ENABLED flag alone - so no real identity provider is needed. Off by default so a normal dev
+# session shows the password-only login page.
 set -uo pipefail
 cd "$(dirname "$0")/.." || exit 1
 
@@ -23,8 +30,23 @@ fi
 echo "→ Starting dev database (diurnal-db-dev)…"
 docker compose -f docker-compose.dev.yml up -d diurnal-db-dev
 
+# Dummy-IdP OIDC config, only when OIDC_PREVIEW=1 (see the header). These -D system properties are
+# forwarded by quarkus:dev to the running app exactly like -Dquarkus.http.port below.
+oidc_args=()
+if [[ "${OIDC_PREVIEW:-0}" == "1" ]]; then
+  echo "→ OIDC_PREVIEW=1 - enabling OIDC against a dummy IdP (login-screenshot preview only)…"
+  oidc_args=(
+    "-DOIDC_ENABLED=true"
+    "-DOIDC_ISSUER_URL=http://127.0.0.1:8080"
+    "-DOIDC_CLIENT_ID=diurnal"
+    "-DOIDC_CLIENT_SECRET=preview-dummy-secret"
+    "-DOIDC_PROVIDER_NAME=Authelia"
+    "-DOIDC_SCOPES=email,profile"
+  )
+fi
+
 echo "→ Starting quarkus:dev on ${PORT} (logs: ${LOG})…"
-nohup mvn quarkus:dev -Dquarkus.http.port="${PORT}" >"${LOG}" 2>&1 &
+nohup mvn quarkus:dev -Dquarkus.http.port="${PORT}" "${oidc_args[@]}" >"${LOG}" 2>&1 &
 dev_pid=$!
 echo "  pid ${dev_pid}"
 
