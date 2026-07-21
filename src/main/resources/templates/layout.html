@@ -126,6 +126,18 @@
      FOUC guard: it paints the light page colours before /css/app.css arrives (the dark equivalent is
      the #theme-bg override injected by the applyTheme script above). !}
 <body style="background-color:#f9fafb;color:#111827">
+    {! No-JavaScript notice. Diurnal's core interactions - logging actions, the calendar grid and
+         saving settings - are driven by htmx/JavaScript, so with scripting disabled the dashboard
+         renders blank and those controls are inert (sign-in and reading pages still work via the
+         native forms/links). This <noscript> is the ONLY signal a scripting-disabled visitor would
+         otherwise get; it renders solely when scripting is off, so JS users never see it and it costs
+         them nothing. Reuses partials/banner.html (UI_PATTERNS §4) inside the shared page column. !}
+    <noscript>
+        <div class="page-container px-4 py-4">
+            {#include partials/banner variant='warning'
+                message='JavaScript is required for Diurnal to work. You can still sign in and read your pages, but logging actions, the calendar, and saving settings will not work until it is enabled.' /}
+        </div>
+    </noscript>
     {#insert body}Page content{/insert}
 
     {! Shared front-end behaviour (data-table edit/confirm toggles, form validation + AJAX submit,
