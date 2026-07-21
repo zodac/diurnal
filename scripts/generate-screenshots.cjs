@@ -30,15 +30,24 @@
  *   page-{nova,standard,dyslexic}-full-dark.webp   — Font picker (Full calendar, dark)
  *   (page-nova-full-dark is shared between the Theme-dark tile and the Font-nova tile.)
  *
- * `documentation` — 9 WebP files in docs/screenshots/, all captured dark / Full / Nova unless noted:
- *   dashboard-{system,dark,light}.webp             — dashboard banner + gallery (system = light/dark split)
- *   cal-{minimal,stacked}-dark.webp                — the two extra calendar styles shown in the README
+ * `documentation` — 12 WebP files in docs/screenshots/, all captured dark / Full / Nova unless noted:
+ *   dashboard-{system,dark,light}.webp             — dashboard banner + theme pair (system = light/dark split)
+ *   dashboard-mobile.webp                          — dashboard at a phone viewport (minimal calendar), same light/dark
+ *                                                    diagonal split as -system (viewport-only shots, not fullPage)
+ *   cal-{full,minimal,stacked}-dark.webp           — the three calendar styles, all framed as #calendar-wrap
  *   {actions,stats,admin,settings}-dark.webp       — the four page screenshots
+ *   login-dark.webp                                — the login page (logged-OUT, own context; shows password
+ *                                                    + OIDC sign-in, so needs the OIDC preview boot below)
  *
  * PREREQUISITES
  * -------------
  *   1. A running dev server (defaults to http://localhost:8081):
- *        scripts/dev-up.sh          # brings up diurnal-db-dev + quarkus:dev on 8081
+ *        scripts/dev-up.sh                 # brings up diurnal-db-dev + quarkus:dev on 8081
+ *      For `documentation`/`all`, the login shot (login-dark.webp) shows BOTH password and OIDC
+ *      sign-in, so boot with OIDC enabled against a DUMMY IdP (the issuer is never contacted — the
+ *      button renders from the OIDC_ENABLED flag alone):
+ *        OIDC_PREVIEW=1 scripts/dev-up.sh  # same boot, plus a throwaway OIDC_* config
+ *      shotLoginPage() throws if that button is missing, rather than committing a password-only shot.
  *   2. Playwright's browser binaries (already installed for the e2e suite):
  *        cd tests && npx playwright install
  *
@@ -97,6 +106,13 @@ const DB_CONFIG = {
 // the previews show the true widest desktop layout. At a narrower viewport the column shrinks and the
 // day-panel (1/3 of the grid) gets cramped enough to ellipsis-truncate action names like "Exercise".
 const VW = 1728, VH = 820
+
+// Phone capture viewport, for the mobile dashboard shot the README pairs with the desktop one. 390px
+// is narrow enough to put every responsive breakpoint into its mobile form (the navbar collapses to
+// the hamburger, the calendar/day-panel grid stacks). Unlike every other shot this one is captured
+// viewport-only rather than fullPage, so the height is meaningful: it frames the image like a real
+// phone screen instead of a very tall, very narrow strip of the whole scrolled page.
+const MOBILE_VW = 390, MOBILE_VH = 844
 
 // Dedicated demo account — kept separate from real dev data.
 const USER = { email: 'preview-demo@diurnal.local', password: 'preview_demo123', displayName: 'Test User' }
@@ -359,6 +375,84 @@ async function shotPage(ctx, url, waitSelector, dir, file) {
   await page.close()
 }
 
+// Login page: captured in a FRESH context with NO session cookie — every other documentation shot is
+// authenticated, and reusing `ctx` would just bounce to the dashboard. An anonymous request has no
+// stored theme preference so the page renders the `system` default, which resolves via the FOUC
+// bootstrap's prefers-color-scheme check; colorScheme 'dark' therefore lands it dark, matching the set.
+//
+// The committed shot shows BOTH sign-in methods, so the instance must be booted with OIDC enabled
+// against a DUMMY IdP (see PREREQUISITES in the header — `OIDC_PREVIEW=1 scripts/dev-up.sh`, or the
+// same OIDC_* env on a fast-jar boot). The "Log in with <provider>" button is server-rendered purely
+// from the OIDC_ENABLED flag (the login page never contacts the IdP), so an unreachable issuer is
+// enough. We wait for that button and THROW if it is missing, rather than silently committing a
+// password-only shot. (The button needs a user to exist so /login stops redirecting to first-run
+// setup — the caller seeds one before this runs.)
+async function shotLoginPage(browser, dir, file) {
+  const anonCtx = await browser.newContext({
+    viewport: { width: VW, height: VH },
+    deviceScaleFactor: 2,
+    timezoneId: 'UTC',
+    colorScheme: 'dark',
+  })
+  const page = await anonCtx.newPage()
+  await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' })
+  await page.waitForSelector('input[name="password"]', { timeout: 15000 })
+  try {
+    await page.waitForSelector('a[href="/oidc-login"]', { timeout: 15000 })
+  } catch {
+    throw new Error(
+      'Login page has no OIDC button. Boot the instance with OIDC enabled against a dummy IdP '
+      + '(OIDC_PREVIEW=1 scripts/dev-up.sh, or the OIDC_* env documented in this script\'s header) '
+      + `so ${file} shows both password and OIDC sign-in.`)
+  }
+  await page.waitForTimeout(600) // settle fonts/layout
+  const pngBuf = await page.screenshot({ fullPage: true })
+  fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf))
+  console.log('wrote', file)
+  await anonCtx.close()
+}
+
+// Mobile dashboard: the same demo account at a phone viewport, captured in BOTH themes and composited
+// into the same diagonal light/dark split as the desktop dashboard-system banner (compositeSystem is
+// dimension-agnostic, so it frames a portrait phone shot exactly as it does the landscape one). Uses
+// the MINIMAL calendar style (compact coloured dots) rather than Full: at phone width the Full style's
+// per-action event text is cramped, whereas the dot grid reads cleanly. The theme is an account-level
+// preference, so setPrefs over the shared desktop `ctx` drives what the mobile page renders; the mobile
+// context still needs its own login because a browser context owns its cookie jar. Explicit
+// `light`/`dark` themes render `data-theme` server-side, so the context's colorScheme (which only
+// resolves the `system` theme) is irrelevant here. Viewport-only capture; see MOBILE_VW/MOBILE_VH above
+// for why this one is not fullPage.
+async function shotMobileDashboard(browser, ctx, dir, file) {
+  const mobileCtx = await browser.newContext({
+    viewport: { width: MOBILE_VW, height: MOBILE_VH },
+    deviceScaleFactor: 2,
+    timezoneId: 'UTC',
+    colorScheme: 'dark',
+    hasTouch: true,
+  })
+  await login(mobileCtx)
+
+  // Render the mobile dashboard in `theme` and return its viewport PNG. Waiting for `.d-min-dot` (the
+  // minimal style's per-action dot) ensures the calendar's data has painted, not just the empty grid.
+  const shoot = async theme => {
+    await setPrefs(ctx, theme, 'minimal', 'nova')
+    const page = await mobileCtx.newPage()
+    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' })
+    await page.waitForSelector('.d-min-dot', { timeout: 15000 })
+    await page.waitForTimeout(600) // settle fonts/layout
+    const buf = await page.screenshot()
+    await page.close()
+    return buf
+  }
+
+  const lightBuf = await shoot('light')
+  const darkBuf = await shoot('dark')
+  await mobileCtx.close()
+
+  // Same diagonal split as the desktop banner (light upper-left, dark lower-right).
+  await compositeSystem(browser, { lightBuf, darkBuf, dir, out: file })
+}
+
 // System theme = diagonal split of the light & dark dashboards (light upper-left, dark lower-right;
 // divider runs corner-to-corner top-right → bottom-left). Receives PNG buffers (captured by
 // shotFullPage) so no file reads are needed. The canvas matches the sources' actual pixel size.
@@ -456,10 +550,14 @@ async function captureDocsScreenshots(ctx, browser) {
   const lightBuf = await shotFullPage(lightPage, SHOTS, 'dashboard-light.webp')
   await lightPage.close()
 
-  // Nova, full, dark → the dark dashboard; store PNG for the system composite.
+  // Nova, full, dark → the dark dashboard; store PNG for the system composite. The same page also
+  // yields the Full calendar shot: the README compares the three calendar styles side by side, so all
+  // three are captured as the #calendar-wrap ELEMENT (identical framing and dimensions) rather than
+  // letting Full be a whole-page shot while the other two are element shots.
   await setPrefs(ctx, 'dark', 'full', 'nova')
   const darkPage = await openDashboard(ctx, 'full')
   const darkBuf = await shotFullPage(darkPage, SHOTS, 'dashboard-dark.webp')
+  await shotCalendar(darkPage, SHOTS, 'cal-full-dark.webp')
   await darkPage.close()
 
   // System composite (light upper-left, dark lower-right) → the README banner.
@@ -483,6 +581,12 @@ async function captureDocsScreenshots(ctx, browser) {
   await shotPage(ctx, '/stats',       '#stats-list .card',           SHOTS, 'stats-dark.webp')
   await shotPage(ctx, '/admin/users', '#admin-users-list .dt-table', SHOTS, 'admin-dark.webp')
   await shotPage(ctx, '/settings',    '#prefs-form',                 SHOTS, 'settings-dark.webp')
+
+  // The two shots that need their own browser context: the login page is anonymous, and the mobile
+  // dashboard is a different viewport. Both run last so the mobile one inherits the dark/Full/Nova
+  // preferences set above.
+  await shotLoginPage(browser, SHOTS, 'login-dark.webp')
+  await shotMobileDashboard(browser, ctx, SHOTS, 'dashboard-mobile.webp')
 }
 
 // ── Main ───────────────────────────────────────────────────────────────────────────────────────
