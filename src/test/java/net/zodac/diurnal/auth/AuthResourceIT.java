@@ -107,7 +107,7 @@ class AuthResourceIT extends IntegrationTestBase {
         // An OIDC-provisioned account owns a `users` row keyed only on its email (no password hash);
         // a subsequent local registration must not be able to hijack or clobber that email. The
         // duplicate check (User.findByEmail) is auth-source-agnostic, and users.email is UNIQUE.
-        runInTx(() -> newOidcUser("oidc-user@example.com", "OIDC User"));
+        runInTx(() -> newOidcUser("oidc-user@example.com"));
 
         given().contentType(ContentType.JSON)
                 .body("""
@@ -129,7 +129,7 @@ class AuthResourceIT extends IntegrationTestBase {
 
     @Test
     void register_emailBelongsToOidcUser_caseInsensitive_returns409() {
-        runInTx(() -> newOidcUser("cased-oidc@example.com", "OIDC User"));
+        runInTx(() -> newOidcUser("cased-oidc@example.com"));
 
         given().contentType(ContentType.JSON)
                 .body("""
@@ -333,8 +333,8 @@ class AuthResourceIT extends IntegrationTestBase {
     @Test
     void register_viaApi_alwaysGetsUserRole() {
         // The first (admin) account is seeded via createDbState(), so any account created through the
-        // API is necessarily a subsequent user and must never be granted the administrator role — the
-        // API can never mint an admin (see FirstUserCreationBlockedIT for the first-run refusal).
+        // API is necessarily a subsequent user and must never be granted the administrator role.
+        // The API can never mint an admin (see FirstUserCreationBlockedIT for the first-run refusal).
         given().contentType(ContentType.JSON)
                 .body("""
                         {"email":"second@example.com","displayName":"Second","password":"password1"}
@@ -365,10 +365,10 @@ class AuthResourceIT extends IntegrationTestBase {
      * Persists an OIDC-provisioned account (no password hash; issuer/subject set), mirroring what
      * {@link net.zodac.diurnal.auth.OidcUserProvisioner} writes on first login. Must be called inside a transaction.
      */
-    private static void newOidcUser(final String email, final String displayName) {
+    private static void newOidcUser(final String email) {
         final User user = new User();
         user.email = email;
-        user.displayName = displayName;
+        user.displayName = "OIDC User";
         user.oidcIssuer = "https://diurnal.example.com/idp";
         user.oidcSubject = "subject-" + email;
         user.role = Role.USER.storageValue();

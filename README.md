@@ -85,22 +85,9 @@ The dashboard calendar can be drawn in one of three styles, chosen per user in [
 - **Minimal**: a coloured dot per action
 - **Stacked**: horizontal bars per action
 
-<details>
-<summary>Screenshots: the three calendar styles</summary>
-
-Full:
-
-<img src="docs/screenshots/cal-full-dark.webp" alt="The full calendar style" width="600">
-
-Minimal:
-
-<img src="docs/screenshots/cal-minimal-dark.webp" alt="The minimal calendar style" width="600">
-
-Stacked:
-
-<img src="docs/screenshots/cal-stacked-dark.webp" alt="The stacked calendar style" width="600">
-
-</details>
+|                                           Full                                            |                                             Minimal                                             |                                             Stacked                                             |
+|:-----------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------:|
+| <img src="docs/screenshots/cal-full-dark.webp" alt="The full calendar style" width="280"> | <img src="docs/screenshots/cal-minimal-dark.webp" alt="The minimal calendar style" width="280"> | <img src="docs/screenshots/cal-stacked-dark.webp" alt="The stacked calendar style" width="280"> |
 
 ### Statistics and streaks
 
@@ -130,18 +117,9 @@ These can be enabled/disabled or re-ordered in user settings (see [Statistics](#
 Diurnal ships light and dark themes (or follow the system setting), and three font choices. Everything is rendered server-side, so there is no flash
 of the wrong theme on load.
 
-<details>
-<summary>Screenshots: the dashboard in dark and light modes</summary>
-
-Dark:
-
-<img src="docs/screenshots/dashboard-dark.webp" alt="The dashboard in dark mode" width="600">
-
-Light:
-
-<img src="docs/screenshots/dashboard-light.webp" alt="The dashboard in light mode" width="600">
-
-</details>
+|                                             Dark                                              |                                              Light                                              |
+|:---------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------:|
+| <img src="docs/screenshots/dashboard-dark.webp" alt="The dashboard in dark mode" width="400"> | <img src="docs/screenshots/dashboard-light.webp" alt="The dashboard in light mode" width="400"> |
 
 ## Deployment
 

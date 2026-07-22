@@ -26,7 +26,7 @@ import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link OpenApiDocsAccess#decide(Optional)}: the documentation surface is served only to an administrator, redirected to login when
+ * Unit tests for {@link OpenApiDocsAccess#decide(Optional)}: the documentation surface is served only to an administrator, redirected to /login when
  * anonymous, and forbidden for a non-administrator.
  */
 class OpenApiDocsAccessTest {

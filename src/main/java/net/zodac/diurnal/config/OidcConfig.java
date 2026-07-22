@@ -56,6 +56,17 @@ public interface OidcConfig {
     boolean autoRedirect();
 
     /**
+     * Whether the application probes the IdP's discovery endpoint at startup (failing fast on an unreachable or invalid provider) instead of letting
+     * the misconfiguration surface at the first user's login. Only has an effect when OIDC is enabled and Quarkus discovery is enabled. Set
+     * {@code false} to skip the probe (e.g. the screenshot generator's dummy IdP, which is never contacted).
+     *
+     * @return {@code true} to verify the provider at startup, defaulting to {@code true}
+     */
+    @WithName("verify.on.startup")
+    @WithDefault("true")
+    boolean verifyOnStartup();
+
+    /**
      * RP-initiated logout URL at the IdP, used to end the upstream session on logout.
      *
      * @return the logout URL, or empty when unset

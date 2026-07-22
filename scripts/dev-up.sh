@@ -42,6 +42,9 @@ if [[ "${OIDC_PREVIEW:-0}" == "1" ]]; then
     "-DOIDC_CLIENT_SECRET=preview-dummy-secret"
     "-DOIDC_PROVIDER_NAME=Authelia"
     "-DOIDC_SCOPES=email,profile"
+    # The dummy issuer is never contacted, so skip the startup discovery probe that would otherwise
+    # fail the boot (OIDC_VERIFY_ON_STARTUP defaults to true - see application.properties).
+    "-DOIDC_VERIFY_ON_STARTUP=false"
   )
 fi
 

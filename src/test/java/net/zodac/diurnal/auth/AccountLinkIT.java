@@ -115,7 +115,7 @@ class AccountLinkIT extends IntegrationTestBase {
     @Test
     @TestSecurity(user = LOCAL, roles = Role.Values.USER)
     void settingsPage_refusedConnectCode_rendersTheReasonBannerInPlace() {
-        // A refused connect redirects back HERE (?msg=<OidcDenialReason code>) with the session intact — never to the login page.
+        // A refused connection redirects back HERE (?msg=<OidcDenialReason code>) with the session intact — never to the login page.
         given().get("/settings?msg=link-email-mismatch")
                 .then().statusCode(200)
                 .body(containsString("uses a different email address"));

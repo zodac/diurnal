@@ -45,7 +45,8 @@
  *        scripts/dev-up.sh                 # brings up diurnal-db-dev + quarkus:dev on 8081
  *      For `documentation`/`all`, the login shot (login-dark.webp) shows BOTH password and OIDC
  *      sign-in, so boot with OIDC enabled against a DUMMY IdP (the issuer is never contacted — the
- *      button renders from the OIDC_ENABLED flag alone):
+ *      button renders from the OIDC_ENABLED flag alone; OIDC_VERIFY_ON_STARTUP=false so the startup
+ *      discovery probe does not fail the boot on the unreachable dummy issuer):
  *        OIDC_PREVIEW=1 scripts/dev-up.sh  # same boot, plus a throwaway OIDC_* config
  *      shotLoginPage() throws if that button is missing, rather than committing a password-only shot.
  *   2. Playwright's browser binaries (already installed for the e2e suite):

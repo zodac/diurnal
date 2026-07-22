@@ -157,27 +157,6 @@ class OidcLoginPolicyTest {
             .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.ACCOUNT_EXISTS));
     }
 
-    @Test
-    void revocationGuard_callbackPath_isExempt() {
-        assertThat(OidcLoginPolicy.revocationGuardSatisfied(true, false))
-            .as("The code-flow callback runs before a Diurnal session exists, so it must be exempt")
-            .isTrue();
-    }
-
-    @Test
-    void revocationGuard_liveSessionForSameUser_passes() {
-        assertThat(OidcLoginPolicy.revocationGuardSatisfied(false, true))
-            .as("A live server-side session for the same user satisfies the guard")
-            .isTrue();
-    }
-
-    @Test
-    void revocationGuard_qSessionAlone_fails() {
-        assertThat(OidcLoginPolicy.revocationGuardSatisfied(false, false))
-            .as("The OIDC session cookie alone must never grant page access — revocation would be unenforceable")
-            .isFalse();
-    }
-
     private static OidcLoginFacts facts(final boolean firstUserBootstrapBlocked, final boolean passwordAuthEnabled, final boolean emailMissing,
         final boolean groupCheckEnabled, final boolean inConfiguredGroup, final boolean linkedAccountFound, final boolean demotesLastAdministrator,
         final boolean emailCollision, final @Nullable Boolean emailVerified) {

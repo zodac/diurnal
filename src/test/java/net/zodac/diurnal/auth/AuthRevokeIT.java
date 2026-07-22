@@ -104,7 +104,7 @@ class AuthRevokeIT extends IntegrationTestBase {
     }
 
     @Test
-    void bodylessAuthPosts_acceptAnyContentType() {
+    void noBodyAuthPosts_acceptAnyContentType() {
         // /logout and /revoke take no body, so a stray Content-Type must not be rejected with a 415
         // (both override the class-level JSON @Consumes with a wildcard).
         given().header("Authorization", "Bearer " + token(user))

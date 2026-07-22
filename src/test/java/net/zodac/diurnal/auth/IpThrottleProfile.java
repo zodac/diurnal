@@ -21,8 +21,8 @@ import io.quarkus.test.junit.QuarkusTestProfile;
 import java.util.Map;
 
 /**
- * Test profile that turns the global per-IP auth lockout on with a small limit, so it can be exercised in isolation (it is off by default in the test
- * profile to keep unrelated login/register ITs deterministic on the shared loopback address).
+ * Test profile that turns the global per-IP auth lockout on with a small limit, so it can be exercised in isolation . It is off by default in the
+ * test profile to keep unrelated login/register ITs deterministic on the shared loopback address.
  */
 public final class IpThrottleProfile implements QuarkusTestProfile {
 
