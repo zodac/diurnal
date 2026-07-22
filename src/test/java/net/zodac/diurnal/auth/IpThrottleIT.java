@@ -69,11 +69,11 @@ class IpThrottleIT extends IntegrationTestBase {
 
         // Five failed logins from this IP trip the lock (each an ordinary 401; the lock is revealed next).
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            postLogin(SEED_EMAIL, "wrong_password").then().statusCode(401);
+            postLogin("wrong_password").then().statusCode(401);
         }
 
         // The IP is now locked: even the correct password is refused, with the neutral lockout message.
-        postLogin(SEED_EMAIL, SEED_PASSWORD)
+        postLogin(SEED_PASSWORD)
                 .then()
                 .statusCode(429)
                 .header("Retry-After", notNullValue())
@@ -93,14 +93,14 @@ class IpThrottleIT extends IntegrationTestBase {
         // Three failed logins plus two rejected (duplicate-email) registrations = five failures on the
         // ONE shared IP counter — no single surface reaches five on its own.
         for (int i = 0; i < 3; i++) {
-            postLogin(SEED_EMAIL, "wrong_password").then().statusCode(401);
+            postLogin("wrong_password").then().statusCode(401);
         }
         for (int i = 0; i < 2; i++) {
             postApiRegister(SEED_EMAIL).then().statusCode(409);
         }
 
         // The combined tally has tripped the lock: the next attempt on either surface is blocked.
-        postLogin(SEED_EMAIL, SEED_PASSWORD).then().statusCode(429);
+        postLogin(SEED_PASSWORD).then().statusCode(429);
         postApiRegister("another-new@example.com").then().statusCode(429);
     }
 
@@ -111,13 +111,13 @@ class IpThrottleIT extends IntegrationTestBase {
         // Four failures (one below the limit), then a SUCCESSFUL login — which must not launder the IP's
         // budget — then one more failure tips it over to a lockout.
         for (int i = 0; i < MAX_ATTEMPTS - 1; i++) {
-            postLogin(SEED_EMAIL, "wrong_password").then().statusCode(401);
+            postLogin("wrong_password").then().statusCode(401);
         }
-        postLogin(SEED_EMAIL, SEED_PASSWORD).then().statusCode(200);
-        postLogin(SEED_EMAIL, "wrong_password").then().statusCode(401);
+        postLogin(SEED_PASSWORD).then().statusCode(200);
+        postLogin("wrong_password").then().statusCode(401);
 
         // The success did not reset the counter, so that fifth failure locked the IP.
-        postLogin(SEED_EMAIL, SEED_PASSWORD).then().statusCode(429);
+        postLogin(SEED_PASSWORD).then().statusCode(429);
     }
 
     @Test
@@ -144,7 +144,7 @@ class IpThrottleIT extends IntegrationTestBase {
 
         // Lock the IP via failed logins, then hit the web registration form.
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            postLogin(SEED_EMAIL, "wrong_password").then().statusCode(401);
+            postLogin("wrong_password").then().statusCode(401);
         }
 
         // The form register 429 carries the exact seconds left in the shared X-Lockout-Retry-After header
@@ -162,14 +162,14 @@ class IpThrottleIT extends IntegrationTestBase {
         registerSeedUser();
 
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            postLogin(SEED_EMAIL, "wrong_password").then().statusCode(401);
+            postLogin("wrong_password").then().statusCode(401);
         }
-        postLogin(SEED_EMAIL, SEED_PASSWORD).then().statusCode(429);
+        postLogin(SEED_PASSWORD).then().statusCode(429);
 
         // The profile's lockout window is 15 minutes; advance past it and the IP works again.
         freezeInstant(FROZEN_NOW.plus(Duration.ofMinutes(16)), ZoneId.of("UTC"));
 
-        postLogin(SEED_EMAIL, SEED_PASSWORD).then().statusCode(200);
+        postLogin(SEED_PASSWORD).then().statusCode(200);
     }
 
     // A logged-in user changing their OWN password gets UNLIMITED tries: the settings password-change flow
@@ -196,7 +196,7 @@ class IpThrottleIT extends IntegrationTestBase {
 
         // ...and none of them touched the shared IP counter: a fresh wrong login is an ordinary 401. It
         // would be an immediate 429 if the (well past MAX_ATTEMPTS) verify failures had fed the lockout.
-        postLogin(SEED_EMAIL, "wrong_password").then().statusCode(401);
+        postLogin("wrong_password").then().statusCode(401);
     }
 
     // Seed the initial account locally: the API register endpoint now refuses to create the first
@@ -206,9 +206,9 @@ class IpThrottleIT extends IntegrationTestBase {
         runInTx(() -> newUser(SEED_EMAIL, "Seed", Role.ADMIN.storageValue(), SEED_PASSWORD));
     }
 
-    private static Response postLogin(final String email, final String password) {
+    private static Response postLogin(final String password) {
         return given().contentType(ContentType.JSON)
-                .body("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}")
+                .body("{\"email\":\"" + IpThrottleIT.SEED_EMAIL + "\",\"password\":\"" + password + "\"}")
                 .post("/api/v1/auth/login");
     }
 
