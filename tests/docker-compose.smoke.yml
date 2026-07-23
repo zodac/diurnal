@@ -34,6 +34,8 @@ services:
       PASSWORD_AUTH_ENABLED: "true"
       ENABLE_REGISTRATION: "true"
       OIDC_ENABLED: "false"
+      # No outbound GitHub update-check lookup at startup from the isolated smoke stack.
+      APP_UPDATE_CHECK_ENABLED: "false"
     depends_on:
       db:
         condition: service_healthy

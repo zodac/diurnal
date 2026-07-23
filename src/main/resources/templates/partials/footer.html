@@ -18,6 +18,22 @@
         <a href="{inject:appInfo.repositoryUrl}/releases" target="_blank" rel="noopener"
            aria-label="Release notes"
            class="group relative hover:text-brand transition-colors">v{inject:appInfo.version}{#include partials/tooltip text="Release notes" pos="top" /}</a>
+        {! Admin-only "newer version available" indicator. `updateAvailable`/`latestVersion`/`latestReleaseUrl`
+             are supplied ONLY by the admin pages (AdminWebResource); every other page leaves them unset. Qute is
+             strict (a bare `{#if updateAvailable}` on a page that omits the key would throw "Key not found"), so
+             default it here with `.or(false)` — the same pattern as `showTips` in partials/nav-links. When false,
+             the block is skipped (and `latestVersion`/`latestReleaseUrl` are never evaluated) and the footer reads
+             year - version - GitHub as before. !}
+        {#let updateAvailable=updateAvailable.or(false)}
+        {#if updateAvailable}
+        <span aria-hidden="true">&middot;</span>
+        <a href="{latestReleaseUrl}" target="_blank" rel="noopener"
+           aria-label="Update available: version {latestVersion}"
+           class="group relative inline-flex items-center gap-1 font-medium text-brand hover:underline transition-colors">
+            {#include partials/icon name='arrow-up-circle' cls='h-3.5 w-3.5' /}
+            Update available{#include partials/tooltip text="Version {latestVersion} is available" pos="top" /}</a>
+        {/if}
+        {/let}
         <span aria-hidden="true">&middot;</span>
         {! GitHub mark (official octicon). Not part of the app brand — it's the icon of the
              external service being linked to — so it uses currentColor, not a brand token. !}
