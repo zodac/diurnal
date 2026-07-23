@@ -92,11 +92,11 @@ public class CsrfProtectionFilter implements ContainerRequestFilter {
     /**
      * Decides whether a request is a cross-site request forgery that must be rejected.
      *
-     * @param method the HTTP method
+     * @param method              the HTTP method
      * @param cookieAuthenticated whether the request carries a session (form/OIDC) cookie
-     * @param origin the {@code Origin} header value, or {@code null} if absent
-     * @param referer the {@code Referer} header value, or {@code null} if absent
-     * @param expectedAuthority the {@code host[:port]} the browser addressed, or {@code null}
+     * @param origin              the {@code Origin} header value, or {@code null} if absent
+     * @param referer             the {@code Referer} header value, or {@code null} if absent
+     * @param expectedAuthority   the {@code host[:port]} the browser addressed, or {@code null}
      * @return {@code true} if the request must be rejected as a CSRF attempt
      */
     static boolean isCsrfViolation(final String method,
@@ -111,19 +111,19 @@ public class CsrfProtectionFilter implements ContainerRequestFilter {
         // A present Origin is authoritative: it must parse to and match the addressed host. An opaque
         // origin (the literal "null") or any mismatch is a violation.
         if (origin != null) {
-            return !authorityMatches(origin, expectedAuthority);
+            return authorityDoesNotMatch(origin, expectedAuthority);
         }
         // No Origin, but a Referer can stand in as the initiating page's origin. When neither header
         // is present it is a non-browser client (not a CSRF vector), so the request is allowed.
-        return referer != null && !authorityMatches(referer, expectedAuthority);
+        return referer != null && authorityDoesNotMatch(referer, expectedAuthority);
     }
 
-    private static boolean authorityMatches(final String url, final @Nullable String expectedAuthority) {
+    private static boolean authorityDoesNotMatch(final String url, final @Nullable String expectedAuthority) {
         if (expectedAuthority == null || expectedAuthority.isBlank()) {
-            return false;
+            return true;
         }
         final String sourceAuthority = authorityOf(url);
-        return sourceAuthority != null && sourceAuthority.equalsIgnoreCase(expectedAuthority);
+        return sourceAuthority == null || !sourceAuthority.equalsIgnoreCase(expectedAuthority);
     }
 
     /**
@@ -151,7 +151,7 @@ public class CsrfProtectionFilter implements ContainerRequestFilter {
      * the first entry is the original client-facing host. Falls back to the {@code Host} header when not proxied.
      *
      * @param forwardedHost the {@code X-Forwarded-Host} header value, or {@code null} if absent
-     * @param host the {@code Host} header value, or {@code null} if absent
+     * @param host          the {@code Host} header value, or {@code null} if absent
      * @return the client-facing {@code host[:port]} authority, or {@code null} if neither is present
      */
     static @Nullable String expectedAuthority(final @Nullable String forwardedHost, final @Nullable String host) {

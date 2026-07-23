@@ -144,7 +144,8 @@ Under `src/main/java/net/zodac/diurnal/`:
 | `stats`  | `StatsService` + `ActionStats` (data record) + `ActionStatsExtensions` (template extensions) + `ActionStatField` (Stats-page tile catalogue) + `StatTile` (tile view-model) + `StatsWebResource` (the `/stats` page) + `StatsInternalResource` (`/internal/stats/list`) + `StatsApiResource` (`GET /api/v1/stats`)  |
 | `auth`   | `AuthResource` (`/api/v1/auth` register/login/logout/revoke → session token), `AuthenticationService`+`LoginResult`, `RegistrationService`+`RegistrationResult`, `SessionStore`/`PostgresSessionStore` + `Session` entity + `SessionTokens` + `SessionAuthMechanism` + `SessionIdentityProvider` + `SessionSweeper` |
 | `user`   | `User` entity, `UserResource` (`/api/v1/users/me`), `UserSettings`, and the settings-picker enums `Theme`/`Font`/`CalendarView` (each `implements PreviewOption`)                                                                                                                                                   |
-| `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings) + the `/internal/settings/*` preference endpoints; `AdminWebResource` (admin pages) + `AdminUsersInternalResource` (`/internal/admin/users` fragments)                                                                     |
+| `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings) + the `/internal/settings/*` preference endpoints; `AdminWebResource` (admin pages) + `AdminUsersInternalResource` (`/internal/admin/users` fragments) + `AppInfo` (footer/template metadata bean)                          |
+| `update` | `UpdateCheckService` (admin-only footer "newer version available" check) + `UpdateCheck` (pure version/URL logic) + `UpdateStatus`/`UpdateAvailability` + `LatestReleaseClient`/`GitHubLatestReleaseClient` (the outbound GitHub-release lookup seam)                                                                  |
 
 ### API namespaces (the rule for every new endpoint)
 
@@ -677,6 +678,31 @@ All list views (actions, day-panel, stats) use in-memory pagination: fetch all, 
 - `ActionStatsExtensions` exposes `sinceLabel()`, `monthTrend()`, `monthTrendClass()` etc. as Qute template extensions over `ActionStats`.
 - **UI text must use correct singular/plural** — never "1 days". `ActionStatsExtensions` centralises the rule via `plural(count, unit)`, exposed as
   `currentStreakLabel()`/`longestStreakLabel()`/`currentStreakUnit()`/`longestStreakUnit()`/`totalDaysUnit()`. Apply to any new pluralised count.
+
+### Update check (admin-only footer indicator)
+
+The page footer's version link (`partials/footer.html`) gains an **"Update available"** indicator, shown **only on the admin pages
+(`/admin/users`, `/admin/api-docs`) to administrators**. `AdminWebResource` is the only surface that passes the
+`updateAvailable`/`latestVersion`/`latestReleaseUrl` data into its templates; every other page leaves those template vars unset, so the
+footer's `{#if updateAvailable}` block is skipped (Qute is strict — the footer defaults the flag with `{#let updateAvailable=updateAvailable.or(false)}`,
+the same pattern as `showTips` in `nav-links`, so a page that omits the key doesn't throw "Key not found") — the indicator can never appear off an
+admin page. **There is deliberately no `/api/v1` twin** (surface policy: it is an admin-console decoration, not a user action or data resource).
+
+The check runs **exactly once, at application startup, and is never refreshed** — `UpdateCheckService.onStartup(@Observes StartupEvent)` (when
+enabled) calls `checkForUpdate()`, which does a single best-effort `LatestReleaseClient` lookup, compares the running version (`ReleaseVersion`)
+against the latest published GitHub release, **logs the outcome** (`INFO` "A newer version is available…" when newer, `DEBUG` otherwise / on a
+failure / when disabled) and stores the latest version in an `AtomicReference` for safe publication to request threads. `status()` is a pure read of
+that stored value — no I/O — so the footer verdict is fixed for the process lifetime and may go stale over a long uptime (an accepted trade-off for
+making **no repeated outbound calls**). A failure (unreachable, non-200, unparseable, non-GitHub repository) stores nothing → no indicator, never an
+error. Enabled by default; `APP_UPDATE_CHECK_ENABLED=false` skips the startup lookup entirely (set in the smoke/perf compose stacks and the `test`
+profile so no CI tier calls GitHub at boot).
+
+All the branching (deriving the `api.github.com/repos/{owner}/{repo}/releases/latest` URL from `app.repository.url`, extracting `tag_name`, comparing
+dotted-numeric versions ignoring a `v`/`-SNAPSHOT` affix, classifying into `UpdateStatus`) is the **pure `UpdateCheck`** (unit-tested to 100% PIT,
+`UpdateCheckTest`). `GitHubLatestReleaseClient` (the HTTP call, bounded by `app.update-check.timeout`) and `UpdateCheckService` (the startup trigger +
+stored result + logging) are thin glue, NO_COVERAGE like the startup OIDC probe in `AppLifecycle`; the `LatestReleaseClient` interface is the seam the
+IT mocks — `UpdateCheckIndicatorIT` leaves the startup check disabled (the `test` profile) and instead installs a mock client and drives
+`checkForUpdate()` directly, so the mock is in place before the lookup (a boot-time auto-check would run before a per-test mock could be installed).
 
 ### Database migrations
 

@@ -30,6 +30,9 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.update.UpdateAvailability;
+import net.zodac.diurnal.update.UpdateCheckService;
+import net.zodac.diurnal.update.UpdateStatus;
 import net.zodac.diurnal.user.AdminUserService;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
@@ -57,6 +60,8 @@ public class AdminWebResource {
 
     @Inject AppClock clock;
 
+    @Inject UpdateCheckService updateCheckService;
+
     /**
      * Renders the paginated admin users page.
      *
@@ -69,13 +74,13 @@ public class AdminWebResource {
     @Transactional
     public TemplateInstance usersPage(@QueryParam("page") @DefaultValue("1") final int pageNum) {
         final User actor = currentUser.get();
-        return adminUsersTemplate
+        return withUpdateCheck(adminUsersTemplate
                 .data("email", actor.email)
                 .data("displayName", actor.displayName)
                 .data("theme", actor.theme)
                 .data("font", actor.font)
                 .data("isAdmin", true)
-                .data("page", AdminUsersInternalResource.toRows(adminUserService.usersPage(pageNum, actor.pageSize), clock.zoneFor(actor.timezone)));
+                .data("page", AdminUsersInternalResource.toRows(adminUserService.usersPage(pageNum, actor.pageSize), clock.zoneFor(actor.timezone))));
     }
 
     /**
@@ -89,11 +94,19 @@ public class AdminWebResource {
     @Transactional
     public TemplateInstance apiDocsPage() {
         final User actor = currentUser.get();
-        return adminApiDocsTemplate
+        return withUpdateCheck(adminApiDocsTemplate
                 .data("email", actor.email)
                 .data("displayName", actor.displayName)
                 .data("theme", actor.theme)
                 .data("font", actor.font)
-                .data("isAdmin", true);
+                .data("isAdmin", true));
+    }
+
+    private TemplateInstance withUpdateCheck(final TemplateInstance template) {
+        final UpdateStatus status = updateCheckService.status();
+        return template
+                .data("updateAvailable", status.availability() == UpdateAvailability.UPDATE_AVAILABLE)
+                .data("latestVersion", status.latestVersion())
+                .data("latestReleaseUrl", status.latestReleaseUrl());
     }
 }

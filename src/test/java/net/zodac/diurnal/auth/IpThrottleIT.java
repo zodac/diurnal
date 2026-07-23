@@ -208,7 +208,7 @@ class IpThrottleIT extends IntegrationTestBase {
 
     private static Response postLogin(final String password) {
         return given().contentType(ContentType.JSON)
-                .body("{\"email\":\"" + IpThrottleIT.SEED_EMAIL + "\",\"password\":\"" + password + "\"}")
+                .body("{\"email\":\"" + SEED_EMAIL + "\",\"password\":\"" + password + "\"}")
                 .post("/api/v1/auth/login");
     }
 
