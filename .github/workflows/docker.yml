@@ -25,4 +25,4 @@ jobs:
           submodules: true
 
       - name: Lint Dockerfiles with Hadolint
-        run: .github/scripts/lint_and_tests.sh docker
+        run: .github/scripts/lint_and_tests.sh docker -v
