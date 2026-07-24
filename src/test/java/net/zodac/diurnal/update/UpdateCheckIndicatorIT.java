@@ -34,9 +34,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Verifies the admin-only "Update available" footer indicator end to end (with a mocked {@link LatestReleaseClient}, so no outbound call is made): it
- * appears on the admin pages when a newer release exists, and never elsewhere - not when the running version is already current, and not on non-admin
- * pages.
+ * Verifies the admin-only "Update available" footer indicator end to end (with a mocked {@link LatestReleaseClient}, so no outbound call is made):
+ * the up-arrow (linking to the latest release, with an "Update available - v&lt;latest&gt;" tooltip) sits by the footer version link and appears on
+ * <em>every</em> page's footer for an administrator when a newer release exists, and never otherwise - not when the running version is already
+ * current, and never for a non-admin.
  *
  * <p>
  * The startup check itself is disabled in the {@code test} profile (so no IT makes an outbound call at boot); each test instead installs the mock and
@@ -46,6 +47,7 @@ import org.junit.jupiter.api.Test;
 class UpdateCheckIndicatorIT extends IntegrationTestBase {
 
     private static final String INDICATOR_TEXT = "Update available";
+    private static final String INDICATOR_TOOLTIP = "Update available - v999.0.0";
 
     private final FakeLatestReleaseClient releaseClient = new FakeLatestReleaseClient();
 
@@ -72,8 +74,10 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
 
         given().get("/admin/users")
                 .then().statusCode(200)
-                .body(containsString(INDICATOR_TEXT))
-                .body(containsString("999.0.0"));
+                // The version must be interpolated into the tooltip text, not rendered as a literal `{latestVersion}` placeholder.
+                .body(containsString(INDICATOR_TOOLTIP))
+                // The up-arrow links to the LATEST release page, not the running version's notes.
+                .body(containsString("releases/tag/999.0.0"));
     }
 
     @Test
@@ -83,7 +87,18 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
 
         given().get("/admin/api-docs")
                 .then().statusCode(200)
-                .body(containsString(INDICATOR_TEXT));
+                .body(containsString(INDICATOR_TOOLTIP));
+    }
+
+    @Test
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
+    void dashboard_updateAvailable_showsIndicatorForAdmin() {
+        // The indicator now rides every page's footer, not just the admin pages: an administrator sees it on the dashboard too.
+        primeLatestVersion("999.0.0");
+
+        given().get("/")
+                .then().statusCode(200)
+                .body(containsString(INDICATOR_TOOLTIP));
     }
 
     @Test
@@ -98,9 +113,9 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
-    void dashboard_updateAvailable_hasNoIndicator() {
-        // The indicator is admin-page-only: the dashboard never consults the update check, even for an administrator.
+    @TestSecurity(user = "user@lt.test", roles = {Role.Values.USER})
+    void dashboard_nonAdmin_hidesIndicator() {
+        // Admin-only gate: even with an update available, a regular user's footer never shows the indicator on any page.
         primeLatestVersion("999.0.0");
 
         given().get("/")

@@ -15,24 +15,32 @@
     <div class="flex items-center justify-center gap-2">
         <span>{inject:appInfo.buildYear}</span>
         <span aria-hidden="true">&middot;</span>
-        <a href="{inject:appInfo.repositoryUrl}/releases" target="_blank" rel="noopener"
-           aria-label="Release notes"
-           class="group relative hover:text-brand transition-colors">v{inject:appInfo.version}{#include partials/tooltip text="Release notes" pos="top" /}</a>
-        {! Admin-only "newer version available" indicator. `updateAvailable`/`latestVersion`/`latestReleaseUrl`
-             are supplied ONLY by the admin pages (AdminWebResource); every other page leaves them unset. Qute is
-             strict (a bare `{#if updateAvailable}` on a page that omits the key would throw "Key not found"), so
-             default it here with `.or(false)` — the same pattern as `showTips` in partials/nav-links. When false,
-             the block is skipped (and `latestVersion`/`latestReleaseUrl` are never evaluated) and the footer reads
-             year - version - GitHub as before. !}
-        {#let updateAvailable=updateAvailable.or(false)}
-        {#if updateAvailable}
-        <span aria-hidden="true">&middot;</span>
-        <a href="{latestReleaseUrl}" target="_blank" rel="noopener"
-           aria-label="Update available: version {latestVersion}"
-           class="group relative inline-flex items-center gap-1 font-medium text-brand hover:underline transition-colors">
-            {#include partials/icon name='arrow-up-circle' cls='h-3.5 w-3.5' /}
-            Update available{#include partials/tooltip text="Version {latestVersion} is available" pos="top" /}</a>
-        {/if}
+        {! Version + admin-only "newer version available" indicator, grouped in one inline-flex span so they read as
+             a unit. Two SEPARATE links with different targets:
+               - the version text -> THIS running version's release page ({repo}/releases/tag/<version>), tooltip
+                 "Release notes" (version-pinned, not a moving /releases/latest; appInfo.version is the bare release
+                 version e.g. 0.7.2, matching the repo's `v`-less tag scheme);
+               - the up-arrow icon -> the LATEST release page (appInfo.updateUrl = {repo}/releases/tag/<latest>),
+                 tooltip "Update available - v<latest>". The arrow deliberately links to the newer release (not the
+                 running version) so clicking it takes an admin to the update.
+             Both indicator signals are self-contained on the {inject:appInfo} bean (updateAvailable / updateUrl /
+             updateTooltip — pure reads of the stored startup result), gated by `isAdmin` so the arrow shows on EVERY
+             page's footer for an admin and never for a non-admin. Qute is strict, so default isAdmin with `.or(false)`
+             (the same pattern as `showTips` in partials/nav-links) — the anonymous login/register footers omit the
+             key. `updateAvailable` is resolved into a local (a bare namespace expression, no spaces) so the
+             `{#if isAdmin && updateAvailable}` uses only locals; `updateTooltip` is pre-composed in Java because a
+             nested expression inside an {#include} string param is not interpolated (would render literal braces). !}
+        {#let isAdmin=isAdmin.or(false) updateAvailable=inject:appInfo.updateAvailable}
+        <span class="inline-flex items-center gap-1">
+            <a href="{inject:appInfo.repositoryUrl}/releases/tag/{inject:appInfo.version}" target="_blank" rel="noopener"
+               aria-label="Release notes"
+               class="group relative hover:text-brand transition-colors">v{inject:appInfo.version}{#include partials/tooltip text="Release notes" pos="top" /}</a>
+            {#if isAdmin && updateAvailable}
+            <a href="{inject:appInfo.updateUrl}" target="_blank" rel="noopener"
+               aria-label="{inject:appInfo.updateTooltip}"
+               class="group relative inline-flex items-center text-brand hover:opacity-80 transition-opacity">{#include partials/icon name='arrow-up-circle' cls='h-3.5 w-3.5 shrink-0' /}{#include partials/tooltip text=inject:appInfo.updateTooltip pos="top" /}</a>
+            {/if}
+        </span>
         {/let}
         <span aria-hidden="true">&middot;</span>
         {! GitHub mark (official octicon). Not part of the app brand — it's the icon of the

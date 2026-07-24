@@ -35,7 +35,7 @@ public interface AppConfig {
      * @return the repository URL
      */
     @WithName("repository.url")
-    @WithDefault("https://github.com/zodac-personal/diurnal")
+    @WithDefault("https://github.com/zodac/diurnal")
     String repositoryUrl();
 
     /**

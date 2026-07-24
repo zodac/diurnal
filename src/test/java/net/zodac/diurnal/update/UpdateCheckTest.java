@@ -27,7 +27,7 @@ import org.junit.jupiter.api.Test;
  */
 class UpdateCheckTest {
 
-    private static final String REPO = "https://github.com/zodac-personal/diurnal";
+    private static final String REPO = "https://github.com/zodac/diurnal";
 
     // ── githubReleasesApi ─────────────────────────────────────────────────
 
@@ -36,7 +36,7 @@ class UpdateCheckTest {
         assertThat(UpdateCheck.githubReleasesApi(REPO))
             .as("expected the derived GitHub releases API URL")
             .map(java.net.URI::toString)
-            .contains("https://api.github.com/repos/zodac-personal/diurnal/releases/latest");
+            .contains("https://api.github.com/repos/zodac/diurnal/releases");
     }
 
     @Test
@@ -44,7 +44,7 @@ class UpdateCheckTest {
         assertThat(UpdateCheck.githubReleasesApi(REPO + '/'))
             .as("a trailing slash should be tolerated")
             .map(java.net.URI::toString)
-            .contains("https://api.github.com/repos/zodac-personal/diurnal/releases/latest");
+            .contains("https://api.github.com/repos/zodac/diurnal/releases");
     }
 
     @Test
@@ -52,7 +52,7 @@ class UpdateCheckTest {
         assertThat(UpdateCheck.githubReleasesApi(REPO + ".git"))
             .as("a .git suffix should be stripped")
             .map(java.net.URI::toString)
-            .contains("https://api.github.com/repos/zodac-personal/diurnal/releases/latest");
+            .contains("https://api.github.com/repos/zodac/diurnal/releases");
     }
 
     @Test
@@ -60,7 +60,7 @@ class UpdateCheckTest {
         assertThat(UpdateCheck.githubReleasesApi("http://github.com/owner/repo"))
             .as("both http and https schemes are accepted")
             .map(java.net.URI::toString)
-            .contains("https://api.github.com/repos/owner/repo/releases/latest");
+            .contains("https://api.github.com/repos/owner/repo/releases");
     }
 
     @Test
@@ -80,17 +80,45 @@ class UpdateCheckTest {
     // ── latestReleaseUrl ──────────────────────────────────────────────────
 
     @Test
-    void latestReleaseUrl_noTrailingSlash_appendsPath() {
-        assertThat(UpdateCheck.latestReleaseUrl(REPO))
-            .as("unexpected latest-release URL")
-            .isEqualTo("https://github.com/zodac-personal/diurnal/releases/latest");
+    void latestReleaseUrl_withTag_linksToThatExplicitRelease() {
+        assertThat(UpdateCheck.latestReleaseUrl(REPO, "0.8.0"))
+            .as("the footer must link to the exact detected release, not a moving /releases/latest pointer")
+            .isEqualTo("https://github.com/zodac/diurnal/releases/tag/0.8.0");
     }
 
     @Test
-    void latestReleaseUrl_trailingSlash_isStripped() {
-        assertThat(UpdateCheck.latestReleaseUrl(REPO + '/'))
-            .as("a trailing slash should not double up")
-            .isEqualTo("https://github.com/zodac-personal/diurnal/releases/latest");
+    void latestReleaseUrl_vPrefixedTag_isUsedVerbatim() {
+        assertThat(UpdateCheck.latestReleaseUrl(REPO, "v0.8.0"))
+            .as("the tag is used verbatim in the release URL (GitHub tags keep any v prefix)")
+            .isEqualTo("https://github.com/zodac/diurnal/releases/tag/v0.8.0");
+    }
+
+    @Test
+    void latestReleaseUrl_paddedTag_isStripped() {
+        assertThat(UpdateCheck.latestReleaseUrl(REPO, "  0.8.0  "))
+            .as("surrounding whitespace on the tag should not leak into the URL")
+            .isEqualTo("https://github.com/zodac/diurnal/releases/tag/0.8.0");
+    }
+
+    @Test
+    void latestReleaseUrl_trailingSlashRepository_isStripped() {
+        assertThat(UpdateCheck.latestReleaseUrl(REPO + '/', "0.8.0"))
+            .as("a trailing slash on the repository URL should not double up")
+            .isEqualTo("https://github.com/zodac/diurnal/releases/tag/0.8.0");
+    }
+
+    @Test
+    void latestReleaseUrl_nullTag_fallsBackToReleasesListing() {
+        assertThat(UpdateCheck.latestReleaseUrl(REPO, null))
+            .as("an unknown tag falls back to the releases listing")
+            .isEqualTo("https://github.com/zodac/diurnal/releases");
+    }
+
+    @Test
+    void latestReleaseUrl_blankTag_fallsBackToReleasesListing() {
+        assertThat(UpdateCheck.latestReleaseUrl(REPO, "   "))
+            .as("a blank tag falls back to the releases listing")
+            .isEqualTo("https://github.com/zodac/diurnal/releases");
     }
 
     // ── extractLatestTag ──────────────────────────────────────────────────
@@ -114,6 +142,15 @@ class UpdateCheckTest {
         assertThat(UpdateCheck.extractLatestTag("{\"tag_name\": \"   \"}"))
             .as("a blank tag_name is treated as absent")
             .isEmpty();
+    }
+
+    @Test
+    void extractLatestTag_listOfReleases_returnsNewestFirst() {
+        // The /releases list endpoint returns an array ordered newest-first; the first tag_name is the most recent release (even a pre-release).
+        final String body = "[{\"tag_name\": \"0.7.2\", \"prerelease\": true}, {\"tag_name\": \"0.7.1\", \"prerelease\": true}]";
+        assertThat(UpdateCheck.extractLatestTag(body))
+            .as("the newest release is the first element of the list")
+            .contains("0.7.2");
     }
 
     // ── isUpdateAvailable ─────────────────────────────────────────────────
@@ -241,5 +278,49 @@ class UpdateCheckTest {
         assertThat(status.latestVersion())
             .as("the latest version is still carried when up to date")
             .isEqualTo("0.8.0");
+    }
+
+    // ── footer signals (updateAvailable / footerTooltip) ────────────────────
+
+    @Test
+    void updateAvailable_updateAvailableStatus_isTrue() {
+        assertThat(UpdateCheck.updateAvailable(UpdateCheck.evaluate("0.7.2", "0.8.0", "url")))
+            .as("an UPDATE_AVAILABLE status advertises an update")
+            .isTrue();
+    }
+
+    @Test
+    void updateAvailable_upToDateStatus_isFalse() {
+        assertThat(UpdateCheck.updateAvailable(UpdateCheck.evaluate("0.8.0", "0.8.0", "url")))
+            .as("an UP_TO_DATE status advertises no update")
+            .isFalse();
+    }
+
+    @Test
+    void updateAvailable_unknownStatus_isFalse() {
+        assertThat(UpdateCheck.updateAvailable(UpdateCheck.evaluate("0.7.2", null, "url")))
+            .as("an UNKNOWN status advertises no update")
+            .isFalse();
+    }
+
+    @Test
+    void footerTooltip_updateAvailable_composesTooltip() {
+        assertThat(UpdateCheck.footerTooltip(UpdateCheck.evaluate("0.7.2", "0.8.0", "url")))
+            .as("the tooltip names the available version with a plain hyphen separator")
+            .isEqualTo("Update available - v0.8.0");
+    }
+
+    @Test
+    void footerTooltip_upToDate_isNull() {
+        assertThat(UpdateCheck.footerTooltip(UpdateCheck.evaluate("0.8.0", "0.8.0", "url")))
+            .as("no tooltip is composed when the running version is current")
+            .isNull();
+    }
+
+    @Test
+    void footerTooltip_unknown_isNull() {
+        assertThat(UpdateCheck.footerTooltip(UpdateCheck.evaluate("0.7.2", null, "url")))
+            .as("no tooltip is composed when the latest release is unknown")
+            .isNull();
     }
 }
