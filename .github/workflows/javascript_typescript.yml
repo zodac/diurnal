@@ -31,4 +31,4 @@ jobs:
           submodules: true
 
       - name: Lint JavaScript and TypeScript with ESLint
-        run: .github/scripts/lint_and_tests.sh javascript,typescript
+        run: .github/scripts/lint_and_tests.sh javascript,typescript -v

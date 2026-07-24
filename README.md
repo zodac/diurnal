@@ -381,8 +381,8 @@ Each user can customise Diurnal from the **Settings** page (top-right menu).
 
 ### Statistics
 
-An orderable list which allows alls the user to choose which [statistics](#statistics-and-streaks) appear for each action on the Stats page, and in what order, and
-each can be disabled and re-ordered. The **Last performed** statistic is always shown, but can still be reordered.
+An orderable list which allows the user to choose which [statistics](#statistics-and-streaks) appear for each action on the Stats page, and in what
+order, and  each can be disabled and re-ordered. The **Last performed** statistic is always shown, but can still be reordered.
 
 ### Appearance
 

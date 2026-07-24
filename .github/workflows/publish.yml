@@ -143,7 +143,7 @@ jobs:
           # Absolute path => the wrapper's `docker run -v` bind-mounts this cached dir as Grype's DB
           # cache (instead of the default named volume), so the actions/cache step above persists it.
           GRYPE_DB_CACHE_VOLUME: /home/runner/.cache/grype-db
-        run: .github/scripts/lint_and_tests.sh -v -e
+        run: .github/scripts/lint_and_tests.sh docker,grype,java,perf -v -e
 
       # The Grype scanner runs as root, so the cached DB files are root-owned; hand them back to the
       # runner user so actions/cache's post-job tar can read them when saving. `always()` so the cache
