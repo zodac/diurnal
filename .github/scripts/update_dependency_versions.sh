@@ -66,20 +66,26 @@ warn() { echo "  ⚠️  ${*}" >&2; }
 
 # ── curl wrappers ─────────────────────────────────────────────────────────────
 
-curl_get() { curl -fsSL "${@}"; }
+curl_get() { curl -fsSL --connect-timeout 10 --max-time 60 "${@}"; }
 
 if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-    github_curl() { curl -fsSL -H "Authorization: Bearer ${GITHUB_TOKEN}" "${@}"; }
+    github_curl() { curl -fsSL --connect-timeout 10 --max-time 60 -H "Authorization: Bearer ${GITHUB_TOKEN}" "${@}"; }
 else
-    github_curl() { curl -fsSL "${@}"; }
+    github_curl() { curl -fsSL --connect-timeout 10 --max-time 60 "${@}"; }
 fi
 
 # Returns 0 if the Docker Hub tag exists, 1 otherwise.
 hub_tag_exists() {
     local repo="${1}" tag="${2}"
     local status
-    status=$(curl -fsSL -o /dev/null -w "%{http_code}" \
-        "https://hub.docker.com/v2/repositories/${repo}/tags/${tag}")
+    # HEAD only (-I, no body): the response body is otherwise streamed to /dev/null, which on WSL2
+    # can abort mid-transfer with "curl: (23) client returned ERROR on write of N bytes". A HEAD has
+    # nothing to write. `-f` is deliberately omitted (a 404 is the expected "does not exist" answer,
+    # not an error): with it, curl aborts a 404 as "curl: (22) ... 404" on stderr instead of handing
+    # back the status code. stderr is suppressed and a hard curl failure (network) returns 1.
+    status=$(curl -sIL -o /dev/null -w '%{http_code}' \
+        --connect-timeout 10 --max-time 30 \
+        "https://hub.docker.com/v2/repositories/${repo}/tags/${tag}" 2>/dev/null) || return 1
     [[ "${status}" == "200" ]]
 }
 
@@ -551,11 +557,16 @@ update_npm_packages() {
         local manifest_changed=false
 
         for section in dependencies devDependencies; do
+            # `tr -d '\r'` strips any carriage return the jq output may carry (e.g. a Windows jq.exe
+            # under WSL, or a CRLF manifest): an unstripped CR rides into the registry URL below and
+            # curl rejects it with "curl: (3) URL rejected: Malformed input to a URL function".
             local names=()
-            mapfile -t names < <(jq -r --arg s "${section}" '.[$s] // {} | keys[]' "${manifest}" || true)
+            mapfile -t names < <(jq -r --arg s "${section}" '.[$s] // {} | keys[]' "${manifest}" 2>/dev/null | tr -d '\r' || true)
             [[ "${#names[@]}" -eq 0 ]] && continue
 
             for pkg in "${names[@]}"; do
+                # Skip any blank entry a sanitised-away line could leave behind.
+                [[ -z "${pkg}" ]] && continue
                 # Scoped names (@scope/name) must have the internal '/' encoded as %2f
                 # for the registry path; unscoped names are unaffected.
                 local encoded="${pkg/\//%2f}"

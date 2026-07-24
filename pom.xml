@@ -23,6 +23,53 @@
         <maven-release>3.9.16</maven-release>
     </properties>
 
+    <!--
+        TEMPORARY CVE-remediation pins - keep these grouped here, and keep them in this exact order.
+        Each entry pins a transitive dependency ahead of the Quarkus BOM (inherited via parent-pom): a
+        dependencyManagement entry declared here resolves before the parent's imported Quarkus BOM, so
+        these versions win over the ones Quarkus would otherwise pull in. Every bump is a patch within
+        the line the platform already ships, so it stays binary-compatible. Revisit (and ideally drop)
+        each pin once the Quarkus platform catches up to at least the version named here.
+
+        Ordering note: sortpom (sortDependencyManagement=scope,artifactId) sorts these by scope then
+        artifactId - import-scoped BOMs first (jackson-bom, netty-bom), then the compile-scoped
+        postgresql. This block is already in that order and sits before <dependencies> (canonical POM
+        order), so `mvn sortpom:sort` is a no-op and will not reshuffle it or detach this comment. Keep
+        it that way when adding a pin.
+
+        Grype HIGH findings addressed (all "fixed in" the versions below):
+          - com.fasterxml.jackson  2.22.0 -> 2.22.1: GHSA-r7wm-3cxj-wff9 (jackson-core)
+          - io.netty  4.1.135.Final -> 4.1.136.Final: GHSA-558v-64gr-wgg4 (netty-codec),
+            GHSA-6jqx-86gh-f27w / GHSA-mvh2-crg5-v77c / GHSA-jppx-w49h-x2qq (netty-codec-http),
+            GHSA-q6cq-mhr2-jmr5 (netty-codec-haproxy)
+          - org.postgresql:postgresql 42.7.11 -> 42.7.12: GHSA-j92g-9f8w-j867
+        The netty and jackson BOMs are imported (not per-artifact pins) so every module of each library
+        moves together - a version skew between, say, netty-codec and netty-codec-http fails at runtime.
+    -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>2.22.1</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>io.netty</groupId>
+                <artifactId>netty-bom</artifactId>
+                <version>4.1.136.Final</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.postgresql</groupId>
+                <artifactId>postgresql</artifactId>
+                <version>42.7.12</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
     <dependencies>
         <!-- Used directly for the jsonb column mapping on User.statsFields (@JdbcTypeCode +
              SqlTypes.JSON). Version is managed by the Quarkus BOM. -->

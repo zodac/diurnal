@@ -1,0 +1,40 @@
+# Project-level grype configuration.
+#
+# Everything below is a glibc (libc6) CVE in the Debian 13 (trixie) base image. There is no newer libc6 to upgrade to.
+# Debian's security team marks them as "unimportant", so no package update will ever clear them, and all are Negligible severity.
+ignore:
+  - vulnerability: CVE-2010-4756
+    package:
+      name: libc6
+      type: deb
+    reason: "glibc glob() DoS; Debian no-DSA (unimportant), Negligible, pattern source not attacker-controlled"
+  - vulnerability: CVE-2018-20796
+    package:
+      name: libc6
+      type: deb
+    reason: "glibc regex stack-exhaustion; Debian no-DSA (unimportant), Negligible, not reachable"
+  - vulnerability: CVE-2019-9192
+    package:
+      name: libc6
+      type: deb
+    reason: "glibc regex uninitialised read (disputed upstream); Debian no-DSA (unimportant), Negligible"
+  - vulnerability: CVE-2019-1010022
+    package:
+      name: libc6
+      type: deb
+    reason: "glibc stack-guard bypass (disputed upstream); Debian no-DSA (unimportant), Negligible"
+  - vulnerability: CVE-2019-1010023
+    package:
+      name: libc6
+      type: deb
+    reason: "glibc ld.so PT_LOAD (disputed upstream); Debian no-DSA (unimportant), Negligible"
+  - vulnerability: CVE-2019-1010024
+    package:
+      name: libc6
+      type: deb
+    reason: "glibc ASLR bypass (disputed upstream); Debian no-DSA (unimportant), Negligible"
+  - vulnerability: CVE-2019-1010025
+    package:
+      name: libc6
+      type: deb
+    reason: "glibc ASLR/heap guard (disputed upstream); Debian no-DSA (unimportant), Negligible"
