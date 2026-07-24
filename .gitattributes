@@ -1,0 +1,20 @@
+# Normalise line endings to LF in the repository and on checkout, on every OS.
+# Prevents CRLF churn from Windows/WSL editors (e.g. frontend/package*.json).
+* text=auto eol=lf
+
+# Scripts must stay LF (shellcheck gate + executed inside Linux containers).
+*.sh   text eol=lf
+*.mjs  text eol=lf
+*.cjs  text eol=lf
+
+# Vector/text assets kept as LF text.
+*.svg  text eol=lf
+
+# Binary assets - never normalise or diff as text.
+*.png     binary
+*.ico     binary
+*.webp    binary
+*.woff2   binary
+*.ttf     binary
+*.otf     binary
+*.jar     binary
