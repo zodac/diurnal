@@ -41,48 +41,60 @@ public final class UpdateCheck {
     private static final Pattern TAG_NAME = Pattern.compile("\"tag_name\"\\s*:\\s*\"([^\"]+)\"");
     private static final Pattern VERSION_CORE = Pattern.compile("\\d+(?:\\.\\d+)*");
     private static final String GITHUB_API_BASE = "https://api.github.com/repos/";
-    private static final String LATEST_RELEASE_PATH = "/releases/latest";
+    private static final String RELEASES_PATH = "/releases";
+    private static final String RELEASE_TAG_PATH = "/releases/tag/";
 
     private UpdateCheck() {
 
     }
 
     /**
-     * Builds the GitHub REST API "latest release" URL for a repository, or empty when the configured repository is not a recognised GitHub URL (the
-     * only host this check supports). Tolerates an optional {@code .git} suffix and a single trailing slash.
+     * Builds the GitHub REST API "list releases" URL for a repository, or empty when the configured repository is not a recognised GitHub URL (the
+     * only host this check supports). The list endpoint is used deliberately in preference to {@code /releases/latest}: that endpoint excludes
+     * pre-releases and drafts, so it 404s for a repository whose newest (or only) releases are pre-releases, whereas the list returns every published
+     * release newest-first (drafts are still excluded for the anonymous caller this check makes). Tolerates an optional {@code .git} suffix and a
+     * single trailing slash.
      *
      * @param repositoryUrl the configured public repository URL ({@code app.repository.url})
-     * @return the {@code api.github.com/repos/{owner}/{repo}/releases/latest} URI, or empty when not a GitHub repository
+     * @return the {@code api.github.com/repos/{owner}/{repo}/releases} URI, or empty when not a GitHub repository
      */
     public static Optional<URI> githubReleasesApi(final String repositoryUrl) {
         final Matcher matcher = GITHUB_REPOSITORY.matcher(repositoryUrl.strip());
         if (!matcher.matches()) {
             return Optional.empty();
         }
-        return Optional.of(URI.create(GITHUB_API_BASE + matcher.group(1) + '/' + matcher.group(2) + LATEST_RELEASE_PATH));
+        return Optional.of(URI.create(GITHUB_API_BASE + matcher.group(1) + '/' + matcher.group(2) + RELEASES_PATH));
     }
 
     /**
-     * Builds the human-facing latest-release page URL ({@code {repo}/releases/latest}) that the footer indicator links to, tolerating a single
-     * trailing slash on the configured repository URL.
+     * Builds the human-facing release page URL the footer indicator links to. Because the check runs exactly once at startup, it links to the
+     * <em>explicit</em> detected release ({@code {repo}/releases/tag/{tag}}) rather than a moving {@code /releases/latest} pointer that could drift
+     * past the version the check actually found. When the tag could not be determined it falls back to the repository's releases listing
+     * ({@code {repo}/releases}). Tolerates a single trailing slash on the configured repository URL.
      *
      * @param repositoryUrl the configured public repository URL ({@code app.repository.url})
-     * @return the latest-release page URL
+     * @param tag           the detected latest release tag, or {@code null}/blank when it could not be determined
+     * @return the release page URL for that tag, or the releases listing when the tag is unknown
      */
-    public static String latestReleaseUrl(final String repositoryUrl) {
+    public static String latestReleaseUrl(final String repositoryUrl, final @Nullable String tag) {
         final String trimmed = repositoryUrl.strip();
         final String base = trimmed.endsWith("/")
             ? trimmed.substring(0, trimmed.length() - 1)
             : trimmed;
-        return base + LATEST_RELEASE_PATH;
+        if (tag == null || tag.isBlank()) {
+            return base + RELEASES_PATH;
+        }
+        return base + RELEASE_TAG_PATH + tag.strip();
     }
 
     /**
-     * Extracts the {@code tag_name} value from a GitHub "latest release" API JSON body. A deliberately minimal scan (not a full JSON parse) - the API
-     * returns exactly one {@code tag_name} field.
+     * Extracts the latest release tag from a GitHub "list releases" API JSON body - the first {@code tag_name} in the returned array. The list is
+     * ordered newest-first, so the first {@code tag_name} is the most recent published release (pre-releases included; drafts excluded for the
+     * anonymous caller). A deliberately minimal scan (not a full JSON parse): each release object serialises {@code tag_name} ahead of any free-text
+     * field, so the first match is the newest release's tag.
      *
      * @param jsonBody the API response body
-     * @return the tag name, or empty when absent or blank
+     * @return the latest release tag, or empty when absent or blank
      */
     public static Optional<String> extractLatestTag(final String jsonBody) {
         final Matcher matcher = TAG_NAME.matcher(jsonBody);
@@ -128,6 +140,30 @@ public final class UpdateCheck {
             ? UpdateAvailability.UPDATE_AVAILABLE
             : UpdateAvailability.UP_TO_DATE;
         return new UpdateStatus(availability, currentVersion, latestVersion, latestReleaseUrl);
+    }
+
+    /**
+     * Whether the resolved {@link UpdateStatus} advertises a newer release - the footer's admin-only "update available" signal, shown on every page.
+     *
+     * @param status the resolved update status
+     * @return {@code true} when a newer release than the running version is available
+     */
+    public static boolean updateAvailable(final UpdateStatus status) {
+        return status.availability() == UpdateAvailability.UPDATE_AVAILABLE;
+    }
+
+    /**
+     * The footer up-arrow indicator's tooltip when an update is available (e.g. {@code Update available - v0.8.0}), or {@code null} when the running
+     * version is current or the latest release is unknown - the indicator is then hidden. The separator is a plain hyphen.
+     *
+     * @param status the resolved update status
+     * @return the "update available" tooltip text, or {@code null} when no update is advertised
+     */
+    public static @Nullable String footerTooltip(final UpdateStatus status) {
+        if (!updateAvailable(status)) {
+            return null;
+        }
+        return "Update available - v" + status.latestVersion();
     }
 
     private static Optional<List<Integer>> parseVersion(final String version) {

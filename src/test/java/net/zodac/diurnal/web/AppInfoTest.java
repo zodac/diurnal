@@ -19,9 +19,13 @@ package net.zodac.diurnal.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import jakarta.enterprise.inject.Vetoed;
 import java.util.Map;
 import net.zodac.diurnal.config.AppConfig;
 import net.zodac.diurnal.config.ReleaseVersion;
+import net.zodac.diurnal.update.UpdateCheck;
+import net.zodac.diurnal.update.UpdateCheckService;
+import net.zodac.diurnal.update.UpdateStatus;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -240,6 +244,71 @@ class AppInfoTest {
         assertThat(appInfo.getBuildYear())
             .as("a non-digit within the leading four characters should fall back")
             .isEqualTo("2026");
+    }
+
+    @Test
+    void updateAvailable_newerReleaseFound_isTrue() {
+        final AppInfo appInfo = appInfoWithUpdate(UpdateCheck.evaluate("0.7.2", "0.8.0", "url"));
+        assertThat(appInfo.isUpdateAvailable())
+            .as("a newer release than the running version should offer the footer indicator")
+            .isTrue();
+    }
+
+    @Test
+    void updateAvailable_runningVersionCurrent_isFalse() {
+        final AppInfo appInfo = appInfoWithUpdate(UpdateCheck.evaluate("0.8.0", "0.8.0", "url"));
+        assertThat(appInfo.isUpdateAvailable())
+            .as("a current running version should not offer the footer indicator")
+            .isFalse();
+    }
+
+    @Test
+    void updateTooltip_updateAvailable_composesText() {
+        final AppInfo appInfo = appInfoWithUpdate(UpdateCheck.evaluate("0.7.2", "0.8.0", "url"));
+        assertThat(appInfo.getUpdateTooltip())
+            .as("the footer tooltip should name the available version")
+            .isEqualTo("Update available - v0.8.0");
+    }
+
+    @Test
+    void updateTooltip_runningVersionCurrent_isNull() {
+        final AppInfo appInfo = appInfoWithUpdate(UpdateCheck.evaluate("0.8.0", "0.8.0", "url"));
+        assertThat(appInfo.getUpdateTooltip())
+            .as("no footer tooltip is composed when the running version is current")
+            .isNull();
+    }
+
+    @Test
+    void updateUrl_returnsLatestReleaseUrl() {
+        final AppInfo appInfo = appInfoWithUpdate(UpdateCheck.evaluate("0.7.2", "0.8.0", "https://diurnal.example.com/releases/tag/0.8.0"));
+        assertThat(appInfo.getUpdateUrl())
+            .as("the up-arrow indicator should link to the latest release page, not the running version")
+            .isEqualTo("https://diurnal.example.com/releases/tag/0.8.0");
+    }
+
+    private static AppInfo appInfoWithUpdate(final UpdateStatus status) {
+        final AppInfo appInfo = new AppInfo();
+        appInfo.updateCheckService = new StubUpdateCheckService(status);
+        return appInfo;
+    }
+
+    // Overrides only the pure status() read (the stored startup result), so the real bean's injected HTTP/config collaborators are never touched.
+    // @Vetoed keeps it out of CDI discovery: @ApplicationScoped is @Inherited, so without this the stub would be picked up as a second
+    // UpdateCheckService bean and make the injection point ambiguous. It is only ever hand-constructed here, never injected.
+    @Vetoed
+    private static final class StubUpdateCheckService extends UpdateCheckService {
+
+        private final UpdateStatus status;
+
+        StubUpdateCheckService(final UpdateStatus status) {
+            super();
+            this.status = status;
+        }
+
+        @Override
+        public UpdateStatus status() {
+            return status;
+        }
     }
 
     private record StubAppConfig(String repositoryUrl, String buildTimestamp, String cssFile, String jsFile,

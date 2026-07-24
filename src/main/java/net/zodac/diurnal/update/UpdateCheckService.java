@@ -68,8 +68,9 @@ public class UpdateCheckService {
      */
     public UpdateStatus status() {
         final String currentVersion = ReleaseVersion.resolve(mavenVersion);
-        final String latestReleaseUrl = UpdateCheck.latestReleaseUrl(appConfig.repositoryUrl());
-        return UpdateCheck.evaluate(currentVersion, latestVersion.get(), latestReleaseUrl);
+        final String latest = latestVersion.get();
+        final String latestReleaseUrl = UpdateCheck.latestReleaseUrl(appConfig.repositoryUrl(), latest);
+        return UpdateCheck.evaluate(currentVersion, latest, latestReleaseUrl);
     }
 
     /**
@@ -103,7 +104,7 @@ public class UpdateCheckService {
         final String currentVersion = ReleaseVersion.resolve(mavenVersion);
         if (UpdateCheck.isUpdateAvailable(currentVersion, latestVersionValue)) {
             LOGGER.info("A newer version is available: {} (currently running {}). See {}",
-                latestVersionValue, currentVersion, UpdateCheck.latestReleaseUrl(appConfig.repositoryUrl()));
+                latestVersionValue, currentVersion, UpdateCheck.latestReleaseUrl(appConfig.repositoryUrl(), latestVersionValue));
         } else {
             LOGGER.debug("Running the latest version ({}) - no update available", currentVersion);
         }

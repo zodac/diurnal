@@ -32,9 +32,10 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * The production {@link LatestReleaseClient}: queries the configured repository's GitHub REST API ({@code /releases/latest}) for the latest published
- * release tag. Pure URL-derivation and tag-extraction live in {@link UpdateCheck}; this bean owns only the bounded, best-effort HTTP call (the
- * untestable I/O, NO_COVERAGE like the startup OIDC probe in {@code AppLifecycle}).
+ * The production {@link LatestReleaseClient}: queries the configured repository's GitHub REST API ({@code /releases}, newest-first) and takes
+ * the most recent published release tag. The list endpoint is used rather than {@code /releases/latest} because the latter excludes pre-releases
+ * and 404s for a repository that only publishes them. Pure URL-derivation and tag-extraction live in {@link UpdateCheck}; this bean owns only the
+ * bounded, best-effort HTTP call (the untestable I/O, NO_COVERAGE like the startup OIDC probe in {@code AppLifecycle}).
  */
 @ApplicationScoped
 public class GitHubLatestReleaseClient implements LatestReleaseClient {

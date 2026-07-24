@@ -22,7 +22,10 @@ import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import net.zodac.diurnal.config.AppConfig;
 import net.zodac.diurnal.config.ReleaseVersion;
+import net.zodac.diurnal.update.UpdateCheck;
+import net.zodac.diurnal.update.UpdateCheckService;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Application metadata surfaced to the Qute templates as {@code {inject:appInfo...}}.
@@ -60,6 +63,12 @@ public class AppInfo {
     AppConfig appConfig;
 
     /**
+     * The one-shot startup update check, read (no I/O) to drive the footer's admin-only "update available" indicator.
+     */
+    @Inject
+    UpdateCheckService updateCheckService;
+
+    /**
      * The release version (e.g. {@code 0.0.1}), shown in the footer. Read from the repository's {@code VERSION} file (packaged onto the classpath)
      * via {@link ReleaseVersion} — the authoritative release version, which CI bumps independently of the {@code -SNAPSHOT} Maven project version.
      * Falls back to the Maven project version ({@link #version}) when the resource is missing, blank, or unreadable.
@@ -87,6 +96,39 @@ public class AppInfo {
      */
     public String getRepositoryUrl() {
         return appConfig.repositoryUrl();
+    }
+
+    /**
+     * Whether the footer's "update available" indicator should be offered: {@code true} when the one-shot startup update check found a newer release
+     * than the running version. A pure read of the stored startup result - no I/O. The footer additionally gates rendering on the current user being
+     * an administrator, so the indicator shows on every page's footer for an admin and never for anyone else (nor on the anonymous pages).
+     *
+     * @return {@code true} when a newer release is available
+     */
+    public boolean isUpdateAvailable() {
+        return UpdateCheck.updateAvailable(updateCheckService.status());
+    }
+
+    /**
+     * The footer up-arrow indicator's tooltip when an update is available (e.g. {@code Update available - v0.8.0}), or {@code null} when the running
+     * version is current or the latest release is unknown (the indicator is then hidden). Pre-composed here rather than in the template because a
+     * nested expression inside a Qute {@code {#include}} string parameter is not interpolated - it would render the literal braces.
+     *
+     * @return the "update available" tooltip text, or {@code null} when no update is advertised
+     */
+    public @Nullable String getUpdateTooltip() {
+        return UpdateCheck.footerTooltip(updateCheckService.status());
+    }
+
+    /**
+     * The release page the footer's up-arrow indicator links to - the <em>latest</em> published release ({@code {repo}/releases/tag/{latest}}), so
+     * an administrator clicking the arrow lands on the newer release, not the running version's notes (that is the version link's job). Only consumed
+     * inside the indicator's {@code {#if}} branch, so this is read only when an update is actually available.
+     *
+     * @return the latest-release page URL
+     */
+    public String getUpdateUrl() {
+        return updateCheckService.status().latestReleaseUrl();
     }
 
     /**

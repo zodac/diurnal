@@ -681,12 +681,20 @@ All list views (actions, day-panel, stats) use in-memory pagination: fetch all, 
 
 ### Update check (admin-only footer indicator)
 
-The page footer's version link (`partials/footer.html`) gains an **"Update available"** indicator, shown **only on the admin pages
-(`/admin/users`, `/admin/api-docs`) to administrators**. `AdminWebResource` is the only surface that passes the
-`updateAvailable`/`latestVersion`/`latestReleaseUrl` data into its templates; every other page leaves those template vars unset, so the
-footer's `{#if updateAvailable}` block is skipped (Qute is strict — the footer defaults the flag with `{#let updateAvailable=updateAvailable.or(false)}`,
-the same pattern as `showTips` in `nav-links`, so a page that omits the key doesn't throw "Key not found") — the indicator can never appear off an
-admin page. **There is deliberately no `/api/v1` twin** (surface policy: it is an admin-console decoration, not a user action or data resource).
+The page footer (`partials/footer.html`) gains an admin-only **"update available" up-arrow indicator sitting next to the version link** — a
+brand-coloured `arrow-up-circle` icon with an `Update available - v{latestVersion}` tooltip (there is no separate "Update available" text section).
+It is shown **on EVERY page's footer, but only to administrators**. The version text and the arrow are **two separate links** grouped in one
+`inline-flex` span: the **version** links to the *running* version's release notes (`{repo}/releases/tag/{version}`, tooltip "Release notes"), while
+the **arrow** links to the *latest* release (`{repo}/releases/tag/{latest}`) — so clicking the arrow takes an admin to the newer release, not the
+running version's notes. All three signals are self-contained on the `{inject:appInfo}` bean — `appInfo.updateAvailable` (a pure boolean read of the
+stored startup result), `appInfo.updateTooltip` (the pre-composed tooltip, `null` when no update) and `appInfo.updateUrl` (the latest-release URL) —
+so no resource threads footer data through its `TemplateInstance` (matching the footer's self-contained design; `AdminWebResource` no longer passes
+any update data). The footer gates the arrow on `isAdmin` (already passed to every authenticated page; the footer defaults it with
+`{#let isAdmin=isAdmin.or(false)}`, the same pattern as `showTips` in `nav-links`, so the anonymous login/register footers — which omit the key —
+don't throw "Key not found" and show nothing). Because the arrow lives inside `{#if isAdmin && updateAvailable}`, a non-admin's (or anonymous)
+rendered HTML never contains the update info. `appInfo.updateTooltip` is pre-composed in Java because a nested expression inside an `{#include}`
+string param is not interpolated (would render literal braces). **There is deliberately no `/api/v1` twin** (surface policy: it is an admin-console
+decoration, not a user action or data resource).
 
 The check runs **exactly once, at application startup, and is never refreshed** — `UpdateCheckService.onStartup(@Observes StartupEvent)` (when
 enabled) calls `checkForUpdate()`, which does a single best-effort `LatestReleaseClient` lookup, compares the running version (`ReleaseVersion`)
@@ -698,8 +706,8 @@ error. Enabled by default; `APP_UPDATE_CHECK_ENABLED=false` skips the startup lo
 profile so no CI tier calls GitHub at boot).
 
 All the branching (deriving the `api.github.com/repos/{owner}/{repo}/releases/latest` URL from `app.repository.url`, extracting `tag_name`, comparing
-dotted-numeric versions ignoring a `v`/`-SNAPSHOT` affix, classifying into `UpdateStatus`) is the **pure `UpdateCheck`** (unit-tested to 100% PIT,
-`UpdateCheckTest`). `GitHubLatestReleaseClient` (the HTTP call, bounded by `app.update-check.timeout`) and `UpdateCheckService` (the startup trigger +
+dotted-numeric versions ignoring a `v`/`-SNAPSHOT` affix, classifying into `UpdateStatus`, plus the footer signals `UpdateCheck.updateAvailable(status)`
+and `UpdateCheck.footerTooltip(status)` that `AppInfo` delegates to) is the **pure `UpdateCheck`** (unit-tested to 100% PIT, `UpdateCheckTest`). `GitHubLatestReleaseClient` (the HTTP call, bounded by `app.update-check.timeout`) and `UpdateCheckService` (the startup trigger +
 stored result + logging) are thin glue, NO_COVERAGE like the startup OIDC probe in `AppLifecycle`; the `LatestReleaseClient` interface is the seam the
 IT mocks — `UpdateCheckIndicatorIT` leaves the startup check disabled (the `test` profile) and instead installs a mock client and drives
 `checkForUpdate()` directly, so the mock is in place before the lookup (a boot-time auto-check would run before a per-test mock could be installed).

@@ -12,10 +12,10 @@
 
 - [Introduction](#introduction)
 - [Features](#features)
-    - [Actions and daily logging](#actions-and-daily-logging)
-    - [Calendar views](#calendar-views)
-    - [Statistics and streaks](#statistics-and-streaks)
-    - [Themes and fonts](#themes-and-fonts)
+    - [Actions and Daily Logging](#actions-and-daily-logging)
+    - [Calendar Views](#calendar-views)
+    - [Statistics and Streaks](#statistics-and-streaks)
+    - [Themes and Fonts](#themes-and-fonts)
 - [Deployment](#deployment)
 - [Environment Variables](#environment-variables)
     - [Required](#required)
@@ -55,17 +55,14 @@ longest streaks, weekly averages, month-over-month trends, and more.
 
 ## Features
 
-- **User-defined actions**: Define any habit you want to track, each with its own name and colour
-- **Daily logging**: Increment an action once, or set an exact count for any day
-- **Calendar views**: Your whole history on a calendar, with a choice of three styles
+- **User-defined actions**: Define any habit/activities you want to track, each with its own name and colour
+- **Daily logging**: Log the occurrences of an action for a day
+- **Calendar views**: Your whole history on a calendar, with a choice of different styles
 - **Statistics**: Streaks, totals, averages and trends per action, with the tiles you care about in the order you want them
-- **Theming**: System, light and dark modes, plus a choice of fonts (including the OpenDyslexic accessibility face)
 - **Mobile view**: Styled for both web browser and mobile usage
-- **User management**: User accounts & roles can be managed by administrators
-- **REST API**: A versioned public API at `/api/v1` covering everything the UI can do
 - **OIDC**: Can be integrated with an external identity provider (Authelia, Keycloak, etc.)
 
-### Actions and daily logging
+### Actions and Daily Logging
 
 An **action** is anything you want to track, with its own name and colour. From the dashboard you can increment an action for a day, add ten at a
 time, set an exact count, or erase the day entirely.
@@ -77,7 +74,7 @@ time, set an exact count, or erase the day entirely.
 
 </details>
 
-### Calendar views
+### Calendar Views
 
 The dashboard calendar can be drawn in one of three styles, chosen per user in [Settings](#appearance):
 
@@ -89,7 +86,7 @@ The dashboard calendar can be drawn in one of three styles, chosen per user in [
 |:-----------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------:|
 | <img src="docs/screenshots/cal-full-dark.webp" alt="The full calendar style" width="280"> | <img src="docs/screenshots/cal-minimal-dark.webp" alt="The minimal calendar style" width="280"> | <img src="docs/screenshots/cal-stacked-dark.webp" alt="The stacked calendar style" width="280"> |
 
-### Statistics and streaks
+### Statistics and Streaks
 
 Every action gets a full set of statistics, including
 
@@ -112,7 +109,7 @@ These can be enabled/disabled or re-ordered in user settings (see [Statistics](#
 
 </details>
 
-### Themes and fonts
+### Themes and Fonts
 
 Diurnal ships light and dark themes (or follow the system setting), and three font choices. Everything is rendered server-side, so there is no flash
 of the wrong theme on load.
@@ -373,7 +370,7 @@ Each user can customise Diurnal from the **Settings** page (top-right menu).
 - **Display name**: The name shown in the app
 - **Password**: Change your password, if enabled. Changing it signs out every *other* device.
 - **Identity provider**: Shown when [OIDC](#oidc) is configured. Links to the IdP or allows a user to connect a password-only account
-- **Sessions**: **Log out everywhere** revokes every session, this device included, forcing a fresh sign-in on all devices
+- **Sessions**: **Log out everywhere** revokes every session forcing a fresh sign-in on all devices (includes the current device)
 
 ### Preferences
 
@@ -384,7 +381,7 @@ Each user can customise Diurnal from the **Settings** page (top-right menu).
 
 ### Statistics
 
-A drag-orderable list choosing **which** [statistics](#statistics-and-streaks) appear for each action on the Stats page, and in what order, and
+An orderable list which allows alls the user to choose which [statistics](#statistics-and-streaks) appear for each action on the Stats page, and in what order, and
 each can be disabled and re-ordered. The **Last performed** statistic is always shown, but can still be reordered.
 
 ### Appearance
@@ -399,8 +396,8 @@ each can be disabled and re-ordered. The **Last performed** statistic is always 
 
 The first account to register is an **administrator**. Administrators get two extra sections:
 
-- **Admin → Users**: View and manage user accounts (delete or edit role)
-- **API**: The Swagger UI for the session-token-secured REST API, useful for scripting or integrating with other tools
+- **Admin → Users**: View and manage user accounts (delete user or edit role)
+- **API**: The Swagger UI for the REST API, useful for scripting or integrating with other tools
 
 <details>
 <summary>Screenshot: the admin user-management page</summary>
