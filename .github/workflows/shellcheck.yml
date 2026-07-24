@@ -20,7 +20,7 @@ jobs:
       # No submodules needed: shellcheck ships its own defaults and reads a repo-root
       # .shellcheckrc if present, so the code-quality-config submodule is not required.
       - name: Checkout repository
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
 
       - name: Lint shell scripts with ShellCheck
         run: .github/scripts/lint_and_tests.sh shellcheck -v

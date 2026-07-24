@@ -28,7 +28,7 @@ jobs:
           owner: ${{ github.repository_owner }}
 
       - name: Checkout repository (with submodules)
-        uses: actions/checkout@v7.0.0
+        uses: actions/checkout@v7.0.1
         with:
           fetch-depth: 0 # Needed for pushing tags
           submodules: true
