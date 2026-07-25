@@ -25,6 +25,8 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;
 import java.util.Set;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -59,6 +61,8 @@ import org.jspecify.annotations.Nullable;
 @Priority(Priorities.AUTHENTICATION)
 public class CsrfProtectionFilter implements ContainerRequestFilter {
 
+    private static final Logger LOGGER = LogManager.getLogger(CsrfProtectionFilter.class);
+
     private static final Set<String> SAFE_METHODS = Set.of("GET", "HEAD", "OPTIONS", "TRACE");
     private static final String SESSION_COOKIE = "diurnal_session";
     private static final String OIDC_COOKIE = "q_session";
@@ -81,6 +85,14 @@ public class CsrfProtectionFilter implements ContainerRequestFilter {
             requestContext.getHeaderString(ORIGIN_HEADER),
             requestContext.getHeaderString(REFERER_HEADER),
             expectedAuthority)) {
+            // A genuine CSRF attempt or a misconfigured reverse proxy sending the wrong X-Forwarded-Host both trip this - log the
+            // request origin against the addressed host so either can be told apart. Kept to a single line as it is security-relevant.
+            LOGGER.warn("Rejected cross-site {} /{} - origin '{}' (referer '{}') does not match this site '{}'",
+                requestContext.getMethod(),
+                requestContext.getUriInfo().getPath(),
+                requestContext.getHeaderString(ORIGIN_HEADER),
+                requestContext.getHeaderString(REFERER_HEADER),
+                expectedAuthority);
             requestContext.abortWith(Response
                 .status(Response.Status.FORBIDDEN)
                 .entity("CSRF validation failed: request origin does not match this site")

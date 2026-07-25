@@ -129,6 +129,7 @@ public class AuthenticationService {
             return new LoginResult.InvalidCredentials();
         }
         if (upgradedHash != null) {
+            LOGGER.debug("Upgraded password hash to current Argon2id cost for user {}", user.email);
             user.passwordHash = upgradedHash;
         }
         user.lastLoginAt = Instant.now();

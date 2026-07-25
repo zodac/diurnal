@@ -43,7 +43,7 @@ public class ForbiddenExceptionMapper implements ExceptionMapper<ForbiddenExcept
     @Inject SecurityIdentity identity;
 
     @Override
-    public Response toResponse(ForbiddenException exception) {
+    public Response toResponse(final ForbiddenException exception) {
         // Read displayName and isAdmin from the identity attributes — set at auth time by
         // UserIdentities (session auth) / OidcUserProvisioner, so no DB call is needed here.
         String displayName = "";

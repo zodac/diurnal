@@ -25,6 +25,8 @@ import java.sql.Connection;
 import java.time.Instant;
 import javax.sql.DataSource;
 import net.zodac.diurnal.web.AppInfo;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Assembles the live operational status of the application for {@code GET /api/v1/status}: the readiness probe (a real database round-trip), the
@@ -33,6 +35,8 @@ import net.zodac.diurnal.web.AppInfo;
  */
 @ApplicationScoped
 public class StatusService {
+
+    private static final Logger LOGGER = LogManager.getLogger(StatusService.class);
 
     private Instant startedAt = Instant.now();
 
@@ -67,6 +71,8 @@ public class StatusService {
         try (Connection conn = dataSource.getConnection()) {
             return conn.isValid(1);
         } catch (final Exception e) {
+            LOGGER.trace("Readiness check failed, database is not reachable", e);
+            LOGGER.debug("Readiness check failed, database is not reachable: {}", e.getMessage());
             return false;
         }
     }

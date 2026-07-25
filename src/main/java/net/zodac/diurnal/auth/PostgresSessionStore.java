@@ -26,6 +26,8 @@ import java.util.Optional;
 import java.util.UUID;
 import net.zodac.diurnal.config.SessionConfig;
 import net.zodac.diurnal.user.User;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -34,6 +36,8 @@ import org.jspecify.annotations.Nullable;
  */
 @ApplicationScoped
 public class PostgresSessionStore implements SessionStore {
+
+    private static final Logger LOGGER = LogManager.getLogger(PostgresSessionStore.class);
 
     // Coalesce the per-request last-used "touch": skip the UPDATE unless the stored value is at least
     // this stale. With an idle timeout of days, a minute of slack in the sliding window is immaterial,
@@ -75,6 +79,9 @@ public class PostgresSessionStore implements SessionStore {
 
         final Session session = found.get();
         if (!SessionTokens.isValid(session.lastUsedAt, session.expiresAt, now, sessionConfig.idleTimeout())) {
+            // The session existed but has aged out (idle or absolute timeout) - remove it so the request is challenged. This is the
+            // "why was I suddenly signed out?" case, uncovered by the login/logout logging in the services above it.
+            LOGGER.debug("Session expired (idle/absolute timeout) - removing for user {}", session.user.email);
             session.delete();
             return Optional.empty();
         }

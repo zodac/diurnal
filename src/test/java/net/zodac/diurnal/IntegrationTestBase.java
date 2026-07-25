@@ -78,7 +78,7 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
             Action.deleteAll();
             User.deleteAll();
             createDbState();
-        } catch (Exception e) {
+        } catch (final Exception e) {
             tx.rollback();
             throw e;
         }
