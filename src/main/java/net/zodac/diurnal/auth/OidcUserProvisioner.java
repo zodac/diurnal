@@ -142,28 +142,28 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         final String email = resolveEmail(claims);
         final String normalised = email == null ? null : email.toLowerCase(Locale.ROOT).strip();
 
-        final Optional<String> idpRole = roleAssigner.roleFromOidcGroups(resolveGroups(claims));
+        final Optional<String> role = roleAssigner.roleFromOidcGroups(resolveGroups(claims));
         final Optional<User> linked = User.findByOidc(iss, sub);
         final Optional<User> emailMatch = normalised == null || linked.isPresent() ? Optional.empty() : User.findByEmail(normalised);
         final Optional<User> linkTarget = resolveLinkTarget(routingContext);
 
-        final OidcLoginDecision decision = linkTarget.isPresent()
-            ? linkDecision(linkTarget.get(), linked, idpRole, normalised)
-            : loginDecision(normalised, linked, emailMatch, idpRole, claims);
+        final OidcLoginDecision decision = linkTarget
+            .map(user -> linkDecision(user, linked, role, normalised))
+            .orElseGet(() -> loginDecision(normalised, linked, emailMatch, role, claims));
 
         return switch (decision) {
             case OidcLoginDecision.Deny(final OidcDenialReason reason) ->
                 throw deny(reason, normalised, iss, sub, routingContext, linkTarget.isPresent());
-            case OidcLoginDecision.UseExisting ignored -> authenticated(syncRole(linked.orElseThrow(), idpRole), idTokenCred, routingContext);
-            case OidcLoginDecision.LinkToSessionUser ignored -> {
+            case final OidcLoginDecision.UseExisting ignored -> authenticated(syncRole(linked.orElseThrow(), role), idTokenCred, routingContext);
+            case final OidcLoginDecision.LinkToSessionUser ignored -> {
                 accountLinkService.link(linkTarget.orElseThrow(), iss, sub);
-                yield authenticated(syncRole(linkTarget.orElseThrow(), idpRole), idTokenCred, routingContext);
+                yield authenticated(syncRole(linkTarget.orElseThrow(), role), idTokenCred, routingContext);
             }
-            case OidcLoginDecision.AdoptByEmail ignored -> {
+            case final OidcLoginDecision.AdoptByEmail ignored -> {
                 accountLinkService.link(emailMatch.orElseThrow(), iss, sub);
-                yield authenticated(syncRole(emailMatch.orElseThrow(), idpRole), idTokenCred, routingContext);
+                yield authenticated(syncRole(emailMatch.orElseThrow(), role), idTokenCred, routingContext);
             }
-            case OidcLoginDecision.ProvisionNew ignored -> authenticated(provision(Objects.requireNonNull(normalised), iss, sub, claims, idpRole),
+            case final OidcLoginDecision.ProvisionNew ignored -> authenticated(provision(Objects.requireNonNull(normalised), iss, sub, claims, role),
                 idTokenCred, routingContext);
         };
     }
@@ -266,7 +266,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
 
     private User provision(final String normalised, final String iss, final String sub, final JsonObject claims, final Optional<String> idpRole) {
         String name = claims.getString("name");
-        // Some IdPs (e.g. Authelia with no displayname configured for the user) fill the name claim with the username/email — a full email
+        // Some IdPs (e.g. Authelia with no display-name configured for the user) fill the name claim with the username/email — a full email
         // address is never a useful display name, so treat it as absent and fall back to the email's local part.
         if (name == null || name.isBlank() || name.strip().equalsIgnoreCase(normalised)) {
             name = normalised.contains("@") ? normalised.split("@")[0] : normalised;

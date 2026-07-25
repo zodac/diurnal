@@ -346,9 +346,9 @@ public class LogWebResource {
 
     private Response translate(final LocalDate date, final LogResult result) {
         return switch (result) {
-            case LogResult.FutureDate ignored -> Response.status(Response.Status.BAD_REQUEST).build();
-            case LogResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
-            case LogResult.Updated updated -> Response.ok(item(date, updated.action(), updated.count())).build();
+            case final LogResult.FutureDate ignored -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final LogResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
+            case final LogResult.Updated updated -> Response.ok(item(date, updated.action(), updated.count())).build();
         };
     }
 

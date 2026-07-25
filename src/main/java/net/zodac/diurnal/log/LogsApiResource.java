@@ -361,9 +361,9 @@ public class LogsApiResource {
         final User user = currentUser.get();
         final LocalDate day = DateRanges.requireDate("date", date);
         return switch (logService.deleteEntry(user, day, actionId)) {
-            case LogResult.FutureDate ignored -> badRequest(FUTURE_DATE_MESSAGE);
-            case LogResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
-            case LogResult.Updated ignored -> Response.noContent().build();
+            case final LogResult.FutureDate ignored -> badRequest(FUTURE_DATE_MESSAGE);
+            case final LogResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
+            case final LogResult.Updated ignored -> Response.noContent().build();
         };
     }
 
@@ -399,9 +399,9 @@ public class LogsApiResource {
 
     private static Response translate(final LogResult result, final UUID actionId, final LocalDate day) {
         return switch (result) {
-            case LogResult.FutureDate ignored -> badRequest(FUTURE_DATE_MESSAGE);
-            case LogResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
-            case LogResult.Updated updated -> Response.ok(new LogEntryDto(actionId, day.toString(), updated.count())).build();
+            case final LogResult.FutureDate ignored -> badRequest(FUTURE_DATE_MESSAGE);
+            case final LogResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
+            case final LogResult.Updated updated -> Response.ok(new LogEntryDto(actionId, day.toString(), updated.count())).build();
         };
     }
 

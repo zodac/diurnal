@@ -164,14 +164,14 @@ public class AdminUsersApiResource {
         final @Nullable RoleChangeRequest request) {
         final String role = request == null ? null : request.role();
         return switch (adminUserService.changeRole(identity.getPrincipal().getName(), id, role)) {
-            case AdminUserResult.InvalidRole ignored -> Response.status(Response.Status.BAD_REQUEST)
+            case final AdminUserResult.InvalidRole ignored -> Response.status(Response.Status.BAD_REQUEST)
                     .entity(new ApiErrorResponse("Invalid role value"))
                     .build();
-            case AdminUserResult.NotFound ignored -> Response.status(Response.Status.NOT_FOUND).build();
-            case AdminUserResult.LastAdmin ignored -> Response.status(Response.Status.CONFLICT)
+            case final AdminUserResult.NotFound ignored -> Response.status(Response.Status.NOT_FOUND).build();
+            case final AdminUserResult.LastAdmin ignored -> Response.status(Response.Status.CONFLICT)
                     .entity(new ApiErrorResponse("Cannot remove the last administrator"))
                     .build();
-            case AdminUserResult.Success success -> Response.ok(AdminUserDto.from(success.user())).build();
+            case final AdminUserResult.Success success -> Response.ok(AdminUserDto.from(success.user())).build();
         };
     }
 
@@ -201,12 +201,12 @@ public class AdminUsersApiResource {
         @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The user's ID.")
         @PathParam("id") final UUID id) {
         return switch (adminUserService.deleteUser(identity.getPrincipal().getName(), id)) {
-            case AdminUserResult.NotFound ignored -> Response.status(Response.Status.NOT_FOUND).build();
-            case AdminUserResult.LastAdmin ignored -> Response.status(Response.Status.CONFLICT)
+            case final AdminUserResult.NotFound ignored -> Response.status(Response.Status.NOT_FOUND).build();
+            case final AdminUserResult.LastAdmin ignored -> Response.status(Response.Status.CONFLICT)
                     .entity(new ApiErrorResponse("Cannot delete the last administrator"))
                     .build();
-            case AdminUserResult.InvalidRole ignored -> Response.status(Response.Status.BAD_REQUEST).build();
-            case AdminUserResult.Success ignored -> Response.noContent().build();
+            case final AdminUserResult.InvalidRole ignored -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final AdminUserResult.Success ignored -> Response.noContent().build();
         };
     }
 

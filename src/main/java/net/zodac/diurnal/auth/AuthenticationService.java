@@ -29,7 +29,6 @@ import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.jspecify.annotations.Nullable;
 
 /**
  * Verifies email/password credentials for both login surfaces (the web form and the REST API), applying login throttling and recording the outcome.
@@ -39,8 +38,8 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * Transaction discipline: the deliberately expensive Argon2id work (verification, and the transparent cost-upgrade re-hash) runs OUTSIDE any
  * database transaction, so no pooled connection sits idle for the duration of a hash. Only the success bookkeeping ({@code lastLoginAt} and an
- * upgraded hash) is written, in the short service-owned transaction of {@link #recordLogin(UUID, String)} — callers must NOT be
- * {@code @Transactional}, or the hashing would run inside their transaction again.
+ * upgraded hash) is written, in the short service-owned transactions of {@link #recordLogin(UUID)} / {@link #recordLoginWithRehash(UUID, String)} —
+ * callers must NOT be {@code @Transactional}, or the hashing would run inside their transaction again.
  */
 @ApplicationScoped
 public class AuthenticationService {
@@ -85,22 +84,22 @@ public class AuthenticationService {
             .filter(u -> u.passwordHash != null);
 
         final boolean credentialsValid;
-        if (account.isPresent()) {
-            // The filter above has already established a non-null stored hash.
-            credentialsValid = passwords.matches(password, Objects.requireNonNull(account.get().passwordHash));
-        } else {
-            // No stored hash to verify against. Spend the same time as a real check so a non-existent
-            // account cannot be told apart from a wrong password by response time (user enumeration).
-            credentialsValid = passwordAuthConfig.uniformTimingEnabled() && passwords.matchesDummy(password);
-        }
+        // The filter above has already established a non-null stored hash.
+        // No stored hash to verify against. Spend the same time as a real check so a non-existent
+        // account cannot be told apart from a wrong password by response time (user enumeration).
+        credentialsValid = account
+            .map(user -> passwords.matches(password, Objects.requireNonNull(user.passwordHash)))
+            .orElseGet(() -> passwordAuthConfig.uniformTimingEnabled() && passwords.matchesDummy(password));
 
         if (credentialsValid) {
             final User user = account.orElseThrow();
             // Transparently upgrade a hash made under weaker Argon2id parameters to the current cost now
             // that we hold the verified plaintext. The re-hash is computed here, outside the transaction.
             final String storedHash = Objects.requireNonNull(user.passwordHash);
-            final String upgradedHash = passwords.needsRehash(storedHash) ? passwords.hash(password) : null;
-            return self.recordLogin(user.id, upgradedHash);
+            if (passwords.needsRehash(storedHash)) {
+                return self.recordLoginWithRehash(user.id, passwords.hash(password));
+            }
+            return self.recordLogin(user.id);
         }
 
         final AttemptThrottle.FailureOutcome outcome = ipThrottle.recordFailure(clientIp, now);
@@ -109,29 +108,59 @@ public class AuthenticationService {
     }
 
     /**
-     * Records a verified login in one short transaction: bumps {@code lastLoginAt} and, when the stored hash was made under outdated Argon2id
-     * parameters, persists the already-computed upgraded hash. Invoked via the CDI proxy ({@code self}) so the {@code @Transactional} interceptor
-     * applies; the account is re-read by primary key inside the transaction so the write targets a managed entity.
+     * Records a verified login in one short transaction, bumping {@code lastLoginAt}. Use this overload when the stored hash is already at the
+     * current Argon2id cost and needs no upgrade; {@link #recordLoginWithRehash(UUID, String)} is the counterpart that also persists a re-hash.
+     * Invoked via the CDI proxy ({@code self}) so the {@code @Transactional} interceptor applies; the account is re-read by primary key inside the
+     * transaction so the write targets a managed entity.
      *
      * <p>
-     * Note: a success deliberately does NOT clear the IP counter — a valid login must not reset an IP's brute-force budget (see {@link IpThrottle});
+     * Note: a success deliberately does NOT clear the IP counter - a valid login must not reset an IP's brute-force budget (see {@link IpThrottle});
      * it decays on its own after a quiet window.
      *
      * @param userId the verified account's ID
-     * @param upgradedHash the Argon2id hash re-computed at the current cost, or {@code null} when the stored hash is already current
      * @return the {@link LoginResult}: success, or invalid credentials when the account vanished since verification
      */
     @Transactional
-    LoginResult recordLogin(final UUID userId, final @Nullable String upgradedHash) {
+    LoginResult recordLogin(final UUID userId) {
         final User user = User.findById(userId);
         if (user == null) {
             // The account was deleted between the credential check and this write.
             return new LoginResult.InvalidCredentials();
         }
-        if (upgradedHash != null) {
-            LOGGER.debug("Upgraded password hash to current Argon2id cost for user {}", user.email);
-            user.passwordHash = upgradedHash;
+
+        return finaliseLogin(user);
+    }
+
+    /**
+     * Records a verified login in one short transaction, persisting the already-computed {@code upgradedHash} (re-hashed at the current Argon2id cost
+     * outside any transaction) and bumping {@code lastLoginAt}. Use this overload when {@link Passwords#needsRehash(String)} flagged the stored hash
+     * as outdated; {@link #recordLogin(UUID)} is the counterpart when no upgrade is due. Invoked via the CDI proxy ({@code self}) so the
+     * {@code @Transactional} interceptor applies; the account is re-read by primary key inside the transaction so the write targets a managed entity.
+     *
+     * @param userId the verified account's ID
+     * @param upgradedHash the Argon2id hash re-computed at the current cost
+     * @return the {@link LoginResult}: success, or invalid credentials when the account vanished since verification
+     */
+    @Transactional
+    LoginResult recordLoginWithRehash(final UUID userId, final String upgradedHash) {
+        final User user = User.findById(userId);
+        if (user == null) {
+            // The account was deleted between the credential check and this write.
+            return new LoginResult.InvalidCredentials();
         }
+
+        LOGGER.debug("Upgraded password hash to current Argon2id cost for user {}", user.email);
+        user.passwordHash = upgradedHash;
+        return finaliseLogin(user);
+    }
+
+    /**
+     * Shared tail of both {@code recordLogin} overloads: stamps {@code lastLoginAt} on the already-loaded managed account and persists it.
+     *
+     * @param user the managed account being logged in
+     * @return the {@link LoginResult.Success} for the login
+     */
+    private static LoginResult finaliseLogin(final User user) {
         user.lastLoginAt = Instant.now();
         user.persist();
         LOGGER.debug("Successful login: name={} email={} role={}", user.displayName, user.email, user.role);

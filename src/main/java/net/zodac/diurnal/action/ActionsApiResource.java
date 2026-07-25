@@ -246,20 +246,20 @@ public class ActionsApiResource {
 
     private static Response translate(final ActionResult result, final Response.Status successStatus) {
         return switch (result) {
-            case ActionResult.Success success -> Response.status(successStatus).entity(ActionDto.from(success.action())).build();
-            case ActionResult.BlankName ignored -> Response.status(Response.Status.BAD_REQUEST)
+            case final ActionResult.Success success -> Response.status(successStatus).entity(ActionDto.from(success.action())).build();
+            case final ActionResult.BlankName ignored -> Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ApiErrorResponse("Action name cannot be empty"))
                 .build();
-            case ActionResult.NameTooLong ignored -> Response.status(Response.Status.BAD_REQUEST)
+            case final ActionResult.NameTooLong ignored -> Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ApiErrorResponse("Action name cannot be longer than " + ActionValidation.NAME_MAX_LENGTH + " characters"))
                 .build();
-            case ActionResult.InvalidColour ignored -> Response.status(Response.Status.BAD_REQUEST)
+            case final ActionResult.InvalidColour ignored -> Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ApiErrorResponse("Action colour is invalid"))
                 .build();
-            case ActionResult.DuplicateName duplicate -> Response.status(Response.Status.CONFLICT)
+            case final ActionResult.DuplicateName duplicate -> Response.status(Response.Status.CONFLICT)
                 .entity(new ApiErrorResponse("An action named '" + duplicate.name() + "' already exists"))
                 .build();
-            case ActionResult.NotFound ignored -> Response.status(Response.Status.NOT_FOUND).build();
+            case final ActionResult.NotFound ignored -> Response.status(Response.Status.NOT_FOUND).build();
         };
     }
 

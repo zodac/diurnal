@@ -151,12 +151,12 @@ public class AdminUsersInternalResource {
     @Transactional
     public Response changeRole(@PathParam("id") final UUID id, @FormParam("role") final String role) {
         return switch (adminUserService.changeRole(identity.getPrincipal().getName(), id, role)) {
-            case AdminUserResult.InvalidRole ignored -> HtmxResponses.conflictBanner("#admin-error", "Invalid role value.");
-            case AdminUserResult.NotFound ignored -> HtmxResponses.conflictBanner("#admin-error", "User not found.");
-            case AdminUserResult.LastAdmin ignored -> HtmxResponses.conflictBanner("#admin-error", "Cannot remove the last administrator.");
+            case final AdminUserResult.InvalidRole ignored -> HtmxResponses.conflictBanner("#admin-error", "Invalid role value.");
+            case final AdminUserResult.NotFound ignored -> HtmxResponses.conflictBanner("#admin-error", "User not found.");
+            case final AdminUserResult.LastAdmin ignored -> HtmxResponses.conflictBanner("#admin-error", "Cannot remove the last administrator.");
             // Re-render just this row (outerHTML) so the surrounding rows don't repaint — the edited row
             // swaps straight from its edit state to a fresh view state, with no whole-list flash.
-            case AdminUserResult.Success success -> Response.ok(adminUserRowTemplate.data("u", toRow(success.user(), actorZone()))).build();
+            case final AdminUserResult.Success success -> Response.ok(adminUserRowTemplate.data("u", toRow(success.user(), actorZone()))).build();
         };
     }
 
@@ -172,10 +172,10 @@ public class AdminUsersInternalResource {
     @Transactional
     public Response deleteUser(@PathParam("id") final UUID id) {
         return switch (adminUserService.deleteUser(identity.getPrincipal().getName(), id)) {
-            case AdminUserResult.NotFound ignored -> HtmxResponses.conflictBanner("#admin-error", "User not found.");
-            case AdminUserResult.LastAdmin ignored -> HtmxResponses.conflictBanner("#admin-error", "Cannot delete the last administrator.");
-            case AdminUserResult.InvalidRole ignored -> HtmxResponses.conflictBanner("#admin-error", "Invalid role value.");
-            case AdminUserResult.Success ignored ->
+            case final AdminUserResult.NotFound ignored -> HtmxResponses.conflictBanner("#admin-error", "User not found.");
+            case final AdminUserResult.LastAdmin ignored -> HtmxResponses.conflictBanner("#admin-error", "Cannot delete the last administrator.");
+            case final AdminUserResult.InvalidRole ignored -> HtmxResponses.conflictBanner("#admin-error", "Invalid role value.");
+            case final AdminUserResult.Success ignored ->
                 Response.ok(adminUsersListTemplate.data("page", toRows(adminUserService.usersPage(1, currentUser.get().pageSize), actorZone())))
                     .build();
         };

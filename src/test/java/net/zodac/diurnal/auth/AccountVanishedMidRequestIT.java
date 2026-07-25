@@ -42,10 +42,19 @@ class AccountVanishedMidRequestIT extends IntegrationTestBase {
 
     @Test
     void recordLogin_accountNoLongerExists_returnsInvalidCredentials() {
-        final LoginResult result = authenticationService.recordLogin(UUID.randomUUID(), null);
+        final LoginResult result = authenticationService.recordLogin(UUID.randomUUID());
 
         assertThat(result)
             .as("a verified login whose account vanished before the write must resolve to invalid credentials, not a persisted login")
+            .isInstanceOf(LoginResult.InvalidCredentials.class);
+    }
+
+    @Test
+    void recordLoginWithRehash_accountNoLongerExists_returnsInvalidCredentials() {
+        final LoginResult result = authenticationService.recordLoginWithRehash(UUID.randomUUID(), "irrelevant-hash");
+
+        assertThat(result)
+            .as("a verified login needing a hash upgrade whose account vanished before the write must resolve to invalid credentials")
             .isInstanceOf(LoginResult.InvalidCredentials.class);
     }
 

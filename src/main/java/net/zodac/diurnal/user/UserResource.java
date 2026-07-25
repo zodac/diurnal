@@ -194,12 +194,12 @@ public class UserResource {
         final PasswordChangeResult result = passwordChangeService.change(currentUser.get(), currentPassword, newPassword,
             null, callingToken(authorization, sessionCookie), ClientAddress.of(routingContext));
         return switch (result) {
-            case PasswordChangeResult.Success ignored -> Response.noContent().build();
-            case PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
-            case PasswordChangeResult.WrongCurrentPassword ignored -> Response.status(Response.Status.BAD_REQUEST)
+            case final PasswordChangeResult.Success ignored -> Response.noContent().build();
+            case final PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
+            case final PasswordChangeResult.WrongCurrentPassword ignored -> Response.status(Response.Status.BAD_REQUEST)
                     .entity(new ApiErrorResponse(PasswordChangeService.CURRENT_PASSWORD_ERROR))
                     .build();
-            case PasswordChangeResult.InvalidNewPassword invalid -> Response.status(Response.Status.BAD_REQUEST)
+            case final PasswordChangeResult.InvalidNewPassword invalid -> Response.status(Response.Status.BAD_REQUEST)
                     .entity(new ApiErrorResponse(invalid.message()))
                     .build();
         };

@@ -924,6 +924,12 @@ update_submodules() {
             if [[ "${latest_tag}" != "${current_tag}" ]]; then
                 git checkout --quiet "${latest_tag}"
                 echo "    Updated '${path}' to ${latest_tag}"
+                # Sync this submodule's OWN nested submodules to the newly checked-out tag (the new
+                # revision may add/move/remove them). Scoped here inside the submodule dir on purpose:
+                # a top-level `git submodule update` would instead reset '${path}' back to the commit
+                # in the superproject index, undoing the checkout above. Best-effort like the rest.
+                git submodule update --init --recursive --quiet 2>/dev/null \
+                    || warn "Could not sync nested submodules for '${path}'"
             fi
         ) || warn "Error processing submodule '${path}', skipping"
     done
