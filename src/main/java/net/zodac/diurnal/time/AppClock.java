@@ -26,6 +26,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import net.zodac.diurnal.config.AppConfig;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -43,6 +45,8 @@ import org.jspecify.annotations.Nullable;
  */
 @ApplicationScoped
 public class AppClock {
+
+    private static final Logger LOGGER = LogManager.getLogger(AppClock.class);
 
     @Inject
     AppConfig appConfig;
@@ -95,7 +99,9 @@ public class AppClock {
         }
         try {
             return ZoneId.of(timezoneId);
-        } catch (DateTimeException e) {
+        } catch (final DateTimeException e) {
+            LOGGER.debug("Stored timezone '{}' is not a valid zone ID ({}) - falling back to the server-default zone {}",
+                timezoneId, e.getMessage(), clock.getZone());
             return clock.getZone();
         }
     }

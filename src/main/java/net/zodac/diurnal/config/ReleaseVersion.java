@@ -20,6 +20,8 @@ package net.zodac.diurnal.config;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -32,6 +34,8 @@ import org.jspecify.annotations.Nullable;
  * {@code info.version}) so both surfaces report the same version from one source.
  */
 public final class ReleaseVersion {
+
+    private static final Logger LOGGER = LogManager.getLogger(ReleaseVersion.class);
 
     private static final String VERSION_RESOURCE = "/VERSION";
 
@@ -67,6 +71,8 @@ public final class ReleaseVersion {
             final String content = new String(stream.readAllBytes(), StandardCharsets.UTF_8).strip();
             return content.isEmpty() ? fallback : content;
         } catch (final IOException e) {
+            LOGGER.debug("Could not read the packaged VERSION resource - reporting fallback version '{}'", fallback, e);
+            LOGGER.warn("Could not read the packaged VERSION resource - reporting fallback version '{}': {}", fallback, e.getMessage());
             return fallback;
         }
     }

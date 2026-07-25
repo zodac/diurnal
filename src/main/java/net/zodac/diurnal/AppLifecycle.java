@@ -71,7 +71,7 @@ public class AppLifecycle {
      * Fails fast if no auth method is enabled, or if OIDC is on without an issuer URL.
      */
     @SuppressWarnings("unused") // CDI startup observer — invoked by Quarkus, not called directly
-    void onStart(@Observes StartupEvent ev) {
+    void onStart(@Observes final StartupEvent ev) {
         validateAuthConfig();
         verifyOidcDiscovery();
 
