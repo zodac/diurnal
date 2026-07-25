@@ -113,6 +113,31 @@ class UserMeApiIT extends IntegrationTestBase {
     }
 
     @Test
+    void patchMe_validFieldBeforeInvalidField_persistsNothing() {
+        // A single PATCH carrying a VALID display name and an INVALID theme must be rejected wholesale: the display name is applied to the managed
+        // entity before the theme is rejected, so without a rollback it would be silently flushed on commit. The whole transaction must roll back,
+        // honouring the OpenAPI promise that nothing is ever partially changed.
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"displayName":"Should Not Persist","preferences":{"theme":"neon"}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(400)
+                .body("message", containsString("Theme must be one of"));
+
+        given().header("Authorization", "Bearer " + token())
+                .get("/api/v1/users/me")
+                .then().statusCode(200)
+                .body("displayName", equalTo("Me API User"))
+                .body("preferences.theme", equalTo("system"));
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().displayName)
+            .as("the display name from a rejected multi-field PATCH must not be persisted")
+            .isEqualTo("Me API User"));
+    }
+
+    @Test
     void patchMe_unofferedTimezone_isRejected() {
         given().header("Authorization", "Bearer " + token())
                 .contentType(ContentType.JSON)

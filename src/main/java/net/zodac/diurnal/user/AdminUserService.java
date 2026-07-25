@@ -116,11 +116,9 @@ public class AdminUserService {
             return new AdminUserResult.LastAdmin();
         }
 
-        // Hard-delete in FK order: logs → actions → user
-        final List<Action> actions = Action.list("userId", target.id);
-        for (final Action action : actions) {
-            ActionLog.deleteByAction(target.id, action.id);
-        }
+        // Hard-delete in FK order: logs → actions → user. Each step is a single bulk statement (all the
+        // account's logs key on its userId), so a big account does not fan out into a per-action delete.
+        ActionLog.deleteByUser(target.id);
         Action.delete("userId", target.id);
         target.delete();
         LOGGER.info("Admin {} deleted user {}", actorEmail, target.email);

@@ -297,6 +297,25 @@ class ActionsApiResourceIT extends IntegrationTestBase {
     }
 
     @Test
+    void update_validNameWithInvalidColour_rejectedAndNothingPersisted() {
+        // A rename paired with a malformed colour must be rejected wholesale: the name would be assigned to the managed entity before the colour
+        // is validated, so unless every rejection precedes the first mutation the rename would be silently flushed on commit despite the 400.
+        final Action action = newActionInTx(primaryId, "Running");
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"name":"Trail running","colour":"not-a-colour"}
+                        """)
+                .patch("/api/v1/actions/" + action.id)
+                .then().statusCode(400)
+                .body("message", containsString("colour"));
+
+        runInTx(() -> assertThat(java.util.Objects.requireNonNull(Action.<Action>findById(action.id)).name)
+            .as("a rename paired with an invalid colour must not be persisted")
+            .isEqualTo("Running"));
+    }
+
+    @Test
     void update_renameToOwnName_isAllowed() {
         final Action action = newActionInTx(primaryId, "Running");
 

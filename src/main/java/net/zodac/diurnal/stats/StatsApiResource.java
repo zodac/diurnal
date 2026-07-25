@@ -19,7 +19,6 @@ package net.zodac.diurnal.stats;
 
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -68,7 +67,6 @@ public class StatsApiResource {
      * @return the requested page of per-action statistics
      */
     @GET
-    @Transactional
     @Operation(
         summary = "List per-action statistics",
         description = "Returns one page of computed statistics (totals, streaks, trends, high scores) for every action with at least one "

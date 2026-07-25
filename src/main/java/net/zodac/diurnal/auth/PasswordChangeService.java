@@ -19,6 +19,8 @@ package net.zodac.diurnal.auth;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
+import java.util.UUID;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -37,7 +39,10 @@ import org.jspecify.annotations.Nullable;
  * changes can never lock the IP out of logging in or registering, and vice versa. The {@code WARN} on a mismatch is an audit trail only.
  *
  * <p>
- * Callers own the transaction (each endpoint is {@code @Transactional}); this bean only assumes one is active.
+ * Transaction discipline: the deliberately expensive Argon2id work (the current-password proof and the new hash) runs OUTSIDE any database
+ * transaction, so no pooled connection sits idle for the duration of a hash. The hash write and the other-session revocation share the one short
+ * service-owned transaction of {@link #applyChange(java.util.UUID, String, String)} — callers must NOT be {@code @Transactional}, or the hashing
+ * would run inside their transaction again.
  */
 @ApplicationScoped
 public class PasswordChangeService {
@@ -59,6 +64,9 @@ public class PasswordChangeService {
         "Password must be at most " + PasswordConstraints.MAX_LENGTH + " characters";
 
     private static final Logger LOGGER = LogManager.getLogger(PasswordChangeService.class);
+
+    @Inject
+    PasswordChangeService self;
 
     @Inject
     Passwords passwords;
@@ -119,7 +127,29 @@ public class PasswordChangeService {
             return new PasswordChangeResult.InvalidNewPassword(NEW_PASSWORD_TOO_LONG_ERROR);
         }
 
-        user.passwordHash = passwords.hash(newPassword);
+        // The new hash is computed here, outside any transaction (see the class Javadoc).
+        final String newHash = passwords.hash(newPassword);
+        return self.applyChange(user.id, newHash, currentRawToken);
+    }
+
+    /**
+     * Persists the already-computed new hash and revokes every other session, in one short transaction. Invoked via the CDI proxy ({@code self}) so
+     * the {@code @Transactional} interceptor applies; the account is re-read by primary key inside the transaction so the write targets a managed
+     * entity.
+     *
+     * @param userId          the acting user's ID
+     * @param newHash         the Argon2id hash of the new password, computed by {@link #change} outside the transaction
+     * @param currentRawToken the session token making this request, spared from the revocation; {@code null} revokes nothing
+     * @return the outcome: success, or {@link PasswordChangeResult.NotLocalAccount} when the account vanished since verification
+     */
+    @Transactional
+    PasswordChangeResult applyChange(final UUID userId, final String newHash, final @Nullable String currentRawToken) {
+        final User user = User.findById(userId);
+        if (user == null) {
+            // The account was deleted between the current-password proof and this write.
+            return new PasswordChangeResult.NotLocalAccount();
+        }
+        user.passwordHash = newHash;
         user.persist();
         if (currentRawToken != null && !currentRawToken.isBlank()) {
             sessionStore.revokeOthersForUser(user.id, currentRawToken);

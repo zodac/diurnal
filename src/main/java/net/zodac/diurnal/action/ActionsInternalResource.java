@@ -40,6 +40,7 @@ import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.web.HtmxResponses;
+import net.zodac.diurnal.web.RollbackOnErrorStatus;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -50,6 +51,7 @@ import org.jspecify.annotations.Nullable;
  */
 @Path("/internal/actions")
 @RolesAllowed(Role.Values.USER)
+@RollbackOnErrorStatus
 public class ActionsInternalResource {
 
     @Inject
@@ -80,7 +82,6 @@ public class ActionsInternalResource {
     @GET
     @Path("list")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public Response actionsList(
         @QueryParam("page") @DefaultValue("1") final int pageNum,
         @QueryParam("q") @DefaultValue("") final String searchTerm) {
@@ -101,7 +102,6 @@ public class ActionsInternalResource {
     @GET
     @Path("{id}")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public Response viewItem(@PathParam("id") final UUID id) {
         final Action action = actionService.findOwned(currentUser.get(), id);
         if (action == null) {
@@ -119,7 +119,6 @@ public class ActionsInternalResource {
     @GET
     @Path("{id}/confirm-delete")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public Response confirmDelete(@PathParam("id") final UUID id) {
         final Action action = actionService.findOwned(currentUser.get(), id);
         if (action == null) {

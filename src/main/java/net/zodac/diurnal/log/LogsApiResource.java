@@ -47,6 +47,7 @@ import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
+import net.zodac.diurnal.web.RollbackOnErrorStatus;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.enums.SchemaType;
@@ -82,6 +83,7 @@ import org.jspecify.annotations.Nullable;
 @Path("/api/v1/logs")
 @RolesAllowed(Role.Values.USER)
 @Produces(MediaType.APPLICATION_JSON)
+@RollbackOnErrorStatus
 public class LogsApiResource {
 
     private static final String FUTURE_DATE_MESSAGE = "Cannot log against a future date";
@@ -101,7 +103,6 @@ public class LogsApiResource {
     @Compressed
     @GET
     @Path("/events")
-    @Transactional
     @Operation(
         summary = "List logged events in a date range",
         description = "Returns all logged actions within the date range for the user."
@@ -166,7 +167,6 @@ public class LogsApiResource {
      */
     @GET
     @Path("/{date}")
-    @Transactional
     @Operation(
         summary = "Get a day's logged counts",
         description = "Returns one entry per action logged on the given day; actions with no entry that day are omitted.")
