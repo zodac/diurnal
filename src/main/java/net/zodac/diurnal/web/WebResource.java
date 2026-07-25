@@ -287,15 +287,15 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
             email == null ? "" : email, password == null ? "" : password, clientIp, now);
 
         return switch (result) {
-            case LoginResult.Success success -> {
+            case final LoginResult.Success success -> {
                 final String token = sessionStore.create(
                     success.user(), Session.AUTH_SOURCE_PASSWORD, userAgent(), clientIp, now);
                 yield Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
             }
-            case LoginResult.LockedOut locked -> Response.seeOther(URI.create("/login"))
+            case final LoginResult.LockedOut locked -> Response.seeOther(URI.create("/login"))
                     .cookie(lockoutCookie(locked.remaining()))
                     .build();
-            case LoginResult.InvalidCredentials ignored -> Response.seeOther(URI.create("/login?error=true")).build();
+            case final LoginResult.InvalidCredentials ignored -> Response.seeOther(URI.create("/login?error=true")).build();
         };
     }
 
@@ -456,12 +456,12 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
             ClientAddress.of(routingContext), now);
 
         return switch (result) {
-            case RegistrationResult.Success success -> {
+            case final RegistrationResult.Success success -> {
                 final String token = sessionStore.create(
                     success.user(), Session.AUTH_SOURCE_PASSWORD, userAgent(), ClientAddress.of(routingContext), now);
                 yield Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
             }
-            case RegistrationResult.LockedOut locked -> {
+            case final RegistrationResult.LockedOut locked -> {
                 // The form posts via fetch (data-ajax-errors), so app.js reads the exact seconds from this
                 // header and runs a live mm:ss countdown; the rendered banner (exact-seconds message) is
                 // the no-JS fallback shown by a native form submit.
@@ -471,10 +471,10 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
                         List.of(LockoutMessages.retryMessage(locked.remaining()))))
                         .build();
             }
-            case RegistrationResult.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
+            case final RegistrationResult.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
                     .entity(renderRegister(emailValue, displayNameValue, invalid.missingFields(), invalid.errors()))
                     .build();
-            case RegistrationResult.DuplicateEmail ignored -> Response.status(Response.Status.BAD_REQUEST)
+            case final RegistrationResult.DuplicateEmail ignored -> Response.status(Response.Status.BAD_REQUEST)
                     .entity(renderRegister(emailValue, displayNameValue, List.of(), List.of("That email is already registered.")))
                     .build();
         };
@@ -668,10 +668,10 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         }
 
         return switch (result) {
-            case ProfileResult.Updated ignored -> Response.noContent().build();
+            case final ProfileResult.Updated ignored -> Response.noContent().build();
             // A rejected field leaves any field applied before it mutated on the managed entity; the class-level @RollbackOnErrorStatus rolls the
             // whole transaction back on this 422, so a rejected request never silently persists part of a mutation.
-            case ProfileResult.Invalid invalid -> Response.status(422).entity(invalid.message()).build();
+            case final ProfileResult.Invalid invalid -> Response.status(422).entity(invalid.message()).build();
         };
     }
 
@@ -698,11 +698,11 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         final PasswordChangeResult result = passwordChangeService.change(currentUser.get(), currentPassword, newPassword,
             confirmPassword == null ? "" : confirmPassword, sessionToken, ClientAddress.of(routingContext));
         return switch (result) {
-            case PasswordChangeResult.Success ignored -> Response.ok().build();
-            case PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
-            case PasswordChangeResult.WrongCurrentPassword ignored ->
+            case final PasswordChangeResult.Success ignored -> Response.ok().build();
+            case final PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
+            case final PasswordChangeResult.WrongCurrentPassword ignored ->
                 Response.status(422).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
-            case PasswordChangeResult.InvalidNewPassword invalid -> Response.status(422).entity(invalid.message()).build();
+            case final PasswordChangeResult.InvalidNewPassword invalid -> Response.status(422).entity(invalid.message()).build();
         };
     }
 
@@ -726,11 +726,11 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response verifyCurrentPassword(@FormParam("currentPassword") final String currentPassword) {
         return switch (passwordChangeService.verify(currentUser.get(), currentPassword, ClientAddress.of(routingContext))) {
-            case PasswordChangeResult.Success ignored -> Response.noContent().build();
-            case PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
-            case PasswordChangeResult.WrongCurrentPassword ignored ->
+            case final PasswordChangeResult.Success ignored -> Response.noContent().build();
+            case final PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
+            case final PasswordChangeResult.WrongCurrentPassword ignored ->
                 Response.status(422).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
-            case PasswordChangeResult.InvalidNewPassword ignored -> Response.status(422).build();
+            case final PasswordChangeResult.InvalidNewPassword ignored -> Response.status(422).build();
         };
     }
 

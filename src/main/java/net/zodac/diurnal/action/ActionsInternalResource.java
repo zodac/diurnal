@@ -232,15 +232,15 @@ public class ActionsInternalResource {
 
     private Response translate(final ActionResult result) {
         return switch (result) {
-            case ActionResult.Success success -> Response.ok(actionRowTemplate.data("action", success.action())).build();
-            case ActionResult.BlankName ignored -> HtmxResponses.conflictBanner("#action-error", "Action name cannot be empty.");
-            case ActionResult.NameTooLong ignored -> HtmxResponses.conflictBanner("#action-error",
+            case final ActionResult.Success success -> Response.ok(actionRowTemplate.data("action", success.action())).build();
+            case final ActionResult.BlankName ignored -> HtmxResponses.conflictBanner("#action-error", "Action name cannot be empty.");
+            case final ActionResult.NameTooLong ignored -> HtmxResponses.conflictBanner("#action-error",
                 "Action name cannot be longer than " + ActionValidation.NAME_MAX_LENGTH + " characters.");
-            case ActionResult.InvalidColour ignored -> HtmxResponses.conflictBanner("#action-error",
+            case final ActionResult.InvalidColour ignored -> HtmxResponses.conflictBanner("#action-error",
                 "Action colour is invalid");
-            case ActionResult.DuplicateName duplicate ->
+            case final ActionResult.DuplicateName duplicate ->
                 HtmxResponses.conflictBanner("#action-error", "An action named '" + duplicate.name() + "' already exists.");
-            case ActionResult.NotFound ignored -> Response.status(404).build();
+            case final ActionResult.NotFound ignored -> Response.status(404).build();
         };
     }
 

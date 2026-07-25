@@ -146,17 +146,17 @@ public class AuthResource {
             null, ClientAddress.of(routingContext), clock.now());
 
         return switch (result) {
-            case RegistrationResult.Success success -> {
+            case final RegistrationResult.Success success -> {
                 final User user = success.user();
                 yield Response.status(Response.Status.CREATED)
                         .entity(new TokenResponse(newSession(user), user.email, user.displayName))
                         .build();
             }
-            case RegistrationResult.LockedOut locked -> lockedResponse(locked.remaining());
-            case RegistrationResult.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
+            case final RegistrationResult.LockedOut locked -> lockedResponse(locked.remaining());
+            case final RegistrationResult.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
                     .entity(new ErrorResponse(invalidMessage(invalid)))
                     .build();
-            case RegistrationResult.DuplicateEmail ignored -> Response.status(Response.Status.CONFLICT)
+            case final RegistrationResult.DuplicateEmail ignored -> Response.status(Response.Status.CONFLICT)
                     .entity(new ErrorResponse("Email already registered"))
                     .build();
         };
@@ -199,13 +199,13 @@ public class AuthResource {
         final LoginResult result = authenticationService.authenticate(request.email(), request.password(), clientIp, now);
 
         return switch (result) {
-            case LoginResult.Success success -> {
+            case final LoginResult.Success success -> {
                 final User user = success.user();
                 LOGGER.debug("Successful API login: {}", user.email);
                 yield Response.ok(new TokenResponse(newSession(user), user.email, user.displayName)).build();
             }
-            case LoginResult.LockedOut locked -> lockedResponse(locked.remaining());
-            case LoginResult.InvalidCredentials ignored -> Response.status(Response.Status.UNAUTHORIZED)
+            case final LoginResult.LockedOut locked -> lockedResponse(locked.remaining());
+            case final LoginResult.InvalidCredentials ignored -> Response.status(Response.Status.UNAUTHORIZED)
                     .entity(new ErrorResponse("Invalid email or password"))
                     .build();
         };
