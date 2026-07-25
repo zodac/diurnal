@@ -36,6 +36,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.web.RollbackOnErrorStatus;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -58,6 +59,7 @@ import org.jspecify.annotations.Nullable;
 @RolesAllowed(Role.Values.ADMIN)
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@RollbackOnErrorStatus
 public class AdminUsersApiResource {
 
     @Inject
@@ -76,7 +78,6 @@ public class AdminUsersApiResource {
      * @return the requested page of accounts
      */
     @GET
-    @Transactional
     @Operation(
         summary = "List user accounts",
         description = "Returns one page of every account, ordered by creation time. The page size is the calling administrator's 'items per "
@@ -113,7 +114,6 @@ public class AdminUsersApiResource {
      */
     @GET
     @Path("{id}")
-    @Transactional
     @Operation(summary = "Get a user account", description = "Returns a single account by ID.")
     @SecurityRequirement(name = "BearerAuth")
     @APIResponses({

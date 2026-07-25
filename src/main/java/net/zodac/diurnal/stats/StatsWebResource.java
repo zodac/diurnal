@@ -22,7 +22,6 @@ import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -57,7 +56,6 @@ public class StatsWebResource {
      */
     @GET
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public TemplateInstance statsPage(@QueryParam("page") @DefaultValue("1") final int pageNum) {
         final User user = currentUser.get();
         return statsTemplate

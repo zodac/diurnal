@@ -55,6 +55,7 @@ import net.zodac.diurnal.user.User;
  */
 @Path("/internal/admin/users")
 @RolesAllowed(Role.Values.ADMIN)
+@RollbackOnErrorStatus
 public class AdminUsersInternalResource {
 
     @Inject
@@ -86,7 +87,6 @@ public class AdminUsersInternalResource {
     @GET
     @Path("list")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public TemplateInstance usersList(@QueryParam("page") @DefaultValue("1") final int pageNum) {
         final User actor = currentUser.get();
         return adminUsersListTemplate.data("page", toRows(adminUserService.usersPage(pageNum, actor.pageSize), actorZone()));
@@ -101,7 +101,6 @@ public class AdminUsersInternalResource {
     @GET
     @Path("{id}")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public Response userRow(@PathParam("id") final UUID id) {
         final User target = adminUserService.find(id);
         if (target == null) {
@@ -119,7 +118,6 @@ public class AdminUsersInternalResource {
     @GET
     @Path("{id}/confirm-delete")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public Response confirmDeleteUser(@PathParam("id") final UUID id) {
         final User target = adminUserService.find(id);
         if (target == null) {

@@ -22,7 +22,6 @@ import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
@@ -66,7 +65,6 @@ public class AdminWebResource {
     @GET
     @Path("users")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public TemplateInstance usersPage(@QueryParam("page") @DefaultValue("1") final int pageNum) {
         final User actor = currentUser.get();
         return adminUsersTemplate
@@ -86,7 +84,6 @@ public class AdminWebResource {
     @GET
     @Path("api-docs")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public TemplateInstance apiDocsPage() {
         final User actor = currentUser.get();
         return adminApiDocsTemplate

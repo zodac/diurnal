@@ -17,8 +17,10 @@
 
 package net.zodac.diurnal.auth;
 
+import io.quarkus.hibernate.orm.panache.Panache;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
+import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -27,6 +29,7 @@ import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.user.UserSettings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hibernate.exception.ConstraintViolationException;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -42,12 +45,18 @@ import org.jspecify.annotations.Nullable;
  * must match. Every rejected submission is recorded against the shared per-IP throttle ({@link IpThrottle}) exactly once.
  *
  * <p>
- * Callers own the transaction (each register endpoint is {@code @Transactional}); this bean only assumes one is active.
+ * Transaction discipline: the deliberately expensive Argon2id hash is computed OUTSIDE any database transaction, so no pooled connection sits idle
+ * for the duration of the hash. Only the account insert runs in the short service-owned transaction of {@link #createUser(String, String, String)} —
+ * callers must NOT be {@code @Transactional}, or the hashing would run inside their transaction again. The session a resource mints from a
+ * {@code Success} is a separate (store-owned) transaction; a crash in between leaves a valid account with no session, which simply logs in normally.
  */
 @ApplicationScoped
 public class RegistrationService {
 
     private static final Logger LOGGER = LogManager.getLogger(RegistrationService.class);
+
+    @Inject
+    RegistrationService self;
 
     @Inject
     Passwords passwords;
@@ -97,17 +106,50 @@ public class RegistrationService {
             return new RegistrationResult.DuplicateEmail();
         }
 
+        // The Argon2id hash is computed here, outside any transaction (see the class Javadoc).
+        final String passwordHash = passwords.hash(passwordValue);
+        final RegistrationResult result = self.createUser(normalised, displayNameValue.strip(), passwordHash);
+        if (result instanceof RegistrationResult.DuplicateEmail) {
+            // A concurrent registration won the race for this email after the pre-check passed; record it against the shared per-IP throttle
+            // exactly as a duplicate caught by the pre-check above would be.
+            RegistrationAttemptLog.logFailure(LOGGER, ipThrottle.recordFailure(clientIp, now), emailValue, clientIp);
+        }
+        return result;
+    }
+
+    /**
+     * Creates the already-validated account in one short transaction. Invoked via the CDI proxy ({@code self}) so the {@code @Transactional}
+     * interceptor applies; the password hash has already been computed by {@link #register}, outside the transaction.
+     *
+     * @param email        the normalised (lower-cased, stripped) email
+     * @param displayName  the stripped display name
+     * @param passwordHash the Argon2id hash to store
+     * @return {@link RegistrationResult.Success} with the new account, or {@link RegistrationResult.DuplicateEmail} when a concurrent registration
+     *     won the race for the email
+     */
+    @Transactional
+    RegistrationResult createUser(final String email, final String displayName, final String passwordHash) {
         final User user = new User();
-        user.email = normalised;
-        user.displayName = displayNameValue.strip();
-        user.passwordHash = passwords.hash(passwordValue);
+        user.email = email;
+        user.displayName = displayName;
+        user.passwordHash = passwordHash;
         user.role = roleAssigner.roleForNewUser();
         // Registration logs the account straight in on both surfaces (a session is minted from the
         // result), so the first login is now.
         user.lastLoginAt = Instant.now();
         user.persist();
 
-        LOGGER.info("New user registered: {} (role={})", normalised, user.role);
+        // The duplicate-email pre-check in register() is a TOCTOU: two concurrent registrations of the same email can both pass it, and the loser
+        // would otherwise surface the users_email_unique violation as a 500 at commit. Flushing here forces the INSERT now, turning that race into a
+        // DuplicateEmail result; the failed flush marks this transaction rollback-only, so nothing is persisted (Quarkus rolls back cleanly).
+        try {
+            Panache.getEntityManager().flush();
+        } catch (final ConstraintViolationException e) {
+            LOGGER.debug("Concurrent duplicate registration for email: {}", email, e);
+            return new RegistrationResult.DuplicateEmail();
+        }
+
+        LOGGER.info("New user registered: {} (role={})", email, user.role);
         return new RegistrationResult.Success(user);
     }
 

@@ -17,12 +17,14 @@
 
 package net.zodac.diurnal.action;
 
+import io.quarkus.hibernate.orm.panache.Panache;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.UUID;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.hibernate.exception.ConstraintViolationException;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -70,6 +72,17 @@ class ActionService {
         action.colour = colour == null ? ActionValidation.DEFAULT_COLOUR : colour;
         action.persist();
 
+        // The duplicate pre-check above is a TOCTOU: two concurrent creates of the same name can both pass it, and the loser would otherwise
+        // surface the actions_user_name_unique violation as a 500 at commit. Flushing here forces the INSERT now, turning that race into the same
+        // DuplicateName result as the pre-check. The failed flush marks the (caller-owned) transaction rollback-only, so nothing is persisted and
+        // the resource's in-memory error response is preserved (Quarkus rolls back cleanly rather than committing).
+        try {
+            Panache.getEntityManager().flush();
+        } catch (final ConstraintViolationException e) {
+            LOGGER.debug("Concurrent duplicate action name '{}' for user {}", normName, user.email, e);
+            return new ActionResult.DuplicateName(normName);
+        }
+
         LOGGER.info("Action created: {} (colour={}) for user {}", action.id, action.colour, user.email);
         return new ActionResult.Success(action);
     }
@@ -90,23 +103,28 @@ class ActionService {
             return new ActionResult.NotFound();
         }
 
-        if (name != null) {
-            if (name.isBlank()) {
-                return new ActionResult.BlankName();
-            }
-            final String normName = name.strip();
+        // Every rejection must happen BEFORE the first field is assigned: `action` is a managed entity, so a value assigned ahead of a later
+        // rejection would still be flushed when the caller's transaction commits — a 4xx response that silently persisted half the request.
+        if (name != null && name.isBlank()) {
+            return new ActionResult.BlankName();
+        }
+        final String normName = name == null ? null : name.strip();
+        if (normName != null) {
             if (normName.length() > ActionValidation.NAME_MAX_LENGTH) {
                 return new ActionResult.NameTooLong();
             }
             if (Action.count("userId = ?1 and name = ?2 and id != ?3", action.userId, normName, id) > 0) {
                 return new ActionResult.DuplicateName(normName);
             }
+        }
+        if (colour != null && ActionValidation.isColourInvalid(colour)) {
+            return new ActionResult.InvalidColour();
+        }
+
+        if (normName != null) {
             action.name = normName;
         }
         if (colour != null) {
-            if (ActionValidation.isColourInvalid(colour)) {
-                return new ActionResult.InvalidColour();
-            }
             action.colour = colour;
         }
         action.persist();

@@ -19,7 +19,6 @@ package net.zodac.diurnal.stats;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
@@ -59,7 +58,6 @@ public class StatsService {
      * The per-action totals, comparative counts and best-month/best-year figures are aggregated in the database (a monthly {@code GROUP BY}); only
      * the distinct performed dates are read back, and solely to compute the streak/gap figures — so a long history no longer hydrates every log row.
      */
-    @Transactional
     public List<ActionStats> forAllActiveActions(final UUID userId) {
         final LocalDate today = todayFor(userId);
         final List<Action> actions = Action.findByUser(userId);   // name-ascending
@@ -81,7 +79,6 @@ public class StatsService {
      * most-recently-performed active actions logged this month (ties broken by name, matching the Stats page's ordering), and only those few are
      * aggregated — the only actions the dashboard summary strip can show.
      */
-    @Transactional
     public List<ActionStats> forMostRecent(final UUID userId, final int limit) {
         final LocalDate today = todayFor(userId);
         final LocalDate monthStart = today.withDayOfMonth(1);

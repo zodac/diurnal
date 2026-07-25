@@ -20,7 +20,6 @@ package net.zodac.diurnal.log;
 import io.quarkus.vertx.http.Compressed;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
@@ -76,7 +75,6 @@ public class CalendarResource {
     @Compressed
     @GET
     @Path("/minimal-events")
-    @Transactional
     public Response minimalEvents(
         @QueryParam("start") final String start,
         @QueryParam("end") final String end,

@@ -84,6 +84,7 @@ import org.jspecify.annotations.Nullable;
  * Serves the top-level web UI pages: login, register, logout, settings and the dashboard.
  */
 @Path("/")
+@RollbackOnErrorStatus
 public class WebResource { // NOPMD: TooManyFields - single web-page controller; injected collaborators are inherent to the role
 
     private static final Logger LOGGER = LogManager.getLogger(WebResource.class);
@@ -178,7 +179,6 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @GET
     @Path("login")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public Response loginPage(
         @QueryParam("error")      final String error,
         @QueryParam("registered") @DefaultValue("false") final boolean registered,
@@ -392,7 +392,6 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @GET
     @Path("welcome")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public Response welcomePage() {
         if (!setupRequired()) {
             return Response.seeOther(URI.create("/login")).build();
@@ -410,7 +409,6 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @GET
     @Path("register")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public Response registerPage() {
         // During setup the page must render even with password auth disabled — the initial (break-glass) account is always created locally.
         if (!passwordAuthConfig.enabled() && !setupRequired()) {
@@ -428,7 +426,6 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
      */
     @POST
     @Path("register")
-    @Transactional
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Produces(MediaType.TEXT_HTML)
     public Response register(
@@ -562,7 +559,6 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @Path("settings")
     @RolesAllowed(Role.Values.USER)
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public TemplateInstance settingsPage(@QueryParam("msg") @Nullable final String msg) {
         final User user = currentUser.get();
         return settingsView(user, msg);
@@ -673,6 +669,8 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
 
         return switch (result) {
             case ProfileResult.Updated ignored -> Response.noContent().build();
+            // A rejected field leaves any field applied before it mutated on the managed entity; the class-level @RollbackOnErrorStatus rolls the
+            // whole transaction back on this 422, so a rejected request never silently persists part of a mutation.
             case ProfileResult.Invalid invalid -> Response.status(422).entity(invalid.message()).build();
         };
     }
@@ -689,7 +687,6 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @Path("internal/settings/password")
     @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    @Transactional
     public Response updatePassword(
         @FormParam("currentPassword") final String currentPassword,
         @FormParam("newPassword")     final String newPassword,
@@ -727,7 +724,6 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @Path("internal/settings/password/verify")
     @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    @Transactional
     public Response verifyCurrentPassword(@FormParam("currentPassword") final String currentPassword) {
         return switch (passwordChangeService.verify(currentUser.get(), currentPassword, ClientAddress.of(routingContext))) {
             case PasswordChangeResult.Success ignored -> Response.noContent().build();
@@ -745,7 +741,6 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @POST
     @Path("internal/settings/sessions/revoke-all")
     @RolesAllowed(Role.Values.USER)
-    @Transactional
     public Response revokeAllSessions() {
         final User user = currentUser.get();
         sessionStore.revokeAllForUser(user.id);
@@ -813,7 +808,6 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @Path("/")
     @RolesAllowed(Role.Values.USER)
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public TemplateInstance dashboard() {
         final User user = currentUser.get();
         final List<?> recentStats = statsService.forMostRecent(user.id, 3);

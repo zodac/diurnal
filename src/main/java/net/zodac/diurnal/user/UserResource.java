@@ -40,6 +40,7 @@ import net.zodac.diurnal.auth.PasswordChangeResult;
 import net.zodac.diurnal.auth.PasswordChangeService;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.web.RollbackOnErrorStatus;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
@@ -59,6 +60,7 @@ import org.jspecify.annotations.Nullable;
 @Path("/api/v1/users")
 @Authenticated
 @Produces(MediaType.APPLICATION_JSON)
+@RollbackOnErrorStatus
 public class UserResource {
 
     private static final String BEARER_PREFIX = "Bearer ";
@@ -149,6 +151,8 @@ public class UserResource {
         if (request != null) {
             final ProfileResult result = applyUpdates(user, request);
             if (result instanceof final ProfileResult.Invalid invalid) {
+                // A rejected field leaves any field applied before it mutated on the managed entity; the class-level @RollbackOnErrorStatus rolls
+                // the whole transaction back on this 400, so a rejected request never silently persists part of a mutation.
                 return Response.status(Response.Status.BAD_REQUEST).entity(new ApiErrorResponse(invalid.message())).build();
             }
         }
@@ -167,7 +171,6 @@ public class UserResource {
     @PUT
     @Path("/me/password")
     @Consumes(MediaType.APPLICATION_JSON)
-    @Transactional
     @Operation(
         summary = "Change the current user's password",
         description = "Changes the password after verifying the current one, then revokes every OTHER session for the account (web and API alike); "

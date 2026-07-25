@@ -52,12 +52,14 @@ import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
+import net.zodac.diurnal.web.RollbackOnErrorStatus;
 
 /**
  * Increment/decrement endpoints for a day's action counts, plus the dashboard day-panel partials.
  */
 @Path("/internal/logs")
 @RolesAllowed(Role.Values.USER)
+@RollbackOnErrorStatus
 public class LogWebResource {
 
     private static final DateTimeFormatter DAY_LABEL = DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.ENGLISH);
@@ -95,7 +97,6 @@ public class LogWebResource {
     @GET
     @Path("/day/{date}")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public TemplateInstance dayPanel(@PathParam("date") final LocalDate date) {
         final User user = currentUser.get();
         final boolean future = LogGuards.isFuture(date, user, clock);
@@ -114,7 +115,6 @@ public class LogWebResource {
     @GET
     @Path("/day/{date}/list")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public TemplateInstance dayList(
         @PathParam("date") final LocalDate date,
         @QueryParam("page") @DefaultValue("1") final int pageNum,
@@ -147,7 +147,6 @@ public class LogWebResource {
     @GET
     @Path("/month/{month}")
     @Produces(MediaType.APPLICATION_JSON)
-    @Transactional
     public Response monthPanels(@PathParam("month") final String month) {
         final YearMonth yearMonth;
         try {
@@ -228,7 +227,6 @@ public class LogWebResource {
     @GET
     @Path("/{date}/{actionId}")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public Response dayActionItem(
         @PathParam("date") final LocalDate date,
         @PathParam("actionId") final UUID actionId) {
@@ -249,7 +247,6 @@ public class LogWebResource {
     @GET
     @Path("/{date}/{actionId}/confirm-delete")
     @Produces(MediaType.TEXT_HTML)
-    @Transactional
     public Response confirmDeleteEntry(
         @PathParam("date") final LocalDate date,
         @PathParam("actionId") final UUID actionId) {

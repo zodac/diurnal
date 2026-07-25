@@ -42,6 +42,7 @@ import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
+import net.zodac.diurnal.web.RollbackOnErrorStatus;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.enums.ParameterIn;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -63,6 +64,7 @@ import org.jspecify.annotations.Nullable;
 @RolesAllowed(Role.Values.USER)
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
+@RollbackOnErrorStatus
 public class ActionsApiResource {
 
     @Inject
@@ -81,7 +83,6 @@ public class ActionsApiResource {
      * @return the requested page of actions, or an empty {@code 304} response
      */
     @GET
-    @Transactional
     @Operation(
         summary = "List actions",
         description = "Returns one page of the user's actions, ordered by name and optionally filtered by a case-insensitive name search. The "
@@ -161,7 +162,6 @@ public class ActionsApiResource {
      */
     @GET
     @Path("{id}")
-    @Transactional
     @Operation(summary = "Get an action", description = "Returns a single action owned by the user.")
     @SecurityRequirement(name = "BearerAuth")
     @APIResponses({

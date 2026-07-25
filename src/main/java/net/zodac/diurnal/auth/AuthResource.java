@@ -20,7 +20,6 @@ package net.zodac.diurnal.auth;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
-import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.HeaderParam;
@@ -100,7 +99,6 @@ public class AuthResource {
      */
     @POST
     @Path("/register")
-    @Transactional
     @Operation(
         summary = "Register a new user",
         description = "Creates an account and returns a Bearer session token for it. The initial administrator account cannot be created here — it "

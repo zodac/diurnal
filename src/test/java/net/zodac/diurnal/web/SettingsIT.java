@@ -84,6 +84,22 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
+    void updateSettings_validFieldBeforeInvalidField_persistsNothing() {
+        // The consolidated endpoint accepts several fields at once, applied in order (display name before theme). A VALID display name applied
+        // before an INVALID theme must be rolled back wholesale: the display name is a mutation to the managed entity, so without the rollback it
+        // would be silently flushed on commit despite the 422.
+        given().formParam("displayName", "Should Not Persist")
+                .formParam("theme", "midnight")
+                .patch("/internal/settings")
+                .then().statusCode(422)
+                .body(containsString("Theme must be one of"));
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().displayName)
+            .as("the display name from a rejected multi-field settings PATCH must not be persisted")
+            .isEqualTo("Settings User"));
+    }
+
+    @Test
     void updateSettings_noFieldsSubmitted_isNoOp204() {
         // PATCH semantics on the consolidated endpoint: absent fields keep their values, so an empty
         // submission changes nothing and succeeds.

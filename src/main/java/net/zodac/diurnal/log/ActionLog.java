@@ -185,6 +185,16 @@ public class ActionLog extends PanacheEntityBase {
         delete("userId = ?1 and actionId = ?2", userId, actionId);
     }
 
+    /**
+     * Removes every log entry belonging to a user in one statement (used when the account is deleted). A user's logs are all recorded against that
+     * user's own actions, so keying the bulk delete on {@code userId} removes exactly the rows a per-action loop would, without loading the actions.
+     *
+     * @param userId the owning user whose log entries to remove
+     */
+    public static void deleteByUser(final UUID userId) {
+        delete("userId = ?1", userId);
+    }
+
     // ── Atomic upserts ────────────────────────────────────────────────────
 
     /**

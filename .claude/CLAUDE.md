@@ -135,8 +135,8 @@ Under `src/main/java/net/zodac/diurnal/`:
 | `stats`  | `StatsService` + `ActionStats` (data record) + `ActionStatsExtensions` (template extensions) + `ActionStatField` (Stats-page tile catalogue) + `StatTile` (tile view-model) + `StatsWebResource` (the `/stats` page) + `StatsInternalResource` (`/internal/stats/list`) + `StatsApiResource` (`GET /api/v1/stats`)  |
 | `auth`   | `AuthResource` (`/api/v1/auth` register/login/logout/revoke → session token), `AuthenticationService`+`LoginResult`, `RegistrationService`+`RegistrationResult`, `SessionStore`/`PostgresSessionStore` + `Session` entity + `SessionTokens` + `SessionAuthMechanism` + `SessionIdentityProvider` + `SessionSweeper` |
 | `user`   | `User` entity, `UserResource` (`/api/v1/users/me`), `UserSettings`, and the settings-picker enums `Theme`/`Font`/`CalendarView` (each `implements PreviewOption`)                                                                                                                                                   |
-| `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings) + the `/internal/settings/*` preference endpoints; `AdminWebResource` (admin pages) + `AdminUsersInternalResource` (`/internal/admin/users` fragments) + `AppInfo` (footer/template metadata bean)                          |
-| `update` | `UpdateCheckService` (admin-only footer "newer version available" check) + `UpdateCheck` (pure version/URL logic) + `UpdateStatus`/`UpdateAvailability` + `LatestReleaseClient`/`GitHubLatestReleaseClient` (the outbound GitHub-release lookup seam)                                                                  |
+| `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings) + the `/internal/settings/*` preference endpoints; `AdminWebResource` (admin pages) + `AdminUsersInternalResource` (`/internal/admin/users` fragments) + `AppInfo` (footer/template metadata bean)                         |
+| `update` | `UpdateCheckService` (admin-only footer "newer version available" check) + `UpdateCheck` (pure version/URL logic) + `UpdateStatus`/`UpdateAvailability` + `LatestReleaseClient`/`GitHubLatestReleaseClient` (the outbound GitHub-release lookup seam)                                                               |
 
 ### API namespaces (the rule for every new endpoint)
 
@@ -185,6 +185,27 @@ Reads may compose shared entity queries into surface-specific presentations (pag
    DTOs). [`OpenApiSurfaceIT.document_everyOperationIsFullyDocumented` fails a bare operation]
 5. If both surfaces expose the use case, extend `SurfaceParityIT` with a same-input/same-DB-outcome case.
 6. Breaking `/api/v1` changes are MAJOR-version events — flag for `RELEASE_NOTES.md` (hand-authored; never edit it yourself).
+
+### Transaction handling (who owns the `@Transactional`)
+
+**The default is: the resource method owns the transaction (`@Transactional` on the endpoint) and the `*Service` it calls assumes one is already
+active.** Read-only endpoints (page renders, HTMX fragments, list/GET APIs) carry **no** `@Transactional` — Panache reads work without one, and holding
+a connection for a whole render is wasteful. Keep transactions as short as the atomic work requires.
+
+**Deliberate exception — services that hash own their own short transaction.** `AuthenticationService`, `RegistrationService` and
+`PasswordChangeService` do the ~100 ms Argon2id work *outside* any transaction, then commit the actual write in a short `self`-invoked
+`@Transactional` method (`recordLogin`/`createUser`/`applyChange`), re-reading the account by id inside it. So **their resource callers must NOT be
+`@Transactional`** (a nested `REQUIRED` transaction would pull the hashing back inside it). This is the one place the "resources own the transaction"
+rule is inverted; each such method's Javadoc says so.
+
+**Rejected mutations must not commit a partial write.** Because a service reports failure by *returning* a sealed result (not throwing), the
+surrounding `@Transactional` would otherwise commit — flushing any entity the service mutated before it hit the rejection (a later field failing
+validation, a guard tripping after an earlier write). The class-level **`@RollbackOnErrorStatus`** binding (`web/ErrorStatusRollbackInterceptor`, one
+priority step inside the Jakarta Transactions interceptor) marks the transaction rollback-only whenever a transactional endpoint answers `>= 400`, so a
+4xx/5xx can never persist part of a mutation. **Put `@RollbackOnErrorStatus` on any resource class that has `@Transactional` write endpoints**; it is a
+safe no-op on reads (guarded by `QuarkusTransaction.isActive()`). Prefer this to hand-written `setRollbackOnly()` calls. Where a service persists an
+entity whose unique constraint could race a concurrent insert (`ActionService.create`, `RegistrationService.createUser`), it flushes and maps the
+`ConstraintViolationException` to the duplicate result rather than letting it surface as a 500.
 
 ### Authentication & security
 
