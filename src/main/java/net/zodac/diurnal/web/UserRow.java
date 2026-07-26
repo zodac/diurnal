@@ -19,6 +19,7 @@ package net.zodac.diurnal.web;
 
 import java.time.format.DateTimeFormatter;
 import java.util.UUID;
+import net.zodac.diurnal.auth.RecentActivity;
 import net.zodac.diurnal.user.User;
 
 /**
@@ -36,9 +37,11 @@ import net.zodac.diurnal.user.User;
  * @param createdLabel the formatted account-creation timestamp
  * @param lastLoginLabel the formatted last-login timestamp, or "Never"
  * @param zoneLabel the id of the timezone the timestamps are rendered in (shown as a tooltip)
+ * @param recentlyActive whether the user made an authenticated request within the active window (drives the "Recently active" dot)
+ * @param secondsSinceLastRequest whole seconds since that last request, for the live tooltip counter (only meaningful when {@code recentlyActive})
  */
 public record UserRow(UUID id, String email, String displayName, String role, String authSource,
-    String createdLabel, String lastLoginLabel, String zoneLabel) {
+    String createdLabel, String lastLoginLabel, String zoneLabel, boolean recentlyActive, long secondsSinceLastRequest) {
 
     /**
      * Builds a row from a {@link User}, formatting its timestamps with {@code fmt}.
@@ -46,13 +49,16 @@ public record UserRow(UUID id, String email, String displayName, String role, St
      * @param u the user to build a row from
      * @param fmt the formatter for the timestamps
      * @param zoneLabel the id of the formatter's zone, surfaced as a tooltip on each date cell
+     * @param activity the user's resolved recent-activity presence
      * @return the populated row
      */
-    static UserRow of(final User u, final DateTimeFormatter fmt, final String zoneLabel) {
+    static UserRow of(final User u, final DateTimeFormatter fmt, final String zoneLabel, final RecentActivity activity) {
         return new UserRow(
                 u.id, u.email, u.displayName, u.role, u.authSource(),
                 fmt.format(u.createdAt),
                 u.lastLoginAt != null ? fmt.format(u.lastLoginAt) : "Never",
-                zoneLabel);
+                zoneLabel,
+                activity.recentlyActive(),
+                activity.secondsSinceLastRequest());
     }
 }

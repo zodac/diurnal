@@ -29,6 +29,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.config.AppConfig;
+import net.zodac.diurnal.config.UpdateCheckConfig;
 import net.zodac.diurnal.user.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,15 +46,22 @@ import org.junit.jupiter.api.Test;
  * drives the one-shot {@link UpdateCheckService#checkForUpdate()} directly to populate the stored result, then asserts on the rendered footer.
  */
 @QuarkusTest
+@SuppressWarnings("NullAway.Init") // releaseClient is built in the @BeforeEach below (it needs the injected configs), not in a constructor
 class UpdateCheckIndicatorIT extends IntegrationTestBase {
 
     private static final String INDICATOR_TEXT = "Update available";
     private static final String INDICATOR_TOOLTIP = "Update available - v999.0.0";
 
-    private final FakeLatestReleaseClient releaseClient = new FakeLatestReleaseClient();
+    private FakeLatestReleaseClient releaseClient;
 
     @Inject
     UpdateCheckService updateCheckService;
+
+    @Inject
+    AppConfig appConfig;
+
+    @Inject
+    UpdateCheckConfig updateCheckConfig;
 
     @Override
     protected void createDbState() {
@@ -63,7 +72,9 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
     @BeforeEach
     void installReleaseClient() {
         // The service injects LatestReleaseClient, which CDI resolves to the single GitHubLatestReleaseClient bean; the mock must be assignable to
-        // that concrete type, so the fake extends it (overriding only the lookup, never touching the HTTP path).
+        // that concrete type, so the fake extends it (overriding only the lookup, never touching the HTTP path). Its constructor now takes the two
+        // configs the real client is injected with - the fake passes them straight to super but never uses them (latestReleaseVersion is overridden).
+        releaseClient = new FakeLatestReleaseClient(appConfig, updateCheckConfig);
         QuarkusMock.installMockForType(releaseClient, GitHubLatestReleaseClient.class);
     }
 
@@ -131,6 +142,10 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
     private static final class FakeLatestReleaseClient extends GitHubLatestReleaseClient {
 
         private final AtomicReference<Optional<String>> version = new AtomicReference<>(Optional.empty());
+
+        FakeLatestReleaseClient(final AppConfig appConfig, final UpdateCheckConfig updateCheckConfig) {
+            super(appConfig, updateCheckConfig);
+        }
 
         void setVersion(final Optional<String> latestVersion) {
             version.set(latestVersion);

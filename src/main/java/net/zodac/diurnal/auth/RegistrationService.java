@@ -63,8 +63,8 @@ public class RegistrationService {
 
     /**
      * Injects collaborators and a lazy self-reference. The self {@link Instance} resolves the CDI client proxy on demand so the short
-     * {@code @Transactional} {@link #createUser(String, String, String)} runs through the proxy (applying the interceptor) without a construction-time
-     * cycle.
+     * {@code @Transactional} {@link #createUser(String, String, String)} runs through the proxy (applying the interceptor) without a
+     * construction-time cycle.
      *
      * @param self a lazy self-reference used to invoke the transactional {@code createUser} through the CDI proxy
      * @param passwords the Argon2id password service

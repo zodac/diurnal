@@ -427,6 +427,27 @@
     @apply opacity-100 visible;
   }
 
+  /* Presence dot ----------------------------------------------------------- */
+  /* The "Recently active" indicator (admin users table + the Settings Account card): a small filled
+     circle, green when the user made an authenticated request within the active window, grey otherwise.
+     The live "time since last request" counter rides alongside it (in a hover tooltip on the admin
+     table, inline on the Account card) and is ticked by startActivityCounters() in app.js, which also
+     flips the dot from -active to -idle once the counter crosses the window. */
+  .presence-dot {
+    @apply inline-block h-2.5 w-2.5 rounded-full;
+  }
+  .presence-dot-active {
+    background-color: var(--color-success);
+    /* A soft halo so the live green reads as "active" against the row, without a heavy ring. */
+    box-shadow: 0 0 0 3px rgb(22 163 74 / 0.18);   /* green-600 @ 18% */
+  }
+  .dark .presence-dot-active {
+    box-shadow: 0 0 0 3px rgb(74 222 128 / 0.22);   /* green-400 @ 22% */
+  }
+  .presence-dot-idle {
+    background-color: var(--color-text-faint);
+  }
+
   /* Page shell ------------------------------------------------------------- */
   /* Every page's outermost wrapper: a full-viewport flex column whose <main> is `flex-1`, so the
      footer sits at the bottom of the viewport on short pages and below the content on tall ones.
@@ -805,8 +826,10 @@
             background: none; border: 0; padding: 0; cursor: pointer; transition: color .15s; }
         .settings-eye:hover { color: var(--color-brand); }
 
-        /* Role/status badge */
-        .dt-badge { font-size: .75rem; font-weight: 500; color: var(--color-text-muted); }
+        /* Role/status badge. Font size matches .dt-table (.875rem) so the Role cell reads at the same
+           size as every other body cell (it inherited .75rem before); the medium weight + colour are the
+           only emphasis. */
+        .dt-badge { font-size: .875rem; font-weight: 500; color: var(--color-text-muted); }
         .dt-badge-admin { color: var(--color-brand); }
 
         /* Inputs used inside table edit rows. Colours are tokens that flip in dark mode (the

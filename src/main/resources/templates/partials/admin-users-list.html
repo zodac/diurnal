@@ -8,13 +8,14 @@
                 <th class="dt-head-cell">Sign-in</th>
                 <th class="dt-head-cell">Created</th>
                 <th class="dt-head-cell">Last Login</th>
+                <th class="dt-head-cell">Active</th>
                 <th class="dt-head-cell"></th>
             </tr>
         </thead>
         <tbody class="dt-tbody">
             {#if page.items.isEmpty()}
             <tr>
-                <td colspan="7" class="dt-empty">No users found.</td>
+                <td colspan="8" class="dt-empty">No users found.</td>
             </tr>
             {#else}
             {#for u in page.items}

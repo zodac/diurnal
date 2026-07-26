@@ -54,9 +54,11 @@ import net.zodac.diurnal.auth.OidcUserProvisioner;
 import net.zodac.diurnal.auth.PasswordChangeResult;
 import net.zodac.diurnal.auth.PasswordChangeService;
 import net.zodac.diurnal.auth.PasswordConstraints;
+import net.zodac.diurnal.auth.RecentActivity;
 import net.zodac.diurnal.auth.RegistrationResult;
 import net.zodac.diurnal.auth.RegistrationService;
 import net.zodac.diurnal.auth.Session;
+import net.zodac.diurnal.auth.SessionActivityService;
 import net.zodac.diurnal.auth.SessionStore;
 import net.zodac.diurnal.config.IpThrottleConfig;
 import net.zodac.diurnal.config.OidcConfig;
@@ -85,7 +87,7 @@ import org.jspecify.annotations.Nullable;
  */
 @Path("/")
 @RollbackOnErrorStatus
-public class WebResource { // NOPMD: TooManyFields - single web-page controller; injected collaborators are inherent to the role
+public class WebResource {
 
     private static final Logger LOGGER = LogManager.getLogger(WebResource.class);
 
@@ -115,6 +117,7 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     private final SecurityIdentity identity;
     private final CurrentUser currentUser;
     private final StatsService statsService;
+    private final SessionActivityService sessionActivityService;
     private final AppClock clock;
     private final AuthenticationService authenticationService;
     private final RegistrationService registrationService;
@@ -140,6 +143,7 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
      * @param identity the current request's security identity
      * @param currentUser the current-user accessor
      * @param statsService the shared stats service
+     * @param sessionActivityService the recently-active presence service (the Account page's session readout)
      * @param clock the application clock for date-boundary logic
      * @param authenticationService the shared credential-verification service
      * @param registrationService the shared registration service
@@ -157,7 +161,8 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     public WebResource(@Location("login") final Template loginTemplate, @Location("register") final Template registerTemplate,
         @Location("dashboard") final Template dashboardTemplate, @Location("settings") final Template settingsTemplate,
         @Location("setup") final Template setupTemplate, final SecurityIdentity identity, final CurrentUser currentUser,
-        final StatsService statsService, final AppClock clock, final AuthenticationService authenticationService,
+        final StatsService statsService, final SessionActivityService sessionActivityService, final AppClock clock,
+        final AuthenticationService authenticationService,
         final RegistrationService registrationService, final ProfileService profileService, final PasswordChangeService passwordChangeService,
         final SessionStore sessionStore, final SessionConfig sessionConfig, final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig,
         final PasswordAuthConfig passwordAuthConfig, final RegistrationConfig registrationConfig, final IpThrottleConfig ipThrottleConfig) {
@@ -169,6 +174,7 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         this.identity = identity;
         this.currentUser = currentUser;
         this.statsService = statsService;
+        this.sessionActivityService = sessionActivityService;
         this.clock = clock;
         this.authenticationService = authenticationService;
         this.registrationService = registrationService;
@@ -782,9 +788,14 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
             settingsMessage = OidcDenialReason.fromCode(msg).map(reason -> reason.message(providerName)).orElse(null);
             settingsMessageIsError = settingsMessage != null;
         }
+        // The Account card's live "session" readout: the same recently-active presence the admin page
+        // shows, but for the signed-in user (rendering this page is itself a request, so they are active).
+        final RecentActivity activity = sessionActivityService.recentActivityForUser(user.id, clock.now());
         return settingsTemplate
                 .data("settingsMessage", settingsMessage)
                 .data("settingsBannerVariant", settingsMessageIsError ? "error" : "success")
+                .data("recentlyActive", activity.recentlyActive())
+                .data("secondsSinceLastRequest", activity.secondsSinceLastRequest())
                 .data("oidcEnabled", quarkusOidcConfig.tenantEnabled())
                 .data("oidcIssuerUrl", quarkusOidcConfig.authServerUrl())
                 .data("email", user.email)

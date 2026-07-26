@@ -29,5 +29,25 @@
         {#include partials/tooltip-text text=u.lastLoginLabel tip=u.zoneTooltip /}
         {/if}
     </td>
+    {! Active presence dot. Green when the user made an authenticated request within the active window
+         (server-decided at render); the hover tooltip shows a "Last seen ... ago" counter that ticks up
+         from data-elapsed-seconds in app.js, which flips the dot to grey and relabels the tooltip
+         "Inactive" once it crosses the window. An inactive user shows a grey dot with an "Inactive"
+         tooltip and no time. !}
+    <td class="dt-cell">
+        {#if u.recentlyActive}
+        <span class="presence group relative inline-flex" data-elapsed-seconds="{u.secondsSinceLastRequest}" aria-label="Active">
+            <span class="presence-dot presence-dot-active" aria-hidden="true"></span>
+            <span aria-hidden="true" class="app-tooltip w-max bottom-full mb-1.5 left-1/2 -translate-x-1/2">
+                <span data-activity-label>Last seen <span data-activity-clock>0:00</span> ago</span>
+            </span>
+        </span>
+        {#else}
+        <span class="presence group relative inline-flex" aria-label="Inactive">
+            <span class="presence-dot presence-dot-idle" aria-hidden="true"></span>
+            <span aria-hidden="true" class="app-tooltip w-max bottom-full mb-1.5 left-1/2 -translate-x-1/2">Inactive</span>
+        </span>
+        {/if}
+    </td>
     {#include partials/dt-row-actions id=u.id rowPrefix="user-row" formPrefix="user-form" confirmBase="/internal/admin/users" /}
 </tr>

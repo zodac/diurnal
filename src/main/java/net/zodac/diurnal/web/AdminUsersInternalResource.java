@@ -38,7 +38,10 @@ import jakarta.ws.rs.core.Response;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import net.zodac.diurnal.auth.RecentActivity;
+import net.zodac.diurnal.auth.SessionActivityService;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.AdminUserResult;
 import net.zodac.diurnal.user.AdminUserService;
@@ -64,10 +67,12 @@ public class AdminUsersInternalResource {
     private final SecurityIdentity identity;
     private final CurrentUser currentUser;
     private final AdminUserService adminUserService;
+    private final SessionActivityService sessionActivityService;
     private final AppClock clock;
 
     /**
-     * Injects the HTMX partial templates, the security identity, the current-user accessor, the shared admin-user service and the application clock.
+     * Injects the HTMX partial templates, the security identity, the current-user accessor, the shared admin-user service, the session-activity
+     * (recently-active presence) service and the application clock.
      *
      * @param adminUsersListTemplate the paginated admin-users-list partial template
      * @param adminUserRowTemplate the single admin-user-row partial template
@@ -75,19 +80,22 @@ public class AdminUsersInternalResource {
      * @param identity the calling administrator's security identity
      * @param currentUser the current-user accessor
      * @param adminUserService the shared admin-user-mutation service
+     * @param sessionActivityService the recently-active presence service
      * @param clock the application clock for date-boundary logic
      */
     @Inject
     public AdminUsersInternalResource(@Location("partials/admin-users-list") final Template adminUsersListTemplate,
         @Location("partials/admin-user-row") final Template adminUserRowTemplate,
         @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate, final SecurityIdentity identity,
-        final CurrentUser currentUser, final AdminUserService adminUserService, final AppClock clock) {
+        final CurrentUser currentUser, final AdminUserService adminUserService, final SessionActivityService sessionActivityService,
+        final AppClock clock) {
         this.adminUsersListTemplate = adminUsersListTemplate;
         this.adminUserRowTemplate = adminUserRowTemplate;
         this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
         this.identity = identity;
         this.currentUser = currentUser;
         this.adminUserService = adminUserService;
+        this.sessionActivityService = sessionActivityService;
         this.clock = clock;
     }
 
@@ -102,7 +110,7 @@ public class AdminUsersInternalResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance usersList(@QueryParam("page") @DefaultValue("1") final int pageNum) {
         final User actor = currentUser.get();
-        return adminUsersListTemplate.data("page", toRows(adminUserService.usersPage(pageNum, actor.pageSize), actorZone()));
+        return adminUsersListTemplate.data("page", pageRows(adminUserService.usersPage(pageNum, actor.pageSize)));
     }
 
     /**
@@ -119,7 +127,7 @@ public class AdminUsersInternalResource {
         if (target == null) {
             return HtmxResponses.conflictBanner("#admin-error", "User not found.");
         }
-        return Response.ok(adminUserRowTemplate.data("u", toRow(target, actorZone()))).build();
+        return Response.ok(adminUserRowTemplate.data("u", singleRow(target))).build();
     }
 
     /**
@@ -140,7 +148,7 @@ public class AdminUsersInternalResource {
         // POST targets #admin-users-list; Cancel restores just this row from /internal/admin/users/{id}.
         return Response.ok(confirmDeleteRowTemplate
                 .data("rowId", "user-row-" + id)
-                .data("cols", 7)
+                .data("cols", 8)
                 .data("swatchColour", null)
                 .data("label", target.email)
                 .data("prompt", "Delete this user, their actions and logs?")
@@ -169,7 +177,7 @@ public class AdminUsersInternalResource {
             case final AdminUserResult.LastAdmin ignored -> HtmxResponses.conflictBanner("#admin-error", "Cannot remove the last administrator.");
             // Re-render just this row (outerHTML) so the surrounding rows don't repaint — the edited row
             // swaps straight from its edit state to a fresh view state, with no whole-list flash.
-            case final AdminUserResult.Success success -> Response.ok(adminUserRowTemplate.data("u", toRow(success.user(), actorZone()))).build();
+            case final AdminUserResult.Success success -> Response.ok(adminUserRowTemplate.data("u", singleRow(success.user()))).build();
         };
     }
 
@@ -189,32 +197,43 @@ public class AdminUsersInternalResource {
             case final AdminUserResult.LastAdmin ignored -> HtmxResponses.conflictBanner("#admin-error", "Cannot delete the last administrator.");
             case final AdminUserResult.InvalidRole ignored -> HtmxResponses.conflictBanner("#admin-error", "Invalid role value.");
             case final AdminUserResult.Success ignored ->
-                Response.ok(adminUsersListTemplate.data("page", toRows(adminUserService.usersPage(1, currentUser.get().pageSize), actorZone())))
-                    .build();
+                Response.ok(adminUsersListTemplate.data("page", pageRows(adminUserService.usersPage(1, currentUser.get().pageSize)))).build();
         };
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
 
+    // Builds one page of rows for the viewing administrator, resolving every listed user's recently-active
+    // presence in a single query. An instance method (not static) because it needs the injected activity
+    // service + clock; the pure zone/activity -> rows mapping stays in the static toRows below, shared with
+    // the full-page render (AdminWebResource).
+    private PaginatedUsers pageRows(final AdminUserService.UsersPage page) {
+        final List<UUID> ids = page.users().stream().map(u -> u.id).toList();
+        return toRows(page, actorZone(), sessionActivityService.recentActivityByUser(ids, clock.now()));
+    }
+
+    // A single row (post-mutation re-render / cancel restore), with its own recently-active presence resolved.
+    private UserRow singleRow(final User u) {
+        final ZoneId zone = actorZone();
+        return UserRow.of(u, formatter(zone), zone.getId(), sessionActivityService.recentActivityForUser(u.id, clock.now()));
+    }
+
     /**
      * Maps a service {@link AdminUserService.UsersPage} to the template row model, with each row's timestamps rendered in the viewing
-     * administrator's zone. Shared with the full-page render ({@link AdminWebResource}).
+     * administrator's zone and its recently-active presence taken from {@code activity}. Shared with the full-page render ({@link AdminWebResource}).
      *
      * @param page the page fetched by {@link AdminUserService#usersPage(int, int)}
      * @param zone the viewing administrator's timezone
+     * @param activity each listed user's resolved recent-activity presence, keyed by user id (a missing entry is treated as inactive)
      * @return the page as rendered user rows
      */
-    static PaginatedUsers toRows(final AdminUserService.UsersPage page, final ZoneId zone) {
+    static PaginatedUsers toRows(final AdminUserService.UsersPage page, final ZoneId zone, final Map<UUID, RecentActivity> activity) {
         final DateTimeFormatter fmt = formatter(zone);
         final String zoneLabel = zone.getId();
         final List<UserRow> items = page.users().stream()
-            .map(u -> UserRow.of(u, fmt, zoneLabel))
+            .map(u -> UserRow.of(u, fmt, zoneLabel, activity.getOrDefault(u.id, RecentActivity.INACTIVE)))
             .toList();
         return new PaginatedUsers(items, page.totalCount(), page.totalPages(), page.currentPage());
-    }
-
-    private static UserRow toRow(final User u, final ZoneId zone) {
-        return UserRow.of(u, formatter(zone), zone.getId());
     }
 
     private static DateTimeFormatter formatter(final ZoneId zone) {
