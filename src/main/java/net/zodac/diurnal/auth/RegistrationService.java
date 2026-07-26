@@ -19,6 +19,7 @@ package net.zodac.diurnal.auth;
 
 import io.quarkus.hibernate.orm.panache.Panache;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
@@ -55,17 +56,29 @@ public class RegistrationService {
 
     private static final Logger LOGGER = LogManager.getLogger(RegistrationService.class);
 
-    @Inject
-    RegistrationService self;
+    private final Instance<RegistrationService> self;
+    private final Passwords passwords;
+    private final RoleAssigner roleAssigner;
+    private final IpThrottle ipThrottle;
 
+    /**
+     * Injects collaborators and a lazy self-reference. The self {@link Instance} resolves the CDI client proxy on demand so the short
+     * {@code @Transactional} {@link #createUser(String, String, String)} runs through the proxy (applying the interceptor) without a construction-time
+     * cycle.
+     *
+     * @param self a lazy self-reference used to invoke the transactional {@code createUser} through the CDI proxy
+     * @param passwords the Argon2id password service
+     * @param roleAssigner the shared role-assignment policy
+     * @param ipThrottle the per-IP registration throttle
+     */
     @Inject
-    Passwords passwords;
-
-    @Inject
-    RoleAssigner roleAssigner;
-
-    @Inject
-    IpThrottle ipThrottle;
+    public RegistrationService(final Instance<RegistrationService> self, final Passwords passwords, final RoleAssigner roleAssigner,
+        final IpThrottle ipThrottle) {
+        this.self = self;
+        this.passwords = passwords;
+        this.roleAssigner = roleAssigner;
+        this.ipThrottle = ipThrottle;
+    }
 
     /**
      * Validates a registration submission and creates the account.
@@ -108,7 +121,7 @@ public class RegistrationService {
 
         // The Argon2id hash is computed here, outside any transaction (see the class Javadoc).
         final String passwordHash = passwords.hash(passwordValue);
-        final RegistrationResult result = self.createUser(normalised, displayNameValue.strip(), passwordHash);
+        final RegistrationResult result = self.get().createUser(normalised, displayNameValue.strip(), passwordHash);
         if (result instanceof RegistrationResult.DuplicateEmail) {
             // A concurrent registration won the race for this email after the pre-check passed; record it against the shared per-IP throttle
             // exactly as a duplicate caught by the pre-check above would be.
@@ -179,7 +192,7 @@ public class RegistrationService {
             errors.add("Email must contain an @ symbol.");
         }
 
-        if (!displayName.isBlank() && !UserSettings.isValidDisplayName(displayName.strip())) {
+        if (!displayName.isBlank() && UserSettings.isInvalidDisplayName(displayName.strip())) {
             errors.add(UserSettings.DISPLAY_NAME_RANGE_MESSAGE);
         }
 

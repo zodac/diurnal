@@ -37,11 +37,20 @@ import net.zodac.diurnal.time.AppClock;
 @ApplicationScoped
 public class SessionIdentityProvider implements IdentityProvider<SessionTokenAuthenticationRequest> {
 
-    @Inject
-    SessionStore sessionStore;
+    private final SessionStore sessionStore;
+    private final AppClock clock;
 
+    /**
+     * Injects the session store and the application clock.
+     *
+     * @param sessionStore the session store used to resolve a token to an identity
+     * @param clock the application clock for date-boundary logic
+     */
     @Inject
-    AppClock clock;
+    public SessionIdentityProvider(final SessionStore sessionStore, final AppClock clock) {
+        this.sessionStore = sessionStore;
+        this.clock = clock;
+    }
 
     @Override
     public Class<SessionTokenAuthenticationRequest> getRequestType() {

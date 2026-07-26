@@ -40,13 +40,23 @@ import net.zodac.diurnal.user.User;
 @RolesAllowed(Role.Values.USER)
 public class StatsWebResource {
 
+    private final Template statsTemplate;
+    private final CurrentUser currentUser;
+    private final StatsService statsService;
+
+    /**
+     * Injects the page template, the current-user accessor and the shared stats service.
+     *
+     * @param statsTemplate the full stats-page template
+     * @param currentUser the current-user accessor
+     * @param statsService the shared stats service
+     */
     @Inject
-    @Location("stats")
-    Template statsTemplate;
-
-    @Inject CurrentUser currentUser;
-
-    @Inject StatsService statsService;
+    public StatsWebResource(@Location("stats") final Template statsTemplate, final CurrentUser currentUser, final StatsService statsService) {
+        this.statsTemplate = statsTemplate;
+        this.currentUser = currentUser;
+        this.statsService = statsService;
+    }
 
     /**
      * Renders the full stats page for the current user at the requested page.

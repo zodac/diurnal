@@ -32,8 +32,17 @@ import org.jspecify.annotations.Nullable;
 @ApplicationScoped
 public class RoleAssigner {
 
+    private final OidcConfig oidcConfig;
+
+    /**
+     * Injects the application OIDC policy settings.
+     *
+     * @param oidcConfig the application OIDC policy settings
+     */
     @Inject
-    OidcConfig oidcConfig;
+    public RoleAssigner(final OidcConfig oidcConfig) {
+        this.oidcConfig = oidcConfig;
+    }
 
     /**
      * Determines the role for a brand-new user created by password registration.

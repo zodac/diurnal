@@ -32,11 +32,20 @@ import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 @ApplicationScoped
 public class ForbiddenExceptionMapper {
 
-    @Inject
-    @Location("error-403")
-    Template errorTemplate;
+    private final Template errorTemplate;
+    private final SecurityIdentity identity;
 
-    @Inject SecurityIdentity identity;
+    /**
+     * Injects the 403 page template and the current request's security identity.
+     *
+     * @param errorTemplate the styled 403 page template
+     * @param identity the denied request's security identity
+     */
+    @Inject
+    public ForbiddenExceptionMapper(@Location("error-403") final Template errorTemplate, final SecurityIdentity identity) {
+        this.errorTemplate = errorTemplate;
+        this.identity = identity;
+    }
 
     /**
      * Maps a {@link ForbiddenException} to the styled 403 HTML page (shared with {@link NotFoundExceptionMapper} via {@link ErrorPages}). The

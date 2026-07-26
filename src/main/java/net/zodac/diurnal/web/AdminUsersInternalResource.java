@@ -58,25 +58,38 @@ import net.zodac.diurnal.user.User;
 @RollbackOnErrorStatus
 public class AdminUsersInternalResource {
 
+    private final Template adminUsersListTemplate;
+    private final Template adminUserRowTemplate;
+    private final Template confirmDeleteRowTemplate;
+    private final SecurityIdentity identity;
+    private final CurrentUser currentUser;
+    private final AdminUserService adminUserService;
+    private final AppClock clock;
+
+    /**
+     * Injects the HTMX partial templates, the security identity, the current-user accessor, the shared admin-user service and the application clock.
+     *
+     * @param adminUsersListTemplate the paginated admin-users-list partial template
+     * @param adminUserRowTemplate the single admin-user-row partial template
+     * @param confirmDeleteRowTemplate the delete-confirmation row partial template
+     * @param identity the calling administrator's security identity
+     * @param currentUser the current-user accessor
+     * @param adminUserService the shared admin-user-mutation service
+     * @param clock the application clock for date-boundary logic
+     */
     @Inject
-    @Location("partials/admin-users-list")
-    Template adminUsersListTemplate;
-
-    @Inject
-    @Location("partials/admin-user-row")
-    Template adminUserRowTemplate;
-
-    @Inject
-    @Location("partials/dt-confirm-delete-row")
-    Template confirmDeleteRowTemplate;
-
-    @Inject SecurityIdentity identity;
-
-    @Inject CurrentUser currentUser;
-
-    @Inject AdminUserService adminUserService;
-
-    @Inject AppClock clock;
+    public AdminUsersInternalResource(@Location("partials/admin-users-list") final Template adminUsersListTemplate,
+        @Location("partials/admin-user-row") final Template adminUserRowTemplate,
+        @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate, final SecurityIdentity identity,
+        final CurrentUser currentUser, final AdminUserService adminUserService, final AppClock clock) {
+        this.adminUsersListTemplate = adminUsersListTemplate;
+        this.adminUserRowTemplate = adminUserRowTemplate;
+        this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
+        this.identity = identity;
+        this.currentUser = currentUser;
+        this.adminUserService = adminUserService;
+        this.clock = clock;
+    }
 
     /**
      * Returns just the users list partial for HTMX pagination.

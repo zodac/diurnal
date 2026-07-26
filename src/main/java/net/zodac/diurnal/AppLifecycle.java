@@ -52,14 +52,23 @@ public class AppLifecycle {
     private static final Duration PROBE_TIMEOUT = Duration.ofSeconds(2L);
     private static final Duration PROBE_RETRY_BACKOFF = Duration.ofSeconds(1L);
 
-    @Inject
-    PasswordAuthConfig passwordAuthConfig;
+    private final PasswordAuthConfig passwordAuthConfig;
+    private final QuarkusOidcConfig quarkusOidcConfig;
+    private final OidcConfig oidcConfig;
 
+    /**
+     * Injects the authentication configuration views validated and logged at startup.
+     *
+     * @param passwordAuthConfig the password-auth settings
+     * @param quarkusOidcConfig the Quarkus OIDC tenant settings
+     * @param oidcConfig the application OIDC policy settings
+     */
     @Inject
-    QuarkusOidcConfig quarkusOidcConfig;
-
-    @Inject
-    OidcConfig oidcConfig;
+    public AppLifecycle(final PasswordAuthConfig passwordAuthConfig, final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig) {
+        this.passwordAuthConfig = passwordAuthConfig;
+        this.quarkusOidcConfig = quarkusOidcConfig;
+        this.oidcConfig = oidcConfig;
+    }
 
     /**
      * Fails fast if no auth method is enabled, or if OIDC is on without an issuer URL.

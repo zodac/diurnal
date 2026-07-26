@@ -53,7 +53,7 @@ BLACK, WHITE, DARK_SURFACE = (0, 0, 0), (255, 255, 255), (17, 24, 39)  # gray-90
 
 
 def mix(hex_colour, toward, amount):
-    """Blend hex_colour toward an rgb target by `amount` (0..1). Mixing toward black/white gives a
+    """Blend hex_colour toward an RGB target by `amount` (0..1). Mixing toward black/white gives a
     natural shade/tint ramp (slightly desaturating, like Tailwind's) rather than a neon HSL darken."""
     return _hex(tuple(c + (t - c) * amount for c, t in zip(_rgb(hex_colour), toward)))
 
@@ -119,7 +119,7 @@ def render_wordmark(out_path, fill):
 
 def render_favicon(out_path, fill):
     # Square box, but framed SNUG (4%, mirroring the wordmark/footer-mark) so the "d" fills the icon
-    # instead of floating small inside heavy letterboxing — a small mark loses too many pixels when
+    # instead of floating small inside heavy letterboxing. A small mark loses too many pixels when
     # rasterised to 16/32px and reads blurry/blocky in a browser tab. The pad is taken off the GLYPH
     # HEIGHT (the larger dimension that drives the square) so the letter sits as tall as possible; the
     # narrow "d" is then centred horizontally, the only slack a square frame can't avoid.
@@ -135,8 +135,8 @@ def render_favicon(out_path, fill):
 def render_footer_mark(out_path, fill):
     """The "d" mark for the page footer. Same glyph and colour as the favicon, but cropped SNUG to
     the letter (no square letterboxing — mirrors render_wordmark's tight 4% framing for a single
-    glyph) so that, displayed inline at the text's height, the "d" reads as large as the words around
-    it instead of shrinking inside a padded square."""
+    glyph) so that, displayed inline at the text's height. The "d" reads as large as the surrounding words
+    instead of shrinking inside a padded square."""
     d, (x0, y0, x1, y1) = _outline('d')
     w, h = x1 - x0, y1 - y0
     pad = round(h * 0.04)

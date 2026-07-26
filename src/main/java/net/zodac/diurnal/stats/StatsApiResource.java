@@ -55,9 +55,20 @@ import org.jspecify.annotations.Nullable;
 @Produces(MediaType.APPLICATION_JSON)
 public class StatsApiResource {
 
-    @Inject CurrentUser currentUser;
+    private final CurrentUser currentUser;
+    private final StatsService statsService;
 
-    @Inject StatsService statsService;
+    /**
+     * Injects the current-user accessor and the shared stats service.
+     *
+     * @param currentUser the current-user accessor
+     * @param statsService the shared stats service
+     */
+    @Inject
+    public StatsApiResource(final CurrentUser currentUser, final StatsService statsService) {
+        this.currentUser = currentUser;
+        this.statsService = statsService;
+    }
 
     /**
      * Returns one page of the computed statistics for every action with at least one logged entry — the same pagination the Stats page renders,

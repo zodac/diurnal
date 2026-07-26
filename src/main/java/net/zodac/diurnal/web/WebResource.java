@@ -107,66 +107,81 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     // The ?msg= code for a successful connect round trip (failure codes are OidcDenialReason codes).
     private static final String MSG_OIDC_CONNECTED = "oidc-connected";
 
+    private final Template loginTemplate;
+    private final Template registerTemplate;
+    private final Template dashboardTemplate;
+    private final Template settingsTemplate;
+    private final Template setupTemplate;
+    private final SecurityIdentity identity;
+    private final CurrentUser currentUser;
+    private final StatsService statsService;
+    private final AppClock clock;
+    private final AuthenticationService authenticationService;
+    private final RegistrationService registrationService;
+    private final ProfileService profileService;
+    private final PasswordChangeService passwordChangeService;
+    private final SessionStore sessionStore;
+    private final SessionConfig sessionConfig;
+    private final QuarkusOidcConfig quarkusOidcConfig;
+    private final OidcConfig oidcConfig;
+    private final PasswordAuthConfig passwordAuthConfig;
+    private final RegistrationConfig registrationConfig;
+    private final IpThrottleConfig ipThrottleConfig;
+
+    /**
+     * Injects the page templates, the current-request/user accessors, the shared authentication, registration, profile, password-change and stats
+     * services, the session store and every config view the top-level pages read.
+     *
+     * @param loginTemplate the login page template
+     * @param registerTemplate the register page template
+     * @param dashboardTemplate the dashboard page template
+     * @param settingsTemplate the settings page template
+     * @param setupTemplate the first-run setup page template
+     * @param identity the current request's security identity
+     * @param currentUser the current-user accessor
+     * @param statsService the shared stats service
+     * @param clock the application clock for date-boundary logic
+     * @param authenticationService the shared credential-verification service
+     * @param registrationService the shared registration service
+     * @param profileService the shared profile-mutation service
+     * @param passwordChangeService the shared password-change service
+     * @param sessionStore the session store used to mint and revoke session tokens
+     * @param sessionConfig the session settings
+     * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys the page reads (tenant-enabled, the IdP base URL)
+     * @param oidcConfig the application OIDC policy settings
+     * @param passwordAuthConfig the password-auth settings
+     * @param registrationConfig the registration settings
+     * @param ipThrottleConfig the per-IP throttle settings
+     */
     @Inject
-    @Location("login")
-    Template loginTemplate;
-
-    @Inject
-    @Location("register")
-    Template registerTemplate;
-
-    @Inject
-    @Location("dashboard")
-    Template dashboardTemplate;
-
-    @Inject
-    @Location("settings")
-    Template settingsTemplate;
-
-    @Inject
-    @Location("setup")
-    Template setupTemplate;
-
-    @Inject SecurityIdentity identity;
-
-    @Inject CurrentUser currentUser;
-
-    @Inject StatsService statsService;
-
-    @Inject AppClock clock;
-
-    @Inject AuthenticationService authenticationService;
-
-    @Inject RegistrationService registrationService;
-
-    @Inject ProfileService profileService;
-
-    @Inject PasswordChangeService passwordChangeService;
-
-    @Inject SessionStore sessionStore;
-
-    @Inject SessionConfig sessionConfig;
-
-    @Context
-    @Nullable
-    RoutingContext routingContext;
-
-    // The framework-owned quarkus.oidc.* keys the page reads: whether OIDC is enabled (tenant-enabled) and, for the
-    // Settings "Connected to {provider}" link, the IdP's base URL (auth-server-url / OIDC_ISSUER_URL).
-    @Inject
-    QuarkusOidcConfig quarkusOidcConfig;
-
-    @Inject
-    OidcConfig oidcConfig;
-
-    @Inject
-    PasswordAuthConfig passwordAuthConfig;
-
-    @Inject
-    RegistrationConfig registrationConfig;
-
-    @Inject
-    IpThrottleConfig ipThrottleConfig;
+    public WebResource(@Location("login") final Template loginTemplate, @Location("register") final Template registerTemplate,
+        @Location("dashboard") final Template dashboardTemplate, @Location("settings") final Template settingsTemplate,
+        @Location("setup") final Template setupTemplate, final SecurityIdentity identity, final CurrentUser currentUser,
+        final StatsService statsService, final AppClock clock, final AuthenticationService authenticationService,
+        final RegistrationService registrationService, final ProfileService profileService, final PasswordChangeService passwordChangeService,
+        final SessionStore sessionStore, final SessionConfig sessionConfig, final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig,
+        final PasswordAuthConfig passwordAuthConfig, final RegistrationConfig registrationConfig, final IpThrottleConfig ipThrottleConfig) {
+        this.loginTemplate = loginTemplate;
+        this.registerTemplate = registerTemplate;
+        this.dashboardTemplate = dashboardTemplate;
+        this.settingsTemplate = settingsTemplate;
+        this.setupTemplate = setupTemplate;
+        this.identity = identity;
+        this.currentUser = currentUser;
+        this.statsService = statsService;
+        this.clock = clock;
+        this.authenticationService = authenticationService;
+        this.registrationService = registrationService;
+        this.profileService = profileService;
+        this.passwordChangeService = passwordChangeService;
+        this.sessionStore = sessionStore;
+        this.sessionConfig = sessionConfig;
+        this.quarkusOidcConfig = quarkusOidcConfig;
+        this.oidcConfig = oidcConfig;
+        this.passwordAuthConfig = passwordAuthConfig;
+        this.registrationConfig = registrationConfig;
+        this.ipThrottleConfig = ipThrottleConfig;
+    }
 
     // ── Login ──────────────────────────────────────────────────────────────
 
@@ -277,7 +292,8 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @Produces(MediaType.TEXT_HTML)
     public Response doLogin(
         @FormParam("email") @Nullable final String email,
-        @FormParam("password") @Nullable final String password) {
+        @FormParam("password") @Nullable final String password,
+        @Context @Nullable final RoutingContext routingContext) {
         final String clientIp = ClientAddress.of(routingContext);
         final Instant now = clock.now();
         final LoginResult result = authenticationService.authenticate(
@@ -286,8 +302,8 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         return switch (result) {
             case final LoginResult.Success success -> {
                 final String token = sessionStore.create(
-                    success.user(), Session.AUTH_SOURCE_PASSWORD, userAgent(), clientIp, now);
-                yield Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
+                    success.user(), Session.AUTH_SOURCE_PASSWORD, userAgent(routingContext), clientIp, now);
+                yield Response.seeOther(URI.create("/")).cookie(sessionCookie(token, routingContext)).build();
             }
             case final LoginResult.LockedOut locked -> Response.seeOther(URI.create("/login"))
                     .cookie(lockoutCookie(locked.remaining()))
@@ -296,13 +312,13 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         };
     }
 
-    private NewCookie sessionCookie(final String token) {
+    private NewCookie sessionCookie(final String token, final @Nullable RoutingContext routingContext) {
         return new NewCookie.Builder(sessionConfig.cookieName())
                 .value(token)
                 .path("/")
                 .httpOnly(true)
                 .sameSite(NewCookie.SameSite.STRICT)
-                .secure(isSecureRequest())
+                .secure(isSecureRequest(routingContext))
                 .maxAge((int) sessionConfig.absoluteTimeout().toSeconds())
                 .build();
     }
@@ -317,11 +333,11 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
                 .build();
     }
 
-    private @Nullable String userAgent() {
+    private static @Nullable String userAgent(final @Nullable RoutingContext routingContext) {
         return routingContext == null ? null : routingContext.request().getHeader("User-Agent");
     }
 
-    private boolean isSecureRequest() {
+    private static boolean isSecureRequest(final @Nullable RoutingContext routingContext) {
         return routingContext != null && routingContext.request().isSSL();
     }
 
@@ -345,7 +361,8 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @Path("oauth2/callback/oidc")
     @PermitAll
     @Transactional
-    public Response oidcCallback(@CookieParam(OidcUserProvisioner.LINK_COOKIE) @Nullable final String linkIntent) {
+    public Response oidcCallback(@CookieParam(OidcUserProvisioner.LINK_COOKIE) @Nullable final String linkIntent,
+        @Context @Nullable final RoutingContext routingContext) {
         // The oidc-trigger permission pins this path to the code mechanism, so when the IdP
         // redirects back here CodeAuthenticationMechanism exchanges the code, validates the
         // tokens and creates the OIDC session cookie. The request then reaches JAX-RS — this
@@ -366,15 +383,17 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         user.persist();
         LOGGER.debug("OIDC login: name={} email={} role={}", user.displayName, user.email, user.role);
         final String token = sessionStore.create(
-            user, Session.AUTH_SOURCE_OIDC, userAgent(), ClientAddress.of(routingContext), clock.now());
+            user, Session.AUTH_SOURCE_OIDC, userAgent(routingContext), ClientAddress.of(routingContext), clock.now());
         if (linkIntent != null) {
             // A Settings "Connect" round trip: the link itself was applied during authentication (OidcUserProvisioner + OidcLinkPolicy);
             // clear the one-shot intent marker and land back on Settings with a success banner instead of the dashboard.
             final NewCookie clearIntent =
                 new NewCookie.Builder(OidcUserProvisioner.LINK_COOKIE).value("").path("/").maxAge(0).httpOnly(true).build();
-            return Response.seeOther(URI.create("/settings?msg=" + MSG_OIDC_CONNECTED)).cookie(sessionCookie(token), clearIntent).build();
+            return Response.seeOther(URI.create("/settings?msg=" + MSG_OIDC_CONNECTED))
+                .cookie(sessionCookie(token, routingContext), clearIntent)
+                .build();
         }
-        return Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
+        return Response.seeOther(URI.create("/")).cookie(sessionCookie(token, routingContext)).build();
     }
 
     // ── First-run setup ──────────────────────────────────────────────────────
@@ -429,7 +448,8 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         @FormParam("email")           final String email,
         @FormParam("displayName")     final String displayName,
         @FormParam("password")        final String password,
-        @FormParam("confirmPassword") final String confirmPassword) {
+        @FormParam("confirmPassword") final String confirmPassword,
+        @Context @Nullable final RoutingContext routingContext) {
 
         // Mirrors registerPage: setup always permits creating the initial (break-glass) account locally.
         if (!passwordAuthConfig.enabled() && !setupRequired()) {
@@ -455,19 +475,18 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         return switch (result) {
             case final RegistrationResult.Success success -> {
                 final String token = sessionStore.create(
-                    success.user(), Session.AUTH_SOURCE_PASSWORD, userAgent(), ClientAddress.of(routingContext), now);
-                yield Response.seeOther(URI.create("/")).cookie(sessionCookie(token)).build();
+                    success.user(), Session.AUTH_SOURCE_PASSWORD, userAgent(routingContext), ClientAddress.of(routingContext), now);
+                yield Response.seeOther(URI.create("/")).cookie(sessionCookie(token, routingContext)).build();
             }
-            case final RegistrationResult.LockedOut locked -> {
+            case final RegistrationResult.LockedOut locked ->
                 // The form posts via fetch (data-ajax-errors), so app.js reads the exact seconds from this
                 // header and runs a live mm:ss countdown; the rendered banner (exact-seconds message) is
                 // the no-JS fallback shown by a native form submit.
-                yield Response.status(Response.Status.TOO_MANY_REQUESTS)
+                Response.status(Response.Status.TOO_MANY_REQUESTS)
                         .header(LOCKOUT_RETRY_AFTER_HEADER, Math.max(1L, locked.remaining().toSeconds()))
                         .entity(renderRegister(emailValue, displayNameValue, List.of(),
                         List.of(LockoutMessages.retryMessage(locked.remaining()))))
                         .build();
-            }
             case final RegistrationResult.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
                     .entity(renderRegister(emailValue, displayNameValue, invalid.missingFields(), invalid.errors()))
                     .build();
@@ -688,7 +707,8 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         @FormParam("currentPassword") final String currentPassword,
         @FormParam("newPassword")     final String newPassword,
         @FormParam("confirmPassword") final String confirmPassword,
-        @CookieParam("diurnal_session") @Nullable final String sessionToken) {
+        @CookieParam("diurnal_session") @Nullable final String sessionToken,
+        @Context @Nullable final RoutingContext routingContext) {
         // The web form collects a confirmPassword (normalised to blank so an empty field is rejected);
         // everything else — the local-account guard, current-password proof, new-password rules, re-hash
         // and other-session revocation — is the shared PasswordChangeService the API also calls.
@@ -721,7 +741,8 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @Path("internal/settings/password/verify")
     @RolesAllowed(Role.Values.USER)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
-    public Response verifyCurrentPassword(@FormParam("currentPassword") final String currentPassword) {
+    public Response verifyCurrentPassword(@FormParam("currentPassword") final String currentPassword,
+        @Context @Nullable final RoutingContext routingContext) {
         return switch (passwordChangeService.verify(currentUser.get(), currentPassword, ClientAddress.of(routingContext))) {
             case final PasswordChangeResult.Success ignored -> Response.noContent().build();
             case final PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();

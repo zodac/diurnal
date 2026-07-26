@@ -42,11 +42,20 @@ public class GitHubLatestReleaseClient implements LatestReleaseClient {
 
     private static final Logger LOGGER = LogManager.getLogger(GitHubLatestReleaseClient.class);
 
-    @Inject
-    AppConfig appConfig;
+    private final AppConfig appConfig;
+    private final UpdateCheckConfig updateCheckConfig;
 
+    /**
+     * Injects the application config (repository URL) and the update-check settings.
+     *
+     * @param appConfig the application config supplying the repository URL
+     * @param updateCheckConfig the update-check settings
+     */
     @Inject
-    UpdateCheckConfig updateCheckConfig;
+    public GitHubLatestReleaseClient(final AppConfig appConfig, final UpdateCheckConfig updateCheckConfig) {
+        this.appConfig = appConfig;
+        this.updateCheckConfig = updateCheckConfig;
+    }
 
     @Override
     public Optional<String> latestReleaseVersion() {

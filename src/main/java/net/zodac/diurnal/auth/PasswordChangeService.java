@@ -18,6 +18,7 @@
 package net.zodac.diurnal.auth;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.util.UUID;
@@ -65,14 +66,24 @@ public class PasswordChangeService {
 
     private static final Logger LOGGER = LogManager.getLogger(PasswordChangeService.class);
 
-    @Inject
-    PasswordChangeService self;
+    private final Instance<PasswordChangeService> self;
+    private final Passwords passwords;
+    private final SessionStore sessionStore;
 
+    /**
+     * Injects collaborators and a lazy self-reference. The self {@link Instance} resolves the CDI client proxy on demand so the short
+     * {@code @Transactional} {@code applyChange} runs through the proxy (applying the interceptor) without a construction-time cycle.
+     *
+     * @param self a lazy self-reference used to invoke the transactional {@code applyChange} through the CDI proxy
+     * @param passwords the Argon2id password service
+     * @param sessionStore the session store, used to revoke other sessions after a change
+     */
     @Inject
-    Passwords passwords;
-
-    @Inject
-    SessionStore sessionStore;
+    public PasswordChangeService(final Instance<PasswordChangeService> self, final Passwords passwords, final SessionStore sessionStore) {
+        this.self = self;
+        this.passwords = passwords;
+        this.sessionStore = sessionStore;
+    }
 
     /**
      * Verifies the current password without changing anything (the Settings page confirms step 1 of its flow with this before asking for the new
@@ -129,7 +140,7 @@ public class PasswordChangeService {
 
         // The new hash is computed here, outside any transaction (see the class Javadoc).
         final String newHash = passwords.hash(newPassword);
-        return self.applyChange(user.id, newHash, currentRawToken);
+        return self.get().applyChange(user.id, newHash, currentRawToken);
     }
 
     /**

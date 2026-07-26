@@ -35,11 +35,20 @@ import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 @ApplicationScoped
 public class NotFoundExceptionMapper {
 
-    @Inject
-    @Location("error-404")
-    Template errorTemplate;
+    private final Template errorTemplate;
+    private final CurrentIdentityAssociation identityAssociation;
 
-    @Inject CurrentIdentityAssociation identityAssociation;
+    /**
+     * Injects the 404 page template and the deferred-identity association.
+     *
+     * @param errorTemplate the styled 404 page template
+     * @param identityAssociation the deferred security-identity association
+     */
+    @Inject
+    public NotFoundExceptionMapper(@Location("error-404") final Template errorTemplate, final CurrentIdentityAssociation identityAssociation) {
+        this.errorTemplate = errorTemplate;
+        this.identityAssociation = identityAssociation;
+    }
 
     /**
      * Maps a {@link NotFoundException} to a redirect or the styled 404 HTML page. For anonymous browser navigations to unknown web routes, it

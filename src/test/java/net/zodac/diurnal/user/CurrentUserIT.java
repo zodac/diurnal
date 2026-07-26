@@ -46,9 +46,7 @@ class CurrentUserIT extends IntegrationTestBase {
     }
 
     private static CurrentUser currentUserFor(final SecurityIdentity identity) {
-        final CurrentUser currentUser = new CurrentUser();
-        currentUser.identity = identity;
-        return currentUser;
+        return new CurrentUser(identity);
     }
 
     @Test

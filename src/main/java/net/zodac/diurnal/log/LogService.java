@@ -47,7 +47,17 @@ class LogService {
 
     private static final Logger LOGGER = LogManager.getLogger(LogService.class);
 
-    @Inject AppClock clock;
+    private final AppClock clock;
+
+    /**
+     * Injects the application clock.
+     *
+     * @param clock the application clock for date-boundary logic
+     */
+    @Inject
+    LogService(final AppClock clock) {
+        this.clock = clock;
+    }
 
     /**
      * Reads the day's current count without changing anything (the web form's no-op path for a zero amount), applying the same guards as a write so

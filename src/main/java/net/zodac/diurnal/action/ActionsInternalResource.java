@@ -54,21 +54,32 @@ import org.jspecify.annotations.Nullable;
 @RollbackOnErrorStatus
 public class ActionsInternalResource {
 
+    private final Template actionsListTemplate;
+    private final Template actionRowTemplate;
+    private final Template confirmDeleteRowTemplate;
+    private final CurrentUser currentUser;
+    private final ActionService actionService;
+
+    /**
+     * Injects the HTMX partial templates, the current-user accessor and the shared action service.
+     *
+     * @param actionsListTemplate the paginated actions-list partial template
+     * @param actionRowTemplate the single action-row partial template
+     * @param confirmDeleteRowTemplate the delete-confirmation row partial template
+     * @param currentUser the current-user accessor
+     * @param actionService the shared action-mutation service
+     */
     @Inject
-    @Location("partials/actions-list")
-    Template actionsListTemplate;
-
-    @Inject
-    @Location("partials/action-row")
-    Template actionRowTemplate;
-
-    @Inject
-    @Location("partials/dt-confirm-delete-row")
-    Template confirmDeleteRowTemplate;
-
-    @Inject CurrentUser currentUser;
-
-    @Inject ActionService actionService;
+    public ActionsInternalResource(@Location("partials/actions-list") final Template actionsListTemplate,
+        @Location("partials/action-row") final Template actionRowTemplate,
+        @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
+        final CurrentUser currentUser, final ActionService actionService) {
+        this.actionsListTemplate = actionsListTemplate;
+        this.actionRowTemplate = actionRowTemplate;
+        this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
+        this.currentUser = currentUser;
+        this.actionService = actionService;
+    }
 
     // ── Partials for HTMX ─────────────────────────────────────────────────
 

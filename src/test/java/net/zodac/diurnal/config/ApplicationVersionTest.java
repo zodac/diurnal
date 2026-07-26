@@ -30,16 +30,14 @@ class ApplicationVersionTest {
 
     @Test
     void release_prefersPackagedVersionOverMavenFallback() {
-        final ApplicationVersion applicationVersion = versionWith("0.0.1-SNAPSHOT");
+        final ApplicationVersion applicationVersion = versionWith();
         assertThat(applicationVersion.release())
             .as("the packaged VERSION resource should be used, not the Maven project version fallback")
             .isNotEqualTo("0.0.1-SNAPSHOT")
             .isNotBlank();
     }
 
-    private static ApplicationVersion versionWith(final String mavenVersion) {
-        final ApplicationVersion applicationVersion = new ApplicationVersion();
-        applicationVersion.applicationConfig = () -> mavenVersion;
-        return applicationVersion;
+    private static ApplicationVersion versionWith() {
+        return new ApplicationVersion(() -> "0.0.1-SNAPSHOT");
     }
 }

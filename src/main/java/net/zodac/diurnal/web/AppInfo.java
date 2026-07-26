@@ -48,23 +48,23 @@ public class AppInfo {
      */
     private static final String TAGLINE = "Make every day count";
 
-    /**
-     * The single accessor for the running application's release version.
-     */
-    @Inject
-    ApplicationVersion applicationVersion;
+    private final ApplicationVersion applicationVersion;
+    private final AppConfig appConfig;
+    private final UpdateCheckService updateCheckService;
 
     /**
-     * Application-specific {@code app.*} settings (repository URL, build timestamp, stylesheet name).
+     * Injects the version accessor, the {@code app.*} settings and the one-shot startup update check that drive the footer metadata.
+     *
+     * @param applicationVersion the single accessor for the running application's release version
+     * @param appConfig the application-specific {@code app.*} settings (repository URL, build timestamp, asset filenames)
+     * @param updateCheckService the one-shot startup update check, read (no I/O) to drive the footer's admin-only "update available" indicator
      */
     @Inject
-    AppConfig appConfig;
-
-    /**
-     * The one-shot startup update check, read (no I/O) to drive the footer's admin-only "update available" indicator.
-     */
-    @Inject
-    UpdateCheckService updateCheckService;
+    public AppInfo(final ApplicationVersion applicationVersion, final AppConfig appConfig, final UpdateCheckService updateCheckService) {
+        this.applicationVersion = applicationVersion;
+        this.appConfig = appConfig;
+        this.updateCheckService = updateCheckService;
+    }
 
     /**
      * The release version (e.g. {@code 0.0.1}), shown in the footer. Delegates to {@link ApplicationVersion}, which reads the authoritative version

@@ -55,8 +55,17 @@ public class SessionAuthMechanism implements HttpAuthenticationMechanism {
     private static final ChallengeData REDIRECT_TO_LOGIN = new ChallengeData(HttpURLConnection.HTTP_MOVED_TEMP, "location", "/login");
     private static final ChallengeData API_UNAUTHORIZED = new ChallengeData(HttpURLConnection.HTTP_UNAUTHORIZED);
 
+    private final SessionConfig sessionConfig;
+
+    /**
+     * Injects the session settings.
+     *
+     * @param sessionConfig the session settings (cookie name)
+     */
     @Inject
-    SessionConfig sessionConfig;
+    public SessionAuthMechanism(final SessionConfig sessionConfig) {
+        this.sessionConfig = sessionConfig;
+    }
 
     @Override
     public Uni<SecurityIdentity> authenticate(final RoutingContext context, final IdentityProviderManager identityProviderManager) {

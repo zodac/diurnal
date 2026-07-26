@@ -34,8 +34,17 @@ public class SessionSweeper {
 
     private static final Logger LOGGER = LogManager.getLogger(SessionSweeper.class);
 
+    private final AppClock clock;
+
+    /**
+     * Injects the application clock.
+     *
+     * @param clock the application clock for date-boundary logic
+     */
     @Inject
-    AppClock clock;
+    public SessionSweeper(final AppClock clock) {
+        this.clock = clock;
+    }
 
     /**
      * Deletes all sessions whose absolute expiry has passed. The interval is configurable via {@code session.cleanup-interval} (default hourly).

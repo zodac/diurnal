@@ -19,12 +19,13 @@ package net.zodac.diurnal.web;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import jakarta.enterprise.inject.Vetoed;
 import java.util.Map;
 import net.zodac.diurnal.config.AppConfig;
 import net.zodac.diurnal.config.ApplicationVersion;
+import net.zodac.diurnal.stub.StubAppConfig;
+import net.zodac.diurnal.stub.StubApplicationVersion;
+import net.zodac.diurnal.stub.StubUpdateCheckService;
 import net.zodac.diurnal.update.UpdateCheck;
-import net.zodac.diurnal.update.UpdateCheckService;
 import net.zodac.diurnal.update.UpdateStatus;
 import org.junit.jupiter.api.Test;
 
@@ -34,6 +35,11 @@ import org.junit.jupiter.api.Test;
  * isolation. The version is delegated to {@link ApplicationVersion} (tested separately), so only the delegation is exercised here.
  */
 class AppInfoTest {
+
+    private static final UpdateStatus NO_UPDATE = UpdateCheck.evaluate("0.0.0", "0.0.0", "url");
+    private static final AppConfig EMPTY_APP_CONFIG = StubAppConfig.empty();
+    private static final Map<String, String> SETTINGS_IMAGES = Map.of("page-nova-full-dark", "page-nova-full-dark.9f3a1c2b4d5e.webp");
+    private static final Map<String, String> HASHED_IMAGES = Map.of("wordmark", "wordmark.9f3a1c2b4d5e.svg");
 
     private static AppInfo appInfoWith(final String repositoryUrl, final String buildTimestamp, final String cssFile) {
         return appInfoWith(repositoryUrl, buildTimestamp, cssFile, "htmx.min.js");
@@ -54,18 +60,19 @@ class AppInfoTest {
         final String jsFile, final String jsAppFile, final String jsDashboardFile,
         final String jsActionsFile, final String jsAdminFile, final String jsApiDocsFile,
         final String jsSettingsFile) {
-        final AppInfo appInfo = new AppInfo();
-        appInfo.appConfig = new StubAppConfig(repositoryUrl, buildTimestamp, cssFile, jsFile, jsAppFile, jsDashboardFile,
-            jsActionsFile, jsAdminFile, jsApiDocsFile, jsSettingsFile);
-        return appInfo;
+        return appInfo(new StubAppConfig(repositoryUrl, buildTimestamp, cssFile, jsFile, jsAppFile, jsDashboardFile,
+            jsActionsFile, jsAdminFile, jsApiDocsFile, jsSettingsFile, SETTINGS_IMAGES, HASHED_IMAGES));
+    }
+
+    private static AppInfo appInfo(final AppConfig appConfig) {
+        return new AppInfo(new StubApplicationVersion("dev"), appConfig, new StubUpdateCheckService(NO_UPDATE));
     }
 
     @Test
     void version_delegatesToApplicationVersion() {
         // getVersion() is a thin delegate over ApplicationVersion.release() (the packaged-VERSION
         // resolution itself is tested in ApplicationVersionTest); assert the value passes straight through.
-        final AppInfo appInfo = new AppInfo();
-        appInfo.applicationVersion = new StubApplicationVersion("1.2.3");
+        final AppInfo appInfo = new AppInfo(new StubApplicationVersion("1.2.3"), EMPTY_APP_CONFIG, new StubUpdateCheckService(NO_UPDATE));
         assertThat(appInfo.getVersion())
             .as("getVersion() should return exactly what ApplicationVersion resolves")
             .isEqualTo("1.2.3");
@@ -74,7 +81,7 @@ class AppInfoTest {
     @Test
     void tagline_returnsApplicationTagline() {
         // The tagline is a fixed constant (single source of truth for the title/alt/tooltip).
-        assertThat(new AppInfo().getTagline())
+        assertThat(appInfo(EMPTY_APP_CONFIG).getTagline())
             .as("the application tagline should be returned verbatim")
             .isEqualTo("Make every day count");
     }
@@ -286,65 +293,6 @@ class AppInfoTest {
     }
 
     private static AppInfo appInfoWithUpdate(final UpdateStatus status) {
-        final AppInfo appInfo = new AppInfo();
-        appInfo.updateCheckService = new StubUpdateCheckService(status);
-        return appInfo;
-    }
-
-    // Overrides only the pure status() read (the stored startup result), so the real bean's injected HTTP/config collaborators are never touched.
-    // @Vetoed keeps it out of CDI discovery: @ApplicationScoped is @Inherited, so without this the stub would be picked up as a second
-    // UpdateCheckService bean and make the injection point ambiguous. It is only ever hand-constructed here, never injected.
-    @Vetoed
-    private static final class StubUpdateCheckService extends UpdateCheckService {
-
-        private final UpdateStatus status;
-
-        StubUpdateCheckService(final UpdateStatus status) {
-            super();
-            this.status = status;
-        }
-
-        @Override
-        public UpdateStatus status() {
-            return status;
-        }
-    }
-
-    // Returns a fixed version so the delegation from AppInfo.getVersion() can be asserted without reading the packaged VERSION resource.
-    // @Vetoed keeps it out of CDI discovery (@ApplicationScoped is @Inherited); it is only ever hand-constructed here.
-    @Vetoed
-    private static final class StubApplicationVersion extends ApplicationVersion {
-
-        private final String version;
-
-        StubApplicationVersion(final String version) {
-            super();
-            this.version = version;
-        }
-
-        @Override
-        public String release() {
-            return version;
-        }
-    }
-
-    private record StubAppConfig(String repositoryUrl, String buildTimestamp, String cssFile, String jsFile,
-        String jsAppFile, String jsDashboardFile, String jsActionsFile, String jsAdminFile,
-        String jsApiDocsFile, String jsSettingsFile) implements AppConfig {
-
-        @Override
-        public String timezone() {
-            return "UTC";
-        }
-
-        @Override
-        public Map<String, String> settingsImages() {
-            return Map.of("page-nova-full-dark", "page-nova-full-dark.9f3a1c2b4d5e.webp");
-        }
-
-        @Override
-        public Map<String, String> hashedImages() {
-            return Map.of("wordmark", "wordmark.9f3a1c2b4d5e.svg");
-        }
+        return new AppInfo(new StubApplicationVersion("dev"), EMPTY_APP_CONFIG, new StubUpdateCheckService(status));
     }
 }

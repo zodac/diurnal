@@ -88,9 +88,20 @@ public class LogsApiResource {
 
     private static final String FUTURE_DATE_MESSAGE = "Cannot log against a future date";
 
-    @Inject CurrentUser currentUser;
+    private final CurrentUser currentUser;
+    private final LogService logService;
 
-    @Inject LogService logService;
+    /**
+     * Injects the current-user accessor and the shared log service.
+     *
+     * @param currentUser the current-user accessor
+     * @param logService the shared log-mutation service
+     */
+    @Inject
+    public LogsApiResource(final CurrentUser currentUser, final LogService logService) {
+        this.currentUser = currentUser;
+        this.logService = logService;
+    }
 
     /**
      * Returns one calendar event per logged entry in the range, or {@code 304} when the range is unchanged since the caller's ETag.

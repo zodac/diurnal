@@ -96,7 +96,7 @@ public enum OidcDenialReason {
     /**
      * The stable identifier carried in the {@code diurnal_oidc_error} cookie.
      *
-     * @return the reason code
+     * @return the code
      */
     public String code() {
         return code;

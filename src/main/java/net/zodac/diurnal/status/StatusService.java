@@ -40,11 +40,20 @@ public class StatusService {
 
     private Instant startedAt = Instant.now();
 
-    @Inject
-    DataSource dataSource;
+    private final DataSource dataSource;
+    private final AppInfo appInfo;
 
+    /**
+     * Injects the data source (probed for readiness) and the application-info bean (version metadata).
+     *
+     * @param dataSource the application data source, probed to determine readiness
+     * @param appInfo the application-info bean supplying version metadata
+     */
     @Inject
-    AppInfo appInfo;
+    public StatusService(final DataSource dataSource, final AppInfo appInfo) {
+        this.dataSource = dataSource;
+        this.appInfo = appInfo;
+    }
 
     /**
      * Records the startup instant so uptime is measured from when the application actually came up, not from lazy bean construction.
