@@ -28,6 +28,10 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
+import java.time.ZoneId;
+import java.util.List;
+import java.util.UUID;
+import net.zodac.diurnal.auth.SessionActivityService;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.AdminUserService;
 import net.zodac.diurnal.user.CurrentUser;
@@ -46,25 +50,29 @@ public class AdminWebResource {
     private final Template adminApiDocsTemplate;
     private final CurrentUser currentUser;
     private final AdminUserService adminUserService;
+    private final SessionActivityService sessionActivityService;
     private final AppClock clock;
 
     /**
-     * Injects the admin page templates, the current-user accessor, the shared admin-user service and the application clock.
+     * Injects the admin page templates, the current-user accessor, the shared admin-user service, the recently-active presence service and the
+     * application clock.
      *
      * @param adminUsersTemplate the admin-users page template
      * @param adminApiDocsTemplate the admin API-docs page template
      * @param currentUser the current-user accessor
      * @param adminUserService the shared admin-user-mutation service
+     * @param sessionActivityService the recently-active presence service
      * @param clock the application clock for date-boundary logic
      */
     @Inject
     public AdminWebResource(@Location("admin-users") final Template adminUsersTemplate,
         @Location("admin-api-docs") final Template adminApiDocsTemplate, final CurrentUser currentUser, final AdminUserService adminUserService,
-        final AppClock clock) {
+        final SessionActivityService sessionActivityService, final AppClock clock) {
         this.adminUsersTemplate = adminUsersTemplate;
         this.adminApiDocsTemplate = adminApiDocsTemplate;
         this.currentUser = currentUser;
         this.adminUserService = adminUserService;
+        this.sessionActivityService = sessionActivityService;
         this.clock = clock;
     }
 
@@ -79,13 +87,16 @@ public class AdminWebResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance usersPage(@QueryParam("page") @DefaultValue("1") final int pageNum) {
         final User actor = currentUser.get();
+        final AdminUserService.UsersPage page = adminUserService.usersPage(pageNum, actor.pageSize);
+        final ZoneId zone = clock.zoneFor(actor.timezone);
+        final List<UUID> ids = page.users().stream().map(u -> u.id).toList();
         return adminUsersTemplate
                 .data("email", actor.email)
                 .data("displayName", actor.displayName)
                 .data("theme", actor.theme)
                 .data("font", actor.font)
                 .data("isAdmin", true)
-                .data("page", AdminUsersInternalResource.toRows(adminUserService.usersPage(pageNum, actor.pageSize), clock.zoneFor(actor.timezone)));
+                .data("page", AdminUsersInternalResource.toRows(page, zone, sessionActivityService.recentActivityByUser(ids, clock.now())));
     }
 
     /**

@@ -49,8 +49,11 @@
  *      discovery probe does not fail the boot on the unreachable dummy issuer):
  *        OIDC_PREVIEW=1 scripts/dev-up.sh  # same boot, plus a throwaway OIDC_* config
  *      shotLoginPage() throws if that button is missing, rather than committing a password-only shot.
- *   2. Playwright's browser binaries (already installed for the e2e suite):
- *        cd tests && npx playwright install
+ *   2. A Chromium that the tests/ Playwright can drive. Any installed Chromium build works — the
+ *      launcher (resolveChromiumExecutable) reuses whatever is in the Playwright browser cache, so a
+ *      minor Playwright-package bump does NOT force a re-download just to take a local screenshot. Only
+ *      an empty cache needs the one-off install:
+ *        cd tests && npx playwright install chromium
  *
  * USAGE
  * -----
@@ -227,7 +230,14 @@ async function login(ctx) {
   await page.goto(`${BASE}/login`)
   await page.fill('input[name="email"]', USER.email)
   await page.fill('input[name="password"]', USER.password)
-  await Promise.all([page.waitForLoadState('networkidle'), page.click('button[type="submit"]')])
+  // Submitting posts the form and (on success) 303-redirects to the dashboard, which sets the session
+  // cookie on `ctx`. We wait only for the navigation to LEAVE /login — NOT for the dashboard to go
+  // network-idle: its calendar background-prefetches neighbouring months, so `networkidle` never
+  // settles and would time out. A stuck /login means a failed login, surfaced as this wait timing out.
+  await Promise.all([
+    page.waitForURL(url => !new URL(url).pathname.startsWith('/login'), { waitUntil: 'commit', timeout: 15000 }),
+    page.click('button[type="submit"]'),
+  ])
   await page.close()
 }
 
@@ -302,7 +312,10 @@ async function setPrefs(ctx, theme, calendarView, font = 'nova') {
 // Caller closes the page.
 async function openDashboard(ctx, calendarView) {
   const page = await ctx.newPage()
-  await page.goto(`${BASE}/`, { waitUntil: 'networkidle' })
+  // `load` (not `networkidle`): the dashboard's calendar background-prefetches adjacent months, so the
+  // network never idles. The waitForSelector below is the real gate — it blocks until the chosen
+  // style's markers are actually painted.
+  await page.goto(`${BASE}/`, { waitUntil: 'load' })
   const sel = calendarView === 'full' ? '.d-full-event'
             : calendarView === 'stacked' ? '.d-stk-bar'
             : '.d-min-dot'
@@ -367,7 +380,8 @@ async function shotCalendar(page, dir, file) {
 // render before the full-page capture.
 async function shotPage(ctx, url, waitSelector, dir, file) {
   const page = await ctx.newPage()
-  await page.goto(`${BASE}${url}`, { waitUntil: 'networkidle' })
+  // `load`, then gate on the page's key content selector (see openDashboard for why not networkidle).
+  await page.goto(`${BASE}${url}`, { waitUntil: 'load' })
   await page.waitForSelector(waitSelector, { timeout: 15000 })
   await page.waitForTimeout(600) // settle fonts/layout
   const pngBuf = await page.screenshot({ fullPage: true })
@@ -396,7 +410,7 @@ async function shotLoginPage(browser, dir, file) {
     colorScheme: 'dark',
   })
   const page = await anonCtx.newPage()
-  await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' })
+  await page.goto(`${BASE}/login`, { waitUntil: 'load' })
   await page.waitForSelector('input[name="password"]', { timeout: 15000 })
   try {
     await page.waitForSelector('a[href="/oidc-login"]', { timeout: 15000 })
@@ -438,7 +452,7 @@ async function shotMobileDashboard(browser, ctx, dir, file) {
   const shoot = async theme => {
     await setPrefs(ctx, theme, 'minimal', 'nova')
     const page = await mobileCtx.newPage()
-    await page.goto(`${BASE}/`, { waitUntil: 'networkidle' })
+    await page.goto(`${BASE}/`, { waitUntil: 'load' })
     await page.waitForSelector('.d-min-dot', { timeout: 15000 })
     await page.waitForTimeout(600) // settle fonts/layout
     const buf = await page.screenshot()
@@ -590,6 +604,59 @@ async function captureDocsScreenshots(ctx, browser) {
   await shotMobileDashboard(browser, ctx, SHOTS, 'dashboard-mobile.webp')
 }
 
+// ── Browser resolution ─────────────────────────────────────────────────────────────────────────
+
+// Locate a Chromium binary that the installed Playwright can launch. Playwright hard-pins each package
+// version to ONE browser build number, and `chromium.launch()` defaults to the chrome-headless-shell
+// binary at exactly that build. The browsers are a separate `playwright install` step, so after a
+// tests/ Playwright bump the pinned build's binary is often not on disk yet and a bare launch dies with
+// "Executable doesn't exist … run npx playwright install". Requiring a browser re-download for every
+// local screenshot run is the papercut this avoids: we reuse ANY installed Chromium build instead.
+//
+//   pinned build present     -> use it (exact match, identical to the default).
+//   only another build present-> use the newest installed one (a small build drift renders fine).
+//   nothing installed        -> return null; the caller prints the exact install command and exits.
+//
+// The cache root and the pinned build number are both derived from Playwright's own executablePath
+// (…/<cacheRoot>/chromium-<build>/<platform>/chrome), so this stays correct across OSes and custom
+// PLAYWRIGHT_BROWSERS_PATH locations without re-encoding those rules. The Docker `screenshots` stage
+// installs the pinned build in the image, so it always takes the first branch; this fallback only ever
+// engages on a drifted local checkout.
+function resolveChromiumExecutable() {
+  const pinned = chromium.executablePath() // …/chromium-<build>/<platform-dir>/chrome[.exe]
+  const cacheRoot = path.dirname(path.dirname(path.dirname(pinned)))
+  const pinnedBuild = (path.basename(path.dirname(path.dirname(pinned))).match(/-(\d+)$/) || [])[1]
+
+  // The binary lives one platform-named directory below the build dir; its name varies by channel/OS,
+  // so scan rather than hard-code `chrome-linux64`. headless-shell is preferred (it is what launch()
+  // uses by default); full chrome is the fallback when only the headed build is present.
+  const findBinaryIn = (buildDir, names) => {
+    if (!fs.existsSync(buildDir)) {return null}
+    for (const sub of fs.readdirSync(buildDir)) {
+      for (const name of names) {
+        const candidate = path.join(buildDir, sub, name)
+        if (fs.existsSync(candidate)) {return candidate}
+      }
+    }
+    return null
+  }
+
+  if (!fs.existsSync(cacheRoot)) {return null}
+  // All installed Chromium build numbers, pinned first, then newest-to-oldest.
+  const builds = [...new Set(fs.readdirSync(cacheRoot)
+    .map(dir => (dir.match(/^chromium(?:_headless_shell)?-(\d+)$/) || [])[1])
+    .filter(Boolean))]
+    .sort((a, b) => (a === pinnedBuild ? -1 : b === pinnedBuild ? 1 : Number(b) - Number(a)))
+
+  for (const build of builds) {
+    const binary =
+      findBinaryIn(path.join(cacheRoot, `chromium_headless_shell-${build}`), ['chrome-headless-shell', 'chrome-headless-shell.exe']) ||
+      findBinaryIn(path.join(cacheRoot, `chromium-${build}`), ['chrome', 'chrome.exe'])
+    if (binary) {return { execPath: binary, build, pinned: build === pinnedBuild }}
+  }
+  return null
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────────────────────────
 
 (async () => {
@@ -599,7 +666,16 @@ async function captureDocsScreenshots(ctx, browser) {
   // (Dockerfile screenshots stage) to pass `--no-sandbox`, since Chromium refuses to run as root
   // without it; a normal local run leaves it empty (sandbox on).
   const launchArgs = (process.env.PW_CHROMIUM_ARGS || '').split(' ').filter(Boolean)
-  const browser = await chromium.launch({ args: launchArgs })
+
+  const resolved = resolveChromiumExecutable()
+  if (!resolved) {
+    console.error('No Chromium build found in the Playwright browser cache. Install one with:\n  cd tests && npx playwright install chromium')
+    process.exit(1)
+  }
+  if (!resolved.pinned) {
+    console.warn(`⚠ Pinned Chromium build not installed; using build ${resolved.build} instead (fine for screenshots).`)
+  }
+  const browser = await chromium.launch({ executablePath: resolved.execPath, args: launchArgs })
 
   const ctx = await browser.newContext({
     viewport: { width: VW, height: VH },

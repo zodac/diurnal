@@ -539,6 +539,64 @@ document.addEventListener('click', function (e) {
     document.body.addEventListener('htmx:afterSwap', function (e) { window.Diurnal.formatNumbers(e.target) })
 })();
 
+// ── Recently-active counters ──────────────────────────────────────────────────
+// The admin "Recently active" bubble and the Settings "Session" readout each carry a live counter of how
+// long ago the user last made a request. The server renders a `data-elapsed-seconds` anchor (seconds since
+// that request AT RENDER TIME) on a container that also holds a `.presence-dot` and a [data-activity-clock]
+// span; we tick the clock up every second off the wall-clock DELTA since first paint (so a skewed client
+// clock or a backgrounded tab self-corrects, exactly like the lockout countdown above). Once the elapsed
+// time crosses ACTIVE_WINDOW_MS the user is no longer "recently active", so the dot flips green -> grey and
+// the "... ago" text is replaced with the idle label, then the timer stops. There is no polling, so an
+// inactive user is only ever re-shown as active by a fresh render (page load / HTMX swap).
+(function () {
+    // Must match SessionActivityService.ACTIVE_WINDOW on the server.
+    const ACTIVE_WINDOW_MS = 5 * 60 * 1000
+    const IDLE_LABEL = 'Inactive'
+    const wired = new WeakSet()
+
+    // m:ss, clamped so it can NEVER render a negative value (mirrors the lockout countdown's formatClock).
+    function formatClock(totalSeconds) {
+        const s = totalSeconds > 0 ? totalSeconds : 0
+        const mins = Math.floor(s / 60)
+        const secs = s % 60
+        return `${(mins < 10 ? '0' : '') + mins  }:${  secs < 10 ? '0' : ''  }${secs}`
+    }
+
+    function wire(el) {
+        if (wired.has(el)) { return }   // idempotent: never start two timers for one element
+        const base = parseInt(el.dataset.elapsedSeconds, 10)
+        if (!Number.isFinite(base)) { return }
+        wired.add(el)
+        const dot = el.querySelector('.presence-dot')
+        const clock = el.querySelector('[data-activity-clock]')
+        const label = el.querySelector('[data-activity-label]')
+        const start = Date.now()
+        function tick() {
+            if (!el.isConnected) { if (timer) { clearInterval(timer) } return }   // swapped out: stop the timer
+            const elapsedMs = base * 1000 + (Date.now() - start)
+            if (elapsedMs >= ACTIVE_WINDOW_MS) {                                   // crossed the window: go inactive, stop
+                if (dot) { dot.classList.remove('presence-dot-active'); dot.classList.add('presence-dot-idle') }
+                if (label) { label.textContent = IDLE_LABEL }                      // tooltip label (admin) / inline text (Settings) -> "Inactive"
+                if (el.hasAttribute('aria-label')) { el.setAttribute('aria-label', IDLE_LABEL) }
+                if (timer) { clearInterval(timer) }
+                return
+            }
+            if (clock) { clock.textContent = formatClock(Math.floor(elapsedMs / 1000)) }
+        }
+        const timer = setInterval(tick, 1000)
+        tick()   // paint immediately, before the first interval
+    }
+
+    window.Diurnal.startActivityCounters = function (rootParam) {
+        const root = rootParam || document.body
+        if (root.matches && root.matches('[data-elapsed-seconds]')) { wire(root) }
+        if (root.querySelectorAll) { root.querySelectorAll('[data-elapsed-seconds]').forEach(wire) }
+    }
+    // Initial render, then again for any HTMX-swapped content (admin list pagination / row re-renders).
+    window.Diurnal.startActivityCounters(document.body)
+    document.body.addEventListener('htmx:afterSwap', function (e) { window.Diurnal.startActivityCounters(e.target) })
+})();
+
 // ── Global tooltip long-press (touch) ─────────────────────────────────────────
 // Desktop reveals `.app-tooltip` on hover (CSS). Touch has no hover, so a LONG press on any tooltip
 // host — an element with a direct-child `.app-tooltip` (see partials/tooltip.html) — opens it by

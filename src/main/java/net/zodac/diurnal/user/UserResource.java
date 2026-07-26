@@ -155,7 +155,7 @@ public class UserResource {
         final User user = currentUser.get();
         if (request != null) {
             final ProfileResult result = applyUpdates(user, request);
-            if (result instanceof ProfileResult.Invalid(String message)) {
+            if (result instanceof ProfileResult.Invalid(final String message)) {
                 // A rejected field leaves any field applied before it mutated on the managed entity; the class-level @RollbackOnErrorStatus rolls
                 // the whole transaction back on this 400, so a rejected request never silently persists part of a mutation.
                 return Response.status(Response.Status.BAD_REQUEST).entity(new ApiErrorResponse(message)).build();

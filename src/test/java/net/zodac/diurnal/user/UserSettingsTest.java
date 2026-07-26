@@ -19,7 +19,10 @@ package net.zodac.diurnal.user;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -28,8 +31,8 @@ class UserSettingsTest {
 
     // 15 Jun 2026 noon UTC: a stable, DST-deterministic instant for offset assertions
     // (NZ standard time UTC+12, US daylight time).
-    private static final java.time.Instant NOW =
-        java.time.LocalDate.of(2026, 6, 15).atTime(12, 0).toInstant(java.time.ZoneOffset.UTC);
+    private static final Instant NOW =
+        LocalDate.of(2026, 6, 15).atTime(12, 0).toInstant(ZoneOffset.UTC);
 
     // ── Valid page sizes (any whole number in [1, 100] is accepted, presets and custom alike) ──
 
@@ -201,7 +204,7 @@ class UserSettingsTest {
     void timezoneOptions_allValidZoneIds() {
         for (final String tz : UserSettings.TIMEZONE_OPTIONS) {
             // Throws DateTimeException if any offered id is not a real zone.
-            var _ = ZoneId.of(tz);
+            final var _ = ZoneId.of(tz);
         }
     }
 
@@ -209,19 +212,19 @@ class UserSettingsTest {
 
     @Test
     void utcOffsetLabel_formatsWholeAndHalfHourOffsets() {
-        assertThat(UserSettings.utcOffsetLabel(java.time.ZoneOffset.UTC))
+        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.UTC))
             .as("unexpected value")
             .isEqualTo("UTC");
-        assertThat(UserSettings.utcOffsetLabel(java.time.ZoneOffset.ofHours(12)))
+        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.ofHours(12)))
             .as("unexpected value")
             .isEqualTo("UTC+12");
-        assertThat(UserSettings.utcOffsetLabel(java.time.ZoneOffset.ofHours(-8)))
+        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.ofHours(-8)))
             .as("unexpected value")
             .isEqualTo("UTC-8");
-        assertThat(UserSettings.utcOffsetLabel(java.time.ZoneOffset.ofHoursMinutes(5, 30)))
+        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.ofHoursMinutes(5, 30)))
             .as("unexpected value")
             .isEqualTo("UTC+5:30");
-        assertThat(UserSettings.utcOffsetLabel(java.time.ZoneOffset.ofHoursMinutes(-3, -30)))
+        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.ofHoursMinutes(-3, -30)))
             .as("unexpected value")
             .isEqualTo("UTC-3:30");
     }
@@ -230,7 +233,7 @@ class UserSettingsTest {
 
     @Test
     void timezoneChoices_offersEveryCuratedZoneWithItsOwnIdAsValue() {
-        final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("UTC"), NOW, null);
+        final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, null);
 
         assertThat(choices.size())
             .as("unexpected value")
@@ -246,11 +249,11 @@ class UserSettingsTest {
 
     @Test
     void timezoneChoices_sortedByUtcOffsetAscending() {
-        final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("UTC"), NOW, null);
+        final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, null);
 
         int prev = Integer.MIN_VALUE;
         for (final var choice : choices) {
-            final int offset = java.time.ZoneId.of(choice.value()).getRules().getOffset(NOW).getTotalSeconds();
+            final int offset = ZoneId.of(choice.value()).getRules().getOffset(NOW).getTotalSeconds();
             assertThat(offset >= prev)
                 .as("choices must be sorted by ascending UTC offset")
                 .isTrue();
@@ -264,7 +267,7 @@ class UserSettingsTest {
 
     @Test
     void timezoneChoices_utcLabelHasNoRedundantOffset() {
-        final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("UTC"), NOW, null);
+        final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, null);
 
         final var utc = choices.stream().filter(c -> "UTC".equals(c.value())).findFirst().orElseThrow();
         assertThat(utc.label())
@@ -274,7 +277,7 @@ class UserSettingsTest {
 
     @Test
     void timezoneChoices_serverDefaultSelectedWhenUserInherits() {
-        final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("Pacific/Auckland"), NOW, null);
+        final var choices = UserSettings.timezoneChoices(ZoneId.of("Pacific/Auckland"), NOW, null);
 
         final var selected = choices.stream().filter(UserSettings.TimezoneChoice::selected).toList();
         assertThat(selected.size())
@@ -290,7 +293,7 @@ class UserSettingsTest {
 
     @Test
     void timezoneChoices_userOverrideMarksMatchingEntrySelected() {
-        final var choices = UserSettings.timezoneChoices(java.time.ZoneId.of("UTC"), NOW, "Asia/Tokyo");
+        final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, "Asia/Tokyo");
 
         final var selected = choices.stream().filter(UserSettings.TimezoneChoice::selected).toList();
         assertThat(selected.size())

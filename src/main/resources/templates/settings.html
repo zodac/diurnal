@@ -273,6 +273,26 @@
                         </div>
                         {/if}
 
+                        {! Live "recently active" readout for the signed-in user - the same presence signal
+                             the admin page shows, anchored to the user's last request. Rendering this page is
+                             itself a request, so on load it reads active and the counter ticks up from
+                             data-elapsed-seconds (see startActivityCounters in app.js), flipping to grey once
+                             it crosses the active window. When inactive, no time is shown. !}
+                        <div>
+                            <label class="field-label-caps">Session</label>
+                            {#if recentlyActive}
+                            <div class="settings-field flex items-center gap-2" data-elapsed-seconds="{secondsSinceLastRequest}">
+                                <span class="presence-dot presence-dot-active shrink-0" aria-hidden="true"></span>
+                                <p class="text-sm text-ink"><span data-activity-label>Active - last seen <span data-activity-clock>0:00</span> ago</span></p>
+                            </div>
+                            {#else}
+                            <div class="settings-field flex items-center gap-2">
+                                <span class="presence-dot presence-dot-idle shrink-0" aria-hidden="true"></span>
+                                <p class="text-sm text-ink-muted">Inactive</p>
+                            </div>
+                            {/if}
+                        </div>
+
                         {! Log out from everywhere: revokes ALL of this user's sessions (this device
                              included) server-side and returns to /login, forcing a fresh sign-in on every
                              device. Uses the app's in-place confirm idiom (not a native dialog): the trigger
