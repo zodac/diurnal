@@ -243,8 +243,8 @@ RUN --mount=type=cache,target=/home/dev/.npm,uid=${UID},gid=${GID},sharing=locke
 # sudo provides the runtime `sudo` binary; /etc/sudoers.d/dev is already written above.
 #
 # Chromium's own shared-library deps are NOT listed here (the package names drift
-# across Debian releases); install them once inside the sandbox with the
-# version-proof `npx playwright install --with-deps chromium` (see README).
+# across Debian releases); they are installed just below via the version-proof
+# `playwright install-deps chromium`, which resolves the correct set itself.
 # hadolint ignore=DL3009
 # BEGIN DEBIAN PACKAGES
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -266,6 +266,21 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
         tzdata="2026b-0+deb13u1" \
         unzip="6.0-29"
 # END DEBIAN PACKAGES
+
+# ── Playwright Chromium OS shared libs (libnspr4, libnss3, …) ────────────────
+# Baked here rather than re-installed on every sandbox open: as an IMAGE layer
+# these libs survive container recreation (the runtime writable layer does not),
+# so setup.sh no longer has to re-assert them each open. We do NOT enumerate the
+# apt package names in the DEBIAN PACKAGES block above (they drift across Debian
+# releases); instead Playwright's own `install-deps` resolves the correct set for
+# this base image - version-proof AND cached. Pinned to the version in
+# tests/package-lock.json so the build stays reproducible (the repo is mounted at
+# runtime, not present at build time, so npx fetches the CLI here). Runs as root
+# (build default) - no sudo needed, unlike the setup.sh runtime path. The browser
+# BINARY itself stays out of the image (persisted in the ms-playwright volume via
+# setup.sh) to avoid baking ~150MB of Chromium into every layer.
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    npx --yes playwright@1.62.0 install-deps chromium
 
 # ── Entrypoint + helper scripts (most-edited files, cheapest layer) ──────────
 # Last on purpose: these three are edited far more often than any pin, and landing
