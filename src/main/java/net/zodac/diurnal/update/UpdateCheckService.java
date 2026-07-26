@@ -44,19 +44,29 @@ public class UpdateCheckService {
 
     private static final Logger LOGGER = LogManager.getLogger(UpdateCheckService.class);
 
-    @Inject
-    UpdateCheckConfig config;
-
-    @Inject
-    AppConfig appConfig;
-
-    @Inject
-    LatestReleaseClient releaseClient;
-
-    @Inject
-    ApplicationVersion applicationVersion;
+    private final UpdateCheckConfig config;
+    private final AppConfig appConfig;
+    private final LatestReleaseClient releaseClient;
+    private final ApplicationVersion applicationVersion;
 
     private final AtomicReference<String> latestVersion = new AtomicReference<>();
+
+    /**
+     * Injects the update-check settings, the application config, the latest-release lookup seam and the resolved application version.
+     *
+     * @param config the update-check settings
+     * @param appConfig the application config supplying the repository URL
+     * @param releaseClient the outbound latest-release lookup seam
+     * @param applicationVersion the resolved running application version
+     */
+    @Inject
+    public UpdateCheckService(final UpdateCheckConfig config, final AppConfig appConfig, final LatestReleaseClient releaseClient,
+        final ApplicationVersion applicationVersion) {
+        this.config = config;
+        this.appConfig = appConfig;
+        this.releaseClient = releaseClient;
+        this.applicationVersion = applicationVersion;
+    }
 
     /**
      * The update status resolved at startup: whether a newer release than the running version was found, the running version is current, or the

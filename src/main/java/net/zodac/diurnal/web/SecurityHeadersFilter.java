@@ -61,8 +61,17 @@ public class SecurityHeadersFilter {
 
     private static final String PERMISSIONS_POLICY = "geolocation=(), camera=(), microphone=(), payment=()";
 
+    private final Router router;
+
+    /**
+     * Injects the Vert.x router the security-headers route is registered on.
+     *
+     * @param router the Vert.x router
+     */
     @Inject
-    Router router;
+    public SecurityHeadersFilter(final Router router) {
+        this.router = router;
+    }
 
     /**
      * Registers a top-priority Vert.x route that adds security headers to every HTTP response.

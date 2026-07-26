@@ -38,11 +38,20 @@ import net.zodac.diurnal.user.User;
 @RolesAllowed(Role.Values.USER)
 public class ActionsWebResource {
 
-    @Inject
-    @Location("actions")
-    Template actionsTemplate;
+    private final Template actionsTemplate;
+    private final CurrentUser currentUser;
 
-    @Inject CurrentUser currentUser;
+    /**
+     * Injects the page template and current-user accessor.
+     *
+     * @param actionsTemplate the full actions-page template
+     * @param currentUser the current-user accessor
+     */
+    @Inject
+    public ActionsWebResource(@Location("actions") final Template actionsTemplate, final CurrentUser currentUser) {
+        this.actionsTemplate = actionsTemplate;
+        this.currentUser = currentUser;
+    }
 
     /**
      * Renders the full actions page for the current user.

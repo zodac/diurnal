@@ -65,18 +65,23 @@ public class UserResource {
 
     private static final String BEARER_PREFIX = "Bearer ";
 
-    @Inject
-    CurrentUser currentUser;
+    private final CurrentUser currentUser;
+    private final ProfileService profileService;
+    private final PasswordChangeService passwordChangeService;
 
+    /**
+     * Injects the current-user accessor and the shared profile and password-change services.
+     *
+     * @param currentUser the current-user accessor
+     * @param profileService the shared profile-mutation service
+     * @param passwordChangeService the shared password-change service
+     */
     @Inject
-    ProfileService profileService;
-
-    @Inject
-    PasswordChangeService passwordChangeService;
-
-    @Context
-    @Nullable
-    RoutingContext routingContext;
+    public UserResource(final CurrentUser currentUser, final ProfileService profileService, final PasswordChangeService passwordChangeService) {
+        this.currentUser = currentUser;
+        this.profileService = profileService;
+        this.passwordChangeService = passwordChangeService;
+    }
 
     /**
      * Returns the current user as a {@link UserDto} ({@code 200}), {@code 304} when unchanged since the caller's ETag, or {@code 404} if not found.
@@ -150,10 +155,10 @@ public class UserResource {
         final User user = currentUser.get();
         if (request != null) {
             final ProfileResult result = applyUpdates(user, request);
-            if (result instanceof final ProfileResult.Invalid invalid) {
+            if (result instanceof ProfileResult.Invalid(String message)) {
                 // A rejected field leaves any field applied before it mutated on the managed entity; the class-level @RollbackOnErrorStatus rolls
                 // the whole transaction back on this 400, so a rejected request never silently persists part of a mutation.
-                return Response.status(Response.Status.BAD_REQUEST).entity(new ApiErrorResponse(invalid.message())).build();
+                return Response.status(Response.Status.BAD_REQUEST).entity(new ApiErrorResponse(message)).build();
             }
         }
         return Response.ok(UserDto.from(user)).build();
@@ -187,7 +192,8 @@ public class UserResource {
     public Response changePassword(
         final @Nullable ChangePasswordRequest request,
         @Parameter(hidden = true) @HeaderParam("Authorization") @Nullable final String authorization,
-        @Parameter(hidden = true) @CookieParam("diurnal_session") @Nullable final String sessionCookie) {
+        @Parameter(hidden = true) @CookieParam("diurnal_session") @Nullable final String sessionCookie,
+        @Context final RoutingContext routingContext) {
         final String currentPassword = request == null ? null : request.currentPassword();
         final String newPassword = request == null ? null : request.newPassword();
         // No confirmPassword: an API client confirms the new password on its own side.

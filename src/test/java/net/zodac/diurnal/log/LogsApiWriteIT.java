@@ -175,7 +175,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
 
     @Test
     void set_otherUsersAction_returns404() {
-        final Action otherAction = newActionInTx(otherId, "Cycling");
+        final Action otherAction = newActionInTx(otherId);
 
         given().contentType(ContentType.JSON)
                 .body("""
@@ -288,7 +288,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
 
     @Test
     void decrement_otherUsersAction_returns404() {
-        final Action otherAction = newActionInTx(otherId, "Cycling");
+        final Action otherAction = newActionInTx(otherId);
 
         given().contentType(ContentType.JSON)
                 .body("{}")
@@ -322,9 +322,9 @@ class LogsApiWriteIT extends IntegrationTestBase {
                 .then().statusCode(404);
     }
 
-    private Action newActionInTx(final UUID userId, final String name) {
+    private Action newActionInTx(final UUID userId) {
         final Action[] holder = new Action[1];
-        runInTx(() -> holder[0] = newAction(userId, name));
+        runInTx(() -> holder[0] = newAction(userId, "Cycling"));
         return holder[0];
     }
 }

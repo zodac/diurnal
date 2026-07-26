@@ -35,8 +35,17 @@ import java.util.UUID;
 @ApplicationScoped
 public class CurrentUser {
 
+    private final SecurityIdentity identity;
+
+    /**
+     * Injects the current request's security identity.
+     *
+     * @param identity the authenticated caller's security identity
+     */
     @Inject
-    SecurityIdentity identity;
+    public CurrentUser(final SecurityIdentity identity) {
+        this.identity = identity;
+    }
 
     /**
      * Finds the authenticated user, or an empty {@link Optional} if the account no longer exists.

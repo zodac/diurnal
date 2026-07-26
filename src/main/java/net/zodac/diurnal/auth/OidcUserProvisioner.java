@@ -30,6 +30,7 @@ import io.vertx.core.http.Cookie;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.net.HttpURLConnection;
@@ -89,29 +90,41 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
     private static final String CALLBACK_PATH = "/oauth2/callback/oidc";
     private static final String LOGIN_ERROR_REDIRECT = "/login?error=oidc";
 
-    @Inject
-    OidcUserProvisioner self;
+    private final Instance<OidcUserProvisioner> self;
+    private final RoleAssigner roleAssigner;
+    private final PasswordAuthConfig passwordAuthConfig;
+    private final OidcConfig oidcConfig;
+    private final AccountLinkService accountLinkService;
+    private final SessionStore sessionStore;
+    private final SessionConfig sessionConfig;
+    private final AppClock clock;
 
+    /**
+     * Injects collaborators and a lazy self-reference. The self {@link Instance} resolves the CDI client proxy on demand so the transactional
+     * {@code linkOrCreate} runs through the proxy (applying the interceptor) without a construction-time cycle.
+     *
+     * @param self a lazy self-reference used to invoke the transactional {@code linkOrCreate} through the CDI proxy
+     * @param roleAssigner the shared role-assignment policy
+     * @param passwordAuthConfig the password-auth settings
+     * @param oidcConfig the application OIDC policy settings
+     * @param accountLinkService the account-linking policy service
+     * @param sessionStore the session store used to mint the OIDC session
+     * @param sessionConfig the session settings
+     * @param clock the application clock for date-boundary logic
+     */
     @Inject
-    RoleAssigner roleAssigner;
-
-    @Inject
-    PasswordAuthConfig passwordAuthConfig;
-
-    @Inject
-    OidcConfig oidcConfig;
-
-    @Inject
-    AccountLinkService accountLinkService;
-
-    @Inject
-    SessionStore sessionStore;
-
-    @Inject
-    SessionConfig sessionConfig;
-
-    @Inject
-    AppClock clock;
+    public OidcUserProvisioner(final Instance<OidcUserProvisioner> self, final RoleAssigner roleAssigner, final PasswordAuthConfig passwordAuthConfig,
+        final OidcConfig oidcConfig, final AccountLinkService accountLinkService, final SessionStore sessionStore, final SessionConfig sessionConfig,
+        final AppClock clock) {
+        this.self = self;
+        this.roleAssigner = roleAssigner;
+        this.passwordAuthConfig = passwordAuthConfig;
+        this.oidcConfig = oidcConfig;
+        this.accountLinkService = accountLinkService;
+        this.sessionStore = sessionStore;
+        this.sessionConfig = sessionConfig;
+        this.clock = clock;
+    }
 
     @Override
     public Uni<SecurityIdentity> augment(final SecurityIdentity identity, final AuthenticationRequestContext context) {
@@ -122,7 +135,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         final JsonObject claims = decodeClaims(idTokenCred.getToken());
         // Quarkus OIDC attaches the request's RoutingContext to the identity; used (null-safely) to set the denial-reason cookie on refusals.
         final RoutingContext routingContext = identity.getAttribute(RoutingContext.class.getName());
-        return context.runBlocking(() -> self.linkOrCreate(claims, idTokenCred, routingContext));
+        return context.runBlocking(() -> self.get().linkOrCreate(claims, idTokenCred, routingContext));
     }
 
     /**

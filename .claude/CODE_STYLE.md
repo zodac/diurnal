@@ -161,44 +161,80 @@ private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, 
 }
 ```
 
+### Dependency injection is constructor-based — NEVER field injection
+
+**Every CDI dependency is injected through a single `@Inject`-annotated constructor that assigns `private final` fields. `@Inject` on a field is
+banned** (as is setter injection). Constructor injection keeps every collaborator `final` and non-null, makes the dependency set explicit and
+greppable, and lets a unit test build the bean with `new` + stub collaborators (no reflection, no CDI container). This holds for **all** beans —
+resources, services, filters, mechanisms, providers, lifecycle observers — regardless of how many dependencies they take (the Checkstyle
+`ParameterNumber`/PMD `ExcessiveParameterList` limits are deliberately off, so a wide constructor is fine).
+
+Rules:
+
+- Fields are `private final`; the constructor carries `@Inject` **plus Javadoc with a `@param` per dependency** (Javadoc is mandatory on the
+  package-protected/public constructor). Assign each field `this.x = x`.
+- **Qualifiers move onto the constructor parameter**, not a field: `@Inject public Foo(@Location("bar") final Template bar) { this.bar = bar; }`.
+- **The `self` pattern** (a bean invoking its own `@Transactional` method through the CDI proxy) injects `jakarta.enterprise.inject.Instance<Foo>
+  self` in the constructor and calls `self.get().method(...)`. The lazy `Instance` avoids the construction-time self-cycle that a direct
+  `Foo self` constructor parameter would create.
+- **Request-scoped JAX-RS context is a method parameter, never an injected field**: `@Context RoutingContext`/`Request`/… go on the endpoint method
+  signature (threaded into private helpers as needed). A resource bean is effectively a singleton, so it cannot constructor-inject a per-request value.
+- Test doubles for injected collaborators live in the shared `net.zodac.diurnal.stub` test package (`StubAppConfig`, `StubOidcConfig`, …) and are
+  passed to the constructor — reuse them rather than re-declaring an anonymous/nested stub per test.
+
+❌ **Wrong** — `@Inject` fields:
+
+```java
+@Inject
+@Location("stats")
+Template statsTemplate;
+
+@Inject
+StatsService statsService;
+```
+
+✅ **Right** — `private final` fields + one `@Inject` constructor (qualifier on the parameter):
+
+```java
+private final Template statsTemplate;
+private final StatsService statsService;
+
+/**
+ * Injects the page template and the shared stats service.
+ *
+ * @param statsTemplate the full stats-page template
+ * @param statsService the shared stats service
+ */
+@Inject
+public StatsWebResource(@Location("stats") final Template statsTemplate, final StatsService statsService) {
+    this.statsTemplate = statsTemplate;
+    this.statsService = statsService;
+}
+```
+
 ### Annotated fields are separated by a blank line
 
-Consecutive field declarations that carry annotations (`@Inject`, `@Location`, `@ConfigProperty`, …) must be separated by a **blank line** — whether
-each field's annotations sit on their own lines or inline with the field. Never pack annotated fields together.
+Consecutive field declarations that carry annotations (JPA `@Column`/`@Id`, `@ConfigProperty`, …) must be separated by a **blank line** — whether each
+field's annotations sit on their own lines or inline with the field. Never pack annotated fields together. (Injected collaborators are **not** fields
+at all — see the constructor-injection rule above; plain `private final` dependency fields carry no annotation and may be grouped.)
 
 ❌ **Wrong:**
 
 ```java
-
-@Inject
-@Location("stats")
-Template statsTemplate;
-@Inject
-@Location("partials/stats-cards")
-Template statsCardsTemplate;
-@Inject
-CurrentUser currentUser;
-@Inject
-StatsService statsService;
+@Column(name = "token_hash", nullable = false, unique = true)
+public String tokenHash;
+@Column(name = "auth_source", nullable = false)
+public String authSource;
 ```
 
 ✅ **Right:**
 
 ```java
+@Column(name = "token_hash", nullable = false, unique = true)
+public String tokenHash;
 
-@Inject
-@Location("stats")
-Template statsTemplate;
-
-@Inject
-@Location("partials/stats-cards")
-Template statsCardsTemplate;
-
-@Inject
-CurrentUser currentUser;
-
-@Inject
-StatsService statsService;
+@Column(name = "auth_source", nullable = false)
+public String authSource;
 ```
 
 ### Enum constants are separated by a blank line

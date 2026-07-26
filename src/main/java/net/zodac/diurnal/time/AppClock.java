@@ -17,7 +17,6 @@
 
 package net.zodac.diurnal.time;
 
-import jakarta.annotation.PostConstruct;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.Clock;
@@ -48,17 +47,19 @@ public class AppClock {
 
     private static final Logger LOGGER = LogManager.getLogger(AppClock.class);
 
-    @Inject
-    AppConfig appConfig;
+    private final AppConfig appConfig;
 
     private Clock clock;
 
     /**
-     * Builds the system clock for the configured zone once the bean is constructed.
+     * Injects the application config and builds the system clock for the configured zone.
+     *
+     * @param appConfig the application config supplying {@code app.timezone}
      */
-    @PostConstruct
-    void init() {
-        clock = Clock.system(ZoneId.of(appConfig.timezone()));
+    @Inject
+    public AppClock(final AppConfig appConfig) {
+        this.appConfig = appConfig;
+        this.clock = Clock.system(ZoneId.of(appConfig.timezone()));
     }
 
     /**

@@ -64,30 +64,38 @@ public class AuthResource {
     private static final String BEARER_PREFIX = "Bearer ";
     private static final String SETUP_REQUIRED_MESSAGE = "The initial administrator account must be created via the setup page";
 
-    @Inject
-    AuthenticationService authenticationService;
+    private final AuthenticationService authenticationService;
+    private final CurrentUser currentUser;
+    private final RegistrationService registrationService;
+    private final SessionStore sessionStore;
+    private final PasswordAuthConfig passwordAuthConfig;
+    private final RegistrationConfig registrationConfig;
+    private final AppClock clock;
 
+    /**
+     * Injects the shared authentication and registration services, the session store, the current-user accessor, the relevant config views and the
+     * application clock.
+     *
+     * @param authenticationService the shared credential-verification service
+     * @param currentUser the current-user accessor
+     * @param registrationService the shared registration service
+     * @param sessionStore the session store used to mint and revoke session tokens
+     * @param passwordAuthConfig the password-auth settings
+     * @param registrationConfig the registration settings
+     * @param clock the application clock for date-boundary logic
+     */
     @Inject
-    CurrentUser currentUser;
-
-    @Inject
-    RegistrationService registrationService;
-
-    @Inject
-    SessionStore sessionStore;
-
-    @Inject
-    PasswordAuthConfig passwordAuthConfig;
-
-    @Inject
-    RegistrationConfig registrationConfig;
-
-    @Inject
-    AppClock clock;
-
-    @Context
-    @Nullable
-    RoutingContext routingContext;
+    public AuthResource(final AuthenticationService authenticationService, final CurrentUser currentUser,
+        final RegistrationService registrationService, final SessionStore sessionStore, final PasswordAuthConfig passwordAuthConfig,
+        final RegistrationConfig registrationConfig, final AppClock clock) {
+        this.authenticationService = authenticationService;
+        this.currentUser = currentUser;
+        this.registrationService = registrationService;
+        this.sessionStore = sessionStore;
+        this.passwordAuthConfig = passwordAuthConfig;
+        this.registrationConfig = registrationConfig;
+        this.clock = clock;
+    }
 
     /**
      * Registers a new password-based user, returning {@code 201} with a session token, or {@code 409} if the email exists. Returns {@code 404} when
@@ -118,7 +126,7 @@ public class AuthResource {
                 description = "Too many failed attempts; retry after the period in the Retry-After header.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     })
-    public Response register(final @Nullable RegisterRequest request) {
+    public Response register(final @Nullable RegisterRequest request, @Context @Nullable final RoutingContext routingContext) {
         // Surface policy (deliberately different from the web form): the API can never create the very
         // first (administrator) account — that must be done locally through the web setup flow
         // (/welcome → POST /register), so an unauthenticated caller cannot claim it. The shared
@@ -149,7 +157,7 @@ public class AuthResource {
             case final RegistrationResult.Success success -> {
                 final User user = success.user();
                 yield Response.status(Response.Status.CREATED)
-                        .entity(new TokenResponse(newSession(user), user.email, user.displayName))
+                        .entity(new TokenResponse(newSession(user, routingContext), user.email, user.displayName))
                         .build();
             }
             case final RegistrationResult.LockedOut locked -> lockedResponse(locked.remaining());
@@ -193,7 +201,7 @@ public class AuthResource {
                 description = "Too many failed attempts; retry after the period in the Retry-After header.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     })
-    public Response login(final @Nullable LoginRequest request) {
+    public Response login(final @Nullable LoginRequest request, @Context @Nullable final RoutingContext routingContext) {
         // No @Valid: like RegisterRequest, LoginRequest's bean-validation annotations feed the OpenAPI
         // schema only - the enforcement lives here so a 400 carries the shared ApiErrorResponse body
         // (@Valid would emit the framework's default violation report instead) and a missing body can
@@ -214,7 +222,7 @@ public class AuthResource {
             case final LoginResult.Success success -> {
                 final User user = success.user();
                 LOGGER.debug("Successful API login: {}", user.email);
-                yield Response.ok(new TokenResponse(newSession(user), user.email, user.displayName)).build();
+                yield Response.ok(new TokenResponse(newSession(user, routingContext), user.email, user.displayName)).build();
             }
             case final LoginResult.LockedOut locked -> lockedResponse(locked.remaining());
             case final LoginResult.InvalidCredentials ignored -> Response.status(Response.Status.UNAUTHORIZED)
@@ -275,7 +283,7 @@ public class AuthResource {
         return Response.noContent().build();
     }
 
-    private String newSession(final User user) {
+    private String newSession(final User user, final @Nullable RoutingContext routingContext) {
         final String userAgent = routingContext == null ? null : routingContext.request().getHeader("User-Agent");
         return sessionStore.create(user, Session.AUTH_SOURCE_PASSWORD, userAgent, ClientAddress.of(routingContext), clock.now());
     }

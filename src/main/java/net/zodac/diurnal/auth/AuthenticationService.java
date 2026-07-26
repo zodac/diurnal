@@ -18,6 +18,7 @@
 package net.zodac.diurnal.auth;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.time.Instant;
@@ -46,17 +47,28 @@ public class AuthenticationService {
 
     private static final Logger LOGGER = LogManager.getLogger(AuthenticationService.class);
 
-    @Inject
-    AuthenticationService self;
+    private final Instance<AuthenticationService> self;
+    private final IpThrottle ipThrottle;
+    private final PasswordAuthConfig passwordAuthConfig;
+    private final Passwords passwords;
 
+    /**
+     * Injects collaborators and a lazy self-reference. The self {@link Instance} resolves the CDI client proxy on demand so the short
+     * {@code @Transactional} {@code recordLogin} methods are invoked through the proxy (applying the interceptor) without a construction-time cycle.
+     *
+     * @param self a lazy self-reference used to invoke the transactional {@code recordLogin} methods through the CDI proxy
+     * @param ipThrottle the per-IP login throttle
+     * @param passwordAuthConfig the password-auth settings
+     * @param passwords the Argon2id password service
+     */
     @Inject
-    IpThrottle ipThrottle;
-
-    @Inject
-    PasswordAuthConfig passwordAuthConfig;
-
-    @Inject
-    Passwords passwords;
+    public AuthenticationService(final Instance<AuthenticationService> self, final IpThrottle ipThrottle,
+        final PasswordAuthConfig passwordAuthConfig, final Passwords passwords) {
+        this.self = self;
+        this.ipThrottle = ipThrottle;
+        this.passwordAuthConfig = passwordAuthConfig;
+        this.passwords = passwords;
+    }
 
     /**
      * Checks the given credentials against the account store at {@code now}. Enforces the global per-IP lockout first, then verifies the Argon2id
@@ -97,9 +109,9 @@ public class AuthenticationService {
             // that we hold the verified plaintext. The re-hash is computed here, outside the transaction.
             final String storedHash = Objects.requireNonNull(user.passwordHash);
             if (passwords.needsRehash(storedHash)) {
-                return self.recordLoginWithRehash(user.id, passwords.hash(password));
+                return self.get().recordLoginWithRehash(user.id, passwords.hash(password));
             }
-            return self.recordLogin(user.id);
+            return self.get().recordLogin(user.id);
         }
 
         final AttemptThrottle.FailureOutcome outcome = ipThrottle.recordFailure(clientIp, now);

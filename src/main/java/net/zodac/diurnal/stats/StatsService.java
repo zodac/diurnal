@@ -48,8 +48,17 @@ public class StatsService {
     private static final DateTimeFormatter MONTH_FMT =
         DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
 
+    private final AppClock clock;
+
+    /**
+     * Injects the application clock.
+     *
+     * @param clock the application clock for date-boundary logic
+     */
     @Inject
-    AppClock clock;
+    public StatsService(final AppClock clock) {
+        this.clock = clock;
+    }
 
     /**
      * Returns stats for every active action of the user that has at least one logged entry, ordered by action name.

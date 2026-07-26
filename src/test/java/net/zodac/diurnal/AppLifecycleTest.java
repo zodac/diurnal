@@ -20,8 +20,9 @@ package net.zodac.diurnal;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import net.zodac.diurnal.config.PasswordAuthConfig;
-import net.zodac.diurnal.config.QuarkusOidcConfig;
+import net.zodac.diurnal.stub.StubOidcConfig;
+import net.zodac.diurnal.stub.StubPasswordAuthConfig;
+import net.zodac.diurnal.stub.StubQuarkusOidcConfig;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -88,34 +89,8 @@ class AppLifecycleTest {
     }
 
     private static AppLifecycle lifecycle(final boolean passwordEnabled, final boolean oidcEnabled, final String issuerUrl) {
-        final AppLifecycle lifecycle = new AppLifecycle();
-        lifecycle.passwordAuthConfig = new PasswordAuthConfig() {
-            @Override
-            public boolean enabled() {
-                return passwordEnabled;
-            }
-
-            @Override
-            public boolean uniformTimingEnabled() {
-                return true;
-            }
-        };
-        lifecycle.quarkusOidcConfig = new QuarkusOidcConfig() {
-            @Override
-            public boolean tenantEnabled() {
-                return oidcEnabled;
-            }
-
-            @Override
-            public String authServerUrl() {
-                return issuerUrl;
-            }
-
-            @Override
-            public boolean discoveryEnabled() {
-                return true;
-            }
-        };
-        return lifecycle;
+        // validateAuthConfig() never reads the OidcConfig, but the constructor requires a non-null instance, so an inert stub is supplied.
+        return new AppLifecycle(new StubPasswordAuthConfig(passwordEnabled, true),
+            new StubQuarkusOidcConfig(oidcEnabled, issuerUrl, true), StubOidcConfig.inert());
     }
 }

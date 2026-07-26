@@ -43,8 +43,17 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 @Produces(MediaType.APPLICATION_JSON)
 public class StatusResource {
 
+    private final StatusService statusService;
+
+    /**
+     * Injects the shared status service.
+     *
+     * @param statusService the shared status service
+     */
     @Inject
-    StatusService statusService;
+    public StatusResource(final StatusService statusService) {
+        this.statusService = statusService;
+    }
 
     /**
      * Reports the current operational status.

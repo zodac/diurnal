@@ -62,14 +62,23 @@ import org.jspecify.annotations.Nullable;
 @RollbackOnErrorStatus
 public class AdminUsersApiResource {
 
-    @Inject
-    AdminUserService adminUserService;
+    private final AdminUserService adminUserService;
+    private final CurrentUser currentUser;
+    private final SecurityIdentity identity;
 
+    /**
+     * Injects the shared admin-user service, the current-user accessor and the security identity.
+     *
+     * @param adminUserService the shared admin-user-mutation service
+     * @param currentUser the current-user accessor
+     * @param identity the calling administrator's security identity
+     */
     @Inject
-    CurrentUser currentUser;
-
-    @Inject
-    SecurityIdentity identity;
+    public AdminUsersApiResource(final AdminUserService adminUserService, final CurrentUser currentUser, final SecurityIdentity identity) {
+        this.adminUserService = adminUserService;
+        this.currentUser = currentUser;
+        this.identity = identity;
+    }
 
     /**
      * Lists one page of every account, ordered by creation time, paged by the calling administrator's page-size preference.

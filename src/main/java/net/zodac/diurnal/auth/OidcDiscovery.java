@@ -40,7 +40,7 @@ public final class OidcDiscovery {
 
     /**
      * Whether the startup discovery probe should run at all. It runs only when OIDC is enabled, the operator has not opted out
-     * ({@code OIDC_VERIFY_ON_STARTUP}), and Quarkus discovery is enabled - with discovery disabled the endpoints are configured manually and there is
+     * ({@code OIDC_VERIFY_ON_STARTUP}), and Quarkus discovery is enabled. With discovery disabled the endpoints are configured manually and there is
      * no discovery document to fetch, so probing it would report a spurious failure.
      *
      * @param oidcEnabled      whether the OIDC tenant is enabled ({@code quarkus.oidc.tenant-enabled})

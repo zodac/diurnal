@@ -42,19 +42,31 @@ import net.zodac.diurnal.user.User;
 @RolesAllowed(Role.Values.ADMIN)
 public class AdminWebResource {
 
+    private final Template adminUsersTemplate;
+    private final Template adminApiDocsTemplate;
+    private final CurrentUser currentUser;
+    private final AdminUserService adminUserService;
+    private final AppClock clock;
+
+    /**
+     * Injects the admin page templates, the current-user accessor, the shared admin-user service and the application clock.
+     *
+     * @param adminUsersTemplate the admin-users page template
+     * @param adminApiDocsTemplate the admin API-docs page template
+     * @param currentUser the current-user accessor
+     * @param adminUserService the shared admin-user-mutation service
+     * @param clock the application clock for date-boundary logic
+     */
     @Inject
-    @Location("admin-users")
-    Template adminUsersTemplate;
-
-    @Inject
-    @Location("admin-api-docs")
-    Template adminApiDocsTemplate;
-
-    @Inject CurrentUser currentUser;
-
-    @Inject AdminUserService adminUserService;
-
-    @Inject AppClock clock;
+    public AdminWebResource(@Location("admin-users") final Template adminUsersTemplate,
+        @Location("admin-api-docs") final Template adminApiDocsTemplate, final CurrentUser currentUser, final AdminUserService adminUserService,
+        final AppClock clock) {
+        this.adminUsersTemplate = adminUsersTemplate;
+        this.adminApiDocsTemplate = adminApiDocsTemplate;
+        this.currentUser = currentUser;
+        this.adminUserService = adminUserService;
+        this.clock = clock;
+    }
 
     /**
      * Renders the paginated admin users page.

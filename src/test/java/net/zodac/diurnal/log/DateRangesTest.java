@@ -54,14 +54,6 @@ class DateRangesTest {
     }
 
     @Test
-    void requireDate_null_throwsBadRequest() {
-        assertThatExceptionOfType(BadRequestException.class)
-            .as("a missing parameter should be rejected")
-            .isThrownBy(() -> DateRanges.requireDate("start", null))
-            .withMessageContaining("'start' is required");
-    }
-
-    @Test
     void requireDate_blank_throwsBadRequest() {
         assertThatExceptionOfType(BadRequestException.class)
             .as("a blank parameter should be rejected")

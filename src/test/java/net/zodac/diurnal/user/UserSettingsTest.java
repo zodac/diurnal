@@ -19,6 +19,7 @@ package net.zodac.diurnal.user;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.ZoneId;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -176,7 +177,7 @@ class UserSettingsTest {
             .contains(UserSettings.DEFAULT_DECIMAL_PLACES);
     }
 
-    // ── Timezone sanitisation ──────────────────────────────────────────────────
+    // ── Timezone validation ──────────────────────────────────────────────────
 
     @ParameterizedTest
     @ValueSource(strings = {"UTC", "Pacific/Auckland", "Europe/London", "America/New_York"})
@@ -200,7 +201,7 @@ class UserSettingsTest {
     void timezoneOptions_allValidZoneIds() {
         for (final String tz : UserSettings.TIMEZONE_OPTIONS) {
             // Throws DateTimeException if any offered id is not a real zone.
-            java.time.ZoneId.of(tz);
+            var _ = ZoneId.of(tz);
         }
     }
 

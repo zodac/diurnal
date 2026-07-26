@@ -41,13 +41,24 @@ import net.zodac.diurnal.user.User;
 @RolesAllowed(Role.Values.USER)
 public class StatsInternalResource {
 
+    private final Template statsCardsTemplate;
+    private final CurrentUser currentUser;
+    private final StatsService statsService;
+
+    /**
+     * Injects the stats-cards partial template, the current-user accessor and the shared stats service.
+     *
+     * @param statsCardsTemplate the stats-cards list partial template
+     * @param currentUser the current-user accessor
+     * @param statsService the shared stats service
+     */
     @Inject
-    @Location("partials/stats-cards")
-    Template statsCardsTemplate;
-
-    @Inject CurrentUser currentUser;
-
-    @Inject StatsService statsService;
+    public StatsInternalResource(@Location("partials/stats-cards") final Template statsCardsTemplate, final CurrentUser currentUser,
+        final StatsService statsService) {
+        this.statsCardsTemplate = statsCardsTemplate;
+        this.currentUser = currentUser;
+        this.statsService = statsService;
+    }
 
     /**
      * Returns just the stats-cards list partial for HTMX pagination.

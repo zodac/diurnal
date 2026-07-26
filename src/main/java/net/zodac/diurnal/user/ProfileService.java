@@ -55,7 +55,7 @@ public class ProfileService {
             return new ProfileResult.Invalid("Display name cannot be empty.");
         }
         final String stripped = displayName.strip();
-        if (!UserSettings.isValidDisplayName(stripped)) {
+        if (UserSettings.isInvalidDisplayName(stripped)) {
             return new ProfileResult.Invalid(UserSettings.DISPLAY_NAME_RANGE_MESSAGE);
         }
         user.displayName = stripped;

@@ -32,8 +32,17 @@ import jakarta.inject.Inject;
 @ApplicationScoped
 public class ApplicationVersion {
 
+    private final QuarkusApplicationConfig applicationConfig;
+
+    /**
+     * Injects the Quarkus application config view.
+     *
+     * @param applicationConfig the Quarkus application config supplying the Maven project version
+     */
     @Inject
-    QuarkusApplicationConfig applicationConfig;
+    public ApplicationVersion(final QuarkusApplicationConfig applicationConfig) {
+        this.applicationConfig = applicationConfig;
+    }
 
     /**
      * The authoritative release version (e.g. {@code 0.0.1}): the packaged {@code VERSION} resource when present, otherwise the Maven project

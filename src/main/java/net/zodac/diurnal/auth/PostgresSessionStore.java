@@ -44,8 +44,17 @@ public class PostgresSessionStore implements SessionStore {
     // and this turns "a write on every authenticated request" into "at most one write per minute".
     private static final Duration LAST_USED_BUMP_INTERVAL = Duration.ofMinutes(1L);
 
+    private final SessionConfig sessionConfig;
+
+    /**
+     * Injects the session settings.
+     *
+     * @param sessionConfig the session settings (timeouts, cookie policy)
+     */
     @Inject
-    SessionConfig sessionConfig;
+    public PostgresSessionStore(final SessionConfig sessionConfig) {
+        this.sessionConfig = sessionConfig;
+    }
 
     @Override
     @Transactional

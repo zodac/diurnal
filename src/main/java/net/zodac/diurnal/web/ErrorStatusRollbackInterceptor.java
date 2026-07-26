@@ -22,6 +22,7 @@ import jakarta.annotation.Priority;
 import jakarta.interceptor.AroundInvoke;
 import jakarta.interceptor.Interceptor;
 import jakarta.interceptor.InvocationContext;
+import jakarta.transaction.Status;
 import jakarta.ws.rs.core.Response;
 
 /**
@@ -31,8 +32,9 @@ import jakarta.ws.rs.core.Response;
  * <p>
  * Priority is {@code PLATFORM_BEFORE + 300}, one step <em>inside</em> the Jakarta Transactions interceptor ({@code PLATFORM_BEFORE + 200}): this
  * interceptor unwinds first, marks the still-active transaction rollback-only, and only then does the transactional interceptor complete - seeing the
- * rollback-only flag, it rolls back instead of committing. The {@link QuarkusTransaction#isActive()} guard makes it a safe no-op on non-transactional
- * (read) endpoints, where there is no transaction to mark; a transaction already flagged for rollback (e.g. by a failed flush) is left untouched.
+ * rollback-only flag, it rolls back instead of committing. The {@link QuarkusTransaction#getStatus()} guard makes it a safe no-op on
+ * non-transactional (read) endpoints, where there is no transaction to mark; a transaction already flagged for rollback (e.g. by a failed flush) is
+ * left untouched.
  */
 @Interceptor
 @RollbackOnErrorStatus
@@ -51,7 +53,7 @@ public class ErrorStatusRollbackInterceptor {
         final Object result = context.proceed();
         if (result instanceof final Response response // NOPMD: CloseResource - Response is the endpoint's return value, owned and closed by JAX-RS
             && response.getStatus() >= Response.Status.BAD_REQUEST.getStatusCode()
-            && QuarkusTransaction.isActive()) {
+            && QuarkusTransaction.getStatus() != Status.STATUS_NO_TRANSACTION) {
             QuarkusTransaction.setRollbackOnly();
         }
         return result;

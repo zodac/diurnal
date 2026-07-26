@@ -125,6 +125,7 @@ class SettingsIT extends IntegrationTestBase {
             final String hash = User.findByEmail(PRIMARY).orElseThrow().passwordHash;
             assertThat(hash)
                 .as("a changed password should be stored as an Argon2id hash")
+                .isNotNull()
                 .startsWith("$argon2id$");
             assertThat(Argon2Function.getInstanceFromHash(hash).check("new_secret_123", hash))
                 .as("new password should verify against the stored hash")

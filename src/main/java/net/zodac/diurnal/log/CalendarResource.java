@@ -62,7 +62,17 @@ public class CalendarResource {
 
     private static final int MAX_DOTS_PER_DAY = 4;
 
-    @Inject CurrentUser currentUser;
+    private final CurrentUser currentUser;
+
+    /**
+     * Injects the current-user accessor.
+     *
+     * @param currentUser the current-user accessor
+     */
+    @Inject
+    public CalendarResource(final CurrentUser currentUser) {
+        this.currentUser = currentUser;
+    }
 
     /**
      * Returns up to four coloured dots per day for the compact "minimal" calendar view (internal to the dashboard).

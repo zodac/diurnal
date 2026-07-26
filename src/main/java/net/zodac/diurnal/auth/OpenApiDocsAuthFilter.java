@@ -46,17 +46,26 @@ public class OpenApiDocsAuthFilter {
     // route, so the guard decides before the Swagger UI / OpenAPI handlers ever see the request.
     private static final int GUARD_ROUTE_ORDER = Integer.MIN_VALUE + 1;
 
-    @Inject
-    Router router;
+    private final Router router;
+    private final SessionStore sessionStore;
+    private final SessionConfig sessionConfig;
+    private final AppClock clock;
 
+    /**
+     * Injects the Vert.x router (to register the guard route), the session store, the session settings and the application clock.
+     *
+     * @param router the Vert.x router the guard route is registered on
+     * @param sessionStore the session store used to authenticate docs access
+     * @param sessionConfig the session settings
+     * @param clock the application clock for date-boundary logic
+     */
     @Inject
-    SessionStore sessionStore;
-
-    @Inject
-    SessionConfig sessionConfig;
-
-    @Inject
-    AppClock clock;
+    public OpenApiDocsAuthFilter(final Router router, final SessionStore sessionStore, final SessionConfig sessionConfig, final AppClock clock) {
+        this.router = router;
+        this.sessionStore = sessionStore;
+        this.sessionConfig = sessionConfig;
+        this.clock = clock;
+    }
 
     /**
      * Registers the admin guard on the documentation routes at application startup.

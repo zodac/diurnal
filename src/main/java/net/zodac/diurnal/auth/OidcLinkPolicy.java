@@ -21,7 +21,7 @@ package net.zodac.diurnal.auth;
  * The pure decision core of the Settings "Connect {provider}" flow: when the OIDC callback arrives with a link-intent cookie AND a valid signed-in
  * session, {@link OidcUserProvisioner} gathers these facts and applies this policy instead of {@link OidcLoginPolicy}. The identity is attached by
  * its immutable issuer + subject pair, and the token's email must MATCH the signed-in account's email — not for security (the user has proven
- * control of both sides), but to catch the easy mistake of completing the round trip signed in to the WRONG identity-provider account, which would
+ * control of both sides). But to catch the easy mistake of completing the round trip signed in to the WRONG identity-provider account, which would
  * silently bind a mismatched identity and (via the conversion) discard the password.
  */
 public final class OidcLinkPolicy {

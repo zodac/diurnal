@@ -100,8 +100,8 @@ public record UserSettings(String theme, int pageSize) {
      * @param strippedDisplayName the display name, already stripped of surrounding whitespace
      * @return {@code true} when the length is within bounds
      */
-    public static boolean isValidDisplayName(final String strippedDisplayName) {
-        return strippedDisplayName.length() >= MIN_DISPLAY_NAME_LENGTH && strippedDisplayName.length() <= MAX_DISPLAY_NAME_LENGTH;
+    public static boolean isInvalidDisplayName(final String strippedDisplayName) {
+        return strippedDisplayName.length() < MIN_DISPLAY_NAME_LENGTH || strippedDisplayName.length() > MAX_DISPLAY_NAME_LENGTH;
     }
 
     /**

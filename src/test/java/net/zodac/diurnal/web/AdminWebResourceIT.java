@@ -119,7 +119,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
         given().get("/admin/users")
                 .then().statusCode(200)
                 // Assert on the tooltip bubble's TEXT content (>...<), not the aria-label attribute
-                // (="..."), so a literal, un-interpolated {u.zoneLabel} in the bubble would fail here.
+                // (= "..."), so a literal, un-interpolated {u.zoneLabel} in the bubble would fail here.
                 .body(containsString(">Timezone: America/New_York<"))
                 // Guard against Qute passing an include param verbatim (the original bug rendered the
                 // literal braces in the bubble).
