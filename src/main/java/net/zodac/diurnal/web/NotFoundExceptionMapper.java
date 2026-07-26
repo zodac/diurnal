@@ -25,12 +25,8 @@ import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.NotFoundException;
-import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.net.URI;
-import net.zodac.diurnal.user.Font;
-import net.zodac.diurnal.user.Role;
-import net.zodac.diurnal.user.Theme;
 import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 
 /**
@@ -57,21 +53,7 @@ public class NotFoundExceptionMapper {
             if (identity.isAnonymous() && isWebNavigation(routingContext)) {
                 return Response.seeOther(URI.create("/login")).build();
             }
-            String displayName = "";
-            boolean isAdmin = false;
-            if (!identity.isAnonymous()) {
-                final String attr = identity.getAttribute("displayName");
-                displayName = attr != null ? attr : identity.getPrincipal().getName();
-                isAdmin = identity.hasRole(Role.Values.ADMIN);
-            }
-            return Response.status(Response.Status.NOT_FOUND)
-                    .entity(errorTemplate
-                            .data("theme", Theme.DEFAULT.value())
-                            .data("font", Font.DEFAULT.value())
-                            .data("displayName", displayName)
-                            .data("isAdmin", isAdmin))
-                    .type(MediaType.TEXT_HTML_TYPE)
-                    .build();
+            return ErrorPages.render(errorTemplate, Response.Status.NOT_FOUND, identity);
         });
     }
 

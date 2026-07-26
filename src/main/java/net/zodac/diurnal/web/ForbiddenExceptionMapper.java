@@ -21,20 +21,16 @@ import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.security.ForbiddenException;
 import io.quarkus.security.identity.SecurityIdentity;
+import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import jakarta.ws.rs.ext.ExceptionMapper;
-import jakarta.ws.rs.ext.Provider;
-import net.zodac.diurnal.user.Font;
-import net.zodac.diurnal.user.Role;
-import net.zodac.diurnal.user.Theme;
+import org.jboss.resteasy.reactive.server.ServerExceptionMapper;
 
 /**
  * Renders the styled 403 page (instead of the default JSON error) when access is denied.
  */
-@Provider
-public class ForbiddenExceptionMapper implements ExceptionMapper<ForbiddenException> {
+@ApplicationScoped
+public class ForbiddenExceptionMapper {
 
     @Inject
     @Location("error-403")
@@ -42,24 +38,16 @@ public class ForbiddenExceptionMapper implements ExceptionMapper<ForbiddenExcept
 
     @Inject SecurityIdentity identity;
 
-    @Override
+    /**
+     * Maps a {@link ForbiddenException} to the styled 403 HTML page (shared with {@link NotFoundExceptionMapper} via {@link ErrorPages}). The
+     * {@link SecurityIdentity} is resolved synchronously here (unlike the 404 mapper, which runs on unmatched routes) because a denied request has
+     * already passed through authentication.
+     *
+     * @param exception the forbidden exception (its cause does not affect the page)
+     * @return the styled 403 HTML {@link Response}
+     */
+    @ServerExceptionMapper
     public Response toResponse(final ForbiddenException exception) {
-        // Read displayName and isAdmin from the identity attributes — set at auth time by
-        // UserIdentities (session auth) / OidcUserProvisioner, so no DB call is needed here.
-        String displayName = "";
-        boolean isAdmin = false;
-        if (!identity.isAnonymous()) {
-            final String attr = identity.getAttribute("displayName");
-            displayName = attr != null ? attr : identity.getPrincipal().getName();
-            isAdmin = identity.hasRole(Role.Values.ADMIN);
-        }
-        return Response.status(Response.Status.FORBIDDEN)
-                .entity(errorTemplate
-                        .data("theme", Theme.DEFAULT.value())
-                        .data("font", Font.DEFAULT.value())
-                        .data("displayName", displayName)
-                        .data("isAdmin", isAdmin))
-                .type(MediaType.TEXT_HTML_TYPE)
-                .build();
+        return ErrorPages.render(errorTemplate, Response.Status.FORBIDDEN, identity);
     }
 }

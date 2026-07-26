@@ -35,6 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.config.RegistrationConfig;
+import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
@@ -110,13 +111,13 @@ public class AuthResource {
         @APIResponse(responseCode = "400", description = "The email, display name or password is missing or invalid."),
         @APIResponse(responseCode = "403",
                 description = "Registration is disabled, or the initial administrator account has not been created via the setup page yet.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
         @APIResponse(responseCode = "404", description = "Password-based authentication is disabled on this deployment."),
         @APIResponse(responseCode = "409", description = "The email is already registered.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
         @APIResponse(responseCode = "429",
                 description = "Too many failed attempts; retry after the period in the Retry-After header.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class)))
+                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public Response register(final @Nullable RegisterRequest request) {
         // Surface policy (deliberately different from the web form): the API can never create the very
@@ -129,12 +130,12 @@ public class AuthResource {
         if (User.count() == 0) {
             LOGGER.warn("Refusing API registration before the initial account exists - it must be created via the setup page");
             return Response.status(Response.Status.FORBIDDEN)
-                    .entity(new ErrorResponse(SETUP_REQUIRED_MESSAGE))
+                    .entity(new ApiErrorResponse(SETUP_REQUIRED_MESSAGE))
                     .build();
         }
         if (!registrationConfig.enabled()) {
             return Response.status(Response.Status.FORBIDDEN)
-                    .entity(new ErrorResponse("Registration is disabled"))
+                    .entity(new ApiErrorResponse("Registration is disabled"))
                     .build();
         }
 
@@ -154,10 +155,10 @@ public class AuthResource {
             }
             case final RegistrationResult.LockedOut locked -> lockedResponse(locked.remaining());
             case final RegistrationResult.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
-                    .entity(new ErrorResponse(invalidMessage(invalid)))
+                    .entity(new ApiErrorResponse(invalidMessage(invalid)))
                     .build();
             case final RegistrationResult.DuplicateEmail ignored -> Response.status(Response.Status.CONFLICT)
-                    .entity(new ErrorResponse("Email already registered"))
+                    .entity(new ApiErrorResponse("Email already registered"))
                     .build();
         };
     }
@@ -188,10 +189,10 @@ public class AuthResource {
         @APIResponse(responseCode = "400",
                 description = "The request body is missing the email/password or the email is malformed."),
         @APIResponse(responseCode = "401", description = "Invalid email or password.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class))),
+                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
         @APIResponse(responseCode = "429",
                 description = "Too many failed attempts; retry after the period in the Retry-After header.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ErrorResponse.class)))
+                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     })
     public Response login(@Valid final LoginRequest request) {
         final String clientIp = ClientAddress.of(routingContext);
@@ -206,7 +207,7 @@ public class AuthResource {
             }
             case final LoginResult.LockedOut locked -> lockedResponse(locked.remaining());
             case final LoginResult.InvalidCredentials ignored -> Response.status(Response.Status.UNAUTHORIZED)
-                    .entity(new ErrorResponse("Invalid email or password"))
+                    .entity(new ApiErrorResponse("Invalid email or password"))
                     .build();
         };
     }
@@ -273,15 +274,7 @@ public class AuthResource {
     private Response lockedResponse(final Duration remaining) {
         return Response.status(Response.Status.TOO_MANY_REQUESTS)
                 .header("Retry-After", Math.max(1L, remaining.toSeconds()))
-                .entity(new ErrorResponse(LockoutMessages.retryMessage(remaining)))
+                .entity(new ApiErrorResponse(LockoutMessages.retryMessage(remaining)))
                 .build();
-    }
-
-    /**
-     * Error payload returned for failed auth requests.
-     */
-    @Schema(description = "Error payload returned when an authentication request is rejected.")
-    public record ErrorResponse(
-        @Schema(examples = "Invalid email or password", description = "Human-readable description of the error.") String message) {
     }
 }

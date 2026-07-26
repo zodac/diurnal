@@ -105,7 +105,7 @@ public class ActionsInternalResource {
     public Response viewItem(@PathParam("id") final UUID id) {
         final Action action = actionService.findOwned(currentUser.get(), id);
         if (action == null) {
-            return Response.status(404).build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
         return Response.ok(actionRowTemplate.data("action", action)).build();
     }
@@ -122,7 +122,7 @@ public class ActionsInternalResource {
     public Response confirmDelete(@PathParam("id") final UUID id) {
         final Action action = actionService.findOwned(currentUser.get(), id);
         if (action == null) {
-            return Response.status(404).build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
         // Surgical delete: the destructive POST returns 204 and the row is removed in place
         // (see actions.html beforeSwap), so the confirmation row targets its own row with outerHTML.
@@ -193,7 +193,7 @@ public class ActionsInternalResource {
     @Transactional
     public Response deleteAction(@PathParam("id") final UUID id) {
         if (actionService.delete(currentUser.get(), id) instanceof ActionResult.NotFound) {
-            return Response.status(404).build();
+            return Response.status(Response.Status.NOT_FOUND).build();
         }
         return Response.noContent().build();
     }
@@ -240,7 +240,7 @@ public class ActionsInternalResource {
                 "Action colour is invalid");
             case final ActionResult.DuplicateName duplicate ->
                 HtmxResponses.conflictBanner("#action-error", "An action named '" + duplicate.name() + "' already exists.");
-            case final ActionResult.NotFound ignored -> Response.status(404).build();
+            case final ActionResult.NotFound ignored -> Response.status(Response.Status.NOT_FOUND).build();
         };
     }
 
