@@ -22,7 +22,9 @@ import jakarta.validation.constraints.NotBlank;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
- * Credentials submitted to the JSON login endpoint.
+ * Credentials submitted to the JSON login endpoint. As with {@link RegisterRequest}, the bean-validation annotations here feed the OpenAPI schema
+ * (required/format constraints) but are NOT the enforcement - the endpoint deliberately does not use {@code @Valid}; the missing/blank guard lives in
+ * {@code AuthResource.login} so a rejection carries the shared {@code ApiErrorResponse} body.
  */
 @Schema(description = "Email/password credentials submitted to exchange for a Bearer session token.")
 public record LoginRequest(
