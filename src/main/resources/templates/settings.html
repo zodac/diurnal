@@ -429,44 +429,17 @@
             <div id="settings-appearance" class="card p-4 lg:flex-1 lg:min-w-0">
                     {#include partials/card-header title='Appearance' /}
 
+                    {! Theme / Calendar style / Font: three identical preview-tile pickers, each the
+                         shared partials/preview-picker (label + self-including radiogroup that
+                         auto-saves its own value). Only the last one drops the divider. The pickers
+                         fill the card width (no max-w-md) so the right column's freed space is used. !}
                     <div class="space-y-6">
-                        {! Theme. Pickers fill the card width now (no max-w-md) so the freed
-                             horizontal space in the right column is used. !}
-                        <div class="pb-4 border-b border-line">
-                            <span class="block text-sm font-medium text-ink mb-3">Theme</span>
-                            {! hx-include self: htmx doesn't auto-serialize a <div>'s descendant
-                                 inputs (only a <form>/named field does), so include this group to
-                                 send the checked radio's value. !}
-                            <div id="theme-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Theme"
-                                 hx-patch="/internal/settings" hx-trigger="change" hx-swap="none" hx-include="#theme-options">
-                                {#for option in themeOptions}
-                                {#include partials/preview-option group="theme" value=option.value current=theme imgBase=option.previewImage label=option.label title=option.title alt=option.alt /}
-                                {/for}
-                            </div>
-                        </div>
-
-                        {! Calendar style !}
-                        <div class="pb-4 border-b border-line">
-                            <span class="block text-sm font-medium text-ink mb-3">Calendar style</span>
-                            <div id="calendar-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Calendar style"
-                                 hx-patch="/internal/settings" hx-trigger="change" hx-swap="none" hx-include="#calendar-options">
-                                {#for option in calendarViewOptions}
-                                {#include partials/preview-option group="calendarView" value=option.value current=calendarView imgBase=option.previewImage label=option.label title=option.title alt=option.alt /}
-                                {/for}
-                            </div>
-                        </div>
-
-                        {! Font. grid-cols-3 matches the theme/calendar pickers' tile size, one column
-                             per option. Last block in the card, so no bottom divider. !}
-                        <div>
-                            <span class="block text-sm font-medium text-ink mb-3">Font</span>
-                            <div id="font-options" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="Font"
-                                 hx-patch="/internal/settings" hx-trigger="change" hx-swap="none" hx-include="#font-options">
-                                {#for option in fontOptions}
-                                {#include partials/preview-option group="font" value=option.value current=font imgBase=option.previewImage label=option.label title=option.title alt=option.alt /}
-                                {/for}
-                            </div>
-                        </div>
+                        {#include partials/preview-picker optionsId="theme-options" label="Theme" group="theme"
+                            endpoint="/internal/settings" options=themeOptions current=theme border=true /}
+                        {#include partials/preview-picker optionsId="calendar-options" label="Calendar style" group="calendarView"
+                            endpoint="/internal/settings" options=calendarViewOptions current=calendarView border=true /}
+                        {#include partials/preview-picker optionsId="font-options" label="Font" group="font"
+                            endpoint="/internal/settings" options=fontOptions current=font border=false /}
                     </div>
                 </div>
             </div>

@@ -28,14 +28,15 @@
                class="inline-num-input w-10 h-7
                       {#if count == 0}text-ink-muted{#else}text-ink{/if}">
 
-        {! Increment: hidden (not just disabled) at the 999 cap, since it can go no higher.
-             `invisible` keeps the cell's width so the count stays put. !}
+        {! Increment: hidden (not just disabled) at the daily cap ({log:maxDailyCount}, mirroring
+             ActionLog.MAX_DAILY_COUNT), since it can go no higher. `invisible` keeps the cell's
+             width so the count stays put. !}
         <button hx-post="/internal/logs/{date}/{action.id}/increment"
                 hx-vals='{"amount": 1}'
                 hx-target="#log-{date}-{action.id}"
                 hx-swap="innerHTML"
                 aria-label="Increase"
-                class="day-item-btn text-brand {#if count >= 999}invisible{/if}">
+                class="day-item-btn text-brand {#if count >= log:maxDailyCount}invisible{/if}">
             +
         </button>
 
