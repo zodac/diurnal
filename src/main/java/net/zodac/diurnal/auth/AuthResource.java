@@ -20,7 +20,6 @@ package net.zodac.diurnal.auth;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
-import jakarta.validation.Valid;
 import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.HeaderParam;
 import jakarta.ws.rs.POST;
@@ -194,10 +193,22 @@ public class AuthResource {
                 description = "Too many failed attempts; retry after the period in the Retry-After header.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     })
-    public Response login(@Valid final LoginRequest request) {
+    public Response login(final @Nullable LoginRequest request) {
+        // No @Valid: like RegisterRequest, LoginRequest's bean-validation annotations feed the OpenAPI
+        // schema only - the enforcement lives here so a 400 carries the shared ApiErrorResponse body
+        // (@Valid would emit the framework's default violation report instead) and a missing body can
+        // never reach authenticate() as a null (which would NPE into a 500).
+        final String email = request == null ? null : request.email();
+        final String password = request == null ? null : request.password();
+        if (email == null || email.isBlank() || password == null || password.isBlank()) {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(new ApiErrorResponse("Email and password are required"))
+                    .build();
+        }
+
         final String clientIp = ClientAddress.of(routingContext);
         final Instant now = clock.now();
-        final LoginResult result = authenticationService.authenticate(request.email(), request.password(), clientIp, now);
+        final LoginResult result = authenticationService.authenticate(email, password, clientIp, now);
 
         return switch (result) {
             case final LoginResult.Success success -> {

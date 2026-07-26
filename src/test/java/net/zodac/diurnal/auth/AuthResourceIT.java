@@ -289,6 +289,38 @@ class AuthResourceIT extends IntegrationTestBase {
     }
 
     @Test
+    void login_emptyBody_returns400() {
+        // A missing (zero-length) body must be a 400 with the shared ApiErrorResponse shape - never a 500
+        // from dereferencing a null request, and never the framework's default violation report.
+        given().contentType(ContentType.JSON)
+                .post("/api/v1/auth/login")
+                .then().statusCode(400)
+                .body("message", containsStringIgnoringCase("required"));
+    }
+
+    @Test
+    void login_missingPassword_returns400() {
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"email":"login@example.com"}
+                        """)
+                .post("/api/v1/auth/login")
+                .then().statusCode(400)
+                .body("message", containsStringIgnoringCase("required"));
+    }
+
+    @Test
+    void login_blankEmail_returns400() {
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"email":"   ","password":"password123"}
+                        """)
+                .post("/api/v1/auth/login")
+                .then().statusCode(400)
+                .body("message", containsStringIgnoringCase("required"));
+    }
+
+    @Test
     void login_caseInsensitiveEmail() {
         registerUser("CasedLogin@Example.com", "Cased", "password123");
 
