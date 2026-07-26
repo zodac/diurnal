@@ -1,0 +1,28 @@
+{!
+  A labelled preview-tile picker (Settings -> Appearance): a section label above a 3-column
+  radiogroup of `partials/preview-option` tiles that auto-saves the chosen value via its own PATCH.
+  Extracted because the Theme / Calendar style / Font pickers were byte-identical but for their
+  label, group, option list and selected value (UI_PATTERNS.md section 1: extract on the 2nd use).
+
+  The radiogroup carries `hx-include` of ITSELF (`#{optionsId}`): htmx doesn't auto-serialize a
+  bare <div>'s descendant inputs the way a <form> does, so the group must include itself to send
+  the checked radio's value.
+
+  Params (all required):
+    optionsId — the radiogroup's id AND its hx-include target (e.g. "theme-options")
+    label     — the section heading, reused as the radiogroup's aria-label (e.g. "Calendar style")
+    group     — the radio group name / submitted field (e.g. "theme" | "calendarView" | "font")
+    endpoint  — the hx-patch URL the group auto-saves to (204, no swap)
+    options   — the PreviewOption list to render as tiles (e.g. themeOptions)
+    current   — the user's currently-selected value (drives each tile's checked state)
+    border    — true to add the section divider below (between pickers), false on the last one
+!}
+<div{#if border} class="pb-4 border-b border-line"{/if}>
+    <span class="block text-sm font-medium text-ink mb-3">{label}</span>
+    <div id="{optionsId}" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="{label}"
+         hx-patch="{endpoint}" hx-trigger="change" hx-swap="none" hx-include="#{optionsId}">
+        {#for option in options}
+        {#include partials/preview-option group=group value=option.value current=current imgBase=option.previewImage label=option.label title=option.title alt=option.alt /}
+        {/for}
+    </div>
+</div>
