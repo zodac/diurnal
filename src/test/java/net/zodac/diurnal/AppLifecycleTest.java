@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import net.zodac.diurnal.config.PasswordAuthConfig;
+import net.zodac.diurnal.config.QuarkusOidcConfig;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -99,8 +100,22 @@ class AppLifecycleTest {
                 return true;
             }
         };
-        lifecycle.oidcEnabled = oidcEnabled;
-        lifecycle.oidcIssuerUrl = issuerUrl;
+        lifecycle.quarkusOidcConfig = new QuarkusOidcConfig() {
+            @Override
+            public boolean tenantEnabled() {
+                return oidcEnabled;
+            }
+
+            @Override
+            public String authServerUrl() {
+                return issuerUrl;
+            }
+
+            @Override
+            public boolean discoveryEnabled() {
+                return true;
+            }
+        };
         return lifecycle;
     }
 }

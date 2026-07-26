@@ -24,11 +24,10 @@ import jakarta.inject.Inject;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import net.zodac.diurnal.config.AppConfig;
-import net.zodac.diurnal.config.ReleaseVersion;
+import net.zodac.diurnal.config.ApplicationVersion;
 import net.zodac.diurnal.config.UpdateCheckConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 /**
  * Performs a single best-effort "is a newer release available" check at application startup, compares the running version against the latest
@@ -54,8 +53,8 @@ public class UpdateCheckService {
     @Inject
     LatestReleaseClient releaseClient;
 
-    @ConfigProperty(name = "quarkus.application.version", defaultValue = "dev")
-    String mavenVersion = "dev";
+    @Inject
+    ApplicationVersion applicationVersion;
 
     private final AtomicReference<String> latestVersion = new AtomicReference<>();
 
@@ -67,7 +66,7 @@ public class UpdateCheckService {
      * @return the resolved update status
      */
     public UpdateStatus status() {
-        final String currentVersion = ReleaseVersion.resolve(mavenVersion);
+        final String currentVersion = applicationVersion.release();
         final String latest = latestVersion.get();
         final String latestReleaseUrl = UpdateCheck.latestReleaseUrl(appConfig.repositoryUrl(), latest);
         return UpdateCheck.evaluate(currentVersion, latest, latestReleaseUrl);
@@ -101,7 +100,7 @@ public class UpdateCheckService {
         final String latestVersionValue = latest.get();
         latestVersion.set(latestVersionValue);
 
-        final String currentVersion = ReleaseVersion.resolve(mavenVersion);
+        final String currentVersion = applicationVersion.release();
         if (UpdateCheck.isUpdateAvailable(currentVersion, latestVersionValue)) {
             LOGGER.info("A newer version is available: {} (currently running {}). See {}",
                 latestVersionValue, currentVersion, UpdateCheck.latestReleaseUrl(appConfig.repositoryUrl(), latestVersionValue));
