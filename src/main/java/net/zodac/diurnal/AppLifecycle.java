@@ -33,9 +33,9 @@ import java.util.Optional;
 import net.zodac.diurnal.auth.OidcDiscovery;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
+import net.zodac.diurnal.config.QuarkusOidcConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -55,14 +55,8 @@ public class AppLifecycle {
     @Inject
     PasswordAuthConfig passwordAuthConfig;
 
-    @ConfigProperty(name = "quarkus.oidc.tenant-enabled", defaultValue = "false")
-    boolean oidcEnabled;
-
-    @ConfigProperty(name = "quarkus.oidc.auth-server-url", defaultValue = "")
-    String oidcIssuerUrl = "";
-
-    @ConfigProperty(name = "quarkus.oidc.discovery-enabled", defaultValue = "true")
-    boolean oidcDiscoveryEnabled;
+    @Inject
+    QuarkusOidcConfig quarkusOidcConfig;
 
     @Inject
     OidcConfig oidcConfig;
@@ -87,9 +81,9 @@ public class AppLifecycle {
         LOGGER.info("=================================================");
         LOGGER.info("  Diurnal started");
         LOGGER.info("  Password auth : {}", passwordAuthConfig.enabled() ? "enabled" : "disabled");
-        if (oidcEnabled) {
+        if (quarkusOidcConfig.tenantEnabled()) {
             LOGGER.info("  OIDC          : enabled  (issuer: {}, provider: {}, auto-redirect: {})",
-                oidcIssuerUrl, oidcConfig.providerName(), oidcConfig.autoRedirect());
+                quarkusOidcConfig.authServerUrl(), oidcConfig.providerName(), oidcConfig.autoRedirect());
         } else {
             LOGGER.info("  OIDC          : disabled");
             if (oidcConfig.autoRedirect()) {
@@ -107,13 +101,13 @@ public class AppLifecycle {
      * @throws IllegalStateException if neither password auth nor OIDC is enabled, or if OIDC is enabled but no issuer URL is configured
      */
     void validateAuthConfig() {
-        if (!passwordAuthConfig.enabled() && !oidcEnabled) {
+        if (!passwordAuthConfig.enabled() && !quarkusOidcConfig.tenantEnabled()) {
             throw new IllegalStateException(
                 "Both PASSWORD_AUTH_ENABLED and OIDC_ENABLED are false - "
                 + "at least one authentication method must be enabled.");
         }
 
-        if (oidcEnabled && oidcIssuerUrl.isBlank()) {
+        if (quarkusOidcConfig.tenantEnabled() && quarkusOidcConfig.authServerUrl().isBlank()) {
             throw new IllegalStateException(
                 "OIDC_ENABLED=true but OIDC_ISSUER_URL is not set.");
         }
@@ -129,21 +123,22 @@ public class AppLifecycle {
      * @throws IllegalStateException if the provider cannot be reached or does not serve a valid discovery document
      */
     void verifyOidcDiscovery() {
-        if (!OidcDiscovery.shouldVerify(oidcEnabled, oidcConfig.verifyOnStartup(), oidcDiscoveryEnabled)) {
+        if (!OidcDiscovery.shouldVerify(quarkusOidcConfig.tenantEnabled(), oidcConfig.verifyOnStartup(), quarkusOidcConfig.discoveryEnabled())) {
             return;
         }
 
-        final String discoveryUrl = OidcDiscovery.discoveryUrl(oidcIssuerUrl);
+        final String issuerUrl = quarkusOidcConfig.authServerUrl();
+        final String discoveryUrl = OidcDiscovery.discoveryUrl(issuerUrl);
         LOGGER.debug("Verifying OIDC issuer at '{}'", discoveryUrl);
 
         final HttpResponse<String> response = fetchDiscovery(discoveryUrl);
         final Optional<String> failure;
         if (response == null) {
             LOGGER.debug("OIDC discovery endpoint {} could not be reached after {} attempt(s)", discoveryUrl, PROBE_ATTEMPTS);
-            failure = OidcDiscovery.validationFailure(oidcIssuerUrl, false, 0, "");
+            failure = OidcDiscovery.validationFailure(issuerUrl, false, 0, "");
         } else {
             LOGGER.debug("OIDC discovery endpoint {} responded with HTTP {}, body: {}", discoveryUrl, response.statusCode(), response.body());
-            failure = OidcDiscovery.validationFailure(oidcIssuerUrl, true, response.statusCode(), response.body());
+            failure = OidcDiscovery.validationFailure(issuerUrl, true, response.statusCode(), response.body());
         }
 
         failure.ifPresent(message -> {

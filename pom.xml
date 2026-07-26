@@ -111,6 +111,13 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-oidc</artifactId>
         </dependency>
+        <!-- Reactive REST client: the outbound GitHub "latest release" lookup for the admin-only update
+             check (GitHubReleasesApi / GitHubLatestReleaseClient). Returns the raw JSON body as a String,
+             so no JSON-binding variant is needed. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-rest-client</artifactId>
+        </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-rest-jackson</artifactId>

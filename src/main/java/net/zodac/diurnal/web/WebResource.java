@@ -61,6 +61,7 @@ import net.zodac.diurnal.auth.SessionStore;
 import net.zodac.diurnal.config.IpThrottleConfig;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
+import net.zodac.diurnal.config.QuarkusOidcConfig;
 import net.zodac.diurnal.config.RegistrationConfig;
 import net.zodac.diurnal.config.SessionConfig;
 import net.zodac.diurnal.stats.ActionStatField;
@@ -77,7 +78,6 @@ import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.user.UserSettings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -151,13 +151,10 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @Nullable
     RoutingContext routingContext;
 
-    @ConfigProperty(name = "quarkus.oidc.tenant-enabled", defaultValue = "false")
-    boolean oidcEnabled;
-
-    // The IdP's base URL (OIDC_ISSUER_URL): the Settings "Connected to {provider}" text links the provider name to it.
-    // Initialised to satisfy NullAway; CDI overwrites it with the config value on bean creation.
-    @ConfigProperty(name = "quarkus.oidc.auth-server-url", defaultValue = "")
-    String oidcIssuerUrl = "";
+    // The framework-owned quarkus.oidc.* keys the page reads: whether OIDC is enabled (tenant-enabled) and, for the
+    // Settings "Connected to {provider}" link, the IdP's base URL (auth-server-url / OIDC_ISSUER_URL).
+    @Inject
+    QuarkusOidcConfig quarkusOidcConfig;
 
     @Inject
     OidcConfig oidcConfig;
@@ -195,7 +192,7 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         }
         // Auto-redirect to OIDC flow when configured, but not when there is an error or
         // success message to show (e.g. after registration or a failed OIDC attempt).
-        if (oidcEnabled && oidcConfig.autoRedirect() && error == null && !registered) {
+        if (quarkusOidcConfig.tenantEnabled() && oidcConfig.autoRedirect() && error == null && !registered) {
             return Response.seeOther(URI.create("/oidc-login")).build();
         }
         // error is null when absent, "" when present with no value (?error), or a string value.
@@ -229,7 +226,7 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
             .data("oidcErrorMessage", oidcErrorMessage)
             .data("passwordAuthEnabled", passwordAuthConfig.enabled())
             .data("registrationEnabled", passwordAuthConfig.enabled() && registrationConfig.enabled())
-            .data("oidcEnabled", oidcEnabled)
+            .data("oidcEnabled", quarkusOidcConfig.tenantEnabled())
             .data("oidcProviderName", oidcConfig.providerName()))
             .type(MediaType.TEXT_HTML_TYPE);
         if (showOidcError) {
@@ -581,7 +578,7 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
     @Path("internal/settings/oidc/connect")
     @RolesAllowed(Role.Values.USER)
     public Response connectOidc() {
-        if (!oidcEnabled) {
+        if (!quarkusOidcConfig.tenantEnabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         final NewCookie intent = new NewCookie.Builder(OidcUserProvisioner.LINK_COOKIE)
@@ -767,8 +764,8 @@ public class WebResource { // NOPMD: TooManyFields - single web-page controller;
         return settingsTemplate
                 .data("settingsMessage", settingsMessage)
                 .data("settingsBannerVariant", settingsMessageIsError ? "error" : "success")
-                .data("oidcEnabled", oidcEnabled)
-                .data("oidcIssuerUrl", oidcIssuerUrl)
+                .data("oidcEnabled", quarkusOidcConfig.tenantEnabled())
+                .data("oidcIssuerUrl", quarkusOidcConfig.authServerUrl())
                 .data("email", user.email)
                 .data("displayName", user.displayName)
                 // Any account HOLDING a password (in practice the break-glass administrator when password

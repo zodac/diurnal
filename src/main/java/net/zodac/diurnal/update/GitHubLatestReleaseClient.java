@@ -17,15 +17,14 @@
 
 package net.zodac.diurnal.update;
 
+import io.quarkus.rest.client.reactive.QuarkusRestClientBuilder;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.io.IOException;
-import java.net.HttpURLConnection;
+import jakarta.ws.rs.ProcessingException;
+import jakarta.ws.rs.WebApplicationException;
 import java.net.URI;
-import java.net.http.HttpClient;
-import java.net.http.HttpRequest;
-import java.net.http.HttpResponse;
 import java.util.Optional;
+import java.util.concurrent.TimeUnit;
 import net.zodac.diurnal.config.AppConfig;
 import net.zodac.diurnal.config.UpdateCheckConfig;
 import org.apache.logging.log4j.LogManager;
@@ -35,14 +34,13 @@ import org.apache.logging.log4j.Logger;
  * The production {@link LatestReleaseClient}: queries the configured repository's GitHub REST API ({@code /releases}, newest-first) and takes
  * the most recent published release tag. The list endpoint is used rather than {@code /releases/latest} because the latter excludes pre-releases
  * and 404s for a repository that only publishes them. Pure URL-derivation and tag-extraction live in {@link UpdateCheck}; this bean owns only the
- * bounded, best-effort HTTP call (the untestable I/O, NO_COVERAGE like the startup OIDC probe in {@code AppLifecycle}).
+ * bounded, best-effort call over the {@link GitHubReleasesApi} Quarkus REST client (the untestable I/O, NO_COVERAGE like the startup OIDC probe in
+ * {@code AppLifecycle}).
  */
 @ApplicationScoped
 public class GitHubLatestReleaseClient implements LatestReleaseClient {
 
     private static final Logger LOGGER = LogManager.getLogger(GitHubLatestReleaseClient.class);
-    private static final String ACCEPT = "application/vnd.github+json";
-    private static final String USER_AGENT = "diurnal-update-check";
 
     @Inject
     AppConfig appConfig;
@@ -62,29 +60,21 @@ public class GitHubLatestReleaseClient implements LatestReleaseClient {
     }
 
     private Optional<String> fetchLatestTag(final URI uri) {
-        final HttpRequest request = HttpRequest.newBuilder()
-            .uri(uri)
-            .timeout(updateCheckConfig.timeout())
-            .header("Accept", ACCEPT)
-            .header("User-Agent", USER_AGENT)
-            .GET()
-            .build();
-
-        try (HttpClient client = HttpClient.newBuilder()
-            .connectTimeout(updateCheckConfig.timeout())
-            .followRedirects(HttpClient.Redirect.NORMAL)
-            .build()) {
-            final HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() != HttpURLConnection.HTTP_OK) {
-                LOGGER.debug("GitHub releases API {} returned HTTP {}", uri, response.statusCode());
-                return Optional.empty();
-            }
-            return UpdateCheck.extractLatestTag(response.body());
-        } catch (final IOException e) {
+        // The releases URL varies per repository, so the client is built with that full URL as its base URI (the interface method carries no path).
+        // A short-lived builder per one-shot startup call mirrors the previous per-call HttpClient; the configured timeout bounds both connect and
+        // read so a slow or hung provider can never stall the boot.
+        final long timeoutMillis = updateCheckConfig.timeout().toMillis();
+        try {
+            final GitHubReleasesApi client = QuarkusRestClientBuilder.newBuilder()
+                .baseUri(uri)
+                .connectTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+                .readTimeout(timeoutMillis, TimeUnit.MILLISECONDS)
+                .build(GitHubReleasesApi.class);
+            return UpdateCheck.extractLatestTag(client.listReleases());
+        } catch (final WebApplicationException | ProcessingException e) {
+            // WebApplicationException = a non-success status (e.g. 404/403); ProcessingException = a connection/timeout failure. Both are best-effort
+            // no-ops: the footer simply shows no indicator.
             LOGGER.debug("Update check request to {} failed: {}", uri, e.getMessage());
-            return Optional.empty();
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
             return Optional.empty();
         }
     }

@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import jakarta.enterprise.inject.Vetoed;
 import java.util.Map;
 import net.zodac.diurnal.config.AppConfig;
-import net.zodac.diurnal.config.ReleaseVersion;
+import net.zodac.diurnal.config.ApplicationVersion;
 import net.zodac.diurnal.update.UpdateCheck;
 import net.zodac.diurnal.update.UpdateCheckService;
 import net.zodac.diurnal.update.UpdateStatus;
@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Unit tests for {@link AppInfo}, the build-metadata bean surfaced to the Qute templates. The {@code app.*} values normally come from a
  * {@link AppConfig} {@code @ConfigMapping}; here a stub implementation supplies them to exercise the accessors and the build-year parsing in
- * isolation. The version is delegated to {@link ReleaseVersion} (tested separately), so only the delegation is exercised here.
+ * isolation. The version is delegated to {@link ApplicationVersion} (tested separately), so only the delegation is exercised here.
  */
 class AppInfoTest {
 
@@ -61,15 +61,14 @@ class AppInfoTest {
     }
 
     @Test
-    void version_delegatesToPackagedReleaseVersion() {
-        // getVersion() delegates to ReleaseVersion, which reads the packaged /VERSION resource in
-        // preference to the Maven project version fallback.
+    void version_delegatesToApplicationVersion() {
+        // getVersion() is a thin delegate over ApplicationVersion.release() (the packaged-VERSION
+        // resolution itself is tested in ApplicationVersionTest); assert the value passes straight through.
         final AppInfo appInfo = new AppInfo();
-        appInfo.version = "0.0.1-SNAPSHOT";
+        appInfo.applicationVersion = new StubApplicationVersion("1.2.3");
         assertThat(appInfo.getVersion())
-            .as("the packaged VERSION resource should be used, not the Maven project version")
-            .isNotEqualTo("0.0.1-SNAPSHOT")
-            .isNotBlank();
+            .as("getVersion() should return exactly what ApplicationVersion resolves")
+            .isEqualTo("1.2.3");
     }
 
     @Test
@@ -308,6 +307,24 @@ class AppInfoTest {
         @Override
         public UpdateStatus status() {
             return status;
+        }
+    }
+
+    // Returns a fixed version so the delegation from AppInfo.getVersion() can be asserted without reading the packaged VERSION resource.
+    // @Vetoed keeps it out of CDI discovery (@ApplicationScoped is @Inherited); it is only ever hand-constructed here.
+    @Vetoed
+    private static final class StubApplicationVersion extends ApplicationVersion {
+
+        private final String version;
+
+        StubApplicationVersion(final String version) {
+            super();
+            this.version = version;
+        }
+
+        @Override
+        public String release() {
+            return version;
         }
     }
 

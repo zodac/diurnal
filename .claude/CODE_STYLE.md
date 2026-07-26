@@ -336,3 +336,55 @@ line-wrap and method-call-child agree at `+4`). The same swap applies to any oth
 
 > **More generally:** any *multi-line arguments on a chained method call* hit this same strict-`Indentation` wall (e.g.
 `.collect(Collectors.groupingBy(a, b))` split across lines). Fix it by collapsing the call onto one line when it fits within 150 chars, or by extracting the inner call/arguments to a local variable at statement level.
+
+### Configuration is read through typed `@ConfigMapping`, never scattered property lookups
+
+**Every configuration value is read through a typed SmallRye `@ConfigMapping` interface** (see `net.zodac.diurnal.config.*` — `AppConfig`,
+`SessionConfig`, `OidcConfig`, …). A `@ConfigMapping` groups related keys under one `prefix`, gives each a `@WithName`/`@WithDefault`, is injected as
+a normal CDI bean, and is trivially stubbed in a unit test (it is an interface). **Never** read config with a raw `@ConfigProperty` field,
+`ConfigProvider.getConfig()`, `config.getValue(...)`, `System.getProperty(...)`, or `System.getenv(...)` in application code.
+
+This holds **even for framework-owned `quarkus.*` keys** the app inspects (e.g. `quarkus.oidc.tenant-enabled`, `quarkus.application.version`): wrap
+the handful you read in a `@ConfigMapping(prefix = "quarkus.…")` view (`QuarkusOidcConfig`, `QuarkusApplicationConfig`) rather than sprinkling
+`@ConfigProperty` across the beans that need them. The extension still owns the full key surface; the mapping is only a read-only view of the keys the
+app actually reads. Where a raw value needs post-processing (e.g. resolving the packaged `VERSION` over the Maven version), do it **once** in a shared
+`@ApplicationScoped` accessor bean (`ApplicationVersion`) that every caller injects — never repeat the lookup-and-transform at each call site.
+
+❌ **Wrong** — a raw `@ConfigProperty` field (and the same key read/transformed in two beans):
+
+```java
+@ConfigProperty(name = "quarkus.application.version", defaultValue = "dev")
+String version = "dev";
+// ... and elsewhere: ReleaseVersion.resolve(version) repeated in another bean
+```
+
+✅ **Right** — a `@ConfigMapping` view plus a single shared accessor:
+
+```java
+@ConfigMapping(prefix = "quarkus.application")
+public interface QuarkusApplicationConfig {
+
+    @WithName("version")
+    @WithDefault("dev")
+    String version();
+}
+
+@ApplicationScoped
+public class ApplicationVersion {
+
+    @Inject
+    QuarkusApplicationConfig applicationConfig;
+
+    public String release() {
+        return ReleaseVersion.resolve(applicationConfig.version());
+    }
+}
+```
+
+> Exceptions: build-time `OASFilter`/annotation-processing hooks and other non-CDI contexts that cannot inject a bean (e.g.
+`openapi.PublicApiFilter`) may read config directly — CDI is not available there.
+
+> **Scope — this rule governs `src/main` only.** Tests may read config with a raw `@ConfigProperty` (or build a `SmallRyeConfig` directly): a
+`@QuarkusTest` probing the active environment to construct fixtures (e.g. the OIDC group ITs reading `oidc.admin.group`), or a test exercising a
+mapping mechanism itself (`AppConfigTest`), is idiomatic and must stay independent of the production mapping bean. Do not "fix" these to
+`@ConfigMapping`.

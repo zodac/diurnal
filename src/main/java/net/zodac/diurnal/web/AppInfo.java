@@ -21,10 +21,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import net.zodac.diurnal.config.AppConfig;
-import net.zodac.diurnal.config.ReleaseVersion;
+import net.zodac.diurnal.config.ApplicationVersion;
 import net.zodac.diurnal.update.UpdateCheck;
 import net.zodac.diurnal.update.UpdateCheckService;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -50,11 +49,10 @@ public class AppInfo {
     private static final String TAGLINE = "Make every day count";
 
     /**
-     * The Maven project version (e.g. {@code 0.0.1-SNAPSHOT}), used only as a fallback for {@link #getVersion()} when the {@code VERSION} resource
-     * cannot be read.
+     * The single accessor for the running application's release version.
      */
-    @ConfigProperty(name = "quarkus.application.version", defaultValue = "dev")
-    String version = "dev";
+    @Inject
+    ApplicationVersion applicationVersion;
 
     /**
      * Application-specific {@code app.*} settings (repository URL, build timestamp, stylesheet name).
@@ -69,14 +67,14 @@ public class AppInfo {
     UpdateCheckService updateCheckService;
 
     /**
-     * The release version (e.g. {@code 0.0.1}), shown in the footer. Read from the repository's {@code VERSION} file (packaged onto the classpath)
-     * via {@link ReleaseVersion} — the authoritative release version, which CI bumps independently of the {@code -SNAPSHOT} Maven project version.
-     * Falls back to the Maven project version ({@link #version}) when the resource is missing, blank, or unreadable.
+     * The release version (e.g. {@code 0.0.1}), shown in the footer. Delegates to {@link ApplicationVersion}, which reads the authoritative version
+     * from the repository's {@code VERSION} file (packaged onto the classpath) — CI bumps it independently of the {@code -SNAPSHOT} Maven project
+     * version — and falls back to the Maven project version when the resource is missing, blank, or unreadable.
      *
      * @return the release version
      */
     public String getVersion() {
-        return ReleaseVersion.resolve(version);
+        return applicationVersion.release();
     }
 
     /**
