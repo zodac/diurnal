@@ -18,8 +18,11 @@
 package net.zodac.diurnal.log;
 
 import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import net.zodac.diurnal.openapi.ApiErrorResponse;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -44,7 +47,8 @@ final class DateRanges {
      */
     static LocalDate requireDate(final String name, final @Nullable String value) {
         if (value == null || value.isBlank()) {
-            throw new BadRequestException("Query parameter '" + name + "' is required");
+            final String message = "Query parameter '" + name + "' is required";
+            throw new BadRequestException(message, jsonError(message));
         }
 
         // Math.min instead of a length conditional: at exactly ISO_DATE_LENGTH both branches are identical, which would leave an unkillable
@@ -53,7 +57,17 @@ final class DateRanges {
         try {
             return LocalDate.parse(datePart);
         } catch (final DateTimeParseException e) {
-            throw new BadRequestException("Query parameter '" + name + "' is not a valid ISO-8601 date: " + value, e);
+            final String message = "Query parameter '" + name + "' is not a valid ISO-8601 date: " + value;
+            throw new BadRequestException(message, jsonError(message), e);
         }
+    }
+
+    // Carries the shared /api/v1 ApiErrorResponse JSON body on the thrown 400, so a bad date matches the error shape the OpenAPI document
+    // promises (rather than falling through to RESTEasy's default body). The exception message is kept identical to the entity message.
+    private static Response jsonError(final String message) {
+        return Response.status(Response.Status.BAD_REQUEST)
+            .entity(new ApiErrorResponse(message))
+            .type(MediaType.APPLICATION_JSON_TYPE)
+            .build();
     }
 }

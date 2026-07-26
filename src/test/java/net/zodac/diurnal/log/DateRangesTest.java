@@ -21,7 +21,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
 
 import jakarta.ws.rs.BadRequestException;
+import jakarta.ws.rs.core.MediaType;
+import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
+import net.zodac.diurnal.openapi.ApiErrorResponse;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -72,5 +75,27 @@ class DateRangesTest {
             .as("a non-date value should be rejected")
             .isThrownBy(() -> DateRanges.requireDate("start", "not-a-date"))
             .withMessageContaining("not a valid ISO-8601 date");
+    }
+
+    @Test
+    void requireDate_rejection_carriesJsonApiErrorBody() {
+        assertThatExceptionOfType(BadRequestException.class)
+            .as("a rejected date should carry the shared API error body, not RESTEasy's default")
+            .isThrownBy(() -> DateRanges.requireDate("start", "not-a-date"))
+            .satisfies(exception -> {
+                final Response response = exception.getResponse();
+                assertThat(response.getStatus())
+                    .as("a rejected date should map to a 400")
+                    .isEqualTo(Response.Status.BAD_REQUEST.getStatusCode());
+                assertThat(response.getMediaType())
+                    .as("the error body should be JSON")
+                    .isEqualTo(MediaType.APPLICATION_JSON_TYPE);
+                assertThat(response.getEntity())
+                    .as("the body should be the shared ApiErrorResponse shape")
+                    .isInstanceOf(ApiErrorResponse.class);
+                assertThat(((ApiErrorResponse) response.getEntity()).message())
+                    .as("the JSON message should match the exception message")
+                    .contains("not a valid ISO-8601 date");
+            });
     }
 }
