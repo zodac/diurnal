@@ -7,7 +7,10 @@
         {#include partials/colour-picker value=action.colour inputCls='dt-color-input'
             wrapperCls='hidden' dtEdit=true form=str:fmt('action-form-%s', action.id) /}
     </td>
-    <td class="dt-cell font-medium">
+    {! whitespace-nowrap keeps a long name on one line; with the table's auto layout the name column
+         then grows to fit it, pushing the table past the container so the overflow-x-auto wrap shows a
+         horizontal scrollbar - never wrapped, never truncated, never overlapping the action buttons. !}
+    <td class="dt-cell font-medium whitespace-nowrap">
         <span data-dt-view>{action.name}</span>
         <form data-dt-edit id="action-form-{action.id}" class="hidden"
               hx-post="/internal/actions/{action.id}"

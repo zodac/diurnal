@@ -685,13 +685,13 @@
             }
         }
 
-        /* Table shell */
+        /* Table shell. width:100% is the preferred width, but with auto layout (no dt-table-fixed)
+           a whitespace-nowrap cell whose content exceeds its share sizes the column to fit, pushing
+           the table past its container so the overflow-x-auto wrap shows a horizontal scrollbar -
+           values are never wrapped or truncated. The data tables (actions, admin-users, IP-lockout)
+           rely on this; each sets its value cells whitespace-nowrap and its column proportions via a
+           <colgroup>. */
         .dt-table { width: 100%; font-size: .875rem; line-height: 1.25rem; }
-        /* Fixed layout: column widths come from the header <colgroup>, not the body content, so a row
-           collapsing into a single colspan cell (the in-place confirm row) can NEVER re-flow the other
-           columns. Opt-in per table (currently the admin IP-lockout table), because auto layout still
-           suits the content-sized tables. */
-        .dt-table-fixed { table-layout: fixed; }
         .dt-table thead tr { border-bottom: 1px solid var(--color-border); }
         .dt-head-cell { padding: .75rem 1rem; text-align: left; font-size: .75rem; line-height: 1rem;
             font-weight: 500; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .025em; }

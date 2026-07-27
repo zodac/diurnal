@@ -7,9 +7,13 @@
     history — PaginatedIpLockouts of the last week's lockouts
 !}
 <div class="overflow-x-auto">
-    {! Fixed column widths (dt-table-fixed + this colgroup) so the in-place confirm row's single
-       colspan cell never re-flows the other columns - the widths are content-independent. !}
-    <table class="dt-table dt-table-fixed">
+    {! Auto table layout (NOT dt-table-fixed): the value cells are whitespace-nowrap, so a long IP or
+       date sizes its column to its content and pushes the table past the container - the overflow-x-auto
+       wrap then shows a horizontal scrollbar instead of the value wrapping, being truncated, or the
+       columns overlapping their neighbours. The colgroup percentages set the proportions while content
+       fits; short content lets the table fill 100%. Trade-off vs fixed layout: editing/deleting the
+       single longest-valued row can nudge the other columns as that column re-sizes. !}
+    <table class="dt-table">
         <colgroup>
             <col style="width: 24%">
             <col style="width: 24%">
