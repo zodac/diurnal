@@ -28,10 +28,13 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
+import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
+import net.zodac.diurnal.auth.IpLockoutService;
 import net.zodac.diurnal.auth.SessionActivityService;
+import net.zodac.diurnal.config.IpThrottleConfig;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.AdminUserService;
 import net.zodac.diurnal.user.CurrentUser;
@@ -51,28 +54,35 @@ public class AdminWebResource {
     private final CurrentUser currentUser;
     private final AdminUserService adminUserService;
     private final SessionActivityService sessionActivityService;
+    private final IpLockoutService ipLockoutService;
+    private final IpThrottleConfig ipThrottleConfig;
     private final AppClock clock;
 
     /**
-     * Injects the admin page templates, the current-user accessor, the shared admin-user service, the recently-active presence service and the
-     * application clock.
+     * Injects the admin page templates, the current-user accessor, the shared admin-user service, the recently-active presence service, the shared
+     * per-IP lockout service, the throttle settings (whether the lockout feature is enabled) and the application clock.
      *
      * @param adminUsersTemplate the admin-users page template
      * @param adminApiDocsTemplate the admin API-docs page template
      * @param currentUser the current-user accessor
      * @param adminUserService the shared admin-user-mutation service
      * @param sessionActivityService the recently-active presence service
+     * @param ipLockoutService the shared per-IP lockout service
+     * @param ipThrottleConfig the per-IP throttle settings (whether the lockout feature is enabled)
      * @param clock the application clock for date-boundary logic
      */
     @Inject
     public AdminWebResource(@Location("admin-users") final Template adminUsersTemplate,
         @Location("admin-api-docs") final Template adminApiDocsTemplate, final CurrentUser currentUser, final AdminUserService adminUserService,
-        final SessionActivityService sessionActivityService, final AppClock clock) {
+        final SessionActivityService sessionActivityService, final IpLockoutService ipLockoutService, final IpThrottleConfig ipThrottleConfig,
+        final AppClock clock) {
         this.adminUsersTemplate = adminUsersTemplate;
         this.adminApiDocsTemplate = adminApiDocsTemplate;
         this.currentUser = currentUser;
         this.adminUserService = adminUserService;
         this.sessionActivityService = sessionActivityService;
+        this.ipLockoutService = ipLockoutService;
+        this.ipThrottleConfig = ipThrottleConfig;
         this.clock = clock;
     }
 
@@ -89,14 +99,20 @@ public class AdminWebResource {
         final User actor = currentUser.get();
         final AdminUserService.UsersPage page = adminUserService.usersPage(pageNum, actor.pageSize);
         final ZoneId zone = clock.zoneFor(actor.timezone);
+        final Instant now = clock.now();
         final List<UUID> ids = page.users().stream().map(u -> u.id).toList();
+        final boolean lockoutEnabled = ipThrottleConfig.enabled();
         return adminUsersTemplate
                 .data("email", actor.email)
                 .data("displayName", actor.displayName)
                 .data("theme", actor.theme)
                 .data("font", actor.font)
                 .data("isAdmin", true)
-                .data("page", AdminUsersInternalResource.toRows(page, zone, sessionActivityService.recentActivityByUser(ids, clock.now())));
+                .data("page", AdminUsersInternalResource.toRows(page, zone, sessionActivityService.recentActivityByUser(ids, now)))
+                .data("ipThrottleEnabled", lockoutEnabled)
+                .data("lockoutsHistory", lockoutEnabled
+                    ? AdminIpLockoutsInternalResource.toHistory(ipLockoutService.history(1, actor.pageSize, now), zone, now)
+                    : new AdminIpLockoutsInternalResource.PaginatedIpLockouts(List.of(), 0L, 0, 1));
     }
 
     /**

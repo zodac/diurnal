@@ -21,6 +21,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import net.zodac.diurnal.config.IpThrottleConfig;
 
 /**
@@ -86,6 +87,29 @@ public class IpThrottle {
      */
     public Duration lockoutRemaining(final String clientIp, final Instant now) {
         return throttle.lockoutRemaining(clientIp, now);
+    }
+
+    /**
+     * The client IPs currently locked out at {@code now}, each with its expiry and failure tally. Empty when throttling is disabled or none are
+     * locked. Snapshots the live in-memory enforcement state (so it resets on restart along with it).
+     *
+     * @param now the current instant
+     * @return the currently-locked IPs
+     */
+    public List<AttemptThrottle.ActiveLockout> currentLockouts(final Instant now) {
+        return throttle.currentLockouts(now);
+    }
+
+    /**
+     * Manually clears the lockout (and failure counter) for the given client IP, so a subsequent attempt from it is no longer rejected. A no-op when
+     * throttling is disabled or the IP is not tracked.
+     *
+     * @param clientIp the client IP to unlock
+     * @param now      the current instant
+     * @return {@code true} if the IP was actually locked out at the moment it was cleared
+     */
+    public boolean unlock(final String clientIp, final Instant now) {
+        return throttle.unlock(clientIp, now);
     }
 
     /**

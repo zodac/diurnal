@@ -49,6 +49,7 @@ public class AuthenticationService {
 
     private final Instance<AuthenticationService> self;
     private final IpThrottle ipThrottle;
+    private final IpLockoutService ipLockoutService;
     private final PasswordAuthConfig passwordAuthConfig;
     private final Passwords passwords;
 
@@ -58,14 +59,16 @@ public class AuthenticationService {
      *
      * @param self a lazy self-reference used to invoke the transactional {@code recordLogin} methods through the CDI proxy
      * @param ipThrottle the per-IP login throttle
+     * @param ipLockoutService the shared per-IP lockout recorder (records the failure and persists a history row when a lockout trips)
      * @param passwordAuthConfig the password-auth settings
      * @param passwords the Argon2id password service
      */
     @Inject
     public AuthenticationService(final Instance<AuthenticationService> self, final IpThrottle ipThrottle,
-        final PasswordAuthConfig passwordAuthConfig, final Passwords passwords) {
+        final IpLockoutService ipLockoutService, final PasswordAuthConfig passwordAuthConfig, final Passwords passwords) {
         this.self = self;
         this.ipThrottle = ipThrottle;
+        this.ipLockoutService = ipLockoutService;
         this.passwordAuthConfig = passwordAuthConfig;
         this.passwords = passwords;
     }
@@ -114,7 +117,7 @@ public class AuthenticationService {
             return self.get().recordLogin(user.id);
         }
 
-        final AttemptThrottle.FailureOutcome outcome = ipThrottle.recordFailure(clientIp, now);
+        final AttemptThrottle.FailureOutcome outcome = ipLockoutService.recordFailure(clientIp, now);
         LoginAttemptLog.logFailure(LOGGER, outcome, email, clientIp);
         return new LoginResult.InvalidCredentials();
     }

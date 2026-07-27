@@ -30,6 +30,7 @@ import org.junit.jupiter.api.Test;
 class AttemptThrottleTest {
 
     private static final String KEY = "203.0.113.7"; // NOPMD: AvoidUsingHardCodedIP - Test IP key
+    private static final String KEY2 = "198.51.100.9"; // NOPMD: AvoidUsingHardCodedIP - Test IP key
     private static final Instant T0 = Instant.parse("2026-06-15T12:00:00Z");
     private static final int MAX_ATTEMPTS = 3;
     private static final Duration LOCKOUT = Duration.ofMinutes(10);
@@ -244,6 +245,117 @@ class AttemptThrottleTest {
 
         assertThat(throttle.isLocked(KEY, T0))
                 .as("clear() must forget the lockout")
+                .isFalse();
+    }
+
+    @Test
+    void currentLockouts_emptyWhenNoneLocked() {
+        final AttemptThrottle throttle = throttle(true);
+        throttle.recordFailure(KEY, T0); // sub-threshold: counting but not locked
+
+        assertThat(throttle.currentLockouts(T0))
+                .as("A key below the threshold must not appear as a current lockout")
+                .isEmpty();
+    }
+
+    @Test
+    void currentLockouts_listsLockedKeyWithExpiryAndCount() {
+        final AttemptThrottle throttle = throttle(true);
+        lockOut(throttle);
+
+        assertThat(throttle.currentLockouts(T0))
+                .as("A locked key must be listed with its expiry and failure count")
+                .containsExactly(new AttemptThrottle.ActiveLockout(KEY, T0.plus(LOCKOUT), MAX_ATTEMPTS));
+    }
+
+    @Test
+    void currentLockouts_excludesExpiredLockout() {
+        final AttemptThrottle throttle = throttle(true);
+        lockOut(throttle);
+
+        assertThat(throttle.currentLockouts(T0.plus(LOCKOUT)))
+                .as("A lockout that has reached its expiry must not be listed as current")
+                .isEmpty();
+    }
+
+    @Test
+    void currentLockouts_listsOnlyTheLockedKeysAmongMany() {
+        final AttemptThrottle throttle = throttle(true);
+        lockOut(throttle);
+        throttle.recordFailure(KEY2, T0); // KEY2 stays below the threshold
+
+        assertThat(throttle.currentLockouts(T0))
+                .as("Only keys actually locked must be listed")
+                .containsExactly(new AttemptThrottle.ActiveLockout(KEY, T0.plus(LOCKOUT), MAX_ATTEMPTS));
+    }
+
+    @Test
+    void currentLockouts_emptyWhenDisabled() {
+        final AttemptThrottle throttle = throttle(false);
+        for (int i = 0; i < MAX_ATTEMPTS; i++) {
+            throttle.recordFailure(KEY, T0);
+        }
+
+        assertThat(throttle.currentLockouts(T0))
+                .as("A disabled throttle never reports current lockouts")
+                .isEmpty();
+    }
+
+    @Test
+    void unlock_clearsLockAndReportsWasLocked() {
+        final AttemptThrottle throttle = throttle(true);
+        lockOut(throttle);
+
+        assertThat(throttle.unlock(KEY, T0))
+                .as("Unlocking a locked key must report that it was locked")
+                .isTrue();
+        assertThat(throttle.isLocked(KEY, T0))
+                .as("The key must no longer be locked after an unlock")
+                .isFalse();
+    }
+
+    @Test
+    void unlock_untrackedKey_reportsFalse() {
+        assertThat(throttle(true).unlock(KEY, T0))
+                .as("Unlocking a never-seen key reports it was not locked")
+                .isFalse();
+    }
+
+    @Test
+    void unlock_subThresholdKey_reportsFalseButClearsTheCount() {
+        final AttemptThrottle throttle = throttle(true);
+        throttle.recordFailure(KEY, T0);
+        throttle.recordFailure(KEY, T0); // below the threshold
+
+        assertThat(throttle.unlock(KEY, T0))
+                .as("Unlocking a key that was only counting (not locked) reports it was not locked")
+                .isFalse();
+        // The counter was cleared, so it now takes the full threshold again to lock.
+        throttle.recordFailure(KEY, T0);
+        assertThat(throttle.isLocked(KEY, T0))
+                .as("A single failure after unlock must not relock a previously-counting key")
+                .isFalse();
+    }
+
+    @Test
+    void unlock_expiredLockout_reportsFalse() {
+        final AttemptThrottle throttle = throttle(true);
+        lockOut(throttle);
+
+        assertThat(throttle.unlock(KEY, T0.plus(LOCKOUT)))
+                .as("Unlocking an already-expired lockout reports it was not locked")
+                .isFalse();
+    }
+
+    @Test
+    void unlock_whenDisabled_reportsFalse() {
+        final AttemptThrottle throttle = throttle(false);
+        for (int i = 0; i < MAX_ATTEMPTS; i++) {
+            throttle.recordFailure(KEY, T0);
+        }
+
+        assertThat(throttle.unlock(KEY, T0))
+                .as("A disabled throttle has nothing to unlock")
                 .isFalse();
     }
 

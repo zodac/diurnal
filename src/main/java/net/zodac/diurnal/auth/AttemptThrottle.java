@@ -19,6 +19,8 @@ package net.zodac.diurnal.auth;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -121,6 +123,41 @@ public final class AttemptThrottle {
     }
 
     /**
+     * The keys currently locked out at {@code now}, each with its expiry and failure tally. Always empty when throttling is disabled. A snapshot of
+     * the live in-memory state, so it reflects exactly what the enforcement path would reject right now (and resets on restart with that state).
+     *
+     * @param now the current instant
+     * @return the currently-locked keys (never {@code null}; empty when none are locked or throttling is off)
+     */
+    public List<ActiveLockout> currentLockouts(final Instant now) {
+        if (!enabled) {
+            return List.of();
+        }
+        final List<ActiveLockout> locked = new ArrayList<>();
+        attempts.forEach((key, attempt) -> {
+            if (attempt.isLockedAt(now)) {
+                locked.add(new ActiveLockout(key, Objects.requireNonNull(attempt.lockedUntil), attempt.failureCount));
+            }
+        });
+        return List.copyOf(locked);
+    }
+
+    /**
+     * Manually clears all tracked state for the given key, so it is no longer locked out and its failure counter starts fresh. A no-op when
+     * throttling is disabled or the key is untracked.
+     *
+     * @param key the throttle key (the client IP) to clear
+     * @return {@code true} if the key was actually locked out at the moment it was cleared
+     */
+    public boolean unlock(final String key, final Instant now) {
+        if (!enabled) {
+            return false;
+        }
+        final Attempt removed = attempts.remove(key);
+        return removed != null && removed.isLockedAt(now);
+    }
+
+    /**
      * Forgets all tracked attempts. Test-support hook so an integration test can start from a clean slate; production code never calls this.
      */
     void clear() {
@@ -137,6 +174,17 @@ public final class AttemptThrottle {
      * @param lockoutDuration the configured lockout length
      */
     public record FailureOutcome(int failureCount, int maxAttempts, boolean lockedOut, Duration lockoutDuration) {
+    }
+
+    /**
+     * A key that is locked out right now: its identity, when the lockout expires, and the failure tally that tripped it. Consumed by the admin
+     * "currently locked out" view.
+     *
+     * @param key          the locked key (the client IP)
+     * @param lockedUntil  the instant the lockout expires
+     * @param failureCount the failure count recorded for the key
+     */
+    public record ActiveLockout(String key, Instant lockedUntil, int failureCount) {
     }
 
     private static final class Attempt {

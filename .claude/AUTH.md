@@ -75,6 +75,21 @@ attempt (x of y) … (IP: …)` plus a `WARN` `IP locked out …` when the count
 deploy. Time comes in as an explicit `Instant` param (from `AppClock.now()`) so the logic is pure/unit-testable and ITs can
 freeze/advance the clock; keep the branching in `AttemptThrottle`/`IpThrottle` (unit-tested to 100% PIT strength), not the glue.
 
+**Admin lockout view + history (`IpLockoutService`).** When the lockout is enabled, administrators get a management surface for it, on the
+`/admin/users` page under User Management and gated on `AUTH_IP_THROTTLE_ENABLED` (disabled → the section is hidden and every endpoint `404`s, the
+`register`-when-off precedent). The web UI shows a **single table** of every lockout within the one-week retention window (`IpLockout` entity + `V23`
+migration), most recent first — active, expired and manually-unlocked alike — paginated by the viewer's page-size preference, with an **Unlock**
+button on the active rows only; the whole section (heading included) is omitted when there are no lockouts to show. The live in-memory
+`AttemptThrottle` snapshot (`IpThrottle.currentLockouts`) is no longer surfaced as its own table — it is exposed only via the public API's
+`GET /api/v1/admin/ip-lockouts`. The history persists even after a lockout expires or is manually cleared. The history is **durable** (survives restart, unlike the in-memory enforcement it logs); a row is written the moment a lockout trips (via
+`IpLockoutService.recordFailure`, which both `AuthenticationService` and `RegistrationService` now call in place of `IpThrottle.recordFailure` — it
+records the in-memory failure and, on the tripping failure, persists the history row in its own short `self`-invoked transaction, the hashing-service
+pattern). Each persisted lockout also prunes rows older than `IpLockout.HISTORY_RETENTION` (7 days), so the table stays bounded with no sweeper. A
+manual unlock (`IpLockoutService.unlock`) clears the in-memory entry **and** stamps the matching history row's `unlockedAt`/`unlockedBy`; a row's
+displayed status (`ACTIVE`/`EXPIRED`/`UNLOCKED`) is derived by the pure `IpLockoutStatus` enum. Both surfaces are thin over the one service — the web
+UI's HTMX endpoints (`/internal/admin/ip-lockouts/*`, `AdminIpLockoutsInternalResource`) and the public REST twins (`GET /api/v1/admin/ip-lockouts`,
+`GET …/history`, `DELETE …/{ip}`, `AdminIpLockoutsApiResource`, in `OpenApiSurfaceIT.PUBLIC_API_CONTRACT`).
+
 > **Resolve the current user via `SecurityIdentity.getPrincipal().getName()` (the email) → `User.findByEmail(...)`, or the `userId` attribute →
 `User.findByIdOptional`** (see `CurrentUser`). The session identity (`UserIdentities.of`) sets the email principal plus `userId`/`displayName`
 attributes; there is no JWT/`JsonWebToken` in play.
