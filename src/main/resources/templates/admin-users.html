@@ -21,6 +21,11 @@
                 {#include partials/admin-users-list page=page /}
             </div>
         </div>
+
+        {! Per-IP lockout management, shown only when the lockout feature is enabled. !}
+        {#if ipThrottleEnabled}
+        {#include partials/admin-ip-lockouts history=lockoutsHistory /}
+        {/if}
     </main>
 
     {#include partials/footer /}

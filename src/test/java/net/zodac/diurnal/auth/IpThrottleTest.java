@@ -101,6 +101,47 @@ class IpThrottleTest {
                 .isFalse();
     }
 
+    @Test
+    void currentLockouts_listsTheLockedIp() {
+        final IpThrottle throttle = throttle();
+        for (int i = 0; i < MAX_ATTEMPTS; i++) {
+            throttle.recordFailure(DUMMY_IP, NOW);
+        }
+
+        assertThat(throttle.currentLockouts(NOW))
+                .as("The locked IP must be reported with its expiry and failure count")
+                .containsExactly(new AttemptThrottle.ActiveLockout(DUMMY_IP, NOW.plus(LOCKOUT), MAX_ATTEMPTS));
+    }
+
+    @Test
+    void currentLockouts_emptyWhenNothingLocked() {
+        assertThat(throttle().currentLockouts(NOW))
+                .as("No IPs locked means no current lockouts")
+                .isEmpty();
+    }
+
+    @Test
+    void unlock_clearsTheLockout() {
+        final IpThrottle throttle = throttle();
+        for (int i = 0; i < MAX_ATTEMPTS; i++) {
+            throttle.recordFailure(DUMMY_IP, NOW);
+        }
+
+        assertThat(throttle.unlock(DUMMY_IP, NOW))
+                .as("Unlocking a locked IP must report it was locked")
+                .isTrue();
+        assertThat(throttle.isLocked(DUMMY_IP, NOW))
+                .as("The IP must no longer be locked after an unlock")
+                .isFalse();
+    }
+
+    @Test
+    void unlock_unknownIp_reportsFalse() {
+        assertThat(throttle().unlock(DUMMY_IP, NOW))
+                .as("Unlocking a never-seen IP reports it was not locked")
+                .isFalse();
+    }
+
     private record FixedConfig(boolean enabled, int maxAttempts, Duration lockoutDuration) implements IpThrottleConfig {
 
     }

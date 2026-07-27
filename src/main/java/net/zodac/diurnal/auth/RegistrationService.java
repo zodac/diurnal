@@ -60,6 +60,7 @@ public class RegistrationService {
     private final Passwords passwords;
     private final RoleAssigner roleAssigner;
     private final IpThrottle ipThrottle;
+    private final IpLockoutService ipLockoutService;
 
     /**
      * Injects collaborators and a lazy self-reference. The self {@link Instance} resolves the CDI client proxy on demand so the short
@@ -70,14 +71,16 @@ public class RegistrationService {
      * @param passwords the Argon2id password service
      * @param roleAssigner the shared role-assignment policy
      * @param ipThrottle the per-IP registration throttle
+     * @param ipLockoutService the shared per-IP lockout recorder (records the failure and persists a history row when a lockout trips)
      */
     @Inject
     public RegistrationService(final Instance<RegistrationService> self, final Passwords passwords, final RoleAssigner roleAssigner,
-        final IpThrottle ipThrottle) {
+        final IpThrottle ipThrottle, final IpLockoutService ipLockoutService) {
         this.self = self;
         this.passwords = passwords;
         this.roleAssigner = roleAssigner;
         this.ipThrottle = ipThrottle;
+        this.ipLockoutService = ipLockoutService;
     }
 
     /**
@@ -109,13 +112,13 @@ public class RegistrationService {
         final List<String> missingFields = missingFields(emailValue, displayNameValue, passwordValue, confirmPassword);
         final List<String> errors = validate(emailValue, displayNameValue, passwordValue, confirmPassword);
         if (!missingFields.isEmpty() || !errors.isEmpty()) {
-            RegistrationAttemptLog.logFailure(LOGGER, ipThrottle.recordFailure(clientIp, now), emailValue, clientIp);
+            RegistrationAttemptLog.logFailure(LOGGER, ipLockoutService.recordFailure(clientIp, now), emailValue, clientIp);
             return new RegistrationResult.Invalid(missingFields, errors);
         }
 
         final String normalised = emailValue.toLowerCase(Locale.ROOT).strip();
         if (User.findByEmail(normalised).isPresent()) {
-            RegistrationAttemptLog.logFailure(LOGGER, ipThrottle.recordFailure(clientIp, now), emailValue, clientIp);
+            RegistrationAttemptLog.logFailure(LOGGER, ipLockoutService.recordFailure(clientIp, now), emailValue, clientIp);
             return new RegistrationResult.DuplicateEmail();
         }
 
@@ -125,7 +128,7 @@ public class RegistrationService {
         if (result instanceof RegistrationResult.DuplicateEmail) {
             // A concurrent registration won the race for this email after the pre-check passed; record it against the shared per-IP throttle
             // exactly as a duplicate caught by the pre-check above would be.
-            RegistrationAttemptLog.logFailure(LOGGER, ipThrottle.recordFailure(clientIp, now), emailValue, clientIp);
+            RegistrationAttemptLog.logFailure(LOGGER, ipLockoutService.recordFailure(clientIp, now), emailValue, clientIp);
         }
         return result;
     }
@@ -147,8 +150,7 @@ public class RegistrationService {
         user.displayName = displayName;
         user.passwordHash = passwordHash;
         user.role = roleAssigner.roleForNewUser();
-        // Registration logs the account straight in on both surfaces (a session is minted from the
-        // result), so the first login is now.
+        // Registration logs the account straight in on both surfaces (a session is minted from the result), so the first login is now.
         user.lastLoginAt = Instant.now();
         user.persist();
 

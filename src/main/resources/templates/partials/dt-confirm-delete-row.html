@@ -1,26 +1,29 @@
 {!
-  Shared in-place confirm-delete row for editable data tables (see CLAUDE.md "Editable tables").
+  Shared in-place confirm row for a destructive data-table action (see CLAUDE.md "Editable tables").
   Red-*accent* ring via the shared `.dt-row-highlight` element (.dt-row-confirm passes the red
-  colour); destructive button on the left, Cancel on the right (where the original Delete sat, so a
+  colour); destructive button on the left, Cancel on the right (where the original trigger sat, so a
   double-click safely dismisses — the button pair is the shared partials/confirm-actions.html
-  cluster, so Cancel lands exactly in the row's original Delete slot). Every value is supplied by
+  cluster, so Cancel lands exactly in the row's original action slot). Every value is supplied by
   the resource so any table can reuse it:
     rowId        — id of the row being replaced (also the Cancel restore target)
     cols         — number of columns to span
     swatchColour — optional colour swatch (omit/blank for none)
     label        — the entity's display label (bold)
     prompt       — muted confirmation / warning text
+    confirmLabel — optional destructive button label (default 'Delete')
     deleteUrl / deleteTarget / deleteSwap — the destructive hx-post
     restoreUrl   — Cancel hx-get that re-renders the plain row back into #{rowId}
 !}
+{#let confirmLabel=confirmLabel.or('Delete')}
 <tr id="{rowId}" class="dt-row-highlight dt-row-confirm">
     <td colspan="{cols}" class="dt-confirm-cell">
         <div class="flex items-center gap-3">
             {#if swatchColour}<span class="swatch swatch-md" style="background-color: {swatchColour}"></span>{/if}
             <span class="flex-1 text-sm font-medium truncate">{label}</span>
-            {#include partials/confirm-actions prompt=prompt confirmLabel='Delete'
+            {#include partials/confirm-actions prompt=prompt confirmLabel=confirmLabel
                 confirmUrl=deleteUrl confirmTarget=deleteTarget confirmSwap=deleteSwap
                 cancelUrl=restoreUrl cancelTarget=str:fmt('#%s', rowId) cancelSwap='outerHTML' /}
         </div>
     </td>
 </tr>
+{/let}

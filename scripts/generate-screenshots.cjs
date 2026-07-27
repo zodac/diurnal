@@ -146,6 +146,26 @@ const ADMIN_DEMO_USERS = [
   { email: 'priya.nair@diurnal.local',   password: 'preview_demo123', displayName: 'Priya Nair' },
 ]
 
+// Demo IP lockouts shown in the Admin page's IP-lockout table (documentation/all only), so the shot
+// showcases the feature. A representative mix of the three statuses - one Active (still in force), one
+// Expired (ran its course) and one admin-Unlocked - using RFC 5737 documentation IP ranges (never real
+// addresses). Timestamps are DB `NOW()`-relative so every row stays inside the 7-day retention window on
+// any run; the failure tally is the 15-attempt default. Seeded directly (there is no HTTP endpoint to mint
+// history rows) and idempotently (the fixed demo IPs are cleared first). `unlocked_by` is the demo admin.
+// `locked_at` values are spread so the table renders most-recent-first with the Active row on top. These
+// are trusted constant SQL expressions (no user input), so they are interpolated into the INSERT directly.
+// make_interval(...) is used instead of INTERVAL '…' so these constants carry no inner single quotes.
+const DEMO_LOCKOUTS = [
+  // Active: locked 4 min ago, still in force (expires in 11 min) - offers the manual unlock.
+  { ip: '203.0.113.42',  lockedAt: 'NOW() - make_interval(mins => 4)',  lockedUntil: 'NOW() + make_interval(mins => 11)',   unlockedAt: 'NULL' },
+  // Expired: locked 3 h ago, ran its full course.
+  { ip: '198.51.100.23', lockedAt: 'NOW() - make_interval(hours => 3)', lockedUntil: 'NOW() - make_interval(mins => 165)',  unlockedAt: 'NULL' },
+  // Unlocked: an admin cleared it ~27 h ago, shortly after it tripped.
+  { ip: '192.0.2.15',    lockedAt: 'NOW() - make_interval(hours => 27)', lockedUntil: 'NOW() - make_interval(mins => 1605)', unlockedAt: 'NOW() - make_interval(mins => 1610)' },
+  // Expired: locked 3 days ago (still within the retention window).
+  { ip: '203.0.113.88',  lockedAt: 'NOW() - make_interval(days => 3)',  lockedUntil: 'NOW() - make_interval(mins => 4305)', unlockedAt: 'NULL' },
+]
+
 const pad = n => String(n).padStart(2, '0')
 
 // `base` minus `n` calendar days as a UTC `YYYY-MM-DD` string (n may be negative for future days).
@@ -193,6 +213,24 @@ async function promoteDemoUserToAdmin() {
   const res = await withDb(c => c.query(`UPDATE users SET role = '${ROLE_ADMIN}' WHERE email = $1`, [USER.email]))
   if (res.rowCount === 0) {throw new Error(`promoteDemoUserToAdmin: no user found with email ${USER.email}`)}
   console.log('promoted demo user to admin')
+}
+
+// Seed the demo IP-lockout history rows (see DEMO_LOCKOUTS) so the Admin page's lockout table has content
+// to render. The live throttle is enabled by default, so the running app shows these rows; the manual
+// unlock in the UI still keys on the in-memory throttle (not seeded here), which is irrelevant to a static
+// screenshot. Idempotent: clears the fixed demo IPs first, then re-inserts with fresh NOW()-relative times.
+async function seedIpLockouts() {
+  await withDb(async c => {
+    await c.query('DELETE FROM ip_lockouts WHERE ip_address = ANY($1)', [DEMO_LOCKOUTS.map(l => l.ip)])
+    for (const l of DEMO_LOCKOUTS) {
+      await c.query(
+        `INSERT INTO ip_lockouts (ip_address, locked_at, locked_until, failure_count, unlocked_at, unlocked_by)
+         VALUES ($1, ${l.lockedAt}, ${l.lockedUntil}, 15, ${l.unlockedAt}, $2)`,
+        [l.ip, l.unlockedAt === 'NULL' ? null : USER.email],
+      )
+    }
+  })
+  console.log('seeded demo IP lockouts')
 }
 
 // Emails (lower-cased) already present in the users table, so re-runs don't re-POST /register for
@@ -272,6 +310,7 @@ async function seed(ctx) {
     // (and so needs no DB access at all).
     await registerAdminDemoUsers(ctx)
     await promoteDemoUserToAdmin()
+    await seedIpLockouts()
   }
   await login(ctx)
 

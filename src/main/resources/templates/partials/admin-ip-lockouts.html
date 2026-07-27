@@ -1,0 +1,19 @@
+{!
+  Admin IP-lockout section, rendered under User Management on the admin page (only when the per-IP
+  lockout is enabled). Shows a single table of every IP lockout within the retention window - active,
+  expired and manually-unlocked alike - most recent first, with a manual unlock offered on active rows.
+  The whole section (heading included) is omitted when there are no lockouts to show. Param:
+    history — PaginatedIpLockouts of the last week's lockouts (paginated by the admin's page size)
+!}
+{#if history.totalCount > 0}
+<section id="ip-lockouts-section" class="mt-12">
+    <h3 class="page-title mb-2">IP Lockouts</h3>
+    <p class="page-subtitle">
+        IP addresses locked out of login and registration.
+    </p>
+
+    <div id="ip-lockouts-table" class="card overflow-hidden">
+        {#include partials/admin-ip-lockouts-table history=history /}
+    </div>
+</section>
+{/if}

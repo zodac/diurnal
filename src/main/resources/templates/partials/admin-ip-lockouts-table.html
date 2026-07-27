@@ -1,0 +1,37 @@
+{!
+  The single IP-lockout table + pagination (content only; the #ip-lockouts-table wrapper lives in the
+  section partial). Swapped into #ip-lockouts-table both by page navigation and by a successful unlock
+  re-render. Lists every lockout within the retention window, most recent first, including expired and
+  manually-unlocked ones; an active row offers a manual unlock (hover-revealed, with an in-row confirm).
+  Param:
+    history — PaginatedIpLockouts of the last week's lockouts
+!}
+<div class="overflow-x-auto">
+    {! Fixed column widths (dt-table-fixed + this colgroup) so the in-place confirm row's single
+       colspan cell never re-flows the other columns - the widths are content-independent. !}
+    <table class="dt-table dt-table-fixed">
+        <colgroup>
+            <col style="width: 24%">
+            <col style="width: 24%">
+            <col style="width: 24%">
+            <col style="width: 18%">
+            <col style="width: 10%">
+        </colgroup>
+        <thead>
+            <tr>
+                <th class="dt-head-cell">IP Address</th>
+                <th class="dt-head-cell">Locked At</th>
+                <th class="dt-head-cell">Locked Until</th>
+                <th class="dt-head-cell">Status</th>
+                <th class="dt-head-cell"></th>
+            </tr>
+        </thead>
+        <tbody class="dt-tbody">
+            {#for row in history.items}
+            {#include partials/admin-ip-lockout-row row=row /}
+            {/for}
+        </tbody>
+    </table>
+</div>
+
+{#include partials/pagination page=history pageUrl="" listUrl="/internal/admin/ip-lockouts/history" target="#ip-lockouts-table" extraQuery="" alwaysShow=true borderless=false /}

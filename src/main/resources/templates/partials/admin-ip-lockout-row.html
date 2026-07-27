@@ -1,0 +1,33 @@
+{!
+  One plain row of the admin IP-lockout table. Rendered by the table partial's loop, by the Cancel
+  restore (GET .../{id}/row) and after a mutation. The Unlock trigger is offered only on an active row;
+  it sits in a `[data-dt-view]` cluster so it stays hidden until the row is hovered/focused (the shared
+  editable-table reveal), and it turns the row into the shared confirm row (GET .../{id}/confirm-unlock,
+  replacing this <tr>) - Unlock then moves left with Cancel in its old slot, exactly like a delete. Param:
+    row — an IpLockoutHistoryRow
+!}
+<tr id="ip-lockout-row-{row.id}" class="dt-row">
+    <td class="dt-cell truncate">{row.ipAddress}</td>
+    <td class="dt-cell dt-cell-muted">
+        {#include partials/tooltip-text text=row.lockedAtLabel tip=row.zoneTooltip /}
+    </td>
+    <td class="dt-cell dt-cell-muted">
+        {#include partials/tooltip-text text=row.lockedUntilLabel tip=row.zoneTooltip /}
+    </td>
+    <td class="dt-cell">
+        <span class="{row.status.badgeClass}">{row.status.label}</span>
+        {#if row.unlockedAtLabel}
+        <span class="dt-cell-muted block text-xs">by {row.unlockedBy} at {row.unlockedAtLabel}</span>
+        {/if}
+    </td>
+    <td class="dt-cell dt-cell-actions">
+        {#if row.status.active}
+        <div data-dt-view class="dt-actions">
+            <button hx-get="/internal/admin/ip-lockouts/{row.id}/confirm-unlock"
+                    hx-target="#ip-lockout-row-{row.id}"
+                    hx-swap="outerHTML"
+                    class="dt-btn dt-btn-delete">Unlock</button>
+        </div>
+        {/if}
+    </td>
+</tr>
