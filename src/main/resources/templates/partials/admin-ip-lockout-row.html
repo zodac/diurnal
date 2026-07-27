@@ -7,7 +7,7 @@
     row — an IpLockoutHistoryRow
 !}
 <tr id="ip-lockout-row-{row.id}" class="dt-row">
-    <td class="dt-cell truncate">{row.ipAddress}</td>
+    <td class="dt-cell whitespace-nowrap">{row.ipAddress}</td>
     <td class="dt-cell dt-cell-muted">
         {#include partials/tooltip-text text=row.lockedAtLabel tip=row.zoneTooltip /}
     </td>
@@ -16,9 +16,6 @@
     </td>
     <td class="dt-cell">
         <span class="{row.status.badgeClass}">{row.status.label}</span>
-        {#if row.unlockedAtLabel}
-        <span class="dt-cell-muted block text-xs">by {row.unlockedBy} at {row.unlockedAtLabel}</span>
-        {/if}
     </td>
     <td class="dt-cell dt-cell-actions">
         {#if row.status.active}

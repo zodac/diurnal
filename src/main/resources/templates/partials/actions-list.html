@@ -4,7 +4,19 @@
   Params: page (PaginatedActions), extraQuery (pre-encoded "&q=..." or "").
 !}
 <div class="overflow-x-auto">
+{! Auto table layout (NOT dt-table-fixed): the name column sizes to its content, so a long name
+   (kept on one line by whitespace-nowrap on the name cell) widens the table past the container and
+   the overflow-x-auto wrap shows a horizontal scrollbar - the name is never wrapped or truncated,
+   and never overlaps the on-hover edit/delete buttons. The swatch (1.75rem) and actions (9rem)
+   columns keep fixed widths so only the name flexes; short names let the table fill 100%. Trade-off
+   vs fixed layout: editing/deleting the single longest-named row can nudge the other columns as the
+   name column re-sizes to the next-longest content. !}
 <table class="dt-table">
+    <colgroup>
+        <col style="width: 1.75rem">
+        <col>
+        <col style="width: 9rem">
+    </colgroup>
     <thead>
         <tr>
             <th class="dt-head-cell w-10"></th>

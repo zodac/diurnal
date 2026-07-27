@@ -131,9 +131,9 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
 
         given().post("/internal/admin/ip-lockouts/" + LOCKED_IP + "/unlock")
                 .then().statusCode(200)
-                // the row is still in the table, now marked unlocked by the acting admin
-                .body(containsString("Unlocked"))
-                .body(containsString(ADMIN_EMAIL));
+                // the row is still in the table, now stamped with the Unlocked status. The acting admin's
+                // identity is not shown in the row (it lives in the log and the /api/v1 DTO for traceability).
+                .body(containsString("Unlocked"));
     }
 
     @Test

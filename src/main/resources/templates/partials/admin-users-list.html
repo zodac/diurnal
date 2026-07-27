@@ -1,5 +1,21 @@
 <div class="overflow-x-auto">
+    {! Auto table layout (NOT dt-table-fixed): every value cell is whitespace-nowrap, so a long email
+       or display name sizes its column to its content and pushes the table past the container - the
+       overflow-x-auto wrap then shows a horizontal scrollbar instead of the value wrapping, being
+       truncated, or the columns being crushed. The colgroup percentages set the proportions while
+       content fits; short content lets the table fill 100%. Trade-off vs fixed layout: editing/
+       deleting the single longest-valued row can nudge the other columns as that column re-sizes. !}
     <table class="dt-table">
+        <colgroup>
+            <col style="width: 18%">
+            <col style="width: 14%">
+            <col style="width: 9%">
+            <col style="width: 10%">
+            <col style="width: 13%">
+            <col style="width: 13%">
+            <col style="width: 7%">
+            <col style="width: 16%">
+        </colgroup>
         <thead>
             <tr>
                 <th class="dt-head-cell">Email</th>

@@ -21,7 +21,6 @@ import java.time.Instant;
 import java.time.format.DateTimeFormatter;
 import net.zodac.diurnal.auth.IpLockout;
 import net.zodac.diurnal.auth.IpLockoutStatus;
-import org.jspecify.annotations.Nullable;
 
 /**
  * The template view model for one row of the admin IP-lockout table, with its timestamps pre-rendered in the viewing administrator's timezone and its
@@ -33,12 +32,10 @@ import org.jspecify.annotations.Nullable;
  * @param lockedAtLabel    when the lockout tripped, formatted in the administrator's timezone
  * @param lockedUntilLabel when the lockout would naturally expire, formatted in the administrator's timezone
  * @param status           the derived status ({@link IpLockoutStatus#ACTIVE}/{@code EXPIRED}/{@code UNLOCKED})
- * @param unlockedAtLabel  when an administrator manually unlocked the IP, formatted in the administrator's timezone, or {@code null}
- * @param unlockedBy       the email of the administrator who unlocked the IP, or {@code null}
  * @param zoneTooltip      the administrator's timezone id, surfaced as a tooltip on the date cells
  */
 public record IpLockoutHistoryRow(String id, String ipAddress, String lockedAtLabel, String lockedUntilLabel, IpLockoutStatus status,
-    @Nullable String unlockedAtLabel, @Nullable String unlockedBy, String zoneTooltip) {
+    String zoneTooltip) {
 
     /**
      * Maps a lockout entity to its table row view model, formatting the timestamps with {@code fmt} and deriving the status as of {@code now}.
@@ -50,8 +47,7 @@ public record IpLockoutHistoryRow(String id, String ipAddress, String lockedAtLa
      * @return the view-model row
      */
     static IpLockoutHistoryRow of(final IpLockout lockout, final DateTimeFormatter fmt, final String zoneLabel, final Instant now) {
-        final String unlockedAtLabel = lockout.unlockedAt == null ? null : fmt.format(lockout.unlockedAt);
         return new IpLockoutHistoryRow(lockout.id.toString(), lockout.ipAddress, fmt.format(lockout.lockedAt), fmt.format(lockout.lockedUntil),
-            IpLockoutStatus.of(lockout, now), unlockedAtLabel, lockout.unlockedBy, zoneLabel);
+            IpLockoutStatus.of(lockout, now), zoneLabel);
     }
 }
