@@ -86,8 +86,10 @@ final class ActionLogQueries {
      * Native SQL reading the current count for a single {@code (user, action, day)} entry — used to return the resulting value after an increment
      * upsert.
      */
-    static final String SELECT_COUNT_SQL =
-        "SELECT count FROM action_logs WHERE user_id = :userId AND action_id = :actionId AND log_date = :date";
+    static final String SELECT_COUNT_SQL = """
+            SELECT count
+            FROM action_logs
+            WHERE user_id = :userId AND action_id = :actionId AND log_date = :date""";
 
     /**
      * Native upsert atomically setting a day's count to an exact {@code :count}: it inserts a new row or, on the {@code action_logs_unique} conflict,
@@ -105,7 +107,8 @@ final class ActionLogQueries {
      * update-or-delete decision without a concurrent increment slipping in and changing the count underneath it.
      */
     static final String SELECT_FOR_UPDATE_SQL = """
-            SELECT count FROM action_logs
+            SELECT count
+            FROM action_logs
             WHERE user_id = :userId AND action_id = :actionId AND log_date = :date
             FOR UPDATE""";
 
