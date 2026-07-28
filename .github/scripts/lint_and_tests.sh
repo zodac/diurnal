@@ -147,7 +147,16 @@ FORCE=false
 # the remaining steps (used by the release pipeline so a failing gate stops promptly).
 FAIL_FAST=false
 
+# Per-step failure signal: reset to 0 before each step in the execution loop, set to 1 by any run_*
+# function that fails. Read straight after each step to tell whether THAT step failed (a plain
+# monotonic accumulator couldn't — once it flipped to 1 it could no longer distinguish later steps).
 overall_exit_code=0
+
+# The names of every step that failed (in run order) and the final process exit code. `failed_steps`
+# feeds both the end-of-run summary and the copy/paste re-run command (so it lists exactly the failed
+# steps); `final_exit_code` is the real accumulator that survives the per-step reset of overall_exit_code.
+failed_steps=()
+final_exit_code=0
 
 # Yellow highlight for the copy/paste-ready "re-run …" command in failure messages, so it stands out
 # from the surrounding text. Only emit the ANSI codes when stdout is a real terminal — piped/redirected
@@ -787,6 +796,9 @@ overall_start=""
 overall_start="$(date +%s%N)"
 for step in "${steps[@]}"; do
     STEP_START_NS="$(date +%s%N)"
+    # Reset the per-step signal so we can tell whether THIS step failed (each run_* sets it to 1 on
+    # failure); the real cumulative result is kept in final_exit_code / failed_steps below.
+    overall_exit_code=0
     case "${step}" in
     docker) run_docker ;;
     grype) run_grype ;;
@@ -798,6 +810,10 @@ for step in "${steps[@]}"; do
     typescript) run_typescript ;;
     *) ;; # unreachable: steps are validated against VALID_STEPS above
     esac
+    if [[ "${overall_exit_code}" -ne 0 ]]; then
+        failed_steps+=("${step}")
+        final_exit_code=1
+    fi
     # -e/--exit-on-failure: stop as soon as a step fails, skipping the remaining steps.
     if [[ "${FAIL_FAST}" == true && "${overall_exit_code}" -ne 0 ]]; then
         echo
@@ -811,7 +827,7 @@ overall_end="$(date +%s%N)"
 total_elapsed=""
 total_elapsed="$(to_natural_time "$((overall_end - overall_start))")"
 # Colour the total green when every step passed, red when any failed — matching the per-step timings.
-if [[ "${overall_exit_code}" -eq 0 ]]; then
+if [[ "${final_exit_code}" -eq 0 ]]; then
     total_colour="${GREEN}"
 else
     total_colour="${RED}"
@@ -819,8 +835,12 @@ fi
 echo
 echo "⏱  Total time: ${total_colour}${total_elapsed}${RESET}"
 
-if [[ "${overall_exit_code}" -ne 0 ]]; then
+if [[ "${final_exit_code}" -ne 0 ]]; then
+    # Name every failed step and fold them straight into the re-run command (comma-separated, the same
+    # form the [steps] argument accepts), so the suggested command re-runs exactly what failed.
+    failed_list="$(IFS=','; echo "${failed_steps[*]}")"
     echo
-    echo "❌ One or more steps failed: re-run ${YELLOW}'${SCRIPT_PATH} -v [steps]'${RESET} for the full output"
+    echo "❌ Failed steps (${#failed_steps[@]}): ${RED}${failed_list}${RESET}"
+    echo "   Re-run with: ${YELLOW}'${SCRIPT_PATH} -v ${failed_list}'${RESET} for the full output"
     exit 1
 fi
