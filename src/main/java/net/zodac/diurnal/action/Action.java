@@ -88,8 +88,10 @@ public class Action extends PanacheEntityBase {
         // NB: never hold Panache.getEntityManager() in a local — it is a container-managed
         // EntityManager that must NOT be closed, but PMD's CloseResource rule would demand it.
         return Panache.getEntityManager()
-            .createQuery("SELECT new net.zodac.diurnal.http.ChangeSignature(COUNT(a), MAX(a.updatedAt)) FROM Action a WHERE a.userId = :userId",
-                ChangeSignature.class)
+            .createQuery("""
+                    SELECT new net.zodac.diurnal.http.ChangeSignature(COUNT(a), MAX(a.updatedAt))
+                    FROM Action a
+                    WHERE a.userId = :userId""", ChangeSignature.class)
             .setParameter("userId", userId)
             .getSingleResult();
     }
