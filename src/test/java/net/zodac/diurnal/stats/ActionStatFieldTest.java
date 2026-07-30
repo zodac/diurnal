@@ -140,8 +140,8 @@ class ActionStatFieldTest {
             .as("every field selected by default")
             .allMatch(Choice::selected);
         assertThat(choices.getFirst().key())
-            .as("default order leads with current-streak")
-            .isEqualTo("current-streak");
+            .as("default order leads with last-performed")
+            .isEqualTo("last-performed");
     }
 
     @Test

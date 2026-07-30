@@ -342,7 +342,7 @@ class WebResourceIT extends IntegrationTestBase {
     void dashboard_withLoggedAction_showsTopThreeEnabledStatTiles() {
         // Seed a logged action so the stats-summary card renders. With the default (never-customised)
         // "Action stats" preference, the top three enabled fields are the first three declared:
-        // Current streak, Longest streak, Current gap — and NOT any lower-ranked field (e.g. Total
+        // Last performed, First performed, Current streak — and NOT any lower-ranked field (e.g. Total
         // count), confirming the summary now honours the Statistics setting rather than a fixed trio.
         runInTx(() -> {
             final UUID userId = User.findByEmail("web-it@lt.test").orElseThrow().id;
@@ -354,9 +354,9 @@ class WebResourceIT extends IntegrationTestBase {
             .then().statusCode(200)
             .body(containsString("Meditate"))
             .body(allOf(
+            containsString("Last performed"),
+            containsString("First performed"),
             containsString("Current streak"),
-            containsString("Longest streak"),
-            containsString("Current gap"),
             not(containsString("Total count"))));
     }
 
