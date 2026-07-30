@@ -41,7 +41,7 @@ FROM node:26.5.0-alpine AS icons
 
 # BEGIN ALPINE PACKAGES
 RUN apk add --no-cache  \
-    imagemagick="7.1.2.24-r0" \
+    imagemagick="7.1.2.27-r0" \
     librsvg="2.62.3-r0" \
     optipng="7.9.1-r1"
 # END ALPINE PACKAGES
