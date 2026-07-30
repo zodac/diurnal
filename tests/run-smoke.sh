@@ -60,6 +60,12 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
 
+# Ensure the browser build this @playwright/test version pins is cached before the stack goes up, so a
+# cold download does not hold the container stack open (and so a stale cache fails as one missing download
+# rather than as every spec dying with "Executable doesn't exist"). A no-op, no network, when already
+# present. Same reasoning as run-e2e.sh; each runner does it itself to stay independently runnable.
+(cd "${BASEDIR}/tests" && npx playwright install chromium)
+
 # Build the real image and bring the stack up, blocking until the image's own HEALTHCHECK reports
 # healthy (--wait). A boot failure (e.g. a missing jlink module) trips here and fails the script
 # before Playwright even starts. --wait-timeout covers app start-period + retries, not the build.

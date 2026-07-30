@@ -71,6 +71,14 @@ run() {
 
   # Publish the in-sandbox dev server (it runs on container :8081, e.g. scripts/dev-up.sh) to host
   # :8071 — deliberately NOT host :8081, so the host's own 8081 stays free for host-native dev/tests.
+  #
+  # The Maven local repository gets a named volume for the same reason the Docker data dir and the
+  # Playwright browser cache do: without one it lives in the container's writable layer, which --rm
+  # deletes on teardown, so every fresh sandbox re-downloads the project's whole dependency set
+  # (~124MB / 365 jars, i.e. minutes added to the first `mvn` run). A named volume — rather than a bind
+  # to the host's ~/.m2 — keeps the "no $HOME from the host" rule above intact while still persisting
+  # across sessions. The image pre-creates /home/dev/.m2 dev-owned so the volume is writable (see the
+  # Dockerfile's user-creation block).
   docker run "${tty[@]}" --rm \
     --name diurnal-sandbox \
     --privileged \
@@ -78,6 +86,7 @@ run() {
     -v "${PROJECT_DIR}":/work \
     -v diurnal-sandbox-docker:/var/lib/docker \
     -v diurnal-sandbox-claude:/home/dev/.claude \
+    -v diurnal-sandbox-m2:/home/dev/.m2 \
     -v diurnal-sandbox-pw:/home/dev/.cache/ms-playwright \
     -p 8071:8081 \
     "${IMAGE}" "$@" <&3 &

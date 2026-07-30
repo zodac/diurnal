@@ -7,8 +7,20 @@ export default defineConfig({
     fullyParallel: false, // tests within a file stay sequential; parallelism is file/project-level
     forbidOnly: process.env.CI !== undefined,
     retries: process.env.CI !== undefined ? 1 : 0,
-    workers: 2,
-    reporter: "html",
+    // 2 is deliberate, and measured: raising it to 4 made the suite BOTH slower (64s vs 61s) and red.
+    // The specs share one app instance and one never-reset database, so more workers only add users to
+    // the paginated admin list and contention to the shared fixtures - admin.spec.ts asserts on a
+    // globally-shared admin row it expects to find on page 1, which extra concurrent registrations push
+    // off. There is no throughput to win either: the suite is bound by fixture round-trips against a
+    // single app, not by browser CPU. Raising this needs those global-invariant specs hardened first;
+    // PW_WORKERS overrides it for experiments.
+    workers: Number(process.env.PW_WORKERS ?? 2),
+    // `open: "never"` is load-bearing, not a preference. The html reporter defaults to open:
+    // "on-failure", which - when CI is unset, i.e. every local run - serves the report on :9323 and
+    // BLOCKS until Ctrl-C. Chained into the `java` gate that is not a slow suite, it is a hang with no
+    // timeout: the step waits forever on a run that has already finished. Same reasoning as
+    // playwright.smoke.config.ts choosing `list`. View the report with `npm run report` instead.
+    reporter: [["list"], ["html", { open: "never" }]],
 
     use: {
         baseURL: process.env.BASE_URL ?? "http://localhost:8080",
@@ -26,8 +38,18 @@ export default defineConfig({
             use: { ...devices["Desktop Chrome"] },
         },
         {
+            // Re-running EVERY spec at a phone viewport doubled the tier for very little signal: the three
+            // specs excluded below assert only behaviour and navigation (no visibility, geometry or scroll
+            // assertions at all), so a second pass at a narrower viewport exercises the same code paths.
+            // Everything layout-bearing still runs on both — and note that the genuinely mobile-specific
+            // behaviour (the hamburger menu) does not depend on this project at all: navbar.spec.ts drives
+            // it with its own `test.use({ viewport })` override, so it is covered even under `chromium`.
+            // Set PW_MOBILE_ALL=1 to restore the full duplicate pass.
             name: "mobile-chrome",
             use: { ...devices["Galaxy S24"] },
+            testIgnore: process.env.PW_MOBILE_ALL === undefined
+                ? ["auth.spec.ts", "stats.spec.ts", "not-found.spec.ts"]
+                : [],
         },
     ],
 
