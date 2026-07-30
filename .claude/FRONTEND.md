@@ -279,6 +279,37 @@ else on a row toggles its (visual-only, `pointer-events-none`) checkbox; the des
 > given a `StatTile` mapping in `ActionStatsExtensions.tiles(...)`** (plus a case in its `switch`, which is exhaustive over the enum
 > so the compiler flags omissions). Without both it will never appear in the picker or on the page.
 
+> **A `key` is permanent, a `label` is not.** Keys are stored per user, so a rename only ever touches the `label` — hence
+> `LONGEST_GAP` still keying on `biggest-gap` and `WEEKLY_DAY_AVERAGE` on `weekly-average`. Changing a key drops that stat from
+> every stored arrangement (it re-appears appended at the end), silently reshuffling everyone's page.
+
+Three tile shapes come out of `tiles(...)`: the big-number `numeric` tile (counts, averages, a day run still under a month), the
+smaller two-line `labelTile` (a date, a month/year high score, a **condensed** duration — see `time/DaySpan` + `time/Durations`),
+and the `trendTile` (a signed figure in a trend colour). A day run switches shape at one calendar month, so a long streak reads
+"1 year, 2 months, 3 days" with the exact day count demoted to the sub-caption instead of overflowing the big-number slot. The
+streak/gap statistics are `DaySpan`s (real date ranges), not day counts — that is what makes the breakdown exact and stable rather
+than shifting as "today" moves; see the `DaySpan` note in `CLAUDE.md`.
+
+### Responsive figure fitting (`data-fit` → `Diurnal.fitFigures`)
+
+Server-rendered figures always carry their **fullest** form — the month spelled out (`15 June 2026`), a 4-digit year, an exact
+count — because only the browser knows whether it fits: the tile width depends on the viewport, the locale's grouping separators
+and the user's font. Each shortenable line is marked `data-fit` (see `partials/stat-tile.html` / `stat-tile-compact.html`) and
+`Diurnal.fitFigures()` in `app.js` walks a ladder, taking one step at a time and only while the line still overflows its own box:
+
+1. spelled-out month → 3-letter (`June` → `Jun`)
+2. 4-digit year → 2-digit (`2026` → `26`)
+3. a count of 10,000 or more → `10.0k`, at the user's decimal-place preference (read from the nearest `[data-decimal-places]`
+   ancestor — `partials/stats-cards.html` and the dashboard's `#stats-summary` carry it)
+
+Each step is measured with the line forced onto one line by `.fit-measure`, which is removed again immediately, so a line that is
+still too wide at its shortest step **wraps** rather than being clipped. Because a grouped number cannot be parsed back reliably
+(`1.000` is 1000 in `en`, 1 in `de`), `formatNumbers` stashes the ungrouped server text on `data-num-raw` for any element holding a
+5+-digit figure, and the count step re-derives from that. It re-runs on `htmx:afterSwap` and (debounced) on `resize`, so widening
+the window restores the full text. `Diurnal.MONTHS_FULL`/`MONTHS_ABBR` and this ladder are the one place the project abbreviates a
+month — the calendar toolbar's own title fitting (`setCalTitle`/`fitCalTitle` in `dashboard.js`) reads the same tables; it keeps its
+own measurement because it fits against the **toolbar's** overflow, not the title's own box.
+
 ### Calendar feeds (LogsApiResource / CalendarResource)
 
 `GET /api/v1/logs/events` (`LogsApiResource`) returns `CalendarEventDto` JSON (one event per logged action, title carries the `×N` multiplier). It is

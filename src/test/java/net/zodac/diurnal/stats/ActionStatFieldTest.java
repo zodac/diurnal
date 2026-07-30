@@ -37,9 +37,14 @@ class ActionStatFieldTest {
         new StatFieldPref("current-streak", true),
         new StatFieldPref("total-days", false),
         new StatFieldPref("longest-streak", true),
+        new StatFieldPref("current-gap", true),
         new StatFieldPref("biggest-gap", true),
         new StatFieldPref("total-count", true),
         new StatFieldPref("weekly-average", true),
+        new StatFieldPref("monthly-average", true),
+        new StatFieldPref("weekly-count-average", true),
+        new StatFieldPref("monthly-count-average", true),
+        new StatFieldPref("first-performed", true),
         new StatFieldPref("last-performed", true),
         new StatFieldPref("vs-last-month", true),
         new StatFieldPref("vs-last-year", true),
@@ -88,9 +93,14 @@ class ActionStatFieldTest {
             ActionStatField.BEST_YEAR,
             ActionStatField.CURRENT_STREAK,
             ActionStatField.LONGEST_STREAK,
-            ActionStatField.BIGGEST_GAP,
+            ActionStatField.CURRENT_GAP,
+            ActionStatField.LONGEST_GAP,
             ActionStatField.TOTAL_COUNT,
-            ActionStatField.WEEKLY_AVERAGE,
+            ActionStatField.WEEKLY_DAY_AVERAGE,
+            ActionStatField.MONTHLY_DAY_AVERAGE,
+            ActionStatField.WEEKLY_COUNT_AVERAGE,
+            ActionStatField.MONTHLY_COUNT_AVERAGE,
+            ActionStatField.FIRST_PERFORMED,
             ActionStatField.LAST_PERFORMED,
             ActionStatField.VS_LAST_MONTH,
             ActionStatField.VS_LAST_YEAR,
@@ -138,8 +148,9 @@ class ActionStatFieldTest {
     void choices_preservesArrangementOrderRegardlessOfEnabledState() {
         final List<Choice> choices = ActionStatField.choices(CUSTOM);
 
-        final List<String> expectedKeys = List.of("best-year", "current-streak", "total-days", "longest-streak", "biggest-gap", "total-count",
-            "weekly-average", "last-performed", "vs-last-month", "vs-last-year", "best-month");
+        final List<String> expectedKeys = List.of("best-year", "current-streak", "total-days", "longest-streak", "current-gap", "biggest-gap",
+            "total-count", "weekly-average", "monthly-average", "weekly-count-average", "monthly-count-average", "first-performed", "last-performed",
+            "vs-last-month", "vs-last-year", "best-month");
         assertThat(choices)
             .as("every field is represented, in the stored arrangement order")
             .extracting(Choice::key)
@@ -161,6 +172,42 @@ class ActionStatFieldTest {
             .allSatisfy(choice -> assertThat(choice.description())
             .as("description for " + choice.key())
             .isNotBlank());
+    }
+
+    @Test
+    void labels_areTheCurrentUserFacingWording() {
+        // Pins the wording of every stat whose label has been renamed while its stored key stayed put
+        // (see the class Javadoc): the key is what users have stored, the label is what they read, and a
+        // "tidy-up" that swapped one for the other would either reset arrangements or resurrect the old
+        // ambiguous names ("Weekly average" said nothing about days-vs-count).
+        assertThat(ActionStatField.LONGEST_GAP.label())
+            .as("unexpected value")
+            .isEqualTo("Longest gap");
+        assertThat(ActionStatField.TOTAL_DAYS.label())
+            .as("unexpected value")
+            .isEqualTo("Total unique days");
+        assertThat(ActionStatField.WEEKLY_DAY_AVERAGE.label())
+            .as("unexpected value")
+            .isEqualTo("Average days per week");
+        assertThat(ActionStatField.WEEKLY_COUNT_AVERAGE.label())
+            .as("unexpected value")
+            .isEqualTo("Average count per week");
+        assertThat(ActionStatField.VS_LAST_MONTH.label())
+            .as("unexpected value")
+            .isEqualTo("Change from last month");
+    }
+
+    @Test
+    void keys_areUniqueAndNeverTheEnumName() {
+        final List<String> keys = Arrays.stream(ActionStatField.values()).map(ActionStatField::key).toList();
+        assertThat(keys)
+            .as("a duplicated key would silently collapse two stats into one stored slot")
+            .doesNotHaveDuplicates();
+        assertThat(keys)
+            .as("keys are the stable kebab-case storage form, never the enum constant name")
+            .allSatisfy(key -> assertThat(key)
+            .as("key " + key)
+            .matches("[a-z][a-z-]*[a-z]"));
     }
 
     @Test

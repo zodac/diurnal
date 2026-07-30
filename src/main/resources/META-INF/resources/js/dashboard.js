@@ -22,16 +22,14 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // The month/year title is emitted with BOTH a full and an abbreviated variant in the DOM; CSS
     // (see the .cal-title media queries) shows whichever fits the screen width, so the single-row
-    // toolbar never wraps. Shared by every calendar style.
-    const CAL_MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
-                           'July', 'August', 'September', 'October', 'November', 'December']
-    const CAL_MONTHS_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                           'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    // toolbar never wraps. Shared by every calendar style. The month names and their 3-letter forms
+    // come from Diurnal (app.js), the one place the project spells out "June" → "Jun" — the stats
+    // tiles' own date fitting reduces their labels through the same ladder.
     function setCalTitle(el, year, monthIndex) {
         const yr = String(year)
         el.innerHTML =
-            `<span class="cal-title-month-full">${  CAL_MONTHS_FULL[monthIndex]  }</span>` +
-            `<span class="cal-title-month-abbr">${  CAL_MONTHS_ABBR[monthIndex]  }</span>` +
+            `<span class="cal-title-month-full">${  window.Diurnal.MONTHS_FULL[monthIndex]  }</span>` +
+            `<span class="cal-title-month-abbr">${  window.Diurnal.MONTHS_ABBR[monthIndex]  }</span>` +
             ' ' +
             `<span class="cal-title-year-full">${  yr  }</span>` +
             `<span class="cal-title-year-abbr">${  yr.slice(-2)  }</span>`
@@ -802,7 +800,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // year commits on blur, which fires exactly as the pointer goes down on a month, so an innerHTML
     // rebuild there would detach the button and swallow the click. Each handler reads pickerYear at
     // click time, so typing a year then clicking a month navigates to the typed year.
-    const monthButtons = CAL_MONTHS_ABBR.map(function (name, i) {
+    const monthButtons = window.Diurnal.MONTHS_ABBR.map(function (name, i) {
         const b = document.createElement('button')
         b.type = 'button'
         b.textContent = name

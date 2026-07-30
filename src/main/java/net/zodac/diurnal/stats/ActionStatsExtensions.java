@@ -23,6 +23,8 @@ import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
+import net.zodac.diurnal.time.DaySpan;
+import net.zodac.diurnal.time.Durations;
 
 /**
  * Derived labels, trends and predicates computed from an {@link ActionStats} record.
@@ -37,9 +39,13 @@ import java.util.Locale;
  */
 public final class ActionStatsExtensions {
 
-    private static final DateTimeFormatter DATE_FMT  = DateTimeFormatter.ofPattern("d MMM yyyy", Locale.ENGLISH);
+    // Dates render at FULL width (the month spelled out); the front-end shortens "June" -> "Jun" -> and the
+    // year to two digits only when the rendered label does not fit its tile - see Diurnal.fitFigures in app.js.
+    private static final DateTimeFormatter DATE_FMT  = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter DATE_FMT_NO_YEAR = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH);
     private static final double ZERO = 0.0;
+    private static final String DAY_UNIT = "day";
+    private static final String TIME_UNIT = "time";
 
     private ActionStatsExtensions() {
 
@@ -79,7 +85,7 @@ public final class ActionStatsExtensions {
      *
      * @param stats the statistics to render
      * @param fields the ordered fields the user has chosen to display
-     * @param decimalPlaces the user's decimal-place preference (for the weekly average)
+     * @param decimalPlaces the user's decimal-place preference (for the averages)
      * @return the ordered tiles to render
      */
     @TemplateExtension
@@ -91,17 +97,23 @@ public final class ActionStatsExtensions {
 
     private static StatTile tile(final ActionStats stats, final ActionStatField field, final int decimalPlaces) {
         return switch (field) {
-            case CURRENT_STREAK -> numeric(field, Integer.toString(stats.currentStreak()), currentStreakUnit(stats));
-            case LONGEST_STREAK -> numeric(field, Integer.toString(stats.longestStreak()), longestStreakUnit(stats));
-            case BIGGEST_GAP    -> numeric(field, Integer.toString(stats.longestGap()), longestGapUnit(stats));
+            case CURRENT_STREAK -> durationTile(field, stats.currentStreak());
+            case LONGEST_STREAK -> durationTile(field, stats.longestStreak());
+            case CURRENT_GAP    -> durationTile(field, currentGapSpan(stats));
+            case LONGEST_GAP    -> durationTile(field, stats.longestGap());
             case TOTAL_DAYS     -> numeric(field, Integer.toString(stats.totalDays()), totalDaysUnit(stats));
             case TOTAL_COUNT    -> numeric(field, Long.toString(stats.totalCount()), "all time");
-            case WEEKLY_AVERAGE -> numeric(field, weeklyAverage(stats, decimalPlaces), "days / week");
-            case LAST_PERFORMED -> new StatTile(field.label(), lastLabel(stats), sinceLabel(stats), true, "text-ink", true);
+            case WEEKLY_DAY_AVERAGE    -> numeric(field, weeklyDayAverage(stats, decimalPlaces), "days / week");
+            case MONTHLY_DAY_AVERAGE   -> numeric(field, monthlyDayAverage(stats, decimalPlaces), "days / month");
+            case WEEKLY_COUNT_AVERAGE  -> numeric(field, weeklyCountAverage(stats, decimalPlaces), "count / week");
+            case MONTHLY_COUNT_AVERAGE -> numeric(field, monthlyCountAverage(stats, decimalPlaces), "count / month");
+            case FIRST_PERFORMED -> labelTile(field, firstLabel(stats), sinceFirstLabel(stats));
+            case LAST_PERFORMED -> labelTile(field, lastLabel(stats), sinceLabel(stats));
             case VS_LAST_MONTH  -> trendTile(field, monthTrend(stats), monthContext(stats), monthTrendClass(stats));
             case VS_LAST_YEAR   -> trendTile(field, yearTrend(stats), yearContext(stats), yearTrendClass(stats));
-            case BEST_MONTH     -> numeric(field, Long.toString(stats.bestMonthCount()), stats.bestMonthLabel());
-            case BEST_YEAR      -> numeric(field, Long.toString(stats.bestYearCount()), stats.bestYearLabel());
+            // The high scores lead with WHEN the record was set; the count itself is the secondary caption.
+            case BEST_MONTH     -> labelTile(field, stats.bestMonthLabel(), Durations.count(stats.bestMonthCount(), TIME_UNIT));
+            case BEST_YEAR      -> labelTile(field, stats.bestYearLabel(), Durations.count(stats.bestYearCount(), TIME_UNIT));
         };
     }
 
@@ -109,14 +121,31 @@ public final class ActionStatsExtensions {
         return new StatTile(field.label(), value, sub, false, "text-ink", false);
     }
 
+    private static StatTile labelTile(final ActionStatField field, final String value, final String sub) {
+        return new StatTile(field.label(), value, sub, true, "text-ink", true);
+    }
+
     private static StatTile trendTile(final ActionStatField field, final String value, final String sub, final String valueClass) {
         return new StatTile(field.label(), value, sub, true, valueClass, false);
     }
 
+    // A day span keeps the prominent big-number styling while it reads as a plain day count; once it reaches a
+    // calendar month the number is replaced by the condensed breakdown ("1 year, 2 months, 3 days"), which needs
+    // the smaller two-line (date-flavoured) styling to fit - the exact day count then moves to the sub-caption.
+    private static StatTile durationTile(final ActionStatField field, final DaySpan span) {
+        final int days = Durations.days(span);
+        if (Durations.exceedsOneMonth(span)) {
+            return labelTile(field, Durations.label(span), Durations.count(days, DAY_UNIT));
+        }
+        return numeric(field, Integer.toString(days), Durations.plural(days, DAY_UNIT));
+    }
+
     // ── Date labels ───────────────────────────────────────────────────────
+    // Dates render at full width and are never pre-abbreviated: the front-end shortens the month (and then the
+    // year) only when the label does not fit its tile, so a wide viewport always sees the whole date.
 
     /**
-     * The last-performed date formatted for display, or "Never" if the action was never logged.
+     * The last-performed date formatted for display at full width ({@code "15 June 2026"}), or "Never" if the action was never logged.
      *
      * @param stats the statistics to inspect
      * @return the formatted last-performed date, or "Never"
@@ -127,8 +156,19 @@ public final class ActionStatsExtensions {
     }
 
     /**
+     * The first-performed date formatted for display at full width ({@code "15 June 2026"}), or "Never" if the action was never logged.
+     *
+     * @param stats the statistics to inspect
+     * @return the formatted first-performed date, or "Never"
+     */
+    @TemplateExtension
+    public static String firstLabel(final ActionStats stats) {
+        return stats.firstPerformed() == null ? "Never" : stats.firstPerformed().format(DATE_FMT);
+    }
+
+    /**
      * The last-performed date for the dashboard "Latest" label: "Never" if never logged, "d MMM" (no year) when it falls in the current year, and the
-     * full "d MMM yyyy" only for an earlier year.
+     * full "d MMMM yyyy" only for an earlier year.
      *
      * @param stats the statistics to inspect
      * @return the formatted "Latest" label
@@ -145,26 +185,48 @@ public final class ActionStatsExtensions {
     }
 
     /**
-     * A relative label for the last-performed date: "Today", "Yesterday" or "N days ago".
+     * A relative label for the last-performed date: "Today", "Yesterday", or the elapsed span plus "ago" ({@code "5 days ago"},
+     * {@code "1 year, 17 days ago"}). The span uses the same condensed {@link Durations} wording as the "Current gap" tile, which measures exactly
+     * the same distance.
      *
      * @param stats the statistics to inspect
      * @return the relative last-performed label
      */
     @TemplateExtension
     public static String sinceLabel(final ActionStats stats) {
-        final LocalDate lastPerformed = stats.lastPerformed();
-        if (lastPerformed == null) {
-            return "—";
-        }
-        final long days = ChronoUnit.DAYS.between(lastPerformed, stats.today());
+        return stats.lastPerformed() == null ? "—" : agoLabel(currentGapSpan(stats));
+    }
+
+    /**
+     * A relative label for the first-performed date - how long the user has been doing this at all: "Today", "Yesterday", or the elapsed span plus
+     * "ago" ({@code "5 days ago"}, {@code "1 year, 17 days ago"}).
+     *
+     * @param stats the statistics to inspect
+     * @return the relative first-performed label
+     */
+    @TemplateExtension
+    public static String sinceFirstLabel(final ActionStats stats) {
+        final LocalDate firstPerformed = stats.firstPerformed();
+        return firstPerformed == null ? "—" : agoLabel(new DaySpan(firstPerformed, stats.today()));
+    }
+
+    private static String agoLabel(final DaySpan elapsed) {
+        final int days = Durations.days(elapsed);
         if (days == 0) {
             return "Today";
         }
         if (days == 1) {
             return "Yesterday";
         }
-        return days + " days ago";
+        return Durations.label(elapsed) + " ago";
     }
+
+    // ── Averages ──────────────────────────────────────────────────────────
+    // Two distinct things are averaged, so the labels must never be shortened back to a bare "weekly average":
+    // the DAY averages count each active day once (how OFTEN the habit happens), the COUNT averages sum every
+    // repeat on those days (how MUCH of it happens). Both are measured over the elapsed weeks/months since the
+    // action was first performed, floored at one so a brand-new action reports its own total rather than a
+    // divide-by-zero.
 
     /**
      * The average number of active days per week since the action was first performed, rendered to the given number of decimal places. A zero average
@@ -172,16 +234,58 @@ public final class ActionStatsExtensions {
      *
      * @param stats the statistics to inspect
      * @param decimalPlaces the number of decimal places to render (the user's preference)
-     * @return the weekly average as a display string
+     * @return the average active days per week, as a display string
      */
     @TemplateExtension
-    public static String weeklyAverage(final ActionStats stats, final int decimalPlaces) {
+    public static String weeklyDayAverage(final ActionStats stats, final int decimalPlaces) {
+        return average(stats, stats.totalDays(), ChronoUnit.WEEKS, decimalPlaces);
+    }
+
+    /**
+     * The average number of active days per month since the action was first performed, rendered to the given number of decimal places.
+     *
+     * @param stats the statistics to inspect
+     * @param decimalPlaces the number of decimal places to render (the user's preference)
+     * @return the average active days per month, as a display string
+     */
+    @TemplateExtension
+    public static String monthlyDayAverage(final ActionStats stats, final int decimalPlaces) {
+        return average(stats, stats.totalDays(), ChronoUnit.MONTHS, decimalPlaces);
+    }
+
+    /**
+     * The average total count per week since the action was first performed (every repeat on the same day included), rendered to the given number of
+     * decimal places.
+     *
+     * @param stats the statistics to inspect
+     * @param decimalPlaces the number of decimal places to render (the user's preference)
+     * @return the average count per week, as a display string
+     */
+    @TemplateExtension
+    public static String weeklyCountAverage(final ActionStats stats, final int decimalPlaces) {
+        return average(stats, stats.totalCount(), ChronoUnit.WEEKS, decimalPlaces);
+    }
+
+    /**
+     * The average total count per month since the action was first performed (every repeat on the same day included), rendered to the given number of
+     * decimal places.
+     *
+     * @param stats the statistics to inspect
+     * @param decimalPlaces the number of decimal places to render (the user's preference)
+     * @return the average count per month, as a display string
+     */
+    @TemplateExtension
+    public static String monthlyCountAverage(final ActionStats stats, final int decimalPlaces) {
+        return average(stats, stats.totalCount(), ChronoUnit.MONTHS, decimalPlaces);
+    }
+
+    private static String average(final ActionStats stats, final long total, final ChronoUnit unit, final int decimalPlaces) {
         final LocalDate firstPerformed = stats.firstPerformed();
         if (firstPerformed == null) {
             return formatDecimal(0.0, decimalPlaces);
         }
-        final long weeks = Math.max(1L, ChronoUnit.WEEKS.between(firstPerformed, stats.today()));
-        return formatDecimal((double) stats.totalDays() / weeks, decimalPlaces);
+        final long periods = Math.max(1L, unit.between(firstPerformed, stats.today()));
+        return formatDecimal((double) total / periods, decimalPlaces);
     }
 
     /**
@@ -201,28 +305,82 @@ public final class ActionStatsExtensions {
         return String.format(Locale.ENGLISH, format, value);
     }
 
-    // ── Singular-aware day/streak labels ──────────────────────────────────
+    // ── Streak/gap durations ──────────────────────────────────────────────
+    // Every one of these spans is rendered through the shared Durations helper, so a long span always condenses
+    // the same way ("412 days" -> "1 year, 1 month, 17 days") and a one-unit span never reads "1 months".
 
     /**
-     * The current streak as a singular-aware label, e.g. {@code "1 day"} or {@code "5 days"}.
+     * The run of days on which the action has NOT been performed since it last was: the day after the last logged date, up to and including today. An
+     * action performed today (or never performed at all) has an empty run.
+     *
+     * <p>
+     * Framed as the blank run rather than as "the distance from the last logged date to today" so that the current gap is measured exactly the same
+     * way as {@link ActionStats#longestGap()} - the current gap becomes one of those the moment the action is performed again, and the two must not
+     * disagree about their own length or wording.
+     *
+     * @param stats the statistics to inspect
+     * @return the current gap
+     */
+    public static DaySpan currentGapSpan(final ActionStats stats) {
+        final LocalDate lastPerformed = stats.lastPerformed();
+        return lastPerformed == null
+                ? new DaySpan(stats.today(), stats.today())
+                : new DaySpan(lastPerformed.plusDays(1), stats.today().plusDays(1));
+    }
+
+    /**
+     * The number of days since the action was last performed ({@code 0} when performed today, or never at all).
+     *
+     * @param stats the statistics to inspect
+     * @return the current gap in days
+     */
+    @TemplateExtension
+    public static int currentGap(final ActionStats stats) {
+        return Durations.days(currentGapSpan(stats));
+    }
+
+    /**
+     * The current streak as a condensed duration label, e.g. {@code "1 day"}, {@code "5 days"} or {@code "2 months, 3 days"}.
      *
      * @param stats the statistics to inspect
      * @return the current-streak label
      */
     @TemplateExtension
     public static String currentStreakLabel(final ActionStats stats) {
-        return stats.currentStreak() + " " + currentStreakUnit(stats);
+        return Durations.label(stats.currentStreak());
     }
 
     /**
-     * The longest streak as a singular-aware label, e.g. {@code "1 day"} or {@code "5 days"}.
+     * The longest streak as a condensed duration label, e.g. {@code "1 day"}, {@code "5 days"} or {@code "2 months, 3 days"}.
      *
      * @param stats the statistics to inspect
      * @return the longest-streak label
      */
     @TemplateExtension
     public static String longestStreakLabel(final ActionStats stats) {
-        return stats.longestStreak() + " " + longestStreakUnit(stats);
+        return Durations.label(stats.longestStreak());
+    }
+
+    /**
+     * The current gap as a condensed duration label, e.g. {@code "1 day"}, {@code "5 days"} or {@code "2 months, 3 days"}.
+     *
+     * @param stats the statistics to inspect
+     * @return the current-gap label
+     */
+    @TemplateExtension
+    public static String currentGapLabel(final ActionStats stats) {
+        return Durations.label(currentGapSpan(stats));
+    }
+
+    /**
+     * The longest gap as a condensed duration label, e.g. {@code "1 day"}, {@code "5 days"} or {@code "2 months, 3 days"}.
+     *
+     * @param stats the statistics to inspect
+     * @return the longest-gap label
+     */
+    @TemplateExtension
+    public static String longestGapLabel(final ActionStats stats) {
+        return Durations.label(stats.longestGap());
     }
 
     /**
@@ -233,7 +391,7 @@ public final class ActionStatsExtensions {
      */
     @TemplateExtension
     public static String currentStreakUnit(final ActionStats stats) {
-        return plural(stats.currentStreak(), "day");
+        return Durations.plural(Durations.days(stats.currentStreak()), DAY_UNIT);
     }
 
     /**
@@ -244,18 +402,7 @@ public final class ActionStatsExtensions {
      */
     @TemplateExtension
     public static String longestStreakUnit(final ActionStats stats) {
-        return plural(stats.longestStreak(), "day");
-    }
-
-    /**
-     * The longest gap as a singular-aware label, e.g. {@code "1 day"} or {@code "5 days"}.
-     *
-     * @param stats the statistics to inspect
-     * @return the longest-gap label
-     */
-    @TemplateExtension
-    public static String longestGapLabel(final ActionStats stats) {
-        return stats.longestGap() + " " + longestGapUnit(stats);
+        return Durations.plural(Durations.days(stats.longestStreak()), DAY_UNIT);
     }
 
     /**
@@ -266,18 +413,18 @@ public final class ActionStatsExtensions {
      */
     @TemplateExtension
     public static String longestGapUnit(final ActionStats stats) {
-        return plural(stats.longestGap(), "day");
+        return Durations.plural(Durations.days(stats.longestGap()), DAY_UNIT);
     }
 
     /**
-     * The unit phrase ({@code "distinct day"}/{@code "distinct days"}) matching the total-days count.
+     * The unit phrase ({@code "unique day"}/{@code "unique days"}) matching the total-days count.
      *
      * @param stats the statistics to inspect
      * @return the total-days unit phrase
      */
     @TemplateExtension
     public static String totalDaysUnit(final ActionStats stats) {
-        return plural(stats.totalDays(), "distinct day");
+        return Durations.plural(stats.totalDays(), "unique day");
     }
 
     // ── Comparative helpers ───────────────────────────────────────────────
@@ -360,10 +507,6 @@ public final class ActionStatsExtensions {
     }
 
     // ── Private ───────────────────────────────────────────────────────────
-
-    private static String plural(final long count, final String unit) {
-        return count == 1 ? unit : unit + "s";
-    }
 
     private static String trend(final long current, final long previous) {
         if (current == 0 && previous == 0) {

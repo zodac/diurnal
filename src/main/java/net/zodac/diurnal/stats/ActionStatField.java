@@ -38,6 +38,11 @@ import org.jspecify.annotations.Nullable;
  * may reorder it but never remove it.
  *
  * <p>
+ * <strong>A key is permanent; a label is not.</strong> Keys are stored per user, so renaming a stat only ever changes its {@code label} - which is
+ * why {@link #LONGEST_GAP} still keys on {@code biggest-gap} and {@link #WEEKLY_DAY_AVERAGE} on {@code weekly-average}. Changing a key instead would
+ * drop that stat from every stored arrangement (it re-appears appended at the end, enabled), silently reshuffling everyone's page.
+ *
+ * <p>
  * <strong>Adding a new stat:</strong> any newly-computed statistic that should be user-visible on the Stats page MUST be registered here as a new
  * constant AND given a tile mapping in {@link ActionStatsExtensions#tiles(ActionStats, List, int)} — otherwise it will never appear in the picker or
  * on the page.
@@ -48,67 +53,97 @@ public enum ActionStatField {
      * Current consecutive-day streak.
      */
     CURRENT_STREAK("current-streak", "Current streak", false,
-            "Consecutive days, up to today, on which you performed this action."),
+            "Consecutive days, including today, on which you performed this action"),
 
     /**
      * Longest consecutive-day streak.
      */
     LONGEST_STREAK("longest-streak", "Longest streak", false,
-            "The most consecutive days you have ever performed this action in a row."),
+            "The most consecutive days you have ever performed this action in a row"),
+
+    /**
+     * Days since the action was last performed.
+     */
+    CURRENT_GAP("current-gap", "Current gap", false,
+            "How long it has been since you last performed this action"),
 
     /**
      * Longest gap (in days) between logged days.
      */
-    BIGGEST_GAP("biggest-gap", "Biggest gap", false,
-            "The longest run of days between two days on which you performed this action."),
+    LONGEST_GAP("biggest-gap", "Longest gap", false,
+            "The longest run of days between performing this action"),
 
     /**
      * Number of distinct days the action was performed.
      */
-    TOTAL_DAYS("total-days", "Total days", false,
-            "The number of distinct days you have performed this action at least once."),
+    TOTAL_DAYS("total-days", "Total unique days", false,
+            "The number of distinct days you have performed this action at least once"),
 
     /**
      * All-time total count.
      */
     TOTAL_COUNT("total-count", "Total count", false,
-            "The all-time total number of times you have performed this action."),
+            "The all-time total number of times you have performed this action"),
 
     /**
-     * Average active days per week since first performed.
+     * Average number of active days per week since first performed.
      */
-    WEEKLY_AVERAGE("weekly-average", "Weekly average", false,
-            "Average active days per week since you first performed this action."),
+    WEEKLY_DAY_AVERAGE("weekly-average", "Average days per week", false,
+            "Average number of days per week on which you performed this action at least once"),
+
+    /**
+     * Average number of active days per month since first performed.
+     */
+    MONTHLY_DAY_AVERAGE("monthly-average", "Average days per month", false,
+        "Average number of days per month on which you performed this action at least once"),
+
+    /**
+     * Average total count per week since first performed.
+     */
+    WEEKLY_COUNT_AVERAGE("weekly-count-average", "Average count per week", false,
+            "Average number of times per week you performed this action"),
+
+    /**
+     * Average total count per month since first performed.
+     */
+    MONTHLY_COUNT_AVERAGE("monthly-count-average", "Average count per month", false,
+            "Average number of times per month you performed this action"),
+
+    /**
+     * Date the action was first performed.
+     */
+    FIRST_PERFORMED("first-performed", "First performed", false,
+            "The first date on which you performed this action"),
 
     /**
      * Date the action was last performed. Always shown (mandatory).
      */
     LAST_PERFORMED("last-performed", "Last performed", true,
-            "The most recent date on which you performed this action."),
+            "The most recent date on which you performed this action"),
 
     /**
      * This month's count relative to last month's.
      */
-    VS_LAST_MONTH("vs-last-month", "vs last month", false,
-            "This month's count compared with last month's."),
+    VS_LAST_MONTH("vs-last-month", "Change from last month", false,
+            "This month's count compared with last month's"),
 
     /**
      * This year's count relative to last year's.
      */
-    VS_LAST_YEAR("vs-last-year", "vs last year", false,
-            "This year's count compared with last year's."),
+    VS_LAST_YEAR("vs-last-year", "Change from last year", false,
+            "This year's count compared with last year's"),
 
     /**
      * Highest-count month on record.
      */
     BEST_MONTH("best-month", "Best month", false,
-            "The calendar month in which you performed this action the most."),
+            "The calendar month in which you performed this action the most"),
 
     /**
      * Highest-count year on record.
      */
     BEST_YEAR("best-year", "Best year", false,
-            "The calendar year in which you performed this action the most.");
+            "The calendar year in which you performed this action the most");
 
     private final String key;
     private final String label;

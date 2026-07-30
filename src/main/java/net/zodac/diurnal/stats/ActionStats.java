@@ -19,6 +19,8 @@ package net.zodac.diurnal.stats;
 
 import java.time.LocalDate;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.time.DaySpan;
+import net.zodac.diurnal.time.Durations;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -31,6 +33,12 @@ import org.jspecify.annotations.Nullable;
  * record failed with "class redefinition failed: attempted to change the Record attribute", surfacing as the "Minion exited abnormally due to
  * RUN_ERROR" lint warnings. Keeping the record free of mutable methods means PITest generates no mutants for it, while the extracted logic mutates
  * cleanly.
+ *
+ * <p>
+ * The streak and gap figures are {@link DaySpan}s rather than plain day counts: their length is {@link Durations#days(DaySpan)}, but they are also
+ * rendered as calendar durations ("1 year, 1 month, 17 days"), and that breakdown depends on the actual dates the run covered - the same 31 days is
+ * "1 month" in one place in the calendar and "1 month, 3 days" in another. Carrying the dates keeps every duration exact and stable over time; a bare
+ * count could only be split against some arbitrary anchor, which would make a historical streak's label drift as "today" moved.
  */
 public record ActionStats(
     Action    action,
@@ -38,9 +46,9 @@ public record ActionStats(
     long      totalCount,
     @Nullable LocalDate firstPerformed,
     @Nullable LocalDate lastPerformed,
-    int       currentStreak,
-    int       longestStreak,
-    int       longestGap,
+    DaySpan   currentStreak,
+    DaySpan   longestStreak,
+    DaySpan   longestGap,
     // Comparative
     long      thisMonthCount,
     long      lastMonthCount,

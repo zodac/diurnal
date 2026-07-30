@@ -1,4 +1,7 @@
-<div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+{! data-decimal-places is read by Diurnal.fitFigures() (app.js) when it has to abbreviate a count
+     over 10,000 to "10.0k", so the shortened figure carries the same number of decimals as every
+     other fractional stat on the page. !}
+<div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3" data-decimal-places="{decimalPlaces}">
     {#for s in page.items}
     <div class="card p-4 flex flex-col gap-4">
 
