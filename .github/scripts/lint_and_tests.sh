@@ -84,9 +84,9 @@ SCRIPT_PATH="${SCRIPT_DIR}/${SCRIPT_NAME}"
 
 ESLINT_BUILD_IMAGE="local/diurnal-eslint:latest"
 ESLINT_NODE_IMAGE="node:26.5.0-alpine"
-GRYPE_DOCKER_IMAGE="anchore/grype:v0.116.0"
+GRYPE_DOCKER_IMAGE="anchore/grype:v0.116.1"
 HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.14.0-alpine"
-MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.1"
+MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.2"
 SHELLCHECK_DOCKER_IMAGE="koalaman/shellcheck:v0.11.0"
 
 # The runtime image the grype step builds and scans (the same final stage the published image uses).
@@ -270,6 +270,9 @@ elapsed_since() {
 # glance at the run tells you which tier died — and append the same coloured figure to TIMED_SUBSTEPS for
 # the step's summary breakdown. ${1} is the short name, ${2} the substep's nanosecond start stamp, ${3}
 # its exit code.
+#
+# The printed line is NAMED, not a bare duration: a parallel tier finishing part-way through another one
+# means two timings can land back-to-back, and an unlabelled pair gives no clue which figure is which.
 record_substep_time() {
     local name="${1}"
     local start_ns="${2}"
@@ -282,7 +285,7 @@ record_substep_time() {
     done_in="$(elapsed_since "${start_ns}")"
 
     TIMED_SUBSTEPS+=("${name} ${colour}${done_in}${RESET}")
-    echo "     ${colour}${done_in}${RESET}"
+    echo "     ${name}: ${colour}${done_in}${RESET}"
 }
 
 # Join TIMED_SUBSTEPS into a bracketed one-line breakdown for a step's summary, e.g.

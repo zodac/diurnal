@@ -152,10 +152,10 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 # BEGIN DEBIAN PACKAGES
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -yqq --no-install-recommends \
-        docker-ce="5:29.6.1-1~debian.13~trixie" \
-        docker-ce-cli="5:29.6.1-1~debian.13~trixie" \
+        docker-ce="5:29.6.2-1~debian.13~trixie" \
+        docker-ce-cli="5:29.6.2-1~debian.13~trixie" \
         containerd.io="2.2.6-1~debian.13~trixie" \
-        docker-buildx-plugin="0.35.0-1~debian.13~trixie" \
+        docker-buildx-plugin="0.36.0-1~debian.13~trixie" \
         docker-compose-plugin="5.3.1-1~debian.13~trixie"
 # END DEBIAN PACKAGES
 
