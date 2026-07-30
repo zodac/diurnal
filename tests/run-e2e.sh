@@ -40,6 +40,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Make sure the browser build this @playwright/test version wants is actually cached, BEFORE spinning
+# anything up (a cold download must not hold the DB and app JVM open while it runs). Playwright pins its
+# browser build per release, so a dependency bump silently invalidates the cache and every spec then dies
+# with "Executable doesn't exist at .../chromium_headless_shell-<build>" - 200-odd identical failures for
+# what is really one missing download. Installing here makes the run self-sufficient: it is a fast no-op
+# (no network) when the pinned build is already present. `chromium` covers both projects (Desktop Chrome
+# and the Galaxy S24 device preset are both Chromium) and pulls the headless shell with it. OS-level
+# packages are deliberately NOT installed (`--with-deps` needs root); those are a one-off host setup step.
+(cd "${BASEDIR}/tests" && npx playwright install chromium)
+
 # Bring up the DB and block until its healthcheck passes.
 docker compose -f "${COMPOSE_FILE}" up -d --wait diurnal-db-dev
 

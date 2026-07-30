@@ -184,6 +184,11 @@ COPY --from=node  /usr/local        /usr/local
 # /etc/sudoers.d is created explicitly rather than relying on the `sudo` package —
 # sudo now installs in the tooling block BELOW this one, so the directory would not
 # otherwise exist yet.
+#
+# ~/.m2 is pre-created dev-owned because sandbox.sh mounts a named volume there (so the
+# Maven cache survives the container's --rm). Docker seeds a volume from the image path it
+# covers and inherits that path's ownership; if the directory did not exist, the volume
+# would be created root-owned and every `mvn` run would fail to write the local repository.
 RUN set -eux; \
     if ! getent group "${GID}" >/dev/null; then groupadd -g "${GID}" dev; \
     else groupmod -n dev "$(getent group ${GID} | cut -d: -f1)" || true; fi; \
@@ -193,6 +198,7 @@ RUN set -eux; \
       useradd -l -m -u "${UID}" -g "${GID}" -s /bin/bash dev; \
     fi; \
     usermod -aG docker dev; \
+    install -d -o dev -g dev /home/dev/.m2; \
     install -d -m 0755 /etc/sudoers.d; \
     echo 'dev ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/dev; \
     chmod 0440 /etc/sudoers.d/dev

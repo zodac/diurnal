@@ -13,7 +13,8 @@
 #
 #                  -v, --verbose
 #                    Show each step's full output. Off by default: steps print only a
-#                    per-substep progress line and a pass/fail summary (the long-running
+#                    per-substep progress line, that substep's elapsed time, and a pass/fail
+#                    summary carrying the per-substep breakdown (the long-running
 #                    substeps' own output is hidden until one fails). Turn it on to stream
 #                    every substep's output live — useful when a run fails and you need the detail.
 #
@@ -252,6 +253,50 @@ run_quietly() {
     return "${rc}"
 }
 
+# Per-substep timings of the step currently running, as "<name> <natural-time>" entries in run order.
+# Appended to by run_timed_substep and reset by the step that uses it; a step folds the joined list
+# into its own summary line, so a multi-tier step reports where its time actually went.
+TIMED_SUBSTEPS=()
+
+# Natural time elapsed since the nanosecond stamp in ${1}, printed to stdout. Assign the `date` call to
+# a local first so its return value is not masked (SC2312).
+elapsed_since() {
+    local now
+    now="$(date +%s%N)"
+    to_natural_time "$((now - ${1}))"
+}
+
+# Record one substep's outcome: print its elapsed time — green when it passed, red when it failed, so a
+# glance at the run tells you which tier died — and append the same coloured figure to TIMED_SUBSTEPS for
+# the step's summary breakdown. ${1} is the short name, ${2} the substep's nanosecond start stamp, ${3}
+# its exit code.
+record_substep_time() {
+    local name="${1}"
+    local start_ns="${2}"
+    local rc="${3}"
+
+    # String comparison, not -eq: in bash's arithmetic context an EMPTY value compares equal to 0, so a
+    # tier whose exit code was somehow never captured would be painted green and pass silently.
+    local colour done_in
+    if [[ "${rc}" == "0" ]]; then colour="${GREEN}"; else colour="${RED}"; fi
+    done_in="$(elapsed_since "${start_ns}")"
+
+    TIMED_SUBSTEPS+=("${name} ${colour}${done_in}${RESET}")
+    echo "     ${colour}${done_in}${RESET}"
+}
+
+# Join TIMED_SUBSTEPS into a bracketed one-line breakdown for a step's summary, e.g.
+# "  [mvn 14m:23s | e2e 7m:11s | smoke 9m:28s]". Empty (not an empty bracket pair) when the step
+# recorded no substeps, so a summary line can interpolate it unconditionally.
+substep_breakdown() {
+    if [[ "${#TIMED_SUBSTEPS[@]}" -eq 0 ]]; then
+        return
+    fi
+    local joined
+    joined="$(printf ' | %s' "${TIMED_SUBSTEPS[@]}")"
+    printf '  [%s]' "${joined# | }"
+}
+
 # Pre-flight reachability check for the SonarQube server, hit with the SAME host/token the
 # sonar-maven-plugin itself would use (SONARQUBE_HOST_URL / SONARQUBE_PAT). run_java calls this BEFORE
 # deciding whether to append -Dsonarqube: if the server doesn't answer (down, unreachable, any non-200 —
@@ -339,7 +384,13 @@ run_grype() {
     # every run — grype only
     # re-pulls it when the cached copy is stale. The volume is auto-created by `docker run -v` on first
     # use; nothing lands in the working tree.
-    local build_cmd=(docker build -t "${DIURNAL_RUNTIME_IMAGE}" -f Dockerfile .)
+    # GENERATE_PREVIEWS=false matches what tests/docker-compose.smoke.yml passes, so this build and the
+    # smoke tier's build share every layer - whichever runs second is a cache hit instead of a second
+    # full multi-stage build (and in a `-f` run they now overlap, see run_java). It also skips the preview
+    # generation itself here (an extra Quarkus build plus Postgres and Chromium), which this step has no
+    # use for. Scan fidelity is unaffected: the previews are static PNGs under the app's resources, so
+    # they add no OS package and no jar to the final image - nothing grype looks at.
+    local build_cmd=(docker build -t "${DIURNAL_RUNTIME_IMAGE}" --build-arg GENERATE_PREVIEWS=false -f Dockerfile .)
     local grype_config_args=()
     [[ -f .grype.yaml ]] && grype_config_args+=(-c .grype.yaml)
     grype_config_args+=(-c code-quality-config/docker/.grype.yaml)
@@ -378,12 +429,128 @@ run_grype() {
     fi
 }
 
+# --- parallel-tier supervision (the java step) --------------------------------------------------------
+# The deployment-smoke tier runs alongside the Maven build and then the E2E suite (see run_java). These
+# globals carry its state so run_supervised_tier can watch it while another tier is the one being waited
+# on: PID, exit code once known (empty while still running), start stamp and captured-output file.
+SMOKE_PID=""
+SMOKE_RC=""
+SMOKE_START_NS=""
+SMOKE_LOG=""
+
+# Set by run_supervised_tier when it aborted its tier because the parallel smoke tier failed first, so
+# the caller knows the tier's own exit code is meaningless and smoke is the failure to report.
+TIER_STOPPED_EARLY=false
+
+# Exit code of the tier most recently reaped by tier_reap.
+TIER_RC=""
+
+# Reap a background PID without blocking: sets TIER_RC to its exit code and returns 0 once it has exited,
+# or returns 1 (leaving TIER_RC alone) while it is still running. Bash retains a child's status until it is
+# waited for, so `wait` after the process is gone still yields the real code. Call at most once per PID (a
+# second `wait` on an already-reaped child reports 127, not the original status).
+#
+# The result comes back in a GLOBAL rather than on stdout on purpose: `$(...)` would run `wait` in a
+# subshell, which cannot reap the calling shell's children and quietly yields the wrong status - it reports
+# success for a tier that actually failed.
+tier_reap() {
+    if kill -0 "${1}" 2>/dev/null; then
+        return 1
+    fi
+    TIER_RC=0
+    wait "${1}" 2>/dev/null || TIER_RC=$?
+    return 0
+}
+
+# Signal a still-running background tier and wait for it to tear itself down. Both run-smoke.sh and
+# run-e2e.sh trap the signal and remove their containers/JVM, so waiting is what keeps the teardown from
+# being skipped; abandoning the child would leak its stack. A no-op once the tier has already exited.
+stop_tier() {
+    kill "${1}" 2>/dev/null || true
+    wait "${1}" 2>/dev/null || true
+}
+
+# Print the parallel smoke tier's completion line and record its (coloured) duration. Called the moment
+# it is seen to have exited - which may be part-way through another tier - so the breakdown lists tiers
+# in COMPLETION order rather than start order.
+report_smoke_completion() {
+    substep "tests/run-smoke.sh finished (parallel tier)"
+    record_substep_time "smoke" "${SMOKE_START_NS}" "${SMOKE_RC}"
+}
+
+# Run one tier in the background and supervise it against the parallel smoke tier: block until this tier
+# finishes, OR until smoke is seen to have failed first - in which case this tier is stopped immediately
+# instead of being allowed to run to completion, and TIER_STOPPED_EARLY is set. That is what makes a smoke
+# failure abort the Maven build (rather than being discovered only after it finishes) so the step can move
+# on to the next one. ${1} short name, ${2} progress label, the rest the command.
+#
+# Output goes to a temp file, because run_quietly buffers in a variable in THIS shell, which a background
+# child cannot write to. It is printed if the tier failed; in verbose mode it is streamed live instead
+# (`tail -f`), which is why it is not re-printed at the end. Smoke's own output is never streamed - two
+# live streams would interleave line-by-line and make both unreadable.
+#
+# Returns the tier's own exit code, or 0 when it was stopped early (the caller reports smoke instead).
+run_supervised_tier() {
+    local name="${1}"
+    local label="${2}"
+    shift 2
+
+    local log start_ns pid tail_pid="" rc=""
+    log="$(mktemp)"
+    substep "${label}"
+    start_ns="$(date +%s%N)"
+    "$@" > "${log}" 2>&1 &
+    pid=$!
+    if [[ "${VERBOSE}" == true ]]; then
+        tail -f "${log}" 2>/dev/null &
+        tail_pid=$!
+    fi
+
+    TIER_STOPPED_EARLY=false
+    while [[ -z "${rc}" ]]; do
+        if tier_reap "${pid}"; then
+            rc="${TIER_RC}"
+            break
+        fi
+        # Smoke may finish (either way) while this tier is still going. A pass is just recorded; a failure
+        # stops this tier here and now, which is the whole point of supervising rather than joining later.
+        if [[ -z "${SMOKE_RC}" ]] && tier_reap "${SMOKE_PID}"; then
+            SMOKE_RC="${TIER_RC}"
+            report_smoke_completion
+            if [[ "${SMOKE_RC}" != "0" ]]; then
+                stop_tier "${pid}"
+                TIER_STOPPED_EARLY=true
+                rc=0
+                break
+            fi
+        fi
+        # 1s poll: coarse enough to cost nothing over a multi-minute tier, and the reason a reported
+        # duration can read up to a second longer than the tier actually took.
+        sleep 1
+    done
+
+    if [[ -n "${tail_pid}" ]]; then
+        kill "${tail_pid}" 2>/dev/null || true
+        wait "${tail_pid}" 2>/dev/null || true
+    fi
+
+    if [[ "${TIER_STOPPED_EARLY}" == true ]]; then
+        substep "${name} stopped early (tests/run-smoke.sh failed)"
+    else
+        record_substep_time "${name}" "${start_ns}" "${rc}"
+        if [[ "${rc}" != "0" && "${VERBOSE}" != true && -s "${log}" ]]; then
+            cat "${log}"
+        fi
+    fi
+
+    rm -f "${log}"
+    return "${rc}"
+}
+
 run_java() {
     echo
     echo "Running the full JVM gate [java]: Maven build + E2E + deployment-smoke"
-    # The java step is the whole JVM-side gate: three substeps, each run only if the previous passed
-    # (so a failure short-circuits and the later, slower tiers are skipped). Each substep prints a
-    # progress line first (even in non-verbose mode); run_quietly hides its output unless it fails.
+    # The java step is the whole JVM-side gate, in three tiers:
     #   1. mvn clean install -Dall — unit tests + *IT + the full inherited lint suite. Drives the CSS
     #      build (Node) and a managed IT test DB (Docker), and packages the fast-jar the E2E run reuses;
     #      so it runs against the host toolchain (JDK + Maven + Node + Docker), not a Maven Docker image.
@@ -391,8 +558,26 @@ run_java() {
     #      rebuild needed: it reuses ${PWD}/target/quarkus-app from the install above.
     #   3. tests/run-smoke.sh — deployment-smoke suite against the REAL production image (port 8082),
     #      fully self-contained (builds the image, isolated app+DB stack, readiness-gating check).
-    # This mirrors the old -Dall pom wiring (E2E after the ITs are green, smoke after E2E).
+    #
+    # Tiers 1 and 2 are strictly ordered - E2E boots the jar the Maven build just packaged. Tier 3 is
+    # NOT: it shares nothing with them (its own Docker build context - .dockerignore excludes target/ -
+    # its own compose project, its own tmpfs DB, its own port), so it is STARTED FIRST, in the
+    # background, and joined at the end. That takes the whole smoke tier (including a multi-stage image
+    # build) off the critical path: the step now costs max(mvn + e2e, smoke) rather than their sum.
+    #
+    # The old short-circuit (a failing tier skipped the slower ones that followed) becomes symmetric: the
+    # FIRST tier to fail stops the others and the step gives up, in either direction. An earlier tier
+    # failing signals smoke; smoke failing stops the Maven build or E2E run mid-flight (run_supervised_tier
+    # polls for it rather than only joining at the end). Every stop is a signal-then-wait: run-smoke.sh and
+    # run-e2e.sh trap it and tear their stacks down, so nothing leaks - though bash defers a trap until the
+    # script's current foreground command returns, so a tier sitting in `docker compose up --wait` finishes
+    # that one command first. The wait is deliberate: abandoning a child would leak its containers.
+    #
+    # Each tier is timed individually and the durations - green when the tier passed, red when it failed -
+    # are folded into the summary line below, because "the java step took 31 minutes" is not actionable on
+    # its own; which tier owns those minutes, and which one died, is.
     local failed_at=""
+    TIMED_SUBSTEPS=()
 
     # The Maven gate, optionally with SonarQube analysis appended (see SONARQUBE_ANALYSIS above). The
     # label mirrors the exact args so the progress + "re-run …" hints stay copy/paste-accurate.
@@ -408,27 +593,58 @@ run_java() {
         fi
     fi
 
-    substep "${mvn_label}  (unit + *IT + linters; packages the fast-jar)"
-    run_quietly mvn "${mvn_args[@]}" || failed_at="${mvn_label}"
+    # Tier 3, launched first and supervised by every later tier (see run_supervised_tier).
+    SMOKE_RC=""
+    SMOKE_LOG="$(mktemp)"
+    SMOKE_START_NS="$(date +%s%N)"
+    substep "tests/run-smoke.sh  (deployment-smoke against the real prod image on :${SMOKE_HTTP_PORT}; running in parallel)"
+    "${PWD}/tests/run-smoke.sh" "${SMOKE_HTTP_PORT}" "${PWD}" > "${SMOKE_LOG}" 2>&1 &
+    SMOKE_PID=$!
+
+    run_supervised_tier "mvn" "${mvn_label}  (unit + *IT + linters; packages the fast-jar)" \
+        mvn "${mvn_args[@]}" || failed_at="${mvn_label}"
+    if [[ "${TIER_STOPPED_EARLY}" == true ]]; then
+        failed_at="tests/run-smoke.sh"
+    fi
 
     if [[ -z "${failed_at}" ]]; then
-        substep "tests/run-e2e.sh  (Playwright E2E/UI suite on :${E2E_HTTP_PORT}, reusing the built jar)"
-        run_quietly "${PWD}/tests/run-e2e.sh" "${E2E_HTTP_PORT}" "${PWD}/target" "${PWD}" \
+        run_supervised_tier "e2e" "tests/run-e2e.sh  (Playwright E2E/UI suite on :${E2E_HTTP_PORT}, reusing the built jar)" \
+            "${PWD}/tests/run-e2e.sh" "${E2E_HTTP_PORT}" "${PWD}/target" "${PWD}" \
             || failed_at="tests/run-e2e.sh"
+        if [[ "${TIER_STOPPED_EARLY}" == true ]]; then
+            failed_at="tests/run-smoke.sh"
+        fi
     fi
 
-    if [[ -z "${failed_at}" ]]; then
-        substep "tests/run-smoke.sh  (deployment-smoke against the real prod image on :${SMOKE_HTTP_PORT})"
-        run_quietly "${PWD}/tests/run-smoke.sh" "${SMOKE_HTTP_PORT}" "${PWD}" \
-            || failed_at="tests/run-smoke.sh"
+    # Join tier 3, unless a supervised tier already saw it finish. If an earlier tier failed, signal it and
+    # wait for its teardown rather than letting it run on; that earlier failure is the one reported.
+    if [[ -z "${SMOKE_RC}" ]]; then
+        if [[ -n "${failed_at}" ]]; then
+            stop_tier "${SMOKE_PID}"
+            substep "tests/run-smoke.sh stopped early (${failed_at} already failed)"
+        else
+            SMOKE_RC=0
+            wait "${SMOKE_PID}" || SMOKE_RC=$?
+            report_smoke_completion
+        fi
     fi
+    if [[ -n "${SMOKE_RC}" && "${SMOKE_RC}" != "0" ]]; then
+        failed_at="tests/run-smoke.sh"
+        if [[ -s "${SMOKE_LOG}" ]]; then
+            cat "${SMOKE_LOG}"
+        fi
+    elif [[ "${VERBOSE}" == true && -s "${SMOKE_LOG}" ]]; then
+        cat "${SMOKE_LOG}"
+    fi
+    rm -f "${SMOKE_LOG}"
 
-    local done_in
+    local done_in breakdown
     done_in="$(step_time)"
+    breakdown="$(substep_breakdown)"
     if [[ -z "${failed_at}" ]]; then
-        echo "✅ Java gate passed (build + tests + E2E + smoke), finished in ${GREEN}${done_in}${RESET}"
+        echo "✅ Java gate passed (build + tests + E2E + smoke), finished in ${GREEN}${done_in}${RESET}${breakdown}"
     else
-        echo "❌ Java gate failed at [${failed_at}] after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v java'${RESET} for the full output"
+        echo "❌ Java gate failed at [${failed_at}] after ${RED}${done_in}${RESET}${breakdown}: re-run ${YELLOW}'${SCRIPT_PATH} -v java'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
