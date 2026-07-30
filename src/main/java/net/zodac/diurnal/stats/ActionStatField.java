@@ -34,8 +34,9 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * Each entry maps a stable {@link #key()} (persisted in {@code users.stats_fields} and posted by the settings form) to its display {@link #label()}.
- * Declaration order is the default display order, matching the historical Stats-page layout. {@link #LAST_PERFORMED} is {@link #mandatory()}: a user
- * may reorder it but never remove it.
+ * Declaration order is the default display order: the two dates first, then the streak/gap pairs, the totals, the bests, the averages, and finally
+ * the period-on-period comparisons. It only applies to users who have never customised their arrangement - a stored arrangement always wins, and a
+ * field missing from one is appended at the end. {@link #LAST_PERFORMED} is {@link #mandatory()}: a user may reorder it but never remove it.
  *
  * <p>
  * <strong>A key is permanent; a label is not.</strong> Keys are stored per user, so renaming a stat only ever changes its {@code label} - which is
@@ -48,6 +49,18 @@ import org.jspecify.annotations.Nullable;
  * on the page.
  */
 public enum ActionStatField {
+
+    /**
+     * Date the action was last performed. Always shown (mandatory).
+     */
+    LAST_PERFORMED("last-performed", "Last performed", true,
+            "The most recent date on which you performed this action"),
+
+    /**
+     * Date the action was first performed.
+     */
+    FIRST_PERFORMED("first-performed", "First performed", false,
+            "The first date on which you performed this action"),
 
     /**
      * Current consecutive-day streak.
@@ -74,28 +87,28 @@ public enum ActionStatField {
             "The longest run of days between performing this action"),
 
     /**
-     * Number of distinct days the action was performed.
-     */
-    TOTAL_DAYS("total-days", "Total unique days", false,
-            "The number of distinct days you have performed this action at least once"),
-
-    /**
      * All-time total count.
      */
     TOTAL_COUNT("total-count", "Total count", false,
             "The all-time total number of times you have performed this action"),
 
     /**
-     * Average number of active days per week since first performed.
+     * Number of distinct days the action was performed.
      */
-    WEEKLY_DAY_AVERAGE("weekly-average", "Average days per week", false,
-            "Average number of days per week on which you performed this action at least once"),
+    TOTAL_DAYS("total-days", "Total unique days", false,
+            "The number of distinct days you have performed this action at least once"),
 
     /**
-     * Average number of active days per month since first performed.
+     * Highest-count month on record.
      */
-    MONTHLY_DAY_AVERAGE("monthly-average", "Average days per month", false,
-        "Average number of days per month on which you performed this action at least once"),
+    BEST_MONTH("best-month", "Best month", false,
+            "The calendar month in which you performed this action the most"),
+
+    /**
+     * Highest-count year on record.
+     */
+    BEST_YEAR("best-year", "Best year", false,
+            "The calendar year in which you performed this action the most"),
 
     /**
      * Average total count per week since first performed.
@@ -110,16 +123,16 @@ public enum ActionStatField {
             "Average number of times per month you performed this action"),
 
     /**
-     * Date the action was first performed.
+     * Average number of active days per week since first performed.
      */
-    FIRST_PERFORMED("first-performed", "First performed", false,
-            "The first date on which you performed this action"),
+    WEEKLY_DAY_AVERAGE("weekly-average", "Average days per week", false,
+            "Average number of days per week on which you performed this action at least once"),
 
     /**
-     * Date the action was last performed. Always shown (mandatory).
+     * Average number of active days per month since first performed.
      */
-    LAST_PERFORMED("last-performed", "Last performed", true,
-            "The most recent date on which you performed this action"),
+    MONTHLY_DAY_AVERAGE("monthly-average", "Average days per month", false,
+            "Average number of days per month on which you performed this action at least once"),
 
     /**
      * This month's count relative to last month's.
@@ -131,19 +144,7 @@ public enum ActionStatField {
      * This year's count relative to last year's.
      */
     VS_LAST_YEAR("vs-last-year", "Change from last year", false,
-            "This year's count compared with last year's"),
-
-    /**
-     * Highest-count month on record.
-     */
-    BEST_MONTH("best-month", "Best month", false,
-            "The calendar month in which you performed this action the most"),
-
-    /**
-     * Highest-count year on record.
-     */
-    BEST_YEAR("best-year", "Best year", false,
-            "The calendar year in which you performed this action the most");
+            "This year's count compared with last year's");
 
     private final String key;
     private final String label;
