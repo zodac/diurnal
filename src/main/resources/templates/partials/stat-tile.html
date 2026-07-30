@@ -7,14 +7,19 @@
     valueClass — optional colour/utility for the value (e.g. a trend colour); defaults to text-ink
     date       — optional; true for the "Last performed" tile: a smaller, non-grouped date value
                  with a `.js-num` sub, rather than the big locale-grouped numeric value
+
+  `data-fit` marks every line whose text may be shortened when it does not fit the tile's width —
+  Diurnal.fitFigures() (app.js) abbreviates a spelled-out month, then a 4-digit year, then a count
+  over 10,000, and only as far as it must. A line that needs no shortening is left exactly as the
+  server rendered it, so a wide viewport always shows the full text.
 !}
 <div class="stat-tile">
     <dt class="help-text mb-1">{label}</dt>
     {#if date}
-    <dd class="text-sm font-semibold text-ink leading-snug mt-0.5">{value}</dd>
-    {#if sub}<dd class="js-num help-text mt-0.5">{sub}</dd>{/if}
+    <dd data-fit class="text-sm font-semibold text-ink leading-snug mt-0.5">{value}</dd>
+    {#if sub}<dd data-fit class="js-num help-text mt-0.5">{sub}</dd>{/if}
     {#else}
-    <dd class="js-num text-2xl font-bold leading-none font-display {valueClass ?: 'text-ink'}">{value}</dd>
-    {#if sub}<dd class="help-text mt-0.5{#if subNum} js-num{/if}">{sub}</dd>{/if}
+    <dd data-fit class="js-num text-2xl font-bold leading-none font-display {valueClass ?: 'text-ink'}">{value}</dd>
+    {#if sub}<dd{#if subNum} data-fit{/if} class="help-text mt-0.5{#if subNum} js-num{/if}">{sub}</dd>{/if}
     {/if}
 </div>

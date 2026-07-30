@@ -146,7 +146,7 @@ public class AppLifecycle {
             LOGGER.debug("OIDC discovery endpoint {} could not be reached after {} attempt(s)", discoveryUrl, PROBE_ATTEMPTS);
             failure = OidcDiscovery.validationFailure(issuerUrl, false, 0, "");
         } else {
-            LOGGER.debug("OIDC discovery endpoint {} responded with HTTP {}, body: {}", discoveryUrl, response.statusCode(), response.body());
+            LOGGER.trace("OIDC discovery endpoint {} responded with HTTP {}, body: {}", discoveryUrl, response.statusCode(), response.body());
             failure = OidcDiscovery.validationFailure(issuerUrl, true, response.statusCode(), response.body());
         }
 

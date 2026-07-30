@@ -78,6 +78,7 @@ class StatsApiResourceIT extends IntegrationTestBase {
                 .body("items[0].totalCount", equalTo(5))
                 .body("items[0].currentStreak", equalTo(2))
                 .body("items[0].longestStreak", equalTo(2))
+                .body("items[0].currentGap", equalTo(0)) // logged today
                 .body("items[0].firstPerformed", equalTo(TODAY.minusDays(1).toString()))
                 .body("items[0].lastPerformed", equalTo(TODAY.toString()));
     }

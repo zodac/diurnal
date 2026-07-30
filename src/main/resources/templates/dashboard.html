@@ -48,7 +48,7 @@
         {! Stats quick-link (hidden until there are logged actions, or when the user has turned the
              stats summary off in Settings) !}
         {#if showStatsSummary && !recentStats.isEmpty()}
-        <div id="stats-summary" class="card p-4">
+        <div id="stats-summary" class="card p-4" data-decimal-places="{decimalPlaces}">
             <div class="flex flex-col gap-3">
                 {#for s in recentStats}
                 <div class="stat-tile px-3 py-2 border border-line-subtle

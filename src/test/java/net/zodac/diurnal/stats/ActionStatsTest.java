@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.LocalDate;
 import java.util.List;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.time.DaySpan;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
@@ -53,13 +54,19 @@ class ActionStatsTest {
         final String bestYearLabel, final long bestYearCount) {
         return new ActionStats(
             new Action(), totalDays, totalCount, first, last,
-                currentStreak, longestStreak, longestGap,
+                span(currentStreak), span(longestStreak), span(longestGap),
                 thisMonth, lastMonth,
                 thisYear, lastYear,
                 bestMonthLabel, bestMonthCount,
                 bestYearLabel, bestYearCount,
                 TODAY
         );
+    }
+
+    // Each streak/gap figure is a real date range; these tests only care about its LENGTH, so every span is
+    // anchored to end today (see StatsServiceTest for the ranges themselves).
+    private static DaySpan span(final int days) {
+        return new DaySpan(TODAY.minusDays(days), TODAY);
     }
 
     // ── hasData ───────────────────────────────────────────────────────────────
@@ -105,7 +112,58 @@ class ActionStatsTest {
         final ActionStats s = stats(1, 1, priorYear, priorYear, 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
         assertThat(ActionStatsExtensions.latestLabel(s))
             .as("unexpected value")
-            .isEqualTo("25 Dec " + (TODAY.getYear() - 1));
+            .isEqualTo("25 December " + (TODAY.getYear() - 1));
+    }
+
+    // ── firstLabel / sinceFirstLabel ────────────────────────────────────────────
+
+    @Test
+    void firstLabel_neverPerformed_returnsNever() {
+        final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.firstLabel(s))
+            .as("unexpected value")
+            .isEqualTo("Never");
+    }
+
+    @Test
+    void firstLabel_isTheFullWidthDate() {
+        final ActionStats s = stats(2, 2, LocalDate.of(2024, 9, 3), TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.firstLabel(s))
+            .as("the month is spelled out; the front-end shortens it only if it does not fit")
+            .isEqualTo("3 September 2024");
+    }
+
+    @Test
+    void sinceFirstLabel_neverPerformed_returnsDash() {
+        final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.sinceFirstLabel(s))
+            .as("unexpected value")
+            .isEqualTo("—");
+    }
+
+    @Test
+    void sinceFirstLabel_startedToday_returnsToday() {
+        final ActionStats s = stats(1, 1, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.sinceFirstLabel(s))
+            .as("unexpected value")
+            .isEqualTo("Today");
+    }
+
+    @Test
+    void sinceFirstLabel_startedYesterday_returnsYesterday() {
+        final ActionStats s = stats(2, 2, TODAY.minusDays(1), TODAY, 2, 2, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.sinceFirstLabel(s))
+            .as("unexpected value")
+            .isEqualTo("Yesterday");
+    }
+
+    @Test
+    void sinceFirstLabel_longHistory_isCondensed() {
+        // TODAY is 15 June 2025, so a start of 3 September 2024 is 9 months and 12 days back.
+        final ActionStats s = stats(2, 2, LocalDate.of(2024, 9, 3), TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.sinceFirstLabel(s))
+            .as("unexpected value")
+            .isEqualTo("9 months, 12 days ago");
     }
 
     // ── performedThisMonth ──────────────────────────────────────────────────────
@@ -168,69 +226,169 @@ class ActionStatsTest {
             .isEqualTo("30 days ago");
     }
 
-    // ── weeklyAverage ─────────────────────────────────────────────────────────
+    // ── weeklyDayAverage / monthlyDayAverage / weeklyCountAverage / monthlyCountAverage ────────
 
     @Test
-    void weeklyAverage_nullFirstPerformed_returnsPlainZero() {
+    void weeklyDayAverage_nullFirstPerformed_returnsPlainZero() {
         // A zero average is simplified to a plain "0" (no trailing decimals) regardless of preference.
         final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.weeklyAverage(s, 1))
+        assertThat(ActionStatsExtensions.weeklyDayAverage(s, 1))
             .as("unexpected value")
             .isEqualTo("0");
     }
 
     @Test
-    void weeklyAverage_zeroAverage_ignoresDecimalPlaces() {
+    void weeklyDayAverage_zeroAverage_ignoresDecimalPlaces() {
         final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.weeklyAverage(s, 3))
+        assertThat(ActionStatsExtensions.weeklyDayAverage(s, 3))
             .as("a zero average is always plain '0'")
             .isEqualTo("0");
     }
 
     @Test
-    void weeklyAverage_oneOccurrenceInOneWeek_returnsOnePointZero() {
+    void weeklyDayAverage_oneOccurrenceInOneWeek_returnsOnePointZero() {
         // first = today-7, span = 1 week, totalDays=1 → 1/1 = 1.0
         final ActionStats s = stats(1, 1, TODAY.minusDays(7), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.weeklyAverage(s, 1))
+        assertThat(ActionStatsExtensions.weeklyDayAverage(s, 1))
             .as("unexpected value")
             .isEqualTo("1.0");
     }
 
     @Test
-    void weeklyAverage_sevenOccurrencesInOneWeek_returnsSevenPointZero() {
+    void weeklyDayAverage_sevenOccurrencesInOneWeek_returnsSevenPointZero() {
         // first = today-7, span = 1 week, totalDays=7 → 7/1 = 7.0
         // WEEKS.between(today-7, today) = 1; 7 days / 1 week = 7.0
         final ActionStats s = stats(7, 7, TODAY.minusDays(7), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.weeklyAverage(s, 1))
+        assertThat(ActionStatsExtensions.weeklyDayAverage(s, 1))
             .as("unexpected value")
             .isEqualTo("7.0");
     }
 
     @Test
-    void weeklyAverage_sevenOccurrencesInTwoWeeks_returnsThreePointFive() {
+    void weeklyDayAverage_sevenOccurrencesInTwoWeeks_returnsThreePointFive() {
         // first = today-14, span = 2 weeks, totalDays=7 → 7/2 = 3.5
         final ActionStats s = stats(7, 7, TODAY.minusDays(14), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.weeklyAverage(s, 1))
+        assertThat(ActionStatsExtensions.weeklyDayAverage(s, 1))
             .as("unexpected value")
             .isEqualTo("3.5");
     }
 
     @Test
-    void weeklyAverage_twoDecimalPlaces_rendersTwoDecimals() {
+    void weeklyDayAverage_twoDecimalPlaces_rendersTwoDecimals() {
         // first = today-14, span = 2 weeks, totalDays=7 → 7/2 = 3.5 → "3.50" at 2 places
         final ActionStats s = stats(7, 7, TODAY.minusDays(14), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.weeklyAverage(s, 2))
+        assertThat(ActionStatsExtensions.weeklyDayAverage(s, 2))
             .as("unexpected value")
             .isEqualTo("3.50");
     }
 
     @Test
-    void weeklyAverage_zeroDecimalPlaces_roundsToWholeNumber() {
+    void weeklyDayAverage_zeroDecimalPlaces_roundsToWholeNumber() {
         // first = today-14, span = 2 weeks, totalDays=7 → 3.5 → "4" rounded to 0 places
         final ActionStats s = stats(7, 7, TODAY.minusDays(14), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.weeklyAverage(s, 0))
+        assertThat(ActionStatsExtensions.weeklyDayAverage(s, 0))
             .as("unexpected value")
             .isEqualTo("4");
+    }
+
+    @Test
+    void monthlyDayAverage_threeDaysOverThreeMonths_isOnePerMonth() {
+        final ActionStats s = stats(3, 12, TODAY.minusMonths(3), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.monthlyDayAverage(s, 1))
+            .as("unexpected value")
+            .isEqualTo("1.0");
+    }
+
+    @Test
+    void monthlyDayAverage_nullFirstPerformed_returnsPlainZero() {
+        final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.monthlyDayAverage(s, 2))
+            .as("unexpected value")
+            .isEqualTo("0");
+    }
+
+    @Test
+    void weeklyCountAverage_countsEveryRepeat_notJustActiveDays() {
+        // 3 active days but 12 logged occurrences over 2 weeks: the DAY average is 1.5, the COUNT
+        // average is 6.0 — the two stats must never collapse into one figure.
+        final ActionStats s = stats(3, 12, TODAY.minusWeeks(2), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.weeklyDayAverage(s, 1))
+            .as("unexpected value")
+            .isEqualTo("1.5");
+        assertThat(ActionStatsExtensions.weeklyCountAverage(s, 1))
+            .as("unexpected value")
+            .isEqualTo("6.0");
+    }
+
+    @Test
+    void weeklyCountAverage_nullFirstPerformed_returnsPlainZero() {
+        final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.weeklyCountAverage(s, 1))
+            .as("unexpected value")
+            .isEqualTo("0");
+    }
+
+    @Test
+    void monthlyCountAverage_countsEveryRepeat_notJustActiveDays() {
+        final ActionStats s = stats(3, 12, TODAY.minusMonths(3), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.monthlyCountAverage(s, 1))
+            .as("unexpected value")
+            .isEqualTo("4.0");
+    }
+
+    @Test
+    void monthlyCountAverage_nullFirstPerformed_returnsPlainZero() {
+        final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.monthlyCountAverage(s, 1))
+            .as("unexpected value")
+            .isEqualTo("0");
+    }
+
+    @Test
+    void averages_spanShorterThanOnePeriod_dividesByOne() {
+        // First performed yesterday: zero elapsed weeks/months, floored at one, so the average is the
+        // total itself rather than a division by zero.
+        final ActionStats s = stats(2, 5, TODAY.minusDays(1), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.weeklyDayAverage(s, 1))
+            .as("unexpected value")
+            .isEqualTo("2.0");
+        assertThat(ActionStatsExtensions.monthlyCountAverage(s, 1))
+            .as("unexpected value")
+            .isEqualTo("5.0");
+    }
+
+    // ── currentGap ────────────────────────────────────────────────────────────
+
+    @Test
+    void currentGap_neverPerformed_isZero() {
+        final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.currentGap(s))
+            .as("unexpected value")
+            .isZero();
+    }
+
+    @Test
+    void currentGap_performedToday_isZero() {
+        final ActionStats s = stats(1, 1, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.currentGap(s))
+            .as("unexpected value")
+            .isZero();
+    }
+
+    @Test
+    void currentGap_performedEarlier_isTheElapsedDays() {
+        final ActionStats s = stats(1, 1, TODAY.minusDays(12), TODAY.minusDays(12), 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.currentGap(s))
+            .as("unexpected value")
+            .isEqualTo(12);
+    }
+
+    @Test
+    void currentGapLabel_overOneMonth_isCondensed() {
+        final ActionStats s = stats(1, 1, TODAY.minusDays(45), TODAY.minusDays(45), 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        assertThat(ActionStatsExtensions.currentGapLabel(s))
+            .as("unexpected value")
+            .isEqualTo("1 month, 14 days");
     }
 
     // ── streak / day labels (singular-aware) ───────────────────────────────────
@@ -280,7 +438,7 @@ class ActionStatsTest {
         final ActionStats s = stats(1, 1, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
         assertThat(ActionStatsExtensions.totalDaysUnit(s))
             .as("unexpected value")
-            .isEqualTo("distinct day");
+            .isEqualTo("unique day");
     }
 
     @Test
@@ -288,7 +446,7 @@ class ActionStatsTest {
         final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
         assertThat(ActionStatsExtensions.totalDaysUnit(s))
             .as("unexpected value")
-            .isEqualTo("distinct days");
+            .isEqualTo("unique days");
     }
 
     @Test
@@ -296,7 +454,7 @@ class ActionStatsTest {
         final ActionStats s = stats(2, 2, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
         assertThat(ActionStatsExtensions.totalDaysUnit(s))
             .as("unexpected value")
-            .isEqualTo("distinct days");
+            .isEqualTo("unique days");
     }
 
     // ── longestGapLabel / longestGapUnit ──────────────────────────────────────
@@ -476,15 +634,118 @@ class ActionStatsTest {
     }
 
     @Test
-    void tiles_weeklyAverage_honoursDecimalPlaces() {
+    void tiles_weeklyDayAverage_honoursDecimalPlaces() {
         // 3 distinct days over exactly 2 weeks → 1.5 per week; rendered to 2 dp.
         final ActionStats s = statsG(3, 3, TODAY.minusWeeks(2), TODAY, 0, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
 
-        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.WEEKLY_AVERAGE), 2).getFirst();
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.WEEKLY_DAY_AVERAGE), 2).getFirst();
 
         assertThat(tile.value())
             .as("weekly average uses the passed decimal-place count")
             .isEqualTo("1.50");
+    }
+
+    @Test
+    void tiles_durationUnderOneMonth_keepsTheBigNumberStyling() {
+        final ActionStats s = stats(5, 5, TODAY.minusDays(4), TODAY, 5, 5, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.CURRENT_STREAK), 1).getFirst();
+
+        assertThat(tile.date())
+            .as("a plain day count keeps the prominent numeric styling")
+            .isFalse();
+        assertThat(tile.value())
+            .as("value is the bare day count")
+            .isEqualTo("5");
+        assertThat(tile.sub())
+            .as("sub is the unit word")
+            .isEqualTo("days");
+    }
+
+    @Test
+    void tiles_durationOverOneMonth_condensesAndMovesTheDayCountToTheSub() {
+        // TODAY is 15 June 2025, so a 45-day streak reaches back to 1 May → "1 month, 14 days".
+        final ActionStats s = stats(45, 45, TODAY.minusDays(44), TODAY, 45, 45, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.CURRENT_STREAK), 1).getFirst();
+
+        assertThat(tile.date())
+            .as("a condensed breakdown needs the smaller two-line styling")
+            .isTrue();
+        assertThat(tile.value())
+            .as("value is the condensed duration")
+            .isEqualTo("1 month, 14 days");
+        assertThat(tile.sub())
+            .as("the exact day count moves to the sub-caption")
+            .isEqualTo("45 days");
+        assertThat(tile.subNum())
+            .as("the sub carries a locale-groupable count")
+            .isTrue();
+    }
+
+    @Test
+    void tiles_currentGap_isTheSpanSinceLastPerformed() {
+        final ActionStats s = stats(2, 2, TODAY.minusDays(9), TODAY.minusDays(9), 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.CURRENT_GAP), 1).getFirst();
+
+        assertThat(tile.label())
+            .as("unexpected value")
+            .isEqualTo("Current gap");
+        assertThat(tile.value())
+            .as("nine days have elapsed since the action was last performed")
+            .isEqualTo("9");
+    }
+
+    @Test
+    void tiles_bestMonth_leadsWithTheMonthAndSubsTheCount() {
+        final ActionStats s = stats(2, 7, TODAY, TODAY, 0, 0, 0, 0, 0, 0, "June 2025", 21, "2025", 203);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.BEST_MONTH), 1).getFirst();
+
+        assertThat(tile.value())
+            .as("the month is the headline, not the count")
+            .isEqualTo("June 2025");
+        assertThat(tile.sub())
+            .as("the count is the secondary caption, singular-aware")
+            .isEqualTo("21 times");
+        assertThat(tile.date())
+            .as("a month label uses the smaller date styling")
+            .isTrue();
+    }
+
+    @Test
+    void tiles_bestYear_leadsWithTheYearAndSubsTheCount() {
+        final ActionStats s = stats(2, 7, TODAY, TODAY, 0, 0, 0, 0, 0, 0, "June 2025", 21, "2025", 1);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.BEST_YEAR), 1).getFirst();
+
+        assertThat(tile.value())
+            .as("the year is the headline, not the count")
+            .isEqualTo("2025");
+        assertThat(tile.sub())
+            .as("a single occurrence reads '1 time', never '1 times'")
+            .isEqualTo("1 time");
+    }
+
+    @Test
+    void tiles_firstPerformed_isDateTileWithElapsedSub() {
+        final ActionStats s = stats(2, 4, TODAY.minusDays(3), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.FIRST_PERFORMED), 1).getFirst();
+
+        assertThat(tile.label())
+            .as("unexpected value")
+            .isEqualTo("First performed");
+        assertThat(tile.date())
+            .as("first-performed renders with the smaller date styling")
+            .isTrue();
+        assertThat(tile.value())
+            .as("value is the first-performed date at full width")
+            .isEqualTo("12 June 2025");
+        assertThat(tile.sub())
+            .as("sub is how long ago the user started")
+            .isEqualTo("3 days ago");
     }
 
     @Test
@@ -498,7 +759,7 @@ class ActionStatsTest {
             .isTrue();
         assertThat(tile.value())
             .as("value is the formatted date")
-            .isEqualTo("12 Jun 2025");
+            .isEqualTo("12 June 2025");
         assertThat(tile.sub())
             .as("sub is the relative label")
             .isEqualTo("3 days ago");

@@ -506,13 +506,24 @@ document.addEventListener('click', function (e) {
 // "1,000" (en) or "1.000" (de) etc. Only elements explicitly tagged `.js-num` are touched —
 // never date/label fields (e.g. "Jun 2026"), names or emails — so years are left alone.
 (function () {
-    function fmt(num, decimals) {
+    // Any element holding a number of 5+ digits (i.e. >= 10,000) keeps its ungrouped server text on
+    // `data-num-raw`, so the fitting pass below can re-derive a "10.0k" form from exact digits rather
+    // than trying to parse locale-grouped text back into a number ("1.000" is 1000 in en, 1 in de).
+    const ABBREVIABLE = /\d{5}/
+
+    window.Diurnal.formatNumber = function (num, decimals) {
         return decimals > 0
             ? num.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
             : num.toLocaleString(undefined)
     }
-    // Replace each run of digits (optionally with a decimal part) in the element's text. A leading
-    // sign/word stays put, so "+1234" → "+1,234" and "1234 this month" → "1,234 this month".
+    // Replace each run of digits (optionally with a decimal part) in a string, preserving everything
+    // around it: "+1234" → "+1,234" and "1234 this month" → "1,234 this month".
+    window.Diurnal.groupNumbers = function (text) {
+        return text.replace(/\d+(?:\.\d+)?/g, function (match) {
+            const dot = match.indexOf('.')
+            return window.Diurnal.formatNumber(Number(match), dot === -1 ? 0 : match.length - dot - 1)
+        })
+    }
     window.Diurnal.formatNumbers = function (rootParam) {
         const root = rootParam || document.body
         const els = []
@@ -521,15 +532,13 @@ document.addEventListener('click', function (e) {
         els.forEach(function (el) {
             if (el.dataset.numDone) { return }   // idempotent: don't re-group an already-grouped value
             el.dataset.numDone = '1'
+            if (ABBREVIABLE.test(el.textContent)) { el.dataset.numRaw = el.textContent }
             const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null)
             const nodes = []
             let node
             while ((node = walker.nextNode())) { nodes.push(node) }
             nodes.forEach(function (textNode) {
-                textNode.nodeValue = textNode.nodeValue.replace(/\d+(?:\.\d+)?/g, function (match) {
-                    const dot = match.indexOf('.')
-                    return fmt(Number(match), dot === -1 ? 0 : match.length - dot - 1)
-                })
+                textNode.nodeValue = window.Diurnal.groupNumbers(textNode.nodeValue)
             })
         })
     }
@@ -537,6 +546,119 @@ document.addEventListener('click', function (e) {
     // content (e.g. the stats list paginating in).
     window.Diurnal.formatNumbers(document.body)
     document.body.addEventListener('htmx:afterSwap', function (e) { window.Diurnal.formatNumbers(e.target) })
+})();
+
+// ── Responsive figure fitting (dates, large counts) ───────────────────────────
+// Every server-rendered figure carries its FULLEST form — a spelled-out month ("15 June 2026"), a
+// 4-digit year, an exact count. That is the right text whenever it fits, and only the browser knows
+// whether it does: the width of a stat tile depends on the viewport, the locale's grouping separators
+// and the user's chosen font. So the server marks each shortenable line `data-fit` and the reduction
+// happens here — one step at a time, and only while the line still overflows its own box:
+//     "15 June 2026"    →  "15 Jun 2026"  →  "15 Jun 26"
+//     "10,000 all time" →  "10.0k all time"        (only for a figure of 10,000 or more)
+// Each step is measured with the line forced onto a single line (`.fit-measure`); the class is removed
+// again straight after, so a line that overflows even at its shortest wraps normally rather than being
+// clipped. The month table and the abbreviation ladder are shared with the calendar toolbar's own
+// title fitting (dashboard.js), so "June" → "Jun" is spelled out in exactly one place.
+(function () {
+    const COUNT_ABBR_THRESHOLD = 10000 // a count is only ever shortened to "10.0k" at or above this
+    const DEFAULT_DECIMALS = 1
+    const OVERFLOW_TOLERANCE = 1 // px; scrollWidth rounds up, so ignore a sub-pixel "overflow"
+
+    window.Diurnal.MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
+                                  'July', 'August', 'September', 'October', 'November', 'December']
+    window.Diurnal.MONTHS_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+    const MONTH_PATTERNS = window.Diurnal.MONTHS_FULL.map(function (month) {
+        return new RegExp(`\\b${  month  }\\b`, 'g')
+    })
+
+    // "15 June 2026" → "15 Jun 2026". Whole words only, so "1 month, 2 days" is untouched.
+    window.Diurnal.shortenMonths = function (text) {
+        return MONTH_PATTERNS.reduce(function (acc, pattern, i) {
+            return acc.replace(pattern, window.Diurnal.MONTHS_ABBR[i])
+        }, text)
+    }
+    // "15 Jun 2026" → "15 Jun 26". Only a bare 19xx/20xx reads as a year, so a count never matches.
+    window.Diurnal.shortenYears = function (text) {
+        return text.replace(/\b(?:19|20)(\d{2})\b/g, '$1')
+    }
+    // The ordered abbreviation ladder for a label, widest first, with each step included only when it
+    // actually shortens the one before it. A label with no month, year or large count yields a single
+    // step and is left alone.
+    window.Diurnal.labelSteps = function (text, rawNumbers, decimals) {
+        const steps = [text]
+        const push = function (candidate) {
+            if (candidate !== steps[steps.length - 1]) { steps.push(candidate) }
+        }
+        push(window.Diurnal.shortenMonths(steps[steps.length - 1]))
+        push(window.Diurnal.shortenYears(steps[steps.length - 1]))
+        if (rawNumbers) { push(abbreviateCounts(rawNumbers, decimals)) }
+        return steps
+    }
+
+    // Rewrite the ungrouped text's figures, replacing any of 10,000 or more with its "10.0k" form (at
+    // the viewer's decimal-place preference) and locale-grouping the rest exactly as formatNumbers did.
+    function abbreviateCounts(raw, decimals) {
+        return raw.replace(/\d+(?:\.\d+)?/g, function (match) {
+            const value = Number(match)
+            if (value >= COUNT_ABBR_THRESHOLD) {
+                return `${  window.Diurnal.formatNumber(value / 1000, decimals)  }k`
+            }
+            const dot = match.indexOf('.')
+            return window.Diurnal.formatNumber(value, dot === -1 ? 0 : match.length - dot - 1)
+        })
+    }
+
+    // The nearest [data-decimal-places] ancestor carries the user's fractional-stat preference, so an
+    // abbreviated count matches the averages beside it.
+    function decimalsFor(el) {
+        const host = el.closest('[data-decimal-places]')
+        const parsed = host ? parseInt(host.dataset.decimalPlaces, 10) : NaN
+        return isNaN(parsed) ? DEFAULT_DECIMALS : parsed
+    }
+
+    // Each element's ladder is computed once and cached (keyed by the element, so an HTMX swap's
+    // replacements are collected): a re-fit after a resize re-measures, it does not re-derive.
+    const ladders = new WeakMap()
+
+    function fit(el) {
+        let steps = ladders.get(el)
+        if (!steps) {
+            steps = window.Diurnal.labelSteps(el.textContent, el.dataset.numRaw, decimalsFor(el))
+            ladders.set(el, steps)
+        }
+        if (steps.length < 2) { return }
+        el.classList.add('fit-measure')
+        let step = 0
+        el.textContent = steps[0]
+        while (step < steps.length - 1 && el.scrollWidth > el.clientWidth + OVERFLOW_TOLERANCE) {
+            step += 1
+            el.textContent = steps[step]
+        }
+        el.classList.remove('fit-measure')
+    }
+
+    window.Diurnal.fitFigures = function (rootParam) {
+        const root = rootParam || document.body
+        const els = []
+        if (root.matches && root.matches('[data-fit]')) { els.push(root) }
+        if (root.querySelectorAll) { Array.prototype.push.apply(els, root.querySelectorAll('[data-fit]')) }
+        els.forEach(fit)
+    }
+
+    // Runs after the locale grouping above (registered first, so its afterSwap handler goes first) —
+    // the ladder's widest step is the already-grouped text.
+    window.Diurnal.fitFigures(document.body)
+    document.body.addEventListener('htmx:afterSwap', function (e) { window.Diurnal.fitFigures(e.target) })
+    // Re-fit on resize/orientation change: a widened viewport must restore the full text, not stay
+    // abbreviated. Debounced, since every step re-measures layout.
+    let resizeTimer = null
+    window.addEventListener('resize', function () {
+        window.clearTimeout(resizeTimer)
+        resizeTimer = window.setTimeout(function () { window.Diurnal.fitFigures(document.body) }, 150)
+    })
 })();
 
 // ── Recently-active counters ──────────────────────────────────────────────────

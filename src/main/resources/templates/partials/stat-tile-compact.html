@@ -10,9 +10,13 @@
     valueClass — optional colour/utility for the value; defaults to text-ink
     date       — optional; true when `value` is a date/label (skips the `.js-num` locale grouping,
                  which then applies to the `sub` instead)
+
+  `data-fit` marks the lines Diurnal.fitFigures() (app.js) may shorten when they overflow this
+  column — see the note in `partials/stat-tile.html`. These columns are the narrowest place a stat
+  is rendered, so they abbreviate first.
 !}
 <div>
     <dt class="help-text text-[0.65rem] sm:text-xs">{label}</dt>
-    <dd class="text-xs sm:text-sm font-semibold {valueClass ?: 'text-ink'}{#if !date} js-num{/if}">{value}</dd>
-    {#if sub}<dd class="help-text text-[0.65rem] sm:text-xs{#if subNum || date} js-num{/if}">{sub}</dd>{/if}
+    <dd data-fit class="text-xs sm:text-sm font-semibold {valueClass ?: 'text-ink'}{#if !date} js-num{/if}">{value}</dd>
+    {#if sub}<dd data-fit class="help-text text-[0.65rem] sm:text-xs{#if subNum || date} js-num{/if}">{sub}</dd>{/if}
 </div>

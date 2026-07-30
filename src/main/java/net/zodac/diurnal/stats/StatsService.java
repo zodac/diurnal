@@ -22,7 +22,6 @@ import jakarta.inject.Inject;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -37,6 +36,8 @@ import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.log.ActionPerformedDate;
 import net.zodac.diurnal.log.MonthlyActionTotal;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.time.DaySpan;
+import net.zodac.diurnal.time.Durations;
 import net.zodac.diurnal.user.User;
 
 /**
@@ -142,7 +143,8 @@ public class StatsService {
     private static ActionStats assemble(final Action action, final List<MonthlyActionTotal> monthlyTotals,
         final List<LocalDate> sortedDates, final LocalDate today) {
         if (sortedDates.isEmpty()) {
-            return new ActionStats(action, 0, 0L, null, null, 0, 0, 0,
+            final DaySpan noSpan = new DaySpan(today, today);
+            return new ActionStats(action, 0, 0L, null, null, noSpan, noSpan, noSpan,
                     0L, 0L, 0L, 0L, "—", 0L, "—", 0L, today);
         }
 
@@ -171,7 +173,7 @@ public class StatsService {
                 sortedDates.getFirst(),
                 sortedDates.getLast(),
                 currentStreak(sortedDates, today),
-                longestStreak(sortedDates),
+                longestStreak(sortedDates, today),
                 longestGap(sortedDates, today),
                 byMonth.getOrDefault(thisMonth, 0L),
                 byMonth.getOrDefault(prevMonth, 0L),
@@ -184,54 +186,71 @@ public class StatsService {
                 today);
     }
 
+    // ── Streaks and gaps ──────────────────────────────────────────────────
+    // Each of these returns the run's actual DATES (a half-open DaySpan), not just its length: the figures are
+    // displayed as calendar durations, and "31 days" is one month or one month and three days depending on which
+    // months it covered, so the breakdown can only be computed from the real range. An action with no logged
+    // dates yields an empty span anchored at today.
+
     /**
-     * The number of consecutive days up to (and including) today on which the action was performed.
+     * The run of consecutive days, up to (and including) today, on which the action was performed. A run still counts as current when today itself
+     * has not been logged yet but yesterday was, so a streak is not reported as broken until a whole day has been missed.
      */
-    static int currentStreak(final List<LocalDate> sortedDates, final LocalDate today) {
-        final Set<LocalDate> set = new HashSet<>(sortedDates);
-        LocalDate cursor = set.contains(today) ? today : today.minusDays(1);
-        int streak = 0;
-        while (set.contains(cursor)) {
-            streak++;
-            cursor = cursor.minusDays(1);
+    static DaySpan currentStreak(final List<LocalDate> sortedDates, final LocalDate today) {
+        final Set<LocalDate> performed = new HashSet<>(sortedDates);
+        final LocalDate lastDay = performed.contains(today) ? today : today.minusDays(1);
+        if (!performed.contains(lastDay)) {
+            return new DaySpan(today, today);
         }
-        return streak;
+
+        LocalDate firstDay = lastDay;
+        while (performed.contains(firstDay.minusDays(1))) {
+            firstDay = firstDay.minusDays(1);
+        }
+        return new DaySpan(firstDay, lastDay.plusDays(1));
     }
 
     /**
-     * The longest span of consecutive days on which the action was <em>not</em> performed, looking both at gaps between any two logged dates and at
-     * the open gap from the last log to today.
+     * The longest run of consecutive days on which the action was <em>not</em> performed, looking both at the blank days between any two logged dates
+     * and at the open run from the last logged date to today. Ties keep the earliest run.
      */
-    static int longestGap(final List<LocalDate> sortedDates, final LocalDate today) {
+    static DaySpan longestGap(final List<LocalDate> sortedDates, final LocalDate today) {
         if (sortedDates.isEmpty()) {
-            return 0;
+            return new DaySpan(today, today);
         }
-        int longest = 0;
+
+        DaySpan longest = new DaySpan(today, today);
         for (int i = 1; i < sortedDates.size(); i++) {
-            final int gap = (int) (ChronoUnit.DAYS.between(sortedDates.get(i - 1), sortedDates.get(i)) - 1);
-            longest = Math.max(longest, gap);
+            // The blank days between two logged dates: the day after the earlier one, up to (excluding) the later.
+            final DaySpan gap = new DaySpan(sortedDates.get(i - 1).plusDays(1), sortedDates.get(i));
+            longest = longer(longest, gap);
         }
-        final int openGap = (int) ChronoUnit.DAYS.between(sortedDates.getLast(), today);
-        return Math.max(longest, openGap);
+        final DaySpan openGap = new DaySpan(sortedDates.getLast().plusDays(1), today.plusDays(1));
+        return longer(longest, openGap);
     }
 
     /**
-     * The longest run of consecutive performed days anywhere in the action's history.
+     * The longest run of consecutive performed days anywhere in the action's history. Ties keep the earliest run.
      */
-    static int longestStreak(final List<LocalDate> sortedDates) {
+    static DaySpan longestStreak(final List<LocalDate> sortedDates, final LocalDate today) {
         if (sortedDates.isEmpty()) {
-            return 0;
+            return new DaySpan(today, today);
         }
-        int longest = 1;
-        int run = 1;
+
+        final LocalDate first = sortedDates.getFirst();
+        DaySpan longest = new DaySpan(first, first.plusDays(1));
+        LocalDate runStart = first;
         for (int i = 1; i < sortedDates.size(); i++) {
-            if (sortedDates.get(i).equals(sortedDates.get(i - 1).plusDays(1))) {
-                run++;
-                longest = Math.max(longest, run);
-            } else {
-                run = 1;
+            final LocalDate date = sortedDates.get(i);
+            if (!date.equals(sortedDates.get(i - 1).plusDays(1))) {
+                runStart = date;
             }
+            longest = longer(longest, new DaySpan(runStart, date.plusDays(1)));
         }
         return longest;
+    }
+
+    private static DaySpan longer(final DaySpan current, final DaySpan candidate) {
+        return Durations.days(candidate) > Durations.days(current) ? candidate : current;
     }
 }

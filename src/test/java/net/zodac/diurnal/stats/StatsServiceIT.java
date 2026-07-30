@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.time.Durations;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -204,9 +205,12 @@ class StatsServiceIT extends IntegrationTestBase {
         assertThat(stats.bestYearCount())
             .as("best year total")
             .isEqualTo(11L);
-        assertThat(stats.currentStreak())
+        assertThat(Durations.days(stats.currentStreak()))
             .as("only today in the current run")
             .isEqualTo(1);
+        assertThat(stats.currentStreak().start())
+            .as("the current run starts today")
+            .isEqualTo(TODAY);
     }
 
     @Test

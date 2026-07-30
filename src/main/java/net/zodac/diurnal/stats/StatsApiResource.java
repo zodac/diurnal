@@ -30,6 +30,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.time.Durations;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
@@ -120,6 +121,7 @@ public class StatsApiResource {
      * @param lastPerformed  the most recent logged day, or {@code null} if never logged
      * @param currentStreak  the current run of consecutive logged days
      * @param longestStreak  the longest run of consecutive logged days
+     * @param currentGap     the number of days since the action was last logged
      * @param longestGap     the longest run of consecutive unlogged days between two logged days
      * @param thisMonthCount the total count this calendar month
      * @param lastMonthCount the total count last calendar month
@@ -141,6 +143,7 @@ public class StatsApiResource {
         @Schema(examples = "2026-06-15", description = "The most recent logged day.") @Nullable LocalDate lastPerformed,
         @Schema(examples = "5", description = "The current run of consecutive logged days.") int currentStreak,
         @Schema(examples = "14", description = "The longest run of consecutive logged days.") int longestStreak,
+        @Schema(examples = "3", description = "The number of days since the action was last logged (0 if logged today or never).") int currentGap,
         @Schema(examples = "9", description = "The longest run of consecutive unlogged days between two logged days.") int longestGap,
         @Schema(examples = "12", description = "The total count this calendar month.") long thisMonthCount,
         @Schema(examples = "18", description = "The total count last calendar month.") long lastMonthCount,
@@ -166,9 +169,10 @@ public class StatsApiResource {
                 stats.totalCount(),
                 stats.firstPerformed(),
                 stats.lastPerformed(),
-                stats.currentStreak(),
-                stats.longestStreak(),
-                stats.longestGap(),
+                Durations.days(stats.currentStreak()),
+                Durations.days(stats.longestStreak()),
+                ActionStatsExtensions.currentGap(stats),
+                Durations.days(stats.longestGap()),
                 stats.thisMonthCount(),
                 stats.lastMonthCount(),
                 stats.thisYearCount(),

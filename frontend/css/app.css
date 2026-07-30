@@ -545,6 +545,12 @@
   .card-title { @apply text-base font-semibold text-ink font-display; }
   /* Inset stat tile (stats cards, dashboard summary). */
   .stat-tile { @apply bg-surface-muted rounded-xl p-3; }
+  /* Applied only WHILE Diurnal.fitFigures() (app.js) measures a `data-fit` line, and removed again
+     immediately after: forcing the text onto one line is what makes an overflow measurable
+     (scrollWidth > clientWidth) and so decides whether the label must abbreviate. It is never left on
+     the element, so a line that is still too wide at its shortest step wraps as usual instead of
+     being clipped. */
+  .fit-measure { @apply whitespace-nowrap overflow-hidden; }
 
   /* Form controls ---------------------------------------------------------- */
   /* Full-size text input (auth forms, search bars). Width is set by the caller. */
