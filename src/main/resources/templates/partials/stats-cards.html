@@ -1,7 +1,7 @@
 {! data-decimal-places is read by Diurnal.fitFigures() (app.js) when it has to abbreviate a count
      over 10,000 to "10.0k", so the shortened figure carries the same number of decimals as every
      other fractional stat on the page. !}
-<div class="grid gap-5 sm:grid-cols-2 xl:grid-cols-3" data-decimal-places="{decimalPlaces}">
+<div class="grid stats-card-grid gap-5" data-decimal-places="{decimalPlaces}">
     {#for s in page.items}
     <div class="card p-4 flex flex-col gap-4">
 
@@ -15,7 +15,7 @@
              setting). The backend always computes every statistic; statsFields only selects which
              tiles show here and in what sequence. s.tiles(...) maps each selected ActionStatField to a
              StatTile (see ActionStatsExtensions.tiles). !}
-        <dl class="grid grid-cols-2 gap-2">
+        <dl class="grid stat-tile-grid gap-2">
             {#for tile in s.tiles(statsFields, decimalPlaces)}
             {#include partials/stat-tile label=tile.label value=tile.value sub=tile.sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}
             {/for}

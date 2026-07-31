@@ -21,9 +21,12 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import net.zodac.diurnal.user.StatFieldPref;
 import org.jspecify.annotations.Nullable;
@@ -42,6 +45,11 @@ import org.jspecify.annotations.Nullable;
  * <strong>A key is permanent; a label is not.</strong> Keys are stored per user, so renaming a stat only ever changes its {@code label} - which is
  * why {@link #LONGEST_GAP} still keys on {@code biggest-gap} and {@link #WEEKLY_DAY_AVERAGE} on {@code weekly-average}. Changing a key instead would
  * drop that stat from every stored arrangement (it re-appears appended at the end, enabled), silently reshuffling everyone's page.
+ *
+ * <p>
+ * The label declared here is only the DEFAULT caption: a user may rename any stat, which stores their wording against the key (see
+ * {@link net.zodac.diurnal.user.StatFieldPref}) and is resolved back into the caption by {@link #displayFields(List)} / {@link #choices(List)}. A
+ * rename is display-only and per user, so relabelling a constant here still re-captions the stat for everyone who has NOT renamed it.
  *
  * <p>
  * <strong>Adding a new stat:</strong> any newly-computed statistic that should be user-visible on the Stats page MUST be registered here as a new
@@ -146,6 +154,24 @@ public enum ActionStatField {
     VS_LAST_YEAR("vs-last-year", "Change from last year", false,
             "This year's count compared with last year's");
 
+    /**
+     * The longest custom name a user may give a stat. Sized against the catalogue's own wording: the longest built-in label ("Average count per
+     * month") is 23 characters, so 25 leaves a renamed stat no more than a word or so wordier than the stat sitting next to it, and guarantees every
+     * built-in label is itself a legal custom name (a user can always rename one stat to another's wording).
+     *
+     * <p>
+     * This bounds a name's LENGTH, not its rendered width, and the two only agree for text of roughly the built-ins' character mix. A caption box
+     * runs from about 129px to 220px depending on the layout (the tile grid sizes from a minimum width and reflows its column count rather than
+     * squeezing), so 25 characters of an unusually wide mix - all capitals, say - can still take a caption line the built-ins beside it do not. That
+     * is the accepted trade for letting a name be as expressive as the wording it replaces. What is NOT accepted is a name escaping its tile:
+     * {@code .stat-tile dt} carries {@code overflow-wrap} so even a name with no spaces in it wraps rather than spilling out sideways - pinned by
+     * rendering the worst case in {@code tests/ui/stats.spec.ts}.
+     */
+    public static final int MAX_LABEL_LENGTH = 25;
+
+    private static final Pattern CONTROL_CHARACTERS = Pattern.compile("\\p{Cntrl}");
+    private static final Pattern WHITESPACE_RUN = Pattern.compile("\\s+");
+
     private final String key;
     private final String label;
     private final boolean mandatory;
@@ -210,8 +236,77 @@ public enum ActionStatField {
                 .findFirst();
     }
 
-    private record Entry(ActionStatField field, boolean enabled) {
+    /**
+     * Normalises a user-submitted custom name into the form that is stored and rendered: control characters become spaces, runs of whitespace
+     * collapse to one, and the result is stripped. A name that is blank once normalised is {@code null} - which is how a rename is UNDONE (clearing
+     * the field restores the catalogue label), so no separate "reset" instruction is needed on any surface.
+     *
+     * @param raw the submitted name (can be {@code null})
+     * @return the name to store, or {@code null} to use the catalogue label
+     */
+    public static @Nullable String sanitiseLabel(@Nullable final String raw) {
+        if (raw == null) {
+            return null;
+        }
+        final String spaced = CONTROL_CHARACTERS.matcher(raw).replaceAll(" ");
+        final String collapsed = WHITESPACE_RUN.matcher(spaced).replaceAll(" ").strip();
+        return collapsed.isEmpty() ? null : collapsed;
+    }
 
+    /**
+     * Whether a submitted custom name is acceptable: anything that {@link #sanitiseLabel(String)} normalises to at most {@link #MAX_LABEL_LENGTH}
+     * characters, including the blank/{@code null} that means "use the catalogue label". An over-long name is REJECTED rather than truncated, on
+     * every surface, so a name is never silently stored as something other than what was typed.
+     *
+     * @param raw the submitted name (can be {@code null})
+     * @return {@code true} if the name can be stored
+     */
+    public static boolean isValidLabel(@Nullable final String raw) {
+        final String sanitised = sanitiseLabel(raw);
+        return sanitised == null || sanitised.length() <= MAX_LABEL_LENGTH;
+    }
+
+    /**
+     * Pairs the parallel key/name lists posted by the settings picker into a name-by-key map. Each row of the picker posts one key and one custom
+     * name, in the same DOM order, so the two lists line up by index; a row whose name is blank simply has no entry (it uses the catalogue label).
+     * Any trailing key with no matching name (or name with no matching key) is ignored, so a malformed submission can never shift names onto the
+     * wrong stats.
+     *
+     * @param order the posted field keys, in the arranged order
+     * @param labels the posted custom names, in the same order (can be {@code null} when the form omits them)
+     * @return the custom name for each key that has one
+     */
+    public static Map<String, String> labelsByKey(final List<String> order, @Nullable final List<String> labels) {
+        final Map<String, String> byKey = new LinkedHashMap<>();
+        // A form that posts no names at all is just "nothing pairs up", rather than a second,
+        // separate empty-map return (which no test could tell apart from this method's own).
+        final List<String> submitted = labels == null ? List.of() : labels;
+        final int paired = Math.min(order.size(), submitted.size());
+        for (int i = 0; i < paired; i++) {
+            final String sanitised = sanitiseLabel(submitted.get(i));
+            if (sanitised != null) {
+                byKey.put(order.get(i).strip(), sanitised);
+            }
+        }
+        return byKey;
+    }
+
+    private record Entry(ActionStatField field, boolean enabled, @Nullable String customLabel) {
+
+    }
+
+    // Naming a stat what it is already called is not a rename: the editor pre-fills with the current caption, so
+    // opening a row and saving it untouched submits the built-in label, and storing THAT would silently pin the
+    // stat's wording against any future re-labelling. Applied on write and on read, so both surfaces agree.
+    private static @Nullable String customLabelFor(final ActionStatField field, @Nullable final String raw) {
+        final String sanitised = sanitiseLabel(raw);
+        return field.label.equals(sanitised) ? null : sanitised;
+    }
+
+    // Not on Entry itself: PITest cannot hot-swap mutants into a record, so branching logic in one is silently untested (see CLAUDE.md).
+    private static String displayLabel(final Entry entry) {
+        final String custom = entry.customLabel();
+        return custom == null ? entry.field().label() : custom;
     }
 
     private static List<Entry> parse(@Nullable final List<StatFieldPref> stored) {
@@ -221,76 +316,92 @@ public enum ActionStatField {
             for (final StatFieldPref pref : stored) {
                 final Optional<ActionStatField> field = fromKey(pref.key());
                 if (field.isPresent() && seen.add(field.get())) {
-                    entries.add(new Entry(field.get(), pref.enabled() || field.get().mandatory));
+                    entries.add(new Entry(field.get(), pref.enabled() || field.get().mandatory, customLabelFor(field.get(), pref.label())));
                 }
             }
         }
         for (final ActionStatField field : values()) {
             if (seen.add(field)) {
-                entries.add(new Entry(field, true));
+                entries.add(new Entry(field, true, null));
             }
         }
         return entries;
     }
 
     /**
-     * Resolves the user's stored preference into the ordered list of fields to actually RENDER on the Stats page: the enabled fields, in the user's
-     * arrangement order. Disabled fields are omitted but keep their slot in the stored arrangement (see {@link #choices(List)}).
+     * Resolves the user's stored preference into the ordered list of stats to actually RENDER on the Stats page: the enabled fields, in the user's
+     * arrangement order, each already paired with the caption to render it under (their rename of it, or the catalogue label). Disabled fields are
+     * omitted but keep their slot in the stored arrangement (see {@link #choices(List)}).
      *
-     * @param stored the stored arrangement (can be {@code null} → all fields, default order)
-     * @return the enabled fields to render, in order (always contains {@link #LAST_PERFORMED})
+     * @param stored the stored arrangement (can be {@code null} → all fields, default order, default labels)
+     * @return the enabled stats to render, in order (always contains {@link #LAST_PERFORMED})
      */
-    public static List<ActionStatField> displayFields(@Nullable final List<StatFieldPref> stored) {
+    public static List<DisplayStat> displayFields(@Nullable final List<StatFieldPref> stored) {
         return parse(stored).stream()
                 .filter(Entry::enabled)
-                .map(Entry::field)
+                .map(entry -> new DisplayStat(entry.field(), displayLabel(entry)))
                 .toList();
     }
 
     /**
-     * A single row in the settings "Action stats" picker: the field's {@link #key()}/{@link #label()}, its {@link #description()} (tooltip), whether
-     * it is currently selected (enabled), and whether it is {@link #mandatory()}.
+     * A single row in the settings "Action stats" picker: the field's {@link #key()}, the caption it currently renders under ({@code label}), the
+     * catalogue label it would fall back to ({@code defaultLabel}, the rename field's placeholder), the user's rename of it ({@code customLabel},
+     * {@code ""} when it has not been renamed), its {@link #description()} (tooltip), whether it is currently selected (enabled), and whether it is
+     * {@link #mandatory()}.
+     *
+     * <p>
+     * The rename is carried SEPARATELY from the caption on purpose: posting the resolved caption back would pin every stat's wording the first time
+     * any of them was edited, so a stat nobody renamed would stop tracking the catalogue label.
      */
-    public record Choice(String key, String label, String description, boolean selected, boolean mandatory) {
+    public record Choice(String key, String label, String defaultLabel, String customLabel, String description, boolean selected,
+        boolean mandatory) {
     }
 
     /**
-     * Builds the ordered picker rows for the settings page: EVERY field, in the user's stored arrangement order, each flagged selected/unselected.
-     * Order is independent of the enabled state, so toggling a stat off never moves it.
+     * Builds the ordered picker rows for the settings page: EVERY field, in the user's stored arrangement order, each flagged selected/unselected and
+     * carrying its current caption plus any rename behind it. Order is independent of the enabled state, so toggling a stat off never moves it.
      *
-     * @param stored the stored arrangement (can be {@code null} → all selected, default order)
+     * @param stored the stored arrangement (can be {@code null} → all selected, default order, default labels)
      * @return the ordered list of picker choices (one per field)
      */
     public static List<Choice> choices(@Nullable final List<StatFieldPref> stored) {
         return parse(stored).stream()
-                .map(entry -> new Choice(entry.field().key(), entry.field().label(), entry.field().description(),
+                .map(entry -> new Choice(entry.field().key(), displayLabel(entry), entry.field().label(),
+                        entry.customLabel() == null ? "" : entry.customLabel(), entry.field().description(),
                         entry.enabled(), entry.field().mandatory()))
                 .toList();
     }
 
     /**
      * Encodes a settings submission into the stored arrangement. {@code order} is every row's key in the user's (drag-arranged) order;
-     * {@code enabledKeys} is the subset whose checkbox was ticked. The result lists every field in {@code order} (each with its enabled flag), with
-     * unknown or duplicate keys dropped, any field missing from {@code order} appended (enabled) at the end, and {@link #LAST_PERFORMED} always
-     * forced enabled.
+     * {@code enabledKeys} is the subset whose checkbox was ticked; {@code labels} holds the custom name of each renamed stat. The result lists every
+     * field in {@code order} (each with its enabled flag and name), with unknown or duplicate keys dropped, any field missing from {@code order}
+     * appended (enabled, un-renamed) at the end, and {@link #LAST_PERFORMED} always forced enabled.
+     *
+     * <p>
+     * The submission is the WHOLE arrangement on every surface, so a field with no entry in {@code labels} is stored un-renamed - clearing a stat's
+     * name is exactly "submit it with a blank name", and needs no separate delete. Submitting a stat's OWN built-in label counts as the same thing:
+     * the settings editor pre-fills with the current caption, so saving an un-renamed row untouched must not pin its wording.
      *
      * @param order every field key, in the arranged order (can be empty)
      * @param enabledKeys the keys whose stat is enabled (checkbox ticked)
+     * @param labels the custom name of each renamed stat, by key (can be empty)
      * @return the arrangement to persist (one {@link StatFieldPref} per field)
      */
-    public static List<StatFieldPref> encode(final List<String> order, final Collection<String> enabledKeys) {
+    public static List<StatFieldPref> encode(final List<String> order, final Collection<String> enabledKeys, final Map<String, String> labels) {
         final Set<String> enabled = enabledKeys.stream().map(String::strip).collect(Collectors.toSet());
         final List<StatFieldPref> prefs = new ArrayList<>();
         final Set<ActionStatField> seen = EnumSet.noneOf(ActionStatField.class);
         for (final String rawKey : order) {
             final Optional<ActionStatField> field = fromKey(rawKey);
             if (field.isPresent() && seen.add(field.get())) {
-                prefs.add(new StatFieldPref(field.get().key(), enabled.contains(field.get().key()) || field.get().mandatory));
+                final String key = field.get().key();
+                prefs.add(new StatFieldPref(key, enabled.contains(key) || field.get().mandatory, customLabelFor(field.get(), labels.get(key))));
             }
         }
         for (final ActionStatField field : values()) {
             if (seen.add(field)) {
-                prefs.add(new StatFieldPref(field.key(), true));
+                prefs.add(new StatFieldPref(field.key(), true, null));
             }
         }
         return prefs;

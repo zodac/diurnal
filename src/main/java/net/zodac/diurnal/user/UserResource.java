@@ -40,6 +40,7 @@ import net.zodac.diurnal.auth.PasswordChangeResult;
 import net.zodac.diurnal.auth.PasswordChangeService;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.stats.ActionStatField;
 import net.zodac.diurnal.web.RollbackOnErrorStatus;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -265,7 +266,8 @@ public class UserResource {
         if (statsFields != null) {
             final List<String> order = statsFields.stream().map(StatFieldPref::key).toList();
             final List<String> enabled = statsFields.stream().filter(StatFieldPref::enabled).map(StatFieldPref::key).toList();
-            result = profileService.updateStatsFields(user, order, enabled);
+            final List<String> labels = statsFields.stream().map(pref -> pref.label() == null ? "" : pref.label()).toList();
+            result = profileService.updateStatsFields(user, order, enabled, ActionStatField.labelsByKey(order, labels));
         }
         return result;
     }
@@ -301,7 +303,7 @@ public class UserResource {
      * @param pageSize         the rows per page in list views; rejected when out of range
      * @param decimalPlaces    the decimal places for fractional stats; rejected when out of range
      * @param showStatsSummary whether the dashboard renders the stats-summary strip
-     * @param statsFields      the full ordered "Action stats" arrangement (key + enabled per stat)
+     * @param statsFields      the full ordered "Action stats" arrangement (key + enabled + optional custom name per stat)
      */
     @Schema(description = "Preference fields for a partial update; absent fields keep their current value.")
     public record PreferencesUpdate(
@@ -320,7 +322,9 @@ public class UserResource {
         @Nullable Integer decimalPlaces,
         @Schema(examples = "true", description = "Whether the dashboard renders the per-action stats-summary strip.")
         @Nullable Boolean showStatsSummary,
-        @Schema(description = "The full ordered 'Action stats' arrangement (key + enabled per stat); unknown keys are ignored.")
+        @Schema(description = "The full ordered 'Action stats' arrangement (key + enabled + optional custom name per stat); unknown keys are "
+        + "ignored, a blank or absent name keeps the built-in one (as does a stat's own built-in name), and a name over 25 characters is "
+        + "rejected.")
         @Nullable List<StatFieldPref> statsFields) {
     }
 

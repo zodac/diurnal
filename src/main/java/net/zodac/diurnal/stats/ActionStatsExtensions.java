@@ -76,68 +76,69 @@ public final class ActionStatsExtensions {
     // ── Stats-page tiles (user-configurable display) ──────────────────────
 
     /**
-     * Builds the ordered list of Stats-page tiles for this action, one per selected {@link ActionStatField}, in the caller-supplied order. Every
-     * value reuses the existing derived labels below, so the display preference never affects how the statistics are computed — only which tiles are
-     * rendered and in what order.
+     * Builds the ordered list of Stats-page tiles for this action, one per {@link DisplayStat} the user has chosen to display, in the caller-supplied
+     * order. Every value reuses the existing derived labels below, so the display preference never affects how the statistics are computed — only
+     * which tiles are rendered, in what order, and (when the user has renamed a stat) under which caption.
      *
      * <p>
      * Called from {@code partials/stats-cards} as {@code {s.tiles(statsFields, decimalPlaces)}}.
      *
      * @param stats the statistics to render
-     * @param fields the ordered fields the user has chosen to display
+     * @param fields the ordered stats the user has chosen to display, each with its caption
      * @param decimalPlaces the user's decimal-place preference (for the averages)
      * @return the ordered tiles to render
      */
     @TemplateExtension
-    public static List<StatTile> tiles(final ActionStats stats, final List<ActionStatField> fields, final int decimalPlaces) {
+    public static List<StatTile> tiles(final ActionStats stats, final List<DisplayStat> fields, final int decimalPlaces) {
         return fields.stream()
-                .map(field -> tile(stats, field, decimalPlaces))
+                .map(displayed -> tile(stats, displayed, decimalPlaces))
                 .toList();
     }
 
-    private static StatTile tile(final ActionStats stats, final ActionStatField field, final int decimalPlaces) {
-        return switch (field) {
-            case CURRENT_STREAK -> durationTile(field, stats.currentStreak());
-            case LONGEST_STREAK -> durationTile(field, stats.longestStreak());
-            case CURRENT_GAP    -> durationTile(field, currentGapSpan(stats));
-            case LONGEST_GAP    -> durationTile(field, stats.longestGap());
-            case TOTAL_DAYS     -> numeric(field, Integer.toString(stats.totalDays()), totalDaysUnit(stats));
-            case TOTAL_COUNT    -> numeric(field, Long.toString(stats.totalCount()), "all time");
-            case WEEKLY_DAY_AVERAGE    -> numeric(field, weeklyDayAverage(stats, decimalPlaces), "days / week");
-            case MONTHLY_DAY_AVERAGE   -> numeric(field, monthlyDayAverage(stats, decimalPlaces), "days / month");
-            case WEEKLY_COUNT_AVERAGE  -> numeric(field, weeklyCountAverage(stats, decimalPlaces), "count / week");
-            case MONTHLY_COUNT_AVERAGE -> numeric(field, monthlyCountAverage(stats, decimalPlaces), "count / month");
-            case FIRST_PERFORMED -> labelTile(field, firstLabel(stats), sinceFirstLabel(stats));
-            case LAST_PERFORMED -> labelTile(field, lastLabel(stats), sinceLabel(stats));
-            case VS_LAST_MONTH  -> trendTile(field, monthTrend(stats), monthContext(stats), monthTrendClass(stats));
-            case VS_LAST_YEAR   -> trendTile(field, yearTrend(stats), yearContext(stats), yearTrendClass(stats));
+    private static StatTile tile(final ActionStats stats, final DisplayStat displayed, final int decimalPlaces) {
+        final String label = displayed.label();
+        return switch (displayed.field()) {
+            case CURRENT_STREAK -> durationTile(label, stats.currentStreak());
+            case LONGEST_STREAK -> durationTile(label, stats.longestStreak());
+            case CURRENT_GAP    -> durationTile(label, currentGapSpan(stats));
+            case LONGEST_GAP    -> durationTile(label, stats.longestGap());
+            case TOTAL_DAYS     -> numeric(label, Integer.toString(stats.totalDays()), totalDaysUnit(stats));
+            case TOTAL_COUNT    -> numeric(label, Long.toString(stats.totalCount()), "all time");
+            case WEEKLY_DAY_AVERAGE    -> numeric(label, weeklyDayAverage(stats, decimalPlaces), "days / week");
+            case MONTHLY_DAY_AVERAGE   -> numeric(label, monthlyDayAverage(stats, decimalPlaces), "days / month");
+            case WEEKLY_COUNT_AVERAGE  -> numeric(label, weeklyCountAverage(stats, decimalPlaces), "count / week");
+            case MONTHLY_COUNT_AVERAGE -> numeric(label, monthlyCountAverage(stats, decimalPlaces), "count / month");
+            case FIRST_PERFORMED -> labelTile(label, firstLabel(stats), sinceFirstLabel(stats));
+            case LAST_PERFORMED -> labelTile(label, lastLabel(stats), sinceLabel(stats));
+            case VS_LAST_MONTH  -> trendTile(label, monthTrend(stats), monthContext(stats), monthTrendClass(stats));
+            case VS_LAST_YEAR   -> trendTile(label, yearTrend(stats), yearContext(stats), yearTrendClass(stats));
             // The high scores lead with WHEN the record was set; the count itself is the secondary caption.
-            case BEST_MONTH     -> labelTile(field, stats.bestMonthLabel(), Durations.count(stats.bestMonthCount(), TIME_UNIT));
-            case BEST_YEAR      -> labelTile(field, stats.bestYearLabel(), Durations.count(stats.bestYearCount(), TIME_UNIT));
+            case BEST_MONTH     -> labelTile(label, stats.bestMonthLabel(), Durations.count(stats.bestMonthCount(), TIME_UNIT));
+            case BEST_YEAR      -> labelTile(label, stats.bestYearLabel(), Durations.count(stats.bestYearCount(), TIME_UNIT));
         };
     }
 
-    private static StatTile numeric(final ActionStatField field, final String value, final String sub) {
-        return new StatTile(field.label(), value, sub, false, "text-ink", false);
+    private static StatTile numeric(final String label, final String value, final String sub) {
+        return new StatTile(label, value, sub, false, "text-ink", false);
     }
 
-    private static StatTile labelTile(final ActionStatField field, final String value, final String sub) {
-        return new StatTile(field.label(), value, sub, true, "text-ink", true);
+    private static StatTile labelTile(final String label, final String value, final String sub) {
+        return new StatTile(label, value, sub, true, "text-ink", true);
     }
 
-    private static StatTile trendTile(final ActionStatField field, final String value, final String sub, final String valueClass) {
-        return new StatTile(field.label(), value, sub, true, valueClass, false);
+    private static StatTile trendTile(final String label, final String value, final String sub, final String valueClass) {
+        return new StatTile(label, value, sub, true, valueClass, false);
     }
 
     // A day span keeps the prominent big-number styling while it reads as a plain day count; once it reaches a
     // calendar month the number is replaced by the condensed breakdown ("1 year, 2 months, 3 days"), which needs
     // the smaller two-line (date-flavoured) styling to fit - the exact day count then moves to the sub-caption.
-    private static StatTile durationTile(final ActionStatField field, final DaySpan span) {
+    private static StatTile durationTile(final String label, final DaySpan span) {
         final int days = Durations.days(span);
         if (Durations.exceedsOneMonth(span)) {
-            return labelTile(field, Durations.label(span), Durations.count(days, DAY_UNIT));
+            return labelTile(label, Durations.label(span), Durations.count(days, DAY_UNIT));
         }
-        return numeric(field, Integer.toString(days), Durations.plural(days, DAY_UNIT));
+        return numeric(label, Integer.toString(days), Durations.plural(days, DAY_UNIT));
     }
 
     // ── Date labels ───────────────────────────────────────────────────────

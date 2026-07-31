@@ -67,6 +67,7 @@ import net.zodac.diurnal.config.QuarkusOidcConfig;
 import net.zodac.diurnal.config.RegistrationConfig;
 import net.zodac.diurnal.config.SessionConfig;
 import net.zodac.diurnal.stats.ActionStatField;
+import net.zodac.diurnal.stats.DisplayStat;
 import net.zodac.diurnal.stats.StatsService;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.CalendarView;
@@ -636,6 +637,7 @@ public class WebResource {
      * @param showStatsSummary the stats-summary checkbox values (hidden {@code "false"} + ticked {@code "true"}), when submitted
      * @param statsOrder       every "Action stats" field key in the arranged order, when submitted
      * @param statsEnabled     the ticked "Action stats" field keys, when submitted alongside {@code statsOrder}
+     * @param statsLabel       each "Action stats" field's custom name (blank = the built-in one), in the same order as {@code statsOrder}
      * @return {@code 204} on success, {@code 422} with the reason when a submitted value is rejected
      */
     @PATCH
@@ -653,7 +655,8 @@ public class WebResource {
         @FormParam("decimalPlaces") @Nullable final String decimalPlaces,
         @FormParam("showStatsSummary") @Nullable final List<String> showStatsSummary,
         @FormParam("statsOrder") @Nullable final List<String> statsOrder,
-        @FormParam("statsEnabled") @Nullable final List<String> statsEnabled) {
+        @FormParam("statsEnabled") @Nullable final List<String> statsEnabled,
+        @FormParam("statsLabel") @Nullable final List<String> statsLabel) {
         final User user = currentUser.get();
 
         ProfileResult result = new ProfileResult.Updated();
@@ -684,9 +687,11 @@ public class WebResource {
             result = profileService.updateShowStatsSummary(user, showStatsSummary.contains("true"));
         }
         // The stats picker posts EVERY row's key in its (drag-arranged) DOM order as statsOrder, plus
-        // the ticked subset as statsEnabled.
+        // the ticked subset as statsEnabled and each row's custom name as statsLabel. Every row posts one
+        // key and one name, so the two lists pair up by index (ActionStatField.labelsByKey).
         if (statsOrder != null && !statsOrder.isEmpty() && !(result instanceof ProfileResult.Invalid)) {
-            result = profileService.updateStatsFields(user, statsOrder, statsEnabled == null ? List.of() : statsEnabled);
+            result = profileService.updateStatsFields(user, statsOrder, statsEnabled == null ? List.of() : statsEnabled,
+                    ActionStatField.labelsByKey(statsOrder, statsLabel));
         }
 
         return switch (result) {
@@ -823,6 +828,7 @@ public class WebResource {
                 .data("calendarView", user.calendarView)
                 .data("calendarViewOptions", CalendarView.values())
                 .data("statsFieldChoices", ActionStatField.choices(user.statsFields))
+                .data("maxStatLabelLength", ActionStatField.MAX_LABEL_LENGTH)
                 .data("timezoneChoices",
                         UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone));
     }
@@ -840,7 +846,7 @@ public class WebResource {
     public TemplateInstance dashboard() {
         final User user = currentUser.get();
         final List<?> recentStats = statsService.forMostRecent(user.id, 3);
-        final List<ActionStatField> summaryFields = ActionStatField.displayFields(user.statsFields)
+        final List<DisplayStat> summaryFields = ActionStatField.displayFields(user.statsFields)
             .stream()
             .limit(3)
             .toList();

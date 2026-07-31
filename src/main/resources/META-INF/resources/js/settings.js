@@ -562,8 +562,8 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
     if (el.decode) {el.decode().catch(function () {})}
 });
 
-// ── Action stats: reorder (handle) + toggle (short press) + tooltip (hover / long press) ──
-// One handler owns the whole list, so the three gestures never collide:
+// ── Action stats: reorder (handle) + toggle (short press) + rename (button) + tooltip (hover / long press) ──
+// One handler owns the whole list, so the four gestures never collide:
 //   • Reorder — a drag that STARTS on the handle (Pointer Events, so it works with mouse AND
 //     touch; the native HTML5 drag-and-drop API never fires on touch). Releasing after a move
 //     dispatches the custom `reorder` event that drives the list's htmx PATCH.
@@ -571,6 +571,11 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
 //     pointer-events-none) checkbox and dispatches a `change`, so the same PATCH fires. The
 //     shared #prefs-form handler flashes "Saved". Because the PATCH sends every row's hidden
 //     `statsOrder`, disabling a stat keeps its position; only reordering changes it.
+//   • Rename — the hover/focus-revealed Rename button swaps the caption for an input holding the
+//     row's CUSTOM name (blank = the built-in one, which is the input's placeholder). Committing
+//     copies it into the row's hidden `statsLabel` and dispatches a `change` there, so a rename
+//     saves through the very same PATCH; emptying the field restores the built-in name. Nothing in
+//     the editor toggles or reorders the row.
 //   • Tooltip — the description shows on hover (desktop, pure CSS via `group-hover`) or on a
 //     LONG press of the text (touch, adding `.tip-open`). A long press opens the tooltip WITHOUT
 //     toggling or reordering.
@@ -603,7 +608,64 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
         })
     }
 
+    // ── Rename: the hidden statsLabel input is the stored value, the text input only its editor ──
+    // The read and edit elements are SIBLINGS in one row (caption ↔ input, Rename ↔ Save+Cancel), each
+    // pair sharing a slot, so flipping a row is just swapping which of each pair is hidden — nothing
+    // re-flows and no text moves (the caption carries the input's box metrics; see app.css).
+    function storedLabelOf(row) { return row.querySelector('input[name="statsLabel"]') }
+    function inputOf(row) { return row.querySelector('.stats-field-input') }
+
+    function setEditing(row, editing) {
+        row.querySelector('.stats-field-label').classList.toggle('hidden', editing)
+        inputOf(row).classList.toggle('hidden', !editing)
+        row.querySelector('.stats-field-rename-btn').classList.toggle('hidden', editing)
+        row.querySelector('.stats-field-save-btn').classList.toggle('hidden', !editing)
+        row.querySelector('.stats-field-cancel-btn').classList.toggle('hidden', !editing)
+        // The mandatory row's "Always shown" note steps aside so the editor gets the full width.
+        const always = row.querySelector('.stats-field-always')
+        if (always) {always.classList.toggle('hidden', editing)}
+        row.classList.toggle('settings-field-edit', editing)
+    }
+
+    function closeEditor(row) { setEditing(row, false) }
+
+    function closeEditors() {
+        list.querySelectorAll('.stats-field-row').forEach(function (row) {
+            if (!inputOf(row).classList.contains('hidden')) {closeEditor(row)}
+        })
+    }
+
+    // Only one row edits at a time, and the editor always opens on the stat's CURRENT caption — its
+    // custom name if it has one, otherwise the built-in name — so editing always starts from what the
+    // user can see rather than from a blank field for the un-renamed rows.
+    function openEditor(row) {
+        closeEditors()
+        const input = inputOf(row)
+        input.value = row.querySelector('.stats-field-caption').textContent.trim()
+        setEditing(row, true)
+        input.focus()
+        input.select()
+    }
+
+    function commitEditor(row) {
+        const stored = storedLabelOf(row)
+        const input = inputOf(row)
+        const typed = input.value.trim()
+        // Emptying the field and typing the built-in name (the placeholder) mean the same thing: not
+        // renamed. The editor pre-fills with the current caption, so saving an un-renamed row untouched
+        // lands here — storing that would pin the stat's wording against future re-labelling. The server
+        // applies the same rule (ActionStatField.encode), so this only keeps the UI from a pointless save.
+        const custom = typed === '' || typed === input.placeholder ? '' : typed
+        closeEditor(row)
+        if (custom === stored.value) {return}   // nothing actually changed: no request
+        stored.value = custom
+        row.querySelector('.stats-field-caption').textContent = custom === '' ? input.placeholder : custom
+        stored.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+
     list.addEventListener('pointerdown', function (e) {
+        // A press on an open editor is text editing: never a drag, a toggle or a tooltip.
+        if (e.target.closest('.stats-field-input')) {return}
         suppressClick = false
         const handle = e.target.closest('.stats-field-handle')
         if (handle) {
@@ -656,6 +718,14 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
     list.addEventListener('pointercancel', endPress)
 
     list.addEventListener('click', function (e) {
+        // The rename controls are checked BEFORE the keyboard guard below, so they work with Enter/space too.
+        const renameBtn = e.target.closest('.stats-field-rename-btn')
+        if (renameBtn) { openEditor(renameBtn.closest('.stats-field-row')); return }
+        const saveBtn = e.target.closest('.stats-field-save-btn')
+        if (saveBtn) { commitEditor(saveBtn.closest('.stats-field-row')); return }
+        const cancelBtn = e.target.closest('.stats-field-cancel-btn')
+        if (cancelBtn) { closeEditor(cancelBtn.closest('.stats-field-row')); return }
+        if (e.target.closest('.stats-field-input')) {return} // clicking in the editor never toggles the row
         if (e.detail === 0) {return}                       // keyboard (space) → native toggle
         if (e.target.closest('.stats-field-handle')) {return}
         if (suppressClick) { suppressClick = false; return }
@@ -666,6 +736,25 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
         checkbox.checked = !checkbox.checked
         checkbox.dispatchEvent(new Event('change', { bubbles: true }))
     })
+
+    // Enter commits a rename, Escape abandons it — the usual in-place-edit keys.
+    list.addEventListener('keydown', function (e) {
+        if (!e.target.classList.contains('stats-field-input')) {return}
+        if (e.key === 'Enter') {
+            e.preventDefault()
+            commitEditor(e.target.closest('.stats-field-row'))
+        } else if (e.key === 'Escape') {
+            e.preventDefault()
+            closeEditor(e.target.closest('.stats-field-row'))
+        }
+    })
+
+    // The editor input carries no name (it is not part of the arrangement), but its native change on
+    // blur would still reach the list's htmx PATCH and flash "Saved" for an abandoned edit. Captured
+    // here so only a committed rename — which fires `change` on the hidden statsLabel — ever saves.
+    list.addEventListener('change', function (e) {
+        if (e.target.classList.contains('stats-field-input')) {e.stopPropagation()}
+    }, true)
 
     // Stop the native long-press / right-click menu on the text from fighting the tooltip.
     list.addEventListener('contextmenu', function (e) {

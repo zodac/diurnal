@@ -24,10 +24,13 @@ import static org.hamcrest.Matchers.not;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.user.Role;
+import net.zodac.diurnal.user.StatFieldPref;
+import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
@@ -95,6 +98,23 @@ class StatsResourceIT extends IntegrationTestBase {
         given().get("/stats")
                 .then().statusCode(200)
                 .body(containsString(">8<")); // total count = 5+3
+    }
+
+    @Test
+    void statsPage_renamedStat_rendersUnderTheCustomCaption() {
+        runInTx(() -> {
+            final Action action = newAction(primaryId, "Renamed");
+            newLog(primaryId, action.id, TODAY, 1);
+
+            final User user = User.findByEmail(PRIMARY).orElseThrow();
+            user.statsFields = List.of(new StatFieldPref("current-streak", true, "Days in row"), new StatFieldPref("last-performed", true, null));
+            user.persist();
+        });
+
+        given().get("/stats")
+                .then().statusCode(200)
+                .body(containsString("Days in row"))
+                .body(not(containsString("Current streak")));
     }
 
     @Test

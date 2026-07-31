@@ -7,3 +7,4 @@ Stats rework
 - Clarity between unique days and total counts
 - Highlighting appropriate stats value
 - Set a default order for stats (can be overridden by the user)
+- Allow a user to change the label of a statistic ('total count' to 'times done', for example)

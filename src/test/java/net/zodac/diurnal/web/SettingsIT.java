@@ -25,8 +25,10 @@ import static org.hamcrest.Matchers.not;
 import com.password4j.Argon2Function;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
+import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.stats.ActionStatField;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.StatFieldPref;
 import net.zodac.diurnal.user.User;
@@ -686,7 +688,7 @@ class SettingsIT extends IntegrationTestBase {
             assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
                 .as("disabled stat kept in place, unticked")
                 .isNotNull()
-                .contains(new StatFieldPref("total-days", false));
+                .contains(new StatFieldPref("total-days", false, null));
         });
     }
 
@@ -701,7 +703,7 @@ class SettingsIT extends IntegrationTestBase {
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
             .as("mandatory last-performed stored enabled")
-            .contains(new StatFieldPref("last-performed", true)));
+            .contains(new StatFieldPref("last-performed", true, null)));
     }
 
     @Test
@@ -735,6 +737,61 @@ class SettingsIT extends IntegrationTestBase {
                 .as("theme preserved")
                 .isEqualTo("dark");
         });
+    }
+
+    @Test
+    void updateStatsFields_persistsARenameAgainstItsOwnRow() {
+        // Each row posts one statsOrder and one statsLabel, so the parallel lists pair up by index:
+        // only current-streak is renamed, and the blank rows keep their built-in names.
+        given().formParam("statsOrder", "best-year", "current-streak", "last-performed")
+                .formParam("statsEnabled", "best-year", "current-streak")
+                .formParam("statsLabel", "", "  Days in row  ", "")
+                .patch("/internal/settings")
+                .then().statusCode(204);
+
+        runInTx(() -> {
+            final List<StatFieldPref> stored = User.findByEmail(PRIMARY).orElseThrow().statsFields;
+            assertThat(stored)
+                .as("the renamed row stores its sanitised name")
+                .isNotNull()
+                .contains(new StatFieldPref("current-streak", true, "Days in row"));
+            assertThat(stored)
+                .as("row with a blank name stores none, so it keeps tracking the built-in label")
+                .contains(new StatFieldPref("best-year", true, null));
+        });
+    }
+
+    @Test
+    void updateStatsFields_blankLabel_clearsAPreviousRename() {
+        given().formParam("statsOrder", "current-streak", "last-performed")
+                .formParam("statsEnabled", "current-streak")
+                .formParam("statsLabel", "Days in row", "")
+                .patch("/internal/settings")
+                .then().statusCode(204);
+
+        given().formParam("statsOrder", "current-streak", "last-performed")
+                .formParam("statsEnabled", "current-streak")
+                .formParam("statsLabel", "", "")
+                .patch("/internal/settings")
+                .then().statusCode(204);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
+            .as("re-submitting the row with a blank name restores the built-in label")
+            .contains(new StatFieldPref("current-streak", true, null)));
+    }
+
+    @Test
+    void updateStatsFields_overLongLabel_isRejectedKeepingTheArrangement() {
+        given().formParam("statsOrder", "current-streak", "last-performed")
+                .formParam("statsEnabled", "current-streak")
+                .formParam("statsLabel", "a".repeat(ActionStatField.MAX_LABEL_LENGTH + 1), "")
+                .patch("/internal/settings")
+                .then().statusCode(422)
+                .body(containsString("Stat name cannot be longer than"));
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
+            .as("a rejected rename must not persist any part of the submission")
+            .isNull());
     }
 
     private static boolean argon2Matches(final @Nullable String passwordHash) {
