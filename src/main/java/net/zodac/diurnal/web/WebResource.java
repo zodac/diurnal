@@ -43,6 +43,7 @@ import jakarta.ws.rs.core.Response;
 import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 import net.zodac.diurnal.auth.AuthenticationService;
@@ -67,8 +68,8 @@ import net.zodac.diurnal.config.QuarkusOidcConfig;
 import net.zodac.diurnal.config.RegistrationConfig;
 import net.zodac.diurnal.config.SessionConfig;
 import net.zodac.diurnal.stats.ActionStatField;
-import net.zodac.diurnal.stats.DisplayStat;
 import net.zodac.diurnal.stats.StatsService;
+import net.zodac.diurnal.stats.StatsSummary;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.CalendarView;
 import net.zodac.diurnal.user.CurrentUser;
@@ -836,8 +837,9 @@ public class WebResource {
     // ── Dashboard (protected) ──────────────────────────────────────────────
 
     /**
-     * Renders the dashboard with the user's calendar and three most-recent action stats. Each summary tile row shows the user's top three enabled
-     * "Action stats" (the same display preference that drives the Stats page), in their chosen order.
+     * Renders the dashboard with the user's calendar and the stats summary for the selected day - initially today, after which dashboard.js
+     * re-fetches the card from {@code /internal/stats/summary/{date}} as the selection moves. The summary lists the day's three most-logged actions,
+     * and each of their rows shows the user's top three enabled "Action stats" (the display preference that drives the Stats page), in that order.
      */
     @GET
     @Path("/")
@@ -845,22 +847,15 @@ public class WebResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance dashboard() {
         final User user = currentUser.get();
-        final List<?> recentStats = statsService.forMostRecent(user.id, 3);
-        final List<DisplayStat> summaryFields = ActionStatField.displayFields(user.statsFields)
-            .stream()
-            .limit(3)
-            .toList();
-        return dashboardTemplate
+        final LocalDate today = clock.today(clock.zoneFor(user.timezone));
+        return StatsSummary.render(dashboardTemplate, user, today, statsService)
                 .data("email", user.email)
                 .data("displayName", user.displayName)
                 .data("theme", user.theme)
                 .data("font", user.font)
                 .data("isAdmin", user.isAdmin())
                 .data("calendarView", user.calendarView)
-                .data("today", clock.today(clock.zoneFor(user.timezone)).toString())
-                .data("showStatsSummary", user.showStatsSummary)
-                .data("decimalPlaces", user.decimalPlaces)
-                .data("summaryFields", summaryFields)
-                .data("recentStats", recentStats);
+                .data("today", today.toString())
+                .data("showStatsSummary", user.showStatsSummary);
     }
 }

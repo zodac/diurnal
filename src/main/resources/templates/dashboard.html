@@ -45,29 +45,15 @@
 
         </div>
 
-        {! Stats quick-link (hidden until there are logged actions, or when the user has turned the
-             stats summary off in Settings) !}
-        {#if showStatsSummary && !recentStats.isEmpty()}
-        <div id="stats-summary" class="card p-4" data-decimal-places="{decimalPlaces}">
-            <div class="flex flex-col gap-3">
-                {#for s in recentStats}
-                <div class="stat-tile px-3 py-2 border border-line-subtle
-                            flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
-                    <div class="flex items-center gap-2 min-w-0 sm:w-40 sm:shrink-0">
-                        <span class="swatch swatch-sm" style="background-color: {s.action.colour}"></span>
-                        <span class="text-sm font-medium text-ink truncate">{s.action.name}</span>
-                    </div>
-                    {! Mirrors the Stats page: the tiles shown are the user's top three enabled "Action
-                       stats" (summaryFields), in their chosen order. The backend always computes every
-                       statistic; the display preference only selects which tiles appear here. !}
-                    <dl class="grid grid-cols-3 gap-2 sm:gap-4 min-w-0 sm:flex-1">
-                        {#for tile in s.tiles(summaryFields, decimalPlaces)}
-                        {#include partials/stat-tile-compact label=tile.label value=tile.value sub=tile.sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}
-                        {/for}
-                    </dl>
-                </div>
-                {/for}
-            </div>
+        {! Stats summary for the SELECTED day (omitted entirely when the user has turned it off in
+             Settings). The card inside is re-fetched from /internal/stats/summary/{date} by
+             dashboard.js every time the calendar selection moves, so only this wrapper is stable —
+             it keeps the landmark id and hosts data-decimal-places (read by Diurnal.fitFigures) for
+             whatever is swapped in. The server renders the initially selected day inline, and
+             dashboard.js seeds its cache with that HTML so the common case costs no extra request. !}
+        {#if showStatsSummary}
+        <div id="stats-summary" data-decimal-places="{decimalPlaces}" data-summary-date="{summaryDate}">
+            {#include partials/stats-summary /}
         </div>
         {/if}
     </main>

@@ -26,21 +26,6 @@ package net.zodac.diurnal.log;
 final class ActionLogQueries {
 
     /**
-     * Native SQL selecting the ids of a user's actions logged at least once within the inclusive {@code [:from, :to]} date range, grouped per action
-     * and ordered most-recently-performed first (ties broken by action name, ascending), capped at {@code :limit}. Joins {@code actions} so the
-     * name-based tie-break is available.
-     */
-    static final String MOST_RECENT_ACTIVE_ACTION_IDS_SQL = """
-            SELECT al.action_id
-            FROM action_logs al
-            JOIN actions a ON a.id = al.action_id
-            WHERE al.user_id = :userId
-              AND al.log_date >= :from AND al.log_date <= :to
-            GROUP BY al.action_id, a.name
-            ORDER BY MAX(al.log_date) DESC, a.name ASC
-            LIMIT :limit""";
-
-    /**
      * JPQL aggregating the given actions' log entries into one {@link MonthlyActionTotal} per {@code (action, calendar-month)}, summing the daily
      * {@code count} — the database-side monthly rollup behind the Stats page.
      */

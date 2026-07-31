@@ -22,7 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
@@ -30,7 +32,8 @@ import net.zodac.diurnal.time.Durations;
 import org.junit.jupiter.api.Test;
 
 /**
- * Integration tests for {@link StatsService#forMostRecent(UUID, int)} — the dashboard summary path.
+ * Integration tests for {@link StatsService#forDate(UUID, LocalDate, int)} and {@link StatsService#forMonth(UUID, YearMonth, int)} — the dashboard
+ * summary path, which follows the calendar's selected day.
  *
  * <p>
  * These assert observable behaviour only (which actions are returned, in what order, and that the stats reflect the actions' <em>full</em> history),
@@ -54,91 +57,143 @@ class StatsServiceIT extends IntegrationTestBase {
         userId = newUser("stats-svc@lt.test", "Stats Service User").id;
     }
 
-    private List<String> recentNames(final int limit) {
-        return statsService.forMostRecent(userId, limit).stream()
+    private List<String> topNames(final LocalDate date, final int limit) {
+        return statsService.forDate(userId, date, limit).stream()
                 .map(s -> s.action().name)
                 .toList();
     }
 
     @Test
-    void forMostRecent_excludesActionsNotPerformedThisMonth() {
+    void forDate_excludesActionsNotLoggedOnThatDay() {
         runInTx(() -> {
-            final Action thisMonth = newAction(userId, "ThisMonth");
-            newLog(userId, thisMonth.id, TODAY, 1);
-            final Action lastMonthOnly = newAction(userId, "LastMonthOnly");
-            newLog(userId, lastMonthOnly.id, LAST_MONTH, 1);
+            final Action onTheDay = newAction(userId, "OnTheDay");
+            newLog(userId, onTheDay.id, TODAY, 1);
+            final Action anotherDay = newAction(userId, "AnotherDay");
+            newLog(userId, anotherDay.id, TODAY.minusDays(1), 1);
         });
 
-        assertThat(recentNames(10))
-                .as("only actions performed in the current month should appear")
-                .containsExactly("ThisMonth");
+        assertThat(topNames(TODAY, 10))
+                .as("only actions logged on the selected day should appear")
+                .containsExactly("OnTheDay");
     }
 
     @Test
-    void forMostRecent_ordersByMostRecentlyPerformedFirst() {
-        // Names are deliberately in the opposite order to the performed-dates, so a name-ascending
-        // result would differ from the expected recency ordering.
+    void forDate_ordersByThatDaysCountDescending() {
+        // Names are deliberately in the opposite order to the counts, so a name-ascending result would
+        // differ from the expected count ordering.
         runInTx(() -> {
             final Action alpha = newAction(userId, "Alpha");
-            newLog(userId, alpha.id, MONTH_START.plusDays(4), 1);   // performed 5th
+            newLog(userId, alpha.id, TODAY, 1);
             final Action bravo = newAction(userId, "Bravo");
-            newLog(userId, bravo.id, TODAY.minusDays(1), 1);         // performed 14th (most recent)
+            newLog(userId, bravo.id, TODAY, 9);
             final Action charlie = newAction(userId, "Charlie");
-            newLog(userId, charlie.id, MONTH_START.plusDays(9), 1);  // performed 10th
+            newLog(userId, charlie.id, TODAY, 5);
         });
 
-        assertThat(recentNames(10))
-                .as("actions should be ordered most-recently-performed first")
+        assertThat(topNames(TODAY, 10))
+                .as("actions should be ordered by the selected day's count, highest first")
                 .containsExactly("Bravo", "Charlie", "Alpha");
     }
 
     @Test
-    void forMostRecent_tiesBrokenByNameAscending() {
+    void forDate_tiesBrokenByNameAscending() {
         runInTx(() -> {
             final Action zebra = newAction(userId, "Zebra");
-            newLog(userId, zebra.id, TODAY, 1);
+            newLog(userId, zebra.id, TODAY, 3);
             final Action apple = newAction(userId, "Apple");
-            newLog(userId, apple.id, TODAY, 1);
+            newLog(userId, apple.id, TODAY, 3);
         });
 
-        assertThat(recentNames(10))
-                .as("actions performed on the same day should be ordered by name")
+        assertThat(topNames(TODAY, 10))
+                .as("actions logged the same number of times should be ordered by name")
                 .containsExactly("Apple", "Zebra");
     }
 
     @Test
-    void forMostRecent_respectsLimit() {
+    void forDate_respectsLimit() {
         runInTx(() -> {
-            for (int day = 1; day <= 4; day++) {
-                final Action action = newAction(userId, "Action" + day);
-                newLog(userId, action.id, MONTH_START.plusDays(day), 1);
+            for (int count = 1; count <= 4; count++) {
+                final Action action = newAction(userId, "Action" + count);
+                newLog(userId, action.id, TODAY, count);
             }
         });
 
-        // Days 4, 3 are the two most recent — Action4 then Action3.
-        assertThat(recentNames(2))
-                .as("only the most-recent `limit` actions should be returned")
+        // Counts 4 and 3 are the two highest — Action4 then Action3.
+        assertThat(topNames(TODAY, 2))
+                .as("only the day's top `limit` actions should be returned")
                 .containsExactly("Action4", "Action3");
     }
 
     @Test
-    void forMostRecent_computesStatsOverFullHistoryNotJustThisMonth() {
+    void forDate_computesStatsOverFullHistoryNotJustThatDay() {
         runInTx(() -> {
             final Action action = newAction(userId, "LongHistory");
-            newLog(userId, action.id, TODAY, 2);                    // this month
-            newLog(userId, action.id, TODAY.minusMonths(2), 3);     // April — outside the month window
+            newLog(userId, action.id, TODAY, 2);                    // the selected day
+            newLog(userId, action.id, TODAY.minusMonths(2), 3);     // April — outside the day
         });
 
-        final List<ActionStats> stats = statsService.forMostRecent(userId, 10);
+        final List<ActionStats> stats = statsService.forDate(userId, TODAY, 10);
         assertThat(stats)
-                .as("the action performed this month should be present")
+                .as("the action logged on the selected day should be present")
                 .hasSize(1);
         assertThat(stats.getFirst().totalCount())
-                .as("total count must reflect the action's full history, not just this month")
+                .as("total count must reflect the action's full history, not just the selected day")
                 .isEqualTo(5L);
         assertThat(stats.getFirst().totalDays())
                 .as("total distinct days must reflect the action's full history")
                 .isEqualTo(2);
+    }
+
+    @Test
+    void forDate_emptyWhenNothingLoggedOnThatDay() {
+        runInTx(() -> {
+            final Action action = newAction(userId, "Stale");
+            newLog(userId, action.id, LAST_MONTH, 1);
+        });
+
+        assertThat(statsService.forDate(userId, TODAY, 10))
+                .as("no actions logged on the selected day should yield an empty result")
+                .isEmpty();
+    }
+
+    @Test
+    void forMonth_summarisesEachLoggedDayAndOmitsBlankOnes() {
+        final LocalDate second = MONTH_START.plusDays(1);
+        runInTx(() -> {
+            final Action reading = newAction(userId, "Reading");
+            newLog(userId, reading.id, MONTH_START, 2);
+            newLog(userId, reading.id, second, 1);
+            final Action running = newAction(userId, "Running");
+            newLog(userId, running.id, second, 7);
+        });
+
+        final Map<LocalDate, List<ActionStats>> byDate = statsService.forMonth(userId, YearMonth.from(TODAY), 3);
+        assertThat(byDate.keySet())
+                .as("only days with logged actions should be present")
+                .containsExactlyInAnyOrder(MONTH_START, second);
+        final List<ActionStats> first = byDate.getOrDefault(MONTH_START, List.of());
+        final List<ActionStats> secondDay = byDate.getOrDefault(second, List.of());
+        assertThat(first.stream().map(s -> s.action().name).toList())
+                .as("the 1st only has Reading logged")
+                .containsExactly("Reading");
+        assertThat(secondDay.stream().map(s -> s.action().name).toList())
+                .as("the 2nd orders by that day's count, so Running (7) precedes Reading (1)")
+                .containsExactly("Running", "Reading");
+        assertThat(first.getFirst().totalCount())
+                .as("each day's figures still span the action's full history")
+                .isEqualTo(3L);
+    }
+
+    @Test
+    void forMonth_emptyWhenNothingLoggedInTheMonth() {
+        runInTx(() -> {
+            final Action action = newAction(userId, "Stale");
+            newLog(userId, action.id, LAST_MONTH, 1);
+        });
+
+        assertThat(statsService.forMonth(userId, YearMonth.from(TODAY), 3))
+                .as("a month with no logged actions should yield an empty map")
+                .isEmpty();
     }
 
     @Test
@@ -211,17 +266,5 @@ class StatsServiceIT extends IntegrationTestBase {
         assertThat(stats.currentStreak().start())
             .as("the current run starts today")
             .isEqualTo(TODAY);
-    }
-
-    @Test
-    void forMostRecent_emptyWhenNothingLoggedThisMonth() {
-        runInTx(() -> {
-            final Action action = newAction(userId, "Stale");
-            newLog(userId, action.id, LAST_MONTH, 1);
-        });
-
-        assertThat(statsService.forMostRecent(userId, 10))
-                .as("no actions performed this month should yield an empty result")
-                .isEmpty();
     }
 }

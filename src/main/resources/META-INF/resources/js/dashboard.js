@@ -167,6 +167,100 @@ document.addEventListener('DOMContentLoaded', function () {
         backfillMonth(dateStr) // back-fill the rest of the month from one bulk request
     }
 
+    // ── Stats-summary cache ──────────────────────────────────────────────────
+    // The summary card under the calendar shows the SELECTED day's most-logged actions, so it follows the
+    // selection exactly the way the day panel does — and is cached exactly the way the day panel is: the
+    // single selected day is fetched on its own for a fast first paint, then ONE
+    // /internal/stats/summary-month/<yyyy-MM> request back-fills the rest of that month, capped by a
+    // least-recently-used month window. The page ships the initially selected day's card inline, so that
+    // one is seeded into the cache below rather than re-fetched.
+    //
+    // Invalidation is coarser than the day panel's, and deliberately so: the tiles report each action's
+    // WHOLE history (streaks, totals, best month), so logging against ANY day changes the figures shown on
+    // EVERY day, not just the one that was edited. Dropping one date would leave stale numbers on the rest,
+    // so a log mutation clears the whole cache.
+    const statsHost          = document.getElementById('stats-summary') // absent when the summary is off in Settings
+    const statsCache         = {} // dateStr -> HTML string (the /internal/stats/summary response body)
+    const statsInflight      = {} // dateStr -> Promise, dedupes concurrent single-day fetches
+    const statsMonthBackfilled = {} // "YYYY-MM" -> true once its whole-month back-fill has been requested
+    const statsLru           = [] // "YYYY-MM" keys, least-recently-used first
+    const STATS_MONTH_LIMIT  = 12 // max months of cached summary cards retained (mirrors the day panel's)
+
+    // Empty every summary cache in place (the objects are const so the closures above keep working).
+    function clearStatsCache() {
+        Object.keys(statsCache).forEach(function (d) { delete statsCache[d] })
+        Object.keys(statsInflight).forEach(function (d) { delete statsInflight[d] })
+        Object.keys(statsMonthBackfilled).forEach(function (ym) { delete statsMonthBackfilled[ym] })
+        statsLru.length = 0
+    }
+
+    function touchStatsMonth(dateStr) {
+        const ym = dateStr.substring(0, 7) // "YYYY-MM"
+        const i = statsLru.indexOf(ym)
+        if (i !== -1) { statsLru.splice(i, 1) }
+        statsLru.push(ym)
+        while (statsLru.length > STATS_MONTH_LIMIT) {
+            const stale = statsLru.shift()
+            const prefix = `${stale  }-` // "YYYY-MM-" — every date key in that month
+            Object.keys(statsCache).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete statsCache[d] } })
+            delete statsMonthBackfilled[stale] // let a later visit re-fetch the whole month
+        }
+    }
+
+    function fetchStatsSummary(dateStr) {
+        if (statsCache[dateStr] !== undefined) { touchStatsMonth(dateStr); return Promise.resolve(statsCache[dateStr]) }
+        if (statsInflight[dateStr]) { return statsInflight[dateStr] }
+        const p = fetch(`/internal/stats/summary/${  dateStr}`)
+            .then(function (r) { return r.text() })
+            .then(function (html) { statsCache[dateStr] = html; delete statsInflight[dateStr]; touchStatsMonth(dateStr); return html })
+            .catch(function (err) { delete statsInflight[dateStr]; throw err }) // drop so a later view retries
+        statsInflight[dateStr] = p
+        return p
+    }
+
+    // Back-fill every other day of dateStr's month from one bulk request, once the browser is idle. Runs at
+    // most once per month, and only fills days NOT already cached, so a freshly fetched day keeps its copy.
+    function backfillStatsMonth(dateStr) {
+        const ym = dateStr.substring(0, 7) // "YYYY-MM"
+        if (statsMonthBackfilled[ym]) { return }
+        statsMonthBackfilled[ym] = true
+        const schedule = window.requestIdleCallback || function (fn) { return setTimeout(fn, 200) }
+        schedule(function () {
+            fetch(`/internal/stats/summary-month/${  ym}`)
+                .then(function (r) { return r.json() })
+                .then(function (cards) {
+                    Object.keys(cards).forEach(function (d) {
+                        if (statsCache[d] === undefined) { statsCache[d] = cards[d] }
+                    })
+                    touchStatsMonth(dateStr) // whole month now resident — record recency & trim
+                })
+                .catch(function () { delete statsMonthBackfilled[ym] }) // let a later navigation retry
+        })
+    }
+
+    // Swap a day's card into the host. The figures are server-rendered as bare digits in their fullest
+    // form, so the two presentation passes that normally run on page load / after an HTMX swap (locale
+    // number grouping, and the responsive shortening of long dates and large counts) have to be re-applied
+    // by hand here — this is a plain fetch + innerHTML, which fires neither.
+    function swapStatsSummary(html) {
+        if (!statsHost) {return}
+        statsHost.innerHTML = html
+        window.Diurnal.formatNumbers(statsHost)
+        window.Diurnal.fitFigures(statsHost)
+    }
+
+    // `backfill` is false for the post-mutation reload: the cache was just emptied, and re-arming the
+    // whole-month request on every increment would fire a bulk fetch per tap. The next day the user selects
+    // re-arms it instead.
+    function loadStatsSummary(dateStr, backfill) {
+        if (!statsHost) {return}
+        fetchStatsSummary(dateStr).then(function (html) {
+            // Only swap if the user is still on this day (they may have clicked onward mid-fetch).
+            if (selectedDate === dateStr) { swapStatsSummary(html) }
+        })
+        if (backfill) { backfillStatsMonth(dateStr) }
+    }
+
     // Persist / restore the chosen day for the current WORKING session. sessionStorage is scoped to this
     // browser tab: it survives in-app navigation (every page is a full load, so this script re-runs and
     // would otherwise reset to today) but is wiped when the tab/browser closes. It is ALSO cleared on the
@@ -184,6 +278,7 @@ document.addEventListener('DOMContentLoaded', function () {
         cal.setHighlight(dateStr)
         if (y !== v.year || m !== v.month) { cal.goToMonth(y, m) } // re-applies the highlight on arrival
         loadDayPanel(dateStr)
+        loadStatsSummary(dateStr, true)
         rememberSelectedDate(dateStr)
     }
 
@@ -193,6 +288,9 @@ document.addEventListener('DOMContentLoaded', function () {
     function clearSelection() {
         cal.setHighlight(null)
         if (dayPanel) { dayPanel.style.opacity = ''; dayPanel.innerHTML = dayPanelPlaceholder }
+        // The summary is a statement about a specific day, so with no day selected there is nothing to
+        // state — empty the card rather than leave the previous day's figures under a fresh month.
+        if (statsHost) { statsHost.innerHTML = '' }
         forgetSelectedDate()
     }
 
@@ -880,6 +978,12 @@ document.addEventListener('DOMContentLoaded', function () {
             // now stale. Drop it so the next revisit re-fetches the fresh counts via the single-day fetch
             // (the once-per-month back-fill won't re-run, and skips already-cached days anyway).
             if (selectedDate) { delete dayPanelCache[selectedDate] }
+            // The summary caches whole-history figures, so a change on THIS day moves the numbers shown on
+            // every other day too — the whole cache goes, not just this date (see the cache's note above).
+            // The visible card is reloaded straight away; the month back-fill re-arms on the next day the
+            // user selects, so a run of increments doesn't fire a bulk fetch per tap.
+            clearStatsCache()
+            if (selectedDate) { loadStatsSummary(selectedDate, false) }
         }
     })
 
@@ -892,5 +996,14 @@ document.addEventListener('DOMContentLoaded', function () {
     const ISO_DATE = /^\d\d\d\d-\d\d-\d\d$/
     let restoredDate = null
     try { restoredDate = sessionStorage.getItem('diurnal.selectedDate') } catch (e) {}
+
+    // The page already carries the server-rendered summary for the day it was rendered for (today), so seed
+    // the cache with it: opening the dashboard on today then costs no summary request at all, and a
+    // restored other day simply misses and fetches its own.
+    if (statsHost && statsHost.dataset.summaryDate) {
+        statsCache[statsHost.dataset.summaryDate] = statsHost.innerHTML
+        touchStatsMonth(statsHost.dataset.summaryDate)
+    }
+
     selectDay(ISO_DATE.test(restoredDate) ? restoredDate : today)
 })

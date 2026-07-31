@@ -18,7 +18,10 @@
 package net.zodac.diurnal.stats;
 
 import static io.restassured.RestAssured.given;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -157,5 +160,78 @@ class StatsResourceIT extends IntegrationTestBase {
                 .then().statusCode(200)
                 .body(containsString("Logged"))
                 .body(not(containsString("NeverLogged")));
+    }
+    // ── Dashboard stats summary (/internal/stats/summary*) ────────────────────
+
+    @Test
+    void summary_showsOnlyTheSelectedDaysActions_orderedByThatDaysCount() {
+        runInTx(() -> {
+            final Action light = newAction(primaryId, "LightToday");
+            newLog(primaryId, light.id, TODAY, 1);
+            final Action heavy = newAction(primaryId, "HeavyToday");
+            newLog(primaryId, heavy.id, TODAY, 9);
+            final Action other = newAction(primaryId, "OtherDayOnly");
+            newLog(primaryId, other.id, TODAY.minusDays(1), 5);
+        });
+
+        final String card = given().get("/internal/stats/summary/" + TODAY)
+            .then().statusCode(200)
+            .contentType(containsString("text/html"))
+            .body(not(containsString("OtherDayOnly")))
+            .extract().asString();
+
+        assertThat(card.indexOf("HeavyToday"))
+            .as("the day's most-logged action should be rendered first")
+            .isLessThan(card.indexOf("LightToday"));
+    }
+
+    @Test
+    void summary_capsAtThreeActions() {
+        runInTx(() -> {
+            for (int count = 1; count <= 4; count++) {
+                final Action action = newAction(primaryId, "Capped" + count);
+                newLog(primaryId, action.id, TODAY, count);
+            }
+        });
+
+        given().get("/internal/stats/summary/" + TODAY)
+                .then().statusCode(200)
+                .body(containsString("Capped4"))
+                .body(containsString("Capped3"))
+                .body(containsString("Capped2"))
+                .body(not(containsString("Capped1")));  // lowest count of the four - dropped by the cap
+    }
+
+    @Test
+    void summary_dayWithNothingLogged_rendersNoCard() {
+        runInTx(() -> {
+            final Action action = newAction(primaryId, "Yesterday");
+            newLog(primaryId, action.id, TODAY.minusDays(1), 1);
+        });
+
+        given().get("/internal/stats/summary/" + TODAY)
+                .then().statusCode(200)
+                .body(blankOrNullString());   // the partial renders nothing at all on a blank day
+    }
+
+    @Test
+    void summaryMonth_returnsOneCardPerDayOfTheMonth() {
+        runInTx(() -> {
+            final Action action = newAction(primaryId, "MonthlyHabit");
+            newLog(primaryId, action.id, TODAY, 1);
+        });
+
+        given().get("/internal/stats/summary-month/2026-06")
+                .then().statusCode(200)
+                .contentType(containsString("application/json"))
+                .body("size()", equalTo(30))                      // June has 30 days, every one keyed
+                .body("'2026-06-15'", containsString("MonthlyHabit"))
+                .body("'2026-06-14'", not(containsString("MonthlyHabit"))); // not logged that day
+    }
+
+    @Test
+    void summaryMonth_invalidMonth_returns400() {
+        given().get("/internal/stats/summary-month/not-a-month")
+                .then().statusCode(400);
     }
 }

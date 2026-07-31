@@ -103,33 +103,6 @@ public class ActionLog extends PanacheEntityBase {
     }
 
     /**
-     * Returns the ids of the user's actions logged at least once within the inclusive {@code [from, to]} date range, ordered most-recently-performed
-     * first (ties broken by action name, ascending) and capped at {@code limit}.
-     *
-     * <p>
-     * The grouping and ordering are done in the database so the dashboard summary never has to load every log for every action just to pick the
-     * handful it can display.
-     *
-     * @param userId the owning user
-     * @param from the inclusive start of the date window
-     * @param to the inclusive end of the date window
-     * @param limit the maximum number of action ids to return
-     * @return the ids of the most-recently-performed actions in the window
-     */
-    public static List<UUID> mostRecentActiveActionIds(final UUID userId, final LocalDate from, final LocalDate to,
-        final int limit) {
-        // NB: never hold Panache.getEntityManager() in a local — it is a container-managed
-        // EntityManager that must NOT be closed, but PMD's CloseResource rule would demand it.
-        final List<?> rows = Panache.getEntityManager().createNativeQuery(ActionLogQueries.MOST_RECENT_ACTIVE_ACTION_IDS_SQL)
-            .setParameter("userId", userId)
-            .setParameter("from", from)
-            .setParameter("to", to)
-            .setParameter("limit", limit)
-            .getResultList();
-        return rows.stream().map(UUID.class::cast).toList();
-    }
-
-    /**
      * Returns the per-month summed {@code count} for each of the given actions — the database-side monthly aggregation behind the Stats page.
      * {@code actionIds} must be non-empty.
      *
