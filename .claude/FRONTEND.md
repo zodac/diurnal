@@ -255,22 +255,54 @@ into the error element.
 
 ### User-configurable Stats-page tiles (`ActionStatField`)
 
-The Stats page (`partials/stats-cards.html`) renders one tile per **enabled** stat, in the user's chosen order — the "Action stats"
-setting (`User.statsFields`). It is stored as a **`jsonb` array of `StatFieldPref` `{key, enabled}`** (`user.StatFieldPref`, mapped
-via `@JdbcTypeCode(SqlTypes.JSON)`), holding **every** field in the user's arranged order — so a field's position is stable whether
-it is shown or hidden (`NULL` = never customised → all fields, default order). This is a **display preference only**:
-`StatsService`/`ActionStats` always compute every statistic regardless.
+The Stats page (`partials/stats-cards.html`) renders one tile per **enabled** stat, in the user's chosen order and under the user's
+name for it — the "Action stats" setting (`User.statsFields`). It is stored as a **`jsonb` array of `StatFieldPref`
+`{key, enabled, label}`** (`user.StatFieldPref`, mapped via `@JdbcTypeCode(SqlTypes.JSON)`), holding **every** field in the user's
+arranged order — so a field's position is stable whether it is shown or hidden (`NULL` = never customised → all fields, default
+order, default names; a `null` `label` = that stat is not renamed, which is also how a pre-rename stored arrangement deserialises,
+so renaming needed no migration). This is a **display preference only**: `StatsService`/`ActionStats` always compute every
+statistic regardless, and a rename changes only the caption.
 
 `net.zodac.diurnal.stats.ActionStatField` is the **single source of truth** for the tile catalogue (declaration order = default
 order); each constant also carries a `description()` shown as the picker tooltip. `ActionStatsExtensions.tiles(stats, fields,
-decimalPlaces)` (a `@TemplateExtension`) maps each enabled field to a `StatTile`, reusing the existing derived-label methods.
-`LAST_PERFORMED` is `mandatory` (always rendered, only reorderable). Helpers all take/return `List<StatFieldPref>`:
-`displayFields(stored)` → enabled fields to render; `choices(stored)` → every field (key/label/description/selected/mandatory) in
-arranged order for the picker; `encode(order, enabledKeys)` → the arrangement to persist from a submission. The settings picker is a
-single **Pointer Events** handler (mouse + touch, no library): a drag from the row **handle** reorders; a **short press** anywhere
-else on a row toggles its (visual-only, `pointer-events-none`) checkbox; the description tooltip shows on **hover** (desktop, CSS
-`group-hover`) or a **long press** of the text (touch, `.tip-open`). It posts every row's `statsOrder` plus the ticked
+decimalPlaces)` (a `@TemplateExtension`) maps each displayed stat to a `StatTile`, reusing the existing derived-label methods.
+`LAST_PERFORMED` is `mandatory` (always rendered, only reorderable). Helpers all take `List<StatFieldPref>`:
+`displayFields(stored)` → the `DisplayStat`s (field + resolved caption) to render; `choices(stored)` → every field
+(key/label/defaultLabel/customLabel/description/selected/mandatory) in arranged order for the picker; `encode(order, enabledKeys,
+labels)` → the arrangement to persist from a submission; `sanitiseLabel`/`isValidLabel`/`labelsByKey` are the rename rules. The
+settings picker is a single **Pointer Events** handler (mouse + touch, no library): a drag from the row **handle** reorders; a
+**short press** anywhere else on a row toggles its (visual-only, `pointer-events-none`) checkbox; the hover/focus-revealed
+**Rename** button swaps the caption for an in-place input; the description tooltip shows on **hover** (desktop, CSS `group-hover`)
+or a **long press** of the text (touch, `.tip-open`). It posts every row's `statsOrder` + `statsLabel` plus the ticked
 `statsEnabled` to the consolidated `PATCH /internal/settings` endpoint.
+
+**The rename row is pixel-stable across the flip**, mirroring the data-table edit rows (`partials/dt-row-actions.html`, which pairs
+Edit/Save and Delete/Cancel in the same two slots). The caption and the editor are **siblings in one slot**, not two row states:
+`.stats-field-caption` carries the input's border/padding (transparent) and both share a `line-height`, so the text keeps the same
+pixel and the row the same height. `.stats-field-actions` reserves the width of *both* edit-mode buttons and packs from the **left**
+(overriding `.dt-actions`' right-alignment and its 3.5rem per-button minimum), so **Save renders exactly where Rename was** and
+Cancel merely appears beside it. `tests/ui/settings.spec.ts` measures both modes relative to the row and fails on any shift.
+
+**Renaming a stat** stores the user's wording against the key, and only ever affects the caption (the Stats page, the dashboard
+summary strip and the picker row). The row's hidden `statsLabel` holds the **custom** name, never the rendered caption — posting the
+caption back would pin every stat's wording the first time any one of them was renamed, so an un-renamed stat would stop tracking
+the catalogue label. A blank name means "use the catalogue label", which is how a rename is cleared (the input's placeholder is that
+label). Names are normalised (whitespace collapsed, control characters stripped) and a name over `MAX_LABEL_LENGTH` characters is
+**rejected on both surfaces** — 422 on the web, 400 on the API — never truncated. The cap is **25**, sized against the catalogue's own
+wording (the longest built-in label, "Average count per month", is 23) so a custom name is never much wordier than the stat beside it
+and every built-in label is itself a legal custom name. **A stat's own built-in label is not a rename**: the editor pre-fills with the
+current caption, so saving an un-renamed row untouched submits that label, and storing it would pin the wording against future
+re-labelling — `ActionStatField.encode`/`parse` map it back to "not renamed" on both write and read, and `settings.js` mirrors it so
+the UI does not fire a pointless save. It bounds LENGTH, not rendered width: the
+caption box runs from roughly 129px to 220px across layouts (the tile grid sizes from a minimum width and reflows its column
+count), so 23 characters of an unusually wide mix can still cost a caption line the built-ins do not — the accepted trade for an
+expressive name.
+What a name may never do is escape its tile, so `.stat-tile dt` carries `break-words` (without it a name with no spaces sits on one
+line and spills out sideways). The Playwright guard in `tests/ui/stats.spec.ts` renders a max-length name at both widths, reading
+the cap from the rename input's own `maxlength`: built-in-style wording must be no deeper than the built-ins, and even the
+widest-glyph worst case must not overflow. Committing a rename writes the hidden input and
+dispatches `change` on it, so it saves through the picker's single PATCH; the editor's own input carries no `name` and its native
+change is swallowed, so an abandoned edit never saves.
 
 > A new stat's `ActionStatField` constant must also supply a `description()` (the constructor requires it) — it becomes the picker
 > tooltip.

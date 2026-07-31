@@ -154,6 +154,51 @@ class SurfaceParityIT extends IntegrationTestBase {
     }
 
     @Test
+    void statFieldRename_appliedIdenticallyOnBothSurfaces() {
+        // Renaming a stat is one shared rule (ProfileService.updateStatsFields): both surfaces normalise
+        // the name the same way, and both REJECT an over-long one rather than truncating it.
+        given().formParam("statsOrder", "current-streak", "last-performed")
+                .formParam("statsEnabled", "current-streak")
+                .formParam("statsLabel", "  Days in row  ", "")
+                .patch("/internal/settings")
+                .then().statusCode(204);
+        runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().statsFields)
+            .as("the web form stores the sanitised name")
+            .contains(new net.zodac.diurnal.user.StatFieldPref("current-streak", true, "Days in row")));
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"statsFields":[
+                            {"key":"current-streak","enabled":true,"label":"  Days in row  "},
+                            {"key":"last-performed","enabled":true}
+                        ]}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(200);
+        runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().statsFields)
+            .as("the API stores the very same name for the very same input")
+            .contains(new net.zodac.diurnal.user.StatFieldPref("current-streak", true, "Days in row")));
+
+        final String tooLong = "a".repeat(net.zodac.diurnal.stats.ActionStatField.MAX_LABEL_LENGTH + 1);
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"statsFields":[{"key":"current-streak","enabled":true,"label":"%s"}]}}
+                        """.formatted(tooLong))
+                .patch("/api/v1/users/me")
+                .then().statusCode(400);
+
+        given().formParam("statsOrder", "current-streak", "last-performed")
+                .formParam("statsEnabled", "current-streak")
+                .formParam("statsLabel", tooLong, "")
+                .patch("/internal/settings")
+                .then().statusCode(422);
+
+        runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().statsFields)
+            .as("an over-long name must be rejected by BOTH surfaces, keeping the previous rename")
+            .contains(new net.zodac.diurnal.user.StatFieldPref("current-streak", true, "Days in row")));
+    }
+
+    @Test
     void unownedAction_rejectedOnBothSurfaces() {
         final UUID unknown = UUID.randomUUID();
 

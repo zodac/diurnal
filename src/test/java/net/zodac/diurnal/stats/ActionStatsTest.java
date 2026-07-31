@@ -597,12 +597,18 @@ class ActionStatsTest {
 
     // ── tiles ──────────────────────────────────────────────────────────────────
 
+    // A stat shown under its own catalogue label (the un-renamed case); a rename only swaps the caption,
+    // which is covered in ActionStatFieldTest.
+    private static DisplayStat shown(final ActionStatField field) {
+        return new DisplayStat(field, field.label());
+    }
+
     @Test
     void tiles_rendersInGivenFieldOrder() {
         final ActionStats s = stats(1, 3, TODAY, TODAY, 4, 6, 5, 2, 0, 0, "—", 0, "—", 0);
 
         final List<StatTile> tiles = ActionStatsExtensions.tiles(
-            s, List.of(ActionStatField.TOTAL_COUNT, ActionStatField.CURRENT_STREAK), 1);
+            s, List.of(shown(ActionStatField.TOTAL_COUNT), shown(ActionStatField.CURRENT_STREAK)), 1);
 
         assertThat(tiles)
             .as("tiles render in the supplied field order")
@@ -611,10 +617,26 @@ class ActionStatsTest {
     }
 
     @Test
+    void tiles_renamedStat_keepsItsFigureUnderTheUsersCaption() {
+        final ActionStats s = stats(1, 3, TODAY, TODAY, 4, 6, 5, 2, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions
+            .tiles(s, List.of(new DisplayStat(ActionStatField.TOTAL_COUNT, "Times done")), 1)
+            .getFirst();
+
+        assertThat(tile.label())
+            .as("a renamed stat renders under the user's caption")
+            .isEqualTo("Times done");
+        assertThat(tile.value())
+            .as("renaming a stat changes only its caption, never the figure it reports")
+            .isEqualTo("3");
+    }
+
+    @Test
     void tiles_numericTile_carriesValueUnitAndDefaultClass() {
         final ActionStats s = stats(1, 3, TODAY, TODAY, 1, 6, 0, 0, 0, 0, "—", 0, "—", 0);
 
-        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.CURRENT_STREAK), 1).getFirst();
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.CURRENT_STREAK)), 1).getFirst();
 
         assertThat(tile.value())
             .as("current streak value")
@@ -638,7 +660,7 @@ class ActionStatsTest {
         // 3 distinct days over exactly 2 weeks → 1.5 per week; rendered to 2 dp.
         final ActionStats s = statsG(3, 3, TODAY.minusWeeks(2), TODAY, 0, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
 
-        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.WEEKLY_DAY_AVERAGE), 2).getFirst();
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.WEEKLY_DAY_AVERAGE)), 2).getFirst();
 
         assertThat(tile.value())
             .as("weekly average uses the passed decimal-place count")
@@ -649,7 +671,7 @@ class ActionStatsTest {
     void tiles_durationUnderOneMonth_keepsTheBigNumberStyling() {
         final ActionStats s = stats(5, 5, TODAY.minusDays(4), TODAY, 5, 5, 0, 0, 0, 0, "—", 0, "—", 0);
 
-        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.CURRENT_STREAK), 1).getFirst();
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.CURRENT_STREAK)), 1).getFirst();
 
         assertThat(tile.date())
             .as("a plain day count keeps the prominent numeric styling")
@@ -667,7 +689,7 @@ class ActionStatsTest {
         // TODAY is 15 June 2025, so a 45-day streak reaches back to 1 May → "1 month, 14 days".
         final ActionStats s = stats(45, 45, TODAY.minusDays(44), TODAY, 45, 45, 0, 0, 0, 0, "—", 0, "—", 0);
 
-        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.CURRENT_STREAK), 1).getFirst();
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.CURRENT_STREAK)), 1).getFirst();
 
         assertThat(tile.date())
             .as("a condensed breakdown needs the smaller two-line styling")
@@ -687,7 +709,7 @@ class ActionStatsTest {
     void tiles_currentGap_isTheSpanSinceLastPerformed() {
         final ActionStats s = stats(2, 2, TODAY.minusDays(9), TODAY.minusDays(9), 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
 
-        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.CURRENT_GAP), 1).getFirst();
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.CURRENT_GAP)), 1).getFirst();
 
         assertThat(tile.label())
             .as("unexpected value")
@@ -701,7 +723,7 @@ class ActionStatsTest {
     void tiles_bestMonth_leadsWithTheMonthAndSubsTheCount() {
         final ActionStats s = stats(2, 7, TODAY, TODAY, 0, 0, 0, 0, 0, 0, "June 2025", 21, "2025", 203);
 
-        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.BEST_MONTH), 1).getFirst();
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.BEST_MONTH)), 1).getFirst();
 
         assertThat(tile.value())
             .as("the month is the headline, not the count")
@@ -718,7 +740,7 @@ class ActionStatsTest {
     void tiles_bestYear_leadsWithTheYearAndSubsTheCount() {
         final ActionStats s = stats(2, 7, TODAY, TODAY, 0, 0, 0, 0, 0, 0, "June 2025", 21, "2025", 1);
 
-        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.BEST_YEAR), 1).getFirst();
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.BEST_YEAR)), 1).getFirst();
 
         assertThat(tile.value())
             .as("the year is the headline, not the count")
@@ -732,7 +754,7 @@ class ActionStatsTest {
     void tiles_firstPerformed_isDateTileWithElapsedSub() {
         final ActionStats s = stats(2, 4, TODAY.minusDays(3), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
 
-        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.FIRST_PERFORMED), 1).getFirst();
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.FIRST_PERFORMED)), 1).getFirst();
 
         assertThat(tile.label())
             .as("unexpected value")
@@ -752,7 +774,7 @@ class ActionStatsTest {
     void tiles_lastPerformed_isDateTileWithSinceSub() {
         final ActionStats s = stats(2, 4, TODAY.minusDays(3), TODAY.minusDays(3), 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
 
-        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.LAST_PERFORMED), 1).getFirst();
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.LAST_PERFORMED)), 1).getFirst();
 
         assertThat(tile.date())
             .as("last-performed renders with the smaller date styling")
@@ -772,7 +794,7 @@ class ActionStatsTest {
     void tiles_trendTile_carriesTrendColourClass() {
         final ActionStats s = stats(2, 7, TODAY, TODAY, 0, 0, 5, 2, 0, 0, "—", 0, "—", 0);
 
-        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(ActionStatField.VS_LAST_MONTH), 1).getFirst();
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.VS_LAST_MONTH)), 1).getFirst();
 
         assertThat(tile.value())
             .as("upward month trend")

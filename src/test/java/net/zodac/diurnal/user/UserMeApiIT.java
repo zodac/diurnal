@@ -30,6 +30,7 @@ import java.time.Instant;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.auth.Session;
 import net.zodac.diurnal.auth.SessionStore;
+import net.zodac.diurnal.stats.ActionStatField;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -209,6 +210,66 @@ class UserMeApiIT extends IntegrationTestBase {
                 .body("preferences.statsFields[0].enabled", equalTo(true))
                 .body("preferences.statsFields[1].key", equalTo("current-streak"))
                 .body("preferences.statsFields[1].enabled", equalTo(false));
+    }
+
+    @Test
+    void patchMe_statsFieldRename_roundTripsThroughGetMe() {
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"statsFields":[
+                            {"key":"current-streak","enabled":true,"label":"  Days in row  "},
+                            {"key":"total-count","enabled":true},
+                            {"key":"last-performed","enabled":true}
+                        ]}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(200)
+                .body("preferences.statsFields[0].label", equalTo("Days in row"))
+                .body("preferences.statsFields[1].label", nullValue());
+
+        given().header("Authorization", "Bearer " + token())
+                .get("/api/v1/users/me")
+                .then().statusCode(200)
+                .body("preferences.statsFields[0].label", equalTo("Days in row"));
+    }
+
+    @Test
+    void patchMe_blankStatsFieldLabel_clearsTheRename() {
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"statsFields":[{"key":"current-streak","enabled":true,"label":"Days in row"}]}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(200);
+
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"statsFields":[{"key":"current-streak","enabled":true,"label":"   "}]}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(200)
+                .body("preferences.statsFields[0].label", nullValue());
+    }
+
+    @Test
+    void patchMe_overlongStatsFieldLabel_isRejected() {
+        // Rejected, never truncated: the API must not caption a stat with something other than what was sent.
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"statsFields":[{"key":"current-streak","enabled":true,"label":"%s"}]}}
+                        """.formatted("a".repeat(ActionStatField.MAX_LABEL_LENGTH + 1)))
+                .patch("/api/v1/users/me")
+                .then().statusCode(400)
+                .body("message", containsString("Stat name cannot be longer than"));
+
+        given().header("Authorization", "Bearer " + token())
+                .get("/api/v1/users/me")
+                .then().statusCode(200)
+                .body("preferences.statsFields", nullValue());
     }
 
     @Test

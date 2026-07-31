@@ -19,6 +19,7 @@ package net.zodac.diurnal.user;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.List;
+import java.util.Map;
 import net.zodac.diurnal.stats.ActionStatField;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -168,18 +169,30 @@ public class ProfileService {
     }
 
     /**
-     * Updates which per-action stats show on the Stats page, and in what order: {@code order} is EVERY field key in the arranged order,
-     * {@code enabled} the shown subset. Encoded by {@link ActionStatField#encode(List, java.util.Collection)} (disabled fields kept in place, the
-     * mandatory field forced enabled), so unknown keys are dropped identically on every surface. A display-only preference.
+     * Updates which per-action stats show on the Stats page, in what order, and under what name: {@code order} is EVERY field key in the arranged
+     * order, {@code enabled} the shown subset, and {@code labels} the custom name of each renamed stat (a key with no entry, or a blank name, keeps
+     * the built-in one). Encoded by {@link ActionStatField#encode(List, java.util.Collection, Map)} (disabled fields kept in place, the mandatory
+     * field forced enabled), so unknown keys are dropped identically on every surface. A display-only preference.
+     *
+     * <p>
+     * A name longer than {@link ActionStatField#MAX_LABEL_LENGTH} characters is rejected rather than truncated - on BOTH surfaces, so a stat is
+     * never captioned with something other than what was typed.
      *
      * @param user    the acting user
      * @param order   every field key in the arranged order
      * @param enabled the keys of the fields to show
-     * @return the outcome (always {@link ProfileResult.Updated})
+     * @param labels  the custom name of each renamed stat, by key
+     * @return the outcome: {@link ProfileResult.Invalid} for an over-long name, otherwise {@link ProfileResult.Updated}
      */
-    public ProfileResult updateStatsFields(final User user, final List<String> order, final List<String> enabled) {
-        final String logValue = "order=" + order + " enabled=" + enabled;
-        return applySetting(user, "Action stats", logValue, () -> user.statsFields = ActionStatField.encode(order, enabled));
+    public ProfileResult updateStatsFields(final User user, final List<String> order, final List<String> enabled, final Map<String, String> labels) {
+        if (!labels.values().stream().allMatch(ActionStatField::isValidLabel)) {
+            return new ProfileResult.Invalid("Stat name cannot be longer than " + ActionStatField.MAX_LABEL_LENGTH + " characters");
+        }
+
+        // Logs WHICH stats were renamed, never the names themselves: a name is free text that may hold
+        // non-ASCII the container console cannot render (see CLAUDE.md), and the keys identify the change.
+        final String logValue = "order=" + order + " enabled=" + enabled + " renamed=" + labels.keySet();
+        return applySetting(user, "Action stats", logValue, () -> user.statsFields = ActionStatField.encode(order, enabled, labels));
     }
 
     private static String allowedValues(final PreviewOption[] options) {

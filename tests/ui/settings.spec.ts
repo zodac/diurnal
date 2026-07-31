@@ -1,6 +1,10 @@
 import type { Page } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
 
+// Geometry of one stats-picker row, measured RELATIVE to the row so page scrolling cannot mask a shift.
+interface ElementBox { left: number, top: number, height: number }
+interface RowGeometry { rowHeight: number, text: ElementBox | null, button: ElementBox | null }
+
 // Every preference (and the display name) auto-saves via an HTMX PATCH to the single consolidated
 // /internal/settings endpoint, each control submitting just its own field on `change`. That PATCH is
 // asynchronous, so a test MUST wait for it to finish before reloading/navigating — otherwise the
@@ -425,6 +429,166 @@ test.describe("Settings page", () => {
         // Escape closes it.
         await page.keyboard.press("Escape")
         await expect(page.locator("#preview-modal")).toBeHidden()
+    })
+
+    test("renaming a stat persists, and clearing the name restores the built-in one", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        const row = page.locator("#stats-fields-list li[data-key='current-streak']")
+        const caption = row.locator(".stats-field-caption")
+        const checked = await row.locator("input[type='checkbox']").isChecked()
+
+        // Rename is revealed on hover only, so fire its click directly (same caveat as the
+        // Display Name Edit button above).
+        await row.locator(".stats-field-rename-btn").dispatchEvent("click")
+        const input = row.locator(".stats-field-input")
+        await expect(input).toBeVisible()
+        // The editor pre-fills with the stat's CURRENT caption whether or not it has been renamed, so
+        // an un-renamed stat opens on its built-in name rather than on an empty field.
+        await expect(input).toHaveValue("Current streak")
+        await expect(input).toHaveAttribute("placeholder", "Current streak")
+
+        await input.fill("Days in row")
+        await waitForSave(page, row.locator(".stats-field-save-btn").click())
+        await expect(caption).toHaveText("Days in row")
+
+        await page.reload()
+        await expect(caption).toHaveText("Days in row")
+        // Renaming is not a toggle: the stat's shown/hidden state is untouched by it.
+        expect(await row.locator("input[type='checkbox']").isChecked()).toBe(checked)
+
+        // A renamed stat opens on ITS name, not the built-in one.
+        await row.locator(".stats-field-rename-btn").dispatchEvent("click")
+        await expect(row.locator(".stats-field-input")).toHaveValue("Days in row")
+
+        // Clearing the field restores the built-in name.
+        await row.locator(".stats-field-input").fill("")
+        await waitForSave(page, row.locator(".stats-field-save-btn").click())
+        await expect(caption).toHaveText("Current streak")
+        await page.reload()
+        await expect(caption).toHaveText("Current streak")
+    })
+
+    test("saving a pre-filled built-in name is not a rename", async ({ authenticatedPage: page }) => {
+        // Because the editor pre-fills with the current caption, opening an un-renamed stat and saving it
+        // untouched submits the built-in label. That must NOT be stored as a custom name, or the stat would
+        // stop tracking the catalogue if its label were ever re-worded.
+        await page.goto("/settings")
+        const row = page.locator("#stats-fields-list li[data-key='total-count']")
+
+        await row.locator(".stats-field-rename-btn").dispatchEvent("click")
+        await expect(row.locator(".stats-field-input")).toHaveValue("Total count")
+        await row.locator(".stats-field-save-btn").click()
+        await expect(row.locator(".stats-field-input")).toBeHidden()
+        await expect(row.locator(".stats-field-caption")).toHaveText("Total count")
+
+        const me = await page.context().request.get("/api/v1/users/me")
+        const body = await me.json() as { preferences: { statsFields: Array<{ key: string, label: string | null }> | null } }
+        const stored = body.preferences.statsFields?.find(f => f.key === "total-count")
+        expect(stored?.label ?? null).toBeNull()
+    })
+
+    test("opening the rename editor and saving unchanged sends no request", async ({ authenticatedPage: page }) => {
+        // Every other control on this page auto-saves on `change`, so it would be easy for the rename
+        // editor to fire a PATCH just for being opened and closed. It must not: an unchanged commit is a
+        // no-op, for an un-renamed stat (pre-filled with its built-in name) and a renamed one alike.
+        await page.goto("/settings")
+        let saves = 0
+        page.on("request", (r) => {
+            if (new URL(r.url()).pathname === "/internal/settings" && r.method() === "PATCH") { saves++ }
+        })
+
+        // An un-renamed stat: the field is pre-filled with the built-in name, so committing it is a no-op.
+        const untouched = page.locator("#stats-fields-list li[data-key='best-month']")
+        await untouched.locator(".stats-field-rename-btn").dispatchEvent("click")
+        await expect(untouched.locator(".stats-field-input")).toHaveValue("Best month")
+        await untouched.locator(".stats-field-save-btn").click()
+        await expect(untouched.locator(".stats-field-input")).toBeHidden()
+
+        // Cancelling is a no-op too, even after typing.
+        await untouched.locator(".stats-field-rename-btn").dispatchEvent("click")
+        await untouched.locator(".stats-field-input").fill("Discarded")
+        await untouched.locator(".stats-field-cancel-btn").click()
+        await expect(untouched.locator(".stats-field-input")).toBeHidden()
+
+        // Give any stray request time to be issued before asserting none was.
+        await page.waitForTimeout(300)
+        expect(saves, "an unchanged rename must not PATCH").toBe(0)
+
+        // Now a REAL rename saves exactly once...
+        const renamed = page.locator("#stats-fields-list li[data-key='best-year']")
+        await renamed.locator(".stats-field-rename-btn").dispatchEvent("click")
+        await renamed.locator(".stats-field-input").fill("Top year")
+        await waitForSave(page, renamed.locator(".stats-field-save-btn").click())
+        await expect(renamed.locator(".stats-field-caption")).toHaveText("Top year")
+        expect(saves, "a real rename saves once").toBe(1)
+
+        // ...and re-committing THAT name unchanged is a no-op as well.
+        await renamed.locator(".stats-field-rename-btn").dispatchEvent("click")
+        await expect(renamed.locator(".stats-field-input")).toHaveValue("Top year")
+        await renamed.locator(".stats-field-save-btn").click()
+        await expect(renamed.locator(".stats-field-input")).toBeHidden()
+        await page.waitForTimeout(300)
+        expect(saves, "re-committing an unchanged custom name must not PATCH").toBe(1)
+    })
+
+    test("switching a stat row to edit mode moves neither the text nor the button", async ({ authenticatedPage: page }) => {
+        // The caption and its editor are siblings in one slot (the caption carries the input's border and
+        // padding as transparent, and both share a line box), and Rename/Save share a fixed-width actions
+        // slot — so a row must be pixel-identical either side of the flip. Measured relative to the row so
+        // page scrolling cannot mask a shift.
+        await page.setViewportSize({ width: 1280, height: 900 })
+        await page.goto("/settings")
+        const row = page.locator("#stats-fields-list li[data-key='current-streak']")
+
+        const geometry = async (): Promise<RowGeometry> => row.evaluate((li: HTMLElement): RowGeometry => {
+            const rowRect = li.getBoundingClientRect()
+            const shown = (selector: string): Element | null => {
+                const el = li.querySelector(selector)
+                return el !== null && el.getClientRects().length > 0 ? el : null
+            }
+            const rel = (el: Element | null): ElementBox | null => {
+                if (el === null) { return null }
+                const r = el.getBoundingClientRect()
+                return { left: Math.round(r.left - rowRect.left), top: Math.round(r.top - rowRect.top), height: Math.round(r.height) }
+            }
+            return {
+                rowHeight: Math.round(rowRect.height),
+                // Whichever of the pair is currently rendered: caption or editor, Rename or Save.
+                text: rel(shown(".stats-field-caption") ?? shown(".stats-field-input")),
+                button: rel(shown(".stats-field-rename-btn") ?? shown(".stats-field-save-btn")),
+            }
+        })
+
+        const read = await geometry()
+        await row.locator(".stats-field-rename-btn").dispatchEvent("click")
+        await expect(row.locator(".stats-field-input")).toBeVisible()
+        const edit = await geometry()
+
+        expect(edit.rowHeight, "the row must not change height in edit mode").toBe(read.rowHeight)
+        expect(edit.text, "the name must not move as the caption becomes an input").toEqual(read.text)
+        expect(edit.button, "Save must render exactly where Rename was").toEqual(read.button)
+        // Cancel is the extra control, and it sits beside Save rather than displacing it.
+        const cancel = row.locator(".stats-field-cancel-btn")
+        await expect(cancel).toBeVisible()
+        expect((await cancel.boundingBox())?.x ?? 0, "Cancel sits after Save").toBeGreaterThan(
+            (await row.locator(".stats-field-save-btn").boundingBox())?.x ?? 0)
+
+        await cancel.click()
+        expect(await geometry(), "cancelling restores the read-mode geometry exactly").toEqual(read)
+    })
+
+    test("cancelling a rename keeps the previous name and saves nothing", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        const row = page.locator("#stats-fields-list li[data-key='total-count']")
+
+        await row.locator(".stats-field-rename-btn").dispatchEvent("click")
+        await row.locator(".stats-field-input").fill("Never saved")
+        await row.locator(".stats-field-cancel-btn").click()
+
+        await expect(row.locator(".stats-field-input")).toBeHidden()
+        await expect(row.locator(".stats-field-caption")).toHaveText("Total count")
+        await page.reload()
+        await expect(row.locator(".stats-field-caption")).toHaveText("Total count")
     })
 
     test("log out everywhere arms an in-place confirm, not a native dialog", async ({ authenticatedPage: page }) => {

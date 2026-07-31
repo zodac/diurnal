@@ -18,18 +18,28 @@
 package net.zodac.diurnal.user;
 
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
+import org.jspecify.annotations.Nullable;
 
 /**
- * One entry in a user's persisted "Action stats" arrangement: a stat field's stable key paired with whether it is enabled (shown on the Stats page).
- * The arrangement is stored as a JSON array of these on {@code users.stats_fields} ({@code jsonb}), in the user's chosen order — so a field keeps its
- * position whether shown or hidden. Keys are resolved against the {@code ActionStatField} catalogue on read; unknown keys are ignored, so removing a
- * stat from the catalogue never breaks deserialisation.
+ * One entry in a user's persisted "Action stats" arrangement: a stat field's stable key paired with whether it is enabled (shown on the Stats page)
+ * and the user's optional rename of it. The arrangement is stored as a JSON array of these on {@code users.stats_fields} ({@code jsonb}), in the
+ * user's chosen order — so a field keeps its position whether shown or hidden. Keys are resolved against the {@code ActionStatField} catalogue on
+ * read; unknown keys are ignored, so removing a stat from the catalogue never breaks deserialisation.
+ *
+ * <p>
+ * A {@code null} {@code label} means "use the catalogue's own label", which is what an arrangement stored before renaming existed deserialises to
+ * (the missing JSON property reads as {@code null}) — so the column needed no migration, and a stat only ever pins its caption once the user has
+ * deliberately renamed it.
  *
  * @param key the {@code ActionStatField} key
  * @param enabled whether the stat is shown on the Stats page
+ * @param label the user's custom name for the stat, or {@code null} to use the catalogue label
  */
-@Schema(description = "One entry in the user's 'Action stats' arrangement: a stat's key and whether it is shown, in the user's chosen order.")
+@Schema(description = "One entry in the user's 'Action stats' arrangement: a stat's key, whether it is shown, and its optional custom name, in the "
+    + "user's chosen order.")
 public record StatFieldPref(
     @Schema(examples = "current-streak", description = "The stat field's stable key.") String key,
-    @Schema(examples = "true", description = "Whether the stat is shown on the Stats page.") boolean enabled) {
+    @Schema(examples = "true", description = "Whether the stat is shown on the Stats page.") boolean enabled,
+    @Schema(examples = "Days in a row", description = "The user's custom name for the stat; null to use the built-in name.")
+    @Nullable String label) {
 }

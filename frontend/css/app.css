@@ -545,6 +545,23 @@
   .card-title { @apply text-base font-semibold text-ink font-display; }
   /* Inset stat tile (stats cards, dashboard summary). */
   .stat-tile { @apply bg-surface-muted rounded-xl p-3; }
+  /* Stats page layout — both grids size from a MINIMUM track width and reflow their column count,
+     rather than being pinned to a column count and squeezing the tracks to fit. Pinned columns made
+     a tile NARROWEST at 1280px (three cards across the content column pinched each tile to 126px —
+     narrower than the same tile on a 390px phone, at 159px), so how a caption wrapped depended on
+     the viewport in a way that was not even monotonic. With a floor instead, a tile stays in a
+     roughly 160-210px band at every width and the column count drops instead: 3 cards → 2 → 1, and
+     2 tiles per card → 1 only if a card is ever narrower than one tile.
+     `min(Xpx, 100%)` is load-bearing: a bare `minmax(400px, 1fr)` track cannot shrink below its
+     minimum, so on a container narrower than that it would overflow and put a horizontal scrollbar
+     on the page (which is exactly what this layout must not do — see WCAG 1.4.10 Reflow). */
+  .stats-card-grid { grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); }
+  .stat-tile-grid { grid-template-columns: repeat(auto-fill, minmax(min(150px, 100%), 1fr)); }
+  /* A caption may be a user's own name for the stat (ActionStatField.MAX_LABEL_LENGTH bounds its
+     WIDTH, to two caption lines at the default tile size). One with no spaces in it has no wrapping
+     opportunity, so without this it would sit on one line and spill out of the tile sideways rather
+     than using the two lines the cap budgets for it. */
+  .stat-tile dt { @apply break-words; }
   /* Applied only WHILE Diurnal.fitFigures() (app.js) measures a `data-fit` line, and removed again
      immediately after: forcing the text onto one line is what makes an overflow measurable
      (scrollWidth > clientWidth) and so decides whether the label must abbreviate. It is never left on
@@ -816,6 +833,24 @@
         .settings-field-actions { opacity: 0; pointer-events: none; transition: opacity .15s; }
         .settings-field:hover .settings-field-actions,
         .settings-field:focus-within .settings-field-actions { opacity: 1; pointer-events: auto; }
+        /* The Action-stats picker rows carry the same hover/focus-revealed Rename control, but are
+           drag-orderable <li>s rather than a .settings-field, so they opt into the reveal here. */
+        .stats-field-row:hover .settings-field-actions,
+        .stats-field-row:focus-within .settings-field-actions { opacity: 1; pointer-events: auto; }
+        /* A picker row swaps its caption for a rename input IN PLACE, so the two must be the same box:
+           the caption carries the input's border and padding as transparent, which keeps the text on the
+           exact same pixel (and the row the same height) as the row flips between read and edit mode. */
+        .stats-field-caption { border: 1px solid transparent; padding: .25rem .5rem; }
+        /* Same line box too: an <input> defaults to `line-height: normal`, which is a hair taller than the
+           caption's text-sm line and would leave the row 1px taller in edit mode. */
+        .stats-field-caption, .stats-field-input { line-height: 1.25rem; }
+        /* Reserve the width of BOTH edit-mode buttons and pack from the left, so Save lands exactly where
+           Rename was and Cancel simply appears beside it — rather than Save being pushed along by Cancel
+           (which is what right-aligning, as .dt-actions does, would do to a 1-button/2-button pair). */
+        /* Sized to what Save + Cancel actually need, NOT to the .dt-actions 3.5rem-per-button minimum:
+           the slot is reserved in read mode too, so every extra pixel is taken off the caption beside it. */
+        .stats-field-actions { justify-content: flex-start; min-width: 5rem; }
+        .stats-field-actions .dt-btn { min-width: 0; }
         .settings-field-edit { box-shadow: inset 0 0 0 1px var(--color-ring-edit); }
         /* Destructive counterpart to .settings-field-edit — a red ring for an in-place confirm
            (e.g. "Log out everywhere"), matching the data-table delete-confirm's .dt-row-confirm. */
