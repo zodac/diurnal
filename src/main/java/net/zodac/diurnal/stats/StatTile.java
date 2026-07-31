@@ -26,7 +26,7 @@ package net.zodac.diurnal.stats;
  * @param sub the optional secondary caption ({@code ""} for none)
  * @param subNum {@code true} when {@code sub} carries locale-groupable number(s)
  * @param valueClass a utility/colour class for the value (e.g. a trend colour), or {@code "text-ink"}
- * @param date {@code true} for the date-styled "Last performed" tile (smaller, two-line value)
+ * @param date {@code true} when {@code value} is a date/label rather than a figure, so it is not locale-grouped
  */
 public record StatTile(
     String  label,

@@ -130,9 +130,9 @@ public final class ActionStatsExtensions {
         return new StatTile(label, value, sub, true, valueClass, false);
     }
 
-    // A day span keeps the prominent big-number styling while it reads as a plain day count; once it reaches a
-    // calendar month the number is replaced by the condensed breakdown ("1 year, 2 months, 3 days"), which needs
-    // the smaller two-line (date-flavoured) styling to fit - the exact day count then moves to the sub-caption.
+    // A day span reads as a plain (locale-grouped) day count until it reaches a calendar month, after which the
+    // value becomes the condensed breakdown ("1 year, 2 months, 3 days") and the exact day count moves to the
+    // sub-caption. Both render at the same type size as every other tile; only the grouping differs.
     private static StatTile durationTile(final String label, final DaySpan span) {
         final int days = Durations.days(span);
         if (Durations.exceedsOneMonth(span)) {

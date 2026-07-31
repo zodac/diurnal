@@ -556,6 +556,10 @@ document.addEventListener('click', function (e) {
 // happens here — one step at a time, and only while the line still overflows its own box:
 //     "15 June 2026"    →  "15 Jun 2026"  →  "15 Jun 26"
 //     "10,000 all time" →  "10.0k all time"        (only for a figure of 10,000 or more)
+// A line additionally marked `data-fit-scale` (the stat-tile value) may then step its TYPE SIZE down
+// once the text ladder is exhausted: every stat value is rendered at the same size whatever it carries,
+// and only a value that cannot be abbreviated into the tile ("1 year, 2 months, 3 days") gives size up,
+// one step at a time. Text is spent before size, so the type stays uniform for as long as it can.
 // Each step is measured with the line forced onto a single line (`.fit-measure`); the class is removed
 // again straight after, so a line that overflows even at its shortest wraps normally rather than being
 // clipped. The month table and the abbreviation ladder are shared with the calendar toolbar's own
@@ -623,21 +627,88 @@ document.addEventListener('click', function (e) {
     // replacements are collected): a re-fit after a resize re-measures, it does not re-derive.
     const ladders = new WeakMap()
 
+    // The type-size ladder a `data-fit-scale` line walks down, largest first. Every entry is a literal
+    // class name so the Tailwind scan of this file keeps all of them (see tailwind.config.js `content`).
+    const SIZE_STEPS = ['text-2xl', 'text-xl', 'text-lg', 'text-base', 'text-sm']
+    // How many lines a scalable value may wrap onto, in the fallback case where NO size fits it on one
+    // line (a condensed duration, "1 year, 2 months, 3 days"). Two lines of larger type read as the same
+    // kind of figure as the tiles beside it; the smallest size on one line does not.
+    const MAX_VALUE_LINES = 2
+    // The rung the server rendered each scalable line at — its starting point on every re-fit, so a
+    // widened viewport restores the full size rather than staying shrunk.
+    const baseSizes = new WeakMap()
+
+    // The line's index in SIZE_STEPS, or -1 when it does not scale (unmarked, or at no known size).
+    function baseSizeOf(el) {
+        let base = baseSizes.get(el)
+        if (base === undefined) {
+            base = 'fitScale' in el.dataset
+                ? SIZE_STEPS.findIndex(function (size) { return el.classList.contains(size) })
+                : -1
+            baseSizes.set(el, base)
+        }
+        return base
+    }
+
+    function applySize(el, index) {
+        SIZE_STEPS.forEach(function (size) { el.classList.remove(size) })
+        el.classList.add(SIZE_STEPS[index])
+    }
+
+    function overflows(el) {
+        return el.scrollWidth > el.clientWidth + OVERFLOW_TOLERANCE
+    }
+
+    // Whether the line, WRAPPING freely (i.e. with `.fit-measure` off), runs past MAX_VALUE_LINES. A
+    // resolved line-height is needed to count the lines; if the browser reports `normal` instead of a
+    // length, the size is simply left alone.
+    function exceedsLines(el) {
+        const lineHeight = parseFloat(window.getComputedStyle(el).lineHeight)
+        return !!lineHeight && el.scrollHeight > lineHeight * MAX_VALUE_LINES + OVERFLOW_TOLERANCE
+    }
+
+    // Steps a scalable line's type size down until its (already abbreviated) text fits, and returns with
+    // `.fit-measure` cleared. Preference order: the largest size that holds the value on ONE line; failing
+    // that — no size does — back up to the largest size that holds it within MAX_VALUE_LINES wrapped.
+    function fitSize(el, base) {
+        let size = base
+        while (size < SIZE_STEPS.length - 1 && overflows(el)) {
+            size += 1
+            applySize(el, size)
+        }
+        const fitsOnOneLine = !overflows(el)
+        el.classList.remove('fit-measure')
+        if (fitsOnOneLine) { return }
+        size = base
+        applySize(el, size)
+        while (size < SIZE_STEPS.length - 1 && exceedsLines(el)) {
+            size += 1
+            applySize(el, size)
+        }
+    }
+
     function fit(el) {
         let steps = ladders.get(el)
         if (!steps) {
             steps = window.Diurnal.labelSteps(el.textContent, el.dataset.numRaw, decimalsFor(el))
             ladders.set(el, steps)
         }
-        if (steps.length < 2) { return }
+        const base = baseSizeOf(el)
+        if (steps.length < 2 && base === -1) { return }
         el.classList.add('fit-measure')
+        if (base !== -1) { applySize(el, base) }
         let step = 0
         el.textContent = steps[0]
-        while (step < steps.length - 1 && el.scrollWidth > el.clientWidth + OVERFLOW_TOLERANCE) {
+        while (step < steps.length - 1 && overflows(el)) {
             step += 1
             el.textContent = steps[step]
         }
-        el.classList.remove('fit-measure')
+        // Text is spent before size: only a value the abbreviation ladder could not fit gives up a step.
+        if (base === -1) {
+            el.classList.remove('fit-measure')
+            return
+        }
+        fitSize(el, base)
     }
 
     window.Diurnal.fitFigures = function (rootParam) {
