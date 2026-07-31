@@ -37,7 +37,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -49,6 +48,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.time.DayLabels;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
@@ -61,8 +61,6 @@ import net.zodac.diurnal.web.RollbackOnErrorStatus;
 @RolesAllowed(Role.Values.USER)
 @RollbackOnErrorStatus
 public class LogWebResource {
-
-    private static final DateTimeFormatter DAY_LABEL = DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy", Locale.ENGLISH);
 
     private final Template dayPanelTemplate;
     private final Template dayActionsListTemplate;
@@ -113,7 +111,7 @@ public class LogWebResource {
 
         return dayPanelTemplate
             .data("date", date)
-            .data("dateLabel", date.format(DAY_LABEL))
+            .data("dateLabel", DayLabels.spelledOut(date))
             .data("future", future)
             .data("page", page);
     }
@@ -180,7 +178,7 @@ public class LogWebResource {
             final var page = future ? null : paginate(all, countsByDate.getOrDefault(date, Map.of()), 1, "", user.pageSize);
             panels.put(date.toString(), dayPanelTemplate
                 .data("date", date)
-                .data("dateLabel", date.format(DAY_LABEL))
+                .data("dateLabel", DayLabels.spelledOut(date))
                 .data("future", future)
                 .data("page", page)
                 .render());

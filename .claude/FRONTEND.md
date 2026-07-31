@@ -120,6 +120,24 @@ circle + dots (`.d-min-dot`); `stacked` = circle + bars (`.d-stk-bar`). Every ce
 CSS-scoped. The shared chrome (toolbar, jump picker, day-panel load, the verb-gated `htmx:afterRequest` → `cal.refresh()`) drives a 4-method adapter (
 `currentView`/`goToMonth`/`setHighlight`/`refresh`). **When the dashboard calendar appearance changes, regenerate the settings previews** (see below).
 
+### Dashboard stats summary (follows the selected day)
+
+The card under the calendar (`partials/stats-summary.html`, hosted by the stable `#stats-summary` wrapper, gated on the
+`showStatsSummary` preference) summarises **the selected day**: that day's three most-logged actions, each row carrying the user's
+**top three enabled "Action stats"** in their chosen order. The daily counts only *rank* which actions appear — every figure shown
+still spans the action's whole history, so the tiles read the same as the Stats page's.
+
+It is cached client-side exactly like the day panel: `dashboard.js` fetches the selected day from `/internal/stats/summary/{date}`,
+then one idle `/internal/stats/summary-month/{yyyy-MM}` request back-fills the rest of the month, capped at 12 resident months
+(LRU). The server-rendered card the page ships for its initial day is **seeded into the cache** off `#stats-summary`'s
+`data-summary-date`, so opening the dashboard on today costs no summary request. Because the swap is a plain `fetch` +
+`innerHTML` (no HTMX event), it re-runs `Diurnal.formatNumbers()` and `Diurnal.fitFigures()` by hand.
+
+**Invalidation is whole-cache, deliberately.** The tiles report whole-history figures, so logging against *any* day moves the
+numbers shown on *every* day — dropping just the edited date would leave the rest stale. A day-panel mutation therefore clears the
+whole summary cache and reloads only the visible card; the month back-fill re-arms on the next day the user selects, so a run of
+increments never fires a bulk fetch per tap.
+
 ### Typography & Font setting
 
 Webfonts served as `woff2` from `src/main/resources/META-INF/resources/fonts/`, with `@font-face` blocks in `app.css`: the **Nova** superfamily —

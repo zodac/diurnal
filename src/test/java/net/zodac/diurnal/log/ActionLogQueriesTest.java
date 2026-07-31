@@ -32,11 +32,6 @@ import org.junit.jupiter.api.Test;
 class ActionLogQueriesTest {
 
     @Test
-    void mostRecentActiveActionIdsSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.MOST_RECENT_ACTIVE_ACTION_IDS_SQL, List.of("userId", "from", "to", "limit"));
-    }
-
-    @Test
     void rangeVersionJpql_bindsExpectedParameters() {
         assertParameters(ActionLogQueries.RANGE_VERSION_JPQL, List.of("userId", "from", "to"));
     }

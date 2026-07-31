@@ -26,11 +26,14 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.log.ActionPerformedDate;
@@ -81,28 +84,80 @@ public class StatsService {
     }
 
     /**
-     * Returns stats for the actions the user has performed in the current month, newest first, up to {@code limit}. Actions not logged this month are
-     * excluded entirely.
+     * Returns stats for the actions the user logged on {@code date}, highest count on that day first (ties broken by name, matching the day panel's
+     * ordering), up to {@code limit}. Actions not logged on that date are excluded entirely.
      *
      * <p>
-     * Unlike {@link #forAllActiveActions(UUID)}, this dashboard path never touches every action: the database picks the {@code limit}
-     * most-recently-performed active actions logged this month (ties broken by name, matching the Stats page's ordering), and only those few are
-     * aggregated — the only actions the dashboard summary strip can show.
+     * This is the dashboard summary strip, which follows the calendar's selected day. Only the day's top few actions are aggregated - but each one's
+     * figures still cover its <em>whole</em> history (the day only decides <em>which</em> actions are shown, not the window they are computed over).
+     *
+     * @param userId the user whose stats to compute
+     * @param date the day whose top actions to summarise
+     * @param limit the maximum number of actions to return
+     * @return the day's top actions' stats, highest daily count first
      */
-    public List<ActionStats> forMostRecent(final UUID userId, final int limit) {
-        final LocalDate today = todayFor(userId);
-        final LocalDate monthStart = today.withDayOfMonth(1);
+    public List<ActionStats> forDate(final UUID userId, final LocalDate date, final int limit) {
+        return forCounts(userId, Map.of(date, ActionLog.countsByAction(userId, date)), limit)
+                .getOrDefault(date, List.of());
+    }
 
-        final List<UUID> recentActionIds = ActionLog.mostRecentActiveActionIds(userId, monthStart, today, limit);
-        if (recentActionIds.isEmpty()) {
-            return List.of();
+    /**
+     * The {@link #forDate(UUID, LocalDate, int)} summary for every day of {@code month}, in one pass: the month's logs are read once and each day's
+     * top actions are picked from memory, so the dashboard can back-fill a whole month's summaries with a single request instead of one per day.
+     *
+     * <p>
+     * The union of every day's top actions is aggregated once, so an action appearing on twenty days is still computed only once.
+     *
+     * @param userId the user whose stats to compute
+     * @param month the month whose days to summarise
+     * @param limit the maximum number of actions per day
+     * @return each logged day of the month mapped to its top actions' stats; days with no logs are absent
+     */
+    public Map<LocalDate, List<ActionStats>> forMonth(final UUID userId, final YearMonth month, final int limit) {
+        final Map<LocalDate, Map<UUID, Integer>> countsByDate = ActionLog.findByUserAndRange(userId, month.atDay(1), month.atEndOfMonth())
+            .stream()
+            .collect(Collectors.groupingBy(log -> log.logDate, Collectors.toMap(log -> log.actionId, log -> log.count)));
+        return forCounts(userId, countsByDate, limit);
+    }
+
+    // Picks each date's top `limit` actions from its pre-fetched counts, then aggregates the UNION of those actions once. The daily counts only rank
+    // the actions; every returned figure still spans the action's full history. Ties keep the name-ascending order Action.findByUser returns them in
+    // (the sort is stable), which is how the day panel orders the same actions.
+    private Map<LocalDate, List<ActionStats>> forCounts(final UUID userId, final Map<LocalDate, Map<UUID, Integer>> countsByDate, final int limit) {
+        final boolean anyLogged = countsByDate.values().stream().anyMatch(counts -> !counts.isEmpty());
+        if (!anyLogged) {
+            return Map.of();
         }
 
-        // findByUserAndIds does not preserve the DB's recency ordering, so restore it by id index.
-        final List<Action> actions = Action.findByUserAndIds(userId, recentActionIds).stream()
-            .sorted(Comparator.comparingInt((Action action) -> recentActionIds.indexOf(action.id)))
+        final List<Action> all = Action.findByUser(userId);   // name-ascending
+        final Map<LocalDate, List<Action>> topByDate = new LinkedHashMap<>();
+        final Set<UUID> unionIds = new LinkedHashSet<>();
+        for (final Map.Entry<LocalDate, Map<UUID, Integer>> entry : countsByDate.entrySet()) {
+            final Map<UUID, Integer> counts = entry.getValue();
+            final List<Action> top = all.stream()
+                .filter(action -> counts.getOrDefault(action.id, 0) > 0)
+                .sorted(Comparator.comparingInt((Action action) -> counts.getOrDefault(action.id, 0)).reversed())
+                .limit(limit)
+                .toList();
+            if (!top.isEmpty()) {
+                topByDate.put(entry.getKey(), top);
+                top.forEach(action -> unionIds.add(action.id));
+            }
+        }
+        if (topByDate.isEmpty()) {
+            return Map.of();
+        }
+
+        final LocalDate today = todayFor(userId);
+        final List<Action> unionActions = all.stream()
+            .filter(action -> unionIds.contains(action.id))
             .toList();
-        return assembleAll(userId, actions, recentActionIds, today);
+        final Map<UUID, ActionStats> statsByAction = assembleAll(userId, unionActions, List.copyOf(unionIds), today).stream()
+            .collect(Collectors.toMap(stats -> stats.action().id, stats -> stats));
+
+        final Map<LocalDate, List<ActionStats>> byDate = new LinkedHashMap<>();
+        topByDate.forEach((date, top) -> byDate.put(date, top.stream().map(action -> statsByAction.get(action.id)).toList()));
+        return byDate;
     }
 
     // ── Shared computation ────────────────────────────────────────────────

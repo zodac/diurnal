@@ -340,10 +340,11 @@ class WebResourceIT extends IntegrationTestBase {
     @Test
     @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER)
     void dashboard_withLoggedAction_showsTopThreeEnabledStatTiles() {
-        // Seed a logged action so the stats-summary card renders. With the default (never-customised)
-        // "Action stats" preference, the top three enabled fields are the first three declared:
-        // Last performed, First performed, Current streak — and NOT any lower-ranked field (e.g. Total
-        // count), confirming the summary now honours the Statistics setting rather than a fixed trio.
+        // Seed an action logged TODAY (the day the dashboard renders for) so the stats-summary card
+        // renders. With the default (never-customised) "Action stats" preference, the top three enabled
+        // fields are the first three declared: Last performed, First performed, Current streak — and NOT
+        // any lower-ranked field (e.g. Total count), confirming the summary honours the Statistics setting
+        // rather than a fixed trio.
         runInTx(() -> {
             final UUID userId = User.findByEmail("web-it@lt.test").orElseThrow().id;
             final Action action = newAction(userId, "Meditate");
@@ -362,21 +363,21 @@ class WebResourceIT extends IntegrationTestBase {
 
     @Test
     @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER)
-    void dashboard_summaryShowsThisMonthActionAndHidesLastMonthOnlyAction() {
-        // The dashboard summary strip is the "3 most recent actions this month" path: an action logged
-        // only in a previous month must not appear, while one logged this month must.
+    void dashboard_summaryShowsActionsLoggedOnTheRenderedDayOnly() {
+        // The dashboard summary strip is the "top actions on the selected day" path, and the page renders
+        // for today: an action logged only on another day must not appear, while one logged today must.
         runInTx(() -> {
             final UUID userId = User.findByEmail("web-it@lt.test").orElseThrow().id;
-            final Action current = newAction(userId, "CurrentMonthHabit");
+            final Action current = newAction(userId, "LoggedTodayHabit");
             newLog(userId, current.id, FIXED_TODAY, 1);
-            final Action stale = newAction(userId, "LastMonthHabit");
-            newLog(userId, stale.id, FIXED_TODAY.minusMonths(1), 1);
+            final Action stale = newAction(userId, "LoggedYesterdayHabit");
+            newLog(userId, stale.id, FIXED_TODAY.minusDays(1), 1);
         });
 
         given().get("/")
                 .then().statusCode(200)
-                .body(containsString("CurrentMonthHabit"))
-                .body(not(containsString("LastMonthHabit")));
+                .body(containsString("LoggedTodayHabit"))
+                .body(not(containsString("LoggedYesterdayHabit")));
     }
 
     @Test

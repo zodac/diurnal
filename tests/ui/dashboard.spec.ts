@@ -260,6 +260,37 @@ test.describe("Dashboard", () => {
         await expect(yearLabel).not.toHaveValue(originalYear)
     })
 
+    test("stats summary follows the selected day", async ({ authenticatedPage: page }) => {
+        await page.goto("/")
+
+        // Nothing is logged today (the beforeEach reset), so the summary card is empty to start with.
+        const summary = page.locator("#stats-summary")
+        await expect(summary).toBeEmpty()
+
+        // Log the action on today — the summary reloads for the selected day and names it.
+        await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
+        await expect(summary).toContainText("DashAction")
+
+        // Move the selection to a day with nothing logged: the card empties again...
+        await page.locator(`.d-min-cell[data-date="${pastDateStr(1)}"]`).click()
+        await expect(page.locator("#day-logger-panel")).toContainText("DashAction") // panel settled
+        await expect(summary).not.toContainText("DashAction")
+
+        // ...and comes back on returning to today, which by now is served from the client-side cache.
+        await page.locator(`.d-min-cell[data-date="${todayStr()}"]`).click()
+        await expect(summary).toContainText("DashAction")
+    })
+
+    test("stats summary is cleared when only the month changes", async ({ authenticatedPage: page }) => {
+        await page.goto("/")
+        await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
+        await expect(page.locator("#stats-summary")).toContainText("DashAction")
+
+        // A month arrow selects no specific day, so there is no day left to summarise.
+        await page.locator("#cal-prev").click()
+        await expect(page.locator("#stats-summary")).toBeEmpty()
+    })
+
     test("stats summary card is hidden when no actions are logged", async ({ page }) => {
         // Use a fresh user with no logs
         const freshUser = {
