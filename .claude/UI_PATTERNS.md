@@ -21,9 +21,13 @@ single-use markup speculatively — note it as a candidate and extract on the se
 - Blocks that vary per call site use `{#insert}` slots (see `partials/select-field.html`'s
   `{#options}` block).
 - Existing partials are the catalogue — reuse before writing new markup: `banner`, `form-field`,
-  `select-field`, `tooltip`, `stat-tile`, `pagination`, `dt-row-actions`, `dt-confirm-delete-row`,
-  `preview-option`/`preview-thumb`, `eye-icons`, `password-constraints`, `nav-links`, `navbar`,
-  `footer`, `calendar-toolbar`.
+  `select-field`, `search-input`, `tooltip`, `stat-tile`, `pagination`, `dt-row-actions`,
+  `dt-confirm-delete-row`, `preview-option`/`preview-thumb`, `eye-icons`, `password-constraints`,
+  `nav-links`, `navbar`, `footer`, `calendar-toolbar`, `stats-chart`/`stats-chart-candidates`.
+- A partial rendered BOTH inline and as a swap target is one partial, not two. `stats-chart-candidates`
+  is embedded by `stats-chart` for its unfiltered first render and returned on its own by
+  `/internal/stats/chart/{actionId}/candidates` as the search box filters, so the filtered and unfiltered
+  lists cannot drift. Reach for that shape before writing a second copy of a list's markup in Java or JS.
 
 ### When to extract a component class
 
@@ -38,6 +42,15 @@ times**, or when it names a real design-system concept (button, card, field, bad
 - One-off layout tweaking (margins, flex direction, gaps) stays as inline utilities on the
   element; component classes carry the *identity* of the element, utilities carry its *placement*.
 - Rebuild with `npm --prefix frontend run css` after any class change, or the class gets purged.
+- **Dialogs use `.modal-overlay`** — the shared overlay chrome (fixed, centred, dimmed; toggle `.hidden`
+  and nothing else, since the class owns `display` in both states). Both the Settings preview lightbox
+  and the Stats frequency graph use it; it is the worked example of the "real design-system concept at
+  2 uses" rule above. Their PANELS are deliberately not shared — one is a scrollable `.card`
+  (`.modal-panel`), the other a bare frame around images — so share the chrome, not the contents.
+- The self-contained widgets keep their own namespaced families of plain CSS at the BOTTOM of `app.css`
+  (un-layered, so they beat Tailwind's layered utilities): `.dt-*` tables, `.d-*`/`.cal-*` calendar, and
+  `.chart-*` for the frequency graph. A namespace like that is for a widget, not a licence to skip the
+  shared classes — the graph still uses `.card`, `.swatch`, `.empty-note` and `partials/tooltip`.
 
 ### Icons
 

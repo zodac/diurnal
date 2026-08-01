@@ -44,12 +44,12 @@ sheet), so it still wins over Tailwind's layered utilities — which is why the 
 
 ### Served front-end scripts (content-hashed, `immutable`)
 
-Seven scripts are served from `META-INF/resources/js/` and referenced from the templates via
+Eight scripts are served from `META-INF/resources/js/` and referenced from the templates via
 `{inject:appInfo.*}`, all sharing one cache-busting pattern: served un-hashed in dev (`no-store`), and at image-build
-time the Dockerfile esbuild-minifies the six handwritten scripts (`npm run js:min` in the `css` stage — the committed
+time the Dockerfile esbuild-minifies the seven handwritten scripts (`npm run js:min` in the `css` stage — the committed
 sources stay readable; only the image ships the minified form), then content-hashes them. **All asset hashing lives in
 one place — `scripts/hash-static-assets.sh`** (invoked by a single `RUN` in the Dockerfile's build stage): it renames
-every fingerprinted asset (CSS, the 7 scripts, the settings thumbnails, the vector marks) to `name.<sha256-12>.ext`
+every fingerprinted asset (CSS, the 8 scripts, the settings thumbnails, the vector marks) to `name.<sha256-12>.ext`
 (the hash is inserted after the first name segment, so `htmx.min.js` → `htmx.<hash>.min.js`) and bakes the hashed name
 into `microprofile-config.properties` (read by `AppConfig`/`AppInfo`). All are then served
 `public, max-age=31536000, immutable` by the single `app-immutable` filter (`application.properties`). See
@@ -71,6 +71,11 @@ into `microprofile-config.properties` (read by `AppConfig`/`AppInfo`). All are t
   `admin-api-docs.html`, and `settings.html` respectively (extracted during the CSP hardening), each
   loaded only on its own page and wired via `data-*` hooks + `addEventListener` (no inline `on*=`/`hx-on=` attributes
   remain anywhere in the app — see "Security headers / CSP" below).
+- `stats.js` (`AppInfo.jsStatsFile`) — the Stats page's frequency-graph dialog. A **committed** file, loaded only on
+  `/stats`. It holds no charting code and no copy of the chart's wording: it opens/closes the dialog and re-fetches the
+  server-rendered `partials/stats-chart.html` fragment whenever the selection changes, reading the current
+  period/window/comparisons back off the fragment's own `data-chart-shown-*` attributes (see "Stats-page frequency
+  graph" below).
 
 > **The FOUC-critical theme bootstrap stays inline in `<head>` (`layout.html`)** — it must run before the stylesheet
 > loads and the `system` option needs `prefers-color-scheme`, which can't be resolved server-side. It reads the theme
@@ -241,7 +246,7 @@ first, `scripts/dev-teardown.sh` after). There are **two independent sets**, spl
 ```bash
 scripts/dev-up.sh
 node scripts/generate-screenshots.cjs app             # the 8 in-app thumbnails (img/settings/, UNCOMMITTED)
-node scripts/generate-screenshots.cjs documentation   # the 9 README shots (docs/screenshots/, COMMITTED)
+node scripts/generate-screenshots.cjs documentation   # the 13 README shots (docs/screenshots/, COMMITTED)
 node scripts/generate-screenshots.cjs all             # both (default)
 scripts/dev-teardown.sh
 ```
@@ -251,12 +256,26 @@ scripts/dev-teardown.sh
 >   These are **uncommitted build artifacts** — you rarely run this by hand; the Docker build's `screenshots` stage runs
 >   `generate-screenshots.cjs app` for you (see the note under "Settings preview thumbnails"), so every image has current
 >   previews. Running it manually just writes them into the (gitignored) `img/settings/` for a local eyeball.
-> - **`documentation`** → the **9** committed README screenshots in `docs/screenshots/`: `dashboard-{system,dark,light}`,
->   `cal-{minimal,stacked}-dark`, and `{actions,stats,admin,settings}-dark`. These are allowed to **lag**; regenerate and
+> - **`documentation`** → the **13** committed README screenshots in `docs/screenshots/`: `dashboard-{system,dark,light}`,
+>   `dashboard-mobile`, `cal-{full,minimal,stacked}-dark`, `{actions,stats,admin,settings}-dark`, `stats-graph-dark` (the
+>   frequency-graph modal with three actions compared) and `login-dark`. These are allowed to **lag**; regenerate and
 >   commit them manually when a README-visible page changes.
 >
 > So when asked to "regenerate the in-app previews" run `app`; to "update the README screenshots" run `documentation`; only
 > "regenerate everything" means `all`. Only the `documentation` (or `all`) output is committed — the `app` output is gitignored.
+
+> **Everything is seeded into the LAST COMPLETE calendar month, and every shot is framed on it.** The current month is
+> deliberately left empty: it is only ever filled up to today, so seeding it would make the images depend on the run date
+> (a run on the 3rd would give a nearly-empty calendar and a three-bar frequency graph; one on the 28th a full set). The
+> month's length (28/29/30/31) falls out of `Date.UTC(y, m, 0)` — the last day of the previous month — so leap Februaries
+> need no special case. Actions are logged **by weekday** (`ACTIONS[].perWeekday`, Sunday-first counts) so the pattern
+> tiles across a month of any length, with a fixed per-week nudge (`WEEK_NUDGE`) so successive weeks are not carbon
+> copies. Counts are written with `PUT` (set, not increment), so a re-run rewrites the same values instead of inflating
+> them and no "what is already logged?" pre-read is needed.
+>
+> Because the app always opens the dashboard on **today** — which is in the empty current month — every calendar shot
+> first steps back a month and selects its last day (`showSeededMonth`), and the frequency-graph shot steps its window
+> back to the same month and throws if it cannot reach it. Nothing relies on a default view.
 
 ### Templates, HTMX partials & the Qute `{` gotcha
 
@@ -339,6 +358,46 @@ and the `trendTile` (a signed figure in a trend colour). A day run switches shap
 "1 year, 2 months, 3 days" with the exact day count demoted to the sub-caption instead of overflowing the big-number slot. The
 streak/gap statistics are `DaySpan`s (real date ranges), not day counts — that is what makes the breakdown exact and stable rather
 than shifting as "today" moves; see the `DaySpan` note in `CLAUDE.md`.
+
+### Stats-page frequency graph (`partials/stats-chart.html` + `stats.js`)
+
+Each Stats card's header carries a chart button (`[data-chart-action]`) opening a page-level dialog
+(`#stats-chart-modal`, one instance in `stats.html`, outside `#stats-list` so paginating the cards never destroys
+it). The dialog draws **one to `FrequencyCharts.MAX_SERIES` (3) actions' logged frequency** over one calendar
+window as a **grouped bar chart**: a `month` window is one column per day, a `year` window one column per month,
+and every charted action contributes one bar to every column.
+
+**There is no charting library and no client-side chart state.** The whole chart is server-rendered
+(`StatsInternalResource.chart` → `partials/stats-chart.html`), so the bar heights, axis captions and hover wording
+sit on the same code path as every other rendered figure. `stats.js` only opens/closes the dialog and re-fetches
+the fragment; it reads the current selection back off the rendered wrapper's `data-chart-shown-period` /
+`-at` / `-compare` attributes (deliberately named differently from the *buttons'* `data-chart-period`/`data-chart-at`,
+so its delegated `closest(...)` lookups can't mistake the wrapper for a control). Because the swap is a plain
+`innerHTML` write, it re-runs `Diurnal.formatNumbers`/`fitFigures` **and `htmx.process(body)`** by hand — the
+compare picker's search box arrives inside the fragment and would otherwise never be bound.
+
+- **Every slot of the window is drawn, including the empty ones**, so the axis stays evenly spaced and a blank run
+  reads as a trough. A month's 31 ticks are too many to label, so CSS captions only every fifth
+  (`[data-chart-shown-period="month"] .chart-col:not(:nth-child(5n+1)) .chart-tick`).
+- **All bars scale against ONE peak** (`FrequencyCharts.heightPercent`), never per action — that is what makes two
+  charted actions comparable. A logged slot is floored at 3% so it can't round away to an invisible sliver.
+- **Hover is per COLUMN, not per bar** (`FrequencySlotExtensions.tooltip`): at 31 days × 3 actions a bar is a couple
+  of pixels wide. One action reads `3 July 2026: 4 times`; two or more list each action on its own line, which the
+  `white-space: pre-line` rule on `.chart-col > .app-tooltip` renders. Counts go through `Durations.count`, so a lone
+  entry reads "1 time". The shared 500ms tooltip dwell delay is dropped here so hovering along the axis feels live.
+- **Compare picker**: `Compare to...` reveals `#chart-compare-panel`, whose search box reuses
+  `partials/search-input.html` to HTMX-swap **only** `#chart-candidate-list` (so the box keeps focus/caret across a
+  keystroke). It offers the user's actions that have **≥1 logged entry**, are not already charted, and match the
+  term; `FrequencyChartExtensions.candidatesUrl` bakes the current comparisons into its `hx-get` so a charted action
+  is never re-offered.
+- **Validation is in the service, not the surfaces** (`StatsService.frequency` → sealed `FrequencyResult`), so the
+  page and `GET /api/v1/stats/{actionId}/frequency?compare=…` accept exactly the same selections. Nothing is
+  coerced: an unrecognised `period`, a malformed `at` key, >3 actions, a repeated action, and a never-logged
+  *comparison* each get their own 4xx. The **primary** action is exempt from the "must have been logged" rule — its
+  card is reachable with no logs, and an empty chart is the honest answer there.
+- Bars are painted from each action's **own colour** via an inline `style=` (permitted by `style-src-attr`, like the
+  swatches the same cards render). Two actions sharing a colour are told apart by the legend chips and the hover
+  bubble's names.
 
 ### Responsive figure fitting (`data-fit` → `Diurnal.fitFigures`)
 

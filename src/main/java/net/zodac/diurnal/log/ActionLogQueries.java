@@ -36,6 +36,28 @@ final class ActionLogQueries {
             GROUP BY l.actionId, YEAR(l.logDate), MONTH(l.logDate)""";
 
     /**
+     * JPQL aggregating the given actions' log entries into a {@link DailyActionTotal} per {@code (action, logged-day)} within the inclusive
+     * {@code [:from, :to]} window — the database-side daily rollup behind the Stats page's month frequency chart. A {@code (user, action, day)} entry
+     * is unique, so the {@code SUM} collapses a single row per group; it is written as an aggregate so the projection stays a plain {@code long}
+     * regardless.
+     */
+    static final String DAILY_TOTALS_JPQL = """
+            SELECT new net.zodac.diurnal.log.DailyActionTotal(l.actionId, l.logDate, SUM(l.count))
+            FROM ActionLog l
+            WHERE l.userId = :userId AND l.actionId IN (:actionIds) AND l.logDate >= :from AND l.logDate <= :to
+            GROUP BY l.actionId, l.logDate
+            ORDER BY l.actionId, l.logDate""";
+
+    /**
+     * JPQL selecting the distinct actions a user has ever logged. A single-column scalar read, so it needs no projection record; it is the cheapest
+     * way to answer "which actions are worth charting" for the frequency chart's compare picker without computing any statistics.
+     */
+    static final String LOGGED_ACTION_IDS_JPQL = """
+            SELECT DISTINCT l.actionId
+            FROM ActionLog l
+            WHERE l.userId = :userId""";
+
+    /**
      * JPQL selecting one {@link ActionPerformedDate} per {@code (action, logged-day)} for the given actions, ordered by action then date — the
      * minimal data needed to compute streaks and gaps.
      */

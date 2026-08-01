@@ -30,6 +30,30 @@
     {#include partials/footer /}
 </div>
 
+{! Per-action frequency graph, opened from the chart button on any stats card. The dialog is page-level
+     chrome (one instance, outside #stats-list) so paginating the cards underneath it never destroys it,
+     and its body is the swap target stats.js re-fills on every open, period flip and window step. The
+     action name is written into the heading from the opening button, so the panel is titled before the
+     first fetch returns. data-decimal-places rides the body for the same reason stats-cards carries it:
+     Diurnal.fitFigures() abbreviates a large count against the user's decimal-place preference. !}
+<div id="stats-chart-modal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="stats-chart-title">
+    <div class="modal-panel card">
+        <div class="modal-header">
+            <h3 id="stats-chart-title" class="card-title truncate"></h3>
+            <button type="button" id="stats-chart-close" class="chart-nav-btn group relative" aria-label="Close graph">
+                {#include partials/icon name='close' cls='chart-nav-glyph' /}
+                {#include partials/tooltip text="Close" pos="bottom" align="right" /}
+            </button>
+        </div>
+        <div id="stats-chart-body" data-decimal-places="{decimalPlaces}"></div>
+    </div>
+</div>
+
+{! Page-specific behaviour (opening/closing the graph dialog and fetching its fragment), wired via the
+     data-* hooks above — never inline, so the CSP stays hash-only. Served as stats.<hash>.js in prod
+     (baked into AppInfo.jsStatsFile), stats.js in dev; runs after the shared /js/app.js. !}
+<script src="/js/{inject:appInfo.jsStatsFile}"></script>
+
 {/body}
 
 {/include}

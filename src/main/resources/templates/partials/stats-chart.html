@@ -1,0 +1,107 @@
+{!
+  The Stats page's frequency graph — the body of the graph modal, re-rendered server-side on every period
+  flip, window step, and change to the set of charted actions (see StatsInternalResource.chart).
+  Rendering the bars here rather than shipping figures to a client-side charting library keeps every
+  caption, value and hover string on the same code path as the rest of the page's figures, so the modal
+  needs no charting code at all — stats.js only fetches this fragment and swaps it in.
+
+  Up to FrequencyCharts.MAX_SERIES actions are charted together, their bars grouped within each column
+  and all scaled against ONE peak so they are directly comparable. Every slot of the window gets a
+  column, including the empty ones, so the axis stays evenly spaced and a blank run reads as a visible
+  trough. Bar heights, hover wording and tooltip anchors are all pre-computed (FrequencyCharts /
+  FrequencySlotExtensions) — there is no branching left in here beyond the empty-window case, the two
+  disabled navigation buttons and whether the compare picker is offered.
+
+  Params:
+    chart      — the FrequencyChart to draw (required)
+    candidates — the actions the compare picker may offer (required; may be empty)
+!}
+{! The shown period/window/comparisons are echoed onto the wrapper under DISTINCT attribute names from
+     the buttons' own data-chart-period/data-chart-at, so stats.js's delegated `closest(...)` lookups can
+     never mistake the wrapper itself for a control the user clicked. !}
+<div class="chart-wrap" data-chart-shown-period="{chart.period.value}" data-chart-shown-at="{chart.periodKey}"
+     data-chart-shown-compare="{chart.compareIds}">
+
+    {! Period toggle (Month/Year) on the left, window stepper on the right. Both post back through
+       stats.js, which re-fetches this fragment with the chosen period/window. !}
+    <div class="chart-controls">
+        <div class="chart-periods" role="group" aria-label="Graph period">
+            <button type="button" class="chart-period{#if chart.period.value == 'month'} chart-period-active{/if}"
+                    data-chart-period="month"{#if chart.period.value == 'month'} aria-current="true"{/if}>Month</button>
+            <button type="button" class="chart-period{#if chart.period.value == 'year'} chart-period-active{/if}"
+                    data-chart-period="year"{#if chart.period.value == 'year'} aria-current="true"{/if}>Year</button>
+        </div>
+        <div class="chart-nav">
+            <button type="button" class="chart-nav-btn group relative" data-chart-at="{chart.previousKey}"
+                    {#if !chart.hasPrevious}disabled {/if}aria-label="Earlier">
+                {#include partials/icon name='chevron-left' cls='chart-nav-glyph' /}
+                {#include partials/tooltip text="Earlier" pos="bottom" align="left" /}
+            </button>
+            <span class="chart-window">{chart.periodLabel}</span>
+            <button type="button" class="chart-nav-btn group relative" data-chart-at="{chart.nextKey}"
+                    {#if !chart.hasNext}disabled {/if}aria-label="Later">
+                {#include partials/icon name='chevron-right' cls='chart-nav-glyph' /}
+                {#include partials/tooltip text="Later" pos="bottom" align="right" /}
+            </button>
+        </div>
+    </div>
+
+    {! Legend: one chip per charted action, in the order they were added. The first is the action the
+         graph was opened from and carries no remove control (dropping it would leave nothing to chart);
+         the rest do. The chips double as the colour key for the grouped bars. !}
+    <div class="chart-legend">
+        {#for series in chart.series}
+        <span class="chart-chip">
+            <span class="swatch swatch-sm" style="background-color: {series.actionColour}"></span>
+            <span class="truncate">{series.actionName}</span>
+            {#if series.removable}
+            <button type="button" class="chart-chip-remove" data-chart-remove="{series.actionId}"
+                    aria-label="Stop comparing {series.actionName}">
+                {#include partials/icon name='close' cls='chart-chip-glyph' /}
+            </button>
+            {/if}
+        </span>
+        {/for}
+
+        {#if chart.canCompare}
+        <button type="button" class="chart-compare-btn" data-chart-compare-open aria-expanded="false"
+                aria-controls="chart-compare-panel">
+            {#include partials/icon name='plus' cls='chart-compare-glyph' /}
+            Compare to...
+        </button>
+        {/if}
+    </div>
+
+    {#if chart.canCompare}
+    {! The picker starts collapsed and is revealed by stats.js; only the LIST inside it is swapped as the
+         user types, so the search box keeps focus and its caret across a keystroke. The hx-get URL
+         already carries the currently-charted comparisons, so an action on the graph is never offered. !}
+    <div id="chart-compare-panel" class="chart-compare-panel hidden">
+        {#include partials/search-input id="chart-candidate-search" url=chart.candidatesUrl target="#chart-candidate-list" /}
+        <div id="chart-candidate-list">
+            {#include partials/stats-chart-candidates candidates=candidates /}
+        </div>
+    </div>
+    {/if}
+
+    {#if chart.peak == 0}
+    <p class="empty-note">Nothing logged in {chart.periodLabel}.</p>
+    {#else}
+    {! The plot is decorative to assistive tech (its per-column values are already in the hover bubbles,
+         which are aria-hidden), so the accessible summary is the caption underneath. !}
+    <div class="chart-plot" aria-hidden="true">
+        {#for slot in chart.slots}
+        <div class="chart-col group relative">
+            <div class="chart-bar-track">
+                {#for bar in slot.bars}
+                <div class="chart-bar" style="height: {bar.heightPercent}%; background-color: {bar.actionColour}"></div>
+                {/for}
+            </div>
+            <span class="chart-tick">{slot.label}</span>
+            {#include partials/tooltip text=slot.tooltip align=slot.tipAlign /}
+        </div>
+        {/for}
+    </div>
+    <p class="chart-caption">{chart.total} logged across {chart.periodLabel}, peaking at {chart.peak}.</p>
+    {/if}
+</div>

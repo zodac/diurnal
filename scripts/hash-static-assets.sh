@@ -47,6 +47,7 @@ bake js/actions.js        app.assets.js-actions-file
 bake js/admin-users.js    app.assets.js-admin-file
 bake js/admin-api-docs.js app.assets.js-api-docs-file
 bake js/settings.js       app.assets.js-settings-file
+bake js/stats.js          app.assets.js-stats-file
 
 # Settings preview thumbnails — base-name-keyed map (AppConfig.settingsImages / AppInfo.settingsImage).
 # These are NOT committed: the image build generates them (the Dockerfile `screenshots` stage) and drops

@@ -102,12 +102,13 @@ Every action gets a full set of statistics, including
 
 These can be enabled/disabled or re-ordered in user settings (see [Statistics](#statistics) below).
 
-<details>
-<summary>Screenshot: the Stats page</summary>
+Each action also has a **frequency graph**, opened from the chart icon on its card: a bar per day over a month, or a bar per month over a year, with
+the exact figures on hover. Up to three actions can be charted together with **Compare to...**, all scaled against a single peak so they read against
+each other directly.
 
-<img src="docs/screenshots/stats-dark.webp" alt="The Stats page, showing per-action statistic tiles" width="600">
-
-</details>
+|                                                    Stats page                                                     |                                                         Frequency graph                                                          |
+|:-----------------------------------------------------------------------------------------------------------------:|:--------------------------------------------------------------------------------------------------------------------------------:|
+| <img src="docs/screenshots/stats-dark.webp" alt="The Stats page, showing per-action statistic tiles" width="400"> | <img src="docs/screenshots/stats-graph-dark.webp" alt="The frequency graph, comparing three actions over one month" width="400"> |
 
 ### Themes and Fonts
 

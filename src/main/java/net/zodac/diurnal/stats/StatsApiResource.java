@@ -22,11 +22,13 @@ import jakarta.inject.Inject;
 import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
+import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
@@ -110,6 +112,68 @@ public class StatsApiResource {
     }
 
     /**
+     * Returns one to three actions' logged frequency over a single calendar window — the figures behind the Stats page's per-action graph.
+     *
+     * @param actionId the action to chart
+     * @param compareIds the further actions to chart alongside it
+     * @param period the window's period ({@code month}/{@code year})
+     * @param at the window key ({@code yyyy-MM}/{@code yyyy})
+     * @return the assembled frequency chart
+     */
+    @GET
+    @Path("/{actionId}/frequency")
+    @Operation(
+        summary = "Get an action's logged frequency over a window",
+        description = "Returns one action's logged frequency over a single calendar window as an ordered series of slots: a month window yields one "
+        + "slot per day, a year window one slot per month. Every slot of the window is returned, including the ones with nothing logged, so the "
+        + "series is evenly spaced. Up to two further actions can be charted alongside it with 'compare', in which case every slot carries one bar "
+        + "per action and all of them are scaled against a single peak, so the figures are directly comparable. An unrecognised period, a malformed "
+        + "window key, a repeated action, more actions than may be charted together, or a comparison action that has never been logged is rejected "
+        + "with a 400 (never silently corrected).")
+    @SecurityRequirement(name = "BearerAuth")
+    @APIResponses({
+        @APIResponse(responseCode = "200", description = "The actions' frequency over the requested window.",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = FrequencyChartDto.class))),
+        @APIResponse(responseCode = "400", description = "The period, the window key or the set of actions to chart is not valid.",
+                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
+        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
+        @APIResponse(responseCode = "404", description = "One of the requested IDs does not belong to the authenticated user.")
+    })
+    public Response frequency(
+        @Parameter(name = "actionId", in = ParameterIn.PATH, description = "The ID of the action to chart.")
+        @PathParam("actionId") final UUID actionId,
+        @Parameter(name = "compare", in = ParameterIn.QUERY,
+        description = "The ID of a further action to chart alongside the first; repeatable. At most two, each of which must have been logged at "
+        + "least once and must not repeat an action already being charted.")
+        @QueryParam("compare") final List<UUID> compareIds,
+        @Parameter(name = "period", in = ParameterIn.QUERY,
+        description = "The window to chart: 'month' (one bar per day) or 'year' (one bar per month). Defaults to 'month'.")
+        @QueryParam("period") final @Nullable String period,
+        @Parameter(name = "at", in = ParameterIn.QUERY,
+        description = "The window to chart, as 'yyyy-MM' for a month or 'yyyy' for a year. Defaults to the window containing today.")
+        @QueryParam("at") final @Nullable String at) {
+        final User user = currentUser.get();
+        return switch (statsService.frequency(user.id, actionId, compareIds, period, at)) {
+            case FrequencyResult.Charted(final FrequencyChart chart) -> Response.ok(FrequencyChartDto.from(chart)).build();
+            case FrequencyResult.UnknownPeriod(final String submitted) -> badRequest("Unknown period '" + submitted + "'");
+            case FrequencyResult.UnknownWindow(final String submitted) ->
+                badRequest("Window '" + submitted + "' is not valid for the requested period");
+            case FrequencyResult.TooManyActions(final int submitted, final int maximum) ->
+                badRequest("Cannot chart " + submitted + " actions together; the maximum is " + maximum);
+            case FrequencyResult.DuplicateAction(final UUID duplicate) -> badRequest("Action " + duplicate + " is charted more than once");
+            case FrequencyResult.NotLogged(final UUID unlogged) ->
+                badRequest("Action " + unlogged + " has never been logged, so it cannot be compared against");
+            case final FrequencyResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
+        };
+    }
+
+    private static Response badRequest(final String message) {
+        return Response.status(Response.Status.BAD_REQUEST)
+            .entity(new ApiErrorResponse(message))
+            .build();
+    }
+
+    /**
      * Computed statistics for a single action, as exposed by the public API.
      *
      * @param actionId       the action's id
@@ -181,6 +245,103 @@ public class StatsApiResource {
                 stats.bestMonthCount(),
                 stats.bestYearLabel(),
                 stats.bestYearCount());
+        }
+    }
+
+    /**
+     * One charted action's contribution to a single slot, as exposed by the public API.
+     *
+     * @param actionId the charted action's ID
+     * @param count the summed count that action logged in the slot
+     */
+    @Schema(description = "One charted action's contribution to a single slot.")
+    public record FrequencyBarDto(
+        @Schema(description = "The charted action's ID.") UUID actionId,
+        @Schema(examples = "4", description = "The summed count that action logged in the slot.") long count) {
+
+    }
+
+    /**
+     * One slot of a frequency window, as exposed by the public API.
+     *
+     * @param label the short axis caption ({@code 1}-{@code 31} for a day, {@code Jan}-{@code Dec} for a month)
+     * @param fullLabel the slot spelled out ({@code 3 July 2026} / {@code July 2026})
+     * @param bars one entry per charted action, in the same order as the chart's series
+     */
+    @Schema(description = "One slot of a frequency window.")
+    public record FrequencySlotDto(
+        @Schema(examples = "3", description = "The short axis caption: the day of the month, or the abbreviated month name.") String label,
+        @Schema(examples = "3 July 2026", description = "The slot spelled out in full.") String fullLabel,
+        @Schema(description = "One entry per charted action, in the same order as the chart's series.") List<FrequencyBarDto> bars) {
+
+    }
+
+    /**
+     * One charted action and its whole-window total, as exposed by the public API.
+     *
+     * @param actionId the charted action's ID
+     * @param name the charted action's name
+     * @param colour the charted action's display colour
+     * @param total the action's summed count across the whole window
+     */
+    @Schema(description = "One charted action and its whole-window total.")
+    public record FrequencySeriesDto(
+        @Schema(description = "The charted action's ID.") UUID actionId,
+        @Schema(examples = "Morning run", description = "The charted action's name.") String name,
+        @Schema(examples = "#6366f1", description = "The charted action's display colour as a CSS hex value.") String colour,
+        @Schema(examples = "57", description = "The action's summed count across the whole window.") long total) {
+
+    }
+
+    /**
+     * One to three actions' logged frequency over a single calendar window, as exposed by the public API.
+     *
+     * @param period the window's period
+     * @param periodKey the window's key
+     * @param periodLabel the window spelled out
+     * @param series the charted actions, the first being the one named in the path
+     * @param slots every slot of the window, in calendar order
+     * @param total the summed count across every charted action and every slot
+     * @param peak the tallest bar's count
+     */
+    @Schema(description = "One to three actions' logged frequency over a single calendar window.")
+    public record FrequencyChartDto(
+        @Schema(examples = "month", description = "The charted window's period.") String period,
+        @Schema(examples = "2026-07", description = "The charted window's key.") String periodKey,
+        @Schema(examples = "July 2026", description = "The charted window spelled out.") String periodLabel,
+        @Schema(description = "The charted actions, the first being the one named in the path.") List<FrequencySeriesDto> series,
+        @Schema(description = "Every slot of the window in calendar order, including the ones with nothing logged.") List<FrequencySlotDto> slots,
+        @Schema(examples = "57", description = "The summed count across every charted action and every slot.") long total,
+        @Schema(examples = "9", description = "The tallest bar's count.") long peak) {
+
+        /**
+         * Maps an assembled {@link FrequencyChart} to its API representation.
+         *
+         * @param chart the assembled chart
+         * @return the DTO
+         */
+        static FrequencyChartDto from(final FrequencyChart chart) {
+            final List<UUID> actionIds = chart.series().stream()
+                .map(FrequencySeries::actionId)
+                .toList();
+            return new FrequencyChartDto(
+                chart.period().value(),
+                chart.periodKey(),
+                chart.periodLabel(),
+                chart.series().stream()
+                    .map(series -> new FrequencySeriesDto(series.actionId(), series.actionName(), series.actionColour(), series.total()))
+                    .toList(),
+                chart.slots().stream().map(slot -> slotDto(slot, actionIds)).toList(),
+                chart.total(),
+                chart.peak());
+        }
+
+        private static FrequencySlotDto slotDto(final FrequencySlot slot, final List<UUID> actionIds) {
+            final List<FrequencyBarDto> bars = new ArrayList<>(slot.bars().size());
+            for (int index = 0; index < slot.bars().size(); index++) {
+                bars.add(new FrequencyBarDto(actionIds.get(index), slot.bars().get(index).count()));
+            }
+            return new FrequencySlotDto(slot.label(), slot.fullLabel(), List.copyOf(bars));
         }
     }
 

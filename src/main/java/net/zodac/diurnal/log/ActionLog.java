@@ -31,6 +31,7 @@ import java.time.LocalDate;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import net.zodac.diurnal.http.ChangeSignature;
@@ -117,6 +118,40 @@ public class ActionLog extends PanacheEntityBase {
             .setParameter("userId", userId)
             .setParameter("actionIds", actionIds)
             .getResultList();
+    }
+
+    /**
+     * Returns the per-day summed {@code count} for each of the given actions within the inclusive {@code [from, to]} window — the database-side daily
+     * aggregation behind the Stats page's month frequency chart. Days with no log entry are simply absent from the result. {@code actionIds} must be
+     * non-empty.
+     *
+     * @param userId the owning user (constrains the query to the indexed {@code (user_id, …)} prefix)
+     * @param actionIds the actions to aggregate
+     * @param from the inclusive start of the window
+     * @param to the inclusive end of the window
+     * @return one {@link DailyActionTotal} per {@code (action, logged-day)} in the window
+     */
+    public static List<DailyActionTotal> dailyTotalsForActions(final UUID userId, final Collection<UUID> actionIds, final LocalDate from,
+        final LocalDate to) {
+        return Panache.getEntityManager().createQuery(ActionLogQueries.DAILY_TOTALS_JPQL, DailyActionTotal.class)
+            .setParameter("userId", userId)
+            .setParameter("actionIds", actionIds)
+            .setParameter("from", from)
+            .setParameter("to", to)
+            .getResultList();
+    }
+
+    /**
+     * Returns the ids of every action the user has ever logged - the eligibility set behind the frequency chart's compare picker, which only offers
+     * actions with at least one logged entry.
+     *
+     * @param userId the owning user
+     * @return the distinct logged action ids, in no particular order
+     */
+    public static Set<UUID> loggedActionIds(final UUID userId) {
+        return Set.copyOf(Panache.getEntityManager().createQuery(ActionLogQueries.LOGGED_ACTION_IDS_JPQL, UUID.class)
+            .setParameter("userId", userId)
+            .getResultList());
     }
 
     /**
