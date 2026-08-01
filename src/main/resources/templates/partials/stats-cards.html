@@ -5,10 +5,18 @@
     {#for s in page.items}
     <div class="card p-4 flex flex-col gap-4">
 
-        {! Action header !}
+        {! Action header. The trailing chart button opens the shared graph dialog in stats.html; it
+             carries the action's id and name so the dialog is titled before its first fetch returns.
+             `min-w-0` on the name lets `truncate` actually bite, so a long name shortens instead of
+             squeezing the button off the card. !}
         <div class="flex items-center gap-2">
             <span class="swatch swatch-md" style="background-color: {s.action.colour}"></span>
-            <h3 class="card-title truncate">{s.action.name}</h3>
+            <h3 class="card-title truncate min-w-0">{s.action.name}</h3>
+            <button type="button" class="chart-open-btn group relative" data-chart-action="{s.action.id}"
+                    data-chart-name="{s.action.name}" aria-label="Show frequency graph for {s.action.name}">
+                {#include partials/icon name='chart-bar' cls='chart-open-glyph' /}
+                {#include partials/tooltip text="Frequency graph" align="right" /}
+            </button>
         </div>
 
         {! Tiles: a single flat grid rendered in the user's chosen order (the "Action stats"

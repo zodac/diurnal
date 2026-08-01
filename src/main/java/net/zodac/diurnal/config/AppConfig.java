@@ -140,6 +140,16 @@ public interface AppConfig {
     String jsSettingsFile();
 
     /**
+     * Filename of the stats-page script served under {@code /js/} (the per-action frequency-graph dialog, loaded only on that page). Content-hashed
+     * at image-build time so each deployment serves a fresh URL; defaults to the un-hashed {@code stats.js} in dev.
+     *
+     * @return the served stats-script filename
+     */
+    @WithName("assets.js-stats-file")
+    @WithDefault("stats.js")
+    String jsStatsFile();
+
+    /**
      * Base-name → content-hashed filename map for the settings preview thumbnails served under {@code /img/settings/} (e.g.
      * {@code page-nova-full-dark} → {@code page-nova-full-dark.9f3a1c2b4d5e.webp}). Populated at image-build time — one entry per WebP, baked into
      * the build config by the Dockerfile — so each thumbnail gets a fresh URL only when its bytes change, and is served {@code immutable}. Empty for

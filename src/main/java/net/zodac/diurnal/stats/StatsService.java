@@ -37,11 +37,13 @@ import java.util.stream.Collectors;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.log.ActionPerformedDate;
+import net.zodac.diurnal.log.DailyActionTotal;
 import net.zodac.diurnal.log.MonthlyActionTotal;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.time.DaySpan;
 import net.zodac.diurnal.time.Durations;
 import net.zodac.diurnal.user.User;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Computes per-action statistics (counts, streaks, trends) from a user's logged entries.
@@ -158,6 +160,137 @@ public class StatsService {
         final Map<LocalDate, List<ActionStats>> byDate = new LinkedHashMap<>();
         topByDate.forEach((date, top) -> byDate.put(date, top.stream().map(action -> statsByAction.get(action.id)).toList()));
         return byDate;
+    }
+
+    /**
+     * Builds the frequency chart for one to {@code MAX_SERIES} actions over ONE calendar window - the Stats page's per-action graph, and the same
+     * figures the public API serves. A month window is drawn as one bar per day, a year window as one bar per month; charting more than one action
+     * groups their bars within each slot and scales them all against a single peak, so they are directly comparable.
+     *
+     * <p>
+     * Every request input is validated here rather than at either surface, so the two cannot drift on what they accept. Nothing is coerced: an
+     * unrecognised {@code period}, a malformed {@code at} key, too many actions, a repeated action and a never-logged comparison each get their own
+     * result case. Omitting an input is not an error - {@code period} falls back to {@link FrequencyPeriod#DEFAULT}, {@code at} to the window
+     * containing today, and {@code compareIds} to charting {@code actionId} alone.
+     *
+     * @param userId the user whose logs to chart
+     * @param actionId the action the graph was opened from, always the first series
+     * @param compareIds the further actions to chart alongside it, in the order they were added
+     * @param rawPeriod the requested period, or {@code null}/blank for the default
+     * @param rawAt the requested window key, or {@code null}/blank for the window containing today
+     * @return the assembled chart, or the case explaining why it could not be assembled
+     */
+    public FrequencyResult frequency(final UUID userId, final UUID actionId, final List<UUID> compareIds, final @Nullable String rawPeriod,
+        final @Nullable String rawAt) {
+        final String periodValue = rawPeriod == null || rawPeriod.isBlank() ? FrequencyPeriod.DEFAULT.value() : rawPeriod;
+        if (!FrequencyPeriod.isValid(periodValue)) {
+            return new FrequencyResult.UnknownPeriod(periodValue);
+        }
+        final FrequencyPeriod period = FrequencyPeriod.of(periodValue);
+
+        final List<UUID> requested = new ArrayList<>();
+        requested.add(actionId);
+        requested.addAll(compareIds);
+        if (requested.size() > FrequencyCharts.MAX_SERIES) {
+            return new FrequencyResult.TooManyActions(requested.size(), FrequencyCharts.MAX_SERIES);
+        }
+        final UUID repeated = firstRepeated(requested);
+        if (repeated != null) {
+            return new FrequencyResult.DuplicateAction(repeated);
+        }
+
+        // Ordered by the request, not by the name-ascending order findByUserAndIds returns: the legend and the bar order within each column follow
+        // the order the user built the comparison in, so adding an action never re-shuffles the bars already on screen.
+        final Map<UUID, Action> ownedById = Action.findByUserAndIds(userId, requested).stream()
+            .collect(Collectors.toMap(action -> action.id, action -> action));
+        if (ownedById.size() != requested.size()) {
+            return new FrequencyResult.NotOwned();
+        }
+
+        // The compare picker only offers actions with at least one logged entry, so the API rejects the same set rather than drawing a flat series
+        // the UI could never produce. The graph's OWN action is exempt: its card is reachable with no logs, and an empty chart is the honest answer.
+        final Set<UUID> logged = ActionLog.loggedActionIds(userId);
+        for (final UUID compareId : compareIds) {
+            if (!logged.contains(compareId)) {
+                return new FrequencyResult.NotLogged(compareId);
+            }
+        }
+
+        final LocalDate today = todayFor(userId);
+        final LocalDate anchor;
+        if (rawAt == null || rawAt.isBlank()) {
+            anchor = FrequencyKeys.anchorOf(period, today);
+        } else if (FrequencyKeys.isValid(period, rawAt)) {
+            anchor = FrequencyKeys.anchor(period, rawAt);
+        } else {
+            return new FrequencyResult.UnknownWindow(rawAt);
+        }
+
+        final List<FrequencyCharts.ChartedAction> charted = requested.stream()
+            .map(ownedById::get)
+            .map(action -> new FrequencyCharts.ChartedAction(action.id, action.name, action.colour))
+            .toList();
+
+        final List<MonthlyActionTotal> monthlyTotals = ActionLog.monthlyTotalsForActions(userId, requested);
+        final Map<UUID, Map<Integer, Long>> countsByAction = switch (period) {
+            case MONTH -> dailySlots(ActionLog.dailyTotalsForActions(userId, requested, anchor, FrequencyKeys.end(period, anchor)));
+            case YEAR -> monthlySlots(monthlyTotals, anchor.getYear());
+        };
+
+        return new FrequencyResult.Charted(
+            FrequencyCharts.build(charted, period, anchor, countsByAction, today, earliestLoggedMonth(monthlyTotals)));
+    }
+
+    /**
+     * The actions the frequency chart's compare picker may offer: the user's actions that have been logged at least once, are not already on the
+     * graph, and whose name matches the search term. Name-ascending, matching every other action list in the app.
+     *
+     * @param userId the user whose actions to offer
+     * @param charted the actions already on the graph (the primary plus any comparisons), which are never offered again
+     * @param query the case-insensitive name filter, or {@code null}/blank for no filtering
+     * @return the offerable actions, name-ascending
+     */
+    public List<Action> compareCandidates(final UUID userId, final List<UUID> charted, final @Nullable String query) {
+        final Set<UUID> logged = ActionLog.loggedActionIds(userId);
+        final Set<UUID> excluded = Set.copyOf(charted);
+        final String term = query == null ? "" : query.strip().toLowerCase(Locale.ENGLISH);
+        return Action.findByUser(userId).stream()   // name-ascending
+            .filter(action -> logged.contains(action.id))
+            .filter(action -> !excluded.contains(action.id))
+            .filter(action -> term.isEmpty() || action.name.toLowerCase(Locale.ENGLISH).contains(term))
+            .toList();
+    }
+
+    private static @Nullable UUID firstRepeated(final List<UUID> ids) {
+        final Set<UUID> seen = new HashSet<>();
+        for (final UUID id : ids) {
+            if (!seen.add(id)) {
+                return id;
+            }
+        }
+        return null;
+    }
+
+    private static Map<UUID, Map<Integer, Long>> dailySlots(final List<DailyActionTotal> dailyTotals) {
+        return dailyTotals.stream()
+            .collect(Collectors.groupingBy(DailyActionTotal::actionId,
+                Collectors.toMap(total -> total.date().getDayOfMonth(), DailyActionTotal::total, Long::sum)));
+    }
+
+    private static Map<UUID, Map<Integer, Long>> monthlySlots(final List<MonthlyActionTotal> monthlyTotals, final int year) {
+        return monthlyTotals.stream()
+            .filter(total -> total.year() == year)
+            .collect(Collectors.groupingBy(MonthlyActionTotal::actionId,
+                Collectors.toMap(MonthlyActionTotal::month, MonthlyActionTotal::total, Long::sum)));
+    }
+
+    private static @Nullable LocalDate earliestLoggedMonth(final List<MonthlyActionTotal> monthlyTotals) {
+        // Month precision is enough: every chart window starts on a month boundary, so the earliest LOGGED month is exactly the earliest window
+        // worth stepping back to. Reading it off the monthly rollup avoids a second query purely to bound the navigation.
+        return monthlyTotals.stream()
+            .map(total -> LocalDate.of(total.year(), total.month(), 1))
+            .min(LocalDate::compareTo)
+            .orElse(null);
     }
 
     // ── Shared computation ────────────────────────────────────────────────

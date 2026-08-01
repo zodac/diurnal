@@ -400,8 +400,9 @@ window.openPreview = function (btn) {
 
     const modal = document.getElementById('preview-modal')
     const panel = document.getElementById('preview-modal-panel')
+    // `.modal-overlay` owns `display` in both states (flex when shown, none via the `.hidden`
+    // re-assertion), so toggling `.hidden` is the whole show/hide — no `flex` utility to add.
     modal.classList.remove('hidden')
-    modal.classList.add('flex')
     // Drive the expand with the Web Animations API rather than CSS transitions: WAAPI
     // runs on the compositor and doesn't depend on the browser painting a collapsed
     // start frame first, so there's no pop/stutter. ease-in-out grows evenly from 0.
@@ -450,7 +451,6 @@ window.closePreview = function () {
         { duration: 650, easing: EASE, fill: 'forwards' })
     shrink.onfinish = function () {
         modal.classList.add('hidden')
-        modal.classList.remove('flex')
         modal.classList.add('opacity-0') // restore the resting hidden-opacity for next open
         clearPreviewAnims()               // drop the forwards-fills so nothing stays composited
         document.getElementById('preview-modal-imgs').innerHTML = ''

@@ -7,7 +7,7 @@
     "css": "tailwindcss -i ./css/app.css -o ../src/main/resources/META-INF/resources/css/app.css --minify",
     "css:watch": "tailwindcss -i ./css/app.css -o ../src/main/resources/META-INF/resources/css/app.css --watch",
     "vendor": "node ../scripts/vendor-assets.cjs",
-    "js:min": "esbuild ../src/main/resources/META-INF/resources/js/app.js ../src/main/resources/META-INF/resources/js/dashboard.js ../src/main/resources/META-INF/resources/js/settings.js ../src/main/resources/META-INF/resources/js/actions.js ../src/main/resources/META-INF/resources/js/admin-users.js ../src/main/resources/META-INF/resources/js/admin-api-docs.js --minify --charset=utf8 --allow-overwrite --outdir=../src/main/resources/META-INF/resources/js",
+    "js:min": "esbuild ../src/main/resources/META-INF/resources/js/app.js ../src/main/resources/META-INF/resources/js/dashboard.js ../src/main/resources/META-INF/resources/js/settings.js ../src/main/resources/META-INF/resources/js/actions.js ../src/main/resources/META-INF/resources/js/admin-users.js ../src/main/resources/META-INF/resources/js/admin-api-docs.js ../src/main/resources/META-INF/resources/js/stats.js --minify --charset=utf8 --allow-overwrite --outdir=../src/main/resources/META-INF/resources/js",
     "brand": "python3 ../scripts/generate-brand.py && node ../scripts/generate-favicons.cjs && npm run css"
   },
   "devDependencies": {

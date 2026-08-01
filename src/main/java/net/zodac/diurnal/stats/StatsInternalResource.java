@@ -34,12 +34,15 @@ import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The web UI's internal endpoints for stats fragments: the Stats page's paginated stats-cards list partial, and the dashboard's per-day summary card
@@ -52,23 +55,32 @@ public class StatsInternalResource {
 
     private final Template statsCardsTemplate;
     private final Template statsSummaryTemplate;
+    private final Template statsChartTemplate;
+    private final Template statsChartCandidatesTemplate;
     private final CurrentUser currentUser;
     private final StatsService statsService;
 
     /**
-     * Injects the stats-cards and stats-summary partial templates, the current-user accessor and the shared stats service.
+     * Injects the stats-cards, stats-summary, stats-chart and compare-picker partial templates, the current-user accessor and the shared stats
+     * service.
      *
      * @param statsCardsTemplate the stats-cards list partial template
      * @param statsSummaryTemplate the dashboard stats-summary card partial template
+     * @param statsChartTemplate the frequency-chart partial template
+     * @param statsChartCandidatesTemplate the frequency chart's compare-picker candidate-list partial template
      * @param currentUser the current-user accessor
      * @param statsService the shared stats service
      */
     @Inject
     public StatsInternalResource(@Location("partials/stats-cards") final Template statsCardsTemplate,
-        @Location("partials/stats-summary") final Template statsSummaryTemplate, final CurrentUser currentUser,
+        @Location("partials/stats-summary") final Template statsSummaryTemplate,
+        @Location("partials/stats-chart") final Template statsChartTemplate,
+        @Location("partials/stats-chart-candidates") final Template statsChartCandidatesTemplate, final CurrentUser currentUser,
         final StatsService statsService) {
         this.statsCardsTemplate = statsCardsTemplate;
         this.statsSummaryTemplate = statsSummaryTemplate;
+        this.statsChartTemplate = statsChartTemplate;
+        this.statsChartCandidatesTemplate = statsChartCandidatesTemplate;
         this.currentUser = currentUser;
         this.statsService = statsService;
     }
@@ -131,6 +143,72 @@ public class StatsInternalResource {
                 StatsSummary.renderPrecomputed(statsSummaryTemplate, user, date, byDate.getOrDefault(date, List.of())).render());
         }
         return Response.ok(cards).build();
+    }
+
+    /**
+     * Returns the frequency-chart partial for one action over one window - the body of the Stats page's graph modal, re-fetched every time the user
+     * flips the period toggle or steps to a neighbouring window.
+     *
+     * <p>
+     * Rendering server-side (rather than shipping the figures as JSON and drawing them in the browser) keeps the bars, their captions and their hover
+     * values on the same code path as every other rendered figure, so the modal needs no client-side charting at all - only the fetch and the swap.
+     *
+     * @param actionId the action to chart
+     * @param period the window's period ({@code month}/{@code year}); defaults to {@link FrequencyPeriod#DEFAULT}
+     * @param at the window key ({@code yyyy-MM}/{@code yyyy}); defaults to the window containing today
+     * @return {@code 200} with the rendered chart, {@code 400} for an unrecognised period or malformed window, or {@code 404} when the action is not
+     *     the user's
+     */
+    @GET
+    @Path("/chart/{actionId}")
+    @Produces(MediaType.TEXT_HTML)
+    public Response chart(@PathParam("actionId") final UUID actionId, @QueryParam("compare") final List<UUID> compareIds,
+        @QueryParam("period") final @Nullable String period, @QueryParam("at") final @Nullable String at) {
+        final User user = currentUser.get();
+        return switch (statsService.frequency(user.id, actionId, compareIds, period, at)) {
+            case FrequencyResult.Charted(final FrequencyChart chart) -> Response.ok(statsChartTemplate
+                .data("chart", chart)
+                .data("decimalPlaces", user.decimalPlaces)
+                .data("candidates", statsService.compareCandidates(user.id, chartedIds(chart), null))).build();
+            case final FrequencyResult.UnknownPeriod ignored -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final FrequencyResult.UnknownWindow ignored -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final FrequencyResult.TooManyActions ignored -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final FrequencyResult.DuplicateAction ignored -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final FrequencyResult.NotLogged ignored -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final FrequencyResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
+        };
+    }
+
+    /**
+     * Returns the frequency chart's compare-picker list: the user's actions that can still be added to the graph, name-filtered by {@code q}. The
+     * same partial the chart fragment embeds for its unfiltered first render, so the search box can swap it in place as the user types.
+     *
+     * <p>
+     * Deliberately has NO {@code /api/v1} twin (surface policy): it is a picker affordance, not a capability of its own. The data behind it - which
+     * actions have been logged at least once - is already the exact set {@code GET /api/v1/stats} returns, and the comparison itself is available
+     * through the {@code compare} parameter on {@code GET /api/v1/stats/{actionId}/frequency}.
+     *
+     * @param actionId the action the graph was opened from
+     * @param compareIds the actions already being compared, which are never offered again
+     * @param query the case-insensitive name filter
+     * @return the rendered candidate list
+     */
+    @GET
+    @Path("/chart/{actionId}/candidates")
+    @Produces(MediaType.TEXT_HTML)
+    public TemplateInstance chartCandidates(@PathParam("actionId") final UUID actionId, @QueryParam("compare") final List<UUID> compareIds,
+        @QueryParam("q") final @Nullable String query) {
+        final User user = currentUser.get();
+        final List<UUID> charted = new ArrayList<>();
+        charted.add(actionId);
+        charted.addAll(compareIds);
+        return statsChartCandidatesTemplate.data("candidates", statsService.compareCandidates(user.id, charted, query));
+    }
+
+    private static List<UUID> chartedIds(final FrequencyChart chart) {
+        return chart.series().stream()
+            .map(FrequencySeries::actionId)
+            .toList();
     }
 
     /**

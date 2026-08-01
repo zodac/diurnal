@@ -83,6 +83,7 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
         "POST /api/v1/logs/{date}/{actionId}/increment",
         "POST /api/v1/logs/{date}/{actionId}/decrement",
         "GET /api/v1/stats",
+        "GET /api/v1/stats/{actionId}/frequency",
         "GET /api/v1/status");
 
     private static final Set<String> HTTP_METHODS = Set.of("get", "put", "post", "delete", "options", "head", "patch", "trace");

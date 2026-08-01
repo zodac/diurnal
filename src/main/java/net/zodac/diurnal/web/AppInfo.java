@@ -258,4 +258,14 @@ public class AppInfo {
     public String getJsSettingsFile() {
         return appConfig.jsSettingsFile();
     }
+
+    /**
+     * The content-hashed stats-page script filename (e.g. {@code stats.9f3a1c2b4d5e.js}), referenced by {@code stats.html} as
+     * {@code /js/{jsStatsFile}} so each deploy busts client and reverse-proxy caches without serving a stale script.
+     *
+     * @return the stats-script filename served under {@code /js/}
+     */
+    public String getJsStatsFile() {
+        return appConfig.jsStatsFile();
+    }
 }

@@ -246,7 +246,9 @@ test.describe("Dashboard", () => {
         // Reopen and click outside to close
         await jumpBtn.click()
         await expect(popup).not.toHaveClass(/hidden/)
-        await page.locator("h2").first().click() // click outside
+        // The dashboard has no heading to click since the "Welcome" text was removed, so click the
+        // padding at the top-left of <main> — inside the page, outside the popup.
+        await page.locator("#dashboard-main").click({ position: { x: 5, y: 5 } })
         await expect(popup).toHaveClass(/hidden/)
     })
 
@@ -417,7 +419,7 @@ test.describe("Dashboard – Minimal calendar", () => {
         await page.locator("#cal-jump").click()
         await expect(page.locator("#cal-pop")).not.toHaveClass(/hidden/)
 
-        await page.locator("h2").first().click()
+        await page.locator("#dashboard-main").click({ position: { x: 5, y: 5 } })
         await expect(page.locator("#cal-pop")).toHaveClass(/hidden/)
     })
 

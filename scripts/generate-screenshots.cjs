@@ -30,12 +30,14 @@
  *   page-{nova,standard,dyslexic}-full-dark.webp   — Font picker (Full calendar, dark)
  *   (page-nova-full-dark is shared between the Theme-dark tile and the Font-nova tile.)
  *
- * `documentation` — 12 WebP files in docs/screenshots/, all captured dark / Full / Nova unless noted:
+ * `documentation` — 13 WebP files in docs/screenshots/, all captured dark / Full / Nova unless noted:
  *   dashboard-{system,dark,light}.webp             — dashboard banner + theme pair (system = light/dark split)
  *   dashboard-mobile.webp                          — dashboard at a phone viewport (minimal calendar), same light/dark
  *                                                    diagonal split as -system (viewport-only shots, not fullPage)
  *   cal-{full,minimal,stacked}-dark.webp           — the three calendar styles, all framed as #calendar-wrap
  *   {actions,stats,admin,settings}-dark.webp       — the four page screenshots
+ *   stats-graph-dark.webp                          — the Stats page's frequency-graph modal, three actions
+ *                                                    compared over one month (element shot of the dialog panel)
  *   login-dark.webp                                — the login page (logged-OUT, own context; shows password
  *                                                    + OIDC sign-in, so needs the OIDC preview boot below)
  *
@@ -62,8 +64,26 @@
  *   node scripts/generate-screenshots.cjs all             # both (default)
  *   BASE_URL=http://localhost:8080 node scripts/generate-screenshots.cjs app
  *
+ * THE SEEDED MONTH
+ * ----------------
+ * All demo history is seeded into the LAST COMPLETE calendar month, and every shot is framed on it. The
+ * current month is deliberately left empty: it is only ever filled up to today, so seeding it would make
+ * the images depend on the run date (a run on the 3rd would produce a nearly-empty calendar and a
+ * three-bar frequency graph; a run on the 28th a full one). Last month is always complete and always the
+ * same shape, whenever the script runs.
+ *
+ * The month's length (28 / 29 / 30 / 31) falls out of the calendar itself — `Date.UTC(y, m, 0)` is the
+ * last day of the previous month — so leap Februaries need no special case. Each action is logged by
+ * WEEKDAY (see ACTIONS), so the pattern tiles across a month of any length and gives the frequency graph
+ * a weekly rhythm rather than a flat row of identical bars.
+ *
+ * Because the app always opens the dashboard on TODAY, which is in the (empty) current month, the shots
+ * that show a calendar step back a month and select its last day first (`showSeededMonth`), and the
+ * frequency-graph shot steps its window back to the same month. Neither relies on a default view.
+ *
  * The script registers a dedicated demo user, seeds a fixed set of actions and logs over HTTP
- * (idempotent — safe to re-run), then drives a headless browser to capture each configuration. The
+ * (idempotent — safe to re-run: the day counts are SET with PUT, not incremented towards), then drives a
+ * headless browser to capture each configuration. The
  * ONE exception to being HTTP-only: `documentation`/`all` connect to the dev DB (same config as
  * tests/helpers/db.ts, env-overridable) solely to grant the demo user the administrator role for the
  * Admin-page shot — there is no HTTP endpoint for that. `app` mode never touches the DB.
@@ -94,6 +114,7 @@ if (!['app', 'documentation', 'all'].includes(MODE)) {
 const wantApp = MODE === 'app' || MODE === 'all'
 const wantDocs = MODE === 'documentation' || MODE === 'all'
 
+
 // Direct DB access, used ONLY (in documentation/all mode) to promote the demo user to an administrator
 // for the Admin-page screenshot (there is no HTTP endpoint to grant the admin role). Mirrors
 // tests/helpers/db.ts — same dev DB, same env overrides. Everything else in this script is driven
@@ -121,20 +142,36 @@ const MOBILE_VW = 390, MOBILE_VH = 844
 // Dedicated demo account — kept separate from real dev data.
 const USER = { email: 'preview-demo@diurnal.local', password: 'preview_demo123', displayName: 'Test User' }
 
-// The fixed seed: four colourful habits logged on days RELATIVE TO TODAY, so the captured calendar
-// looks identical no matter which calendar date the script is run on (it was previously fixed
-// days-of-month capped at today, which made the images depend on the run date). `daysAgo` are offsets
-// back from today (0 = today, 1 = yesterday, …) — never future, so nothing is skipped; `count` is how
-// many times each is incremented so the "full" calendar shows a representative "×N". The pattern spans
-// the 15 days ending today (offsets 0..14): when today is mid-month this fills the visible month grid,
-// and when today is early in the month the trail extends into the leading (previous-month) grid cells —
-// either way the activity around the highlighted "today" cell is always the same.
+// The fixed seed: four colourful habits, logged by WEEKDAY rather than as a hand-listed set of days.
+// Each entry is a Sunday-first array of counts — index 0 = Sunday … 6 = Saturday, 0 meaning "not logged
+// that weekday" — tiled across the whole seeded range. That keeps the pattern independent of the run
+// date AND of the month's length, so it fills a 28-, 30- or 31-day month equally without any per-month
+// bookkeeping, and gives the frequency graph a visible weekly rhythm instead of a flat row of identical
+// bars (the counts deliberately vary day to day, so the chart has a real shape).
+//
+// The seeded RANGE is the whole of last month plus the current month up to today (see SEED_START). Last
+// month is complete, which is what the frequency-graph screenshot frames; the current-month tail is what
+// keeps the dashboard calendar shots populated around the highlighted "today" cell.
 const ACTIONS = [
-  { name: 'Exercise', colour: '#ef4444', count: 1, daysAgo: [13, 11, 9, 6, 4, 2, 0] },
-  { name: 'Read',     colour: '#3b82f6', count: 2, daysAgo: [14, 13, 12, 10, 7, 5, 3, 1] },
-  { name: 'Meditate', colour: '#10b981', count: 1, daysAgo: [14, 13, 10, 8, 6, 3, 0] },
-  { name: 'Water',    colour: '#f59e0b', count: 3, daysAgo: [14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0] },
+  // Mon/Wed/Fri, with a longer Saturday session.
+  { name: 'Exercise', colour: '#ef4444', perWeekday: [0, 1, 0, 2, 0, 1, 3] },
+  // Every day, and more of it at the weekend.
+  { name: 'Read',     colour: '#3b82f6', perWeekday: [3, 1, 2, 1, 2, 1, 4] },
+  // Most mornings, but not every one.
+  { name: 'Meditate', colour: '#10b981', perWeekday: [1, 1, 1, 0, 1, 1, 0] },
+  // Every day, several times a day.
+  { name: 'Water',    colour: '#f59e0b', perWeekday: [6, 8, 7, 8, 7, 8, 5] },
 ]
+
+// A per-week nudge applied on top of `perWeekday`, cycling through the month. Without it the weekday
+// tiling makes every week a carbon copy of the last — which reads as obviously fabricated in the
+// calendar shots, where four identical rows of "Water x8, Exercise, Meditate, Read" sit side by side.
+// It is a fixed cycle rather than anything random so the images stay reproducible run to run.
+//
+// The result is clamped at zero, so a nudge of -1 drops an action that only logs once on that weekday.
+// That is deliberate: it puts occasional real gaps in the history, which is what gives the streak and
+// gap tiles something other than a perfect, unbroken month to report.
+const WEEK_NUDGE = [0, 1, -1, 2]
 
 // Extra accounts registered only to populate the Admin-page user table so its screenshot shows a
 // realistic list (the demo user alone would be a one-row table). All plain 'user' role; the demo
@@ -191,6 +228,24 @@ const dateMinusDays = (base, n) => {
   const d = new Date(Date.UTC(base.getUTCFullYear(), base.getUTCMonth(), base.getUTCDate() - n))
   return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
 }
+
+// ── The seeded month ─────────────────────────────────────────────────────────────────────────────
+//
+// Everything is seeded into the LAST COMPLETE calendar month, and the shots are framed on it. Using
+// last month rather than the current one is what makes the images stable and complete: the current
+// month is only ever filled up to today, so a run on the 3rd would produce a nearly-empty calendar and
+// a frequency graph with three bars, while a run on the 28th would produce a full one.
+//
+// `Date.UTC(year, month, 0)` is day zero of the current month, i.e. the last day of the previous one,
+// so the length (28 / 29 / 30 / 31) falls out of the calendar itself — no month-length table, and leap
+// Februaries are correct for free.
+const SEED_END = new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), 0))
+// The month has this many days, and the anchor IS its last day, so offsets 0..SEED_DAYS-1 back from it
+// cover the month exactly.
+const SEED_DAYS = SEED_END.getUTCDate()
+const SEED_END_ISO = dateMinusDays(SEED_END, 0)
+const SEED_START_ISO = dateMinusDays(SEED_END, SEED_DAYS - 1)
+const SEED_MONTH = SEED_END_ISO.slice(0, 7)
 
 // ── Direct DB access (admin promotion only) ──────────────────────────────────────────────────────
 
@@ -297,12 +352,6 @@ async function ensureAction(ctx, existing, { name, colour }) {
   return id[1]
 }
 
-// Keys (`date|colour`) for logs already present in [start, end), so re-runs don't inflate counts.
-async function existingLogKeys(ctx, start, end) {
-  const events = await (await ctx.request.get(`${BASE}/api/v1/logs/events?start=${start}&end=${end}`)).json()
-  return new Set(events.map(e => `${e.start}|${(e.backgroundColor || '').toLowerCase()}`))
-}
-
 async function seed(ctx) {
   await registerDemoUser(ctx)
   if (wantDocs) {
@@ -314,24 +363,27 @@ async function seed(ctx) {
   }
   await login(ctx)
 
-  const now = new Date()
-  // The seed window: from the oldest offset through today (the events `end` is exclusive, so pass
-  // today + 1). Covers the whole range even when it straddles a month/year boundary.
-  const maxAgo = Math.max(...ACTIONS.flatMap(a => a.daysAgo))
   const existing = await existingActions(ctx)
-  const have = await existingLogKeys(ctx, dateMinusDays(now, maxAgo), dateMinusDays(now, -1))
-
   for (const action of ACTIONS) {
     const id = await ensureAction(ctx, existing, action)
-    for (const daysAgo of action.daysAgo) {
-      const date = dateMinusDays(now, daysAgo) // offsets are never future, so nothing is skipped
-      if (have.has(`${date}|${action.colour.toLowerCase()}`)) {continue} // already logged
-      for (let i = 0; i < action.count; i++) {
-        await ctx.request.post(`${BASE}/api/v1/logs/${date}/${id}/increment`)
-      }
+    for (let offset = SEED_DAYS - 1; offset >= 0; offset--) {
+      const date = dateMinusDays(SEED_END, offset)
+      // The weekday of the day being written, so the pattern tiles across the month. Parsed back as UTC
+      // (not `new Date(date)` on a local clock) to stay on the same UTC footing as everything else here.
+      const day = new Date(`${date}T00:00:00Z`)
+      const base = action.perWeekday[day.getUTCDay()]
+      const count = base === 0 ? 0 : Math.max(0, base + WEEK_NUDGE[Math.floor((day.getUTCDate() - 1) / 7) % WEEK_NUDGE.length])
+      // PUT SETS the count rather than incrementing towards it: one call per day instead of `count` of
+      // them, and no "what is already logged?" pre-read at all.
+      //
+      // A zero is WRITTEN, not skipped (0 deletes the day's entry). Skipping it would leave whatever a
+      // previous run had put there, so re-seeding a database after changing the pattern would silently
+      // blend the old shape into the new one — the totals drift and the screenshots stop being
+      // reproducible. Writing every day of the month makes the seed genuinely idempotent.
+      await ctx.request.fetch(`${BASE}/api/v1/logs/${date}/${id}`, { method: 'PUT', data: { count } })
     }
   }
-  console.log('seeded demo data')
+  console.log(`seeded demo data across ${SEED_MONTH} (${SEED_START_ISO} to ${SEED_END_ISO})`)
 }
 
 // ── Screenshot capture ───────────────────────────────────────────────────────────────────────────
@@ -349,12 +401,28 @@ async function setPrefs(ctx, theme, calendarView, font = 'nova') {
 
 // Open the dashboard and wait until the chosen calendar style's activity markers are painted.
 // Caller closes the page.
+// Steps the dashboard calendar back to the seeded month and selects its last day, driving the real
+// toolbar/grid rather than a URL (the dashboard takes no date parameter — it always opens on today).
+//
+// This is what puts the SEEDED month on screen: the seed fills last month, so leaving the calendar on
+// its default view would show the current month, which is empty. Selecting the last day also drives the
+// day panel and the stats-summary card beside it, so those are populated too rather than showing a
+// no-activity day.
+async function showSeededMonth(page) {
+  await page.locator('#cal-prev').click()
+  const selectedCell = page.locator(`.d-min-cell[data-date="${SEED_END_ISO}"]`)
+  await selectedCell.waitFor({ timeout: 15000 })
+  await selectedCell.click()
+  await page.waitForSelector(`.d-min-cell[data-date="${SEED_END_ISO}"].d-min-selected`, { timeout: 15000 })
+}
+
 async function openDashboard(ctx, calendarView) {
   const page = await ctx.newPage()
   // `load` (not `networkidle`): the dashboard's calendar background-prefetches adjacent months, so the
   // network never idles. The waitForSelector below is the real gate — it blocks until the chosen
   // style's markers are actually painted.
   await page.goto(`${BASE}/`, { waitUntil: 'load' })
+  await showSeededMonth(page)
   const sel = calendarView === 'full' ? '.d-full-event'
             : calendarView === 'stacked' ? '.d-stk-bar'
             : '.d-min-dot'
@@ -492,6 +560,7 @@ async function shotMobileDashboard(browser, ctx, dir, file) {
     await setPrefs(ctx, theme, 'minimal', 'nova')
     const page = await mobileCtx.newPage()
     await page.goto(`${BASE}/`, { waitUntil: 'load' })
+    await showSeededMonth(page)
     await page.waitForSelector('.d-min-dot', { timeout: 15000 })
     await page.waitForTimeout(600) // settle fonts/layout
     const buf = await page.screenshot()
@@ -597,6 +666,67 @@ async function captureAppPreviews(ctx, browser) {
 //   {actions,stats,admin,settings}-dark — the four page screenshots
 // All in one fixed configuration (dark / Full / Nova, default uncustomised stats order) except the
 // light + system dashboards which drive the Theme banner.
+// The Stats page's frequency-graph modal, showing THREE actions compared over one month — the README
+// pairs it with the plain Stats page shot. Driven through the real UI (open the dialog from a card, add
+// two comparisons through the picker) rather than by hand-building a URL, so the shot can only be
+// produced by a working control flow.
+//
+// Captured viewport-only rather than fullPage: the dimmed backdrop over the page behind it is what
+// makes it read as a dialog, and a fullPage shot of a scrolling stats page would bury it.
+//
+// The window is stepped back to the seeded month: the graph opens on the app's real current month, which
+// the seed deliberately leaves empty (see SEED_END), so the default window would draw nothing.
+async function shotStatsGraph(ctx, dir, file) {
+  const primary = ACTIONS[0].name
+  const compared = [ACTIONS[1].name, ACTIONS[2].name]
+  const targetMonth = SEED_MONTH
+
+  const page = await ctx.newPage()
+  await page.goto(`${BASE}/stats`, { waitUntil: 'load' })
+  await page.waitForSelector('#stats-list .card')
+
+  await page.locator(`[data-chart-name="${primary}"]`).click()
+  await page.waitForSelector('.chart-wrap')
+
+  for (const name of compared) {
+    await page.locator('[data-chart-compare-open]').click()
+    await page.locator('.chart-candidate', { hasText: name }).first().click()
+    await page.waitForFunction(
+      count => document.querySelectorAll('.chart-chip').length === count,
+      compared.indexOf(name) + 2,
+      { timeout: 15000 })
+  }
+
+  // Step back to the anchored month. Bounded by the number of steps the seed could possibly need, so a
+  // mis-set anchor fails loudly here instead of spinning.
+  const earlier = page.locator('button[data-chart-at]').first()
+  for (let step = 0; step < 24; step++) {
+    const shown = await page.locator('.chart-wrap').getAttribute('data-chart-shown-at')
+    if (shown === targetMonth) {break}
+    if (await earlier.isDisabled()) {
+      throw new Error(`Cannot reach ${targetMonth} in the frequency graph - stopped at ${shown} with no earlier window`)
+    }
+    await earlier.click()
+    await page.waitForFunction(
+      previous => document.querySelector('.chart-wrap')?.dataset.chartShownAt !== previous,
+      shown,
+      { timeout: 15000 })
+  }
+  const landed = await page.locator('.chart-wrap').getAttribute('data-chart-shown-at')
+  if (landed !== targetMonth) {
+    throw new Error(`Frequency graph is showing ${landed}, expected ${targetMonth}`)
+  }
+  // The plot itself, not a bar: an unlogged slot's bar is zero-height, and Playwright counts a
+  // zero-height element as not visible, so waiting on the first bar can hang on an empty day.
+  await page.waitForSelector('.chart-plot')
+
+  await page.waitForTimeout(600) // settle fonts/layout
+  const pngBuf = await page.screenshot() // viewport only - keeps the dimmed backdrop in frame
+  fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf))
+  console.log('wrote', file)
+  await page.close()
+}
+
 async function captureDocsScreenshots(ctx, browser) {
   // Nova, full, light → the light dashboard; store PNG for the system composite.
   await setPrefs(ctx, 'light', 'full', 'nova')
@@ -635,6 +765,7 @@ async function captureDocsScreenshots(ctx, browser) {
   await shotPage(ctx, '/stats',       '#stats-list .card',           SHOTS, 'stats-dark.webp')
   await shotPage(ctx, '/admin/users', '#admin-users-list .dt-table', SHOTS, 'admin-dark.webp')
   await shotPage(ctx, '/settings',    '#prefs-form',                 SHOTS, 'settings-dark.webp')
+  await shotStatsGraph(ctx, SHOTS, 'stats-graph-dark.webp')
 
   // The two shots that need their own browser context: the login page is anonymous, and the mobile
   // dashboard is a different viewport. Both run last so the mobile one inherits the dark/Full/Nova

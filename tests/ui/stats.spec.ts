@@ -131,4 +131,74 @@ test.describe("Stats page", () => {
 
         await apiCtx.patch("/internal/settings", { form: { font: "nova" } })
     })
+
+    test("frequency graph: opens, toggles period, steps windows, and compares actions", async ({ authenticatedPage: page }) => {
+        const apiCtx = page.context().request
+        const today = new Date().toISOString().slice(0, 10)
+        // The "Earlier" step is only offered back as far as the charted action's first logged entry, so
+        // GraphAlpha gets some history - otherwise that button is (correctly) disabled and untestable.
+        const backThen = new Date(Date.now() - 70 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+        // Two logged actions, so one can be charted and the other offered as a comparison. Ids are read
+        // back through the public API rather than scraped out of the create fragment, which returns the
+        // whole (possibly pre-populated) list and so cannot identify the row that was just added.
+        for (const name of ["GraphAlpha", "GraphBeta"]) {
+            await apiCtx.post("/internal/actions", { form: { name, colour: "#6366f1" } })
+            const listed = await (await apiCtx.get(`/api/v1/actions?q=${name}`)).json()
+            const created = listed.items.find((item: { name: string }) => item.name === name)
+            expect(created, `${name} should have been created`).toBeDefined()
+            await apiCtx.post(`/internal/logs/${today}/${created.id}/increment`)
+            if (name === "GraphAlpha") {
+                await apiCtx.post(`/internal/logs/${backThen}/${created.id}/increment`)
+            }
+        }
+
+        // Every test in this spec shares one user, so earlier ones have already left enough actions to
+        // push these two off the first page. Widen the page size rather than paginating to find them.
+        await apiCtx.patch("/internal/settings", { form: { pageSize: "100" } })
+
+        await page.goto("/stats")
+        const modal = page.locator("#stats-chart-modal")
+        await expect(modal).toHaveClass(/hidden/)
+
+        // Opening from a card titles the dialog and draws the current month.
+        await page.locator("[data-chart-name='GraphAlpha']").click()
+        await expect(modal).not.toHaveClass(/hidden/)
+        await expect(page.locator("#stats-chart-title")).not.toBeEmpty()
+        await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-period", "month")
+        await expect(page.locator(".chart-plot .chart-col").first()).toBeVisible()
+
+        // Stepping back lands on the previous window; "Later" is available again from there.
+        const shownAt = await page.locator(".chart-wrap").getAttribute("data-chart-shown-at")
+        await page.locator("button[data-chart-at]").first().click()
+        await expect(page.locator(".chart-wrap")).not.toHaveAttribute("data-chart-shown-at", shownAt ?? "")
+        await page.locator("button[data-chart-at]").last().click()
+        await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-at", shownAt ?? "")
+
+        // Compare: the picker offers the OTHER action, and picking it adds a removable second series.
+        await page.locator("[data-chart-compare-open]").click()
+        await expect(page.locator("#chart-compare-panel")).not.toHaveClass(/hidden/)
+        await page.locator("#chart-candidate-search").fill("GraphBeta")
+        await expect(page.locator(".chart-candidate")).toHaveCount(1)
+        await page.locator(".chart-candidate").first().click()
+        await expect(page.locator(".chart-chip")).toHaveCount(2)
+        await expect(page.locator(".chart-wrap")).not.toHaveAttribute("data-chart-shown-compare", "")
+        // Every column now carries one bar per charted action.
+        await expect(page.locator(".chart-plot .chart-col").first().locator(".chart-bar")).toHaveCount(2)
+
+        // Removing the comparison puts it back to a single series.
+        await page.locator(".chart-chip-remove").first().click()
+        await expect(page.locator(".chart-chip")).toHaveCount(1)
+        await expect(page.locator(".chart-plot .chart-col").first().locator(".chart-bar")).toHaveCount(1)
+
+        // The period toggle re-fetches the fragment as a year of months. Done last, and left there: the
+        // toggle re-anchors a year onto its January, which for this user is an empty window.
+        await page.locator('button[data-chart-period="year"]').click()
+        await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-period", "year")
+        await expect(page.locator(".chart-plot .chart-col")).toHaveCount(12)
+
+        // Escape closes the dialog.
+        await page.keyboard.press("Escape")
+        await expect(modal).toHaveClass(/hidden/)
+    })
 })

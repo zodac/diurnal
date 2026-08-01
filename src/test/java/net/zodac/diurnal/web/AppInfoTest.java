@@ -53,15 +53,15 @@ class AppInfoTest {
     private static AppInfo appInfoWith(final String repositoryUrl, final String buildTimestamp, final String cssFile,
         final String jsFile, final String jsAppFile, final String jsDashboardFile) {
         return appInfoWith(repositoryUrl, buildTimestamp, cssFile, jsFile, jsAppFile, jsDashboardFile,
-            "actions.js", "admin-users.js", "admin-api-docs.js", "settings.js");
+            "actions.js", "admin-users.js", "admin-api-docs.js", "settings.js", "stats.js");
     }
 
     private static AppInfo appInfoWith(final String repositoryUrl, final String buildTimestamp, final String cssFile,
         final String jsFile, final String jsAppFile, final String jsDashboardFile,
         final String jsActionsFile, final String jsAdminFile, final String jsApiDocsFile,
-        final String jsSettingsFile) {
+        final String jsSettingsFile, final String jsStatsFile) {
         return appInfo(new StubAppConfig(repositoryUrl, buildTimestamp, cssFile, jsFile, jsAppFile, jsDashboardFile,
-            jsActionsFile, jsAdminFile, jsApiDocsFile, jsSettingsFile, SETTINGS_IMAGES, HASHED_IMAGES));
+            jsActionsFile, jsAdminFile, jsApiDocsFile, jsSettingsFile, jsStatsFile, SETTINGS_IMAGES, HASHED_IMAGES));
     }
 
     private static AppInfo appInfo(final AppConfig appConfig) {
@@ -129,7 +129,7 @@ class AppInfoTest {
     @Test
     void jsActionsFile_returnsInjectedHashedFilename() {
         final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
-            "actions.9f3a1c2b4d5e.js", "admin-users.js", "admin-api-docs.js", "settings.js");
+            "actions.9f3a1c2b4d5e.js", "admin-users.js", "admin-api-docs.js", "settings.js", "stats.js");
         assertThat(appInfo.getJsActionsFile())
             .as("hashed actions-script filename should be returned verbatim")
             .isEqualTo("actions.9f3a1c2b4d5e.js");
@@ -138,7 +138,7 @@ class AppInfoTest {
     @Test
     void jsAdminFile_returnsInjectedHashedFilename() {
         final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
-            "actions.js", "admin-users.9f3a1c2b4d5e.js", "admin-api-docs.js", "settings.js");
+            "actions.js", "admin-users.9f3a1c2b4d5e.js", "admin-api-docs.js", "settings.js", "stats.js");
         assertThat(appInfo.getJsAdminFile())
             .as("hashed admin users-script filename should be returned verbatim")
             .isEqualTo("admin-users.9f3a1c2b4d5e.js");
@@ -147,16 +147,25 @@ class AppInfoTest {
     @Test
     void jsApiDocsFile_returnsInjectedHashedFilename() {
         final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
-            "actions.js", "admin-users.js", "admin-api-docs.9f3a1c2b4d5e.js", "settings.js");
+            "actions.js", "admin-users.js", "admin-api-docs.9f3a1c2b4d5e.js", "settings.js", "stats.js");
         assertThat(appInfo.getJsApiDocsFile())
             .as("hashed API-docs-script filename should be returned verbatim")
             .isEqualTo("admin-api-docs.9f3a1c2b4d5e.js");
     }
 
     @Test
+    void jsStatsFile_returnsInjectedHashedFilename() {
+        final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
+            "actions.js", "admin-users.js", "admin-api-docs.js", "settings.js", "stats.9f3a1c2b4d5e.js");
+        assertThat(appInfo.getJsStatsFile())
+            .as("hashed stats-script filename should be returned verbatim")
+            .isEqualTo("stats.9f3a1c2b4d5e.js");
+    }
+
+    @Test
     void jsSettingsFile_returnsInjectedHashedFilename() {
         final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
-            "actions.js", "admin-users.js", "admin-api-docs.js", "settings.9f3a1c2b4d5e.js");
+            "actions.js", "admin-users.js", "admin-api-docs.js", "settings.9f3a1c2b4d5e.js", "stats.js");
         assertThat(appInfo.getJsSettingsFile())
             .as("hashed settings-script filename should be returned verbatim")
             .isEqualTo("settings.9f3a1c2b4d5e.js");
