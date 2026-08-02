@@ -14,7 +14,7 @@ ARG GENERATE_PREVIEWS=true
 # only the image ships the minified form, which the smoke tier then exercises). Kept in its own
 # stage so the Node toolchain never reaches the build or runtime images; the build stage copies the
 # outputs in below.
-FROM node:26.5.0-alpine AS css
+FROM node:26.5.1-alpine AS css
 # Mirror the repo layout (frontend/ next to src/ and scripts/) so the npm scripts' relative
 # ../src and ../scripts paths resolve exactly as they do in the working tree.
 WORKDIR /css/frontend
@@ -37,7 +37,7 @@ RUN npm run css && npm run vendor && npm run js:min
 # in its own stage so ImageMagick / librsvg / optipng never reach the build or runtime images. librsvg
 # is ImageMagick's SVG-rendering backend; imagemagick also packs the .ico. PNGs land in
 # src/main/resources/META-INF/resources/img; favicon.ico lands at the web root (one level up).
-FROM node:26.5.0-alpine AS icons
+FROM node:26.5.1-alpine AS icons
 
 # BEGIN ALPINE PACKAGES
 RUN apk add --no-cache  \
@@ -136,7 +136,7 @@ RUN jlink --compress=zip-9 \
 # Chromium runs; the alpine/musl node used by the css/icons stages can't host Playwright). It has no
 # Node, so we copy Node in from this pinned image. Same Node version as the css stage; kept in sync by
 # update_dependency_versions.sh (the Dockerfile's -trixie tag alongside the -alpine ones).
-FROM node:26.5.0-trixie AS nodesrc
+FROM node:26.5.1-trixie AS nodesrc
 
 # ── Stage 5b: generate the in-app preview thumbnails ─────────────────────────
 # Boots a throwaway Postgres + the previewbuild fast-jar + headless Chromium and drives the generator
