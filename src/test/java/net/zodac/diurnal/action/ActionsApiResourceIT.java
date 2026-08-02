@@ -25,6 +25,7 @@ import static org.hamcrest.Matchers.equalTo;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import io.restassured.http.ContentType;
+import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.log.ActionLog;
@@ -370,6 +371,85 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         runInTx(() -> assertThat(Action.<Action>findById(action.id))
             .as("the other user's action must be untouched")
             .isNotNull());
+    }
+
+    // ── Random colour ─────────────────────────────────────────────────────────
+
+    @Test
+    void randomColour_returnsAPaletteColour() {
+        final String colour = given().get("/api/v1/actions/random-colour")
+            .then().statusCode(200)
+            .extract().path("colour");
+
+        assertThat(colour)
+            .as("the suggested colour should come from the palette")
+            .isIn(ActionColours.PALETTE);
+    }
+
+    @Test
+    void randomColour_avoidsTheColoursAlreadyInUse() {
+        final List<String> inUse = ActionColours.PALETTE.subList(0, ActionColours.PALETTE.size() - 1);
+        runInTx(() -> {
+            for (int i = 0; i < inUse.size(); i++) {
+                newAction(primaryId, "Action-" + i).colour = inUse.get(i);
+            }
+        });
+
+        final String colour = given().get("/api/v1/actions/random-colour")
+            .then().statusCode(200)
+            .extract().path("colour");
+
+        assertThat(colour)
+            .as("the only palette colour not in use should be the one suggested")
+            .isEqualTo(ActionColours.PALETTE.getLast());
+    }
+
+    @Test
+    void randomColour_ignoresAnotherUsersColours() {
+        runInTx(() -> {
+            for (int i = 0; i < ActionColours.PALETTE.size(); i++) {
+                newAction(otherId, "Action-" + i).colour = ActionColours.PALETTE.get(i);
+            }
+        });
+
+        final String colour = given().get("/api/v1/actions/random-colour")
+            .then().statusCode(200)
+            .extract().path("colour");
+
+        assertThat(colour)
+            .as("another user's colours should not narrow this user's suggestions")
+            .isIn(ActionColours.PALETTE);
+    }
+
+    @Test
+    void randomColour_everyPaletteColourInUse_generatesFreshColour() {
+        runInTx(() -> {
+            for (int i = 0; i < ActionColours.PALETTE.size(); i++) {
+                newAction(primaryId, "Action-" + i).colour = ActionColours.PALETTE.get(i);
+            }
+        });
+
+        final String colour = given().get("/api/v1/actions/random-colour")
+            .then().statusCode(200)
+            .extract().path("colour");
+
+        assertThat(colour)
+            .as("an exhausted palette should yield a fresh colour, not a repeat")
+            .matches("^#[0-9a-f]{6}$")
+            .isNotIn(ActionColours.PALETTE);
+    }
+
+    @Test
+    void randomColour_suggestionIsAcceptedByCreate() {
+        final String colour = given().get("/api/v1/actions/random-colour")
+            .then().statusCode(200)
+            .extract().path("colour");
+
+        given().contentType(ContentType.JSON)
+                .body("{\"name\":\"Running\",\"colour\":\"" + colour + "\"}")
+                .post("/api/v1/actions")
+                .then().statusCode(201)
+                .body("colour", equalTo(colour));
     }
 
     @Test

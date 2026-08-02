@@ -20,6 +20,7 @@ package net.zodac.diurnal.action;
 import io.quarkus.hibernate.orm.panache.Panache;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
@@ -28,7 +29,8 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The single owner of every action mutation — create, update, delete — shared by the web UI's HTMX endpoints ({@link ActionsInternalResource}) and
+ * The single owner of every action mutation — create, update, delete — plus the read-only colour suggestion behind the new-action form's randomise
+ * control, shared by the web UI's HTMX endpoints ({@link ActionsInternalResource}) and
  * the public REST API ({@link ActionsApiResource}), so a rule added or changed here applies to both surfaces by construction (the
  * {@code AuthenticationService} pattern). The resources only translate the returned {@link ActionResult} into their medium; validation order is
  * blank → too long → duplicate → colour. A malformed colour is rejected on both surfaces (never silently corrected); only an <em>absent</em> colour
@@ -150,6 +152,17 @@ class ActionService {
         action.delete();
         LOGGER.info("Action deleted: {} for user {}", action.id, user.email);
         return new ActionResult.Success(action);
+    }
+
+    /**
+     * Suggests a colour for a new action, visibly distinct from the ones the user's existing actions already use (the rules are
+     * {@link ActionColours}). This only reads - nothing is persisted, and a repeated call is free to return a different colour.
+     *
+     * @param user the acting user
+     * @return the suggested {@code #rrggbb} colour
+     */
+    String suggestColour(final User user) {
+        return ActionColours.suggest(Action.distinctColours(user.id), ThreadLocalRandom.current());
     }
 
     /**

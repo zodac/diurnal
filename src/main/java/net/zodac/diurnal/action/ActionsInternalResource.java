@@ -105,6 +105,19 @@ public class ActionsInternalResource {
     }
 
     /**
+     * Returns a suggested colour for a new action, distinct from the ones the user's existing actions use, as the JSON the new-action form's
+     * randomise button swaps into its colour input. Not a mutation - nothing is stored until the action itself is created.
+     *
+     * @return the suggested colour
+     */
+    @GET
+    @Path("random-colour")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response randomColour() {
+        return Response.ok(new SuggestedColour(actionService.suggestColour(currentUser.get()))).build();
+    }
+
+    /**
      * Returns the table row for a single owned action, or {@code 404} if not found.
      *
      * @param id the action's id
@@ -264,6 +277,16 @@ public class ActionsInternalResource {
      * @param currentPage the rendered (clamped) 1-based page
      */
     record PaginatedActions(List<Action> items, int totalCount, int totalPages, int currentPage) {
+
+    }
+
+    /**
+     * The randomise button's JSON response - a single suggested colour. UI plumbing with no stability guarantee; the public equivalent is
+     * {@code GET /api/v1/actions/random-colour}.
+     *
+     * @param colour the suggested {@code #rrggbb} colour
+     */
+    public record SuggestedColour(String colour) {
 
     }
 }

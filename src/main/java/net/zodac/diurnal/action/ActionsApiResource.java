@@ -164,6 +164,28 @@ public class ActionsApiResource {
     }
 
     /**
+     * Suggests a colour for a new action, distinct from the colours the user's existing actions already use.
+     *
+     * @return the suggested colour
+     */
+    @GET
+    @Path("random-colour")
+    @Operation(
+        summary = "Suggest a random action colour",
+        description = "Returns a random colour for a new action, drawn from a palette of readable, mutually distinct hues and excluding any colour "
+        + "too similar to one the user's existing actions already use; once every palette colour is in use, a fresh one is generated rather than "
+        + "repeated. Nothing is stored, and the colour is only a suggestion - it still has to be sent when creating the action.")
+    @SecurityRequirement(name = "BearerAuth")
+    @APIResponses({
+        @APIResponse(responseCode = "200", description = "The suggested colour.",
+            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionColourDto.class))),
+        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    })
+    public Response randomColour() {
+        return Response.ok(new ActionColourDto(actionService.suggestColour(currentUser.get()))).build();
+    }
+
+    /**
      * Returns a single owned action.
      *
      * @param id the action's id
@@ -284,6 +306,17 @@ public class ActionsApiResource {
         @Schema(examples = "#6366f1",
         description = "The action's display colour as a CSS hex value; a malformed value is rejected, omit to use the default on create.")
         @Nullable String colour) {
+    }
+
+    /**
+     * A suggested colour for a new action.
+     *
+     * @param colour the suggested colour as {@code #rrggbb}
+     */
+    @Schema(description = "A suggested colour for a new action.")
+    public record ActionColourDto(
+        @Schema(examples = "#22d3ee", description = "The suggested colour as a CSS hex value.") String colour) {
+
     }
 
     /**

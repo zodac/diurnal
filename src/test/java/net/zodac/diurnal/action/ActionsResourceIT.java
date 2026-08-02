@@ -24,6 +24,7 @@ import static org.hamcrest.Matchers.not;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
+import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.user.Role;
@@ -117,6 +118,38 @@ class ActionsResourceIT extends IntegrationTestBase {
             .post("/internal/actions")
             .then().statusCode(200)
             .body(containsString("#abcdef"));
+    }
+
+    // ── Random colour ──────────────────────────────────────────────────────────
+
+    @Test
+    void randomColour_returnsAPaletteColourAsJson() {
+        final String colour = given().get("/internal/actions/random-colour")
+            .then().statusCode(200)
+            .contentType("application/json")
+            .extract().path("colour");
+
+        assertThat(colour)
+            .as("the suggested colour should come from the palette")
+            .isIn(ActionColours.PALETTE);
+    }
+
+    @Test
+    void randomColour_avoidsTheColoursAlreadyInUse() {
+        final List<String> inUse = ActionColours.PALETTE.subList(0, ActionColours.PALETTE.size() - 1);
+        for (int i = 0; i < inUse.size(); i++) {
+            given().formParam("name", "Action-" + i).formParam("colour", inUse.get(i))
+                .post("/internal/actions")
+                .then().statusCode(200);
+        }
+
+        final String colour = given().get("/internal/actions/random-colour")
+            .then().statusCode(200)
+            .extract().path("colour");
+
+        assertThat(colour)
+            .as("the only palette colour not in use should be the one suggested")
+            .isEqualTo(ActionColours.PALETTE.getLast());
     }
 
     // ── List / pagination ──────────────────────────────────────────────────────

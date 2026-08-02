@@ -8,7 +8,7 @@
   Params:
     name — the icon (required): arrow-up-circle | calendar | chart-bar | chevron-left |
            chevron-right | circle-slash | close | drag-handle | github | hamburger | info-circle |
-           minus | plus | question-circle
+           minus | plus | shuffle | question-circle
     cls  — optional class list for the <svg> (sizing/animation). Omit when the context sizes the
            glyph instead (e.g. the `.icon-chip svg` / `.icon-btn-primary svg` rules in app.css).
 !}
@@ -68,6 +68,10 @@
 {#is 'plus'}
 <svg {#if cls}class="{cls}" {/if}aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
     <path stroke-linecap="round" stroke-linejoin="round" d="M12 5v14M5 12h14" />
+</svg>
+{#is 'shuffle'}
+<svg {#if cls}class="{cls}" {/if}aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M16 3h5v5" /><path d="M4 20 21 3" /><path d="M21 16v5h-5" /><path d="m15 15 6 6" /><path d="M4 4l5 5" />
 </svg>
 {#is 'question-circle'}
 <svg {#if cls}class="{cls}" {/if}aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">

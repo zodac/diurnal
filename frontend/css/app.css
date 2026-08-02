@@ -733,6 +733,18 @@
         .dt-cell { padding: .75rem 1rem; color: var(--color-text); vertical-align: middle; }
         .dt-cell-muted { color: var(--color-text-muted); white-space: nowrap; }
         .dt-cell-actions { width: 1%; white-space: nowrap; }
+        /* The Actions table's leading colour cell, holding the swatch/picker AND the randomise button.
+           `nowrap` is load-bearing, not cosmetic: the table uses auto layout inside an overflow-x-auto
+           wrap, so on a narrow viewport the browser squeezes this column below the width of its own
+           content - and the button then wraps onto a SECOND LINE, making every row ~20px taller. With
+           nowrap the pair is unbreakable, so the column can never be squeezed below them: the name
+           column gives up the space instead, and the row keeps its single-line height. */
+        .dt-cell-colour { white-space: nowrap; }
+        /* The cell's own content: one centred flex line, so the swatch/picker and the button share an
+           axis with each other and with the row (see the note in action-row.html - baseline-aligned
+           inline boxes sit high, `vertical-align: middle` sits low). The gap replaces a margin on the
+           button so the spacing survives either control being hidden. */
+        .dt-colour-controls { display: flex; align-items: center; gap: .375rem; }
 
         /* Trailing action buttons. Each label sits in a fixed-width, centred slot, so swapping
            Edit↔Save and Delete↔Cancel (and the confirm row's Delete/Cancel) keeps every word in
@@ -884,8 +896,32 @@
         .dt-text-input { font-size: .875rem; border: 1px solid var(--color-input-border); border-radius: .5rem;
             padding: .25rem .5rem; background: var(--color-input-bg); color: var(--color-text); }
         .dt-text-input:focus { outline: none; box-shadow: 0 0 0 2px var(--color-brand-ring); border-color: transparent; }
+        /* A cell whose read state is plain text and whose edit state is a .dt-text-input has to inset
+           the TEXT by that input's own border + padding, or the words jump 9px right the moment the row
+           enters edit. Applied to the read text AND to the column's header, so the header, the read
+           value and the edited value all share one left edge. Keep in step with .dt-text-input above. */
+        .dt-text-inset { padding-left: calc(.5rem + 1px); }
+        /* On a header the inset ADDS to the cell's own padding (which the rule above would otherwise
+           replace outright), so the heading lands on the same left edge as the values beneath it. */
+        .dt-head-cell.dt-text-inset { padding-left: calc(1rem + .5rem + 1px); }
         .dt-color-input { width: 1rem; height: 1rem; border-radius: 9999px; border: 0; padding: 0;
             background: transparent; cursor: pointer; flex-shrink: 0; }
+        /* Compact icon control sitting beside an edit-row input (the randomise-colour button next to
+           .dt-color-input): sized to the row's own density rather than the page's, muted at rest and
+           brand on hover like the .dt-btn text actions. The glyph is sized here, so its call site
+           passes no class of its own. */
+        .dt-icon-btn { display: inline-flex; align-items: center; justify-content: center; width: 1rem;
+            height: 1rem; border: 0; padding: 0; background: none; color: var(--color-text-faint); }
+        .dt-icon-btn:hover { color: var(--color-brand); }
+        .dt-icon-btn:disabled { opacity: .5; cursor: not-allowed; }
+        .dt-icon-btn svg { width: .875rem; height: .875rem; }
+        /* The randomise button holds its slot in the view state and only becomes VISIBLE in edit,
+           rather than being displayed/hidden like the other [data-dt-edit] controls: the colour cell
+           then measures the same either way, so entering edit can never widen the column and push the
+           name along with it. `visibility` (not opacity) also keeps the hidden button out of the tab
+           order and unclickable. */
+        .dt-random-slot { visibility: hidden; }
+        .dt-row-edit .dt-random-slot { visibility: visible; }
         /* Native colour inputs render a rectangular inner swatch; round it so the picker stays a
            circle (matching the read-mode .swatch) instead of flipping to a box in edit mode. */
         input[type="color"]::-webkit-color-swatch-wrapper { padding: 0; }

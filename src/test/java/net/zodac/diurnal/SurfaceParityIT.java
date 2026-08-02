@@ -43,6 +43,8 @@ class SurfaceParityIT extends IntegrationTestBase {
 
     static final String PRIMARY = "parity-it@lt.test";
 
+    static final int SUGGESTION_DRAWS = 10;
+
     static final LocalDate TODAY    = FIXED_TODAY;
     static final LocalDate TOMORROW = FIXED_TODAY.plusDays(1);
 
@@ -88,6 +90,30 @@ class SurfaceParityIT extends IntegrationTestBase {
 
         runInTx(() -> assertThat(Action.count("userId = ?1 and name = ?2", primaryId, "Running"))
             .as("a duplicate name must be rejected by BOTH surfaces, leaving the single original")
+            .isEqualTo(1));
+    }
+
+    @Test
+    void randomColour_bothSurfacesAvoidTheColoursInUse_andPersistNothing() {
+        // The suggestion is random, so parity is asserted over what BOTH surfaces must never do: offer a colour the user already has, or
+        // write anything at all. The seeded action's colour is itself taken from a suggestion, so it is guaranteed to be one of the
+        // candidates the next call would otherwise draw.
+        final String taken = given().get("/api/v1/actions/random-colour")
+            .then().statusCode(200)
+            .extract().path("colour");
+        runInTx(() -> Action.<Action>findById(action.id).colour = taken);
+
+        for (int i = 0; i < SUGGESTION_DRAWS; i++) {
+            assertThat(given().get("/api/v1/actions/random-colour").then().statusCode(200).extract().path("colour").toString())
+                .as("the API must not suggest a colour already in use")
+                .isNotEqualTo(taken);
+            assertThat(given().get("/internal/actions/random-colour").then().statusCode(200).extract().path("colour").toString())
+                .as("the web surface must not suggest a colour already in use")
+                .isNotEqualTo(taken);
+        }
+
+        runInTx(() -> assertThat(Action.count("userId = ?1", primaryId))
+            .as("suggesting a colour must persist nothing on either surface")
             .isEqualTo(1));
     }
 
