@@ -36,6 +36,10 @@ tests/test-results/
 # own cleanup trap; ignored as a safety net if a run is killed before that trap fires.
 tests/.perf-state.*
 
+# E2E suite (tests/run-e2e.sh) app-JVM PID file — removed by the script's own cleanup trap; it exists
+# only so a later run can reap the JVM of a run that was killed outright, before that trap could fire.
+tests/.e2e-app.pid
+
 # Per-user Claude Code state (the checked-in .claude docs are CLAUDE.md, APIS.md, CODE_STYLE.md, UI_PATTERNS.md)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock

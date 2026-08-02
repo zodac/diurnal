@@ -17,20 +17,23 @@
 
 package net.zodac.diurnal.user;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.jspecify.annotations.Nullable;
 
 /**
- * API view of a {@link User} exposing only non-sensitive identity, role and preference fields.
+ * API view of a {@link User} exposing only non-sensitive identity, role, last-login and preference fields.
  */
-@Schema(description = "Public view of a user account: identity, role and display/behaviour preferences.")
+@Schema(description = "Public view of a user account: identity, role, last sign-in and display/behaviour preferences.")
 public record UserDto(
     @Schema(examples = "3fa85f64-5717-4562-b3fc-2c963f66afa6", description = "Unique identifier for the user.") UUID id,
     @Schema(examples = "ada@example.com", description = "Email address of the user.") String email,
     @Schema(examples = "Ada Lovelace", description = "Human-readable name shown in the UI.") String displayName,
     @Schema(examples = Role.Values.USER, description = "The user's role, e.g. 'user' or 'admin'.") String role,
+    @Schema(examples = "2026-08-02T09:14:00Z", description = "When the user last signed in, or null if they never have.")
+    @Nullable Instant lastLoginAt,
     @Schema(description = "The user's display and behaviour preferences.") Preferences preferences) {
 
     /**
@@ -73,6 +76,7 @@ public record UserDto(
                 user.email,
                 user.displayName,
                 user.role,
+                user.lastLoginAt,
             new Preferences(
                         user.theme,
                         user.font,

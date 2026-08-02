@@ -371,6 +371,8 @@ Each user can customise Diurnal from the **Settings** page (top-right menu).
 - **Display name**: The name shown in the app
 - **Password**: Change your password, if enabled. Changing it signs out every *other* device.
 - **Identity provider**: Shown when [OIDC](#oidc) is configured. Links to the IdP or allows a user to connect a password-only account
+- **Last login**: When this account last *signed in* (not when it was last used), as an age plus the timestamp in your own timezone. With the
+  [session lifetimes](#sessions) it can sit weeks in the past — an unexpectedly recent sign-in is worth a second look
 - **Sessions**: **Log out everywhere** revokes every session forcing a fresh sign-in on all devices (includes the current device)
 
 ### Preferences

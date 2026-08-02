@@ -273,24 +273,22 @@
                         </div>
                         {/if}
 
-                        {! Live "recently active" readout for the signed-in user - the same presence signal
-                             the admin page shows, anchored to the user's last request. Rendering this page is
-                             itself a request, so on load it reads active and the counter ticks up from
-                             data-elapsed-seconds (see startActivityCounters in app.js), flipping to grey once
-                             it crosses the active window. When inactive, no time is shown. !}
+                        {! When this account last SIGNED IN - not when it last made a request (which is now, by
+                             definition, since rendering this page is one). lastLoginAt is stamped once per
+                             sign-in, so with a 30-day idle / 90-day absolute session lifetime this can sit weeks
+                             in the past, which is exactly the useful part: it says how long the current run of
+                             "stayed signed in" has lasted, and makes an unexpected recent sign-in visible. The
+                             age leads; the absolute timestamp follows in the user's own timezone. Plain text, no
+                             tooltip - the two readings are the whole content of the field. !}
                         <div>
-                            <label class="field-label-caps">Session</label>
-                            {#if recentlyActive}
-                            <div class="settings-field flex items-center gap-2" data-elapsed-seconds="{secondsSinceLastRequest}">
-                                <span class="presence-dot presence-dot-active shrink-0" aria-hidden="true"></span>
-                                <p class="text-sm text-ink"><span data-activity-label>Active - last seen <span data-activity-clock>0:00</span> ago</span></p>
+                            <label class="field-label-caps">Last Login</label>
+                            <div class="settings-field">
+                                {#if hasLastLogin}
+                                <p class="text-sm text-ink">{lastLoginAgo}<span class="text-ink-muted"> - {lastLoginLabel}</span></p>
+                                {#else}
+                                <p class="text-sm text-ink-muted">Never</p>
+                                {/if}
                             </div>
-                            {#else}
-                            <div class="settings-field flex items-center gap-2">
-                                <span class="presence-dot presence-dot-idle shrink-0" aria-hidden="true"></span>
-                                <p class="text-sm text-ink-muted">Inactive</p>
-                            </div>
-                            {/if}
                         </div>
 
                         {! Log out from everywhere: revokes ALL of this user's sessions (this device

@@ -6,9 +6,10 @@
 # build itself (the `mvn` gate is unit + ITs + linters); the java step chains it on afterwards.
 #
 # It is fully self-contained: it brings up its own test DB, starts the packaged fast-jar, polls /login
-# until ready (max ~120s), then runs the Playwright suite. An EXIT trap always tears the jar and test
-# DB down — on success OR failure — and the script exits with Playwright's own exit code, so a failing
-# E2E run fails the java step.
+# until ready (max ~120s), then runs the Playwright suite. Traps tear the jar and test DB down on
+# success, on failure AND on interruption, and the script exits with Playwright's own exit code, so a
+# failing E2E run fails the java step. A run killed outright (SIGKILL) can still leak the JVM, so the
+# script also sweeps a previous run's leftovers on the way IN — see the pre-flight block below.
 #
 # Args (passed positionally by the java step):
 #   $1  HTTP port for the app + E2E base URL
@@ -34,11 +35,46 @@ cd "${BASEDIR}"
 COMPOSE_FILE="docker-compose.dev.yml"
 APP_PID=""
 
+# Records the running jar's PID so a LATER run can reap it if this one is killed outright (SIGKILL, a
+# crashed shell, a lost session) and no trap gets to fire. Deliberately not under target/: the java step
+# runs `mvn clean` before this script, which would delete the very evidence the sweep below needs.
+PID_FILE="${BASEDIR}/tests/.e2e-app.pid"
+
 cleanup() {
   if [[ -n "${APP_PID}" ]]; then kill -9 "${APP_PID}" 2>/dev/null || true; fi
+  rm -f "${PID_FILE}"
   docker compose -f "${COMPOSE_FILE}" rm -sf diurnal-db-dev >/dev/null 2>&1 || true
 }
+# EXIT alone is not enough: a SIGINT (Ctrl-C), a SIGTERM (CI cancelling the job, or the java step's own
+# stop_tier signalling this tier because a sibling failed first) or a SIGHUP would skip an EXIT-only trap
+# and leak the app JVM on ${PORT} plus the test DB. Trap the signals to a plain `exit`, which then fires
+# the EXIT trap exactly once - so cleanup runs on success, on failure, AND on interruption.
 trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+# Pre-flight sweep: reap the app JVM left behind by a previous run that was killed outright (where no
+# trap could fire). Without this it still holds ${PORT}, and the readiness poll below would then bind to
+# THAT stale app - silently running the whole suite against the previous build.
+if [[ -f "${PID_FILE}" ]]; then
+  stale_pid="$(cat "${PID_FILE}" 2>/dev/null || true)"
+  if [[ -n "${stale_pid}" ]] && kill -0 "${stale_pid}" 2>/dev/null; then
+    echo "Reaping the app JVM left behind by a previous run (PID ${stale_pid})"
+    kill -9 "${stale_pid}" 2>/dev/null || true
+  fi
+  rm -f "${PID_FILE}"
+fi
+
+# Anything still answering on ${PORT} is NOT ours (the sweep above cleared our own leftovers) - most
+# likely a dev instance (scripts/dev-up.sh also uses 8081). Refuse rather than test an unknown app: the
+# readiness poll cannot tell the difference, so the suite would otherwise pass or fail against whatever
+# happens to be listening.
+if curl -sf "http://127.0.0.1:${PORT}/login" >/dev/null 2>&1; then
+  echo "Port ${PORT} is already serving an app that this script did not start (a dev instance?)."
+  echo "Stop it, or re-run the java step with E2E_HTTP_PORT set to a free port."
+  exit 1
+fi
 
 # Make sure the browser build this @playwright/test version wants is actually cached, BEFORE spinning
 # anything up (a cold download must not hold the DB and app JVM open while it runs). Playwright pins its
@@ -59,6 +95,7 @@ java -Dquarkus.profile=test -Dquarkus.http.port="${PORT}" \
   -Dpassword.auth.enabled=true -Dregistration.enabled=true \
   -jar "${TARGET_DIR}/quarkus-app/quarkus-run.jar" >"${TARGET_DIR}/app.log" 2>&1 &
 APP_PID=$!
+echo "${APP_PID}" > "${PID_FILE}"
 
 READY=0
 for _ in $(seq 1 60); do
