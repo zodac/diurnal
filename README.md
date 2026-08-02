@@ -377,7 +377,8 @@ Each user can customise Diurnal from the **Settings** page (top-right menu).
 
 - **Timezone**: The timezone used to decide what "today" is, so day boundaries line up with a user's local time
 - **Statistics summary**: Whether to show the selected day's top actions on the dashboard
-- **Decimal places**: How many decimals to show on computed stats (`0`-`5`, default `1`)
+- **Decimal places**: Precision of the averages and abbreviated totals shown on the Statistics page and dashboard summary (`0`, `1` or `2`, default
+  `1`)
 - **Items per page**: Page size for lists, like actions, day panel, stats, etc. (`1`-`100`, default `5`)
 
 ### Statistics

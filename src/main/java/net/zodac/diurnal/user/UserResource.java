@@ -318,7 +318,7 @@ public class UserResource {
         @Nullable String timezone,
         @Schema(examples = "25", description = "Number of rows displayed per page in list views (1-100); rejected when out of range.")
         @Nullable Integer pageSize,
-        @Schema(examples = "1", description = "Number of decimal places used to render fractional stats (0-5); rejected when out of range.")
+        @Schema(examples = "1", description = "Number of decimal places used to render fractional stats (0-2); rejected when out of range.")
         @Nullable Integer decimalPlaces,
         @Schema(examples = "true", description = "Whether the dashboard renders the per-action stats-summary strip.")
         @Nullable Boolean showStatsSummary,

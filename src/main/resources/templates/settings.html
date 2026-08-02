@@ -368,16 +368,18 @@
                     </div>
 
                     {! Decimal places + Items per page: the shared numeric-preference row (preset
-                         pills + −/+ stepper writing one auto-saving number field — see
-                         partials/num-pref-row.html). Both surfaces are wired by the shared
-                         wireNumericPref() helper in settings.js. !}
+                         pills, optionally with a −/+ stepper, writing one auto-saving number field —
+                         see partials/num-pref-row.html). Both surfaces are wired by the shared
+                         wireNumericPref() helper in settings.js. Decimal places offers no stepper:
+                         its three pills already span the whole accepted range. !}
                     {#include partials/num-pref-row rowId='decimal-places-row' id='decimalPlaces' label='Decimal places'
-                        endpoint='/internal/settings' min=0 max=5 value=decimalPlaces options=decimalPlacesOptions
-                        minusLabel='Fewer decimal places' plusLabel='More decimal places' border=true /}
+                        help='Precision of the values shown for statistics.'
+                        endpoint='/internal/settings' min=0 max=2 value=decimalPlaces options=decimalPlacesOptions
+                        stepper=false minusLabel='' plusLabel='' border=true /}
 
-                    {#include partials/num-pref-row rowId='page-size-row' id='pageSize' label='Items per page'
+                    {#include partials/num-pref-row rowId='page-size-row' id='pageSize' label='Items per page' help=''
                         endpoint='/internal/settings' min=1 max=100 value=pageSize options=pageSizeOptions
-                        minusLabel='Fewer items per page' plusLabel='More items per page' border=false /}
+                        stepper=true minusLabel='Fewer items per page' plusLabel='More items per page' border=false /}
                 </div>
 
                 {! Action stats. A drag-orderable list choosing WHICH per-action stats show on the

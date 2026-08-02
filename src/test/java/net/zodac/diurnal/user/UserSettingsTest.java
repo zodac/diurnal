@@ -108,10 +108,10 @@ class UserSettingsTest {
             .contains(UserSettings.DEFAULT_PAGE_SIZE);
     }
 
-    // ── Valid decimal places (any whole number in [0, 5] is accepted, presets and custom alike) ──
+    // ── Valid decimal places (the offered 0/1/2 and nothing else) ──
 
     @ParameterizedTest
-    @ValueSource(ints = {0, 1, 2, 3, 4, 5})
+    @ValueSource(ints = {0, 1, 2})
     void isValidDecimalPlaces_inRange_returnsTrue(final int places) {
         assertThat(UserSettings.isValidDecimalPlaces(places))
             .as("expected value to be accepted")
@@ -119,7 +119,7 @@ class UserSettingsTest {
     }
 
     @ParameterizedTest
-    @ValueSource(ints = {-1, 6, 10, 100, -100, Integer.MAX_VALUE, Integer.MIN_VALUE})
+    @ValueSource(ints = {-1, 3, 6, 10, 100, -100, Integer.MAX_VALUE, Integer.MIN_VALUE})
     void isValidDecimalPlaces_outOfRange_returnsFalse(final int places) {
         assertThat(UserSettings.isValidDecimalPlaces(places))
             .as("expected value to be rejected")
@@ -129,7 +129,7 @@ class UserSettingsTest {
     // ── parseDecimalPlaces: accepts an in-range whole number, rejects everything else with null ──
 
     @ParameterizedTest
-    @ValueSource(strings = {"0", "1", "3", "5", " 2 ", "04"})
+    @ValueSource(strings = {"0", "1", "2", " 2 ", "01"})
     void parseDecimalPlaces_validValues_returnParsedInt(final String raw) {
         assertThat(UserSettings.parseDecimalPlaces(raw))
             .as("unexpected value")
@@ -137,7 +137,7 @@ class UserSettingsTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"-1", "6", "9", "100", "1.5", "abc", "", "   ", "2px", "0x10"})
+    @ValueSource(strings = {"-1", "3", "5", "9", "100", "1.5", "abc", "", "   ", "2px", "0x10"})
     void parseDecimalPlaces_invalidValues_returnNull(final String raw) {
         assertThat(UserSettings.parseDecimalPlaces(raw))
             .as("expected an invalid decimal-place count to be rejected")
@@ -156,7 +156,7 @@ class UserSettingsTest {
         assertThat(UserSettings.DECIMAL_PLACES_RANGE_MESSAGE)
             .as("the rejection message should state the accepted range")
             .contains("0")
-            .contains("5");
+            .contains("2");
     }
 
     @Test
@@ -178,6 +178,14 @@ class UserSettingsTest {
         assertThat(UserSettings.DECIMAL_PLACES_OPTIONS)
             .as("options must include the default decimal-place count")
             .contains(UserSettings.DEFAULT_DECIMAL_PLACES);
+    }
+
+    @Test
+    void decimalPlacesOptions_spanTheWholeAcceptedRange() {
+        assertThat(UserSettings.DECIMAL_PLACES_OPTIONS)
+            .as("the offered options are the complete choice, so they must cover every accepted value")
+            .containsExactly(0, 1, 2)
+            .allMatch(UserSettings::isValidDecimalPlaces);
     }
 
     // ── Timezone validation ──────────────────────────────────────────────────

@@ -164,40 +164,24 @@ test.describe("Settings page", () => {
         await expect(page.locator("#decimalPlaces")).toHaveValue("2")
     })
 
-    test("decimal places offers preset pills for the standard options", async ({ authenticatedPage: page }) => {
+    test("decimal places offers a preset pill for every accepted value", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
         const values = await page.locator("#decimalPlacesPresets .num-pref-pill").evaluateAll(pills =>
             pills.map(p => (p as HTMLElement).dataset.value))
         expect(values).toEqual(["0", "1", "2"])
     })
 
-    test("entering an invalid decimal-place count is rejected, shows an error, and keeps the previous value", async ({ authenticatedPage: page }) => {
+    test("decimal places has no stepper: the pills are the only input", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
-        // Establish a known-good value first (2 via its preset pill).
-        await establishNumericPref(page, "decimalPlacesPresets", "decimalPlaces", "2")
+        const row = page.locator("#decimal-places-row")
 
-        // The Preferences card's status indicator (shared with the "Saved" flash).
-        const indicator = page.locator(".card", { has: page.locator("#decimal-places-row") }).locator("[data-saved]")
-        const field = page.locator("#decimalPlaces")
+        // No fine-tune stepper, and the field itself is hidden, so 0/1/2 cannot be escaped from the UI
+        // (the server rejects anything else regardless - see SettingsIT).
+        await expect(row.locator(".num-pref-stepper")).toHaveCount(0)
+        await expect(page.locator("#decimalPlaces")).toHaveAttribute("type", "hidden")
 
-        // Type an out-of-range value and commit it (blur fires the change → save).
-        await field.fill("9")
-        await Promise.all([
-            page.waitForResponse(r =>
-                r.url().includes("/internal/settings")
-                && r.request().method() === "PATCH"
-                && r.status() === 422),
-            field.blur(),
-        ])
-
-        // The error is shown in red and states the valid range; the field reverts to the last good value.
-        await expect(indicator).toHaveClass(/text-danger/)
-        await expect(indicator).toContainText(/between 0 and 5/)
-        await expect(field).toHaveValue("2")
-
-        // And the rejected value was never persisted.
-        await page.goto("/settings")
-        await expect(page.locator("#decimalPlaces")).toHaveValue("2")
+        // The row explains where the preference is applied.
+        await expect(row.locator(".help-text")).toContainText("Statistics")
     })
 
     test("entering an invalid page size is rejected, shows an error, and keeps the previous value", async ({ authenticatedPage: page }) => {

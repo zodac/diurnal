@@ -510,6 +510,11 @@ class SettingsIT extends IntegrationTestBase {
     void updateDecimalPlaces_outOfRange_rejectedAndValueUnchanged() {
         given().formParam("decimalPlaces", "2").patch("/internal/settings");
 
+        // 3 is one past the maximum: the accepted set is exactly the 0/1/2 offered by the Settings pills.
+        given().formParam("decimalPlaces", "3")
+                .patch("/internal/settings")
+                .then().statusCode(422);
+
         given().formParam("decimalPlaces", "9")
                 .patch("/internal/settings")
                 .then().statusCode(422);

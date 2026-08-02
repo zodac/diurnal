@@ -78,7 +78,7 @@ class UserResourceIT extends IntegrationTestBase {
             u.font = "standard";
             u.pageSize = 50;
             u.showStatsSummary = false;
-            u.decimalPlaces = 3;
+            u.decimalPlaces = 2;
             u.calendarView = "minimal";
             u.timezone = "Europe/London";
             u.persist();
@@ -97,7 +97,7 @@ class UserResourceIT extends IntegrationTestBase {
                 .body("preferences.font", equalTo("standard"))
                 .body("preferences.pageSize", equalTo(50))
                 .body("preferences.showStatsSummary", equalTo(false))
-                .body("preferences.decimalPlaces", equalTo(3))
+                .body("preferences.decimalPlaces", equalTo(2))
                 .body("preferences.calendarView", equalTo("minimal"))
                 .body("preferences.timezone", equalTo("Europe/London"));
     }

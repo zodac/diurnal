@@ -52,9 +52,10 @@ public record UserSettings(String theme, int pageSize) {
     // Number of decimal places used to render fractional stats (e.g. the weekly average).
     public static final int DEFAULT_DECIMAL_PLACES = 1;
     public static final int MIN_DECIMAL_PLACES = 0;
-    public static final int MAX_DECIMAL_PLACES = 5;
-    // Presets offered in the picker; a user may also enter any value in
-    // [MIN_DECIMAL_PLACES, MAX_DECIMAL_PLACES].
+    public static final int MAX_DECIMAL_PLACES = 2;
+    // The complete set of choices, spanning [MIN_DECIMAL_PLACES, MAX_DECIMAL_PLACES]: more than two
+    // decimals is noise on a stat averaged over days, so the Settings row offers these as pills only
+    // (no stepper, no free entry) and anything else is rejected.
     public static final List<Integer> DECIMAL_PLACES_OPTIONS = List.of(0, 1, 2);
     // User-facing rejection message when an out-of-range or non-numeric decimal-place count is submitted.
     public static final String DECIMAL_PLACES_RANGE_MESSAGE =
