@@ -476,15 +476,19 @@ document.addEventListener('keydown', function (e) {
 })
 
 // Numeric preference control (Items-per-page, Decimal places): preset pills (coarse,
-// one-click) + a −/+ stepper (fine, ±1) both drive one hidden number field. Every
-// interaction saves instantly via the field's custom `save` event — no blur-to-commit, no
-// Save button.
+// one-click) and — where the presets do not span the whole range — a −/+ stepper (fine, ±1),
+// both driving one number field. Every interaction saves instantly via the field's custom
+// `save` event — no blur-to-commit, no Save button.
 //
 // The pills and ± stepper are bounded controls: they can only ever produce a value in
 // [min, max], so they always succeed. Direct typing, however, can be invalid (out of range
 // or non-numeric): that raw value is sent as-is and the server REJECTS it (422). On
 // rejection the field is reverted to the last accepted value and the card shows the error in
 // red (the shared prefs handler above); it is never silently coerced.
+//
+// Decimal places has no stepper (its pills are the whole range), so `minus`/`plus` resolve to
+// null there and the stepper wiring is skipped; its hidden field cannot be typed into either,
+// leaving the pills as the only input.
 function wireNumericPref(opts) {
     const field   = document.getElementById(opts.field)
     const minus   = document.getElementById(opts.minus)
@@ -523,8 +527,8 @@ function wireNumericPref(opts) {
         htmx.trigger(field, 'save')
     }
 
-    minus.addEventListener('click', function () { setValid(parseInt(field.value, 10) - 1) })
-    plus.addEventListener('click',  function () { setValid(parseInt(field.value, 10) + 1) })
+    if (minus) { minus.addEventListener('click', function () { setValid(parseInt(field.value, 10) - 1) }) }
+    if (plus)  { plus.addEventListener('click',  function () { setValid(parseInt(field.value, 10) + 1) }) }
     presets.addEventListener('click', function (e) {
         const pill = e.target.closest('.num-pref-pill')
         if (pill) { setValid(parseInt(pill.dataset.value, 10)) }
@@ -552,8 +556,7 @@ function wireNumericPref(opts) {
 
 wireNumericPref({ field: 'pageSize', minus: 'pageSizeMinus', plus: 'pageSizePlus',
                   presets: 'pageSizePresets', min: 1, max: 100 })
-wireNumericPref({ field: 'decimalPlaces', minus: 'decimalPlacesMinus', plus: 'decimalPlacesPlus',
-                  presets: 'decimalPlacesPresets', min: 0, max: 5 })
+wireNumericPref({ field: 'decimalPlaces', presets: 'decimalPlacesPresets', min: 0, max: 2 })
 
 // Assign src from data-src for all preview thumbnails so fetches are deferred until
 // after the page renders. decode() is called so the lightbox open is flash-free.

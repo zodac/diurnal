@@ -1,20 +1,28 @@
 {!
-  Numeric preference row (Settings → Preferences): a label, preset quick-pick pills (the primary
-  one-click selection) and a −/+ fine-tune stepper, all writing the same number field, which
-  auto-saves via its custom `save` event (fired by wireNumericPref in settings.js — the `save`
-  event, not `change`, carries the PATCH so the field's own change handler can normalise + re-fire
-  without recursing). The pill/stepper element ids derive from `id` ({id}Presets / {id}Minus /
+  Numeric preference row (Settings → Preferences): a label, an optional help line, preset quick-pick
+  pills (the primary one-click selection) and an optional −/+ fine-tune stepper, all writing the same
+  number field, which auto-saves via its custom `save` event (fired by wireNumericPref in settings.js —
+  the `save` event, not `change`, carries the PATCH so the field's own change handler can normalise +
+  re-fire without recursing). The pill/stepper element ids derive from `id` ({id}Presets / {id}Minus /
   {id}Plus), matching the wireNumericPref(...) wiring.
+
+  A row whose presets already cover the whole accepted range (Decimal places: 0/1/2) passes
+  stepper=false: the pills ARE the complete choice, so a fine-tune stepper (and the free typing that
+  comes with it) could only produce a value the server would reject. The field then still exists —
+  hidden — because it is what carries the id, the form field name and the hx-patch.
+
   Params (all required):
     rowId      — id of the row wrapper
     id         — the number field's id AND form field name (the PATCH endpoint reads this @FormParam)
     label      — the visible field label (also the field's aria-label)
+    help       — a help line under the label, or "" for none
     endpoint   — the hx-patch URL
-    min / max  — the field's bounds (the server still validates authoritatively)
+    min / max  — the field's bounds (the server still validates authoritatively); unused when stepper=false
     value      — the current value
     options    — the preset values, rendered as pills in order
-    minusLabel — aria-label for the − stepper button
-    plusLabel  — aria-label for the + stepper button
+    stepper    — true to render the −/+ fine-tune stepper, false for pills only
+    minusLabel — aria-label for the − stepper button (unused when stepper=false)
+    plusLabel  — aria-label for the + stepper button (unused when stepper=false)
     border     — true to add a bottom divider (between rows), false on the last row
 !}
 <div id="{rowId}" class="py-4{#if border} border-b border-line{/if}">
@@ -28,6 +36,10 @@
             {/for}
         </div>
     </div>
+    {! The help line gets the full row width of its own, rather than sharing the label's column: beside
+         the pills it would compete with them for space and push the last pill onto a second line. !}
+    {#if help}<p class="help-text mt-1">{help}</p>{/if}
+    {#if stepper}
     {! Custom fine-tune stepper, right-aligned on its own row under the presets. !}
     <div class="mt-3 flex justify-end">
         <div class="num-pref-stepper shrink-0">
@@ -42,4 +54,8 @@
             </button>
         </div>
     </div>
+    {#else}
+    <input type="hidden" id="{id}" name="{id}" value="{value}"
+           hx-patch="{endpoint}" hx-trigger="save" hx-swap="none">
+    {/if}
 </div>
