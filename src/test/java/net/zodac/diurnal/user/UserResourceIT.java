@@ -22,10 +22,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.Header;
 import jakarta.inject.Inject;
+import java.time.Instant;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.auth.Session;
 import net.zodac.diurnal.auth.SessionStore;
@@ -35,6 +37,8 @@ import org.junit.jupiter.api.Test;
 @QuarkusTest
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class UserResourceIT extends IntegrationTestBase {
+
+    private static final Instant LAST_LOGIN = Instant.parse("2026-06-15T09:14:00Z");
 
     @Inject
     SessionStore sessionStore;
@@ -58,6 +62,8 @@ class UserResourceIT extends IntegrationTestBase {
                 .body("email", equalTo("me-api@lt.test"))
                 .body("displayName", equalTo("Me User"))
                 .body("role", equalTo("user"))
+                // A seeded user has never signed in, so the last-login timestamp is absent rather than faked.
+                .body("lastLoginAt", nullValue())
                 // Preferences are nested and reflect the new user's entity defaults.
                 .body("preferences.theme", equalTo("system"))
                 .body("preferences.font", equalTo("nova"))
@@ -81,6 +87,7 @@ class UserResourceIT extends IntegrationTestBase {
             u.decimalPlaces = 2;
             u.calendarView = "minimal";
             u.timezone = "Europe/London";
+            u.lastLoginAt = LAST_LOGIN;
             u.persist();
             holder[0] = u;
         });
@@ -93,6 +100,8 @@ class UserResourceIT extends IntegrationTestBase {
                 .get("/api/v1/users/me")
                 .then().statusCode(200)
                 .body("role", equalTo("admin"))
+                // Stamped once per sign-in, and surfaced verbatim (the Settings page words the same value as an age).
+                .body("lastLoginAt", startsWith("2026-06-15T09:14:00"))
                 .body("preferences.theme", equalTo("dark"))
                 .body("preferences.font", equalTo("standard"))
                 .body("preferences.pageSize", equalTo(50))

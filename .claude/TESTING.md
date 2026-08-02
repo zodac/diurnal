@@ -16,6 +16,14 @@ login does not trigger a re-hash).
 `freezeDate(LocalDate)` or `freezeInstant(Instant, ZoneId)` for boundary cases. Unit tests pass a fixed `today` directly. Surefire/failsafe pin
 `-Duser.timezone=UTC`. E2E specs use UTC date APIs (`setUTCDate`/`getUTCDate`/`toISOString`) and `timezoneId: 'UTC'` in Playwright.
 
+**Tier hygiene (`run-e2e.sh` / `run-smoke.sh` / `run-perf.sh`):** each runner owns its own resources and cleans up in BOTH directions. On the way out,
+an `EXIT` + `INT`/`TERM`/`HUP` trap tears the stack down on success, on failure and on interruption (the signal traps matter: the `java` step signals a
+tier when a sibling fails first, and an `EXIT`-only trap would be skipped). On the way IN, each runner also sweeps what a run killed *outright* left
+behind — where no trap can fire: the E2E runner reaps the app JVM recorded in `tests/.e2e-app.pid` (gitignored, deliberately not under `target/`, which
+`mvn clean` wipes before the tier starts), smoke and perf remove any container still labelled with their compose project, and perf drops stale
+`.perf-state.*` scratch dirs. The E2E runner then **refuses to run** if its port is still served by something it did not start (typically a
+`quarkus:dev` instance, which also uses 8081) rather than silently testing an unknown app — override with `E2E_HTTP_PORT`.
+
 ### Deployment-smoke tier (`tests/smoke/`)
 
 The test pyramid has a fourth tier on top of unit / `*IT` / E2E: **deployment-smoke**, the only tier that runs the **actual production Docker image

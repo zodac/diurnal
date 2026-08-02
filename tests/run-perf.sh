@@ -74,14 +74,18 @@ STATE_DIR="$(mktemp -d "${BASEDIR}/tests/.perf-state.XXXXXX")"
 chmod 777 "${STATE_DIR}"
 STATE_FILE="${STATE_DIR}/perf-state.json"
 
-cleanup() {
-  # Best-effort + idempotent (mirrors run-smoke.sh): `down -v` removes the tracked stack, the
-  # label-based sweep reaps anything an interrupted `up` left half-created, and the scratch dir goes
-  # last. All quiet so they never mask the real (k6) exit code.
+# Best-effort + idempotent (mirrors run-smoke.sh): `down -v` removes the tracked stack and the
+# label-based sweep reaps anything an interrupted `up` left half-created. Both quiet so they never mask
+# the real (k6) exit code.
+sweep_stack() {
   docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" down -v --remove-orphans --timeout 10 >/dev/null 2>&1 || true
   local leftovers
   leftovers="$(docker ps -aq --filter "label=com.docker.compose.project=${PROJECT}" 2>/dev/null || true)"
   [[ -n "${leftovers}" ]] && echo "${leftovers}" | xargs -r docker rm -f >/dev/null 2>&1 || true
+}
+
+cleanup() {
+  sweep_stack
   rm -rf "${STATE_DIR}" >/dev/null 2>&1 || true
 }
 # EXIT alone is not enough: a SIGINT/SIGTERM (Ctrl-C, or CI killing the child) would skip an EXIT-only
@@ -90,6 +94,17 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
+
+# Pre-flight sweep: the traps cover every exit this script can observe, but a run killed outright
+# (SIGKILL, a crashed shell) leaves its stack standing on port ${PORT} and its scratch dir behind. Clear
+# both on the way IN as well, so each run starts from a known-clean host. The scratch dir created above
+# is skipped - it belongs to THIS run.
+sweep_stack
+for stale_state in .perf-state.*; do
+  if [[ -d "${stale_state}" && "${BASEDIR}/tests/${stale_state}" != "${STATE_DIR}" ]]; then
+    rm -rf "${stale_state}" >/dev/null 2>&1 || true
+  fi
+done
 
 # ── 1. Cold-boot performance ────────────────────────────────────────────────────
 # Build the real image and bring the DB + app up WITHOUT --wait, so we can time the app's boot to

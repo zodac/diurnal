@@ -181,7 +181,7 @@ test.describe("Settings page", () => {
         await expect(page.locator("#decimalPlaces")).toHaveAttribute("type", "hidden")
 
         // The row explains where the preference is applied.
-        await expect(row.locator(".help-text")).toContainText("Statistics")
+        await expect(row.locator(".help-text")).toContainText("statistics")
     })
 
     test("entering an invalid page size is rejected, shows an error, and keeps the previous value", async ({ authenticatedPage: page }) => {

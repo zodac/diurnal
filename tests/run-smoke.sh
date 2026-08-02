@@ -41,15 +41,19 @@ cd "${BASEDIR}/tests"
 COMPOSE_FILE="docker-compose.smoke.yml"
 PROJECT="diurnal-smoke"
 
-cleanup() {
-  # Best-effort + idempotent. `down` removes the tracked stack (containers, network, volumes); the
-  # label-based sweep afterwards catches anything `down` missed — e.g. a container left half-created
-  # by an interrupted `up`, which `down` won't always reap. Both are quiet so they never mask the
-  # real (Playwright/Maven) exit code.
+# Best-effort + idempotent. `down` removes the tracked stack (containers, network, volumes); the
+# label-based sweep afterwards catches anything `down` missed — e.g. a container left half-created
+# by an interrupted `up`, which `down` won't always reap. Both are quiet so they never mask the
+# real (Playwright/Maven) exit code.
+sweep_stack() {
   docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" down -v --remove-orphans --timeout 10 >/dev/null 2>&1 || true
   local leftovers
   leftovers="$(docker ps -aq --filter "label=com.docker.compose.project=${PROJECT}" 2>/dev/null || true)"
   [[ -n "${leftovers}" ]] && echo "${leftovers}" | xargs -r docker rm -f >/dev/null 2>&1 || true
+}
+
+cleanup() {
+  sweep_stack
 }
 # EXIT alone is not enough: a SIGINT (Ctrl-C) or SIGTERM (Maven/CI killing the child when the build
 # fails) would skip an EXIT-only trap and leak the stack. Trap the signals to a plain `exit`, which
@@ -59,6 +63,12 @@ trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
+
+# Pre-flight sweep: the traps above cover every exit this script can observe, but a run killed outright
+# (SIGKILL, a crashed shell, a lost session) leaves its stack standing — holding port ${PORT} and, worse,
+# an old image's containers that a later `up` may reuse. Clearing it here, rather than only on the way
+# out, makes each run start from a known-clean host.
+sweep_stack
 
 # Ensure the browser build this @playwright/test version pins is cached before the stack goes up, so a
 # cold download does not hold the container stack open (and so a stale cache fails as one missing download
