@@ -73,6 +73,7 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
         "DELETE /api/v1/admin/ip-lockouts/{ip}",
         "GET /api/v1/actions",
         "POST /api/v1/actions",
+        "GET /api/v1/actions/random-colour",
         "GET /api/v1/actions/{id}",
         "PATCH /api/v1/actions/{id}",
         "DELETE /api/v1/actions/{id}",

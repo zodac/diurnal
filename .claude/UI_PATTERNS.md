@@ -23,7 +23,9 @@ single-use markup speculatively — note it as a candidate and extract on the se
 - Existing partials are the catalogue — reuse before writing new markup: `banner`, `form-field`,
   `select-field`, `search-input`, `tooltip`, `stat-tile`, `pagination`, `dt-row-actions`,
   `dt-confirm-delete-row`, `preview-option`/`preview-thumb`, `eye-icons`, `password-constraints`,
-  `nav-links`, `navbar`, `footer`, `calendar-toolbar`, `stats-chart`/`stats-chart-candidates`.
+  `nav-links`, `navbar`, `footer`, `calendar-toolbar`, `stats-chart`/`stats-chart-candidates`,
+  `colour-picker`/`random-colour-button` (the pair that make up a colour control - the new-action
+  card and an action row's edit state each include both).
 - A partial rendered BOTH inline and as a swap target is one partial, not two. `stats-chart-candidates`
   is embedded by `stats-chart` for its unfiltered first render and returned on its own by
   `/internal/stats/chart/{actionId}/candidates` as the search box filters, so the filtered and unfiltered

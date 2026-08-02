@@ -77,6 +77,20 @@ public class Action extends PanacheEntityBase {
     }
 
     /**
+     * Returns the distinct colours currently used by the user's actions, in no particular order. Used to suggest a new colour that is unlike any of
+     * them, so only the colour column is read (never the full entities).
+     *
+     * @param userId the owning user
+     * @return the user's distinct action colours
+     */
+    public static List<String> distinctColours(final UUID userId) {
+        return Panache.getEntityManager()
+            .createQuery("SELECT DISTINCT a.colour FROM Action a WHERE a.userId = :userId", String.class)
+            .setParameter("userId", userId)
+            .getResultList();
+    }
+
+    /**
      * Returns a cheap change-signature for the user's actions — the row count paired with the latest {@code updatedAt} — used as an HTTP
      * conditional-request (ETag) validator. Because the calendar feeds and day reads embed each action's name and colour, a rename, recolour,
      * creation or deletion must invalidate those cached responses; folding this signature into their ETag ensures it does.

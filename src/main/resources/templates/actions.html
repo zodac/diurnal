@@ -23,6 +23,8 @@
                   class="flex items-center gap-3">
                 {#include partials/colour-picker value='#64748b' wrapperCls='shrink-0'
                     inputCls='w-9 h-9 rounded-full border border-line cursor-pointer p-0.5 bg-surface' /}
+                {#include partials/random-colour-button wrapperCls='shrink-0' iconCls='w-4 h-4'
+                    btnCls='w-9 h-9 rounded-full border border-line bg-surface text-ink-muted hover:text-brand inline-flex items-center justify-center transition-colors' /}
                 <input type="text"
                        name="name"
                        placeholder="Action name"

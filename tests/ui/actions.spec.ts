@@ -43,6 +43,40 @@ test.describe("Actions page", () => {
         await expect(page.locator("#action-list")).toContainText("Running")
     })
 
+    test("randomise button fills the colour picker with a new colour", async ({ authenticatedPage: page }) => {
+        await page.goto("/actions")
+        const picker = page.locator('#new-action-form input[name="colour"]')
+        const before = await picker.inputValue()
+
+        await Promise.all([
+            page.waitForResponse(r => r.url().endsWith("/internal/actions/random-colour")),
+            page.locator("[data-random-colour]").click(),
+        ])
+
+        await expect(picker).not.toHaveValue(before)
+        expect(await picker.inputValue()).toMatch(/^#[0-9a-f]{6}$/)
+    })
+
+    test("randomised colour is used by the created action", async ({ authenticatedPage: page }) => {
+        const name = unique("Randomised")
+        await page.goto("/actions")
+        await page.waitForFunction(() => typeof (window as {htmx?: unknown}).htmx !== "undefined")
+        await Promise.all([
+            page.waitForResponse(r => r.url().endsWith("/internal/actions/random-colour")),
+            page.locator("[data-random-colour]").click(),
+        ])
+        const colour = await page.locator('#new-action-form input[name="colour"]').inputValue()
+
+        await page.fill('input[name="name"]', name)
+        await Promise.all([
+            page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
+        ])
+
+        await expect(page.locator("#action-list")).toContainText(name)
+        await expect(page.locator(`#action-list [id^="action-"] input[value="${colour}"]`).first()).toHaveCount(1)
+    })
+
     test("create action with duplicate name shows error", async ({ authenticatedPage: page }) => {
         const name = unique("Cycling")
         await page.goto("/actions")
@@ -90,6 +124,63 @@ test.describe("Actions page", () => {
 
         await expect(page.locator("#action-list")).toContainText("NewName")
         await expect(page.locator("#action-list")).not.toContainText("OldName")
+    })
+
+    test("edit action: the name column does not shift when the row enters edit state", async ({ authenticatedPage: page }) => {
+        const name = unique("Steady")
+        await page.goto("/actions")
+        await page.waitForFunction(() => typeof (window as {htmx?: unknown}).htmx !== "undefined")
+        await page.fill('input[name="name"]', name)
+        await Promise.all([
+            page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
+        ])
+
+        // The colour column is sized for its widest (edit) state, so revealing the picker and the
+        // randomise button must not push the name along.
+        const item = page.locator('#action-list [id^="action-"]').filter({ hasText: name })
+        const nameCell = item.locator("td").nth(1)
+        const readBox = await nameCell.boundingBox()
+        await item.hover()
+        await item.getByRole("button", { name: "Edit" }).click()
+        await expect(item.locator('input[name="name"]')).toBeVisible()
+        const editBox = await nameCell.boundingBox()
+
+        expect(readBox).not.toBeNull()
+        expect(editBox?.x).toBe(readBox?.x)
+    })
+
+    test("edit action: randomise button recolours the row", async ({ authenticatedPage: page }) => {
+        const name = unique("Recoloured")
+        await page.goto("/actions")
+        await page.waitForFunction(() => typeof (window as {htmx?: unknown}).htmx !== "undefined")
+        await page.fill('input[name="name"]', name)
+        await Promise.all([
+            page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
+        ])
+
+        const item = page.locator('#action-list [id^="action-"]').filter({ hasText: name })
+        const itemId = await item.getAttribute("id")
+        await item.hover()
+        await item.getByRole("button", { name: "Edit" }).click()
+        const editRow = page.locator(`#${itemId}`)
+        const picker = editRow.locator('input[name="colour"]')
+        const before = await picker.inputValue()
+
+        await Promise.all([
+            page.waitForResponse(r => r.url().endsWith("/internal/actions/random-colour")),
+            editRow.getByRole("button", { name: "Random colour" }).click(),
+        ])
+        const randomised = await picker.inputValue()
+        expect(randomised).not.toBe(before)
+
+        // The randomised value is a real change, so Save posts it and the row comes back in the new colour.
+        await Promise.all([
+            page.waitForResponse(r => r.url().includes(`/internal/actions/${itemId?.replace("action-", "")}`) && r.request().method() === "POST"),
+            editRow.locator('button[type="submit"]').click(),
+        ])
+        await expect(page.locator(`#${itemId} input[name="colour"]`)).toHaveValue(randomised)
     })
 
     test("edit action: saving with no change makes no request and restores view", async ({ authenticatedPage: page }) => {
