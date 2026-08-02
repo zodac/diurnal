@@ -42,7 +42,10 @@ jobs:
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
 
-      # Set up Java & Maven to execute tests
+      # Only the wrapper's `java` step runs on the host toolchain (Maven drives the CSS build and the
+      # managed IT database itself); docker/grype/javascript/typescript/markdown/shellcheck/perf all run
+      # inside pinned Docker images, so they need nothing installed here. Hence: JDK+Maven, Node, and the
+      # two npm installs below - and nothing else.
       - name: Cache local .m2
         uses: actions/cache@v6.1.0
         with:
@@ -59,13 +62,42 @@ jobs:
           java-version: "26"
           maven-version: "3.9.16"
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v7.0.0
+        with:
+          node-version: '26.5.0'
+
       - name: Update all dependency versions
         env:
           GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
         run: ./.github/scripts/update_dependency_versions.sh
 
-      - name: Run Java lints and tests with Maven
-        run: mvn clean install -Dall
+      # Installed AFTER the update step so the refreshed lockfiles are the ones exercised. frontend/ backs
+      # the POM's css-build + vendor-assets execs; tests/ backs the E2E and deployment-smoke tiers, whose
+      # runners install the Chromium build they pin themselves - only the OS-level libs it needs are
+      # pulled here (`install-deps`), since those are what a bare runner lacks.
+      - name: Install CSS build dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Install E2E dependencies and browser OS libraries
+        working-directory: tests
+        run: |
+          npm ci
+          npx playwright install-deps chromium
+
+      # -f runs every step (docker, grype, java, javascript, markdown, perf, shellcheck, typescript), so a
+      # monthly bump to a Dockerfile pin, an npm/eslint dep or a shell/markdown tool is tested too - not
+      # just the Java side.
+      - name: Run all lints and tests
+        # Perf-tier calibration for the shared 2-vCPU GitHub runner, mirroring publish.yml: offer a lighter
+        # load and widen the latency budget so we measure service time rather than queueing, while the
+        # error-rate budgets stay strict. Only the `perf` step reads these.
+        env:
+          PERF_RATE: "5"
+          PERF_VUS: "10"
+          PERF_P95_TOLERANCE: "8"
+        run: .github/scripts/lint_and_tests.sh -f -v
 
       - name: Check for changes
         id: detect_changes
