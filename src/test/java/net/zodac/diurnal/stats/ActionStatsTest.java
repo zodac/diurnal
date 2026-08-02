@@ -383,55 +383,7 @@ class ActionStatsTest {
             .isEqualTo(12);
     }
 
-    @Test
-    void currentGapLabel_overOneMonth_isCondensed() {
-        final ActionStats s = stats(1, 1, TODAY.minusDays(45), TODAY.minusDays(45), 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.currentGapLabel(s))
-            .as("unexpected value")
-            .isEqualTo("1 month, 14 days");
-    }
-
-    // ── streak / day labels (singular-aware) ───────────────────────────────────
-
-    @Test
-    void currentStreakLabel_one_isSingular() {
-        final ActionStats s = stats(1, 1, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.currentStreakLabel(s))
-            .as("unexpected value")
-            .isEqualTo("1 day");
-    }
-
-    @Test
-    void currentStreakLabel_zero_isPlural() {
-        final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.currentStreakLabel(s))
-            .as("unexpected value")
-            .isEqualTo("0 days");
-    }
-
-    @Test
-    void currentStreakLabel_many_isPlural() {
-        final ActionStats s = stats(5, 5, TODAY, TODAY, 5, 5, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.currentStreakLabel(s))
-            .as("unexpected value")
-            .isEqualTo("5 days");
-    }
-
-    @Test
-    void longestStreakLabel_one_isSingular() {
-        final ActionStats s = stats(1, 1, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.longestStreakLabel(s))
-            .as("unexpected value")
-            .isEqualTo("1 day");
-    }
-
-    @Test
-    void longestStreakLabel_many_isPlural() {
-        final ActionStats s = stats(3, 3, TODAY, TODAY, 1, 3, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.longestStreakLabel(s))
-            .as("unexpected value")
-            .isEqualTo("3 days");
-    }
+    // ── totalDaysUnit ─────────────────────────────────────────────────────────
 
     @Test
     void totalDaysUnit_one_isSingular() {
@@ -455,32 +407,6 @@ class ActionStatsTest {
         assertThat(ActionStatsExtensions.totalDaysUnit(s))
             .as("unexpected value")
             .isEqualTo("unique days");
-    }
-
-    // ── longestGapLabel / longestGapUnit ──────────────────────────────────────
-
-    @Test
-    void longestGapLabel_zero_isPlural() {
-        final ActionStats s = statsG(0, 0, null, null, 0, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.longestGapLabel(s))
-            .as("unexpected value")
-            .isEqualTo("0 days");
-    }
-
-    @Test
-    void longestGapLabel_one_isSingular() {
-        final ActionStats s = statsG(1, 1, TODAY, TODAY, 0, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.longestGapLabel(s))
-            .as("unexpected value")
-            .isEqualTo("1 day");
-    }
-
-    @Test
-    void longestGapLabel_many_isPlural() {
-        final ActionStats s = statsG(3, 3, TODAY, TODAY, 1, 3, 7, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(ActionStatsExtensions.longestGapLabel(s))
-            .as("unexpected value")
-            .isEqualTo("7 days");
     }
 
     // ── monthTrend / monthTrendClass ──────────────────────────────────────────
@@ -636,14 +562,14 @@ class ActionStatsTest {
     void tiles_numericTile_carriesValueUnitAndDefaultClass() {
         final ActionStats s = stats(1, 3, TODAY, TODAY, 1, 6, 0, 0, 0, 0, "—", 0, "—", 0);
 
-        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.CURRENT_STREAK)), 1).getFirst();
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.TOTAL_DAYS)), 1).getFirst();
 
         assertThat(tile.value())
-            .as("current streak value")
+            .as("total days value")
             .isEqualTo("1");
         assertThat(tile.sub())
-            .as("singular unit for a streak of one")
-            .isEqualTo("day");
+            .as("singular unit for a total of one")
+            .isEqualTo("unique day");
         assertThat(tile.subNum())
             .as("a unit word is not a locale-grouped number")
             .isFalse();
@@ -651,7 +577,7 @@ class ActionStatsTest {
             .as("numeric tiles use the default ink colour")
             .isEqualTo("text-ink");
         assertThat(tile.date())
-            .as("a streak is not a date tile")
+            .as("a total is not a date tile")
             .isFalse();
     }
 
@@ -668,41 +594,93 @@ class ActionStatsTest {
     }
 
     @Test
-    void tiles_durationUnderOneMonth_keepsTheBigNumberStyling() {
+    void tiles_durationUnderOneMonth_stillWordsItsUnit() {
+        // The whole point of the duration tiles: a short run reads "5 days", never a bare "5" with the
+        // unit demoted to the sub-caption, so it matches the condensed form of a longer run beside it.
         final ActionStats s = stats(5, 5, TODAY.minusDays(4), TODAY, 5, 5, 0, 0, 0, 0, "—", 0, "—", 0);
 
         final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.CURRENT_STREAK)), 1).getFirst();
 
-        assertThat(tile.date())
-            .as("a plain day count keeps the prominent numeric styling")
-            .isFalse();
         assertThat(tile.value())
-            .as("value is the bare day count")
-            .isEqualTo("5");
-        assertThat(tile.sub())
-            .as("sub is the unit word")
-            .isEqualTo("days");
+            .as("value carries the count and its unit")
+            .isEqualTo("5 days");
+        assertThat(tile.date())
+            .as("a worded duration is not locale-grouped as a figure")
+            .isTrue();
+        assertThat(tile.subNum())
+            .as("the sub carries dates, which must never be locale-grouped")
+            .isFalse();
     }
 
     @Test
-    void tiles_durationOverOneMonth_condensesAndMovesTheDayCountToTheSub() {
+    void tiles_durationOfOneDay_isSingular() {
+        final ActionStats s = stats(1, 1, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.CURRENT_STREAK)), 1).getFirst();
+
+        assertThat(tile.value())
+            .as("a one-day run reads '1 day', never a bare '1'")
+            .isEqualTo("1 day");
+    }
+
+    @Test
+    void tiles_durationOverOneMonth_condenses() {
         // TODAY is 15 June 2025, so a 45-day streak reaches back to 1 May → "1 month, 14 days".
         final ActionStats s = stats(45, 45, TODAY.minusDays(44), TODAY, 45, 45, 0, 0, 0, 0, "—", 0, "—", 0);
 
         final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.CURRENT_STREAK)), 1).getFirst();
 
-        assertThat(tile.date())
-            .as("a condensed breakdown needs the smaller two-line styling")
-            .isTrue();
         assertThat(tile.value())
             .as("value is the condensed duration")
             .isEqualTo("1 month, 14 days");
+    }
+
+    @Test
+    void tiles_ongoingDuration_subCaptionsTheStartDateOnly() {
+        // The test spans end today, so this streak began on 10 June 2025 - and, being current, has no end.
+        final ActionStats s = stats(5, 5, TODAY.minusDays(4), TODAY, 5, 5, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.CURRENT_STREAK)), 1).getFirst();
+
         assertThat(tile.sub())
-            .as("the exact day count moves to the sub-caption")
-            .isEqualTo("45 days");
-        assertThat(tile.subNum())
-            .as("the sub carries a locale-groupable count")
-            .isTrue();
+            .as("a still-running streak has no end date to show")
+            .isEqualTo("since 10 June 2025");
+    }
+
+    @Test
+    void tiles_closedDuration_subCaptionsBothEndsOfTheRun() {
+        final ActionStats s = stats(6, 6, TODAY.minusDays(5), TODAY, 0, 6, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.LONGEST_STREAK)), 1).getFirst();
+
+        assertThat(tile.sub())
+            .as("a completed run shows the dates it covered")
+            .isEqualTo("9 June 2025 – 14 June 2025");
+    }
+
+    @Test
+    void tiles_closedDurationOfOneDay_subCaptionsTheSingleDate() {
+        final ActionStats s = stats(1, 1, TODAY.minusDays(1), TODAY.minusDays(1), 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.LONGEST_STREAK)), 1).getFirst();
+
+        assertThat(tile.sub())
+            .as("a one-day run names that day once, not as a range of it to itself")
+            .isEqualTo("14 June 2025");
+    }
+
+    @Test
+    void tiles_emptyDuration_hasNoSubCaption() {
+        final ActionStats s = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.CURRENT_STREAK)), 1).getFirst();
+
+        assertThat(tile.value())
+            .as("an empty run still words its unit")
+            .isEqualTo("0 days");
+        assertThat(tile.sub())
+            .as("an empty run has no dates to caption")
+            .isEmpty();
     }
 
     @Test
@@ -716,7 +694,24 @@ class ActionStatsTest {
             .isEqualTo("Current gap");
         assertThat(tile.value())
             .as("nine days have elapsed since the action was last performed")
-            .isEqualTo("9");
+            .isEqualTo("9 days");
+        assertThat(tile.sub())
+            .as("the blank run starts the day after the action was last performed, and is still open")
+            .isEqualTo("since 7 June 2025");
+    }
+
+    @Test
+    void tiles_longestGap_subCaptionsTheBlankRunsDates() {
+        final ActionStats s = statsG(2, 2, TODAY.minusDays(20), TODAY, 0, 1, 4, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = ActionStatsExtensions.tiles(s, List.of(shown(ActionStatField.LONGEST_GAP)), 1).getFirst();
+
+        assertThat(tile.value())
+            .as("unexpected value")
+            .isEqualTo("4 days");
+        assertThat(tile.sub())
+            .as("a past gap is a closed run, so both of its ends are shown")
+            .isEqualTo("11 June 2025 – 14 June 2025");
     }
 
     @Test

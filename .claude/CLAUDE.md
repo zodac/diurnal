@@ -277,17 +277,19 @@ All list views (actions, day-panel, stats) use in-memory pagination: fetch all, 
 - Login uses query params: `?error` = failed login; `?registered=true` = success after registration.
 - `ActionStatsExtensions` exposes `sinceLabel()`, `monthTrend()`, `monthTrendClass()` etc. as Qute template extensions over `ActionStats`.
 - **UI text must use correct singular/plural** — never "1 days". `time/Durations.plural(count, unit)` is the ONE rule; `count(n, unit)` renders
-  "1 day"/"5 days". `ActionStatsExtensions` exposes it to templates via `currentStreakUnit()`/`longestStreakUnit()`/`totalDaysUnit()` etc. Apply to any
-  new pluralised count.
+  "1 day"/"5 days". `ActionStatsExtensions` exposes it to templates via `totalDaysUnit()` etc., and words every streak/gap through `Durations.label`.
+  Apply to any new pluralised count.
 - **A run of days that is shown to a user as a duration is carried as a `time/DaySpan` (half-open `[start, endExclusive)`), never as a bare day count.**
   `time/Durations` is the only place one is measured (`days(span)`) or worded (`label(span)` — "412 days" condenses to "1 year, 1 month, 17 days";
-  `exceedsOneMonth(span)` says whether it condensed, which is how the streak/gap tiles pick their styling). The month/year boundaries are **calendar**
+  `exceedsOneMonth(span)` says whether it condensed). The month/year boundaries are **calendar**
   boundaries (a month counts only once the day-of-month is reached, so leap days are never lost), and that arithmetic depends on WHICH months the run
   covered — the same 31 days is "1 month" in one place in the calendar and "1 month, 3 days" in another. **A day count alone therefore cannot be rendered
   as a duration**: it could only be split against some arbitrary anchor, which makes a historical figure's label drift as "today" moves.
   `ActionStats.currentStreak()/longestStreak()/longestGap()` are consequently spans, computed with their real dates in `StatsService`, as is the current
   gap (`ActionStatsExtensions.currentGapSpan`). Both gap spans are framed as the **blank run** (the day after the last log, up to the next log — or
-  tomorrow, for the still-open one), so the current gap measures identically to the longest gap it will eventually become.
+  tomorrow, for the still-open one), so the current gap measures identically to the longest gap it will eventually become. All four streak/gap tiles
+  lead with the worded duration ("1 day", "1 month, 14 days" — never a bare number) and caption it with the run's own dates: "since {start}" while the
+  run is still going (current streak/gap), "{start} – {end}" once it is closed, and nothing at all for an empty run.
 
 ### Update check (admin-only footer indicator)
 

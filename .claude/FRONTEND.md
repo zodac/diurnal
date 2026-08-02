@@ -352,12 +352,16 @@ change is swallowed, so an abandoned edit never saves.
 > `LONGEST_GAP` still keying on `biggest-gap` and `WEEKLY_DAY_AVERAGE` on `weekly-average`. Changing a key drops that stat from
 > every stored arrangement (it re-appears appended at the end), silently reshuffling everyone's page.
 
-Three tile shapes come out of `tiles(...)`: the big-number `numeric` tile (counts, averages, a day run still under a month), the
-smaller two-line `labelTile` (a date, a month/year high score, a **condensed** duration — see `time/DaySpan` + `time/Durations`),
-and the `trendTile` (a signed figure in a trend colour). A day run switches shape at one calendar month, so a long streak reads
-"1 year, 2 months, 3 days" with the exact day count demoted to the sub-caption instead of overflowing the big-number slot. The
-streak/gap statistics are `DaySpan`s (real date ranges), not day counts — that is what makes the breakdown exact and stable rather
-than shifting as "today" moves; see the `DaySpan` note in `CLAUDE.md`.
+Four tile shapes come out of `tiles(...)`: the locale-grouped `numeric` tile (counts, averages), the `labelTile` (a date or a
+month/year high score), the `trendTile` (a signed figure in a trend colour), and the `durationTile` (the four streak/gap runs — see
+`time/DaySpan` + `time/Durations`). A duration **always** leads with its figure AND unit, whatever its length ("1 day", "5 days",
+"1 year, 2 months, 3 days"), so the four runs read alike instead of a short one showing a bare number; its sub-caption carries the
+run's own dates — `"since <start>"` while the run is still going (current streak/gap), `"<start> – <end>"` once it is closed, and
+nothing for an empty run. The streak/gap statistics are `DaySpan`s (real date ranges), not day counts — that is what makes both the
+breakdown and those dates exact and stable rather than shifting as "today" moves; see the `DaySpan` note in `CLAUDE.md`.
+
+> A tile's `sub` is always `data-fit` (it may hold a date range, which the fitting ladder shortens); `subNum` says only whether it
+> also carries locale-groupable **numbers**. A date must never be grouped — "1 August 2026" would render as "1 August 2,026".
 
 ### Stats-page frequency graph (`partials/stats-chart.html` + `stats.js`)
 
