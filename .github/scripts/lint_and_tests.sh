@@ -83,9 +83,9 @@ SCRIPT_NAME="$(basename -- "${SCRIPT_SOURCE}")"
 SCRIPT_PATH="${SCRIPT_DIR}/${SCRIPT_NAME}"
 
 ESLINT_BUILD_IMAGE="local/diurnal-eslint:latest"
-ESLINT_NODE_IMAGE="node:26.5.0-alpine"
+ESLINT_NODE_IMAGE="node:26.5.1-alpine"
 GRYPE_DOCKER_IMAGE="anchore/grype:v0.116.1"
-HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.14.0-alpine"
+HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.15.1-alpine"
 MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.2"
 SHELLCHECK_DOCKER_IMAGE="koalaman/shellcheck:v0.11.0"
 
