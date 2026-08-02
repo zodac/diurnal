@@ -34,7 +34,7 @@ import net.zodac.diurnal.time.Durations;
  * mutant into the running minion JVM via {@code Instrumentation.redefineClasses}, which the JVM refuses for a class carrying a {@code Record}
  * attribute — every record mutant failed with "class redefinition failed: attempted to change the Record attribute" (the "Minion exited abnormally
  * due to RUN_ERROR" lint warnings), leaving the logic untested. As methods on this plain class the same logic redefines cleanly and is fully mutated.
- * The template-facing methods are {@link TemplateExtension}s, so Qute still resolves {@code {s.monthTrend}}, {@code {s.currentStreakLabel}} etc.
+ * The template-facing methods are {@link TemplateExtension}s, so Qute still resolves {@code {s.monthTrend}}, {@code {s.latestLabel}} etc.
  * against an {@code ActionStats} value.
  */
 public final class ActionStatsExtensions {
@@ -44,8 +44,8 @@ public final class ActionStatsExtensions {
     private static final DateTimeFormatter DATE_FMT  = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter DATE_FMT_NO_YEAR = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH);
     private static final double ZERO = 0.0;
-    private static final String DAY_UNIT = "day";
     private static final String TIME_UNIT = "time";
+    private static final String RANGE_SEPARATOR = " – ";
 
     private ActionStatsExtensions() {
 
@@ -98,10 +98,10 @@ public final class ActionStatsExtensions {
     private static StatTile tile(final ActionStats stats, final DisplayStat displayed, final int decimalPlaces) {
         final String label = displayed.label();
         return switch (displayed.field()) {
-            case CURRENT_STREAK -> durationTile(label, stats.currentStreak());
-            case LONGEST_STREAK -> durationTile(label, stats.longestStreak());
-            case CURRENT_GAP    -> durationTile(label, currentGapSpan(stats));
-            case LONGEST_GAP    -> durationTile(label, stats.longestGap());
+            case CURRENT_STREAK -> durationTile(label, stats.currentStreak(), true);
+            case LONGEST_STREAK -> durationTile(label, stats.longestStreak(), false);
+            case CURRENT_GAP    -> durationTile(label, currentGapSpan(stats), true);
+            case LONGEST_GAP    -> durationTile(label, stats.longestGap(), false);
             case TOTAL_DAYS     -> numeric(label, Integer.toString(stats.totalDays()), totalDaysUnit(stats));
             case TOTAL_COUNT    -> numeric(label, Long.toString(stats.totalCount()), "all time");
             case WEEKLY_DAY_AVERAGE    -> numeric(label, weeklyDayAverage(stats, decimalPlaces), "days / week");
@@ -130,15 +130,27 @@ public final class ActionStatsExtensions {
         return new StatTile(label, value, sub, true, valueClass, false);
     }
 
-    // A day span reads as a plain (locale-grouped) day count until it reaches a calendar month, after which the
-    // value becomes the condensed breakdown ("1 year, 2 months, 3 days") and the exact day count moves to the
-    // sub-caption. Both render at the same type size as every other tile; only the grouping differs.
-    private static StatTile durationTile(final String label, final DaySpan span) {
-        final int days = Durations.days(span);
-        if (Durations.exceedsOneMonth(span)) {
-            return labelTile(label, Durations.label(span), Durations.count(days, DAY_UNIT));
+    // Every duration tile leads with the figure AND its unit ("1 day", "5 days", "1 year, 2 months, 3 days"),
+    // so the four streak/gap tiles read identically however long the run is - a one-day run must not render a
+    // bare "1" while a longer one spells its units out. The sub-caption then carries the run's actual dates,
+    // which is the one piece of information the condensed duration drops. A run that is still going has no end
+    // date to show ("since 1 May 2026"), a one-day run needs only the single date, and an empty run has none.
+    private static StatTile durationTile(final String label, final DaySpan span, final boolean ongoing) {
+        return new StatTile(label, Durations.label(span), rangeLabel(span, ongoing), false, "text-ink", true);
+    }
+
+    private static String rangeLabel(final DaySpan span, final boolean ongoing) {
+        if (Durations.days(span) == 0) {
+            return "";
         }
-        return numeric(label, Integer.toString(days), Durations.plural(days, DAY_UNIT));
+
+        final String start = span.start().format(DATE_FMT);
+        if (ongoing) {
+            return "since " + start;
+        }
+
+        final LocalDate lastDay = span.endExclusive().minusDays(1);
+        return lastDay.equals(span.start()) ? start : start + RANGE_SEPARATOR + lastDay.format(DATE_FMT);
     }
 
     // ── Date labels ───────────────────────────────────────────────────────
@@ -307,8 +319,9 @@ public final class ActionStatsExtensions {
     }
 
     // ── Streak/gap durations ──────────────────────────────────────────────
-    // Every one of these spans is rendered through the shared Durations helper, so a long span always condenses
-    // the same way ("412 days" -> "1 year, 1 month, 17 days") and a one-unit span never reads "1 months".
+    // Every span is worded in exactly one place - durationTile above, through the shared Durations helper - so a
+    // long run always condenses the same way ("412 days" -> "1 year, 1 month, 17 days"), a one-unit run never
+    // reads "1 months", and a short run is never left as a bare number with its unit demoted to the caption.
 
     /**
      * The run of days on which the action has NOT been performed since it last was: the day after the last logged date, up to and including today. An
@@ -338,83 +351,6 @@ public final class ActionStatsExtensions {
     @TemplateExtension
     public static int currentGap(final ActionStats stats) {
         return Durations.days(currentGapSpan(stats));
-    }
-
-    /**
-     * The current streak as a condensed duration label, e.g. {@code "1 day"}, {@code "5 days"} or {@code "2 months, 3 days"}.
-     *
-     * @param stats the statistics to inspect
-     * @return the current-streak label
-     */
-    @TemplateExtension
-    public static String currentStreakLabel(final ActionStats stats) {
-        return Durations.label(stats.currentStreak());
-    }
-
-    /**
-     * The longest streak as a condensed duration label, e.g. {@code "1 day"}, {@code "5 days"} or {@code "2 months, 3 days"}.
-     *
-     * @param stats the statistics to inspect
-     * @return the longest-streak label
-     */
-    @TemplateExtension
-    public static String longestStreakLabel(final ActionStats stats) {
-        return Durations.label(stats.longestStreak());
-    }
-
-    /**
-     * The current gap as a condensed duration label, e.g. {@code "1 day"}, {@code "5 days"} or {@code "2 months, 3 days"}.
-     *
-     * @param stats the statistics to inspect
-     * @return the current-gap label
-     */
-    @TemplateExtension
-    public static String currentGapLabel(final ActionStats stats) {
-        return Durations.label(currentGapSpan(stats));
-    }
-
-    /**
-     * The longest gap as a condensed duration label, e.g. {@code "1 day"}, {@code "5 days"} or {@code "2 months, 3 days"}.
-     *
-     * @param stats the statistics to inspect
-     * @return the longest-gap label
-     */
-    @TemplateExtension
-    public static String longestGapLabel(final ActionStats stats) {
-        return Durations.label(stats.longestGap());
-    }
-
-    /**
-     * The unit word ({@code "day"}/{@code "days"}) matching the current-streak count.
-     *
-     * @param stats the statistics to inspect
-     * @return the current-streak unit word
-     */
-    @TemplateExtension
-    public static String currentStreakUnit(final ActionStats stats) {
-        return Durations.plural(Durations.days(stats.currentStreak()), DAY_UNIT);
-    }
-
-    /**
-     * The unit word ({@code "day"}/{@code "days"}) matching the longest-streak count.
-     *
-     * @param stats the statistics to inspect
-     * @return the longest-streak unit word
-     */
-    @TemplateExtension
-    public static String longestStreakUnit(final ActionStats stats) {
-        return Durations.plural(Durations.days(stats.longestStreak()), DAY_UNIT);
-    }
-
-    /**
-     * The unit word ({@code "day"}/{@code "days"}) matching the longest-gap count.
-     *
-     * @param stats the statistics to inspect
-     * @return the longest-gap unit word
-     */
-    @TemplateExtension
-    public static String longestGapUnit(final ActionStats stats) {
-        return Durations.plural(Durations.days(stats.longestGap()), DAY_UNIT);
     }
 
     /**

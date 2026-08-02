@@ -37,7 +37,7 @@ function otherDayThisMonth(): string {
     return d.toISOString().slice(0, 10)
 }
 
-// Reset every logged action for *today* back to zero — deterministically, entirely through the API.
+// Reset every logged action on a given date back to zero — deterministically, entirely through the API.
 //
 // This replaces the old approach of clicking the day panel's Decrease button in a loop and awaiting a
 // POST /internal/logs/ response, which was flaky: the panel re-renders asynchronously (initial load + the
@@ -46,28 +46,36 @@ function otherDayThisMonth(): string {
 // timed out the whole hook (the observed "increment twice" flake).
 //
 // Instead: read the (nonzero-first, paginated) day panel's action ids straight from its HTML and POST a
-// `set` count=0 for each, looping until the /api/v1/logs/events feed reports nothing left for today. No UI
-// timing is involved, so there is no race to lose.
-async function resetTodayLogs(page: Page): Promise<void> {
-    await page.evaluate(async () => {
-        const today = new Date().toISOString().slice(0, 10)
+// `set` count=0 for each, looping until the /api/v1/logs/events feed reports nothing left for that day. No
+// UI timing is involved, so there is no race to lose. The page must already be on a same-origin URL.
+//
+// Any test that asserts a day is EMPTY must reset it here rather than assume it: the specs below share one
+// user and DB (across the chromium/mobile-chrome projects too), and several of them deliberately log on a
+// past date — most notably the 1st of the current month, which IS "yesterday" whenever the suite runs on
+// the 2nd. Resetting makes such a test independent of both the calendar date and the spec order.
+async function resetLogsOn(page: Page, date: string): Promise<void> {
+    await page.evaluate(async (day: string) => {
         // The day panel lists highest-count actions first and is paginated, so re-read page 1 and zero
-        // every action it lists until the events feed for today is empty. The guard bounds the loop.
+        // every action it lists until the events feed for that day is empty. The guard bounds the loop.
         for (let guard = 0; guard < 50; guard++) {
-            const events = await (await fetch(`/api/v1/logs/events?start=${today}&end=${today}`)).json()
+            const events = await (await fetch(`/api/v1/logs/events?start=${day}&end=${day}`)).json()
             if (!Array.isArray(events) || events.length === 0) {break}
 
-            const html = await (await fetch(`/internal/logs/day/${today}`)).text()
+            const html = await (await fetch(`/internal/logs/day/${day}`)).text()
             // Each log row wraps as id="log-<yyyy-MM-dd>-<action UUID>"; capture the UUID.
             const ids = [...html.matchAll(/id="log-\d{4}-\d{2}-\d{2}-([0-9a-f-]+)"/g)].map(m => m[1])
             await Promise.all(ids.map(id =>
-                fetch(`/internal/logs/${today}/${id}/set`, {
+                fetch(`/internal/logs/${day}/${id}/set`, {
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
                     body: "count=0",
                 })))
         }
-    })
+    }, date)
+}
+
+async function resetTodayLogs(page: Page): Promise<void> {
+    await resetLogsOn(page, todayStr())
 }
 
 // Calendar style is chosen from a preview tile backed by a hidden radio. Tests share one user, so
@@ -127,8 +135,10 @@ test.describe("Dashboard", () => {
         const countEl = page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")
         await expect(countEl).toHaveValue("1")
 
-        // Navigate to yesterday — its count should be 0
+        // Navigate to yesterday — its count should be 0 (reset first: yesterday is the 1st of the month
+        // on the 2nd, which another spec in this file logs on)
         const past = pastDateStr(1)
+        await resetLogsOn(page, past)
         await page.locator(`.d-min-cell[data-date="${past}"]`).click()
         await expect(page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")).toHaveValue("0")
 
@@ -274,7 +284,9 @@ test.describe("Dashboard", () => {
         await expect(summary).toContainText("DashAction")
 
         // Move the selection to a day with nothing logged: the card empties again...
-        await page.locator(`.d-min-cell[data-date="${pastDateStr(1)}"]`).click()
+        const blankDay = pastDateStr(1)
+        await resetLogsOn(page, blankDay)
+        await page.locator(`.d-min-cell[data-date="${blankDay}"]`).click()
         await expect(page.locator("#day-logger-panel")).toContainText("DashAction") // panel settled
         await expect(summary).not.toContainText("DashAction")
 

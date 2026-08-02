@@ -87,8 +87,7 @@ public final class Durations {
 
     /**
      * Whether a span reaches at least one calendar month, i.e. whether {@link #label(DaySpan)} renders a years/months/days breakdown rather than
-     * plain days. Callers use it to pick the matching presentation (a condensed breakdown does not fit the big-number styling a plain day count
-     * uses).
+     * plain days.
      *
      * @param span the span to test
      * @return {@code true} if the span reaches a calendar month
