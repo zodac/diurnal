@@ -738,8 +738,16 @@
            wrap, so on a narrow viewport the browser squeezes this column below the width of its own
            content - and the button then wraps onto a SECOND LINE, making every row ~20px taller. With
            nowrap the pair is unbreakable, so the column can never be squeezed below them: the name
-           column gives up the space instead, and the row keeps its single-line height. */
-        .dt-cell-colour { white-space: nowrap; }
+           column gives up the space instead, and the row keeps its single-line height.
+           `width: 1%` (the same shrink-to-content trick as .dt-cell-actions above) pins it there.
+           Without it the column is auto-width, so it takes a SHARE of whatever space auto layout has
+           left over - and how much is left over changes with the row's state: on a narrow viewport the
+           read row overflows the wrap (no leftover, column at its content width), while entering edit
+           swaps the long name text for a `w-full` input that can shrink, letting the table fit and
+           freeing a few pixels to hand back. The column then gained ~2px and pushed the name sideways,
+           which .dt-random-slot below is specifically there to prevent. At `width: 1%` the leftover all
+           goes to the name column, so this one measures the same in both states. */
+        .dt-cell-colour { width: 1%; white-space: nowrap; }
         /* The cell's own content: one centred flex line, so the swatch/picker and the button share an
            axis with each other and with the row (see the note in action-row.html - baseline-aligned
            inline boxes sit high, `vertical-align: middle` sits low). The gap replaces a margin on the
