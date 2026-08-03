@@ -44,8 +44,6 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
-import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 import net.zodac.diurnal.auth.AuthenticationService;
@@ -71,7 +69,6 @@ import net.zodac.diurnal.stats.ActionStatField;
 import net.zodac.diurnal.stats.StatsService;
 import net.zodac.diurnal.stats.StatsSummary;
 import net.zodac.diurnal.time.AppClock;
-import net.zodac.diurnal.time.ElapsedTime;
 import net.zodac.diurnal.user.CalendarView;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Font;
@@ -111,10 +108,6 @@ public class WebResource {
 
     // The ?msg= code for a successful connect round trip (failure codes are OidcDenialReason codes).
     private static final String MSG_OIDC_CONNECTED = "oidc-connected";
-
-    // The Account card's absolute last-login timestamp, in the same shape as the admin users table's dates
-    // (zoneless here - the viewing user's zone is bound per render).
-    private static final DateTimeFormatter LAST_LOGIN_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private final Template loginTemplate;
     private final Template registerTemplate;
@@ -796,20 +789,9 @@ public class WebResource {
             settingsMessage = OidcDenialReason.fromCode(msg).map(reason -> reason.message(providerName)).orElse(null);
             settingsMessageIsError = settingsMessage != null;
         }
-        // The Account card's "Last login" readout. lastLoginAt is stamped once per sign-in (password login,
-        // OIDC callback, registration) and is never bumped by ordinary requests, so it really is the last
-        // time this account signed in - unlike the session's last_used_at, which the very act of rendering
-        // this page updates. It reads as an age ("12 days ago") next to the absolute timestamp in the user's
-        // own timezone (no tooltip - the reading is the whole point). Null only for an account that has somehow
-        // never signed in (it could not be viewing this page), handled for template strictness.
-        final ZoneId zone = clock.zoneFor(user.timezone);
-        final Instant lastLogin = user.lastLoginAt;
         return settingsTemplate
                 .data("settingsMessage", settingsMessage)
                 .data("settingsBannerVariant", settingsMessageIsError ? "error" : "success")
-                .data("hasLastLogin", lastLogin != null)
-                .data("lastLoginAgo", lastLogin == null ? "" : ElapsedTime.since(lastLogin, clock.now()))
-                .data("lastLoginLabel", lastLogin == null ? "" : LAST_LOGIN_FORMATTER.withZone(zone).format(lastLogin))
                 .data("oidcEnabled", quarkusOidcConfig.tenantEnabled())
                 .data("oidcIssuerUrl", quarkusOidcConfig.authServerUrl())
                 .data("email", user.email)

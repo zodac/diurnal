@@ -137,17 +137,21 @@ test.describe("Actions page", () => {
         ])
 
         // The colour column is sized for its widest (edit) state, so revealing the picker and the
-        // randomise button must not push the name along.
+        // randomise button must not push the name along. Its LEFT EDGE is the assertion (the cell's
+        // own width legitimately changes on a narrow viewport, where the long name text gives way to a
+        // w-full input that can shrink). Measured as offsetLeft WITHIN the table, not as a viewport
+        // box: on a narrow viewport the table overflows its .overflow-x-auto wrap, and focusing the
+        // edit input scrolls that wrap sideways - a scroll, not a shift, which a viewport-relative x
+        // would report as a spurious move.
         const item = page.locator('#action-list [id^="action-"]').filter({ hasText: name })
         const nameCell = item.locator("td").nth(1)
-        const readBox = await nameCell.boundingBox()
+        const cellOffset = (): Promise<number> => nameCell.evaluate((cell: HTMLElement) => cell.offsetLeft)
+        const readOffset = await cellOffset()
         await item.hover()
         await item.getByRole("button", { name: "Edit" }).click()
         await expect(item.locator('input[name="name"]')).toBeVisible()
-        const editBox = await nameCell.boundingBox()
 
-        expect(readBox).not.toBeNull()
-        expect(editBox?.x).toBe(readBox?.x)
+        expect(await cellOffset()).toBe(readOffset)
     })
 
     test("edit action: randomise button recolours the row", async ({ authenticatedPage: page }) => {
