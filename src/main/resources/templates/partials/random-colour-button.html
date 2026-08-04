@@ -12,8 +12,10 @@
     wrapperCls — optional extra classes on the wrapper (e.g. 'shrink-0', or 'hidden' for an edit state)
     dtEdit     — optional, default false: true to mark the wrapper [data-dt-edit]
     align      — optional, default 'left': the tooltip's horizontal anchor
+    tipPos     — optional, default 'bottom': which side the tooltip opens on. Pass 'top' inside a
+                 `.dt-table` row - see the note in partials/action-row.html.
 !}
-{#let wrapperCls=wrapperCls.or('') iconCls=iconCls.or('') dtEdit=dtEdit.or(false) align=align.or('left')}
+{#let wrapperCls=wrapperCls.or('') iconCls=iconCls.or('') dtEdit=dtEdit.or(false) align=align.or('left') tipPos=tipPos.or('bottom')}
 <span {#if dtEdit}data-dt-edit {/if}class="group relative inline-flex{#if wrapperCls} {wrapperCls}{/if}">
     <button type="button"
             data-random-colour
@@ -22,6 +24,6 @@
             aria-label="Random colour">
         {#include partials/icon name='shuffle' cls=iconCls /}
     </button>
-    {#include partials/tooltip text="Random colour" pos="bottom" align=align /}
+    {#include partials/tooltip text="Random colour" pos=tipPos align=align /}
 </span>
 {/let}
