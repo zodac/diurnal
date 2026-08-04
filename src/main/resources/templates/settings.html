@@ -20,18 +20,22 @@
         {/if}
 
         {! Two-column settings layout (flex, not grid). On desktop the left column stacks Account
-             (top) then Preferences (below); the taller Appearance picker card fills the right column.
+             (top) then Preferences (below); the right column stacks Appearance then Statistics.
              Flex columns (rather than a grid) let each column pack its cards flush from the top
              independently — a grid would stretch the short left cards to the tall Appearance card's
              row height, leaving a gap under Account.
 
-             On MOBILE the order must be Account → Appearance → Preferences. Because Account and
-             Preferences are grouped in the left-column wrapper (needed for the desktop column), that
-             wrapper is `display:contents` below `lg` (`contents lg:flex…`): its box disappears on
-             mobile so Account and Preferences become direct flex items of THIS container alongside
-             Appearance, and `order-last` on Preferences drops it to the end — giving Account,
-             Appearance, Preferences. At `lg` the wrapper is a real flex column again and the order
-             resets, so the desktop layout is unchanged.
+             Which column a card belongs in follows one rule: it goes wherever the first free
+             vertical slot is. Preferences runs lower than Appearance, so Statistics (added after
+             both) lands under Appearance on the right rather than under Preferences on the left.
+
+             On MOBILE the order must be Account → Appearance → Preferences → Statistics. Because the
+             cards are grouped into the two column wrappers (needed for the desktop columns), BOTH
+             wrappers are `display:contents` below `lg` (`contents lg:flex…`): their boxes disappear
+             on mobile so all four cards become direct flex items of THIS container, and `order-last`
+             on Preferences and Statistics drops them (in source order) past Appearance. At `lg` the
+             wrappers are real flex columns again and the order resets, so the desktop layout is
+             unchanged.
 
              Each preference control saves ITSELF via its own PATCH endpoint (see the hx-patch on the
              radiogroups below and on the two selects in partials/select-field): updating one setting
@@ -361,6 +365,30 @@
                         endpoint='/internal/settings' min=1 max=100 value=pageSize options=pageSizeOptions
                         stepper=true minusLabel='Fewer items per page' plusLabel='More items per page' border=false /}
                 </div>
+            </div>
+
+            {! Right column on desktop (Appearance, then Statistics below it); on mobile
+                 `display:contents` so its cards join the outer flex flow (see the layout comment
+                 above). !}
+            <div class="contents lg:flex lg:flex-col lg:gap-6 lg:flex-1 lg:min-w-0">
+
+                {! Appearance (fills the freed horizontal space). !}
+                <div id="settings-appearance" class="card p-4">
+                    {#include partials/card-header title='Appearance' /}
+
+                    {! Theme / Calendar style / Font: three identical preview-tile pickers, each the
+                         shared partials/preview-picker (label + self-including radiogroup that
+                         auto-saves its own value). Only the last one drops the divider. The pickers
+                         fill the card width (no max-w-md) so the right column's freed space is used. !}
+                    <div class="space-y-6">
+                        {#include partials/preview-picker optionsId="theme-options" label="Theme" group="theme"
+                            endpoint="/internal/settings" options=themeOptions current=theme border=true /}
+                        {#include partials/preview-picker optionsId="calendar-options" label="Calendar style" group="calendarView"
+                            endpoint="/internal/settings" options=calendarViewOptions current=calendarView border=true /}
+                        {#include partials/preview-picker optionsId="font-options" label="Font" group="font"
+                            endpoint="/internal/settings" options=fontOptions current=font border=false /}
+                    </div>
+                </div>
 
                 {! Action stats. A drag-orderable list choosing WHICH per-action stats show on the
                      Stats page, in what order, and under what NAME — a display preference only; every
@@ -469,25 +497,6 @@
                         </li>
                         {/for}
                     </ul>
-                </div>
-            </div>
-
-            {! Right column: Appearance (fills the freed horizontal space). !}
-            <div id="settings-appearance" class="card p-4 lg:flex-1 lg:min-w-0">
-                    {#include partials/card-header title='Appearance' /}
-
-                    {! Theme / Calendar style / Font: three identical preview-tile pickers, each the
-                         shared partials/preview-picker (label + self-including radiogroup that
-                         auto-saves its own value). Only the last one drops the divider. The pickers
-                         fill the card width (no max-w-md) so the right column's freed space is used. !}
-                    <div class="space-y-6">
-                        {#include partials/preview-picker optionsId="theme-options" label="Theme" group="theme"
-                            endpoint="/internal/settings" options=themeOptions current=theme border=true /}
-                        {#include partials/preview-picker optionsId="calendar-options" label="Calendar style" group="calendarView"
-                            endpoint="/internal/settings" options=calendarViewOptions current=calendarView border=true /}
-                        {#include partials/preview-picker optionsId="font-options" label="Font" group="font"
-                            endpoint="/internal/settings" options=fontOptions current=font border=false /}
-                    </div>
                 </div>
             </div>
         </div>
