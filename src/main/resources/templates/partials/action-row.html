@@ -10,14 +10,22 @@
                  picker partial's wrapper carries the data-dt-edit + hidden markers that
                  dtStartEdit/dtCancelEdit toggle. !}
             <span data-dt-view class="swatch swatch-md" style="background-color: {action.colour}"></span>
+            {! Both tooltips in this cell open UPWARD (tipPos='top'), unlike the same controls on the
+                 new-action card. The table sits in an `overflow-x-auto` wrapper, and CSS turns the other
+                 axis into `overflow-y: auto` too - so a downward bubble on the LAST row, which is laid
+                 out below the final row even while hidden (it is absolutely positioned and only
+                 opacity/visibility-hidden, so it still counts towards scrollable overflow), gave the
+                 table a vertical scrollbar over ~23px of empty space. Overflow above a scroll box's top
+                 edge is clipped rather than scrollable, so an upward bubble adds no scrollbar; it also
+                 still fits inside the wrapper on the first row, where it overlaps the header row. !}
             {#include partials/colour-picker value=action.colour inputCls='dt-color-input'
-                wrapperCls='hidden' dtEdit=true form=str:fmt('action-form-%s', action.id) /}
+                wrapperCls='hidden' dtEdit=true tipPos='top' form=str:fmt('action-form-%s', action.id) /}
             {! Randomise, offered on the same terms as on the new-action form. It fills the picker beside
                  it (the JS finds the colour input within this cell), so it is still the Save button that
                  writes the new colour. Unlike the picker it is NOT a [data-dt-edit] element: it keeps its
                  slot in the view state and is only made visible (.dt-random-slot) while the row is being
                  edited, so appearing can't widen the column and shove the name sideways. !}
-            {#include partials/random-colour-button wrapperCls='dt-random-slot' btnCls='dt-icon-btn' iconCls='' /}
+            {#include partials/random-colour-button wrapperCls='dt-random-slot' btnCls='dt-icon-btn' iconCls='' tipPos='top' /}
         </span>
     </td>
     {! whitespace-nowrap keeps a long name on one line; with the table's auto layout the name column
