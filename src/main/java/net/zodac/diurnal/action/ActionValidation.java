@@ -20,6 +20,10 @@ package net.zodac.diurnal.action;
 /**
  * The pure validation rules for a user-submitted action, applied by {@link ActionService} (the single mutation path shared by the web UI and the
  * public REST API) so both surfaces accept exactly the same values.
+ *
+ * <p>
+ * Only the colour lives here: the action's NAME is validated by the shared {@code net.zodac.diurnal.text} pipeline against
+ * {@code TextFields.ACTION_NAME}, alongside every other free-text input in the app.
  */
 final class ActionValidation {
 
@@ -28,11 +32,6 @@ final class ActionValidation {
      * brand-filled "today" cell).
      */
     static final String DEFAULT_COLOUR = "#64748b";
-
-    /**
-     * The longest permitted action name (the {@code actions.name} column width).
-     */
-    static final int NAME_MAX_LENGTH = 100;
 
     private ActionValidation() {
 

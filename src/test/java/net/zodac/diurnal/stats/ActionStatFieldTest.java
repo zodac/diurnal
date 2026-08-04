@@ -23,6 +23,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import net.zodac.diurnal.stats.ActionStatField.Choice;
+import net.zodac.diurnal.text.TextFields;
+import net.zodac.diurnal.text.TextOutcome;
+import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.user.StatFieldPref;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -321,26 +324,7 @@ class ActionStatFieldTest {
             .containsExactly(ActionStatField.values());
     }
 
-    // ── sanitiseLabel / isValidLabel (custom stat names) ──────────────────────
-
-    @Test
-    void sanitiseLabel_normalisesWhitespaceAndControlCharacters() {
-        assertThat(ActionStatField.sanitiseLabel("  Days   in \trow  "))
-            .as("surrounding whitespace stripped and internal runs collapsed to one space")
-            .isEqualTo("Days in row");
-        assertThat(ActionStatField.sanitiseLabel("Days\u0007in\u0007row"))
-            .as("control characters become spaces rather than reaching the page")
-            .isEqualTo("Days in row");
-    }
-
-    @ParameterizedTest
-    @NullAndEmptySource
-    @ValueSource(strings = {"   ", "\t", "\u0007"})
-    void sanitiseLabel_blank_isNoRename(final String raw) {
-        assertThat(ActionStatField.sanitiseLabel(raw))
-            .as("a blank name means 'use the catalogue label', which is stored as null")
-            .isNull();
-    }
+    // ── custom stat names ─────────────────────────────────────────────────────
 
     @Test
     void maxLabelLength_admitsEveryBuiltInLabel() {
@@ -355,7 +339,7 @@ class ActionStatFieldTest {
         // The point of sizing it that way: a user can always rename a stat to any wording the app itself uses.
         assertThat(Arrays.stream(ActionStatField.values()).map(ActionStatField::label).toList())
             .as("every built-in label must itself be a legal custom name")
-            .allMatch(ActionStatField::isValidLabel);
+            .allMatch(label -> TextValidation.check(TextFields.STAT_NAME, label) instanceof TextOutcome.Valid);
     }
 
     @Test
@@ -403,31 +387,14 @@ class ActionStatFieldTest {
     }
 
     @Test
-    void isValidLabel_rejectsOnlyNamesOverTheLimit() {
-        assertThat(ActionStatField.isValidLabel(null))
-            .as("no rename at all is valid")
-            .isTrue();
-        assertThat(ActionStatField.isValidLabel("a".repeat(ActionStatField.MAX_LABEL_LENGTH)))
-            .as("a name of exactly the maximum length is valid")
-            .isTrue();
-        assertThat(ActionStatField.isValidLabel("a".repeat(ActionStatField.MAX_LABEL_LENGTH + 1)))
-            .as("a name one character over the maximum is rejected, never truncated")
-            .isFalse();
-        // Measured AFTER normalisation, so padding whitespace cannot push a legal name over the limit.
-        assertThat(ActionStatField.isValidLabel("   " + "a".repeat(ActionStatField.MAX_LABEL_LENGTH) + "   "))
-            .as("length is measured on the sanitised name")
-            .isTrue();
-    }
-
-    @Test
     void labelsByKey_pairsTheParallelFormLists() {
         final Map<String, String> labels = ActionStatField.labelsByKey(
             List.of("  current-streak  ", "best-year", "total-days"),
             List.of("Days in row", "  ", " Top year "));
 
         assertThat(labels)
-            .as("each key takes the name posted by its own row; a blank name is no rename")
-            .containsExactly(Map.entry("current-streak", "Days in row"), Map.entry("total-days", "Top year"));
+            .as("each key takes the name posted by its own row, exactly as submitted; a blank name is no rename")
+            .containsExactly(Map.entry("current-streak", "Days in row"), Map.entry("total-days", " Top year "));
     }
 
     @Test
@@ -446,14 +413,16 @@ class ActionStatFieldTest {
     // ── renames (custom names flowing through the catalogue) ──────────────────
 
     @Test
-    void encode_storesTheSanitisedCustomName() {
+    void encode_storesTheNameItIsGiven() {
+        // Names arrive already validated and normalised - ProfileService makes that single pass, and SettingsIT covers it end to end - so encode
+        // stores what it is handed rather than cleaning it a second time.
         final List<StatFieldPref> encoded = ActionStatField.encode(
             List.of("current-streak", "best-year"),
             List.of("current-streak", "best-year"),
-            Map.of("current-streak", "  Days in row  "));
+            Map.of("current-streak", "Days in row"));
 
         assertThat(encoded.getFirst())
-            .as("the renamed stat stores its sanitised name")
+            .as("the renamed stat stores its name")
             .isEqualTo(new StatFieldPref("current-streak", true, "Days in row"));
         assertThat(encoded.get(1))
             .as("a stat with no submitted name stores none, so it keeps tracking the catalogue label")
@@ -473,12 +442,7 @@ class ActionStatFieldTest {
     }
 
     @Test
-    void displayFields_sanitisesStoredNameOnRead() {
-        final List<StatFieldPref> stored = List.of(new StatFieldPref("current-streak", true, "  Days\tin row "));
-        assertThat(ActionStatField.displayFields(stored).getFirst().label())
-            .as("a stored name is normalised on read, so a value written outside the app still renders tidily")
-            .isEqualTo("Days in row");
-
+    void displayFields_blankStoredName_fallsBackToTheCatalogueLabel() {
         final List<StatFieldPref> blank = List.of(new StatFieldPref("current-streak", true, "   "));
         assertThat(ActionStatField.displayFields(blank).getFirst().label())
             .as("a stored blank name falls back to the catalogue label")

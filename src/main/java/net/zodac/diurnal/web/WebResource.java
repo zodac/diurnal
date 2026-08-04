@@ -54,7 +54,6 @@ import net.zodac.diurnal.auth.OidcDenialReason;
 import net.zodac.diurnal.auth.OidcUserProvisioner;
 import net.zodac.diurnal.auth.PasswordChangeResult;
 import net.zodac.diurnal.auth.PasswordChangeService;
-import net.zodac.diurnal.auth.PasswordConstraints;
 import net.zodac.diurnal.auth.RegistrationResult;
 import net.zodac.diurnal.auth.RegistrationService;
 import net.zodac.diurnal.auth.Session;
@@ -509,9 +508,7 @@ public class WebResource {
                 .data("setup", setupRequired())
                 .data("registrationDisabled", false)
                 .data("theme", Theme.DEFAULT.value())
-                .data("font", Font.DEFAULT.value())
-                .data("maxPasswordLength", PasswordConstraints.MAX_LENGTH)
-                .data("passwordConstraints", PasswordConstraints.all());
+                .data("font", Font.DEFAULT.value());
     }
 
     private TemplateInstance renderRegisterDisabled() {
@@ -803,8 +800,6 @@ public class WebResource {
                 // OIDC-only accounts have no password at all: they render no Password section (the
                 // Identity Provider section states the connection) and no Connect button.
                 .data("isOidcUser", user.oidcSubject != null && !user.oidcSubject.isBlank())
-                .data("maxPasswordLength", PasswordConstraints.MAX_LENGTH)
-                .data("passwordConstraints", PasswordConstraints.all())
                 .data("oidcProviderName", oidcConfig.providerName())
                 .data("theme", user.theme)
                 .data("font", user.font)
@@ -819,7 +814,6 @@ public class WebResource {
                 .data("calendarView", user.calendarView)
                 .data("calendarViewOptions", CalendarView.values())
                 .data("statsFieldChoices", ActionStatField.choices(user.statsFields))
-                .data("maxStatLabelLength", ActionStatField.MAX_LABEL_LENGTH)
                 .data("timezoneChoices",
                         UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone));
     }

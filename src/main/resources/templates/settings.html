@@ -100,7 +100,7 @@
                                            name="displayName"
                                            value="{displayName}"
                                            required
-                                           maxlength="255"
+                                           maxlength="{inject:textFields.displayName.maxLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <div class="dt-actions">
                                         <button type="submit"
@@ -162,7 +162,7 @@
                                            name="currentPassword"
                                            autocomplete="current-password"
                                            placeholder="Current password"
-                                           maxlength="{maxPasswordLength}"
+                                           maxlength="{inject:textFields.password.maxLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" data-reveal-target="currentPassword"
                                             aria-label="Show password" class="settings-eye">
@@ -184,7 +184,7 @@
                                            id="newPassword"
                                            autocomplete="new-password"
                                            placeholder="New password"
-                                           maxlength="{maxPasswordLength}"
+                                           maxlength="{inject:textFields.password.maxLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" data-reveal-target="newPassword"
                                             aria-label="Show password" class="settings-eye">
@@ -215,7 +215,7 @@
                                            name="confirmPassword"
                                            autocomplete="new-password"
                                            placeholder="Re-enter new password"
-                                           maxlength="{maxPasswordLength}"
+                                           maxlength="{inject:textFields.password.maxLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" data-reveal-target="confirmPassword"
                                             aria-label="Show password" class="settings-eye">
@@ -475,7 +475,7 @@
                             <input type="text" class="stats-field-input dt-text-input hidden flex-1 min-w-0 select-text cursor-text"
                                    value="{choice.label}"
                                    placeholder="{choice.defaultLabel}"
-                                   maxlength="{maxStatLabelLength}"
+                                   maxlength="{inject:textFields.statName.maxLength}"
                                    aria-label="Custom name for the '{choice.defaultLabel}' stat">
 
                             {#if choice.mandatory}

@@ -238,7 +238,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .post("/register")
                 .then()
                 .statusCode(400)
-                .body(containsString("Display name must be between 2 and 100 characters."));
+                .body(containsString("Display name must be between 2 and 50 characters."));
     }
 
     @Test
@@ -251,7 +251,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .post("/register")
                 .then()
                 .statusCode(400)
-                .body(containsString("Display name must be between 2 and 100 characters."));
+                .body(containsString("Display name must be between 2 and 50 characters."));
     }
 
     @Test

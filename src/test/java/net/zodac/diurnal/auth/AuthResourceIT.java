@@ -200,7 +200,7 @@ class AuthResourceIT extends IntegrationTestBase {
                         """)
                 .post("/api/v1/auth/register")
                 .then().statusCode(400)
-                .body("message", containsStringIgnoringCase("between 2 and 100"));
+                .body("message", containsStringIgnoringCase("between 2 and 50"));
     }
 
     @Test

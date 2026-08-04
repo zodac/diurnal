@@ -43,7 +43,7 @@ sealed interface ActionResult permits ActionResult.Success, ActionResult.BlankNa
     }
 
     /**
-     * The submitted name exceeds {@link ActionValidation#NAME_MAX_LENGTH} characters after stripping.
+     * The submitted name exceeds the {@code TextFields#ACTION_NAME} maximum length once normalised.
      */
     record NameTooLong() implements ActionResult {
 

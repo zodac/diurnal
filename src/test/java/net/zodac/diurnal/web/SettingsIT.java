@@ -792,7 +792,7 @@ class SettingsIT extends IntegrationTestBase {
                 .formParam("statsLabel", "a".repeat(ActionStatField.MAX_LABEL_LENGTH + 1), "")
                 .patch("/internal/settings")
                 .then().statusCode(422)
-                .body(containsString("Stat name cannot be longer than"));
+                .body(containsString("Stat name must be at most"));
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
             .as("a rejected rename must not persist any part of the submission")

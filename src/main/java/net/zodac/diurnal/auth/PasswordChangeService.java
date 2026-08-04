@@ -22,6 +22,10 @@ import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.util.UUID;
+import net.zodac.diurnal.text.TextFieldExtensions;
+import net.zodac.diurnal.text.TextFields;
+import net.zodac.diurnal.text.TextOutcome;
+import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -59,10 +63,9 @@ public class PasswordChangeService {
     public static final String NEW_PASSWORD_ERROR = "Passwords do not match";
 
     /**
-     * User-facing rejection message when the new password exceeds {@link PasswordConstraints#MAX_LENGTH} characters.
+     * User-facing rejection message when the new password exceeds the {@link TextFields#PASSWORD} maximum length.
      */
-    public static final String NEW_PASSWORD_TOO_LONG_ERROR =
-        "Password must be at most " + PasswordConstraints.MAX_LENGTH + " characters";
+    public static final String NEW_PASSWORD_TOO_LONG_ERROR = TextFieldExtensions.lengthMessage(TextFields.PASSWORD);
 
     private static final Logger LOGGER = LogManager.getLogger(PasswordChangeService.class);
 
@@ -129,17 +132,23 @@ public class PasswordChangeService {
             LOGGER.warn("Failed current-password check on password change for user: {} (IP: {})", user.email, clientIp);
             return new PasswordChangeResult.WrongCurrentPassword();
         }
-        if (newPassword == null || newPassword.isEmpty() || (confirmPassword != null && !newPassword.equals(confirmPassword))) {
+        // Surface policy: where a confirmation was collected, a mismatch is reported before anything else - the web form presents its two
+        // new-password boxes as one "do these match" step, so the pair is wrong before either box's contents are.
+        if (confirmPassword != null && !confirmPassword.equals(newPassword)) {
             return new PasswordChangeResult.InvalidNewPassword(NEW_PASSWORD_ERROR);
         }
-        // Cap the length to bound the hashing cost (an over-long input is a cheap CPU-exhaustion lever) —
-        // mirrors the registration cap so the new password is bounded identically however it arrives.
-        if (newPassword.length() > PasswordConstraints.MAX_LENGTH) {
-            return new PasswordChangeResult.InvalidNewPassword(NEW_PASSWORD_TOO_LONG_ERROR);
+        // ONE pass through the same catalogue entry registration uses, so a new password is bounded identically however it arrives (the cap keeps
+        // the hashing cost bounded - an over-long input is a cheap CPU-exhaustion lever). An absent password is a rejection of the same step as a
+        // mismatch, so it carries that wording rather than the pipeline's.
+        final TextOutcome outcome = TextValidation.check(TextFields.PASSWORD, newPassword);
+        if (!(outcome instanceof final TextOutcome.Valid accepted)) {
+            return new PasswordChangeResult.InvalidNewPassword(
+                outcome instanceof TextOutcome.Blank ? NEW_PASSWORD_ERROR : NEW_PASSWORD_TOO_LONG_ERROR);
         }
 
-        // The new hash is computed here, outside any transaction (see the class Javadoc).
-        final String newHash = passwords.hash(newPassword);
+        // The new hash is computed here, outside any transaction (see the class Javadoc). It hashes the value the check above accepted - for a
+        // secret that is the submission verbatim, but taking it from the outcome is what guarantees no second pass over the input.
+        final String newHash = passwords.hash(accepted.value());
         return self.get().applyChange(user.id, newHash, currentRawToken);
     }
 

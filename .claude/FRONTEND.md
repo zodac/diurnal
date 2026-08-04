@@ -324,8 +324,8 @@ Cancel merely appears beside it. `tests/ui/settings.spec.ts` measures both modes
 summary strip and the picker row). The row's hidden `statsLabel` holds the **custom** name, never the rendered caption — posting the
 caption back would pin every stat's wording the first time any one of them was renamed, so an un-renamed stat would stop tracking
 the catalogue label. A blank name means "use the catalogue label", which is how a rename is cleared (the input's placeholder is that
-label). Names are normalised (whitespace collapsed, control characters stripped) and a name over `MAX_LABEL_LENGTH` characters is
-**rejected on both surfaces** — 422 on the web, 400 on the API — never truncated. The cap is **25**, sized against the catalogue's own
+label). Names go through the shared text-input pipeline (`TextFields.STAT_NAME` - see [`TEXT_INPUT.md`](TEXT_INPUT.md)), so they are
+normalised exactly like every other free-text value in the app, and a name over the catalogue maximum is **rejected on both surfaces** — 422 on the web, 400 on the API — never truncated. The cap is **25**, sized against the catalogue's own
 wording (the longest built-in label, "Average count per month", is 23) so a custom name is never much wordier than the stat beside it
 and every built-in label is itself a legal custom name. **A stat's own built-in label is not a rename**: the editor pre-fills with the
 current caption, so saving an un-renamed row untouched submits that label, and storing it would pin the wording against future

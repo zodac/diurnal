@@ -26,8 +26,11 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import net.zodac.diurnal.text.TextFields;
+import net.zodac.diurnal.text.TextOutcome;
+import net.zodac.diurnal.text.TextOutcomeExtensions;
+import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.user.User;
-import net.zodac.diurnal.user.UserSettings;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.hibernate.exception.ConstraintViolationException;
@@ -41,9 +44,10 @@ import org.jspecify.annotations.Nullable;
  * account; the API never may).
  *
  * <p>
- * The unified validation rules: every field is required; the email must contain an {@code @}; the display name must be 2–100 characters after
- * stripping; the password is capped at {@link PasswordConstraints#MAX_LENGTH}. When the caller collects a confirmation password (the web form), it
- * must match. Every rejected submission is recorded against the shared per-IP throttle ({@link IpThrottle}) exactly once.
+ * The unified validation rules: every field is required, and the email, display name and password are each checked against their entry in the
+ * shared {@code TextFields} catalogue - so registration cannot accept a value the Settings page would reject, or vice versa. When the caller collects
+ * a confirmation password (the web form), it must match. Every rejected submission is recorded against the shared per-IP throttle
+ * ({@link IpThrottle}) exactly once.
  *
  * <p>
  * Transaction discipline: the deliberately expensive Argon2id hash is computed OUTSIDE any database transaction, so no pooled connection sits idle
@@ -109,14 +113,21 @@ public class RegistrationService {
         final String displayNameValue = displayName == null ? "" : displayName;
         final String passwordValue = password == null ? "" : password;
 
-        final List<String> missingFields = missingFields(emailValue, displayNameValue, passwordValue, confirmPassword);
-        final List<String> errors = validate(emailValue, displayNameValue, passwordValue, confirmPassword);
+        // Each field is put through the pipeline EXACTLY ONCE; the outcomes carry both the verdict and the normalised value, so nothing below
+        // re-checks or re-normalises a submission.
+        final TextOutcome emailOutcome = TextValidation.check(TextFields.EMAIL, emailValue);
+        final TextOutcome displayNameOutcome = TextValidation.check(TextFields.DISPLAY_NAME, displayNameValue);
+        final TextOutcome passwordOutcome = TextValidation.check(TextFields.PASSWORD, passwordValue);
+
+        final List<String> missingFields = missingFields(emailOutcome, displayNameOutcome, passwordOutcome, confirmPassword);
+        final List<String> errors = errors(emailOutcome, displayNameOutcome, passwordOutcome, passwordValue, confirmPassword);
         if (!missingFields.isEmpty() || !errors.isEmpty()) {
             RegistrationAttemptLog.logFailure(LOGGER, ipLockoutService.recordFailure(clientIp, now), emailValue, clientIp);
             return new RegistrationResult.Invalid(missingFields, errors);
         }
 
-        final String normalised = emailValue.toLowerCase(Locale.ROOT).strip();
+        // Lower-cased for the case-insensitive uniqueness the column relies on; the value itself is the one the check above already produced.
+        final String normalised = acceptedValue(emailOutcome, emailValue).toLowerCase(Locale.ROOT);
         if (User.findByEmail(normalised).isPresent()) {
             RegistrationAttemptLog.logFailure(LOGGER, ipLockoutService.recordFailure(clientIp, now), emailValue, clientIp);
             return new RegistrationResult.DuplicateEmail();
@@ -124,7 +135,7 @@ public class RegistrationService {
 
         // The Argon2id hash is computed here, outside any transaction (see the class Javadoc).
         final String passwordHash = passwords.hash(passwordValue);
-        final RegistrationResult result = self.get().createUser(normalised, displayNameValue.strip(), passwordHash);
+        final RegistrationResult result = self.get().createUser(normalised, acceptedValue(displayNameOutcome, displayNameValue), passwordHash);
         if (result instanceof RegistrationResult.DuplicateEmail) {
             // A concurrent registration won the race for this email after the pre-check passed; record it against the shared per-IP throttle
             // exactly as a duplicate caught by the pre-check above would be.
@@ -138,7 +149,7 @@ public class RegistrationService {
      * interceptor applies; the password hash has already been computed by {@link #register}, outside the transaction.
      *
      * @param email        the normalised (lower-cased, stripped) email
-     * @param displayName  the stripped display name
+     * @param displayName  the normalised display name
      * @param passwordHash the Argon2id hash to store
      * @return {@link RegistrationResult.Success} with the new account, or {@link RegistrationResult.DuplicateEmail} when a concurrent registration
      *     won the race for the email
@@ -168,44 +179,49 @@ public class RegistrationService {
         return new RegistrationResult.Success(user);
     }
 
-    private static List<String> missingFields(final String email, final String displayName, final String password,
+    private static List<String> missingFields(final TextOutcome email, final TextOutcome displayName, final TextOutcome password,
         final @Nullable String confirmPassword) {
         final List<String> missing = new ArrayList<>();
-        if (email.isBlank()) {
+        if (email instanceof TextOutcome.Blank) {
             missing.add("Email");
         }
-        if (displayName.isBlank()) {
+        if (displayName instanceof TextOutcome.Blank) {
             missing.add("Display name");
         }
-        if (password.isEmpty()) {
+        if (password instanceof TextOutcome.Blank) {
             missing.add("Password");
         }
+        // Surface policy: the confirmation is a web-form-only field with no stored value, so it has no catalogue entry of its own.
         if (confirmPassword != null && confirmPassword.isEmpty()) {
             missing.add("Confirm password");
         }
         return missing;
     }
 
-    private static List<String> validate(final String email, final String displayName, final String password,
-        final @Nullable String confirmPassword) {
+    private static List<String> errors(final TextOutcome email, final TextOutcome displayName, final TextOutcome password,
+        final String passwordValue, final @Nullable String confirmPassword) {
         final List<String> errors = new ArrayList<>();
+        addRejection(errors, email);
+        addRejection(errors, displayName);
+        addRejection(errors, password);
 
-        if (!email.isBlank() && !email.contains("@")) {
-            errors.add("Email must contain an @ symbol.");
-        }
-
-        if (!displayName.isBlank() && UserSettings.isInvalidDisplayName(displayName.strip())) {
-            errors.add(UserSettings.DISPLAY_NAME_RANGE_MESSAGE);
-        }
-
-        if (password.length() > PasswordConstraints.MAX_LENGTH) {
-            errors.add("Password must be at most " + PasswordConstraints.MAX_LENGTH + " characters.");
-        }
-
-        if (confirmPassword != null && !password.isEmpty() && !confirmPassword.isEmpty() && !password.equals(confirmPassword)) {
+        if (confirmPassword != null && !passwordValue.isEmpty() && !confirmPassword.isEmpty() && !passwordValue.equals(confirmPassword)) {
             errors.add("The passwords did not match.");
         }
 
         return errors;
+    }
+
+    // A blank value is already listed by missingFields(), so only a real length/content problem is worded as an error here.
+    private static void addRejection(final List<String> errors, final TextOutcome outcome) {
+        if (outcome instanceof final TextOutcome.Failure failure && !(failure instanceof TextOutcome.Blank)) {
+            errors.add(TextOutcomeExtensions.message(failure));
+        }
+    }
+
+    // The normalised value the single pipeline pass produced. The fallback is unreachable from register() (every field is known to be Valid by the
+    // time this is called) and exists only so the accepted value never has to be recomputed from the raw submission.
+    private static String acceptedValue(final TextOutcome outcome, final String submitted) {
+        return outcome instanceof final TextOutcome.Valid valid ? valid.value() : submitted;
     }
 }

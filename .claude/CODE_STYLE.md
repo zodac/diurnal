@@ -269,6 +269,100 @@ ADMIN(Values.ADMIN, "Administrator"),
 USER(Values.USER, "User");
 ```
 
+### Narrow a type with `instanceof final`, never a cast
+
+**A reference is narrowed with a pattern — `instanceof final Foo foo` — never with a `(Foo)` cast.** A cast states the type twice, is
+unchecked by the compiler at the point it is written, and throws `ClassCastException` at runtime when the assumption behind it turns out to be
+wrong. The pattern binds the narrowed variable in the same breath as the test, so there is no way to use it without having checked it.
+
+This matters most for the project's sealed result types (`ActionResult`, `ProfileResult`, `TextOutcome`, …): a cast to one variant silently
+assumes the switch of possibilities the compiler was ready to enforce.
+
+❌ **Wrong** — a cast standing in for a check that was made somewhere above:
+
+```java
+if (outcome instanceof final TextOutcome.Failure failure) {
+    return new ProfileResult.Invalid(TextOutcomeExtensions.message(failure));
+}
+user.displayName = ((TextOutcome.Valid) outcome).value();
+```
+
+✅ **Right** — the success case is the pattern, and the rejection is the fall-through:
+
+```java
+if (!(outcome instanceof final TextOutcome.Valid valid)) {
+    return new ProfileResult.Invalid(TextOutcomeExtensions.message((TextOutcome.Failure) outcome));
+}
+user.displayName = valid.value();
+```
+
+✅ **Better still** — an exhaustive `switch` over the sealed type, where every case is bound by its own pattern and the compiler proves none
+is missing:
+
+```java
+return switch (outcome) {
+    case final TextOutcome.Valid valid -> apply(user, valid.value());
+    case final TextOutcome.Failure failure -> new ProfileResult.Invalid(TextOutcomeExtensions.message(failure));
+};
+```
+
+The pattern variable is **`final`**, like every other local (`case final ActionResult.Success success ->`, `instanceof final TextOutcome.Valid
+valid`).
+
+**In tests, prefer asserting the whole value over narrowing it at all** — `assertThat(outcome).isEqualTo(new TextOutcome.Valid("Running"))`
+checks the type AND the contents in one line, where a cast plus a field assertion checks the contents and merely assumes the type.
+
+> The one place a cast remains correct is a value the type system genuinely cannot describe — a `java.lang.Object` from a native-query
+> projection (`((Number) count).intValue()`), where there is no alternative branch to take and a wrong type is a programming error, not a
+> runtime case to handle.
+
+### Validate a value ONCE per request, then treat it as settled
+
+**A submitted value goes through its validator exactly once in a workflow, and everything downstream uses the value that validation produced
+— never the raw submission, and never a second validating/normalising pass.** This applies to the shared text pipeline
+(`TextValidation.check`, see [`TEXT_INPUT.md`](TEXT_INPUT.md)) and to every other validator alike: `UserSettings.parsePageSize`,
+`Role.isValid`, `ActionValidation.isColourInvalid`.
+
+The reason is **not** performance — validators here are pure and cheap, and normalisation is idempotent. It is that a value validated or
+normalised in two places is a value whose two treatments can silently drift apart, which is the exact class of bug the shared catalogue was
+built to end. Two passes also invite the subtler version: validating the raw input but storing something derived separately from it.
+
+Rules:
+
+- **Keep the result, not just the verdict.** A validator returns the accepted value (`TextOutcome.Valid.value()`, `parsePageSize`'s
+  `Integer`); bind it once and pass it on. A method that answers only `boolean` and forces the caller to re-derive the value is the wrong
+  shape.
+- **Validate in the service, never in the resource.** A resource may pair, decode or default its own form/JSON shape (surface policy), but it
+  hands the values on untouched — a resource that cleans a value guarantees the service cleans it again.
+- **Do not re-validate on read.** A stored value was validated when it was written. Read paths apply presentation rules only.
+- **A service reporting several failures at once** validates each field once, keeps the outcomes, and derives every list it returns from
+  them.
+
+❌ **Wrong** — the same field validated twice, and the stored value normalised a third time:
+
+```java
+final List<String> missing = missingFields(email, displayName);   // calls check(...) per field
+final List<String> errors = validate(email, displayName);         // calls check(...) per field AGAIN
+...
+createUser(TextFieldExtensions.normalise(TextFields.EMAIL, email).toLowerCase(Locale.ROOT), ...);
+```
+
+✅ **Right** — one pass; the outcomes carry both the verdict and the value to store:
+
+```java
+final TextOutcome emailOutcome = TextValidation.check(TextFields.EMAIL, email);
+final TextOutcome displayNameOutcome = TextValidation.check(TextFields.DISPLAY_NAME, displayName);
+
+final List<String> missing = missingFields(emailOutcome, displayNameOutcome);
+final List<String> errors = errors(emailOutcome, displayNameOutcome);
+...
+createUser(acceptedValue(emailOutcome).toLowerCase(Locale.ROOT), acceptedValue(displayNameOutcome));
+```
+
+> A **surface-specific pre-check** (a web form's confirm-password comparison, a first-user registration refusal) is not a second validation —
+> it tests something the shared validator does not know about. Do it on the raw input, then make the one shared pass. Mark it with a comment
+> saying it is surface policy.
+
 ### Suppress PMD rules with a `NOPMD:` line comment, never `@SuppressWarnings`
 
 When a PMD rule fires on code that is deliberately the way it is, suppress it with a **line comment** in the exact form:

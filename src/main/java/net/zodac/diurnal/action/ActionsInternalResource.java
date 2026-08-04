@@ -36,6 +36,8 @@ import jakarta.ws.rs.core.Response;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import net.zodac.diurnal.text.TextFieldExtensions;
+import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
@@ -258,8 +260,8 @@ public class ActionsInternalResource {
         return switch (result) {
             case final ActionResult.Success success -> Response.ok(actionRowTemplate.data("action", success.action())).build();
             case final ActionResult.BlankName ignored -> HtmxResponses.conflictBanner("#action-error", "Action name cannot be empty.");
-            case final ActionResult.NameTooLong ignored -> HtmxResponses.conflictBanner("#action-error",
-                "Action name cannot be longer than " + ActionValidation.NAME_MAX_LENGTH + " characters.");
+            case final ActionResult.NameTooLong ignored ->
+                HtmxResponses.conflictBanner("#action-error", TextFieldExtensions.lengthMessage(TextFields.ACTION_NAME));
             case final ActionResult.InvalidColour ignored -> HtmxResponses.conflictBanner("#action-error",
                 "Action colour is invalid");
             case final ActionResult.DuplicateName duplicate ->

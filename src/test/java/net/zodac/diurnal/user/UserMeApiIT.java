@@ -190,7 +190,7 @@ class UserMeApiIT extends IntegrationTestBase {
                 .body("{\"displayName\":\"" + "x".repeat(101) + "\"}")
                 .patch("/api/v1/users/me")
                 .then().statusCode(400)
-                .body("message", containsString("between 2 and 100"));
+                .body("message", containsString("between 2 and 50"));
     }
 
     @Test
@@ -264,7 +264,7 @@ class UserMeApiIT extends IntegrationTestBase {
                         """.formatted("a".repeat(ActionStatField.MAX_LABEL_LENGTH + 1)))
                 .patch("/api/v1/users/me")
                 .then().statusCode(400)
-                .body("message", containsString("Stat name cannot be longer than"));
+                .body("message", containsString("Stat name must be at most"));
 
         given().header("Authorization", "Bearer " + token())
                 .get("/api/v1/users/me")
