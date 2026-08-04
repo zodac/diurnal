@@ -190,6 +190,20 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
+    void updatePassword_newPasswordSameAsCurrent_returns422AndKeepsOldHash() {
+        given().formParam("currentPassword", TEST_PASSWORD)
+                .formParam("newPassword", TEST_PASSWORD)
+                .formParam("confirmPassword", TEST_PASSWORD)
+                .post("/internal/settings/password")
+                .then().statusCode(422)
+                .body(containsString("different from the existing password"));
+
+        runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
+            .as("old password must be unchanged when the new password repeats it")
+            .isTrue());
+    }
+
+    @Test
     void updatePassword_missingParams_returns422() {
         given().post("/internal/settings/password")
                 .then().statusCode(422);

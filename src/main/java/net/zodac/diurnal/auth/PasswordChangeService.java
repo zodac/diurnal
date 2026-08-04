@@ -67,6 +67,15 @@ public class PasswordChangeService {
      */
     public static final String NEW_PASSWORD_TOO_LONG_ERROR = TextFieldExtensions.lengthMessage(TextFields.PASSWORD);
 
+    /**
+     * User-facing rejection message when the new password is the one already stored.
+     *
+     * <p>
+     * Deliberately worded without the phrase "current password": the Settings client sends the user back to step 1 on any rejection naming it, and
+     * this rejection belongs to the NEW-password step.
+     */
+    public static final String NEW_PASSWORD_UNCHANGED_ERROR = "New password must be different from the existing password";
+
     private static final Logger LOGGER = LogManager.getLogger(PasswordChangeService.class);
 
     private final Instance<PasswordChangeService> self;
@@ -144,6 +153,13 @@ public class PasswordChangeService {
         if (!(outcome instanceof final TextOutcome.Valid accepted)) {
             return new PasswordChangeResult.InvalidNewPassword(
                 outcome instanceof TextOutcome.Blank ? NEW_PASSWORD_ERROR : NEW_PASSWORD_TOO_LONG_ERROR);
+        }
+
+        // A password change must actually change something: re-submitting the existing password would re-hash it and revoke every other session for
+        // no gain, and silently accepting it tells the user their password changed when it did not. The current password has already been proven
+        // above, so this is a plain comparison of two values known to be the account's - no second Argon2id verification.
+        if (accepted.value().equals(currentPassword)) {
+            return new PasswordChangeResult.InvalidNewPassword(NEW_PASSWORD_UNCHANGED_ERROR);
         }
 
         // The new hash is computed here, outside any transaction (see the class Javadoc). It hashes the value the check above accepted - for a

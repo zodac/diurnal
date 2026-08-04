@@ -328,6 +328,33 @@ class UserMeApiIT extends IntegrationTestBase {
     }
 
     @Test
+    void changePassword_newPasswordSameAsCurrent_returns400AndKeepsOldPassword() {
+        final String callerToken = token();
+        final String otherDeviceToken = token();
+
+        given().header("Authorization", "Bearer " + callerToken)
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"currentPassword":"%s","newPassword":"%s"}
+                        """.formatted(TEST_PASSWORD, TEST_PASSWORD))
+                .put("/api/v1/users/me/password")
+                .then().statusCode(400)
+                .body("message", containsString("different from the existing password"));
+
+        // A rejected change must be a complete no-op: no re-hash, and crucially no session revocation.
+        given().header("Authorization", "Bearer " + otherDeviceToken)
+                .get("/api/v1/users/me")
+                .then().statusCode(200);
+        given().header("Authorization", "Bearer " + callerToken)
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"currentPassword":"%s","newPassword":"a brand new passphrase"}
+                        """.formatted(TEST_PASSWORD))
+                .put("/api/v1/users/me/password")
+                .then().statusCode(204);
+    }
+
+    @Test
     void changePassword_oidcOnlyAccount_returns403() {
         runInTx(UserMeApiIT::newOidcUser);
         final User oidcUser = User.findByEmail("oidc-me@lt.test").orElseThrow();

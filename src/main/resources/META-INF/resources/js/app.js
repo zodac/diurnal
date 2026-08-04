@@ -855,14 +855,20 @@ document.addEventListener('click', function (e) {
 // the check tokens below (minLength / maxLength) MUST match Constraint.type. One handler serves both
 // the registration and settings pages; each page has a single opted-in field.
 (function () {
-    function met(type, bound, len) {
-        if (type === 'minLength') {return len >= bound}
-        if (type === 'maxLength') {return len <= bound}
+    function met(type, bound, value) {
+        if (type === 'minLength') {return value.length >= parseInt(bound, 10)}
+        if (type === 'maxLength') {return value.length <= parseInt(bound, 10)}
+        // The change-password flow's extra row (partial param `differsFrom`): the bound is the id of the
+        // input holding the password the new one must not repeat, not a numeric length.
+        if (type === 'differsFrom') {
+            const other = document.getElementById(bound)
+            return !other || value !== other.value
+        }
         return true                                     // unknown token: never block, just show it
     }
-    function refresh(tip, len) {
+    function refresh(tip, value) {
         tip.querySelectorAll('[data-pw-check]').forEach(function (row) {
-            const ok = met(row.getAttribute('data-pw-type'), parseInt(row.getAttribute('data-pw-value'), 10), len)
+            const ok = met(row.getAttribute('data-pw-type'), row.getAttribute('data-pw-value'), value)
             row.classList.toggle('text-success', ok)
             row.classList.toggle('text-danger', !ok)
             const icon = row.querySelector('[data-pw-icon]')
@@ -872,7 +878,7 @@ document.addEventListener('click', function (e) {
     document.querySelectorAll('[data-pw-tooltip]').forEach(function (tip) {
         const input = document.getElementById(tip.getAttribute('data-pw-for'))
         if (!input) {return}
-        const update = function () { refresh(tip, input.value.length) }
+        const update = function () { refresh(tip, input.value) }
         input.addEventListener('focus', function () { update(); tip.classList.add('pw-open') })
         input.addEventListener('input', update)
         input.addEventListener('blur', function () { tip.classList.remove('pw-open') })
