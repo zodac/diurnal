@@ -185,7 +185,8 @@ public class UserResource {
     @SecurityRequirement(name = "BearerAuth")
     @APIResponses({
         @APIResponse(responseCode = "204", description = "The password was changed and every other session revoked."),
-        @APIResponse(responseCode = "400", description = "The current password is incorrect, or the new password is missing or too long.",
+        @APIResponse(responseCode = "400",
+                description = "The current password is incorrect, or the new password is missing, too long, or the same as the existing one.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
         @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
         @APIResponse(responseCode = "403", description = "The account holds no password to change (OIDC-only sign-in).")

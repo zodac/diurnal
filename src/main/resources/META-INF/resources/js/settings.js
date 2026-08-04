@@ -66,6 +66,18 @@ document.getElementById('display-name-cancel-btn').addEventListener('click', win
 document.getElementById('logout-all-arm-btn').addEventListener('click', window.armLogoutAll)
 document.getElementById('logout-all-cancel-btn').addEventListener('click', window.cancelLogoutAll)
 
+// Saving a display name that is identical to the stored one is not a change, so it must not reach
+// the backend: close the editor and stop there. htmx:confirm is the last hook before the request is
+// issued and cancelling it there covers every way the form can be submitted (the Save button, Enter
+// in the field), unlike intercepting one control's click.
+document.getElementById('account-form').addEventListener('htmx:confirm', function (e) {
+    const stored = document.getElementById('display-name-text').textContent.trim()
+    if (document.getElementById('displayName').value.trim() === stored) {
+        e.preventDefault()
+        window.cancelEditDisplayName()
+    }
+})
+
 document.getElementById('account-form').addEventListener('htmx:afterRequest', function (e) {
     if (e.detail.successful) {
         const newName = document.getElementById('displayName').value.trim()
@@ -114,17 +126,24 @@ document.getElementById('account-form').addEventListener('htmx:afterRequest', fu
         return document.getElementById('currentPassword').value.length > 0
     }
     function newStepValid() {
-        const len = document.getElementById('newPassword').value.length
+        const value = document.getElementById('newPassword').value
         // Fall back to non-empty if the popover is somehow absent, mirroring the server's minimum.
-        if (!newPasswordTip) {return len > 0}
+        if (!newPasswordTip) {return value.length > 0}
         // Evaluate the same server-rendered requirement rows the popover in app.js recolours. Read straight
         // off the DOM (no cross-file dependency, so a stale/cached app.js can't break this), applying the
-        // same minLength/maxLength tokens — which mirror net.zodac.diurnal.text.TextConstraint.type.
+        // same minLength/maxLength/differsFrom tokens — which mirror net.zodac.diurnal.text.TextConstraint.type
+        // plus the partial's own differsFrom row.
         return Array.prototype.every.call(newPasswordTip.querySelectorAll('[data-pw-check]'), function (row) {
-            const bound = parseInt(row.getAttribute('data-pw-value'), 10)
+            const bound = row.getAttribute('data-pw-value')
             const type = row.getAttribute('data-pw-type')
-            if (type === 'minLength') {return len >= bound}
-            if (type === 'maxLength') {return len <= bound}
+            if (type === 'minLength') {return value.length >= parseInt(bound, 10)}
+            if (type === 'maxLength') {return value.length <= parseInt(bound, 10)}
+            // Re-entering the current password is not a change: the server rejects it, so the step is gated
+            // here too rather than letting the user reach the confirm step for nothing.
+            if (type === 'differsFrom') {
+                const other = document.getElementById(bound)
+                return !other || value !== other.value
+            }
             return true                                     // unknown token: never block
         })
     }

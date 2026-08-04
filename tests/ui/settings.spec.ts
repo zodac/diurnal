@@ -272,6 +272,50 @@ test.describe("Settings page", () => {
         await expect(page.locator("#display-name-text")).toHaveText(testUser.displayName)
     })
 
+    test("saving an unchanged display name sends no request", async ({ authenticatedPage: page }) => {
+        // Opening the editor and saving what is already stored is not a change, so it must never reach
+        // the backend (mirroring the stats rename editor below) — the editor just closes.
+        await page.goto("/settings")
+        let saves = 0
+        page.on("request", (r) => {
+            if (new URL(r.url()).pathname === "/internal/settings" && r.method() === "PATCH") { saves++ }
+        })
+
+        await clickDisplayNameEdit(page)
+        await page.getByRole("button", { name: "Save" }).click()
+        await expect(page.locator("#account-form")).toBeHidden()
+        // Give any stray request time to be issued before asserting none was.
+        await page.waitForTimeout(300)
+        expect(saves, "an unchanged display name must not PATCH").toBe(0)
+
+        // Typing and re-typing the SAME value is still no change.
+        const stored = await page.locator("#display-name-text").textContent() ?? ""
+        await clickDisplayNameEdit(page)
+        await page.fill('input[name="displayName"]', "Something else")
+        await page.fill('input[name="displayName"]', stored)
+        await page.getByRole("button", { name: "Save" }).click()
+        await expect(page.locator("#account-form")).toBeHidden()
+        await page.waitForTimeout(300)
+        expect(saves, "re-typing the stored display name must not PATCH").toBe(0)
+    })
+
+    test("the Edit button sits in the slot its edit-mode Save will occupy", async ({ authenticatedPage: page }) => {
+        // Both rows swap a single Edit for Save + Cancel, so the read state reserves the trailing Cancel
+        // slot: Edit and Save must land on the same pixel, and the cursor never has to move.
+        await page.setViewportSize({ width: 1280, height: 900 })
+        await page.goto("/settings")
+
+        const nameEdit = await page.locator("#display-name-view").getByRole("button", { name: "Edit" }).boundingBox()
+        await clickDisplayNameEdit(page)
+        const nameSave = await page.locator("#account-form").getByRole("button", { name: "Save" }).boundingBox()
+        expect(nameSave?.x, "Display Name: Save lands on the Edit button").toBeCloseTo(nameEdit?.x ?? -1, 0)
+
+        const pwEdit = await page.locator("#password-view").getByRole("button", { name: "Edit" }).boundingBox()
+        await clickPasswordEdit(page)
+        const pwNext = await page.locator("#password-current-form").getByRole("button", { name: "Next" }).boundingBox()
+        expect(pwNext?.x, "Password: Next lands on the Edit button").toBeCloseTo(pwEdit?.x ?? -1, 0)
+    })
+
     test("email is displayed read-only and not in a form input", async ({ authenticatedPage: page, testUser }) => {
         await page.goto("/settings")
         await expect(page.locator('input[name="email"]')).toHaveCount(0)
@@ -334,6 +378,31 @@ test.describe("Settings page", () => {
         await expect(page.locator("#password-current-form")).toBeVisible()
         await expect(page.locator("#password-new-form")).toBeHidden()
         await expect(page.locator("#password-confirm-form")).toBeHidden()
+    })
+
+    test("re-entering the current password at step 2 is blocked, with a requirement row saying so", async ({ authenticatedPage: page, testUser }) => {
+        // A "change" to the password already in use is not a change: the server rejects it, so the client
+        // never lets the user reach the confirm step for it — the requirement is stated up front in the
+        // popover and gates the Next button, exactly like the length rules.
+        await page.goto("/settings")
+        await clickPasswordEdit(page)
+        await passwordStep1Next(page, testUser.password)
+
+        const rule = page.locator('[data-pw-tooltip][data-pw-for="newPassword"] [data-pw-type="differsFrom"]')
+        await expect(rule).toContainText("Different from your current password")
+
+        const next = page.locator("#password-new-form").getByRole("button", { name: "Next" })
+        await page.fill("#newPassword", testUser.password)
+        await expect(rule).toHaveClass(/text-danger/)
+        await expect(next).toBeDisabled()
+
+        // Any other value satisfies it, and the step advances again.
+        await page.fill("#newPassword", "something_genuinely_new")
+        await expect(rule).toHaveClass(/text-success/)
+        await expect(next).toBeEnabled()
+
+        await page.locator("#password-new-form").getByRole("button", { name: "Cancel" }).click()
+        await expect(page.locator("#password-view")).toBeVisible()
     })
 
     test("changing the password with the correct current password persists, then restores it", async ({ authenticatedPage: page, testUser }) => {

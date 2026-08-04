@@ -699,8 +699,9 @@ public class WebResource {
      * Changes the current (local) user's password. To defend against a hijacked session silently taking over the account, the caller must prove
      * knowledge of the existing password: the flow first asks for the {@code currentPassword}, then the new password entered and re-entered to
      * confirm ({@code newPassword} + {@code confirmPassword}). All three values arrive here. Returns {@code 422} when the current password does not
-     * match (body {@link PasswordChangeService#CURRENT_PASSWORD_ERROR}) or when the new password is empty or the two copies do not match (body
-     * {@link PasswordChangeService#NEW_PASSWORD_ERROR}). {@code 403} for an account holding no password (OIDC-only), and
+     * match (body {@link PasswordChangeService#CURRENT_PASSWORD_ERROR}), when the new password is empty or the two copies do not match (body
+     * {@link PasswordChangeService#NEW_PASSWORD_ERROR}), or when it is the password already stored (body
+     * {@link PasswordChangeService#NEW_PASSWORD_UNCHANGED_ERROR}). {@code 403} for an account holding no password (OIDC-only), and
      * {@code 200} once the new hash is persisted. The response body drives which step the client returns the user to.
      */
     @POST

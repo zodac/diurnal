@@ -85,6 +85,10 @@
                                     <button type="button"
                                             id="display-name-edit-btn"
                                             class="dt-btn dt-btn-edit">Edit</button>
+                                    {! Invisible stand-in for the edit state's trailing Cancel, so Edit occupies the
+                                         SAME right-aligned slot Save will - the cursor never has to move between the
+                                         two states (the .dt-actions fixed-width slots do the rest). !}
+                                    <span aria-hidden="true" class="dt-btn invisible">Cancel</span>
                                 </div>
                             </div>
 
@@ -141,6 +145,9 @@
                                     <button type="button"
                                             id="password-edit-btn"
                                             class="dt-btn dt-btn-edit">Edit</button>
+                                    {! Same trailing-Cancel stand-in as the Display Name row above, so Edit sits
+                                         exactly where each step's Next/Save will. !}
+                                    <span aria-hidden="true" class="dt-btn invisible">Cancel</span>
                                 </div>
                             </div>
 
@@ -195,7 +202,10 @@
                                         <button type="button" class="dt-btn dt-btn-cancel password-cancel-btn">Cancel</button>
                                     </div>
                                 </div>
-                                {#include partials/password-constraints for="newPassword" /}
+                                {! `differsFrom` adds the "must be a new password" row: the value must not equal the
+                                     current password stashed in #pendingCurrent at step 1. The server enforces the
+                                     same rule (PasswordChangeService), this only surfaces it live. !}
+                                {#include partials/password-constraints for="newPassword" differsFrom="pendingCurrent" /}
                             </form>
 
                             {! Step 3: re-enter to confirm. Posts all three values; the server verifies the
