@@ -297,4 +297,22 @@ COPY --chmod=0755 launch.sh     /usr/local/bin/sandbox-launch.sh
 COPY --chmod=0755 setup.sh      /usr/local/bin/sandbox-setup.sh
 
 WORKDIR /work
+
+# ── Healthcheck ──────────────────────────────────────────────────────────────
+# Purely for consistency with the runtime image (and any tooling that watches
+# `docker ps` health), not something the sandbox itself acts on.
+#
+# The sandbox runs no service, so the one thing worth probing is the nested
+# dockerd started by entrypoint.sh: without it every containerised part of the
+# project (dev DB, Testcontainers, the E2E/smoke stacks) is dead, even though the
+# container is still "up" from the host daemon's point of view. `docker info`
+# talks to that nested daemon over /var/run/docker.sock and exits non-zero when
+# it is unreachable; --format keeps the output to a single line (Docker retains
+# the probe's output in the health log). Exec form so no shell is needed.
+#
+# The start period matches the entrypoint's own 30s (60 x 0.5s) dockerd wait, so a
+# slow daemon start is never reported unhealthy.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD ["docker", "info", "--format", "{{.ServerVersion}}"]
+
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
