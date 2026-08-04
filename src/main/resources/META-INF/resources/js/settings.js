@@ -590,19 +590,58 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
     const LONG_PRESS_MS = 500
     let dragged = null        // row being reordered (drag started on its handle)
     let moved = false         // whether that drag actually moved a row
+    let dragOrigin = 0        // pointer y the dragged row's slot corresponds to (rebased on every re-slot)
     let tipTimer = null       // pending long-press-to-open-tooltip timer
     let suppressClick = false // set by a drag or a long-press so the next click won't toggle
 
     // The sibling the dragged row should sit BEFORE for a pointer at height y — the first
     // row whose vertical midpoint is below y. null → past the last row (append).
+    // Measured in LAYOUT coordinates (offsetTop), not from the viewport rect: a row that is
+    // mid-slide carries a transform, and hit-testing against that animated position would keep
+    // flipping it back and forth as it travels. offsetTop ignores transforms; the list and its
+    // rows share an offsetParent, so the pointer only needs that parent's viewport offset.
     function referenceRow(y) {
+        const layoutY = y - (list.getBoundingClientRect().top - list.offsetTop)
         const rows = list.querySelectorAll('.stats-field-row')
         for (let i = 0; i < rows.length; i++) {
             if (rows[i] === dragged) {continue}
-            const rect = rows[i].getBoundingClientRect()
-            if (y < rect.top + rect.height / 2) {return rows[i]}
+            if (layoutY < rows[i].offsetTop + rows[i].offsetHeight / 2) {return rows[i]}
         }
         return null
+    }
+
+    // Move the dragged row into a new slot, sliding every row it displaces from where it WAS to
+    // where it now is: the DOM move is instant, so each displaced row is given the inverse offset
+    // as a transform with transitions off, then released so the `.stats-field-row` transform
+    // transition carries it into its new slot. Without this a displaced row simply appears there.
+    // The dragged row itself is NOT animated — it stays under the pointer (see dragTo), so its own
+    // slot change is cancelled out by rebasing `dragOrigin` by however far the slot moved.
+    function slideInto(before) {
+        if (before === dragged.nextElementSibling) {return}   // already in that slot: nothing moves
+        const rows = Array.from(list.querySelectorAll('.stats-field-row'))
+        const previousTops = new Map()
+        rows.forEach(function (row) { previousTops.set(row, row.getBoundingClientRect().top) })
+        const draggedSlot = dragged.offsetTop                 // layout, so the drag transform is excluded
+        list.insertBefore(dragged, before)
+        dragOrigin += dragged.offsetTop - draggedSlot
+        rows.forEach(function (row) {
+            if (row === dragged) {return}
+            row.style.transition = 'none'
+            row.style.transform = ''   // drop any in-flight offset, so the new slot is measured, not it
+            const delta = previousTops.get(row) - row.getBoundingClientRect().top
+            if (delta === 0) { row.style.transition = ''; return }
+            row.style.transform = `translateY(${delta}px)`
+            void row.offsetWidth       // commit that start state before transitions come back on
+            row.style.transition = ''
+            row.style.transform = ''
+        })
+    }
+
+    // Hold the dragged row under the pointer: it is offset from its own slot by however far the
+    // pointer has travelled since that slot was established. `.stats-field-dragging` turns the row's
+    // transform transition off (it must not lag the finger) and lifts it over its neighbours.
+    function dragTo(y) {
+        dragged.style.transform = `translateY(${y - dragOrigin}px)`
     }
 
     function closeTips() {
@@ -677,7 +716,8 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
             e.preventDefault()
             dragged = row
             moved = false
-            row.classList.add('opacity-50')
+            dragOrigin = e.clientY
+            row.classList.add('opacity-50', 'stats-field-dragging')
             // Capture so pointermove/up keep firing even if the pointer leaves the handle.
             handle.setPointerCapture(e.pointerId)
             return
@@ -697,8 +737,8 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
         if (dragged) {
             e.preventDefault()
             moved = true
-            const before = referenceRow(e.clientY)
-            if (before !== dragged) {list.insertBefore(dragged, before)}
+            slideInto(referenceRow(e.clientY))
+            dragTo(e.clientY)
             return
         }
         // Any movement means a scroll/drag, not a long press.
@@ -707,7 +747,10 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
 
     function endPress() {
         if (dragged) {
-            dragged.classList.remove('opacity-50')
+            // Dropping restores the transform transition first, so a row released between slots
+            // eases the last few pixels into the one it landed in rather than snapping there.
+            dragged.classList.remove('opacity-50', 'stats-field-dragging')
+            dragged.style.transform = ''
             dragged = null
             if (moved) {
                 suppressClick = true   // a completed drag must not also toggle
