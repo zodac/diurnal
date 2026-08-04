@@ -851,7 +851,7 @@ document.addEventListener('click', function (e) {
 // ── Live password-requirements popover ────────────────────────────────────────
 // Drives `partials/password-constraints.html`: while the associated NEW-password field is focused,
 // reveal the popover and recolour each requirement green (met) / red (unmet) as the user types. The
-// rows are server-rendered from net.zodac.diurnal.auth.PasswordConstraints, so this only evaluates —
+// rows are server-rendered from net.zodac.diurnal.text.TextFieldExtensions.constraints, so this only evaluates —
 // the check tokens below (minLength / maxLength) MUST match Constraint.type. One handler serves both
 // the registration and settings pages; each page has a single opted-in field.
 (function () {

@@ -32,7 +32,7 @@ import net.zodac.diurnal.config.Argon2Config;
  * never persisted. Because each hash records the parameters it was made with, verification still works after the cost is retuned; a caller upgrades
  * an out-of-date hash to the current cost by re-hashing on the next successful login (see {@link #needsRehash(String)}). All hashing and verification
  * across the web and REST layers routes through here, so the algorithm and its cost are defined in exactly one place. The rules a raw password must
- * satisfy live alongside in {@link PasswordConstraints}.
+ * satisfy live in the shared {@code net.zodac.diurnal.text} catalogue ({@code TextFields.PASSWORD}).
  */
 @ApplicationScoped
 public class Passwords {

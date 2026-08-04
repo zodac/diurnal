@@ -7,7 +7,8 @@
 
 > **Deep-reference docs (read the matching one before that kind of work):** authentication, sessions, OIDC & CSP
 > live in [`AUTH.md`](AUTH.md); the front-end build/assets/CSS/calendar in [`FRONTEND.md`](FRONTEND.md); the test tiers &
-> conventions in [`TESTING.md`](TESTING.md).
+> conventions in [`TESTING.md`](TESTING.md); the shared free-text validation pipeline in
+> [`TEXT_INPUT.md`](TEXT_INPUT.md).
 
 > **No real URLs or internal IPs in comments or examples.** Use only `https://diurnal.example.com` or
 `http://127.0.0.1:8080` as placeholder values. Never use production hostnames, LAN addresses (`192.168.*`, `10.*`,
@@ -255,8 +256,10 @@ is only its DEFAULT caption - users may rename any stat (stored per key on `Stat
 
 ### Pagination
 
-All list views (actions, day-panel, stats) use in-memory pagination: fetch all, filter, slice. Page size is a per-user setting validated against
-`{5, 10, 25, 50, 100}` (default `5`) by `UserSettings.sanitisePageSize()`. `PaginatedDayActions` adds filler rows to keep every page the same height.
+All list views (actions, day-panel, stats) use in-memory pagination: fetch all, filter, slice. Page size is a per-user setting: the picker offers
+`{5, 10, 25, 50, 100}` (default `5`), but any whole number in `[MIN_PAGE_SIZE, MAX_PAGE_SIZE]` is accepted, parsed and range-checked in ONE pass by
+`UserSettings.parsePageSize()` - an out-of-range value is rejected, never coerced. `PaginatedDayActions` adds filler rows to keep every page the same
+height.
 
 ### Notable invariants
 

@@ -278,15 +278,9 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
     }
 
     private User provision(final String normalised, final String iss, final String sub, final JsonObject claims, final Optional<String> idpRole) {
-        String name = claims.getString("name");
-        // Some IdPs (e.g. Authelia with no display-name configured for the user) fill the name claim with the username/email — a full email
-        // address is never a useful display name, so treat it as absent and fall back to the email's local part.
-        if (name == null || name.isBlank() || name.strip().equalsIgnoreCase(normalised)) {
-            name = normalised.contains("@") ? normalised.split("@")[0] : normalised;
-        }
         final User user = new User();
         user.email = normalised;
-        user.displayName = name;
+        user.displayName = OidcDisplayName.from(claims.getString("name"), normalised);
         user.oidcSubject = sub;
         user.oidcIssuer = iss;
         user.role = idpRole.orElseGet(roleAssigner::roleForNewUser);

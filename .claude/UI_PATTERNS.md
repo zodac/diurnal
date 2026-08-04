@@ -148,6 +148,7 @@ evidence:
 - `actions.js`'s hardcoded `#actions-empty-row` HTML ↔ the same row in `partials/actions-list.html`.
 - `settings.js` `newStepValid()` ↔ `app.js`'s password-popover `met()`: the minLength/maxLength
   token checks are duplicated on purpose (no cross-file dependency, so a stale cached `app.js`
-  can't break the settings gate); both mirror `PasswordConstraints.Constraint.type`.
+  can't break the settings gate); both mirror `text.TextConstraint.type`, which
+  `TextFieldExtensions.constraints(...)` emits.
 - The FOUC script's hex literals in `layout.html` ↔ the `--color-*` tokens in `app.css`
   (documented in the script comment: it runs before the stylesheet exists).

@@ -18,9 +18,15 @@
 package net.zodac.diurnal.user;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.zodac.diurnal.stats.ActionStatField;
+import net.zodac.diurnal.text.TextFieldExtensions;
+import net.zodac.diurnal.text.TextFields;
+import net.zodac.diurnal.text.TextOutcome;
+import net.zodac.diurnal.text.TextOutcomeExtensions;
+import net.zodac.diurnal.text.TextValidation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -34,7 +40,8 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * Every submitted value is validated and an unrecognised one is <em>rejected</em> (never silently coerced) so the client keeps the previous value;
  * the one deliberate special case is a blank timezone, the explicit "follow the server default" reset. Every rule delegates to the single validators
- * on {@link UserSettings}, the picker enums and {@link ActionStatField}.
+ * on {@link UserSettings}, the picker enums and {@link ActionStatField}. Free-text values (the display name) go through the shared
+ * {@link TextValidation} pipeline, so they obey the same blank/length/content rules as every other text input in the app.
  *
  * <p>
  * Callers own the transaction (each endpoint is {@code @Transactional}); this bean only assumes one is active.
@@ -52,14 +59,14 @@ public class ProfileService {
      * @return the outcome
      */
     public ProfileResult updateDisplayName(final User user, final @Nullable String displayName) {
-        if (displayName == null || displayName.isBlank()) {
-            return new ProfileResult.Invalid("Display name cannot be empty.");
-        }
-        final String stripped = displayName.strip();
-        if (UserSettings.isInvalidDisplayName(stripped)) {
-            return new ProfileResult.Invalid(UserSettings.DISPLAY_NAME_RANGE_MESSAGE);
-        }
-        user.displayName = stripped;
+        return switch (TextValidation.check(TextFields.DISPLAY_NAME, displayName)) {
+            case final TextOutcome.Valid valid -> applyDisplayName(user, valid.value());
+            case final TextOutcome.Failure failure -> new ProfileResult.Invalid(TextOutcomeExtensions.message(failure));
+        };
+    }
+
+    private static ProfileResult applyDisplayName(final User user, final String displayName) {
+        user.displayName = displayName;
         user.persist();
         LOGGER.info("Display name changed to '{}' for user {}", user.displayName, user.email);
         return new ProfileResult.Updated();
@@ -185,14 +192,23 @@ public class ProfileService {
      * @return the outcome: {@link ProfileResult.Invalid} for an over-long name, otherwise {@link ProfileResult.Updated}
      */
     public ProfileResult updateStatsFields(final User user, final List<String> order, final List<String> enabled, final Map<String, String> labels) {
-        if (!labels.values().stream().allMatch(ActionStatField::isValidLabel)) {
-            return new ProfileResult.Invalid("Stat name cannot be longer than " + ActionStatField.MAX_LABEL_LENGTH + " characters");
+        // The ONE pass over each submitted name: the outcome carries both the verdict and the normalised value, and it is that value which is
+        // encoded below - the resource paired the names, and nothing downstream cleans or re-checks them.
+        final Map<String, String> names = new LinkedHashMap<>();
+        for (final Map.Entry<String, String> submitted : labels.entrySet()) {
+            if (!(TextValidation.check(TextFields.STAT_NAME, submitted.getValue()) instanceof final TextOutcome.Valid valid)) {
+                return new ProfileResult.Invalid(TextFieldExtensions.lengthMessage(TextFields.STAT_NAME));
+            }
+            // A name that normalises to nothing is the reset that restores the catalogue label, so it is simply not carried.
+            if (!valid.value().isEmpty()) {
+                names.put(submitted.getKey(), valid.value());
+            }
         }
 
         // Logs WHICH stats were renamed, never the names themselves: a name is free text that may hold
         // non-ASCII the container console cannot render (see CLAUDE.md), and the keys identify the change.
-        final String logValue = "order=" + order + " enabled=" + enabled + " renamed=" + labels.keySet();
-        return applySetting(user, "Action stats", logValue, () -> user.statsFields = ActionStatField.encode(order, enabled, labels));
+        final String logValue = "order=" + order + " enabled=" + enabled + " renamed=" + names.keySet();
+        return applySetting(user, "Action stats", logValue, () -> user.statsFields = ActionStatField.encode(order, enabled, names));
     }
 
     private static String allowedValues(final PreviewOption[] options) {

@@ -45,13 +45,13 @@
             {#include partials/banner variant='error' message=message /}
             {/for}
         </div>
-        {#include partials/form-field id="email" name="email" label="Email" type="email" required=true autocomplete="email" maxlength="" value=email /}
-        {#include partials/form-field id="displayName" name="displayName" label="Display name" type="text" required=true autocomplete="name" maxlength="" value=displayName /}
+        {#include partials/form-field id="email" name="email" label="Email" type="email" required=true autocomplete="email" maxlength=inject:textFields.email.maxLength value=email /}
+        {#include partials/form-field id="displayName" name="displayName" label="Display name" type="text" required=true autocomplete="name" maxlength=inject:textFields.displayName.maxLength value=displayName /}
         <div class="relative">
-            {#include partials/form-field id="password" name="password" label="Password" type="password" required=true autocomplete="new-password" maxlength=maxPasswordLength value="" /}
+            {#include partials/form-field id="password" name="password" label="Password" type="password" required=true autocomplete="new-password" maxlength=inject:textFields.password.maxLength value="" /}
             {#include partials/password-constraints for="password" /}
         </div>
-        {#include partials/form-field id="confirmPassword" name="confirmPassword" label="Confirm password" type="password" required=true autocomplete="new-password" maxlength=maxPasswordLength value="" /}
+        {#include partials/form-field id="confirmPassword" name="confirmPassword" label="Confirm password" type="password" required=true autocomplete="new-password" maxlength=inject:textFields.password.maxLength value="" /}
         <button type="submit" class="btn-primary w-full">
             Create account
         </button>

@@ -26,8 +26,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.user.StatFieldPref;
 import org.jspecify.annotations.Nullable;
 
@@ -167,10 +167,7 @@ public enum ActionStatField {
      * {@code .stat-tile dt} carries {@code overflow-wrap} so even a name with no spaces in it wraps rather than spilling out sideways - pinned by
      * rendering the worst case in {@code tests/ui/stats.spec.ts}.
      */
-    public static final int MAX_LABEL_LENGTH = 25;
-
-    private static final Pattern CONTROL_CHARACTERS = Pattern.compile("\\p{Cntrl}");
-    private static final Pattern WHITESPACE_RUN = Pattern.compile("\\s+");
+    public static final int MAX_LABEL_LENGTH = TextFields.STAT_NAME_MAX_LENGTH;
 
     private final String key;
     private final String label;
@@ -237,40 +234,14 @@ public enum ActionStatField {
     }
 
     /**
-     * Normalises a user-submitted custom name into the form that is stored and rendered: control characters become spaces, runs of whitespace
-     * collapse to one, and the result is stripped. A name that is blank once normalised is {@code null} - which is how a rename is UNDONE (clearing
-     * the field restores the catalogue label), so no separate "reset" instruction is needed on any surface.
-     *
-     * @param raw the submitted name (can be {@code null})
-     * @return the name to store, or {@code null} to use the catalogue label
-     */
-    public static @Nullable String sanitiseLabel(@Nullable final String raw) {
-        if (raw == null) {
-            return null;
-        }
-        final String spaced = CONTROL_CHARACTERS.matcher(raw).replaceAll(" ");
-        final String collapsed = WHITESPACE_RUN.matcher(spaced).replaceAll(" ").strip();
-        return collapsed.isEmpty() ? null : collapsed;
-    }
-
-    /**
-     * Whether a submitted custom name is acceptable: anything that {@link #sanitiseLabel(String)} normalises to at most {@link #MAX_LABEL_LENGTH}
-     * characters, including the blank/{@code null} that means "use the catalogue label". An over-long name is REJECTED rather than truncated, on
-     * every surface, so a name is never silently stored as something other than what was typed.
-     *
-     * @param raw the submitted name (can be {@code null})
-     * @return {@code true} if the name can be stored
-     */
-    public static boolean isValidLabel(@Nullable final String raw) {
-        final String sanitised = sanitiseLabel(raw);
-        return sanitised == null || sanitised.length() <= MAX_LABEL_LENGTH;
-    }
-
-    /**
      * Pairs the parallel key/name lists posted by the settings picker into a name-by-key map. Each row of the picker posts one key and one custom
      * name, in the same DOM order, so the two lists line up by index; a row whose name is blank simply has no entry (it uses the catalogue label).
      * Any trailing key with no matching name (or name with no matching key) is ignored, so a malformed submission can never shift names onto the
      * wrong stats.
+     *
+     * <p>
+     * Pairing ONLY - the names come back exactly as submitted. Validating and normalising them is {@code ProfileService}'s single pass over the
+     * submission; doing any of it here would mean the same name went through the text pipeline twice on the way to the column.
      *
      * @param order the posted field keys, in the arranged order
      * @param labels the posted custom names, in the same order (can be {@code null} when the form omits them)
@@ -283,9 +254,9 @@ public enum ActionStatField {
         final List<String> submitted = labels == null ? List.of() : labels;
         final int paired = Math.min(order.size(), submitted.size());
         for (int i = 0; i < paired; i++) {
-            final String sanitised = sanitiseLabel(submitted.get(i));
-            if (sanitised != null) {
-                byKey.put(order.get(i).strip(), sanitised);
+            final String name = submitted.get(i);
+            if (!name.isBlank()) {
+                byKey.put(order.get(i).strip(), name);
             }
         }
         return byKey;
@@ -298,9 +269,10 @@ public enum ActionStatField {
     // Naming a stat what it is already called is not a rename: the editor pre-fills with the current caption, so
     // opening a row and saving it untouched submits the built-in label, and storing THAT would silently pin the
     // stat's wording against any future re-labelling. Applied on write and on read, so both surfaces agree.
-    private static @Nullable String customLabelFor(final ActionStatField field, @Nullable final String raw) {
-        final String sanitised = sanitiseLabel(raw);
-        return field.label.equals(sanitised) ? null : sanitised;
+    // The name arrives already normalised (ProfileService on write, a previously normalised row on read), so this
+    // only applies the rule - it never cleans the value a second time.
+    private static @Nullable String customLabelFor(final ActionStatField field, @Nullable final String name) {
+        return name == null || name.isBlank() || field.label.equals(name) ? null : name;
     }
 
     // Not on Entry itself: PITest cannot hot-swap mutants into a record, so branching logic in one is silently untested (see CLAUDE.md).

@@ -119,7 +119,7 @@ document.getElementById('account-form').addEventListener('htmx:afterRequest', fu
         if (!newPasswordTip) {return len > 0}
         // Evaluate the same server-rendered requirement rows the popover in app.js recolours. Read straight
         // off the DOM (no cross-file dependency, so a stale/cached app.js can't break this), applying the
-        // same minLength/maxLength tokens — which mirror net.zodac.diurnal.auth.PasswordConstraints.Constraint.type.
+        // same minLength/maxLength tokens — which mirror net.zodac.diurnal.text.TextConstraint.type.
         return Array.prototype.every.call(newPasswordTip.querySelectorAll('[data-pw-check]'), function (row) {
             const bound = parseInt(row.getAttribute('data-pw-value'), 10)
             const type = row.getAttribute('data-pw-type')

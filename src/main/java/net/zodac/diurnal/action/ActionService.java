@@ -22,6 +22,9 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import net.zodac.diurnal.log.ActionLog;
+import net.zodac.diurnal.text.TextFields;
+import net.zodac.diurnal.text.TextOutcome;
+import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -35,6 +38,10 @@ import org.jspecify.annotations.Nullable;
  * {@code AuthenticationService} pattern). The resources only translate the returned {@link ActionResult} into their medium; validation order is
  * blank → too long → duplicate → colour. A malformed colour is rejected on both surfaces (never silently corrected); only an <em>absent</em> colour
  * on creation falls back to the default.
+ *
+ * <p>
+ * The name is validated and normalised by the shared {@link TextValidation} pipeline against {@link TextFields#ACTION_NAME}, so it obeys the same
+ * blank/length/content rules as every other free-text input in the app, and what is stored is the cleaned value.
  *
  * <p>
  * Callers own the transaction (each resource method is {@code @Transactional}); this bean only assumes one is active.
@@ -53,13 +60,11 @@ class ActionService {
      * @return the outcome
      */
     ActionResult create(final User user, final @Nullable String name, final @Nullable String colour) {
-        if (name == null || name.isBlank()) {
-            return new ActionResult.BlankName();
+        final TextOutcome nameOutcome = TextValidation.check(TextFields.ACTION_NAME, name);
+        if (!(nameOutcome instanceof final TextOutcome.Valid validName)) {
+            return nameRejection(nameOutcome);
         }
-        final String normName = name.strip();
-        if (normName.length() > ActionValidation.NAME_MAX_LENGTH) {
-            return new ActionResult.NameTooLong();
-        }
+        final String normName = validName.value();
         if (Action.count("userId = ?1 and name = ?2", user.id, normName) > 0) {
             return new ActionResult.DuplicateName(normName);
         }
@@ -107,14 +112,15 @@ class ActionService {
 
         // Every rejection must happen BEFORE the first field is assigned: `action` is a managed entity, so a value assigned ahead of a later
         // rejection would still be flushed when the caller's transaction commits — a 4xx response that silently persisted half the request.
-        if (name != null && name.isBlank()) {
-            return new ActionResult.BlankName();
-        }
-        final String normName = name == null ? null : name.strip();
-        if (normName != null) {
-            if (normName.length() > ActionValidation.NAME_MAX_LENGTH) {
-                return new ActionResult.NameTooLong();
+        // null IS the "field absent from the PATCH" state: the current name is kept.
+        String normName = null;
+        if (name != null) {
+            final TextOutcome nameOutcome = TextValidation.check(TextFields.ACTION_NAME, name);
+            if (!(nameOutcome instanceof final TextOutcome.Valid validName)) {
+                return nameRejection(nameOutcome);
             }
+            normName = validName.value();
+
             if (Action.count("userId = ?1 and name = ?2 and id != ?3", action.userId, normName, id) > 0) {
                 return new ActionResult.DuplicateName(normName);
             }
@@ -163,6 +169,12 @@ class ActionService {
      */
     String suggestColour(final User user) {
         return ActionColours.suggest(Action.distinctColours(user.id), ThreadLocalRandom.current());
+    }
+
+    // Collapses a name rejection onto the two banners the action surfaces offer. ACTION_NAME carries no content rules, so an over-long name is the
+    // only cause other than a blank one; a rule added to the field later needs a third ActionResult variant rather than this fallback.
+    private static ActionResult nameRejection(final TextOutcome outcome) {
+        return outcome instanceof TextOutcome.Blank ? new ActionResult.BlankName() : new ActionResult.NameTooLong();
     }
 
     /**

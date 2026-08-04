@@ -31,7 +31,7 @@
               hx-post="/internal/actions/{action.id}"
               hx-target="#action-{action.id}"
               hx-swap="outerHTML">
-            <input type="text" name="name" value="{action.name}" required maxlength="100"
+            <input type="text" name="name" value="{action.name}" required maxlength="{inject:textFields.actionName.maxLength}"
                    class="dt-text-input w-full">
         </form>
     </td>

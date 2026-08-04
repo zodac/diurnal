@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
+import net.zodac.diurnal.text.TextFields;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 import org.jspecify.annotations.Nullable;
@@ -50,7 +51,7 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     @Column(nullable = false, unique = true)
     public String email;
 
-    @Column(name = "display_name", nullable = false)
+    @Column(name = "display_name", nullable = false, length = TextFields.DISPLAY_NAME_MAX_LENGTH)
     public String displayName;
 
     @Column(name = "password_hash")

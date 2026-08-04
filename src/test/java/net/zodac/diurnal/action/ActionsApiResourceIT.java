@@ -200,7 +200,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                 .body("{\"name\":\"" + longName + "\"}")
                 .post("/api/v1/actions")
                 .then().statusCode(400)
-                .body("message", containsString("longer than 100"));
+                .body("message", containsString("at most 100"));
     }
 
     @Test

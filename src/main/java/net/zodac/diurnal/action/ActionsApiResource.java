@@ -39,6 +39,8 @@ import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.text.TextFieldExtensions;
+import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
@@ -282,7 +284,7 @@ public class ActionsApiResource {
                 .entity(new ApiErrorResponse("Action name cannot be empty"))
                 .build();
             case final ActionResult.NameTooLong ignored -> Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ApiErrorResponse("Action name cannot be longer than " + ActionValidation.NAME_MAX_LENGTH + " characters"))
+                .entity(new ApiErrorResponse(TextFieldExtensions.lengthMessage(TextFields.ACTION_NAME)))
                 .build();
             case final ActionResult.InvalidColour ignored -> Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ApiErrorResponse("Action colour is invalid"))
