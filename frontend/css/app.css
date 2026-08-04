@@ -860,10 +860,27 @@
         /* A picker row swaps its caption for a rename input IN PLACE, so the two must be the same box:
            the caption carries the input's border and padding as transparent, which keeps the text on the
            exact same pixel (and the row the same height) as the row flips between read and edit mode. */
-        .stats-field-caption { border: 1px solid transparent; padding: .25rem .5rem; }
+        .stats-field-caption { border: 1px solid transparent; padding: .25rem .5rem; transition: opacity .15s ease; }
         /* Same line box too: an <input> defaults to `line-height: normal`, which is a hair taller than the
            caption's text-sm line and would leave the row 1px taller in edit mode. */
         .stats-field-caption, .stats-field-input { line-height: 1.25rem; }
+        /* A switched-off stat dims its caption as well as clearing its checkbox — the box alone is a
+           small thing to read a whole row's state from. Keyed off the checkbox itself rather than a
+           class the script maintains, so the native keyboard (space) toggle dims the row too, and the
+           server-rendered initial state needs no script at all. Mandatory rows are always checked, so
+           they never dim. */
+        .stats-field-row:has(input[name="statsEnabled"]:not(:checked)) .stats-field-caption { opacity: .5; }
+        /* Reordering slides the rows the dragged one displaces into their new slots: settings.js gives
+           each the inverse offset with transitions off, then clears it — this is the transition that
+           carries it home. It also eases the dragged row the last few pixels into its slot on drop. */
+        .stats-field-row { transition: transform .15s ease; }
+        /* ...but never while the row is being dragged: it is transformed to the pointer on every
+           pointermove, and a transition there would leave it trailing behind the cursor. Lifted over
+           its neighbours (the row is already `relative`) so it stays readable as it passes them. */
+        .stats-field-dragging { transition: none; z-index: 10; }
+        @media (prefers-reduced-motion: reduce) {
+            .stats-field-row, .stats-field-caption { transition: none; }
+        }
         /* Reserve the width of BOTH edit-mode buttons and pack from the left, so Save lands exactly where
            Rename was and Cancel simply appears beside it — rather than Save being pushed along by Cancel
            (which is what right-aligning, as .dt-actions does, would do to a 1-button/2-button pair). */
