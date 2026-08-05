@@ -34,8 +34,12 @@ import net.zodac.diurnal.time.Durations;
  */
 public final class TextFieldExtensions {
 
-    private static final Pattern CONTROL_CHARACTERS = Pattern.compile("\\p{Cntrl}");
-    private static final Pattern WHITESPACE_RUN = Pattern.compile("\\s+");
+    // \p{Cntrl} is ASCII-only, so the C1 block (U+0080-U+009F) is matched by general category instead - a control character is cleaned the same way
+    // wherever it comes from, rather than half of them being cleaned and half rejected by TextRules.NO_INVISIBLE_CHARACTERS.
+    private static final Pattern CONTROL_CHARACTERS = Pattern.compile("\\p{gc=Cc}");
+    // Java's \s is ASCII-only, so a no-break space, an em space or a line separator would otherwise survive both the collapse and the strip - leaving
+    // a name that renders as nothing but passes every length check. Every Unicode space separator is folded onto a plain space instead.
+    private static final Pattern WHITESPACE_RUN = Pattern.compile("[\\s\\p{Zs}\\p{Zl}\\p{Zp}\\x{0085}]+");
     private static final String LENGTH_UNIT = "character";
 
     private TextFieldExtensions() {

@@ -43,6 +43,9 @@ import java.util.Optional;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.config.SessionConfig;
+import net.zodac.diurnal.text.TextFields;
+import net.zodac.diurnal.text.TextOutcome;
+import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
@@ -153,7 +156,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         final String sub = claims.getString("sub");
         final String iss = claims.getString("iss");
         final String email = resolveEmail(claims);
-        final String normalised = email == null ? null : email.toLowerCase(Locale.ROOT).strip();
+        final String normalised = normaliseEmail(email);
 
         final Optional<String> role = roleAssigner.roleFromOidcGroups(resolveGroups(claims));
         final Optional<User> linked = User.findByOidc(iss, sub);
@@ -351,6 +354,19 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
             return List.of();
         }
         return (List<String>) arr.getList();
+    }
+
+    // An IdP's email claim is as untrusted as anything a user types, and there is no user to report a rejection to - so a claim that the shared
+    // pipeline will not accept (over-long, invisible characters, no @) is treated as NO email claim at all, which OidcLoginPolicy already denies with
+    // a worded reason. Case-folded BEFORE the check, because folding can lengthen a value and the checked value is the one that reaches the column.
+    private static @Nullable String normaliseEmail(final @Nullable String email) {
+        if (email == null) {
+            return null;
+        }
+
+        return TextValidation.check(TextFields.EMAIL, email.toLowerCase(Locale.ROOT)) instanceof final TextOutcome.Valid valid
+            ? valid.value()
+            : null;
     }
 
     private static @Nullable String resolveEmail(final JsonObject claims) {

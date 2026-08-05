@@ -24,13 +24,15 @@ import org.junit.jupiter.api.Test;
 
 class TextFieldTest {
 
+    private static final List<TextRule> SHARED_RULES = List.of(TextRules.NO_INVISIBLE_CHARACTERS, TextRules.NO_STACKED_MARKS);
+
     @Test
-    void of_buildsCleanedFieldWithoutRules() {
+    void of_buildsCleanedFieldCarryingTheSharedRules() {
         final TextField field = TextField.of("Nickname", 2, 30);
 
         assertThat(field)
-            .as("unexpected value")
-            .isEqualTo(new TextField("Nickname", 2, 30, Normalisation.CLEANED, List.of()));
+            .as("every readable field must carry the shared content rules, so none can be added that skips them")
+            .isEqualTo(new TextField("Nickname", 2, 30, Normalisation.CLEANED, SHARED_RULES));
     }
 
     @Test
@@ -46,17 +48,26 @@ class TextFieldTest {
     void withRules_keepsEveryOtherPartOfTheSpec() {
         final TextField field = TextField.of("Nickname", 2, 30).withRules(TextRules.EMAIL_SHAPE);
 
+        final List<TextRule> expected = List.of(TextRules.NO_INVISIBLE_CHARACTERS, TextRules.NO_STACKED_MARKS, TextRules.EMAIL_SHAPE);
         assertThat(field)
             .as("unexpected value")
-            .isEqualTo(new TextField("Nickname", 2, 30, Normalisation.CLEANED, List.of(TextRules.EMAIL_SHAPE)));
+            .isEqualTo(new TextField("Nickname", 2, 30, Normalisation.CLEANED, expected));
     }
 
     @Test
-    void withRules_givenNone_clearsThem() {
-        final TextField field = TextFields.EMAIL.withRules();
+    void withRules_addsToTheRulesAlreadyPresent() {
+        // A field-specific rule must never be able to displace a shared one.
+        final TextRule extra = new TextRule("extra", value -> true, "is always fine.");
 
-        assertThat(field.rules())
+        assertThat(TextField.of("Nickname", 2, 30).withRules(extra).rules())
+            .as("the shared rules must survive a field adding its own")
+            .containsExactlyElementsOf(List.of(TextRules.NO_INVISIBLE_CHARACTERS, TextRules.NO_STACKED_MARKS, extra));
+    }
+
+    @Test
+    void withRules_givenNone_keepsTheRulesAlreadyPresent() {
+        assertThat(TextFields.EMAIL.withRules().rules())
             .as("unexpected value")
-            .isEmpty();
+            .containsExactlyElementsOf(List.of(TextRules.NO_INVISIBLE_CHARACTERS, TextRules.NO_STACKED_MARKS, TextRules.EMAIL_SHAPE));
     }
 }

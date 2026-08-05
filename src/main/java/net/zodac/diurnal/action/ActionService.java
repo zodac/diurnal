@@ -24,6 +24,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
+import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
@@ -62,7 +63,7 @@ class ActionService {
     ActionResult create(final User user, final @Nullable String name, final @Nullable String colour) {
         final TextOutcome nameOutcome = TextValidation.check(TextFields.ACTION_NAME, name);
         if (!(nameOutcome instanceof final TextOutcome.Valid validName)) {
-            return nameRejection(nameOutcome);
+            return nameRejection((TextOutcome.Failure) nameOutcome);
         }
         final String normName = validName.value();
         if (Action.count("userId = ?1 and name = ?2", user.id, normName) > 0) {
@@ -117,7 +118,7 @@ class ActionService {
         if (name != null) {
             final TextOutcome nameOutcome = TextValidation.check(TextFields.ACTION_NAME, name);
             if (!(nameOutcome instanceof final TextOutcome.Valid validName)) {
-                return nameRejection(nameOutcome);
+                return nameRejection((TextOutcome.Failure) nameOutcome);
             }
             normName = validName.value();
 
@@ -171,10 +172,15 @@ class ActionService {
         return ActionColours.suggest(Action.distinctColours(user.id), ThreadLocalRandom.current());
     }
 
-    // Collapses a name rejection onto the two banners the action surfaces offer. ACTION_NAME carries no content rules, so an over-long name is the
-    // only cause other than a blank one; a rule added to the field later needs a third ActionResult variant rather than this fallback.
-    private static ActionResult nameRejection(final TextOutcome outcome) {
-        return outcome instanceof TextOutcome.Blank ? new ActionResult.BlankName() : new ActionResult.NameTooLong();
+    // The blank and over-long cases keep their own banners because both surfaces already word them; every content-rule rejection is carried as the
+    // message the shared pipeline generated, so a rule added to ACTION_NAME later needs no change here.
+    private static ActionResult nameRejection(final TextOutcome.Failure failure) {
+        return switch (failure) {
+            case final TextOutcome.Blank ignored -> new ActionResult.BlankName();
+            case final TextOutcome.TooLong ignored -> new ActionResult.NameTooLong();
+            case final TextOutcome.TooShort ignored -> new ActionResult.InvalidName(TextOutcomeExtensions.message(failure));
+            case final TextOutcome.RuleFailed ignored -> new ActionResult.InvalidName(TextOutcomeExtensions.message(failure));
+        };
     }
 
     /**

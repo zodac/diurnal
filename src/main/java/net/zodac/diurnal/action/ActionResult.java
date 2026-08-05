@@ -23,8 +23,8 @@ package net.zodac.diurnal.action;
  * {@code LoginResult} pattern shared by the two login surfaces, so the validation rules cannot diverge between the surfaces (only their
  * presentation can).
  */
-sealed interface ActionResult permits ActionResult.Success, ActionResult.BlankName, ActionResult.NameTooLong, ActionResult.DuplicateName,
-    ActionResult.InvalidColour, ActionResult.NotFound {
+sealed interface ActionResult permits ActionResult.Success, ActionResult.BlankName, ActionResult.NameTooLong, ActionResult.InvalidName,
+    ActionResult.DuplicateName, ActionResult.InvalidColour, ActionResult.NotFound {
 
     /**
      * The mutation succeeded; {@link #action()} is the created/updated/deleted action.
@@ -46,6 +46,17 @@ sealed interface ActionResult permits ActionResult.Success, ActionResult.BlankNa
      * The submitted name exceeds the {@code TextFields#ACTION_NAME} maximum length once normalised.
      */
     record NameTooLong() implements ActionResult {
+
+    }
+
+    /**
+     * The submitted name broke one of the content rules on {@code TextFields#ACTION_NAME} - it held an invisible or text-direction character, or too
+     * many stacked combining marks. The cause is carried as a ready-worded message rather than a variant per rule, so a rule added to the field later
+     * needs no change here or in the surfaces that render it.
+     *
+     * @param message the user-facing sentence explaining what is wrong with the name
+     */
+    record InvalidName(String message) implements ActionResult {
 
     }
 

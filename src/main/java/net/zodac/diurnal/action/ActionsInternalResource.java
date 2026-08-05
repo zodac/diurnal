@@ -262,6 +262,7 @@ public class ActionsInternalResource {
             case final ActionResult.BlankName ignored -> HtmxResponses.conflictBanner("#action-error", "Action name cannot be empty.");
             case final ActionResult.NameTooLong ignored ->
                 HtmxResponses.conflictBanner("#action-error", TextFieldExtensions.lengthMessage(TextFields.ACTION_NAME));
+            case final ActionResult.InvalidName invalid -> HtmxResponses.conflictBanner("#action-error", invalid.message());
             case final ActionResult.InvalidColour ignored -> HtmxResponses.conflictBanner("#action-error",
                 "Action colour is invalid");
             case final ActionResult.DuplicateName duplicate ->

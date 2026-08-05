@@ -22,7 +22,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.zodac.diurnal.stats.ActionStatField;
-import net.zodac.diurnal.text.TextFieldExtensions;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
@@ -182,22 +181,24 @@ public class ProfileService {
      * field forced enabled), so unknown keys are dropped identically on every surface. A display-only preference.
      *
      * <p>
-     * A name longer than {@link ActionStatField#MAX_LABEL_LENGTH} characters is rejected rather than truncated - on BOTH surfaces, so a stat is
-     * never captioned with something other than what was typed.
+     * A name that breaks any rule of the shared text pipeline - longer than {@link ActionStatField#MAX_LABEL_LENGTH} characters, or holding an
+     * invisible or text-direction character - is rejected rather than truncated or cleaned, on BOTH surfaces, so a stat is never captioned with
+     * something other than what was typed.
      *
      * @param user    the acting user
      * @param order   every field key in the arranged order
      * @param enabled the keys of the fields to show
      * @param labels  the custom name of each renamed stat, by key
-     * @return the outcome: {@link ProfileResult.Invalid} for an over-long name, otherwise {@link ProfileResult.Updated}
+     * @return the outcome: {@link ProfileResult.Invalid} for a rejected name, otherwise {@link ProfileResult.Updated}
      */
     public ProfileResult updateStatsFields(final User user, final List<String> order, final List<String> enabled, final Map<String, String> labels) {
         // The ONE pass over each submitted name: the outcome carries both the verdict and the normalised value, and it is that value which is
         // encoded below - the resource paired the names, and nothing downstream cleans or re-checks them.
         final Map<String, String> names = new LinkedHashMap<>();
         for (final Map.Entry<String, String> submitted : labels.entrySet()) {
-            if (!(TextValidation.check(TextFields.STAT_NAME, submitted.getValue()) instanceof final TextOutcome.Valid valid)) {
-                return new ProfileResult.Invalid(TextFieldExtensions.lengthMessage(TextFields.STAT_NAME));
+            final TextOutcome outcome = TextValidation.check(TextFields.STAT_NAME, submitted.getValue());
+            if (!(outcome instanceof final TextOutcome.Valid valid)) {
+                return new ProfileResult.Invalid(TextOutcomeExtensions.message((TextOutcome.Failure) outcome));
             }
             // A name that normalises to nothing is the reset that restores the catalogue label, so it is simply not carried.
             if (!valid.value().isEmpty()) {

@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.text;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -45,8 +46,12 @@ public record TextField(
     List<TextRule> rules
 ) {
 
+    private static final List<TextRule> SHARED_RULES = List.of(TextRules.NO_INVISIBLE_CHARACTERS, TextRules.NO_STACKED_MARKS);
+
     /**
-     * A field holding ordinary human-readable text: {@link Normalisation#CLEANED}, with no extra rules.
+     * A field holding ordinary human-readable text: {@link Normalisation#CLEANED}, carrying the rules every readable field shares
+     * ({@link TextRules#NO_INVISIBLE_CHARACTERS}, {@link TextRules#NO_STACKED_MARKS}). A rule added here applies to every such field at once, which
+     * is the point: a cross-cutting content policy cannot be forgotten by the next field that is added.
      *
      * @param label     the human name of the field
      * @param minLength the shortest accepted value in code points, or {@code 0} to accept a blank submission
@@ -54,12 +59,14 @@ public record TextField(
      * @return the field specification
      */
     public static TextField of(final String label, final int minLength, final int maxLength) {
-        return new TextField(label, minLength, maxLength, Normalisation.CLEANED, List.of());
+        return new TextField(label, minLength, maxLength, Normalisation.CLEANED, SHARED_RULES);
     }
 
     /**
-     * A field holding a secret: {@link Normalisation#VERBATIM}, with no extra rules. Only a password should use this - every other input is read back
-     * by a human and wants cleaning.
+     * A field holding a secret: {@link Normalisation#VERBATIM}, with no rules at all - not even the shared ones. Only a password should use this:
+     * every other input is read back by a human and wants cleaning, whereas a secret is never rendered, never compared against another user's value
+     * and is stored only as a hash, so the reasons the shared rules exist do not apply to it. Constraining which characters a password may hold would
+     * also shrink the keyspace, and would lock out anyone whose existing password holds one.
      *
      * @param label     the human name of the field
      * @param minLength the shortest accepted value in code points
@@ -71,12 +78,15 @@ public record TextField(
     }
 
     /**
-     * A copy of this field with the given content rules applied on top of its blank/length checks.
+     * A copy of this field with the given content rules added to the ones it already carries, on top of its blank/length checks. The rules already
+     * present are kept, so a field-specific rule can never displace a shared one.
      *
-     * @param extraRules the rules to apply
+     * @param extraRules the rules to add
      * @return the field specification, with rules
      */
     public TextField withRules(final TextRule... extraRules) {
-        return new TextField(label, minLength, maxLength, normalisation, List.of(extraRules));
+        final List<TextRule> combined = new ArrayList<>(rules);
+        combined.addAll(List.of(extraRules));
+        return new TextField(label, minLength, maxLength, normalisation, List.copyOf(combined));
     }
 }
