@@ -47,6 +47,7 @@ public record TextField(
 ) {
 
     private static final List<TextRule> SHARED_RULES = List.of(TextRules.NO_INVISIBLE_CHARACTERS, TextRules.NO_STACKED_MARKS);
+    private static final List<TextRule> MULTILINE_RULES = List.of(TextRules.NO_INVISIBLE_CHARACTERS_ALLOWING_NEWLINE, TextRules.NO_STACKED_MARKS);
 
     /**
      * A field holding ordinary human-readable text: {@link Normalisation#CLEANED}, carrying the rules every readable field shares
@@ -60,6 +61,25 @@ public record TextField(
      */
     public static TextField of(final String label, final int minLength, final int maxLength) {
         return new TextField(label, minLength, maxLength, Normalisation.CLEANED, SHARED_RULES);
+    }
+
+    /**
+     * A field holding a block of prose rather than a label: {@link Normalisation#MULTILINE}, carrying the same shared content rules as
+     * {@link #of(String, int, int)} but with the invisible-character rule in its newline-tolerant form. Everything else is identical to an ordinary
+     * cleaned field - the length is measured in code points, a blank submission is rejected unless the minimum is {@code 0}, and every invisible or
+     * text-direction character other than the line feed is still refused.
+     *
+     * <p>
+     * A field must use this ONLY when its value is genuinely multi-line; a label that gains a newline has almost certainly been pasted by accident,
+     * and {@link #of(String, int, int)} correctly folds it to a space.
+     *
+     * @param label     the human name of the field
+     * @param minLength the shortest accepted value in code points, or {@code 0} to accept a blank submission
+     * @param maxLength the longest accepted value in code points
+     * @return the field specification
+     */
+    public static TextField multiline(final String label, final int minLength, final int maxLength) {
+        return new TextField(label, minLength, maxLength, Normalisation.MULTILINE, MULTILINE_RULES);
     }
 
     /**

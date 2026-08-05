@@ -96,11 +96,11 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     public String calendarView = CalendarView.DEFAULT.value();
 
     // User-configurable "Action stats" display preference: the full, ordered arrangement of every
-    // stat (its ActionStatField key + enabled flag) selecting which per-action stats show on the Stats
+    // stat (its StatField key + enabled flag) selecting which per-action stats show on the Stats
     // page and in what order. Stored as a jsonb array of StatFieldPref, so a field keeps its position
     // whether shown or hidden. NULL = never customised (render every stat in the default order).
     // Display-only; StatsService always computes the full set. Parsed via
-    // ActionStatField.displayFields(...) / choices(...).
+    // StatField.displayFields(...) / choices(...).
     @Preference
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "stats_fields", columnDefinition = "jsonb")

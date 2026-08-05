@@ -220,6 +220,17 @@ public class AppInfo {
     }
 
     /**
+     * The content-hashed note-box script filename (e.g. {@code note.9f3a1c2b4d5e.js}), referenced by {@code dashboard.html} as
+     * {@code /js/{jsNoteFile}} so each deploy busts client and reverse-proxy caches without serving a stale script. Loaded BEFORE the dashboard
+     * script, which reads the module it publishes.
+     *
+     * @return the note-script filename served under {@code /js/}
+     */
+    public String getJsNoteFile() {
+        return appConfig.jsNoteFile();
+    }
+
+    /**
      * The content-hashed actions-page script filename (e.g. {@code actions.9f3a1c2b4d5e.js}), referenced by {@code actions.html} as
      * {@code /js/{jsActionsFile}} so each deploy busts client and reverse-proxy caches without serving a stale script.
      *

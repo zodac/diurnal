@@ -32,5 +32,19 @@ public enum Normalisation {
      * The value is used exactly as submitted. Reserved for secrets: a password's leading, trailing and repeated whitespace is part of the secret, so
      * cleaning it would change what the user typed - and would stop an already-registered password from ever matching again.
      */
-    VERBATIM
+    VERBATIM,
+
+    /**
+     * {@link #CLEANED}, except that the line feed survives: line terminators are folded to {@code \n}, every OTHER control character still becomes a
+     * space, runs of HORIZONTAL whitespace still collapse to one, each line is stripped, a run of blank lines condenses to one, and the whole
+     * value is stripped and NFC-normalised.
+     *
+     * <p>
+     * For the one input that is genuinely a block of prose rather than a label - a day's note. {@link #CLEANED} would flatten a journal entry into a
+     * single paragraph, because it collapses every whitespace run, newlines included. Nothing else is relaxed: the length is still measured in code
+     * points, and the field still carries the shared content rules (in their newline-tolerant form - see
+     * {@link TextRules#NO_INVISIBLE_CHARACTERS_ALLOWING_NEWLINE}, which exists because a line feed is itself a {@code Cc} control character and would
+     * otherwise be rejected by the very rule that keeps invisible characters out).
+     */
+    MULTILINE
 }

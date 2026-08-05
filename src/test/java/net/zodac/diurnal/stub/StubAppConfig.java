@@ -30,6 +30,7 @@ import net.zodac.diurnal.config.AppConfig;
  * @param jsFile the content-hashed vendored-htmx filename
  * @param jsAppFile the content-hashed shared-script filename
  * @param jsDashboardFile the content-hashed dashboard-script filename
+ * @param jsNoteFile the content-hashed note-box-script filename
  * @param jsActionsFile the content-hashed actions-script filename
  * @param jsAdminFile the content-hashed admin-users-script filename
  * @param jsApiDocsFile the content-hashed API-docs-script filename
@@ -39,7 +40,7 @@ import net.zodac.diurnal.config.AppConfig;
  * @param hashedImages the top-level image base-name to hashed-filename map
  */
 public record StubAppConfig(String repositoryUrl, String buildTimestamp, String cssFile, String jsFile, String jsAppFile, String jsDashboardFile,
-    String jsActionsFile, String jsAdminFile, String jsApiDocsFile, String jsSettingsFile, String jsStatsFile,
+    String jsNoteFile, String jsActionsFile, String jsAdminFile, String jsApiDocsFile, String jsSettingsFile, String jsStatsFile,
     Map<String, String> settingsImages,
     Map<String, String> hashedImages) implements AppConfig {
 
@@ -49,7 +50,7 @@ public record StubAppConfig(String repositoryUrl, String buildTimestamp, String 
      * @return an inert {@link StubAppConfig}
      */
     public static StubAppConfig empty() {
-        return new StubAppConfig("", "", "", "", "", "", "", "", "", "", "", Map.of(), Map.of());
+        return new StubAppConfig("", "", "", "", "", "", "", "", "", "", "", "", Map.of(), Map.of());
     }
 
     @Override

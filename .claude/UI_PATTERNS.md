@@ -26,6 +26,9 @@ single-use markup speculatively — note it as a candidate and extract on the se
   `nav-links`, `navbar`, `footer`, `calendar-toolbar`, `stats-chart`/`stats-chart-candidates`,
   `colour-picker`/`random-colour-button` (the pair that make up a colour control - the new-action
   card and an action row's edit state each include both).
+- **A single-use block stays inline.** The dashboard's note box is the worked example: it is rendered exactly once and
+  is deliberately never a swap target (see [`FRONTEND.md`](FRONTEND.md)), so it lives in `dashboard.html` rather than
+  becoming `partials/note-card.html`. Extract it if a second caller ever appears.
 - A partial rendered BOTH inline and as a swap target is one partial, not two. `stats-chart-candidates`
   is embedded by `stats-chart` for its unfiltered first render and returned on its own by
   `/internal/stats/chart/{actionId}/candidates` as the search box filters, so the filtered and unfiltered
@@ -50,8 +53,8 @@ times**, or when it names a real design-system concept (button, card, field, bad
   2 uses" rule above. Their PANELS are deliberately not shared — one is a scrollable `.card`
   (`.modal-panel`), the other a bare frame around images — so share the chrome, not the contents.
 - The self-contained widgets keep their own namespaced families of plain CSS at the BOTTOM of `app.css`
-  (un-layered, so they beat Tailwind's layered utilities): `.dt-*` tables, `.d-*`/`.cal-*` calendar, and
-  `.chart-*` for the frequency graph. A namespace like that is for a widget, not a licence to skip the
+  (un-layered, so they beat Tailwind's layered utilities): `.dt-*` tables, `.d-*`/`.cal-*` calendar,
+  `.chart-*` for the frequency graph, and `.note-*` for the dashboard note box. A namespace like that is for a widget, not a licence to skip the
   shared classes — the graph still uses `.card`, `.swatch`, `.empty-note` and `partials/tooltip`.
 
 ### Icons

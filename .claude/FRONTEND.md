@@ -44,12 +44,12 @@ sheet), so it still wins over Tailwind's layered utilities — which is why the 
 
 ### Served front-end scripts (content-hashed, `immutable`)
 
-Eight scripts are served from `META-INF/resources/js/` and referenced from the templates via
+Nine scripts are served from `META-INF/resources/js/` and referenced from the templates via
 `{inject:appInfo.*}`, all sharing one cache-busting pattern: served un-hashed in dev (`no-store`), and at image-build
-time the Dockerfile esbuild-minifies the seven handwritten scripts (`npm run js:min` in the `css` stage — the committed
+time the Dockerfile esbuild-minifies the eight handwritten scripts (`npm run js:min` in the `css` stage — the committed
 sources stay readable; only the image ships the minified form), then content-hashes them. **All asset hashing lives in
 one place — `scripts/hash-static-assets.sh`** (invoked by a single `RUN` in the Dockerfile's build stage): it renames
-every fingerprinted asset (CSS, the 8 scripts, the settings thumbnails, the vector marks) to `name.<sha256-12>.ext`
+every fingerprinted asset (CSS, the 9 scripts, the settings thumbnails, the vector marks) to `name.<sha256-12>.ext`
 (the hash is inserted after the first name segment, so `htmx.min.js` → `htmx.<hash>.min.js`) and bakes the hashed name
 into `microprofile-config.properties` (read by `AppConfig`/`AppInfo`). All are then served
 `public, max-age=31536000, immutable` by the single `app-immutable` filter (`application.properties`). See
@@ -65,12 +65,23 @@ into `microprofile-config.properties` (read by `AppConfig`/`AppInfo`). All are t
   **committed** file, loaded only on the dashboard. Its two server-injected values (the app's UTC `today` and the user's
   `calendarView`) arrive via `data-today`/`data-calendar-view` attributes on `#dashboard-main`, read directly off
   `dataset` — no inline bootstrap. Because it is a plain `.js` file (not a Qute template) the `{`-escaping caveat below
-  no longer applies to it.
+  no longer applies to it. Two self-contained units sit at its top before the calendar engine, each with one job and no
+  dependency on the rest of the file: `createFragmentCache(dayUrl, monthUrl)` (the per-day HTML cache the day panel and
+  the stats summary are both built from) and `createInkMetrics()` (pure canvas typography — glyph widths and the optical
+  centring of the calendar's date numbers; call `reset()` after a web font swaps in, since every cached measurement was
+  taken against the fallback face).
 - `actions.js`, `admin-users.js`, `admin-api-docs.js`, `settings.js` (`AppInfo.jsActionsFile`/`jsAdminFile`/
   `jsApiDocsFile`/`jsSettingsFile`) — the page-specific behaviour extracted from `actions.html`, `admin-users.html`,
   `admin-api-docs.html`, and `settings.html` respectively (extracted during the CSP hardening), each
   loaded only on its own page and wired via `data-*` hooks + `addEventListener` (no inline `on*=`/`hx-on=` attributes
   remain anywhere in the app — see "Security headers / CSP" below).
+- `note.js` (`AppInfo.jsNoteFile`) — the dashboard's day-note box: the textarea, its caches, the Save/Undo/Clear
+  controls, the character counter, the drag-resize and the unsaved-work unload guard. A **committed** file, loaded only
+  on the dashboard and **before `dashboard.js`**, which reads the `Diurnal.noteBox` module it publishes. Split out of
+  `dashboard.js` once that file held the calendar engine, three caches, the day panel, the summary and all of this; the
+  seam is real rather than cosmetic, because the calendar needs only to know WHICH days have a note (for its green day
+  numbers) plus hooks to load, clear and evict them — that interface is the whole of what the module exposes. With no
+  `#note-panel` in the DOM every method is a no-op.
 - `stats.js` (`AppInfo.jsStatsFile`) — the Stats page's frequency-graph dialog. A **committed** file, loaded only on
   `/stats`. It holds no charting code and no copy of the chart's wording: it opens/closes the dialog and re-fetches the
   server-rendered `partials/stats-chart.html` fragment whenever the selection changes, reading the current
@@ -125,6 +136,66 @@ circle + dots (`.d-min-dot`); `stacked` = circle + bars (`.d-stk-bar`). Every ce
 CSS-scoped. The shared chrome (toolbar, jump picker, day-panel load, the verb-gated `htmx:afterRequest` → `cal.refresh()`) drives a 4-method adapter (
 `currentView`/`goToMonth`/`setHighlight`/`refresh`). **When the dashboard calendar appearance changes, regenerate the settings previews** (see below).
 
+### Dashboard layout & the note box
+
+The dashboard's four panels live in **ONE grid**, placed explicitly into a 2x2 arrangement at `lg`+:
+
+```
+row 1:  calendar (cols 1-2)        |  day logger (col 3)
+row 2:  stats summary (cols 1-2)   |  note box    (col 3)
+```
+
+So the summary is exactly the calendar's width, the note sits in the logger's column, and the summary and the note
+share row 2 **with their tops level**. Grid items are left to STRETCH (no `items-start`), which is what makes the logger
+fill row 1 so the note still sits directly beneath it however few actions the day has. DOM order is calendar, logger,
+note, summary — exactly the order wanted once the grid collapses to one column — so the placements are all
+`lg:`-prefixed and no `order-*` utilities are needed.
+
+> Two arrangements were tried and rejected: a full-width summary below the grid (not "alongside" the note at all), and
+> nesting the logger+note in a flex column spanning both rows (which made the note hug the logger but left it floating
+> well above the summary whenever the logger was short). See [`NOTES.md`](NOTES.md).
+
+The **note box** (`#note-panel`) is server-rendered ONCE with the page and is **never a swap target**: changing the
+selected day only rewrites the textarea's value from `dashboard.js`'s cache. That is what makes its drag-resized
+dimensions durable across a date change with no re-application, and it is why the card is written inline in
+`dashboard.html` rather than as a partial (single use — see [`UI_PATTERNS.md`](UI_PATTERNS.md) §1). Its `.note-*` CSS
+family lives un-layered at the bottom of `app.css` beside `.d-*` and `.chart-*`.
+
+- **Default size**: `--note-default-h` is derived from a three-row stats-summary card's own metrics, so the two panels
+  sit level; pinned by a Playwright guard that renders a real three-action summary and compares heights.
+- **Resize**: three hand-rolled Pointer Events handles (right edge, bottom edge, corner) — native `resize: both` offers
+  only a corner grip and cannot do edges. The floor is measured **off the panel itself** (drop its inline width for one
+  layout read on pointerdown, then restore), never off a sibling: the day logger shares the note's grid column, so
+  deriving the floor from it let the floor climb with every drag.
+- **Buttons**: Save / Undo / Clear. Clear empties the box WITHOUT writing, so no single click is destructive; it is
+  hidden unless the stored note is non-empty. Save and Undo are inert unless the box is dirty, and the save handler
+  re-checks, so a no-op write is never sent.
+- **Status line**: "Unsaved changes" in `text-brand` (the active navbar link's colour), "Saved" in `text-success` (the
+  settings cards' green), flashed for 2s. Both are set explicitly at each call site — deriving them from the dirty flag
+  is what made an earlier version clear "Saved" the instant it was set.
+
+### Calendar note markers & the split month cache
+
+A day with a note gets a **green day number** (`.d-note-day` on the shared `.d-min-cell`, so one rule covers all three
+styles), coloured from the existing `--color-success` token. **Today is the one exception**: its number sits on a solid
+brand fill where green-600 is ~1.4:1, so it turns the lightened `--color-success-on-brand` instead — the number still
+goes green, which is the whole signal. An earlier version kept today's number white and marked it with a thin underline
+or a ring; both were reported as the marker "not working".
+
+Notes ride the calendar's **existing** per-month cache, with their own promise map, loaded flag and radius:
+
+| Shared (one implementation) | Split (per data type) |
+|---|---|
+| `lru` recency list + `touch` | `monthPromises` / `notePromises` |
+| `CACHE_LIMIT = 12` | `monthLoaded` / `monthNotesLoaded` |
+| `PINNED_MONTHS` (prev/current/next) | `PREFETCH_RADIUS` 2 / `NOTE_PREFETCH_RADIUS` 1 |
+| `evictIfNeeded` (resident if EITHER side is loaded) | the merge function |
+| `dropMonth` — clears `dayData` **and** the note cache | |
+
+Two radii mean a month can hold one side without the other, so `fetchAndRender`'s early-out is **two-sided** and
+`Promise.all`s whatever is missing, giving one repaint rather than a flicker per side. Selecting a day whose month is
+resident costs **no request at all** — which is why the note box needs no per-day endpoint.
+
 ### Dashboard stats summary (follows the selected day)
 
 The card under the calendar (`partials/stats-summary.html`, hosted by the stable `#stats-summary` wrapper, gated on the
@@ -132,9 +203,11 @@ The card under the calendar (`partials/stats-summary.html`, hosted by the stable
 **top three enabled "Action stats"** in their chosen order. The daily counts only *rank* which actions appear — every figure shown
 still spans the action's whole history, so the tiles read the same as the Stats page's.
 
-It is cached client-side exactly like the day panel: `dashboard.js` fetches the selected day from `/internal/stats/summary/{date}`,
-then one idle `/internal/stats/summary-month/{yyyy-MM}` request back-fills the rest of the month, capped at 12 resident months
-(LRU). The server-rendered card the page ships for its initial day is **seeded into the cache** off `#stats-summary`'s
+It is cached client-side exactly like the day panel — literally so: both are instances of `dashboard.js`'s one
+`createFragmentCache(dayUrl, monthUrl)` factory, which is the only place that eviction, in-flight de-duplication and the
+idle back-fill are implemented, so a change to any of them applies to both. `dashboard.js` fetches the selected day from
+`/internal/stats/summary/{date}`, then one idle `/internal/stats/summary-month/{yyyy-MM}` request back-fills the rest of
+the month, capped at 12 resident months (LRU). The server-rendered card the page ships for its initial day is **seeded into the cache** off `#stats-summary`'s
 `data-summary-date`, so opening the dashboard on today costs no summary request. Because the swap is a plain `fetch` +
 `innerHTML` (no HTMX event), it re-runs `Diurnal.formatNumbers()` and `Diurnal.fitFigures()` by hand.
 
@@ -159,7 +232,7 @@ renders no class (system sans). The settings picker toggles the same classes liv
 template** (mirror `theme` 1:1; HTMX day-panel partials need neither).
 
 **Settings preview-tile pickers (Theme / Font / Calendar style) are enum-driven.** Each is a Java enum (`Theme`, `Font`, `CalendarView`) implementing
-`PreviewOption` (`value`/`label`/`title`/`alt`/`previewImage`), following the `ActionStatField` "single source of truth" pattern. `WebResource` passes
+`PreviewOption` (`value`/`label`/`title`/`alt`/`previewImage`), following the `StatField` "single source of truth" pattern. `WebResource` passes
 `X.values()` to `settings.html`, which **loops** the constants into `partials/preview-option.html` (no hardcoded parallel tiles), and each
 submitted value is validated via `X.isValid(raw)` (an unrecognised value is REJECTED — 422 on the web, 400 on the API — never silently coerced;
 unit-tested to 100% PIT). The DB columns stay `String` (not `@Enumerated`); templates compare raw values, so a legacy/unknown stored value simply
@@ -290,18 +363,19 @@ into the error element.
 `{ foo`), use a different placeholder (`<date>`, `:date`), or wrap the whole region in a Qute comment `{! … !}` (which is NOT parsed — that's why
 `d-cal-{view}` survives inside one). Only `{` + whitespace or `{!` is safe; everything else is an expression.
 
-### User-configurable Stats-page tiles (`ActionStatField`)
+### User-configurable Stats-page tiles (`StatField`)
 
-The Stats page (`partials/stats-cards.html`) renders one tile per **enabled** stat, in the user's chosen order and under the user's
+The Stats page (`partials/stats-cards.html`) renders one card per **`StatSubject`** — each of the user's actions, plus their day
+notes pinned first — and within a card one tile per **enabled** stat, in the user's chosen order and under the user's
 name for it — the "Action stats" setting (`User.statsFields`). It is stored as a **`jsonb` array of `StatFieldPref`
 `{key, enabled, label}`** (`user.StatFieldPref`, mapped via `@JdbcTypeCode(SqlTypes.JSON)`), holding **every** field in the user's
 arranged order — so a field's position is stable whether it is shown or hidden (`NULL` = never customised → all fields, default
 order, default names; a `null` `label` = that stat is not renamed, which is also how a pre-rename stored arrangement deserialises,
-so renaming needed no migration). This is a **display preference only**: `StatsService`/`ActionStats` always compute every
+so renaming needed no migration). This is a **display preference only**: `StatsService`/`SubjectStats` always compute every
 statistic regardless, and a rename changes only the caption.
 
-`net.zodac.diurnal.stats.ActionStatField` is the **single source of truth** for the tile catalogue (declaration order = default
-order); each constant also carries a `description()` shown as the picker tooltip. `ActionStatsExtensions.tiles(stats, fields,
+`net.zodac.diurnal.stats.StatField` is the **single source of truth** for the tile catalogue (declaration order = default
+order); each constant also carries a `description()` shown as the picker tooltip. `SubjectStatsExtensions.tiles(stats, fields,
 decimalPlaces)` (a `@TemplateExtension`) maps each displayed stat to a `StatTile`, reusing the existing derived-label methods.
 `LAST_PERFORMED` is `mandatory` (always rendered, only reorderable). Helpers all take `List<StatFieldPref>`:
 `displayFields(stored)` → the `DisplayStat`s (field + resolved caption) to render; `choices(stored)` → every field
@@ -329,7 +403,7 @@ normalised exactly like every other free-text value in the app, and a name over 
 wording (the longest built-in label, "Average count per month", is 23) so a custom name is never much wordier than the stat beside it
 and every built-in label is itself a legal custom name. **A stat's own built-in label is not a rename**: the editor pre-fills with the
 current caption, so saving an un-renamed row untouched submits that label, and storing it would pin the wording against future
-re-labelling — `ActionStatField.encode`/`parse` map it back to "not renamed" on both write and read, and `settings.js` mirrors it so
+re-labelling — `StatField.encode`/`parse` map it back to "not renamed" on both write and read, and `settings.js` mirrors it so
 the UI does not fire a pointless save. It bounds LENGTH, not rendered width: the
 caption box runs from roughly 129px to 220px across layouts (the tile grid sizes from a minimum width and reflows its column
 count), so 23 characters of an unusually wide mix can still cost a caption line the built-ins do not — the accepted trade for an
@@ -341,11 +415,11 @@ widest-glyph worst case must not overflow. Committing a rename writes the hidden
 dispatches `change` on it, so it saves through the picker's single PATCH; the editor's own input carries no `name` and its native
 change is swallowed, so an abandoned edit never saves.
 
-> A new stat's `ActionStatField` constant must also supply a `description()` (the constructor requires it) — it becomes the picker
+> A new stat's `StatField` constant must also supply a `description()` (the constructor requires it) — it becomes the picker
 > tooltip.
 
-> **Any newly-computed stat that should be user-visible on the Stats page MUST be registered as an `ActionStatField` constant AND
-> given a `StatTile` mapping in `ActionStatsExtensions.tiles(...)`** (plus a case in its `switch`, which is exhaustive over the enum
+> **Any newly-computed stat that should be user-visible on the Stats page MUST be registered as an `StatField` constant AND
+> given a `StatTile` mapping in `SubjectStatsExtensions.tiles(...)`** (plus a case in its `switch`, which is exhaustive over the enum
 > so the compiler flags omissions). Without both it will never appear in the picker or on the page.
 
 > **A `key` is permanent, a `label` is not.** Keys are stored per user, so a rename only ever touches the `label` — hence
@@ -422,6 +496,19 @@ still too wide at its shortest step **wraps** rather than being clipped. Because
 the window restores the full text. `Diurnal.MONTHS_FULL`/`MONTHS_ABBR` and this ladder are the one place the project abbreviates a
 month — the calendar toolbar's own title fitting (`setCalTitle`/`fitCalTitle` in `dashboard.js`) reads the same tables; it keeps its
 own measurement because it fits against the **toolbar's** overflow, not the title's own box.
+
+### Expired sessions on the dashboard (`requireSession`)
+
+**Every `fetch` in `dashboard.js` runs its response through `requireSession(resp)` before touching the body.** An
+expired session arrives in TWO shapes, because the namespaces challenge differently: `/api/v1/*` answers a **401** (no
+redirect — correct for a programmatic client), while `/internal/*` answers a **302 to the login PAGE**, which `fetch`
+follows, so the response lands as login HTML with **status 200** and a `url` of `/login`. The guard treats either as
+"sign in again" and navigates.
+
+Handling only the 401 (as the old `feedJson` did) left the dashboard **silently dead**: the JSON callers threw a parse
+error into their own retry `.catch`, so nothing ever loaded and no error surfaced; an HTML caller would have swapped
+the entire login page into the day panel or the summary card. Do not add a `fetch` here without it —
+`tests/ui/auth.spec.ts` pins the behaviour.
 
 ### Calendar feeds (LogsApiResource / CalendarResource)
 

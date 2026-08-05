@@ -716,7 +716,7 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
         // Emptying the field and typing the built-in name (the placeholder) mean the same thing: not
         // renamed. The editor pre-fills with the current caption, so saving an un-renamed row untouched
         // lands here — storing that would pin the stat's wording against future re-labelling. The server
-        // applies the same rule (ActionStatField.encode), so this only keeps the UI from a pointless save.
+        // applies the same rule (StatField.encode), so this only keeps the UI from a pointless save.
         const custom = typed === '' || typed === input.placeholder ? '' : typed
         closeEditor(row)
         if (custom === stored.value) {return}   // nothing actually changed: no request

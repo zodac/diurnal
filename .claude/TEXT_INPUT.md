@@ -1,7 +1,7 @@
 # Text Input Validation
 
-> Every user-submitted free-text value - action name, display name, stat name, password, email - is validated by ONE
-> shared pipeline in `net.zodac.diurnal.text`, with per-field overrides for the parts that legitimately differ
+> Every user-submitted free-text value - action name, display name, stat name, password, email, note - is validated by
+> ONE shared pipeline in `net.zodac.diurnal.text`, with per-field overrides for the parts that legitimately differ
 > (length, normalisation, extra rules). Read this before adding a text input, changing a length bound, or adding a
 > character/content rule.
 
@@ -36,16 +36,17 @@ holding everything that varies per input:
 |---|---|
 | `label` | The human name used to word every message ("Display name must be between 2 and 100 characters.") |
 | `minLength` / `maxLength` | Bounds, measured in **code points**. A `minLength` of `0` marks the field OPTIONAL: a blank submission is accepted and normalises to the empty string (the stat name's "use the catalogue label" reset) |
-| `normalisation` | `CLEANED` or `VERBATIM` |
+| `normalisation` | `CLEANED`, `VERBATIM` or `MULTILINE` |
 | `rules` | Extra `TextRule`s layered on top of the shared pipeline |
 
-Built through `TextField.of(label, min, max)` (cleaned), `TextField.secret(label, min, max)` (verbatim), and
-`withRules(...)`. No message ever quotes the submitted value, so a secret needs no separate flag.
+Built through `TextField.of(label, min, max)` (cleaned), `TextField.secret(label, min, max)` (verbatim),
+`TextField.multiline(label, min, max)` (multi-line), and `withRules(...)`. No message ever quotes the submitted value,
+so a secret needs no separate flag.
 
 ### `Normalisation`
 
 - **`CLEANED`** - control characters become spaces, whitespace runs collapse to one, the result is stripped and
-  NFC-normalised. This is today's `ActionStatField.sanitiseLabel` behaviour, promoted to the default for every
+  NFC-normalised. This is today's `StatField.sanitiseLabel` behaviour, promoted to the default for every
   non-secret field. Both passes are **Unicode-aware, not ASCII-only**: `\s` and `\p{Cntrl}` in Java match ASCII only,
   so a no-break space, an em space, an ideographic space or a C1 control would otherwise survive the collapse AND the
   strip - leaving a name that renders as nothing but passes every length check. The patterns are
@@ -55,6 +56,26 @@ Built through `TextField.of(label, min, max)` (cleaned), `TextField.secret(label
   **no rules at all, not even the shared ones**: a password is never rendered, never compared against another user's
   value and is stored only as a hash, so the reasons the shared rules exist do not apply to it - and constraining
   which characters it may hold would shrink the keyspace and lock out anyone whose existing password holds one.
+- **`MULTILINE`** - `CLEANED`, except that the **line feed survives**. Added for the day note (`TextFields.NOTE`), the
+  only input in the app that is a block of prose rather than a label: `CLEANED` collapses every whitespace run,
+  newlines included, so it would flatten a journal entry into a single paragraph. The pass is, in order: line
+  terminators folded to `\n` (a browser textarea submits CRLF per the HTML specification, so this is the everyday
+  case, not an edge one) -> every OTHER control character to a space -> runs of **horizontal** whitespace to one
+  space -> each line stripped -> a run of 3+ newlines condensed to 2 (one blank line: a paragraph break is ordinary,
+  a thousand of them is padding that would otherwise pass the length check as "content") -> the whole value stripped
+  -> NFC. **The order is load-bearing**: lines are stripped *before* the blank-line run is condensed, so a line of
+  spaces counts as blank; and the whole-value strip happens *last*, which is what removes leading/trailing newlines.
+  Nothing else is relaxed - the length is still measured in code points (**a newline counts toward the bound**), and
+  the field still carries the shared content rules.
+
+> **The trap, if a second multi-line field is ever added.** A line feed is a `Cc` control character, so
+> `NO_INVISIBLE_CHARACTERS` rejects it. No `CLEANED` field ever meets one (normalisation turns it into a space long
+> before the rules run), which is why the collision never surfaced until the note existed. A `MULTILINE` field
+> therefore carries **`NO_INVISIBLE_CHARACTERS_ALLOWING_NEWLINE`** in its place - the same predicate with the line feed
+> exempted, built by parameterising the original rather than copying it, so the two can never drift. The exemption is
+> applied in the rule's own loop and deliberately **not** inside `isInvisible`, so that the joiner check underneath
+> keeps asking the strict question: a zero-width joiner at the start of a line joins nothing, exactly like one beside a
+> space, and stays rejected.
 
 ### `TextRule` - the per-field override seam
 
@@ -66,7 +87,8 @@ public record TextRule(String id, Predicate<String> accepts, String requirement)
 to the defaults inside `TextField.of(...)` applies to every cleaned field at once. `withRules(...)` **adds to** the
 rules a field already carries, so a field-specific rule can never displace a shared one.
 
-Two rules are shared by every cleaned field (and deliberately by NO secret - see below):
+Two rules are shared by every cleaned field (and by every multi-line one, with the invisible-character rule in its
+newline-tolerant form - see `MULTILINE` above; and deliberately by NO secret - see below):
 
 - **`NO_INVISIBLE_CHARACTERS`** rejects three families:
   - any code point of category `Cf`, `Cs`, `Co` or `Cc` - the zero-width characters (ZWSP, ZWNJ, BOM, soft hyphen,
@@ -143,6 +165,7 @@ public static final TextField DISPLAY_NAME = TextField.of("Display name", DISPLA
 public static final TextField STAT_NAME    = TextField.of("Stat name", 0, STAT_NAME_MAX_LENGTH);
 public static final TextField EMAIL        = TextField.of("Email", EMAIL_MIN_LENGTH, EMAIL_MAX_LENGTH).withRules(TextRules.EMAIL_SHAPE);
 public static final TextField PASSWORD     = TextField.secret("Password", PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH);
+public static final TextField NOTE         = TextField.multiline("Note", 1, NOTE_MAX_LENGTH);
 ```
 
 Each bound is ALSO a `public static final int` constant, because a Bean Validation annotation
@@ -171,6 +194,7 @@ the spirit of the "big list of naughty strings"; `TextRulesTest` covers the rule
 | Homoglyphs, full-width forms, circled digits, upside-down text, fraktur/double-struck/small-caps letters, enclosed alphanumerics, runes, Unicode digits | **accepted** | Legitimate text in some script. A name here is not a security boundary (it is scoped to one account and never authenticates), so confusables are not policed |
 | U+FDFD `﷽`, which renders about ten characters wide | **accepted** | One code point, one character. The actions table is deliberately never truncated or wrapped (it scrolls horizontally), so a wide glyph widens the row rather than breaking the layout |
 | ANSI escape sequences, CR/LF (log forging) | cleaned to a space | The display name reaches the application log; a control character cannot survive the cleaning pass, so a name can neither forge a log line nor colour a terminal |
+| A newline, **in a `MULTILINE` field only** | **accepted, preserved** | It is what the user typed. A journal entry's paragraphs are content, not padding; `CRLF`/`CR` fold to `\n`, a run of blank lines condenses to one, and the newline counts toward the length bound. Every other field still folds it to a space |
 | `<script>`, `'; DROP TABLE`, `{7*7}`, `${7*7}`, `%s`, `../../` | **accepted, stored verbatim** | A name is data. It is made safe where it is RENDERED - Qute escapes by default (no `raw` filters exist in the templates), the calendar writes `textContent`, and Panache/JPQL is parameterised. Escaping on the way IN would show the user something other than what they typed |
 | Anything at all, in a password | **accepted, unchanged** | See the `VERBATIM` note above |
 
@@ -216,10 +240,39 @@ Two rules are the only places a locale could rub, and both are a one-line change
   reaches six marks on one letter (dagesh + two vowel points + meteg + two cantillation marks). Modern Arabic,
   Hebrew, Thai and Devanagari never exceed four. Raise the constant if a script needs more.
 
-The i18n work that IS outstanding lives outside this package: `<html lang="en">` is hard-coded (as is the absent
-`dir`), `time/Durations.plural` appends an English "s" (Arabic has six plural forms), the display-name bound of 50
-was sized against the Latin navbar (CJK glyphs are about twice as wide), and a translated rejection message would
-need whole message templates rather than the current `label + ' ' + requirement` concatenation, whose word order is
+### Deferred: `dir="auto"` on user-content elements
+
+**Decided 2026-08-05: not done yet, to be picked up as the first step of the l10n work.** It is written down here
+because it is the other half of the bidi decision above - that rule rejects the characters a user would otherwise
+paste in to fix a name's direction, on the grounds that the RENDERER should be deciding direction instead. Until
+this exists, nothing is.
+
+What it is: `dir="auto"` tells the browser to derive direction from the value's own first strong character, so an
+Arabic or Hebrew name renders correctly inside the English LTR page. It is about user DATA, not the interface
+locale, so it is correct even if the UI stays English forever - and it is a **no-op for every value in the database
+today**, since it changes nothing when the first strong character is LTR.
+
+Where it goes: the leaf element holding ONLY the user's value - the name cell in `partials/action-row.html`, the
+day-panel rows (`partials/day-action-item.html`, `partials/day-action-item-confirm-delete.html`),
+`partials/admin-user-row.html`, the navbar display name, and the stat captions in `stats.html` /
+`partials/stats-summary.html`.
+
+The one thing to get right: **granularity**. It must NOT go on a row or card wrapper that also holds buttons and
+labels - an RTL value would then flip the surrounding chrome, which is the spoofing-adjacent behaviour the bidi
+rule exists to prevent. On the leaf element it reorders the value and nothing else.
+
+What it does NOT do: give an RTL *interface*. That needs `dir` on `<html>` plus CSS logical properties, and
+`frontend/css/app.css` currently uses **zero** of `margin-inline`/`padding-inline`/`inset-inline`/`text-align:
+start` - it is entirely physical-direction. That conversion is page-chrome work and belongs with the rest of the
+l10n effort. The split is clean: `dir="auto"` handles user data, logical properties handle chrome, and neither
+creates rework for the other.
+
+### The rest of the outstanding i18n work
+
+All of it lives outside this package: `<html lang="en">` is hard-coded (as is the absent `dir`),
+`time/Durations.plural` appends an English "s" (Arabic has six plural forms), the display-name bound of 50 was
+sized against the Latin navbar (CJK glyphs are about twice as wide), and a translated rejection message would need
+whole message templates rather than the current `label + ' ' + requirement` concatenation, whose word order is
 English-specific.
 
 ## Flow
@@ -249,11 +302,11 @@ Concretely, that means:
   outcomes, and derives BOTH the missing-field list and the error list from them.
 - A service with a surface-specific pre-check (`PasswordChangeService`'s confirm-mismatch) does that check on the
   raw pair, then makes one pipeline pass and hashes `Valid.value()`.
-- Normalisation happens in the service, not the resource. `ActionStatField.labelsByKey` pairs the picker's parallel
+- Normalisation happens in the service, not the resource. `StatField.labelsByKey` pairs the picker's parallel
   form lists and returns the names **exactly as submitted**; `ProfileService.updateStatsFields` makes the single
-  pass and hands the normalised names to `ActionStatField.encode`, which stores what it is given.
+  pass and hands the normalised names to `StatField.encode`, which stores what it is given.
 - The read path does not re-normalise. A stored value was normalised when it was written, so
-  `ActionStatField.customLabelFor` only applies the "a name equal to the catalogue label is not a rename" RULE.
+  `StatField.customLabelFor` only applies the "a name equal to the catalogue label is not a rename" RULE.
 - `TextValidation.coerce` normalises once and then calls the same internal check as `check`, rather than
   re-entering the public entry point (which would normalise again).
 
@@ -279,6 +332,12 @@ matching `TextFieldExtensions.length`; `value.length` would count an emoji twice
 is about to give. The `maxlength` ATTRIBUTE cannot be made code-point-aware (the browser counts UTF-16 units), so it
 stops an all-emoji value at half the bound - it is only ever stricter than the server, never laxer, and the server
 stays authoritative.
+
+> **The note field deliberately carries NO `maxlength`.** It is the one input where the UTF-16-vs-code-point mismatch
+> above actually bites: against a 10,000-character bound the attribute would stop an emoji-heavy note at five thousand,
+> silently and with no explanation. The note box counts code points itself (`Array.from(value).length`), shows the
+> figure, lets the user overrun, and refuses to SAVE while over — which is both accurate and explicable, where a
+> silent cut-off is neither.
 
 `TextFieldExtensions.constraints(field)` replaces the deleted `PasswordConstraints.all()` and works for any field,
 driving both the requirements tooltip (`partials/password-constraints.html`) and its live client-side red/green
@@ -311,7 +370,7 @@ deployment-smoke) is green.
    - `ActionService` create/update -> `TextFields.ACTION_NAME`; `ActionValidation` now holds only the colour rule.
    - `ProfileService.updateDisplayName` -> `TextFields.DISPLAY_NAME`; `UserSettings.isInvalidDisplayName` and
      `DISPLAY_NAME_RANGE_MESSAGE` deleted.
-   - `ActionStatField.sanitiseLabel`/`isValidLabel` delegate to `TextFields.STAT_NAME`; `MAX_LABEL_LENGTH` is now an
+   - `StatField.sanitiseLabel`/`isValidLabel` delegate to `TextFields.STAT_NAME`; `MAX_LABEL_LENGTH` is now an
      alias of the catalogue bound (its Javadoc carries the tile-rendering reasoning, which is stats-specific).
    - `RegistrationService` dropped its duplicated display-name, email and password checks.
    - `PasswordChangeService` -> `TextFields.PASSWORD`; `PasswordConstraints` deleted outright.
@@ -331,6 +390,13 @@ deployment-smoke) is green.
    worded on both surfaces (it previously fell through to the "too long" banner), the stat-name rejection worded from
    the pipeline rather than always as a length failure, and code-point counting in the two client-side evaluators.
    Covered by `NaughtyStringsTest`, `TextRulesTest`, two `SurfaceParityIT` cases and two `actions.spec.ts` E2E cases.
+9. **`Normalisation.MULTILINE` + `TextFields.NOTE`** (2026-08-05), added for the per-date notes feature - see
+   [`NOTES.md`](NOTES.md). The first multi-line input in the app: `TextField.multiline(...)`,
+   `TextRules.NO_INVISIBLE_CHARACTERS_ALLOWING_NEWLINE` (the original rule parameterised, not copied), the
+   `NOTE_MAX_LENGTH` bound of 10,000 pinned to `notes.content` by `TextFieldsSchemaIT`, and coverage in
+   `TextFieldExtensionsTest` (the normalisation pass, step by step and in order), `TextRulesTest` (the exemption is
+   exactly one code point wide) and `NaughtyStringsTest` (a note rejects every invisible character the other fields
+   reject).
 
 ### Deliberately out of scope
 

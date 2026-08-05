@@ -26,7 +26,7 @@ import net.zodac.diurnal.user.Role;
  *
  * <p>
  * Held here, off the {@code UserRow} data record, so the branching logic can be unit- and mutation-tested in isolation — the same data/logic split as
- * {@code ActionStatsExtensions}. The methods are {@link TemplateExtension}s, so Qute resolves {@code {u.roleName}} against a {@code UserRow} value,
+ * {@code SubjectStatsExtensions}. The methods are {@link TemplateExtension}s, so Qute resolves {@code {u.roleName}} against a {@code UserRow} value,
  * and {@code {role:options}} against the {@link Role} catalogue, in the admin users table.
  */
 public final class UserRowExtensions {

@@ -96,6 +96,17 @@ public interface AppConfig {
     String jsDashboardFile();
 
     /**
+     * Filename of the dashboard note-box script served under {@code /js/} (the day-note panel, split out of {@code dashboard.js} and loaded only on
+     * the dashboard, BEFORE it). Content-hashed at image-build time so each deployment serves a fresh URL; defaults to the un-hashed
+     * {@code note.js} in dev.
+     *
+     * @return the served note-script filename
+     */
+    @WithName("assets.js-note-file")
+    @WithDefault("note.js")
+    String jsNoteFile();
+
+    /**
      * Filename of the actions-page script served under {@code /js/} (the counter-surgery behaviour extracted from {@code actions.html} and loaded
      * only on that page). Content-hashed at image-build time so each deployment serves a fresh URL; defaults to the un-hashed {@code actions.js} in
      * dev.

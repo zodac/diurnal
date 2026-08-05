@@ -43,6 +43,7 @@ bake css/app.css          app.assets.css-file
 bake js/htmx.min.js       app.assets.js-file
 bake js/app.js            app.assets.js-app-file
 bake js/dashboard.js      app.assets.js-dashboard-file
+bake js/note.js           app.assets.js-note-file
 bake js/actions.js        app.assets.js-actions-file
 bake js/admin-users.js    app.assets.js-admin-file
 bake js/admin-api-docs.js app.assets.js-api-docs-file

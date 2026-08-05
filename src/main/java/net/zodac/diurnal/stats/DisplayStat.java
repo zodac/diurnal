@@ -18,8 +18,8 @@
 package net.zodac.diurnal.stats;
 
 /**
- * One stat the user has chosen to show on the Stats page: the {@link ActionStatField} to render, paired with the caption to render it under. The
- * caption is the field's own {@link ActionStatField#label()} unless the user has renamed the stat, in which case it is their name for it.
+ * One stat the user has chosen to show on the Stats page: the {@link StatField} to render, paired with the caption to render it under. The
+ * caption is the field's own {@link StatField#label()} unless the user has renamed the stat, in which case it is their name for it.
  *
  * <p>
  * The pairing exists because a rename is a per-user value and a field is a global constant, so the enum alone cannot carry the caption to the page.
@@ -28,6 +28,6 @@ package net.zodac.diurnal.stats;
  * @param field the catalogue field to render
  * @param label the caption to render it under (the user's rename, or the field's own label)
  */
-public record DisplayStat(ActionStatField field, String label) {
+public record DisplayStat(StatField field, String label) {
 
 }

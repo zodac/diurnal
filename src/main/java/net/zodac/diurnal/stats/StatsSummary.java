@@ -70,8 +70,8 @@ public final class StatsSummary {
      * @return the template instance, ready for rendering
      */
     public static TemplateInstance renderPrecomputed(final Template template, final User user, final LocalDate date,
-        final List<ActionStats> dayStats) {
-        final List<DisplayStat> summaryFields = ActionStatField.displayFields(user.statsFields)
+        final List<SubjectStats> dayStats) {
+        final List<DisplayStat> summaryFields = StatField.displayFields(user.statsFields)
             .stream()
             .limit(FIELD_LIMIT)
             .toList();

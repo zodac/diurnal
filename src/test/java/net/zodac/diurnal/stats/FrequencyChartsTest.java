@@ -23,7 +23,6 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import net.zodac.diurnal.stats.FrequencyCharts.ChartedAction;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
@@ -31,8 +30,8 @@ class FrequencyChartsTest {
 
     private static final UUID RUNNING_ID = UUID.fromString("11111111-2222-3333-4444-555555555555");
     private static final UUID YOGA_ID = UUID.fromString("66666666-7777-8888-9999-aaaaaaaaaaaa");
-    private static final ChartedAction RUNNING = new ChartedAction(RUNNING_ID, "Running", "#64748b");
-    private static final ChartedAction YOGA = new ChartedAction(YOGA_ID, "Yoga", "#6366f1");
+    private static final StatSubject RUNNING = new StatSubject(RUNNING_ID, "Running", "#64748b", StatSubjectKind.ACTION);
+    private static final StatSubject YOGA = new StatSubject(YOGA_ID, "Yoga", "#6366f1", StatSubjectKind.ACTION);
     private static final LocalDate JULY_2026 = LocalDate.of(2026, 7, 1);
     private static final LocalDate YEAR_2026 = LocalDate.of(2026, 1, 1);
     private static final LocalDate TODAY = LocalDate.of(2026, 7, 23);
@@ -193,13 +192,13 @@ class FrequencyChartsTest {
             .as("one charted action should yield one series")
             .hasSize(1);
         final FrequencySeries series = chart.series().getFirst();
-        assertThat(series.actionId())
+        assertThat(series.subjectId())
             .as("unexpected value")
             .isEqualTo(RUNNING_ID);
-        assertThat(series.actionName())
+        assertThat(series.subjectName())
             .as("unexpected value")
             .isEqualTo("Running");
-        assertThat(series.actionColour())
+        assertThat(series.subjectColour())
             .as("the bars are painted from the action's own colour")
             .isEqualTo("#64748b");
         assertThat(series.total())
@@ -214,7 +213,7 @@ class FrequencyChartsTest {
     void build_comparedAction_isSecondSeriesAndIsRemovable() {
         final FrequencyChart chart = FrequencyCharts.build(List.of(RUNNING, YOGA), FrequencyPeriod.MONTH, JULY_2026,
             Map.of(RUNNING_ID, Map.of(1, 3L), YOGA_ID, Map.of(1, 5L)), TODAY, JULY_2026);
-        assertThat(chart.series().stream().map(FrequencySeries::actionName).toList())
+        assertThat(chart.series().stream().map(FrequencySeries::subjectName).toList())
             .as("the legend should keep the order the comparison was built in")
             .containsExactly("Running", "Yoga");
         assertThat(chart.series().get(1).removable())
@@ -229,7 +228,7 @@ class FrequencyChartsTest {
     }
 
     @Test
-    void build_everyColumnCarriesOneBarPerChartedAction() {
+    void build_everyColumnCarriesOneBarPerStatSubject() {
         final FrequencyChart chart = FrequencyCharts.build(List.of(RUNNING, YOGA), FrequencyPeriod.MONTH, JULY_2026,
             Map.of(RUNNING_ID, Map.of(1, 3L)), TODAY, JULY_2026);
         assertThat(chart.slots())
@@ -238,7 +237,7 @@ class FrequencyChartsTest {
         assertThat(chart.slots().getFirst().bars().get(1).count())
             .as("an action with nothing in the window still gets a zero bar, not a missing one")
             .isZero();
-        assertThat(chart.slots().getFirst().bars().get(1).actionName())
+        assertThat(chart.slots().getFirst().bars().get(1).subjectName())
             .as("each bar names its own action, which is what the column's hover bubble reads")
             .isEqualTo("Yoga");
     }

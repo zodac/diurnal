@@ -9,7 +9,7 @@
  * WHICH actions and window are showing and swaps the fragment in, so there is no charting code in the
  * browser and no second copy of the bar/caption wording to keep in sync with the Qute template.
  *
- * There is deliberately no client-side copy of the current selection beyond `actionId`: the period,
+ * There is deliberately no client-side copy of the current selection beyond `subjectId`: the period,
  * the window and the compared actions are all read back off the rendered fragment (the server echoes
  * them onto .chart-wrap as data-chart-shown-*), so every control continues from what is actually on
  * screen and the server stays the single authority on what a valid selection is.
@@ -19,7 +19,7 @@ const modal = document.getElementById('stats-chart-modal')
 const body = document.getElementById('stats-chart-body')
 const title = document.getElementById('stats-chart-title')
 
-let actionId = null
+let subjectId = null
 
 function currentWrap() {
     return body.querySelector('.chart-wrap')
@@ -35,14 +35,14 @@ function shownCompare() {
 // Fetches and swaps one chart fragment. Every argument is optional: omitting `period`/`at` lets the
 // server pick its defaults (a month window containing today), which is what the first open does.
 function load(period, at, compare) {
-    if (!actionId) {return}
+    if (!subjectId) {return}
     const params = new URLSearchParams()
     if (period) {params.set('period', period)}
     if (at) {params.set('at', at)}
     ;(compare || []).forEach(function (id) {params.append('compare', id)})
     const query = params.toString()
 
-    fetch(`/internal/stats/chart/${actionId}${query ? `?${query}` : ''}`, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
+    fetch(`/internal/stats/chart/${subjectId}${query ? `?${query}` : ''}`, {headers: {'X-Requested-With': 'XMLHttpRequest'}})
         .then(function (response) {
             if (response.status === 401 || response.redirected) {
                 window.location.href = '/login'
@@ -64,7 +64,7 @@ function load(period, at, compare) {
 }
 
 function open(button) {
-    actionId = button.dataset.chartAction
+    subjectId = button.dataset.chartSubject
     title.textContent = button.dataset.chartName
     body.innerHTML = ''
     modal.classList.remove('hidden')
@@ -74,14 +74,14 @@ function open(button) {
 function close() {
     modal.classList.add('hidden')
     body.innerHTML = ''
-    actionId = null
+    subjectId = null
 }
 
 // Opening is delegated off document.body: the stats cards are re-rendered by HTMX on every
 // pagination step, so a listener bound to each button directly would be lost on the first page
 // change.
 document.body.addEventListener('click', function (event) {
-    const opener = event.target.closest('[data-chart-action]')
+    const opener = event.target.closest('[data-chart-subject]')
     if (opener) {
         open(opener)
     }

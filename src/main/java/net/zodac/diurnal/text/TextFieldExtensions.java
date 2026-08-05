@@ -20,8 +20,10 @@ package net.zodac.diurnal.text;
 import io.quarkus.qute.TemplateExtension;
 import java.text.Normalizer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 import net.zodac.diurnal.time.Durations;
 
 /**
@@ -40,6 +42,16 @@ public final class TextFieldExtensions {
     // Java's \s is ASCII-only, so a no-break space, an em space or a line separator would otherwise survive both the collapse and the strip - leaving
     // a name that renders as nothing but passes every length check. Every Unicode space separator is folded onto a plain space instead.
     private static final Pattern WHITESPACE_RUN = Pattern.compile("[\\s\\p{Zs}\\p{Zl}\\p{Zp}\\x{0085}]+");
+    // The MULTILINE variants of the two patterns above, each intersected with "not a line feed" so the one character that survives this normalisation
+    // is not swept up by the pass that removes its neighbours. A browser textarea submits CRLF per the HTML specification, so the terminators are
+    // folded to a bare \n first and only then is everything else cleaned.
+    private static final Pattern LINE_TERMINATORS = Pattern.compile("\\r\\n?");
+    private static final Pattern CONTROL_CHARACTERS_EXCEPT_NEWLINE = Pattern.compile("[\\p{gc=Cc}&&[^\\n]]");
+    private static final Pattern HORIZONTAL_WHITESPACE_RUN = Pattern.compile("[\\s\\p{Zs}\\p{Zl}\\p{Zp}\\x{0085}&&[^\\n]]+");
+    // Two line feeds are one blank line, which is an ordinary paragraph break. Beyond that the run is padding, and a value made of thousands of them
+    // would otherwise pass the length check as whitespace.
+    private static final Pattern BLANK_LINE_RUN = Pattern.compile("\\n{3,}");
+    private static final String NEWLINE = "\n";
     private static final String LENGTH_UNIT = "character";
 
     private TextFieldExtensions() {
@@ -49,20 +61,38 @@ public final class TextFieldExtensions {
     /**
      * Cleans a submitted value into the form that is measured, checked and stored. For a {@link Normalisation#CLEANED} field: control characters
      * become spaces, runs of whitespace collapse to one, the result is stripped, and the composed (NFC) form is returned so two visually identical
-     * names compare and sort as equal. A {@link Normalisation#VERBATIM} field is returned untouched.
+     * names compare and sort as equal. A {@link Normalisation#MULTILINE} field is cleaned the same way except that the line feed survives (see that
+     * constant). A {@link Normalisation#VERBATIM} field is returned untouched.
      *
      * @param field the field specification
      * @param raw   the submitted value
      * @return the value to measure and store
      */
     public static String normalise(final TextField field, final String raw) {
-        if (field.normalisation() == Normalisation.VERBATIM) {
-            return raw;
-        }
+        return switch (field.normalisation()) {
+            case VERBATIM -> raw;
+            case CLEANED -> normaliseCleaned(raw);
+            case MULTILINE -> normaliseMultiline(raw);
+        };
+    }
 
+    private static String normaliseCleaned(final String raw) {
         final String spaced = CONTROL_CHARACTERS.matcher(raw).replaceAll(" ");
         final String collapsed = WHITESPACE_RUN.matcher(spaced).replaceAll(" ").strip();
         return Normalizer.normalize(collapsed, Normalizer.Form.NFC);
+    }
+
+    // Order is load-bearing. Terminators are unified before anything measures a line; each line is stripped BEFORE the blank-line run is condensed,
+    // so a "blank" line of spaces counts as blank; and the whole value is stripped last, which is what removes leading and trailing newlines.
+    private static String normaliseMultiline(final String raw) {
+        final String unified = LINE_TERMINATORS.matcher(raw).replaceAll(NEWLINE);
+        final String spaced = CONTROL_CHARACTERS_EXCEPT_NEWLINE.matcher(unified).replaceAll(" ");
+        final String collapsed = HORIZONTAL_WHITESPACE_RUN.matcher(spaced).replaceAll(" ");
+        final String strippedLines = Arrays.stream(collapsed.split(NEWLINE, -1))
+            .map(String::strip)
+            .collect(Collectors.joining(NEWLINE));
+        final String condensed = BLANK_LINE_RUN.matcher(strippedLines).replaceAll("\n\n").strip();
+        return Normalizer.normalize(condensed, Normalizer.Form.NFC);
     }
 
     /**

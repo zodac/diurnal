@@ -240,3 +240,31 @@ test.describe("Authentication", () => {
         await expect(page.locator("body")).toContainText(/not authorized/i)
     })
 })
+
+// An expired session must send the user to the login page, whichever namespace they happen to hit first.
+// The two challenge differently: /api/v1/* answers 401, while /internal/* answers a 302 to the login PAGE
+// which fetch FOLLOWS — arriving as HTML with status 200. Handling only the 401 left the dashboard silently
+// dead: its background fetch threw a parse error into its own retry path and nothing ever loaded.
+test.describe("Authentication – expired session on the dashboard", () => {
+    test("a background fetch with no session navigates to the login page", async ({ authenticatedPage: page }) => {
+        await page.goto("/")
+        await expect(page.locator("#note-panel")).toBeVisible()
+        // Let the initial load and its idle neighbour prefetch settle, so the next navigation is a real miss.
+        await expect(page.locator("#day-logger-panel")).not.toContainText("Click a day to log actions")
+
+        // Pull the session out from under the open page.
+        await page.context().clearCookies()
+
+        // Step back past the prefetched window, so a month genuinely has to be fetched.
+        for (let i = 0; i < 4; i++) {
+            if (new URL(page.url()).pathname === "/login") {
+                break
+            }
+            await page.locator("#cal-prev").click({ timeout: 4000 }).catch(() => { /* the page may navigate mid-click */ })
+            await page.waitForTimeout(400)
+        }
+
+        await page.waitForURL(u => new URL(u).pathname === "/login", { timeout: 10_000 })
+        expect(new URL(page.url()).pathname).toBe("/login")
+    })
+})

@@ -10,6 +10,11 @@
 > conventions in [`TESTING.md`](TESTING.md); the shared free-text validation pipeline in
 > [`TEXT_INPUT.md`](TEXT_INPUT.md).
 
+> **The per-date free-text notes feature** (the note box, the calendar's green day markers, notes as a stats subject)
+> is documented in [`NOTES.md`](NOTES.md) — design, the decisions taken *with the rejected alternatives*, and the
+> implementation history. **Read it before touching `net.zodac.diurnal.note`, the dashboard layout/grid, the calendar's
+> month cache, or the notes rows on the Stats page.**
+
 > **No real URLs or internal IPs in comments or examples.** Use only `https://diurnal.example.com` or
 `http://127.0.0.1:8080` as placeholder values. Never use production hostnames, LAN addresses (`192.168.*`, `10.*`,
 `172.16–31.*`), or any other real hostname.
@@ -133,8 +138,9 @@ Under `src/main/java/net/zodac/diurnal/`:
 |----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `action` | `Action` entity + `ActionsWebResource` (the `/actions` page) + `ActionsInternalResource` (`/internal/actions` HTMX fragments/mutations) + `ActionsApiResource` (`/api/v1/actions` public CRUD) + `ActionValidation` (shared rules) + `ActionColours` (the randomise-button colour palette/suggestion rules)                                                                                  |
 | `log`    | `ActionLog` entity + `LogWebResource` (`/internal/logs` day-panel fragments + increment/decrement) + `LogsApiResource` (`/api/v1/logs` public events feed + day read/write) + `CalendarResource` (`/internal/logs/minimal-events` dashboard feed) + `LogGuards`/`DateRanges` (shared rules)                         |
-| `stats`  | `StatsService` + `ActionStats` (data record) + `ActionStatsExtensions` (template extensions) + `ActionStatField` (Stats-page tile catalogue) + `DisplayStat` (a shown stat + its caption) + `StatTile` (tile view-model) + `StatsSummary` (the dashboard summary card's shared parameter binding) + the frequency-graph family (`FrequencyPeriod`/`FrequencyKeys`/`FrequencyCharts` + the `FrequencyChart`/`FrequencySeries`/`FrequencySlot`/`FrequencyBar` records + their `*Extensions` + the sealed `FrequencyResult`) + `StatsWebResource` (the `/stats` page) + `StatsInternalResource` (`/internal/stats/list` + `/internal/stats/chart/{actionId}`(`/candidates`), plus the dashboard's `/internal/stats/summary/{date}` + `/internal/stats/summary-month/{yyyy-MM}`) + `StatsApiResource` (`GET /api/v1/stats`, `GET /api/v1/stats/{actionId}/frequency`)  |
+| `stats`  | `StatsService` + `SubjectStats` (data record, keyed on a `StatSubject` — an action OR the user's notes; `StatSubjectKind`/`StatSubjectExtensions`) + `SubjectStatsExtensions` (template extensions) + `StatField` (Stats-page tile catalogue) + `DisplayStat` (a shown stat + its caption) + `StatTile` (tile view-model) + `StatsSummary` (the dashboard summary card's shared parameter binding) + the frequency-graph family (`FrequencyPeriod`/`FrequencyKeys`/`FrequencyCharts` + the `FrequencyChart`/`FrequencySeries`/`FrequencySlot`/`FrequencyBar` records + their `*Extensions` + the sealed `FrequencyResult`) + `StatsWebResource` (the `/stats` page) + `StatsInternalResource` (`/internal/stats/list` + `/internal/stats/chart/{actionId}`(`/candidates`), plus the dashboard's `/internal/stats/summary/{date}` + `/internal/stats/summary-month/{yyyy-MM}`) + `StatsApiResource` (`GET /api/v1/stats`, `GET /api/v1/stats/{actionId}/frequency`)  |
 | `auth`   | `AuthResource` (`/api/v1/auth` register/login/logout/revoke → session token), `AuthenticationService`+`LoginResult`, `RegistrationService`+`RegistrationResult`, `SessionStore`/`PostgresSessionStore` + `Session` entity + `SessionTokens` + `SessionAuthMechanism` + `SessionIdentityProvider` + `SessionSweeper` |
+| `note`   | `Note` entity + `NoteQueries` + `NoteService`/`NoteResult` (the single owner of every note write) + `NotesInternalResource` (`/internal/notes` range feed + save/clear) + `NotesApiResource` (`/api/v1/notes` public CRUD). One free-text note per user per day, writable for ANY date including future ones |
 | `user`   | `User` entity, `UserResource` (`/api/v1/users/me`), `UserSettings`, and the settings-picker enums `Theme`/`Font`/`CalendarView` (each `implements PreviewOption`)                                                                                                                                                   |
 | `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings) + the `/internal/settings/*` preference endpoints; `AdminWebResource` (admin pages) + `AdminUsersInternalResource` (`/internal/admin/users` fragments) + `AppInfo` (footer/template metadata bean)                         |
 | `update` | `UpdateCheckService` (admin-only footer "newer version available" check) + `UpdateCheck` (pure version/URL logic) + `UpdateStatus`/`UpdateAvailability` + `LatestReleaseClient`/`GitHubLatestReleaseClient` (the outbound GitHub-release lookup seam)                                                               |
@@ -247,12 +253,12 @@ and add a unit test. Exceptions: pure-data records, factory methods (`from`/`of`
 The Tailwind CSS build, colour tokens/component classes, the content-hashed served scripts
 (`app.js`/`dashboard.js`/`actions.js`/...), the shared data-table (`.dt-*`) styling, static-asset caching, the settings preview thumbnails, brand
 assets, the Font/typography setting, the hand-rolled dashboard-calendar engine + its feeds (`/api/v1/logs/events`, `/internal/logs/minimal-events`),
-the user-configurable Stats-page tiles (`ActionStatField`), and the templates/HTMX/Qute rules are all documented in [`FRONTEND.md`](FRONTEND.md).
+the user-configurable Stats-page tiles (`StatField`), and the templates/HTMX/Qute rules are all documented in [`FRONTEND.md`](FRONTEND.md).
 **Read it before editing CSS, `frontend/`, any `/js/*.js`, a template, a data-table, the Stats picker or the calendar.** Load-bearing reminders:
 **rebuild the CSS (`npm --prefix frontend run css`) after any class change in a template or in Java** (else it is purged); a new user-visible stat
-needs both an `ActionStatField` constant and a `StatTile` mapping in `ActionStatsExtensions.tiles(...)` or it never appears. A stat's catalogue label
+needs both an `StatField` constant and a `StatTile` mapping in `SubjectStatsExtensions.tiles(...)` or it never appears. A stat's catalogue label
 is only its DEFAULT caption - users may rename any stat (stored per key on `StatFieldPref.label`), so nothing may assume the rendered caption matches
-`ActionStatField.label()`.
+`StatField.label()`.
 
 ### Pagination
 
@@ -264,6 +270,15 @@ height.
 ### Notable invariants
 
 - `ActionLog.MAX_DAILY_COUNT = 999` — `SMALLINT` column; increment, increment-by-10, and set are silently capped.
+- **A day NOTE may be written for any date, including a future one** — `NoteService` deliberately does not apply the
+  `LogGuards.isFuture` rule that blocks logging. An empty note is no row (saving blank content deletes it), and a note's
+  CONTENT must never reach the application log. See [`NOTES.md`](NOTES.md).
+- **Statistics are computed per `StatSubject`, not per action.** A subject is an action or the user's day notes; the
+  notes subject carries the fixed nil-UUID `StatSubject.NOTES_ID`, which is what lets every id-keyed path
+  (`/internal/stats/chart/{actionId}`, its `compare` parameter, `GET /api/v1/stats/{actionId}/frequency`) stay
+  `UUID`-typed. `StatsService.forAllSubjects` pins notes ahead of the actions BEFORE pagination, so "first" means page
+  one. Every figure is computed by one `assemble(...)` from the same shape of input, so a new kind of subject needs no
+  new statistics code.
 - Actions are hard-deleted along with their logs when an action is deleted (no soft-delete/archive).
 - **All date-boundary "now"/"today" goes through `AppClock`** (`@ApplicationScoped`). Business logic calls `clock.today()`/`clock.zone()`. Entity
   audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`) use `Instant.now()` directly (zone-independent, not date-boundary sensitive).
@@ -278,9 +293,9 @@ height.
   at least one auth mechanism at startup. Password MANAGEMENT stays available regardless: any account holding a password (the break-glass admin)
   can change it via Settings / `PUT /api/v1/users/me/password` — `PasswordChangeService` keys on the hash, not on `PASSWORD_AUTH_ENABLED`.
 - Login uses query params: `?error` = failed login; `?registered=true` = success after registration.
-- `ActionStatsExtensions` exposes `sinceLabel()`, `monthTrend()`, `monthTrendClass()` etc. as Qute template extensions over `ActionStats`.
+- `SubjectStatsExtensions` exposes `sinceLabel()`, `monthTrend()`, `monthTrendClass()` etc. as Qute template extensions over `SubjectStats`.
 - **UI text must use correct singular/plural** — never "1 days". `time/Durations.plural(count, unit)` is the ONE rule; `count(n, unit)` renders
-  "1 day"/"5 days". `ActionStatsExtensions` exposes it to templates via `totalDaysUnit()` etc., and words every streak/gap through `Durations.label`.
+  "1 day"/"5 days". `SubjectStatsExtensions` exposes it to templates via `totalDaysUnit()` etc., and words every streak/gap through `Durations.label`.
   Apply to any new pluralised count.
 - **A run of days that is shown to a user as a duration is carried as a `time/DaySpan` (half-open `[start, endExclusive)`), never as a bare day count.**
   `time/Durations` is the only place one is measured (`days(span)`) or worded (`label(span)` — "412 days" condenses to "1 year, 1 month, 17 days";
@@ -288,8 +303,8 @@ height.
   boundaries (a month counts only once the day-of-month is reached, so leap days are never lost), and that arithmetic depends on WHICH months the run
   covered — the same 31 days is "1 month" in one place in the calendar and "1 month, 3 days" in another. **A day count alone therefore cannot be rendered
   as a duration**: it could only be split against some arbitrary anchor, which makes a historical figure's label drift as "today" moves.
-  `ActionStats.currentStreak()/longestStreak()/longestGap()` are consequently spans, computed with their real dates in `StatsService`, as is the current
-  gap (`ActionStatsExtensions.currentGapSpan`). Both gap spans are framed as the **blank run** (the day after the last log, up to the next log — or
+  `SubjectStats.currentStreak()/longestStreak()/longestGap()` are consequently spans, computed with their real dates in `StatsService`, as is the current
+  gap (`SubjectStatsExtensions.currentGapSpan`). Both gap spans are framed as the **blank run** (the day after the last log, up to the next log — or
   tomorrow, for the still-open one), so the current gap measures identically to the longest gap it will eventually become. All four streak/gap tiles
   lead with the worded duration ("1 day", "1 month, 14 days" — never a bare number) and caption it with the run's own dates: "since {start}" while the
   run is still going (current streak/gap), "{start} – {end}" once it is closed, and nothing at all for an empty run.

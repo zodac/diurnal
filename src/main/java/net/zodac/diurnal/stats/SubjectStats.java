@@ -18,16 +18,17 @@
 package net.zodac.diurnal.stats;
 
 import java.time.LocalDate;
-import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.time.DaySpan;
 import net.zodac.diurnal.time.Durations;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Computed statistics for a single action — totals, streaks, comparative trends and high scores.
+ * Computed statistics for a single {@link StatSubject} — an action, or the user's day notes — covering totals, streaks, comparative trends and high
+ * scores. Every figure is derived from the same shape of input (a set of dated entries with a per-day count), so the subject only says what the
+ * figures are ABOUT; it never changes how one is calculated.
  *
  * <p>
- * Intentionally a pure data carrier with no behaviour: all derived labels, trends and predicates live in {@link ActionStatsExtensions} (as Qute
+ * Intentionally a pure data carrier with no behaviour: all derived labels, trends and predicates live in {@link SubjectStatsExtensions} (as Qute
  * template extensions) so PITest can mutation-test that branching logic. PITest hot-swaps each mutant into the running JVM via
  * {@code Instrumentation.redefineClasses}, which the JVM refuses for a class carrying a {@code Record} attribute — so mutating logic held on this
  * record failed with "class redefinition failed: attempted to change the Record attribute", surfacing as the "Minion exited abnormally due to
@@ -40,8 +41,8 @@ import org.jspecify.annotations.Nullable;
  * "1 month" in one place in the calendar and "1 month, 3 days" in another. Carrying the dates keeps every duration exact and stable over time; a bare
  * count could only be split against some arbitrary anchor, which would make a historical streak's label drift as "today" moved.
  */
-public record ActionStats(
-    Action    action,
+public record SubjectStats(
+    StatSubject subject,
     int       totalDays,
     long      totalCount,
     @Nullable LocalDate firstPerformed,

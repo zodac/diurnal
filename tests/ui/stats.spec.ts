@@ -1,4 +1,20 @@
+import type { APIRequestContext, Locator, Page } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
+
+// Find an action's id by name, paging the public listing (it is paginated by the user's page-size
+// preference, so a single page cannot be assumed to hold every action).
+async function findActionIdByName(apiCtx: APIRequestContext, name: string): Promise<string> {
+    for (let page = 1; ; page++) {
+        const res = await apiCtx.get(`/api/v1/actions?page=${page}`)
+        expect(res.ok(), `could not list actions: HTTP ${res.status()}`).toBe(true)
+        const body = await res.json()
+        const found = body.items.find((action: { name: string }) => action.name === name)
+        if (found !== undefined) {
+            return found.id
+        }
+        expect(page, `no action named "${name}" exists`).toBeLessThan(body.totalPages)
+    }
+}
 
 test.describe("Stats page", () => {
     test("no logged actions shows empty state", async ({ page }) => {
@@ -35,17 +51,17 @@ test.describe("Stats page", () => {
         const apiCtx = page.context().request
         const today = new Date().toISOString().slice(0, 10)
 
-        // Create and log 11 actions to exceed one page
+        // Create and log 11 actions to exceed one page. Created through the public API so the id comes back
+        // as JSON: scraping it out of the returned HTML fragment (as this did) breaks silently the moment
+        // the row markup changes — the regex matches nothing, the `if (match)` skips the logging, and the
+        // test goes on to assert against actions that were never logged.
         for (let i = 1; i <= 11; i++) {
-            const createResp = await apiCtx.post("/internal/actions", {
-                form: { name: `StatsPageAction${i.toString().padStart(2, "0")}`, colour: "#6366f1" },
+            const created = await apiCtx.post("/api/v1/actions", {
+                data: { name: `StatsPageAction${i.toString().padStart(2, "0")}`, colour: "#6366f1" },
             })
-            // Extract action id from the returned HTML fragment
-            const html = await createResp.text()
-            const match = html.match(/id="action-([^"]+)"/)
-            if (match) {
-                await apiCtx.post(`/internal/logs/${today}/${match[1]}/increment`)
-            }
+            expect(created.ok(), `could not create action ${i}: HTTP ${created.status()}`).toBe(true)
+            const { id } = await created.json()
+            await apiCtx.put(`/api/v1/logs/${today}/${id}`, { data: { count: 1 } })
         }
 
         await page.goto("/stats")
@@ -54,7 +70,7 @@ test.describe("Stats page", () => {
         await expect(page.locator("body")).toContainText("Previous")
     })
 
-    // The rename cap (ActionStatField.MAX_LABEL_LENGTH) sits just above the longest BUILT-IN label, so
+    // The rename cap (StatField.MAX_LABEL_LENGTH) sits just above the longest BUILT-IN label, so
     // what it promises is a claim about geometry and can only be checked by rendering it:
     //   • a max-length name of ordinary wording costs at most ONE caption line more than the built-ins
     //     beside it (not zero: the cap is deliberately a couple of characters longer than the longest
@@ -65,12 +81,14 @@ test.describe("Stats page", () => {
     // the cap rather than restating it.
     test("a maximum-length stat name stays within its tile", async ({ authenticatedPage: page }) => {
         const apiCtx = page.context().request
-        const createResp = await apiCtx.post("/internal/actions", { form: { name: "CaptionFit", colour: "#6366f1" } })
-        const match = (await createResp.text()).match(/id="action-([^"]+)"/)
+        // The public API returns the created action as JSON, so its id needs no scraping out of markup.
+        // A 409 here means a previous run already created it, which is fine — find it in the listing.
+        const created = await apiCtx.post("/api/v1/actions", { data: { name: "CaptionFit", colour: "#6366f1" } })
+        const actionId = created.ok()
+            ? (await created.json()).id
+            : await findActionIdByName(apiCtx, "CaptionFit")
         const today = new Date().toISOString().slice(0, 10)
-        if (match) {
-            await apiCtx.post(`/internal/logs/${today}/${match[1]}/increment`)
-        }
+        await apiCtx.put(`/api/v1/logs/${today}/${actionId}`, { data: { count: 1 } })
 
         await page.goto("/settings")
         const maxLength = Number(await page.locator("#stats-fields-list .stats-field-input").first().getAttribute("maxlength"))
@@ -200,5 +218,88 @@ test.describe("Stats page", () => {
         // Escape closes the dialog.
         await page.keyboard.press("Escape")
         await expect(modal).toHaveClass(/hidden/)
+    })
+})
+
+// The notes subject on the Stats page: a card like any other, pinned first, and chartable alongside an
+// action on the shared frequency graph.
+test.describe("Stats page – notes", () => {
+    function todayStr(): string {
+        return new Date().toISOString().slice(0, 10)
+    }
+
+    function pastDateStr(daysAgo: number): string {
+        const d = new Date()
+        d.setUTCDate(d.getUTCDate() - daysAgo)
+        return d.toISOString().slice(0, 10)
+    }
+
+    // A unique name per run, so creating it always succeeds and its id comes straight back from the API —
+    // these specs share a user and DB, so the paginated Actions page cannot be used to find an action by
+    // position, and a fixed name would 409 on the second run leaving nothing to read the id from.
+    const ACTION_NAME = `NoteChartAction${Date.now()}`
+    let actionId: string | undefined
+
+    test.beforeEach(async ({ authenticatedPage: page }) => {
+        // An action logged today, and notes on two days, so both subjects have data to chart.
+        const apiCtx = page.context().request
+        if (actionId === undefined) {
+            const created = await apiCtx.post("/api/v1/actions", { data: { name: ACTION_NAME, colour: "#6366f1" } })
+            actionId = (await created.json()).id as string
+        }
+        await apiCtx.put(`/api/v1/logs/${todayStr()}/${actionId}`, { data: { count: 1 } })
+        for (const day of [todayStr(), pastDateStr(1)]) {
+            await apiCtx.put(`/api/v1/notes/${day}`, { data: { content: `Journal for ${day}` } })
+        }
+    })
+
+    test("the notes card is pinned first, ahead of every action", async ({ authenticatedPage: page }) => {
+        await page.goto("/stats")
+        await expect(page.locator("#stats-list .card").first().locator("h3")).toHaveText("Notes")
+    })
+
+    // Cards are located by TITLE, never by index: these specs share a user and DB with the rest of the
+    // suite, so how many action cards exist (and in what order) is not this test's to know.
+    function cardTitled(page: Page, title: string): Locator {
+        return page.locator("#stats-list .card").filter({ has: page.locator(`h3:text-is("${title}")`) })
+    }
+
+    test("the notes card renders the same tile chrome as an action", async ({ authenticatedPage: page }) => {
+        await page.goto("/stats")
+        // Only the MANDATORY tile can be asserted by name: which optional stats are shown is a per-user
+        // preference, and these specs share one user with settings.spec.ts, which reorders and disables them.
+        const notesCard = cardTitled(page, "Notes")
+        const actionCard = cardTitled(page, ACTION_NAME)
+
+        await expect(notesCard).toContainText("Last performed")
+        await expect(notesCard.locator("dl dt")).not.toHaveCount(0)
+        // The two cards are the same shape: whatever tiles the user has enabled, both render them.
+        expect(await notesCard.locator("dl dt").count()).toBe(await actionCard.locator("dl dt").count())
+    })
+
+    test("notes can be charted, and an action compared into the same graph", async ({ authenticatedPage: page }) => {
+        await page.goto("/stats")
+        await cardTitled(page, "Notes").locator("[data-chart-subject]").click()
+
+        const modal = page.locator("#stats-chart-modal")
+        await expect(modal).toBeVisible()
+        await expect(page.locator("#stats-chart-title")).toHaveText("Notes")
+        await expect(page.locator("#stats-chart-body")).toContainText("Notes")
+
+        // The compare picker offers the actions alongside; adding one puts both series on the same graph.
+        await page.locator("#stats-chart-body").getByText("Compare to").click()
+        await page.locator("[data-chart-add]").filter({ hasText: ACTION_NAME }).click()
+        await expect(page.locator("#stats-chart-body")).toContainText(ACTION_NAME)
+        await expect(page.locator("#stats-chart-body")).toContainText("Notes")
+    })
+
+    test("the compare picker offers notes when the graph was opened from an action", async ({ authenticatedPage: page }) => {
+        await page.goto("/stats")
+        await cardTitled(page, ACTION_NAME).locator("[data-chart-subject]").click()
+        await expect(page.locator("#stats-chart-title")).toHaveText(ACTION_NAME)
+
+        await page.locator("#stats-chart-body").getByText("Compare to").click()
+        // Notes are offered ahead of the actions, so they are the first row of the picker.
+        await expect(page.locator("[data-chart-add]").first()).toContainText("Notes")
     })
 })

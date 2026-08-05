@@ -72,74 +72,127 @@ document.addEventListener('DOMContentLoaded', function () {
 
     function pad2(n) { return String(n).padStart(2, '0') }
 
-    // ── Day-panel cache ──────────────────────────────────────────────────────
-    // Each /internal/logs/day/<date> partial is cached so re-opening a day by clicking around the calendar is
-    // instant instead of paying the edge round-trip every time (the public origin sits behind Cloudflare,
-    // so each call is a ~250ms+ round-trip). We cache the PRISTINE default view (page 1, no search
-    // filter) — exactly what a fresh load returns — so a cached swap is indistinguishable from a network
-    // one. The selected day is fetched on its own (fast first paint); the REST of its month is then
-    // back-filled by a SINGLE /internal/logs/month/<yyyy-MM> request that returns every day's HTML in one map,
-    // rather than fanning out ~30 concurrent per-day requests (which would exhaust the small JDBC pool).
-    const dayPanelCache    = {} // dateStr -> HTML string (the /internal/logs/day response body)
-    const dayPanelInflight = {} // dateStr -> Promise, dedupes concurrent single-day fetches
-    const monthBackfilled  = {} // "YYYY-MM" -> true once its whole-month back-fill has been requested
+    // Shared with every other page's fetches — see Diurnal.requireSession in app.js for the two shapes
+    // an expired session arrives in, and why touching a response body without this check strands the page.
+    // Resolved at CALL time, not captured at module init: layout.html loads app.js (which defines it) AFTER
+    // the page body, so this script runs first and an up-front reference would capture `undefined`.
+    function requireSession(resp) {
+        return window.Diurnal.requireSession(resp)
+    }
 
-    // The panel cache is bounded the same way `dayData` is (see that cache's LRU below): by month,
+    // The note box lives in its own script (note.js), which loads first. It owns everything about a day's
+    // note - the textarea, its caches, the save/undo/clear controls and the drag-resize - and exposes only
+    // what the calendar needs: which days have one, and hooks to load, clear and evict them. Absent the
+    // panel it is a set of no-ops, so the dashboard works unchanged if the box is ever not rendered.
+    const noteBox = window.Diurnal.noteBox
+
+    // ── Per-day HTML fragment cache ──────────────────────────────────────────
+    // The day panel and the stats summary both show a server-rendered fragment for the SELECTED day, and
+    // both are cached the same way, so both are built from this one factory. Re-opening a day by clicking
+    // around the calendar is then instant instead of paying the edge round-trip every time (the public
+    // origin sits behind Cloudflare, so each call is a ~250ms+ round-trip).
+    //
+    // The selected day is fetched on its own for a fast first paint; the REST of its month is then
+    // back-filled by a SINGLE bulk request returning every day's HTML in one map, rather than fanning out
+    // ~30 concurrent per-day requests (which would exhaust the small JDBC pool).
+    //
+    // The cache is bounded the same way `dayData` is (see that cache's LRU below): by month,
     // least-recently-used first. Each visited month back-fills ~30 rendered HTML strings, so WITHOUT a cap
     // a session that browses back through years would accumulate megabytes that are never released.
-    // `dayPanelLru` holds month keys oldest→newest; DAY_PANEL_MONTH_LIMIT stays well above the working set
-    // (the selected month plus the neighbours a user hops between) and touch-on-access keeps the current
-    // month at the tail, so a month that's on screen or about to be revisited is never dropped.
-    const dayPanelLru           = [] // "YYYY-MM" keys, least-recently-used first
-    const DAY_PANEL_MONTH_LIMIT = 12 // max months of cached panels retained (mirrors the dayData CACHE_LIMIT)
+    // MONTH_LIMIT stays well above the working set (the selected month plus the neighbours a user hops
+    // between) and touch-on-access keeps the current month at the tail, so a month that's on screen or
+    // about to be revisited is never dropped.
+    //
+    // `dayUrl`/`monthUrl` are the only things that vary between the two users: everything else — eviction,
+    // in-flight de-duplication, idle-scheduled back-fill, retry-on-failure — is identical.
+    const FRAGMENT_MONTH_LIMIT = 12 // max months of cached fragments retained (mirrors the dayData CACHE_LIMIT)
 
-    // Mark a date's month as most-recently-used, then evict the oldest months' panels until at most
-    // DAY_PANEL_MONTH_LIMIT remain resident. Called on every cache access and write.
-    function touchPanelMonth(dateStr) {
-        const ym = dateStr.substring(0, 7) // "YYYY-MM"
-        const i = dayPanelLru.indexOf(ym)
-        if (i !== -1) { dayPanelLru.splice(i, 1) }
-        dayPanelLru.push(ym)
-        while (dayPanelLru.length > DAY_PANEL_MONTH_LIMIT) {
-            const stale = dayPanelLru.shift()
-            const prefix = `${stale  }-` // "YYYY-MM-" — every date key in that month
-            Object.keys(dayPanelCache).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete dayPanelCache[d] } })
-            delete monthBackfilled[stale] // let a later visit re-fetch the whole month
+    function createFragmentCache(dayUrl, monthUrl) {
+        const cache      = {} // dateStr -> HTML string (the single-day response body)
+        const inflight   = {} // dateStr -> Promise, dedupes concurrent single-day fetches
+        const backfilled = {} // "YYYY-MM" -> true once its whole-month back-fill has been requested
+        const lru        = [] // "YYYY-MM" keys, least-recently-used first
+
+        // Mark a date's month as most-recently-used, then evict the oldest months' fragments until at most
+        // FRAGMENT_MONTH_LIMIT remain resident. Called on every cache access and write.
+        function touchMonth(dateStr) {
+            const ym = dateStr.substring(0, 7) // "YYYY-MM"
+            const i = lru.indexOf(ym)
+            if (i !== -1) { lru.splice(i, 1) }
+            lru.push(ym)
+            while (lru.length > FRAGMENT_MONTH_LIMIT) {
+                const stale = lru.shift()
+                const prefix = `${stale}-` // "YYYY-MM-" — every date key in that month
+                Object.keys(cache).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete cache[d] } })
+                delete backfilled[stale] // let a later visit re-fetch the whole month
+            }
+        }
+
+        return {
+            // True once this date's fragment is resident, so a caller can tell an instant swap from one
+            // that has to wait on the network (and decide whether to show in-flight feedback).
+            has: function (dateStr) { return cache[dateStr] !== undefined },
+
+            get: function (dateStr) {
+                if (cache[dateStr] !== undefined) { touchMonth(dateStr); return Promise.resolve(cache[dateStr]) }
+                if (inflight[dateStr]) { return inflight[dateStr] }
+                const p = fetch(dayUrl(dateStr))
+                    .then(requireSession)
+                    .then(function (r) { return r.text() })
+                    .then(function (html) { cache[dateStr] = html; delete inflight[dateStr]; touchMonth(dateStr); return html })
+                    .catch(function (err) { delete inflight[dateStr]; throw err }) // drop so a later view retries
+                inflight[dateStr] = p
+                return p
+            },
+
+            // Back-fill every other day of dateStr's month from one bulk request, once the browser is idle so
+            // it never competes with the just-issued load for the selected day. Runs at most once per month,
+            // and only fills days NOT already cached — so the selected day (and any day the user has since
+            // changed, whose stale entry was dropped) keeps its fresher copy rather than being clobbered by
+            // the snapshot.
+            backfill: function (dateStr) {
+                const ym = dateStr.substring(0, 7) // "YYYY-MM"
+                if (backfilled[ym]) { return }
+                backfilled[ym] = true
+                const schedule = window.requestIdleCallback || function (fn) { return setTimeout(fn, 200) }
+                schedule(function () {
+                    fetch(monthUrl(ym))
+                        .then(requireSession)
+                        .then(function (r) { return r.json() })
+                        .then(function (fragments) {
+                            Object.keys(fragments).forEach(function (d) {
+                                if (cache[d] === undefined) { cache[d] = fragments[d] }
+                            })
+                            touchMonth(dateStr) // whole month now resident — record recency & trim
+                        })
+                        .catch(function () { delete backfilled[ym] }) // let a later navigation retry
+                })
+            },
+
+            // Adopt an already-rendered fragment the page shipped inline, so showing that day costs no request.
+            seed: function (dateStr, html) { cache[dateStr] = html; touchMonth(dateStr) },
+
+            // Forget ONE day, when only that day's fragment went stale.
+            drop: function (dateStr) { delete cache[dateStr] },
+
+            // Forget everything, when a change on one day invalidates every day's fragment.
+            clear: function () {
+                Object.keys(cache).forEach(function (d) { delete cache[d] })
+                Object.keys(inflight).forEach(function (d) { delete inflight[d] })
+                Object.keys(backfilled).forEach(function (ym) { delete backfilled[ym] })
+                lru.length = 0
+            }
         }
     }
 
-    function fetchDayPanel(dateStr) {
-        if (dayPanelCache[dateStr] !== undefined) { touchPanelMonth(dateStr); return Promise.resolve(dayPanelCache[dateStr]) }
-        if (dayPanelInflight[dateStr]) { return dayPanelInflight[dateStr] }
-        const p = fetch(`/internal/logs/day/${  dateStr}`)
-            .then(function (r) { return r.text() })
-            .then(function (html) { dayPanelCache[dateStr] = html; delete dayPanelInflight[dateStr]; touchPanelMonth(dateStr); return html })
-            .catch(function (err) { delete dayPanelInflight[dateStr]; throw err }) // drop so a later view retries
-        dayPanelInflight[dateStr] = p
-        return p
-    }
-
-    // Back-fill every other day of dateStr's month from one bulk request, once the browser is idle so it
-    // never competes with the just-issued load for the selected day. Runs at most once per month, and
-    // only fills days NOT already cached — so the selected day (and any day the user has since changed,
-    // whose stale entry was dropped) keeps its fresher copy instead of being clobbered by the snapshot.
-    function backfillMonth(dateStr) {
-        const ym = dateStr.substring(0, 7) // "YYYY-MM"
-        if (monthBackfilled[ym]) { return }
-        monthBackfilled[ym] = true
-        const schedule = window.requestIdleCallback || function (fn) { return setTimeout(fn, 200) }
-        schedule(function () {
-            fetch(`/internal/logs/month/${  ym}`)
-                .then(function (r) { return r.json() })
-                .then(function (panels) {
-                    Object.keys(panels).forEach(function (d) {
-                        if (dayPanelCache[d] === undefined) { dayPanelCache[d] = panels[d] }
-                    })
-                    touchPanelMonth(dateStr) // whole month now resident — record recency & trim
-                })
-                .catch(function () { delete monthBackfilled[ym] }) // let a later navigation retry
-        })
-    }
+    // ── Day panel ────────────────────────────────────────────────────────────
+    // We cache the PRISTINE default view (page 1, no search filter) — exactly what a fresh load returns —
+    // so a cached swap is indistinguishable from a network one. Invalidation is per-date: a log mutation
+    // changes only the day it was made on.
+    const dayPanelCache = createFragmentCache(
+        function (d) { return `/internal/logs/day/${d}` },
+        function (ym) { return `/internal/logs/month/${ym}` },
+    )
 
     // Swap a day's cached/loaded HTML into the panel and wire its HTMX attributes (htmx.process, since
     // we set innerHTML directly rather than going through htmx.ajax). Lifts the in-flight dim.
@@ -151,7 +204,7 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     function loadDayPanel(dateStr) {
-        if (dayPanel && dayPanelCache[dateStr] === undefined) {
+        if (dayPanel && !dayPanelCache.has(dateStr)) {
             // Cache miss: keep the previous day's actions on screen but dim them while the response is in
             // flight. Blanking the panel (or painting a skeleton) reads as a harsh flash on fast loads;
             // holding the content and fading the opacity makes the switch feel continuous. A cache hit
@@ -159,84 +212,28 @@ document.addEventListener('DOMContentLoaded', function () {
             dayPanel.style.transition = 'opacity 150ms ease'
             dayPanel.style.opacity = '0.45'
         }
-        fetchDayPanel(dateStr).then(function (html) {
+        dayPanelCache.get(dateStr).then(function (html) {
             // Only swap if the user is still on this day (they may have clicked onward mid-fetch, or
             // cleared the selection, in which case that action already won).
             if (selectedDate === dateStr) { swapDayPanel(html) }
         })
-        backfillMonth(dateStr) // back-fill the rest of the month from one bulk request
+        dayPanelCache.backfill(dateStr) // back-fill the rest of the month from one bulk request
     }
 
-    // ── Stats-summary cache ──────────────────────────────────────────────────
+    // ── Stats summary ────────────────────────────────────────────────────────
     // The summary card under the calendar shows the SELECTED day's most-logged actions, so it follows the
-    // selection exactly the way the day panel does — and is cached exactly the way the day panel is: the
-    // single selected day is fetched on its own for a fast first paint, then ONE
-    // /internal/stats/summary-month/<yyyy-MM> request back-fills the rest of that month, capped by a
-    // least-recently-used month window. The page ships the initially selected day's card inline, so that
-    // one is seeded into the cache below rather than re-fetched.
+    // selection exactly the way the day panel does. The page ships the initially selected day's card
+    // inline, so that one is seeded into the cache below rather than re-fetched.
     //
     // Invalidation is coarser than the day panel's, and deliberately so: the tiles report each action's
     // WHOLE history (streaks, totals, best month), so logging against ANY day changes the figures shown on
     // EVERY day, not just the one that was edited. Dropping one date would leave stale numbers on the rest,
     // so a log mutation clears the whole cache.
-    const statsHost          = document.getElementById('stats-summary') // absent when the summary is off in Settings
-    const statsCache         = {} // dateStr -> HTML string (the /internal/stats/summary response body)
-    const statsInflight      = {} // dateStr -> Promise, dedupes concurrent single-day fetches
-    const statsMonthBackfilled = {} // "YYYY-MM" -> true once its whole-month back-fill has been requested
-    const statsLru           = [] // "YYYY-MM" keys, least-recently-used first
-    const STATS_MONTH_LIMIT  = 12 // max months of cached summary cards retained (mirrors the day panel's)
-
-    // Empty every summary cache in place (the objects are const so the closures above keep working).
-    function clearStatsCache() {
-        Object.keys(statsCache).forEach(function (d) { delete statsCache[d] })
-        Object.keys(statsInflight).forEach(function (d) { delete statsInflight[d] })
-        Object.keys(statsMonthBackfilled).forEach(function (ym) { delete statsMonthBackfilled[ym] })
-        statsLru.length = 0
-    }
-
-    function touchStatsMonth(dateStr) {
-        const ym = dateStr.substring(0, 7) // "YYYY-MM"
-        const i = statsLru.indexOf(ym)
-        if (i !== -1) { statsLru.splice(i, 1) }
-        statsLru.push(ym)
-        while (statsLru.length > STATS_MONTH_LIMIT) {
-            const stale = statsLru.shift()
-            const prefix = `${stale  }-` // "YYYY-MM-" — every date key in that month
-            Object.keys(statsCache).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete statsCache[d] } })
-            delete statsMonthBackfilled[stale] // let a later visit re-fetch the whole month
-        }
-    }
-
-    function fetchStatsSummary(dateStr) {
-        if (statsCache[dateStr] !== undefined) { touchStatsMonth(dateStr); return Promise.resolve(statsCache[dateStr]) }
-        if (statsInflight[dateStr]) { return statsInflight[dateStr] }
-        const p = fetch(`/internal/stats/summary/${  dateStr}`)
-            .then(function (r) { return r.text() })
-            .then(function (html) { statsCache[dateStr] = html; delete statsInflight[dateStr]; touchStatsMonth(dateStr); return html })
-            .catch(function (err) { delete statsInflight[dateStr]; throw err }) // drop so a later view retries
-        statsInflight[dateStr] = p
-        return p
-    }
-
-    // Back-fill every other day of dateStr's month from one bulk request, once the browser is idle. Runs at
-    // most once per month, and only fills days NOT already cached, so a freshly fetched day keeps its copy.
-    function backfillStatsMonth(dateStr) {
-        const ym = dateStr.substring(0, 7) // "YYYY-MM"
-        if (statsMonthBackfilled[ym]) { return }
-        statsMonthBackfilled[ym] = true
-        const schedule = window.requestIdleCallback || function (fn) { return setTimeout(fn, 200) }
-        schedule(function () {
-            fetch(`/internal/stats/summary-month/${  ym}`)
-                .then(function (r) { return r.json() })
-                .then(function (cards) {
-                    Object.keys(cards).forEach(function (d) {
-                        if (statsCache[d] === undefined) { statsCache[d] = cards[d] }
-                    })
-                    touchStatsMonth(dateStr) // whole month now resident — record recency & trim
-                })
-                .catch(function () { delete statsMonthBackfilled[ym] }) // let a later navigation retry
-        })
-    }
+    const statsHost  = document.getElementById('stats-summary') // absent when the summary is off in Settings
+    const statsCache = createFragmentCache(
+        function (d) { return `/internal/stats/summary/${d}` },
+        function (ym) { return `/internal/stats/summary-month/${ym}` },
+    )
 
     // Swap a day's card into the host. The figures are server-rendered as bare digits in their fullest
     // form, so the two presentation passes that normally run on page load / after an HTMX swap (locale
@@ -254,11 +251,11 @@ document.addEventListener('DOMContentLoaded', function () {
     // re-arms it instead.
     function loadStatsSummary(dateStr, backfill) {
         if (!statsHost) {return}
-        fetchStatsSummary(dateStr).then(function (html) {
+        statsCache.get(dateStr).then(function (html) {
             // Only swap if the user is still on this day (they may have clicked onward mid-fetch).
             if (selectedDate === dateStr) { swapStatsSummary(html) }
         })
-        if (backfill) { backfillStatsMonth(dateStr) }
+        if (backfill) { statsCache.backfill(dateStr) }
     }
 
     // Persist / restore the chosen day for the current WORKING session. sessionStorage is scoped to this
@@ -279,6 +276,7 @@ document.addEventListener('DOMContentLoaded', function () {
         if (y !== v.year || m !== v.month) { cal.goToMonth(y, m) } // re-applies the highlight on arrival
         loadDayPanel(dateStr)
         loadStatsSummary(dateStr, true)
+        noteBox.load(dateStr)
         rememberSelectedDate(dateStr)
     }
 
@@ -291,6 +289,10 @@ document.addEventListener('DOMContentLoaded', function () {
         // The summary is a statement about a specific day, so with no day selected there is nothing to
         // state — empty the card rather than leave the previous day's figures under a fresh month.
         if (statsHost) { statsHost.innerHTML = '' }
+        // Likewise the note: with no day selected there is nothing to write against, so the box is emptied
+        // and disabled rather than left showing (and accepting edits to) the day that was deselected. Any
+        // unsaved draft is kept, so re-selecting that day brings it straight back.
+        noteBox.disable()
         forgetSelectedDate()
     }
 
@@ -299,64 +301,49 @@ document.addEventListener('DOMContentLoaded', function () {
     // contents differ (see renderGrid's `calendarView` branch) and which data feed fills `dayData`
     // (see fetchMonth). `full` draws bordered cells with a day number + a list of logged-action events;
     // `minimal`/`stacked` draw a centred date circle with a dots/bars activity strip.
-    function buildGridCalendar() {
-        const grid      = document.getElementById('d-min-grid')
-        let viewYear  = parseInt(today.substring(0, 4), 10)
-        let viewMonth = parseInt(today.substring(5, 7), 10) - 1 // 0-indexed
-        const dayData   = {} // date string -> array of { colour, label } (one per logged action that day);
-                            // ACCUMULATES across months (keys are full dates, so months never collide) and
-                            // acts as the month cache. `label` is only rendered by the `full` style; the
-                            // dots/bars read `colour`. Filled (and normalised per feed) by fetchMonth.
-
-        // Optically centre the date number inside its circle, on BOTH axes. flex centres the glyph's
-        // ADVANCE box horizontally and its line/em box vertically, but the painted ink doesn't sit
-        // centred within those, so a circle/ring around the number looks lopsided. We paint the digits to
-        // an offscreen canvas at the same font and measure the painted pixels, then translate the digits
-        // to centre them — but the right "centre" differs per axis:
-        //   • HORIZONTAL → the ink BOUNDING BOX (so the whitespace gaps left & right are equal, which is
-        //     what the eye reads sideways). The digit side-bearings (the "1" glyph especially) otherwise
-        //     leave the number off-centre. This is the web analogue of Android's Paint.getTextBounds.
-        //     NB centring the horizontal *mass* instead skews mixed-weight numbers (e.g. the light "1" +
-        //     heavy "5" in "15" pulls the mass right, so mass-centring leaves a gap on the right).
-        //   • VERTICAL → the ink MASS centroid. Digits have no descenders, so bounding-box centring makes
-        //     them ride visibly high; centring the mass reads as balanced. The vertical reference is the
-        //     text's real baseline, read from the DOM with a zero-height baseline-aligned strut probe
-        //     (canvas em-box metrics don't match the browser's line-box placement).
-        // Both measurements are cached (by digits+weight+size / weight+size — all day states now share
-        // one weight, so the cache key still holds if that ever changes again).
-        const inkCanvas = document.createElement('canvas')
-        const inkCtx = inkCanvas.getContext('2d', { willReadFrequently: true })
-        let inkCentroidCache = {} // weight|size|text -> { x: bbox centre from advance centre, y: mass from baseline }
-        let baselineCache = {}    // weight|size      -> baseline offset from the circle's top edge (CSS px)
-        let circleSize = 0        // the circle's height (constant across cells) — read once
-
-        // `full`-style event fitting (see fitFullEvents). The font is fixed; keep FULL_FONT_PX in sync with
-        // `.d-cal-full .d-full-event`'s font-size (0.7rem) so the width measurements match what's painted.
-        const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
-        const FULL_FONT_PX = 0.70 * rootPx
-
-        // Natural width (CSS px) of `text` at the given font, reusing the ink canvas. Independent of layout, so
-        // it lets fitFullEvents decide truncation without per-candidate reflows.
-        function measureText(text, cs, fontPx) {
-            inkCtx.font = `${cs.fontWeight  } ${  fontPx  }px ${  cs.fontFamily}`
-            return inkCtx.measureText(text).width
-        }
+    // ── Optical text centring (offscreen ink measurement) ────────────────────
+    // Pure typography, with no calendar knowledge: it measures painted glyphs and returns offsets, so it
+    // works for any element pair. Used by the calendar to centre each date number inside its circle, and
+    // to size `full`-style event text.
+    //
+    // Centring is optical on BOTH axes. flex centres the glyph's ADVANCE box horizontally and its line/em
+    // box vertically, but the painted ink doesn't sit centred within those, so a circle/ring around a
+    // number looks lopsided. We paint the digits to an offscreen canvas at the same font and measure the
+    // painted pixels, then translate the digits to centre them — but the right "centre" differs per axis:
+    //   • HORIZONTAL → the ink BOUNDING BOX (so the whitespace gaps left & right are equal, which is
+    //     what the eye reads sideways). The digit side-bearings (the "1" glyph especially) otherwise
+    //     leave the number off-centre. This is the web analogue of Android's Paint.getTextBounds.
+    //     NB centring the horizontal *mass* instead skews mixed-weight numbers (e.g. the light "1" +
+    //     heavy "5" in "15" pulls the mass right, so mass-centring leaves a gap on the right).
+    //   • VERTICAL → the ink MASS centroid. Digits have no descenders, so bounding-box centring makes
+    //     them ride visibly high; centring the mass reads as balanced. The vertical reference is the
+    //     text's real baseline, read from the DOM with a zero-height baseline-aligned strut probe
+    //     (canvas em-box metrics don't match the browser's line-box placement).
+    // Both measurements are cached (by digits+weight+size / weight+size — all calendar day states now share
+    // one weight, so the cache key still holds if that ever changes again). A caller re-measuring after a
+    // web font swaps in must `reset()` first, since every cached figure was taken against the fallback.
+    function createInkMetrics() {
+        const canvas = document.createElement('canvas')
+        const ctx = canvas.getContext('2d', { willReadFrequently: true })
+        let centroidCache = {} // weight|size|text -> { x: bbox centre from advance centre, y: mass from baseline }
+        let baselineCache = {} // weight|size      -> baseline offset from the container's top edge (CSS px)
+        let boxSize = 0        // the container's height (constant across callers) — read once
 
         function inkCentroid(cs, text) {
-            const key = `${cs.fontWeight  }|${  cs.fontSize  }|${  text}`
-            let c = inkCentroidCache[key]
+            const key = `${cs.fontWeight}|${cs.fontSize}|${text}`
+            let c = centroidCache[key]
             if (c) {return c}
             const fontPx = parseFloat(cs.fontSize) || 12
             const ss = 8                            // supersample for sub-pixel precision
             const box = Math.ceil(fontPx * 3) * ss  // ample square around the digits
             const baseY = box / 2                   // draw the alphabetic baseline at mid-canvas
-            inkCanvas.width = box; inkCanvas.height = box
-            inkCtx.font = `${cs.fontWeight  } ${  fontPx * ss  }px ${  cs.fontFamily}`
-            inkCtx.textAlign = 'center'           // x origin = glyph advance centre
-            inkCtx.textBaseline = 'alphabetic'
-            inkCtx.fillStyle = '#000'
-            inkCtx.fillText(text, box / 2, baseY)
-            const data = inkCtx.getImageData(0, 0, box, box).data
+            canvas.width = box; canvas.height = box
+            ctx.font = `${cs.fontWeight} ${fontPx * ss}px ${cs.fontFamily}`
+            ctx.textAlign = 'center'           // x origin = glyph advance centre
+            ctx.textBaseline = 'alphabetic'
+            ctx.fillStyle = '#000'
+            ctx.fillText(text, box / 2, baseY)
+            const data = ctx.getImageData(0, 0, box, box).data
             let minX = box, maxX = -1, sumY = 0, weight = 0
             for (let py = 0; py < box; py++) {
                 for (let px = 0; px < box; px++) {
@@ -371,31 +358,61 @@ document.addEventListener('DOMContentLoaded', function () {
             c = weight
                 ? { x: ((minX + maxX) / 2 - box / 2) / ss, y: (sumY / weight - baseY) / ss }  // x: bbox centre, y: mass
                 : { x: 0, y: 0 }
-            inkCentroidCache[key] = c
+            centroidCache[key] = c
             return c
         }
 
-        function baselineOffset(circleEl, textEl, cs) {
-            const key = `${cs.fontWeight  }|${  cs.fontSize}`
+        function baselineOffset(containerEl, textEl, cs) {
+            const key = `${cs.fontWeight}|${cs.fontSize}`
             if (baselineCache[key] !== undefined) {return baselineCache[key]}
             const strut = document.createElement('span')
             strut.style.cssText = 'display:inline-block;width:0;height:0;vertical-align:baseline'
             textEl.appendChild(strut)
-            const off = strut.getBoundingClientRect().top - circleEl.getBoundingClientRect().top
+            const off = strut.getBoundingClientRect().top - containerEl.getBoundingClientRect().top
             strut.remove()
             baselineCache[key] = off
             return off
         }
 
-        function centreInk(circleEl, textEl) {
-            const cs = getComputedStyle(circleEl)
-            if (!circleSize) { circleSize = circleEl.getBoundingClientRect().height }
-            const c = inkCentroid(cs, textEl.textContent)
-            const baseY = baselineOffset(circleEl, textEl, cs)
-            const shiftX = -c.x                         // ink bbox centre -> circle centre (equal whitespace)
-            const shiftY = circleSize / 2 - (baseY + c.y) // ink mass centroid -> circle centre
-            textEl.style.transform = `translate(${  shiftX.toFixed(3)  }px,${  shiftY.toFixed(3)  }px)`
+        return {
+            // Natural width (CSS px) of `text` at the given font, reusing the ink canvas. Independent of
+            // layout, so a caller can decide truncation without per-candidate reflows.
+            measureText: function (text, cs, fontPx) {
+                ctx.font = `${cs.fontWeight} ${fontPx}px ${cs.fontFamily}`
+                return ctx.measureText(text).width
+            },
+
+            // Translate `textEl` so its painted ink sits optically centred within `containerEl`.
+            centre: function (containerEl, textEl) {
+                const cs = getComputedStyle(containerEl)
+                if (!boxSize) { boxSize = containerEl.getBoundingClientRect().height }
+                const c = inkCentroid(cs, textEl.textContent)
+                const baseY = baselineOffset(containerEl, textEl, cs)
+                const shiftX = -c.x                        // ink bbox centre -> container centre (equal whitespace)
+                const shiftY = boxSize / 2 - (baseY + c.y) // ink mass centroid -> container centre
+                textEl.style.transform = `translate(${shiftX.toFixed(3)}px,${shiftY.toFixed(3)}px)`
+            },
+
+            // Discard every cached measurement, so the next call re-measures against the current font.
+            reset: function () { centroidCache = {}; baselineCache = {}; boxSize = 0 }
         }
+    }
+
+    function buildGridCalendar() {
+        const grid      = document.getElementById('d-min-grid')
+        let viewYear  = parseInt(today.substring(0, 4), 10)
+        let viewMonth = parseInt(today.substring(5, 7), 10) - 1 // 0-indexed
+        const dayData   = {} // date string -> array of { colour, label } (one per logged action that day);
+                            // ACCUMULATES across months (keys are full dates, so months never collide) and
+                            // acts as the month cache. `label` is only rendered by the `full` style; the
+                            // dots/bars read `colour`. Filled (and normalised per feed) by fetchMonth.
+
+        // Optical centring of the date numbers, and the text width measurements the `full` style's event
+        // fitting needs (see fitFullEvents). The font there is fixed; keep FULL_FONT_PX in sync with
+        // `.d-cal-full .d-full-event`'s font-size (0.7rem) so the width measurements match what's painted.
+        const ink = createInkMetrics()
+        const rootPx = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16
+        const FULL_FONT_PX = 0.70 * rootPx
 
         // ── Month data cache (LRU) & background prefetch ────────────────────────────
         // Each month's dots are fetched once and merged into `dayData`; `monthPromises` dedupes in-flight
@@ -416,6 +433,19 @@ document.addEventListener('DOMContentLoaded', function () {
         const PREFETCH_RADIUS = 2 // months either side of the visible one to warm in the background
         const CACHE_LIMIT     = 12 // max RESOLVED months retained (>> 2*PREFETCH_RADIUS+1 = 5, the live window)
 
+        // The day's NOTES ride this same cache, because the calendar paints a green day number for every day
+        // that has one — but with their OWN promise map, loaded flag and radius, because their radius differs.
+        // (A single shared flag could not say "this month has its events but not yet its notes", which is
+        // exactly the state a month two clicks away is in.) Everything subtle stays shared: the `lru` recency
+        // list, CACHE_LIMIT, PINNED_MONTHS, evictIfNeeded and dropMonth, so "keep the most recent 12" and the
+        // pinned current-month window apply to notes for free and cannot drift from the events side.
+        const notePromises    = {} // "YYYY-MM" -> Promise (in-flight or resolved) for that month's notes
+        const monthNotesLoaded = {} // "YYYY-MM" -> true once its notes have been merged into the note cache
+        // Deliberately narrower than PREFETCH_RADIUS: a month of note PROSE is far heavier than a month of
+        // dots, and the odds of jumping two months out before reading anything are low. A month beyond this
+        // window simply fetches its notes when it becomes the visible month (see fetchAndRender).
+        const NOTE_PREFETCH_RADIUS = 1
+
         function monthKey(y, m) { return `${y  }-${  pad2(m + 1)}` }
 
         function feedEndpoint() {
@@ -426,11 +456,7 @@ document.addEventListener('DOMContentLoaded', function () {
         // redirect for a programmatic client) — so an expired session must be turned into the /login
         // navigation the internal endpoints get via their 302.
         function feedJson(r) {
-            if (r.status === 401) {
-                window.location.assign('/login')
-                throw new Error('session expired')
-            }
-            return r.json()
+            return requireSession(r).json()
         }
 
         function stepMonth(year, month, delta) {
@@ -455,12 +481,16 @@ document.addEventListener('DOMContentLoaded', function () {
             lru.push(key)
         }
 
-        // Forget a month entirely: its dots, its cached fetch, and its loaded flag.
+        // Forget a month entirely: its dots, its notes, both cached fetches and both loaded flags. Eviction is
+        // symmetric on purpose — a half-evicted month would keep answering "loaded" for one of the two.
         function dropMonth(key) {
             const prefix = `${key  }-` // "2026-06-" — every date key in that month
             Object.keys(dayData).forEach(function (d) { if (d.indexOf(prefix) === 0) { delete dayData[d] } })
+            noteBox.dropMonth(key)
             delete monthPromises[key]
             delete monthLoaded[key]
+            delete notePromises[key]
+            delete monthNotesLoaded[key]
         }
 
         // The current month and its two neighbours are PINNED: never evicted, regardless of recency. The
@@ -479,13 +509,18 @@ document.addEventListener('DOMContentLoaded', function () {
         // months (touched but not yet loaded) and the pinned current-month window are skipped — the former
         // get trimmed once they resolve and re-run this; the latter stay resident for life. Pinned months
         // still count toward `resident`, so the cap bounds total memory either way.
+        // A month counts as resident when EITHER its events or its notes are loaded: the two radii mean a month
+        // can legitimately hold one without the other, and counting only the events side would let the notes of
+        // an unbounded number of months accumulate outside the cap.
+        function isResident(key) { return Boolean(monthLoaded[key] || monthNotesLoaded[key]) }
+
         function evictIfNeeded() {
             let resident = 0, i
-            for (i = 0; i < lru.length; i++) { if (monthLoaded[lru[i]]) { resident++ } }
+            for (i = 0; i < lru.length; i++) { if (isResident(lru[i])) { resident++ } }
             while (resident > CACHE_LIMIT) {
                 let idx = -1
                 for (i = 0; i < lru.length; i++) {
-                    if (monthLoaded[lru[i]] && PINNED_MONTHS.indexOf(lru[i]) === -1) { idx = i; break }
+                    if (isResident(lru[i]) && PINNED_MONTHS.indexOf(lru[i]) === -1) { idx = i; break }
                 }
                 if (idx === -1) { break }                          // nothing left but pinned months
                 const key = lru[idx]
@@ -564,6 +599,47 @@ document.addEventListener('DOMContentLoaded', function () {
             return p
         }
 
+        // ── Notes: the same month cache, its own flags ───────────────────────────
+        // One range request per contiguous span, merged month by month so the per-month flags, the shared LRU
+        // and eviction all behave exactly as the events side. `pendingKeys` filters the response the same way
+        // the events span does, so an already-cached month sitting inside a span is never merged twice.
+        function fetchNoteSpan(months, force) {
+            const pending = months.filter(function (ym) {
+                return force || !notePromises[monthKey(ym[0], ym[1])]
+            })
+            if (pending.length === 0) { return null }
+
+            const ordered = pending.slice().sort(function (a, b) { return (a[0] - b[0]) || (a[1] - b[1]) })
+            const first = ordered[0], last = ordered[ordered.length - 1]
+            const start = `${first[0]  }-${  pad2(first[1] + 1)  }-01`
+            const end   = monthEnd(last[0], last[1])
+
+            const pendingKeys = pending.map(function (ym) { return monthKey(ym[0], ym[1]) })
+
+            const p = fetch(`/internal/notes?start=${  start  }&end=${  end}`)
+                .then(feedJson)
+                .then(function (byDate) {
+                    noteBox.mergeMonths(byDate, pendingKeys, force)
+                    pendingKeys.forEach(function (key) { monthNotesLoaded[key] = true })
+                    evictIfNeeded()
+                    return byDate
+                })
+                .catch(function (err) {                            // drop each so a later view retries
+                    pendingKeys.forEach(function (key) {
+                        delete notePromises[key]
+                        const i = lru.indexOf(key)
+                        if (i !== -1) { lru.splice(i, 1) }
+                    })
+                    throw err
+                })
+
+            pendingKeys.forEach(function (key) {
+                touch(key)                                        // mirror the events side's per-month LRU touch
+                notePromises[key] = p                             // share the one promise for dedup
+            })
+            return p
+        }
+
         // Warm SEVERAL months in ONE request instead of a fetch per month. The feeds are range queries
         // (start/end can span any number of months), so the ±PREFETCH_RADIUS window is a single contiguous
         // round-trip rather than 4 — fewer connections, no per-month edge-latency tax, and it stays off the
@@ -634,11 +710,24 @@ document.addEventListener('DOMContentLoaded', function () {
             const schedule = window.requestIdleCallback || function (fn) { return setTimeout(fn, 200) }
             schedule(function () {
                 const months = []
+                const notePrefetchMonths = []
                 for (let d = 1; d <= PREFETCH_RADIUS; d++) {
                     months.push(stepMonth(viewYear, viewMonth, -d))
                     months.push(stepMonth(viewYear, viewMonth,  d))
+                    if (d <= NOTE_PREFETCH_RADIUS) {
+                        notePrefetchMonths.push(stepMonth(viewYear, viewMonth, -d))
+                        notePrefetchMonths.push(stepMonth(viewYear, viewMonth,  d))
+                    }
                 }
                 const key = monthKey(viewYear, viewMonth)
+                // Two independent spans, because the radii differ. The notes span covers three months but
+                // merges only the two pending neighbours — the visible month between them is already cached.
+                const notesP = fetchNoteSpan(notePrefetchMonths, false)
+                if (notesP) {
+                    notesP.then(function () {
+                        if (monthKey(viewYear, viewMonth) === key) { renderGrid() }
+                    }).catch(function () {})
+                }
                 const p = fetchMonthsSpan(months)
                 // The visible grid's leading/trailing cells belong to the ADJACENT months (e.g. Jun 28–30 in
                 // the July grid), so once the neighbours land their dots must be painted in — re-render, but
@@ -647,6 +736,10 @@ document.addEventListener('DOMContentLoaded', function () {
             })
         }
 
+        // Two-sided: the events and the notes of a month load independently (different prefetch radii), so a
+        // month can arrive here with one side cached and the other not — which is exactly the state of a month
+        // two clicks out, whose events the ±2 prefetch warmed but whose notes the ±1 prefetch did not. Fetch
+        // whichever side is missing, and repaint once each lands.
         function fetchAndRender() {
             const key = monthKey(viewYear, viewMonth)
             // Paint the grid immediately — numbers, today, selection — so the month switch is instant and the
@@ -654,14 +747,27 @@ document.addEventListener('DOMContentLoaded', function () {
             // cached month, or filled in by the re-render below once the fetch lands for an uncached one. Cells
             // always reserve the dot/bar row, so dots appearing later causes no layout shift.
             renderGrid()
-            if (monthLoaded[key]) {       // cached → dots are already drawn, nothing more to fetch
+
+            const pending = []
+            if (monthLoaded[key]) {
                 touch(key)               // viewing it counts as use, so it stays hot in the LRU
+            } else {
+                pending.push(fetchMonth(viewYear, viewMonth))
+            }
+            if (!monthNotesLoaded[key]) {
+                const notesP = fetchNoteSpan([[viewYear, viewMonth]], false)
+                if (notesP) { pending.push(notesP.catch(function () {})) }
+            }
+
+            if (pending.length === 0) {  // both sides cached → nothing to fetch, everything already drawn
                 prefetchNeighbours()
                 return
             }
-            fetchMonth(viewYear, viewMonth).then(function () {
-                // Re-render with the dots — but only if the user is still on this month (they may have
-                // clicked onward mid-fetch, in which case that month's own render already won).
+            // One repaint once BOTH land, rather than one per side: the visible month's dots and its green
+            // note numbers then appear together instead of flickering in one after the other.
+            Promise.all(pending).then(function () {
+                // Re-render — but only if the user is still on this month (they may have clicked onward
+                // mid-fetch, in which case that month's own render already won).
                 if (monthKey(viewYear, viewMonth) === key) { renderGrid() }
                 prefetchNeighbours()
             })
@@ -686,7 +792,7 @@ document.addEventListener('DOMContentLoaded', function () {
             const textRegionCount = rowContent - 8 - 4      // dot + one gap (dot|count)
             const GAP = 4
             const cs = getComputedStyle(rows[0].querySelector('.d-full-event-title'))
-            const ellipsisW = measureText('…', cs, FULL_FONT_PX)
+            const ellipsisW = ink.measureText('…', cs, FULL_FONT_PX)
             rows.forEach(function (ev) {
                 const nameStr  = ev.dataset.fname  || ''
                 const countStr = ev.dataset.fcount || ''
@@ -694,8 +800,8 @@ document.addEventListener('DOMContentLoaded', function () {
                 const countEl  = ev.querySelector('.d-full-event-count')
                 if (eventTitleEl) { eventTitleEl.style.display = '' } // reset any prior degradation before re-fitting
                 if (countEl) { countEl.style.display = '' }
-                const nameW  = nameStr  ? measureText(nameStr,  cs, FULL_FONT_PX) : 0
-                const countW = countStr ? measureText(countStr, cs, FULL_FONT_PX) : 0
+                const nameW  = nameStr  ? ink.measureText(nameStr,  cs, FULL_FONT_PX) : 0
+                const countW = countStr ? ink.measureText(countStr, cs, FULL_FONT_PX) : 0
                 if (nameW + countW + ((nameStr && countStr) ? GAP : 0) <= textRegionFull) {
                     return // whole "name ×N" fits — nothing to trim
                 }
@@ -725,16 +831,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 const isSelected     = (dateStr === selectedDate)
 
                 const cell = document.createElement('div')
+                // d-note-day paints the day NUMBER green (see app.css). It sits on the shared cell, so all
+                // three calendar styles get it from this one line.
                 cell.className = `d-min-cell${ 
                     isCurrentMonth ? '' : ' d-min-other' 
                     }${isToday    ? ' d-min-today'    : '' 
-                    }${isSelected ? ' d-min-selected' : ''}`
+                    }${isSelected ? ' d-min-selected' : '' 
+                    }${noteBox.hasNote(dateStr) ? ' d-note-day' : ''}`
                 cell.dataset.date = dateStr
 
                 // `full` draws a classic month cell: a top-right day number + a vertical list of the day's
                 // logged-action events (coloured dot + title). `minimal`/`stacked` draw a centred date
-                // circle (ink-centred) plus an activity strip. The number element differs, so centreInk
-                // (which measures the circle's glyph) only runs for the circle styles.
+                // circle (ink-centred) plus an activity strip. The number element differs, so the optical
+                // centring (which measures the circle's glyph) only runs for the circle styles.
                 let dateNum = null, dateInk = null
                 if (calendarView === 'full') {
                     const top = document.createElement('div')
@@ -815,7 +924,7 @@ document.addEventListener('DOMContentLoaded', function () {
                 })(dateStr))
                 grid.appendChild(cell)
                 // Measured once the cell is in the DOM, so getComputedStyle resolves the real font/weight.
-                if (dateNum) { centreInk(dateNum, dateInk) }
+                if (dateNum) { ink.centre(dateNum, dateInk) }
             }
             if (calendarView === 'full') { fitFullEvents() }
         }
@@ -830,13 +939,11 @@ document.addEventListener('DOMContentLoaded', function () {
         // same fallback face to the same result.)
         if (document.fonts && document.fonts.ready) {
             document.fonts.ready.then(function () {
-                inkCentroidCache = {}
-                baselineCache = {}
-                circleSize = 0
+                ink.reset()
                 grid.querySelectorAll('.d-min-cell').forEach(function (cell) {
                     const circle = cell.querySelector('.d-min-date')
-                    const ink = cell.querySelector('.d-min-date-ink')
-                    if (circle && ink) { centreInk(circle, ink) }
+                    const inkEl = cell.querySelector('.d-min-date-ink')
+                    if (circle && inkEl) { ink.centre(circle, inkEl) }
                 })
                 // The `full` event fit measures text widths off the same font, so re-fit against the real glyphs.
                 fitFullEvents()
@@ -863,7 +970,19 @@ document.addEventListener('DOMContentLoaded', function () {
                 fetchMonth(viewYear, viewMonth, true).then(function () {
                     if (monthKey(viewYear, viewMonth) === key) { renderGrid() } // skip if navigated away mid-fetch
                 })
-            }
+            },
+            // Ensure a day's month has its notes cached, for the note box's own read. Resolves immediately
+            // when the month is already resident, so switching between cached days costs no request at all.
+            ensureNotes: function (dateStr) {
+                const y = parseInt(dateStr.substring(0, 4), 10)
+                const m = parseInt(dateStr.substring(5, 7), 10) - 1
+                if (monthNotesLoaded[monthKey(y, m)]) { return Promise.resolve() }
+                const p = fetchNoteSpan([[y, m]], false)
+                return p ? p.then(function () { renderGrid() }) : Promise.resolve()
+            },
+            // Repaint after the note box writes or clears a note, so the day's green number appears or goes
+            // immediately. The cache was updated in place by the caller, so there is nothing to re-fetch.
+            noteChanged: function () { renderGrid() }
         }
     } // end buildGridCalendar
 
@@ -871,6 +990,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // One engine drives every style now (full / minimal / stacked); calendarView only changes how each
     // cell is rendered and which feed fills it, both handled inside buildGridCalendar.
     const cal = buildGridCalendar()
+    // The note box drives two things on the calendar — making sure a day's month has its notes cached, and
+    // repainting the green day markers after a save — so it is handed the adapter as soon as it exists.
+    noteBox.bindCalendar(cal)
 
     // Toolbar: month-only moves clear the day selection first (no specific day was chosen), then navigate.
     function navMonths(delta) {
@@ -977,12 +1099,12 @@ document.addEventListener('DOMContentLoaded', function () {
             // The live panel was updated inline by the mutation, but the cached snapshot for this day is
             // now stale. Drop it so the next revisit re-fetches the fresh counts via the single-day fetch
             // (the once-per-month back-fill won't re-run, and skips already-cached days anyway).
-            if (selectedDate) { delete dayPanelCache[selectedDate] }
+            if (selectedDate) { dayPanelCache.drop(selectedDate) }
             // The summary caches whole-history figures, so a change on THIS day moves the numbers shown on
             // every other day too — the whole cache goes, not just this date (see the cache's note above).
             // The visible card is reloaded straight away; the month back-fill re-arms on the next day the
             // user selects, so a run of increments doesn't fire a bulk fetch per tap.
-            clearStatsCache()
+            statsCache.clear()
             if (selectedDate) { loadStatsSummary(selectedDate, false) }
         }
     })
@@ -1001,9 +1123,10 @@ document.addEventListener('DOMContentLoaded', function () {
     // the cache with it: opening the dashboard on today then costs no summary request at all, and a
     // restored other day simply misses and fetches its own.
     if (statsHost && statsHost.dataset.summaryDate) {
-        statsCache[statsHost.dataset.summaryDate] = statsHost.innerHTML
-        touchStatsMonth(statsHost.dataset.summaryDate)
+        statsCache.seed(statsHost.dataset.summaryDate, statsHost.innerHTML)
     }
+
+    // The note box seeds its own cache from the inline content the page shipped (see note.js).
 
     selectDay(ISO_DATE.test(restoredDate) ? restoredDate : today)
 })

@@ -28,7 +28,7 @@ import io.quarkus.test.security.TestSecurity;
 import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
-import net.zodac.diurnal.stats.ActionStatField;
+import net.zodac.diurnal.stats.StatField;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.StatFieldPref;
 import net.zodac.diurnal.user.User;
@@ -269,7 +269,7 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    void settingsPage_showsActionStatsPicker() {
+    void settingsPage_showsSubjectStatsPicker() {
         // The drag-orderable "Action stats" list and its mandatory last-performed row render.
         given().get("/settings")
                 .then().statusCode(200)
@@ -803,7 +803,7 @@ class SettingsIT extends IntegrationTestBase {
     void updateStatsFields_overLongLabel_isRejectedKeepingTheArrangement() {
         given().formParam("statsOrder", "current-streak", "last-performed")
                 .formParam("statsEnabled", "current-streak")
-                .formParam("statsLabel", "a".repeat(ActionStatField.MAX_LABEL_LENGTH + 1), "")
+                .formParam("statsLabel", "a".repeat(StatField.MAX_LABEL_LENGTH + 1), "")
                 .patch("/internal/settings")
                 .then().statusCode(422)
                 .body(containsString("Stat name must be at most"));

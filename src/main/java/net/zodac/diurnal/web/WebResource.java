@@ -64,7 +64,8 @@ import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.config.QuarkusOidcConfig;
 import net.zodac.diurnal.config.RegistrationConfig;
 import net.zodac.diurnal.config.SessionConfig;
-import net.zodac.diurnal.stats.ActionStatField;
+import net.zodac.diurnal.note.Note;
+import net.zodac.diurnal.stats.StatField;
 import net.zodac.diurnal.stats.StatsService;
 import net.zodac.diurnal.stats.StatsSummary;
 import net.zodac.diurnal.time.AppClock;
@@ -681,10 +682,10 @@ public class WebResource {
         }
         // The stats picker posts EVERY row's key in its (drag-arranged) DOM order as statsOrder, plus
         // the ticked subset as statsEnabled and each row's custom name as statsLabel. Every row posts one
-        // key and one name, so the two lists pair up by index (ActionStatField.labelsByKey).
+        // key and one name, so the two lists pair up by index (StatField.labelsByKey).
         if (statsOrder != null && !statsOrder.isEmpty() && !(result instanceof ProfileResult.Invalid)) {
             result = profileService.updateStatsFields(user, statsOrder, statsEnabled == null ? List.of() : statsEnabled,
-                    ActionStatField.labelsByKey(statsOrder, statsLabel));
+                    StatField.labelsByKey(statsOrder, statsLabel));
         }
 
         return switch (result) {
@@ -814,7 +815,7 @@ public class WebResource {
                 .data("fontOptions", Font.values())
                 .data("calendarView", user.calendarView)
                 .data("calendarViewOptions", CalendarView.values())
-                .data("statsFieldChoices", ActionStatField.choices(user.statsFields))
+                .data("statsFieldChoices", StatField.choices(user.statsFields))
                 .data("timezoneChoices",
                         UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone));
     }
@@ -833,7 +834,11 @@ public class WebResource {
     public TemplateInstance dashboard() {
         final User user = currentUser.get();
         final LocalDate today = clock.today(clock.zoneFor(user.timezone));
+        // The initially selected day's note is rendered inline, the same way the stats summary card is:
+        // dashboard.js seeds its client-side cache from it, so opening the dashboard costs no request.
+        final Note note = Note.findEntry(user.id, today);
         return StatsSummary.render(dashboardTemplate, user, today, statsService)
+                .data("noteContent", note == null ? "" : note.content)
                 .data("email", user.email)
                 .data("displayName", user.displayName)
                 .data("theme", user.theme)

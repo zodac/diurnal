@@ -103,7 +103,7 @@ explaining a specific statement are unaffected by this rule.
 /**
  * The resolved form of one stored {@link StatFieldPref}, paired with its enabled state.
  */
-private record Entry(ActionStatField field, boolean enabled) {
+private record Entry(StatField field, boolean enabled) {
 
 }
 ```
@@ -111,7 +111,7 @@ private record Entry(ActionStatField field, boolean enabled) {
 ✅ **Right** — the comment is removed entirely:
 
 ```java
-private record Entry(ActionStatField field, boolean enabled) {
+private record Entry(StatField field, boolean enabled) {
 
 }
 ```
@@ -130,7 +130,7 @@ A `private` constructor used only to prevent instantiation (utility / `*Extensio
 ❌ **Wrong:**
 
 ```java
-private ActionStatsExtensions() {
+private SubjectStatsExtensions() {
     // Prevent instantiation
 }
 ```
@@ -138,7 +138,7 @@ private ActionStatsExtensions() {
 ✅ **Right:**
 
 ```java
-private ActionStatsExtensions() {
+private SubjectStatsExtensions() {
 
 }
 ```

@@ -13,6 +13,7 @@
 - [Introduction](#introduction)
 - [Features](#features)
     - [Actions and Daily Logging](#actions-and-daily-logging)
+    - [Notes](#notes)
     - [Calendar Views](#calendar-views)
     - [Statistics and Streaks](#statistics-and-streaks)
     - [Themes and Fonts](#themes-and-fonts)
@@ -62,6 +63,7 @@ longest streaks, weekly averages, month-over-month trends, and more.
 
 - **User-defined actions**: Define any habit/activities you want to track, each with its own name and colour
 - **Daily logging**: Log the occurrences of an action for a day
+- **Notes**: Write a free-text note or journal entry against any day, including future ones
 - **Calendar views**: Your whole history on a calendar, with a choice of different styles
 - **Statistics**: Streaks, totals, averages and trends per action, with the tiles you care about in the order you want them
 - **Mobile view**: Styled for both web browser and mobile usage
@@ -78,6 +80,19 @@ time, set an exact count, or erase the day entirely.
 <img src="docs/screenshots/actions-dark.webp" alt="The Actions page, listing tracked habits" width="600">
 
 </details>
+
+### Notes
+
+Alongside the daily log, each day can carry a **note** — a free-text entry of up to 10,000 characters, written from the
+box beneath the action logger on the dashboard. Unlike logging an action, a note can be written for **any** date,
+including one that has not arrived yet, so a day can be planned ahead as well as recorded.
+
+Notes are saved explicitly: **Save** commits, **Undo** discards an unsaved edit, and **Clear** empties the box without
+writing (leaving the emptied note for you to Save or Undo, so no single click is destructive). Clearing a note and
+saving removes it — an empty note is no note. The box can be dragged larger from its right edge, its bottom edge or its
+corner; the size is kept while you move between dates and resets when you leave the page.
+
+A day that has a note is marked on the calendar with a **green day number**, in every calendar style.
 
 ### Calendar Views
 
@@ -107,9 +122,13 @@ Every action gets a full set of statistics, including
 
 These can be enabled/disabled or re-ordered in user settings (see [Statistics](#statistics) below).
 
-Each action also has a **frequency graph**, opened from the chart icon on its card: a bar per day over a month, or a bar per month over a year, with
-the exact figures on hover. Up to three actions can be charted together with **Compare to...**, all scaled against a single peak so they read against
-each other directly.
+Your **notes** are treated as a subject in their own right: they get the same set of tiles as an action (streaks, gaps,
+totals, averages, best month and so on), shown first on the page. One note counts as one occurrence on its day, so a
+notes card's total count always matches its number of days.
+
+Each subject also has a **frequency graph**, opened from the chart icon on its card: a bar per day over a month, or a bar per month over a year, with
+the exact figures on hover. Up to three subjects can be charted together with **Compare to...**, all scaled against a single peak so they read against
+each other directly — including notes compared against an action.
 
 |                                                    Stats page                                                     |                                                         Frequency graph                                                          |
 |:-----------------------------------------------------------------------------------------------------------------:|:--------------------------------------------------------------------------------------------------------------------------------:|
@@ -401,14 +420,18 @@ order, and  each can be disabled and re-ordered. The **Last performed** statisti
 
 ## Text Input
 
-Every free-text value you type - an action name, your display name, a renamed statistic, your email, your password - goes through the same validation,
-whether you enter it in the app or through the [REST API](#rest-api). Nothing is silently truncated or rewritten: a value is either accepted as typed,
-tidied in a way you can see, or rejected with a message explaining what is wrong.
+Every free-text value you type - an action name, your display name, a renamed statistic, a day's note, your email, your password - goes through the
+same validation, whether you enter it in the app or through the [REST API](#rest-api). Nothing is silently truncated or rewritten: a value is either
+accepted as typed, tidied in a way you can see, or rejected with a message explaining what is wrong.
 
 Before a value is checked it is **tidied**: control characters and every kind of space (including the no-break and ideographic spaces that are easy to
 paste in by accident) become ordinary spaces, runs of spaces collapse to one, leading and trailing spaces are removed, and accented characters are
 stored in their standard composed form so two names that look identical are treated as identical. What is stored is what you see. Passwords are the one
 exception - they are used exactly as typed, spaces and all, and none of the restrictions below apply to them.
+
+A **note** is the one value that may span several lines, so its line breaks are kept where every other field folds them
+into a space. The tidying is otherwise identical: line endings are unified, each line has its trailing spaces removed,
+and a run of blank lines is condensed to one - so a note reads back exactly as it looked when you wrote it.
 
 ### Length Limits
 
@@ -419,6 +442,7 @@ Limits are counted in **characters as a reader counts them**, not bytes: an acce
 | Action name | 1-100 characters |
 | Display name | 2-50 characters |
 | Statistic name | Up to 25 characters (leave it blank to restore the built-in name) |
+| Note | Up to 10,000 characters (leave it blank to remove the note) |
 | Email | 3-254 characters, and must contain an `@` |
 | Password | 1-128 characters |
 

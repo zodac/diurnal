@@ -25,10 +25,10 @@ package net.zodac.diurnal.stats;
  * Heights are scaled against the tallest bar of the WHOLE chart, not per action, so two actions charted together are directly comparable: a bar twice
  * the height of another means twice the count, whichever action it belongs to.
  *
- * @param actionName the charted action's name, named in the column's hover bubble
- * @param actionColour the charted action's display colour, which the bar is drawn in
+ * @param subjectName the charted subject's name, named in the column's hover bubble
+ * @param subjectColour the charted subject's display colour, which the bar is drawn in
  * @param count the summed count the action logged in the slot
  * @param heightPercent the bar's height as a percentage of the chart's tallest bar ({@code 0} when nothing was logged)
  */
-public record FrequencyBar(String actionName, String actionColour, long count, int heightPercent) {
+public record FrequencyBar(String subjectName, String subjectColour, long count, int heightPercent) {
 }

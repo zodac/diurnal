@@ -58,6 +58,95 @@ class TextFieldExtensionsTest {
             .isEqualTo("a b");
     }
 
+    @Test
+    void normalise_cleanedField_foldsNewlineToSpace() {
+        // The behaviour every field but the note keeps: a label that grew a line break has been pasted by accident.
+        assertThat(TextFieldExtensions.normalise(TextFields.ACTION_NAME, "Morning\nrun"))
+            .as("a cleaned field must flatten a newline, not preserve it")
+            .isEqualTo("Morning run");
+    }
+
+    // ── normalise, multi-line ─────────────────────────────────────────────────
+
+    @Test
+    void normalise_multilineField_keepsItsNewlines() {
+        assertThat(TextFieldExtensions.normalise(TextFields.NOTE, "First line\nSecond line"))
+            .as("a multi-line field's line breaks are part of what the user wrote")
+            .isEqualTo("First line\nSecond line");
+    }
+
+    @Test
+    void normalise_multilineField_foldsCarriageReturns() {
+        // A browser textarea submits CRLF per the HTML specification, so this is the everyday case, not an edge one.
+        assertThat(TextFieldExtensions.normalise(TextFields.NOTE, "First\r\nSecond\rThird"))
+            .as("CRLF and a lone CR must both fold to a bare newline")
+            .isEqualTo("First\nSecond\nThird");
+    }
+
+    @Test
+    void normalise_multilineField_collapsesHorizontalWhitespaceOnly() {
+        assertThat(TextFieldExtensions.normalise(TextFields.NOTE, "a   \t  b\nc     d"))
+            .as("horizontal runs collapse to one space; the newline between them survives")
+            .isEqualTo("a b\nc d");
+    }
+
+    @Test
+    void normalise_multilineField_stripsEachLine() {
+        assertThat(TextFieldExtensions.normalise(TextFields.NOTE, "  first  \n   second   "))
+            .as("per-line padding must go, so a line's own indentation cannot pad the length")
+            .isEqualTo("first\nsecond");
+    }
+
+    @Test
+    void normalise_multilineField_keepsOneBlankLineBetweenParagraphs() {
+        assertThat(TextFieldExtensions.normalise(TextFields.NOTE, "para one\n\npara two"))
+            .as("a single blank line is an ordinary paragraph break and must survive")
+            .isEqualTo("para one\n\npara two");
+    }
+
+    @Test
+    void normalise_multilineField_condensesRunOfBlankLines() {
+        assertThat(TextFieldExtensions.normalise(TextFields.NOTE, "para one\n\n\n\n\npara two"))
+            .as("beyond one blank line the run is padding")
+            .isEqualTo("para one\n\npara two");
+    }
+
+    @Test
+    void normalise_multilineField_countsLineOfSpacesAsBlank() {
+        // Ordering check: each line is stripped BEFORE the blank-line run is condensed, so a "blank" line of spaces condenses too.
+        assertThat(TextFieldExtensions.normalise(TextFields.NOTE, "para one\n   \n  \n\npara two"))
+            .as("a line holding only spaces is a blank line")
+            .isEqualTo("para one\n\npara two");
+    }
+
+    @Test
+    void normalise_multilineField_stripsLeadingAndTrailingNewlines() {
+        assertThat(TextFieldExtensions.normalise(TextFields.NOTE, "\n\n  body  \n\n"))
+            .as("the whole value is stripped last, which removes surrounding blank lines")
+            .isEqualTo("body");
+    }
+
+    @Test
+    void normalise_multilineField_cleansEveryControlCharacterButTheNewline() {
+        assertThat(TextFieldExtensions.normalise(TextFields.NOTE, "a" + Character.toString(0x0007) + "b\nc"))
+            .as("only the line feed is exempt; every other control character is still cleaned to a space")
+            .isEqualTo("a b\nc");
+    }
+
+    @Test
+    void normalise_multilineField_composesToNfc() {
+        assertThat(TextFieldExtensions.normalise(TextFields.NOTE, "Cafe" + Character.toString(0x0301) + "\nnext"))
+            .as("a multi-line value is NFC-composed exactly like a cleaned one")
+            .isEqualTo("Café\nnext");
+    }
+
+    @Test
+    void normalise_multilineField_whitespaceOnly_becomesEmpty() {
+        assertThat(TextFieldExtensions.normalise(TextFields.NOTE, "  \n\n \t \n  "))
+            .as("a value of nothing but whitespace and newlines must normalise to empty, so it is rejected as blank")
+            .isEmpty();
+    }
+
     // ── truncate ──────────────────────────────────────────────────────────────
 
     @Test

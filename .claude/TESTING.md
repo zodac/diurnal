@@ -79,3 +79,44 @@ others (`… java,perf`), or via `tests/run-perf.sh <port> <projectRoot>` direct
   absolute). `publish.yml` sets a lighter `PERF_RATE`/`PERF_VUS` + a `PERF_P95_TOLERANCE` on the gate step because `ubuntu-latest` is a
   2-vCPU box co-running the app, Postgres and k6, so the dev-workstation load-shape collapses into queueing (seconds of pure queue
   time). The k6 image is pinned (`grafana/k6`), matching the containerised-tool pattern of the lint steps (no host k6 install needed).
+
+## Reading state in a test: use the API, never the markup
+
+**A test (or a script) that needs an id, a name or a count reads it from `/api/v1/*` as JSON — it never
+regexes it out of rendered HTML.** Scraping rots silently and in the worst possible way: when the markup
+changes the pattern simply matches nothing, so the helper "finds" no rows, does no work, and the test goes
+on to assert against state it never actually set up. Nothing fails at the point of the break.
+
+This has bitten twice:
+
+- `scripts/generate-screenshots.cjs` parsed the actions table for `<span data-dt-view>`. The span later
+  gained a class, the regex stopped matching, every action looked missing, and re-running against a
+  populated database died with `Could not create or locate action` — a message about creation, for a
+  listing fault.
+- `tests/ui/stats.spec.ts` scraped the created action's id out of the returned row fragment and guarded it
+  with `if (match)`, so a failed match silently skipped the logging the test then depended on.
+
+Both now read JSON. The public API gives ids (`POST`/`GET /api/v1/actions`), a day's logged entries
+(`GET /api/v1/logs/{date}`, unpaginated) and notes (`GET /api/v1/notes/{date}`) — everything a fixture
+needs. Remember the list endpoints are **paginated by the user's page-size preference**, so page through
+them rather than assuming one page holds everything.
+
+## Preflight: port 8081
+
+The `java` step refuses to start when `${E2E_HTTP_PORT}` (8081) is already listening, because EVERY `*IT`
+boots Quarkus on it: a leftover `quarkus:dev` otherwise turns the run into dozens of identical
+"Port already bound" stack traces under a generic "There are test failures", several minutes in. The check
+costs milliseconds and names the fix (`scripts/dev-teardown.sh`). **Run the teardown before the gate.**
+
+## The linters see NEW files, not just committed ones
+
+Both `run_javascript` and `run_shellcheck` list files with
+`git ls-files --cached --others --exclude-standard`. The `--others` half is load-bearing: a bare
+`git ls-files` lists only **tracked** files, so a brand-new script was skipped entirely until the moment it
+was committed — which is exactly when linting it matters most. A newly-extracted `note.js` shipped a real
+**syntax error** through a passing `javascript` gate because of this. `--exclude-standard` still keeps out
+the gitignored vendored assets and build output.
+
+> **Never begin a comment line in a shell script with the word "shellcheck".** Such a line is parsed as a
+> directive rather than prose, and the whole enclosing function then fails to parse (`SC1072`/`SC1073`) —
+> a rewrapped comment is enough to trigger it.

@@ -163,6 +163,24 @@ const ACTIONS = [
   { name: 'Water',    colour: '#f59e0b', perWeekday: [6, 8, 7, 8, 7, 8, 5] },
 ]
 
+// The note written on each weekday of the seeded month (Sunday-first, matching ACTIONS[].perWeekday). An
+// empty string means "no note that day", which is what gives the calendar a mix of marked and unmarked
+// days rather than a solid block of green.
+// The note on the last day of the seeded month — the day every dashboard screenshot has selected, so this
+// is the text the note box actually shows. Deliberately two paragraphs, to show that a note keeps the shape
+// it was written in.
+const NOTE_FEATURED = 'Rounded the month off well. Every target hit except Thursday, which I am not going to\nworry about.\n\nNext month: keep the earlier start, and try moving the long session to Saturday.'
+
+const NOTE_BY_WEEKDAY = [
+  'Rest day. Long walk after lunch, then read on the balcony until it got cold.',
+  'Back to it. Morning session felt heavy but the last set came together.',
+  '',
+  'Good day - hit every target before lunch and still had energy left over.',
+  'Short one. Tired, so I kept it easy rather than skipping altogether.',
+  '',
+  'Best session this week.\n\nWorth remembering what made the difference: earlier start, and no screen the night before.'
+]
+
 // A per-week nudge applied on top of `perWeekday`, cycling through the month. Without it the weekday
 // tiling makes every week a carbon copy of the last — which reads as obviously fabricated in the
 // calendar shots, where four identical rows of "Water x8, Exercise, Meditate, Read" sit side by side.
@@ -334,22 +352,35 @@ async function login(ctx) {
   await page.close()
 }
 
-// Map existing action name -> id by parsing the actions list (rows are `<tr id="action-{uuid}">`).
+// Map existing action name -> id, read from the PUBLIC API rather than scraped out of the rendered table.
+//
+// This used to parse `/internal/actions/list` with a regex over `<tr id="action-{uuid}">` … `<span
+// data-dt-view>`. That regex went stale the moment the name span gained a class (`<span data-dt-view
+// class="dt-text-inset">`) and silently matched nothing — so every action looked missing, ensureAction
+// tried to create one that already existed, got a 409 carrying a banner instead of a row, and the run died
+// with "Could not create or locate action". It only ever showed up on a re-run, because against a fresh
+// database there is nothing to find and the create path works. Reading JSON has no markup to go stale.
+//
+// The list is paginated by the demo user's own page-size preference, so page through it rather than
+// assuming one page holds every action.
 async function existingActions(ctx) {
-  const html = await (await ctx.request.get(`${BASE}/internal/actions/list`)).text()
   const map = {}
-  const re = /id="action-([0-9a-fA-F-]{36})"[\s\S]*?<span data-dt-view>([^<]+)<\/span>/g
-  let m
-  while ((m = re.exec(html))) {map[m[2].trim()] = m[1]}
-  return map
+  for (let page = 1; ; page++) {
+    const res = await ctx.request.get(`${BASE}/api/v1/actions?page=${page}`)
+    if (!res.ok()) {throw new Error(`Could not list actions (HTTP ${res.status()})`)}
+    const body = await res.json()
+    for (const action of body.items) {map[action.name] = action.id}
+    if (page >= body.totalPages) {return map}
+  }
 }
 
 async function ensureAction(ctx, existing, { name, colour }) {
   if (existing[name]) {return existing[name]}
-  const res = await ctx.request.post(`${BASE}/internal/actions`, { form: { name, colour } })
-  const id = (await res.text()).match(/id="action-([0-9a-fA-F-]{36})"/)
-  if (!id) {throw new Error(`Could not create or locate action "${name}"`)}
-  return id[1]
+  const res = await ctx.request.post(`${BASE}/api/v1/actions`, { data: { name, colour } })
+  // The status is part of the message on purpose: a 409 means the action exists but the listing above did
+  // not see it, which is a different fault from a 400/401 and should not be guessed at.
+  if (!res.ok()) {throw new Error(`Could not create action "${name}" (HTTP ${res.status()})`)}
+  return (await res.json()).id
 }
 
 async function seed(ctx) {
@@ -383,7 +414,28 @@ async function seed(ctx) {
       await ctx.request.fetch(`${BASE}/api/v1/logs/${date}/${id}`, { method: 'PUT', data: { count } })
     }
   }
+  await seedNotes(ctx)
   console.log(`seeded demo data across ${SEED_MONTH} (${SEED_START_ISO} to ${SEED_END_ISO})`)
+}
+
+// A day note on a fixed subset of the seeded month, so the dashboard shows a written note, the calendar
+// shows its green day numbers, and the Stats page has a Notes card with a real streak on it. Written with
+// PUT (which SETS) and applied to EVERY day of the month — a day off the pattern is written blank, which
+// deletes it — so re-seeding after changing the pattern cannot blend the old shape into the new one, for
+// the same reason the action counts above are written rather than skipped.
+async function seedNotes(ctx) {
+  for (let offset = SEED_DAYS - 1; offset >= 0; offset--) {
+    const date = dateMinusDays(SEED_END, offset)
+    const day = new Date(`${date}T00:00:00Z`)
+    const text = NOTE_BY_WEEKDAY[day.getUTCDay()]
+    // The LAST day of the seeded month always carries the featured note, because that is the day every
+    // dashboard shot has selected (showSeededMonth picks it) — so the note box is shown holding real
+    // multi-paragraph prose rather than its placeholder. Every other day follows the weekday pattern,
+    // thinned out earlier in the month so the run near the end reads as a streak rather than a solid block.
+    const patterned = (text === '' || (offset > 6 && day.getUTCDate() % 3 === 0)) ? '' : text
+    const content = offset === 0 ? NOTE_FEATURED : patterned
+    await ctx.request.fetch(`${BASE}/api/v1/notes/${date}`, { method: 'PUT', data: { content } })
+  }
 }
 
 // ── Screenshot capture ───────────────────────────────────────────────────────────────────────────

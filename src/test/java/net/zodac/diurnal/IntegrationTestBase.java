@@ -30,6 +30,7 @@ import java.time.ZoneOffset;
 import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
+import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
@@ -40,7 +41,7 @@ import org.junit.jupiter.api.BeforeEach;
  * Base for all {@link io.quarkus.test.junit.QuarkusTest} integration tests.
  *
  * <p>
- * Truncates the three data tables before every test (FK order: logs → actions → users) and re-creates any DB state needed by the subclass.
+ * Truncates the four data tables before every test (FK order: notes → logs → actions → users) and re-creates any DB state needed by the subclass.
  *
  * <p>
  * NOTE: {@link io.quarkus.test.junit.QuarkusTest} must be on each concrete subclass, NOT here. Placing it on the abstract base class causes Quarkus's
@@ -74,6 +75,7 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
         freezeDate(FIXED_TODAY);
         tx.begin();
         try {
+            Note.deleteAll();
             ActionLog.deleteAll();
             Action.deleteAll();
             User.deleteAll();
@@ -208,5 +210,18 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
         l.logDate = date;
         l.count = count;
         l.persist();
+    }
+
+    /**
+     * Persists a single day's note for the given user. The content is stored exactly as given — this seeds the row directly, bypassing the text
+     * pipeline, so a test may plant a value the service itself would have normalised or rejected.
+     */
+    protected static Note newNote(final UUID userId, final LocalDate date, final String content) {
+        final Note n = new Note();
+        n.userId = userId;
+        n.noteDate = date;
+        n.content = content;
+        n.persist();
+        return n;
     }
 }

@@ -55,21 +55,19 @@ function otherDayThisMonth(): string {
 // the 2nd. Resetting makes such a test independent of both the calendar date and the spec order.
 async function resetLogsOn(page: Page, date: string): Promise<void> {
     await page.evaluate(async (day: string) => {
-        // The day panel lists highest-count actions first and is paginated, so re-read page 1 and zero
-        // every action it lists until the events feed for that day is empty. The guard bounds the loop.
-        for (let guard = 0; guard < 50; guard++) {
-            const events = await (await fetch(`/api/v1/logs/events?start=${day}&end=${day}`)).json()
-            if (!Array.isArray(events) || events.length === 0) {break}
-
-            const html = await (await fetch(`/internal/logs/day/${day}`)).text()
-            // Each log row wraps as id="log-<yyyy-MM-dd>-<action UUID>"; capture the UUID.
-            const ids = [...html.matchAll(/id="log-\d{4}-\d{2}-\d{2}-([0-9a-f-]+)"/g)].map(m => m[1])
-            await Promise.all(ids.map(id =>
-                fetch(`/internal/logs/${day}/${id}/set`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: "count=0",
-                })))
+        // GET /api/v1/logs/{date} returns exactly the actions logged that day, as JSON and unpaginated —
+        // so one read names every entry to clear, and DELETE removes each.
+        //
+        // This used to read the rendered day panel and regex its `id="log-<date>-<uuid>"` row ids. That is
+        // the shape of scraping that silently rots: when the markup changes the regex matches nothing, the
+        // loop finds no ids, and the day is left un-reset — a test that then quietly asserts against stale
+        // data. Reading the API has no markup to go stale, and it is unpaginated so the old page-by-page
+        // loop is unnecessary. The bounded retry stays only as a guard against a write racing this reset.
+        for (let guard = 0; guard < 5; guard++) {
+            const entries = await (await fetch(`/api/v1/logs/${day}`)).json()
+            if (!Array.isArray(entries) || entries.length === 0) {break}
+            await Promise.all(entries.map((entry: { actionId: string }) =>
+                fetch(`/api/v1/logs/${day}/${entry.actionId}`, { method: "DELETE" })))
         }
     }, date)
 }
@@ -543,5 +541,110 @@ test.describe("Dashboard – Stacked calendar", () => {
         await page.goto("/")
         await expect(page.locator(`.d-min-cell[data-date="${todayStr()}"]`)).toHaveClass(/d-min-selected/)
         await expect(page.locator(`.d-min-cell[data-date="${other}"]`)).not.toHaveClass(/d-min-selected/)
+    })
+})
+
+// The dashboard's four panels live in ONE grid, which is what gives the stats summary the calendar's
+// width and (from the note box onward) keeps the right-hand column stacked. Geometry is asserted rather
+// than class names, because the requirement is about what the user sees, not how it is spelled.
+test.describe("Dashboard – panel layout", () => {
+    // Same seeding as the main Dashboard describe: this is a top-level describe, so it does not inherit
+    // that one's beforeEach, and both tests need an action to log against for the summary to render.
+    test.beforeEach(async ({ authenticatedPage: page }) => {
+        await page.goto("/actions")
+        await page.evaluate(async (name: string) => {
+            const params = new URLSearchParams({ name, colour: "#6366f1" })
+            await fetch("/internal/actions", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: params.toString(),
+            })
+        }, DASH_NAME)
+        await resetTodayLogs(page)
+    })
+
+    // Explicit viewports rather than the project matrix, so both breakpoints are covered on every run
+    // (the mobile-chrome project only re-runs a subset). Mirrors navbar.spec.ts' own override.
+    test.describe("desktop", () => {
+        test.use({ viewport: { width: 1280, height: 900 } })
+
+        test("stats summary is exactly the calendar's width, directly below it", async ({ authenticatedPage: page }) => {
+            await page.goto("/")
+            // Log something so the summary renders a card rather than staying an empty wrapper.
+            await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
+            await expect(page.locator("#stats-summary")).toContainText("DashAction")
+
+            const calendar = await page.locator("#calendar-wrap").locator("xpath=..").boundingBox()
+            const summary = await page.locator("#stats-summary").boundingBox()
+            const logger = await page.locator("#day-logger-panel").boundingBox()
+            if (!calendar || !summary || !logger) {
+                throw new Error("a dashboard panel has no layout box")
+            }
+
+            expect(Math.abs(summary.width - calendar.width)).toBeLessThanOrEqual(1)
+            expect(Math.abs(summary.x - calendar.x)).toBeLessThanOrEqual(1)
+            expect(summary.y).toBeGreaterThanOrEqual(calendar.y + calendar.height - 1)
+            // The day logger sits beside the calendar, not under it.
+            expect(logger.x).toBeGreaterThan(calendar.x + calendar.width - 1)
+            expect(logger.y).toBeLessThan(calendar.y + calendar.height)
+
+            // The note sits in the logger's column, directly beneath it (the logger fills row 1, so there
+            // is never a gap however few actions the day has) — and level with the stats summary beside
+            // it, which is the whole point of placing both on row 2.
+            const note = await page.locator("#note-panel").boundingBox()
+            if (!note) {
+                throw new Error("the note panel has no layout box")
+            }
+            expect(Math.abs(note.x - logger.x)).toBeLessThanOrEqual(1)
+            expect(note.y - (logger.y + logger.height)).toBeLessThanOrEqual(24)
+            expect(Math.abs(note.y - summary.y)).toBeLessThanOrEqual(1)
+        })
+    })
+
+    test.describe("desktop, one action", () => {
+        test.use({ viewport: { width: 1280, height: 1000 } })
+
+        test("a short day logger still leaves the note level with the summary", async ({ authenticatedPage: page }) => {
+            // The regression this pins: with the note nested under the logger it floated well above the
+            // summary whenever the day had few actions, leaving a gap in the right-hand column.
+            await page.goto("/")
+            await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
+            await expect(page.locator("#stats-summary")).toContainText("DashAction")
+
+            const logger = await page.locator("#day-logger-panel").boundingBox()
+            const note = await page.locator("#note-panel").boundingBox()
+            const summary = await page.locator("#stats-summary").boundingBox()
+            if (!logger || !note || !summary) {
+                throw new Error("a dashboard panel has no layout box")
+            }
+
+            expect(Math.abs(note.y - summary.y)).toBeLessThanOrEqual(1)
+            // No floating gap: the logger stretches to its row, so the note begins one grid gap below it.
+            expect(note.y - (logger.y + logger.height)).toBeLessThanOrEqual(24)
+        })
+    })
+
+    test.describe("narrow", () => {
+        test.use({ viewport: { width: 390, height: 844 } })
+
+        test("panels stack in order: calendar, day logger, note, stats summary", async ({ authenticatedPage: page }) => {
+            await page.goto("/")
+            await page.locator("#day-logger-panel").getByLabel("Increase").first().click()
+            await expect(page.locator("#stats-summary")).toContainText("DashAction")
+
+            const calendar = await page.locator("#calendar-wrap").locator("xpath=..").boundingBox()
+            const logger = await page.locator("#day-logger-panel").boundingBox()
+            const note = await page.locator("#note-panel").boundingBox()
+            const summary = await page.locator("#stats-summary").boundingBox()
+            if (!calendar || !logger || !note || !summary) {
+                throw new Error("a dashboard panel has no layout box")
+            }
+
+            // One column: each panel starts below the previous one, in DOM order. The note sits BETWEEN
+            // the logger and the summary, which is the required constrained-viewport order.
+            expect(logger.y).toBeGreaterThanOrEqual(calendar.y + calendar.height - 1)
+            expect(note.y).toBeGreaterThanOrEqual(logger.y + logger.height - 1)
+            expect(summary.y).toBeGreaterThanOrEqual(note.y + note.height - 1)
+        })
     })
 })

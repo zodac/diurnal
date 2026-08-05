@@ -10,10 +10,10 @@
              `min-w-0` on the name lets `truncate` actually bite, so a long name shortens instead of
              squeezing the button off the card. !}
         <div class="flex items-center gap-2">
-            <span class="swatch swatch-md" style="background-color: {s.action.colour}"></span>
-            <h3 class="card-title truncate min-w-0">{s.action.name}</h3>
-            <button type="button" class="chart-open-btn group relative" data-chart-action="{s.action.id}"
-                    data-chart-name="{s.action.name}" aria-label="Show frequency graph for {s.action.name}">
+            <span class="swatch swatch-md" style="background-color: {s.subject.colour}"></span>
+            <h3 class="card-title truncate min-w-0">{s.subject.name}</h3>
+            <button type="button" class="chart-open-btn group relative" data-chart-subject="{s.subject.id}"
+                    data-chart-name="{s.subject.name}" aria-label="Show frequency graph for {s.subject.name}">
                 {#include partials/icon name='chart-bar' cls='chart-open-glyph' /}
                 {#include partials/tooltip text="Frequency graph" align="right" /}
             </button>
@@ -21,8 +21,8 @@
 
         {! Tiles: a single flat grid rendered in the user's chosen order (the "Action stats"
              setting). The backend always computes every statistic; statsFields only selects which
-             tiles show here and in what sequence. s.tiles(...) maps each selected ActionStatField to a
-             StatTile (see ActionStatsExtensions.tiles). !}
+             tiles show here and in what sequence. s.tiles(...) maps each selected StatField to a
+             StatTile (see SubjectStatsExtensions.tiles). !}
         <dl class="grid stat-tile-grid gap-2">
             {#for tile in s.tiles(statsFields, decimalPlaces)}
             {#include partials/stat-tile label=tile.label value=tile.value sub=tile.sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}

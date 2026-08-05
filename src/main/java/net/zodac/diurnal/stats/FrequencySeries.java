@@ -26,11 +26,11 @@ import java.util.UUID;
  * <p>
  * The first series is the action whose card the graph was opened from and is never removable; the rest were added through the compare picker.
  *
- * @param actionId the action's id
- * @param actionName the action's name
- * @param actionColour the action's display colour, which its bars are drawn in
+ * @param subjectId the subject's id
+ * @param subjectName the subject's name
+ * @param subjectColour the subject's display colour, which its bars are drawn in
  * @param total the action's summed count across the whole window
  * @param removable whether the legend offers a control to drop this series (false for the action the graph was opened from)
  */
-public record FrequencySeries(UUID actionId, String actionName, String actionColour, long total, boolean removable) {
+public record FrequencySeries(UUID subjectId, String subjectName, String subjectColour, long total, boolean removable) {
 }

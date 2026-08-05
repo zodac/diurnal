@@ -11,13 +11,27 @@
          them off this element's dataset instead of an inline bootstrap script, so the engine stays a
          fully static, content-hashed file. !}
     <main id="dashboard-main" class="page-container px-4 py-8" data-today="{today}" data-calendar-view="{calendarView}">
-        {! Calendar + day panel !}
+        {! ONE grid holds all four panels, placed EXPLICITLY into a 2x2 arrangement at lg+:
+                 row 1: calendar (cols 1-2)   |  day logger (col 3)
+                 row 2: stats summary (1-2)   |  note box    (col 3)
+             So the summary is exactly the calendar's width, the note sits in the day logger's column, and
+             — the point of the explicit row-start — the summary and the note share row 2, with their TOPS
+             level. Letting the note hug the logger instead (a nested flex column spanning both rows) left
+             it floating well above the summary whenever the logger was short, which is not "alongside".
+             DOM order stays calendar, logger, note, summary, which is exactly the required order once the
+             grid collapses to one column on a narrow screen — so no order-* utilities are needed, and the
+             explicit placements are all `lg:`-prefixed.
+             Grid items are left to STRETCH (no items-start): that is what makes the day logger fill row 1,
+             so the note still sits directly beneath it however few actions the day has. Without it a short
+             logger left the note floating with a gap above it. The stats-summary WRAPPER stretches too, but
+             the card inside is a block at its natural height, so a one-action summary still reads as pinned
+             to the top of its row. !}
         <div class="grid gap-4 lg:grid-cols-3 mb-6 min-w-0">
 
             {! min-w-0: grid items default to min-width:auto, which would let the calendar grid's
                  intrinsic width blow the column past the viewport on mobile. Allowing the item to shrink
                  lets the calendar size down to fit the narrow screen. !}
-            <div class="lg:col-span-2 card p-4 min-w-0">
+            <div class="lg:col-span-2 lg:col-start-1 lg:row-start-1 card p-4 min-w-0">
                 {! Every calendar style shares one toolbar (partials/calendar-toolbar.html) AND one grid
                    body — the same 7×6 #d-min-grid; only its per-cell rendering differs (full = bordered
                    cells with event lists, minimal = dots, stacked = bars), keyed off `calendarView`. The
@@ -32,35 +46,102 @@
                 </div>
             </div>
 
-            <div id="day-logger-panel"
-                 class="card p-4 self-start min-w-0">
+            {! When the stats summary is switched OFF there is nothing for the note to sit beside, and leaving
+                 it on row 2 left a ~600px-wide void to its left. With no summary the right answer is simply
+                 two columns — calendar | (logger, note) — so the pair is wrapped in a flex column that owns
+                 column 3 outright. Qute is a text templater, so the wrapper's tags can be opened and closed
+                 conditionally like this rather than duplicating the whole note card into a second branch. !}
+            {#if !showStatsSummary}
+            <div class="lg:col-start-3 lg:row-start-1 flex flex-col gap-4 min-w-0">
+            {/if}
+
+            <div id="day-logger-panel" class="{#if showStatsSummary}lg:col-start-3 lg:row-start-1 {/if}card p-4 min-w-0">
                 <p class="empty-note">
                     Click a day to log actions.
                 </p>
             </div>
 
-        </div>
+            {! The note box. Deliberately NOT a partial and NOT an HTMX swap target: it is rendered
+                 exactly once, and changing the selected day only rewrites the textarea's value from
+                 dashboard.js's client-side cache. That is what makes the drag-resized dimensions
+                 durable across a date change with no re-application — nothing inside #note-panel is
+                 ever replaced. It is seeded with the initially selected day's note (data-note-date /
+                 the textarea's content) so opening the dashboard costs no extra request, exactly as
+                 #stats-summary seeds its own cache.
+                 Unlike the day logger, this stays live for a FUTURE date — a note may be written for
+                 any day (see NoteService). !}
+            <div id="note-panel" class="{#if showStatsSummary}lg:col-start-3 lg:row-start-2 {/if}card p-4 flex flex-col min-w-0 relative"
+                 data-note-date="{summaryDate}" data-note-max="{inject:textFields.note.maxLength}">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                    <h3 class="text-base font-medium text-ink">Note</h3>
+                    <span id="note-status" class="help-text" aria-live="polite"></span>
+                </div>
 
-        {! Stats summary for the SELECTED day (omitted entirely when the user has turned it off in
-             Settings). The card inside is re-fetched from /internal/stats/summary/{date} by
-             dashboard.js every time the calendar selection moves, so only this wrapper is stable —
-             it keeps the landmark id and hosts data-decimal-places (read by Diurnal.fitFigures) for
-             whatever is swapped in. The server renders the initially selected day inline, and
-             dashboard.js seeds its cache with that HTML so the common case costs no extra request. !}
-        {#if showStatsSummary}
-        <div id="stats-summary" data-decimal-places="{decimalPlaces}" data-summary-date="{summaryDate}">
-            {#include partials/stats-summary /}
+                {! No `maxlength`, deliberately — unlike every other input in the app. The attribute counts
+                     UTF-16 units, so against a 10,000-character bound it would cut a note of emoji off at
+                     five thousand with no explanation. The counter below measures CODE POINTS instead,
+                     exactly as the server does, and over-typing is allowed so the user can see how far over
+                     they are and edit back down; Save is what refuses. !}
+                <label for="note-input" class="sr-only">Note for the selected day</label>
+                <textarea id="note-input" class="form-input note-input" aria-describedby="note-count"
+                          placeholder="Write a note for this day...">{noteContent}</textarea>
+
+                <div id="note-error" class="mt-2 empty:hidden"></div>
+
+                {! Clear empties the box but does NOT write: it leaves the emptied note for the user to Save
+                     (or Undo), so no destructive write ever happens on a single click. It is hidden unless the
+                     STORED note is non-empty, since there is nothing to clear otherwise. !}
+                <div class="flex items-center justify-between gap-2 mt-2">
+                    {! Shown only while a day is selected and the box is typeable — a count against a
+                         disabled, empty box is noise. Muted under the limit, red over it. !}
+                    <span id="note-count" class="note-count" hidden></span>
+                    <div class="flex items-center gap-2">
+                        <button type="button" id="note-clear" class="note-btn-secondary" hidden>Clear</button>
+                        <button type="button" id="note-undo" class="note-btn-secondary">Undo</button>
+                        <button type="button" id="note-save" class="note-btn-primary">Save</button>
+                    </div>
+                </div>
+
+                {! Three drag handles: the right edge, the bottom edge and the corner. Native
+                     `resize: both` gives only a corner grip and cannot do the edges, so these are
+                     driven by the Pointer Events handler in dashboard.js (the same approach the
+                     settings stats picker uses). Decorative, so hidden from assistive tech — the box
+                     is fully usable at its default size, and the textarea scrolls. !}
+                <span class="note-resize note-resize-right"  data-note-resize="right"  aria-hidden="true"></span>
+                <span class="note-resize note-resize-bottom" data-note-resize="bottom" aria-hidden="true"></span>
+                <span class="note-resize note-resize-corner" data-note-resize="corner" aria-hidden="true"></span>
+            </div>
+
+            {#if !showStatsSummary}
+            </div>
+            {/if}
+
+
+            {! Stats summary for the SELECTED day (omitted entirely when the user has turned it off in
+                 Settings). The card inside is re-fetched from /internal/stats/summary/{date} by
+                 dashboard.js every time the calendar selection moves, so only this wrapper is stable —
+                 it keeps the landmark id and hosts data-decimal-places (read by Diurnal.fitFigures) for
+                 whatever is swapped in. The server renders the initially selected day inline, and
+                 dashboard.js seeds its cache with that HTML so the common case costs no extra request. !}
+            {#if showStatsSummary}
+            <div id="stats-summary" class="lg:col-span-2 lg:col-start-1 lg:row-start-2 min-w-0"
+                 data-decimal-places="{decimalPlaces}" data-summary-date="{summaryDate}">
+                {#include partials/stats-summary /}
+            </div>
+            {/if}
+
         </div>
-        {/if}
     </main>
 
     {#include partials/footer /}
 </div>
 
-{! The calendar engine (grid render, month cache/prefetch, day panel, toolbar). Extracted from the
+{! The note box first (it publishes Diurnal.noteBox, which the calendar engine below reads), then the
+     calendar engine (grid render, month cache/prefetch, day panel, toolbar). Both extracted from the
      inline block that used to sit here into /js/dashboard.js so it rides the content-hashed `immutable`
      cache instead of being re-parsed on every dashboard load. Served as dashboard.<hash>.js in prod
      (baked into AppInfo.jsDashboardFile), dashboard.js in dev; runs after the shared /js/app.js. !}
+<script src="/js/{inject:appInfo.jsNoteFile}"></script>
 <script src="/js/{inject:appInfo.jsDashboardFile}"></script>
 {/body}
 

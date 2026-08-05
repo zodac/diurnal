@@ -81,7 +81,7 @@ class FrequencyChartIT extends IntegrationTestBase {
         given().get("/api/v1/stats/" + action.id + "/frequency")
                 .then().statusCode(200)
                 .body("series.size()", equalTo(1))
-                .body("series[0].actionId", equalTo(action.id.toString()))
+                .body("series[0].subjectId", equalTo(action.id.toString()))
                 .body("series[0].name", equalTo("Running"))
                 .body("series[0].total", equalTo(4))
                 .body("period", equalTo("month"))
@@ -180,8 +180,8 @@ class FrequencyChartIT extends IntegrationTestBase {
                 .get("/api/v1/stats/" + action.id + "/frequency")
                 .then().statusCode(200)
                 .body("series.size()", equalTo(2))
-                .body("series[0].actionId", equalTo(action.id.toString()))
-                .body("series[1].actionId", equalTo(second.id.toString()))
+                .body("series[0].subjectId", equalTo(action.id.toString()))
+                .body("series[1].subjectId", equalTo(second.id.toString()))
                 .body("series[0].total", equalTo(4))
                 .body("series[1].total", equalTo(6))
                 .body("total", equalTo(10))
@@ -398,7 +398,7 @@ class FrequencyChartIT extends IntegrationTestBase {
     void candidates_noneEligible_rendersTheEmptyState() {
         given().get("/internal/stats/chart/" + action.id + "/candidates")
                 .then().statusCode(200)
-                .body(containsString("No other logged actions to compare."));
+                .body(containsString("Nothing else to compare."));
     }
 
     @Test

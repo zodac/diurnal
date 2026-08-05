@@ -550,9 +550,40 @@ run_supervised_tier() {
     return "${rc}"
 }
 
+# ── Preflight: is the port every *IT needs actually free? ─────────────────────
+# EVERY `*IT` in the Maven gate boots Quarkus on ${E2E_HTTP_PORT}, so anything already listening there
+# makes ALL of them fail with "Port already bound" — dozens of identical boot stack traces that never
+# mention the port, buried under a generic "There are test failures". The usual holder is a `quarkus:dev`
+# left running by scripts/dev-up.sh. Checking once, up front, turns that into a single actionable line.
+#
+# Reads /proc/net/tcp(6) directly (state 0A = LISTEN) rather than using lsof: it lists every listening
+# socket regardless of owner, so it also sees a root- or docker-proxy-held port that an unprivileged lsof
+# would miss. Same probe as scripts/dev-teardown.sh, for the same reason.
+assert_test_port_free() {
+    local port_hex
+    port_hex="$(printf ':%04X' "${E2E_HTTP_PORT}")"
+
+    if ! awk -v p="${port_hex}" '$2 ~ p"$" && $4=="0A" {f=1} END{exit !f}' \
+            /proc/net/tcp /proc/net/tcp6 2>/dev/null; then
+        return 0
+    fi
+
+    echo "❌ Port ${E2E_HTTP_PORT} is already in use, and every *IT needs it to boot Quarkus."
+    echo "   Without this check the whole gate fails with dozens of 'Port already bound' stack traces."
+    echo "   A dev server is the usual cause - stop it with: ${YELLOW}scripts/dev-teardown.sh${RESET}"
+    echo "   (or re-run with E2E_HTTP_PORT set to a free port)."
+    return 1
+}
+
 run_java() {
     echo
     echo "Running the full JVM gate [java]: Maven build + E2E + deployment-smoke"
+
+    # Fail before the (multi-minute) Maven build rather than after every *IT has failed to boot.
+    if ! assert_test_port_free; then
+        overall_exit_code=1
+        return
+    fi
     # The java step is the whole JVM-side gate, in three tiers:
     #   1. mvn clean install -Dall — unit tests + *IT + the full inherited lint suite. Drives the CSS
     #      build (Node) and a managed IT test DB (Docker), and packages the fast-jar the E2E run reuses;
@@ -676,11 +707,19 @@ run_perf() {
 run_javascript() {
     echo
     echo "Running JavaScript lint using [${ESLINT_NODE_IMAGE}]"
-    # Lint every tracked *.js/*.cjs file. `git ls-files` naturally excludes the vendored,
-    # gitignored htmx.min.js (see scripts/vendor-assets.cjs), the code-quality-config submodule,
-    # and any node_modules/target build output — same approach as the shellcheck step below.
+    # Lint every tracked *.js/*.cjs file, PLUS any new one that is not gitignored. `--exclude-standard`
+    # keeps out the vendored, gitignored htmx.min.js (see scripts/vendor-assets.cjs), the
+    # code-quality-config submodule, and any node_modules/target build output — the same approach the
+    # shell-script step below takes.
+    #
+    # (Wording note: a comment line must never BEGIN with the tool's own name, because such a line is
+    # parsed as a directive rather than as prose, and the whole enclosing function then fails to parse.)
+    #
+    # The --others flag is load-bearing: a bare "git ls-files" lists only TRACKED files, so a brand-new
+    # script was silently skipped until the moment it was committed. That is exactly when linting it is most
+    # valuable, and it let a genuine syntax error through a passing gate once already.
     local files=()
-    mapfile -t files < <(git ls-files '*.js' '*.cjs' || true)
+    mapfile -t files < <(git ls-files --cached --others --exclude-standard '*.js' '*.cjs' | sort -u || true)
     local done_in
     if [[ "${#files[@]}" -eq 0 ]]; then
         done_in="$(step_time)"
@@ -777,10 +816,11 @@ run_markdown() {
 run_shellcheck() {
     echo
     echo "Running shell script lint using [${SHELLCHECK_DOCKER_IMAGE}]"
-    # Lint every tracked *.sh file. `git ls-files` naturally excludes the code-quality-config
+    # Lint every tracked *.sh file, plus any new one that is not gitignored (see the --others note in
+    # run_javascript: a bare "git ls-files" skips a brand-new script entirely). Excludes the code-quality-config
     # submodule (its files belong to that repo) and any node_modules/target build output.
     local files=()
-    mapfile -t files < <(git ls-files '*.sh' || true)
+    mapfile -t files < <(git ls-files --cached --others --exclude-standard '*.sh' | sort -u || true)
     local done_in
     if [[ "${#files[@]}" -eq 0 ]]; then
         done_in="$(step_time)"

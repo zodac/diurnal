@@ -59,7 +59,7 @@ class StatsServiceIT extends IntegrationTestBase {
 
     private List<String> topNames(final LocalDate date, final int limit) {
         return statsService.forDate(userId, date, limit).stream()
-                .map(s -> s.action().name)
+                .map(s -> s.subject().name())
                 .toList();
     }
 
@@ -132,7 +132,7 @@ class StatsServiceIT extends IntegrationTestBase {
             newLog(userId, action.id, TODAY.minusMonths(2), 3);     // April — outside the day
         });
 
-        final List<ActionStats> stats = statsService.forDate(userId, TODAY, 10);
+        final List<SubjectStats> stats = statsService.forDate(userId, TODAY, 10);
         assertThat(stats)
                 .as("the action logged on the selected day should be present")
                 .hasSize(1);
@@ -167,16 +167,16 @@ class StatsServiceIT extends IntegrationTestBase {
             newLog(userId, running.id, second, 7);
         });
 
-        final Map<LocalDate, List<ActionStats>> byDate = statsService.forMonth(userId, YearMonth.from(TODAY), 3);
+        final Map<LocalDate, List<SubjectStats>> byDate = statsService.forMonth(userId, YearMonth.from(TODAY), 3);
         assertThat(byDate.keySet())
                 .as("only days with logged actions should be present")
                 .containsExactlyInAnyOrder(MONTH_START, second);
-        final List<ActionStats> first = byDate.getOrDefault(MONTH_START, List.of());
-        final List<ActionStats> secondDay = byDate.getOrDefault(second, List.of());
-        assertThat(first.stream().map(s -> s.action().name).toList())
+        final List<SubjectStats> first = byDate.getOrDefault(MONTH_START, List.of());
+        final List<SubjectStats> secondDay = byDate.getOrDefault(second, List.of());
+        assertThat(first.stream().map(s -> s.subject().name()).toList())
                 .as("the 1st only has Reading logged")
                 .containsExactly("Reading");
-        assertThat(secondDay.stream().map(s -> s.action().name).toList())
+        assertThat(secondDay.stream().map(s -> s.subject().name()).toList())
                 .as("the 2nd orders by that day's count, so Running (7) precedes Reading (1)")
                 .containsExactly("Running", "Reading");
         assertThat(first.getFirst().totalCount())
@@ -197,7 +197,7 @@ class StatsServiceIT extends IntegrationTestBase {
     }
 
     @Test
-    void forAllActiveActions_excludesUnloggedActionsAndOrdersByName() {
+    void forAllSubjects_excludesUnloggedActionsAndOrdersByName() {
         runInTx(() -> {
             newAction(userId, "Zeta");                                   // no logs — excluded
             final Action logged = newAction(userId, "Beta");
@@ -205,13 +205,13 @@ class StatsServiceIT extends IntegrationTestBase {
             newAction(userId, "Alpha");                                  // no logs — excluded
         });
 
-        assertThat(statsService.forAllActiveActions(userId).stream().map(s -> s.action().name).toList())
+        assertThat(statsService.forAllSubjects(userId).stream().map(s -> s.subject().name()).toList())
                 .as("only actions with logged data should appear")
                 .containsExactly("Beta");
     }
 
     @Test
-    void forAllActiveActions_aggregatesMonthlyAndYearlyTotalsFromSql() {
+    void forAllSubjects_aggregatesMonthlyAndYearlyTotalsFromSql() {
         // A history spanning several months and two years, exercising the DB-side monthly aggregation.
         runInTx(() -> {
             final Action action = newAction(userId, "Spanning");
@@ -223,7 +223,7 @@ class StatsServiceIT extends IntegrationTestBase {
             newLog(userId, action.id, LocalDate.of(2025, 7, 1), 1);      // Jul 2025
         });
 
-        final ActionStats stats = statsService.forAllActiveActions(userId).getFirst();
+        final SubjectStats stats = statsService.forAllSubjects(userId).getFirst();
         assertThat(stats.totalCount())
             .as("total count")
             .isEqualTo(21L);

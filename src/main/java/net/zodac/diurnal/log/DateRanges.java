@@ -26,10 +26,11 @@ import net.zodac.diurnal.openapi.ApiErrorResponse;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Parses the mandatory {@code start}/{@code end} date-range query parameters shared by the logged-events feeds ({@code /api/v1/logs/events} and the
- * dashboard's internal minimal-events feed). Clients may send full ISO-8601 datetime strings; only the leading date part is used.
+ * Parses the mandatory date query parameters shared by every range feed in the app - the logged-events feeds ({@code /api/v1/logs/events} and the
+ * dashboard's internal minimal-events feed) and the notes feeds ({@code /api/v1/notes} and its internal twin) - as well as the single-day note reads.
+ * Clients may send full ISO-8601 datetime strings; only the leading date part is used.
  */
-final class DateRanges {
+public final class DateRanges {
 
     private static final int ISO_DATE_LENGTH = 10;
 
@@ -45,7 +46,7 @@ final class DateRanges {
      * @return the parsed {@link LocalDate}
      * @throws BadRequestException when the value is missing, blank, or not a valid ISO-8601 date
      */
-    static LocalDate requireDate(final String name, final @Nullable String value) {
+    public static LocalDate requireDate(final String name, final @Nullable String value) {
         if (value == null || value.isBlank()) {
             final String message = "Query parameter '" + name + "' is required";
             throw new BadRequestException(message, jsonError(message));

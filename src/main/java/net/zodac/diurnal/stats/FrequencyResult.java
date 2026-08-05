@@ -29,7 +29,7 @@ import java.util.UUID;
  * request, and telling the two apart is what makes that debuggable from the response alone.
  */
 sealed interface FrequencyResult permits FrequencyResult.Charted, FrequencyResult.UnknownPeriod, FrequencyResult.UnknownWindow,
-    FrequencyResult.TooManyActions, FrequencyResult.DuplicateAction, FrequencyResult.NotLogged, FrequencyResult.NotOwned {
+    FrequencyResult.TooManySubjects, FrequencyResult.DuplicateSubject, FrequencyResult.NotLogged, FrequencyResult.NotOwned {
 
     /**
      * The lookup succeeded; {@link #chart()} is the assembled chart for the requested window.
@@ -65,7 +65,7 @@ sealed interface FrequencyResult permits FrequencyResult.Charted, FrequencyResul
      * @param submitted the number of actions requested
      * @param maximum the most that may be charted together
      */
-    record TooManyActions(int submitted, int maximum) implements FrequencyResult {
+    record TooManySubjects(int submitted, int maximum) implements FrequencyResult {
 
     }
 
@@ -73,9 +73,9 @@ sealed interface FrequencyResult permits FrequencyResult.Charted, FrequencyResul
      * The same action was requested more than once. Charting an action against itself is meaningless, and silently collapsing the duplicate would
      * quietly return a different chart than was asked for.
      *
-     * @param actionId the repeated action's id
+     * @param subjectId the repeated subject's ID
      */
-    record DuplicateAction(UUID actionId) implements FrequencyResult {
+    record DuplicateSubject(UUID subjectId) implements FrequencyResult {
 
     }
 
@@ -83,9 +83,9 @@ sealed interface FrequencyResult permits FrequencyResult.Charted, FrequencyResul
      * A comparison action has never been logged, so it could only ever contribute a flat, empty series. Only applies to the actions being compared
      * AGAINST: the graph's own action is charted whatever its history, because an empty chart for it is a meaningful (and reachable) answer.
      *
-     * @param actionId the never-logged action's id
+     * @param subjectId the subject's ID, which has no entries at all
      */
-    record NotLogged(UUID actionId) implements FrequencyResult {
+    record NotLogged(UUID subjectId) implements FrequencyResult {
 
     }
 

@@ -76,7 +76,7 @@ public class StatsWebResource {
                 .data("isAdmin", user.isAdmin())
                 .data("hasActions", !Action.findByUser(user.id).isEmpty())
                 .data("decimalPlaces", user.decimalPlaces)
-                .data("statsFields", ActionStatField.displayFields(user.statsFields))
-                .data("page", StatsInternalResource.paginate(statsService.forAllActiveActions(user.id), pageNum, user.pageSize));
+                .data("statsFields", StatField.displayFields(user.statsFields))
+                .data("page", StatsInternalResource.paginate(statsService.forAllSubjects(user.id), pageNum, user.pageSize));
     }
 }

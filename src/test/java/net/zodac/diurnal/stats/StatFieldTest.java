@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import net.zodac.diurnal.stats.ActionStatField.Choice;
+import net.zodac.diurnal.stats.StatField.Choice;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextValidation;
@@ -32,7 +32,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-class ActionStatFieldTest {
+class StatFieldTest {
 
     // A full arrangement (every field present) with total-days DISABLED and best-year moved to front —
     // the shape a real submission produces (the settings form always posts every row's order).
@@ -58,23 +58,23 @@ class ActionStatFieldTest {
 
     @Test
     void fromKey_knownKey_returnsField() {
-        assertThat(ActionStatField.fromKey("current-streak"))
+        assertThat(StatField.fromKey("current-streak"))
             .as("expected the matching field")
-            .contains(ActionStatField.CURRENT_STREAK);
+            .contains(StatField.CURRENT_STREAK);
     }
 
     @Test
     void fromKey_trimsWhitespace() {
-        assertThat(ActionStatField.fromKey("  best-year  "))
+        assertThat(StatField.fromKey("  best-year  "))
             .as("expected surrounding whitespace to be tolerated")
-            .contains(ActionStatField.BEST_YEAR);
+            .contains(StatField.BEST_YEAR);
     }
 
     @ParameterizedTest
     @NullAndEmptySource
     @ValueSource(strings = {"nonsense", "CURRENT_STREAK", "current_streak"})
     void fromKey_unknownKey_returnsEmpty(final String key) {
-        assertThat(ActionStatField.fromKey(key))
+        assertThat(StatField.fromKey(key))
             .as("expected no field for an unknown key")
             .isEmpty();
     }
@@ -83,35 +83,35 @@ class ActionStatFieldTest {
 
     @Test
     void displayFields_nullOrEmpty_returnsAllInDefaultOrder() {
-        assertThat(ActionStatField.displayFields(null))
+        assertThat(StatField.displayFields(null))
             .as("a never-customised (null) preference renders every field in declaration order")
             .extracting(DisplayStat::field)
-            .containsExactly(ActionStatField.values());
-        assertThat(ActionStatField.displayFields(List.of()))
+            .containsExactly(StatField.values());
+        assertThat(StatField.displayFields(List.of()))
             .as("an empty arrangement also renders every field in declaration order")
             .extracting(DisplayStat::field)
-            .containsExactly(ActionStatField.values());
+            .containsExactly(StatField.values());
     }
 
     @Test
     void displayFields_excludesDisabledButKeepsOrder() {
-        final List<ActionStatField> expected = List.of(
-            ActionStatField.BEST_YEAR,
-            ActionStatField.CURRENT_STREAK,
-            ActionStatField.LONGEST_STREAK,
-            ActionStatField.CURRENT_GAP,
-            ActionStatField.LONGEST_GAP,
-            ActionStatField.TOTAL_COUNT,
-            ActionStatField.WEEKLY_DAY_AVERAGE,
-            ActionStatField.MONTHLY_DAY_AVERAGE,
-            ActionStatField.WEEKLY_COUNT_AVERAGE,
-            ActionStatField.MONTHLY_COUNT_AVERAGE,
-            ActionStatField.FIRST_PERFORMED,
-            ActionStatField.LAST_PERFORMED,
-            ActionStatField.VS_LAST_MONTH,
-            ActionStatField.VS_LAST_YEAR,
-            ActionStatField.BEST_MONTH);
-        assertThat(ActionStatField.displayFields(CUSTOM))
+        final List<StatField> expected = List.of(
+            StatField.BEST_YEAR,
+            StatField.CURRENT_STREAK,
+            StatField.LONGEST_STREAK,
+            StatField.CURRENT_GAP,
+            StatField.LONGEST_GAP,
+            StatField.TOTAL_COUNT,
+            StatField.WEEKLY_DAY_AVERAGE,
+            StatField.MONTHLY_DAY_AVERAGE,
+            StatField.WEEKLY_COUNT_AVERAGE,
+            StatField.MONTHLY_COUNT_AVERAGE,
+            StatField.FIRST_PERFORMED,
+            StatField.LAST_PERFORMED,
+            StatField.VS_LAST_MONTH,
+            StatField.VS_LAST_YEAR,
+            StatField.BEST_MONTH);
+        assertThat(StatField.displayFields(CUSTOM))
             .as("disabled total-days omitted; the arranged order is otherwise preserved")
             .extracting(DisplayStat::field)
             .containsExactlyElementsOf(expected);
@@ -119,32 +119,32 @@ class ActionStatFieldTest {
 
     @Test
     void displayFields_forcesLastPerformedEvenWhenStoredDisabled() {
-        assertThat(ActionStatField.displayFields(
+        assertThat(StatField.displayFields(
                 List.of(new StatFieldPref("last-performed", false, null), new StatFieldPref("current-streak", true, null))))
             .as("mandatory last-performed always renders, even if stored disabled")
             .extracting(DisplayStat::field)
-            .contains(ActionStatField.LAST_PERFORMED);
+            .contains(StatField.LAST_PERFORMED);
     }
 
     @Test
     void displayFields_appendsFieldsMissingFromStoredValue() {
         // An older stored value naming only two fields still renders every (newly-added) field.
-        assertThat(ActionStatField.displayFields(
+        assertThat(StatField.displayFields(
                 List.of(new StatFieldPref("current-streak", true, null), new StatFieldPref("last-performed", true, null))))
             .as("fields absent from the stored value are appended (enabled)")
-            .hasSize(ActionStatField.values().length)
+            .hasSize(StatField.values().length)
             .extracting(DisplayStat::field)
-            .startsWith(ActionStatField.CURRENT_STREAK, ActionStatField.LAST_PERFORMED);
+            .startsWith(StatField.CURRENT_STREAK, StatField.LAST_PERFORMED);
     }
 
     // ── choices (settings picker rows) ────────────────────────────────────────
 
     @Test
     void choices_null_marksEveryFieldSelectedInDefaultOrder() {
-        final List<Choice> choices = ActionStatField.choices(null);
+        final List<Choice> choices = StatField.choices(null);
         assertThat(choices)
             .as("all fields present")
-            .hasSize(ActionStatField.values().length);
+            .hasSize(StatField.values().length);
         assertThat(choices)
             .as("every field selected by default")
             .allMatch(Choice::selected);
@@ -155,7 +155,7 @@ class ActionStatFieldTest {
 
     @Test
     void choices_preservesArrangementOrderRegardlessOfEnabledState() {
-        final List<Choice> choices = ActionStatField.choices(CUSTOM);
+        final List<Choice> choices = StatField.choices(CUSTOM);
 
         final List<String> expectedKeys = List.of("best-year", "current-streak", "total-days", "longest-streak", "current-gap", "biggest-gap",
             "total-count", "weekly-average", "monthly-average", "weekly-count-average", "monthly-count-average", "first-performed", "last-performed",
@@ -176,7 +176,7 @@ class ActionStatFieldTest {
 
     @Test
     void choices_carryDescriptions() {
-        assertThat(ActionStatField.choices(null))
+        assertThat(StatField.choices(null))
             .as("every picker row carries a non-blank tooltip description")
             .allSatisfy(choice -> assertThat(choice.description())
             .as("description for " + choice.key())
@@ -189,26 +189,26 @@ class ActionStatFieldTest {
         // (see the class Javadoc): the key is what users have stored, the label is what they read, and a
         // "tidy-up" that swapped one for the other would either reset arrangements or resurrect the old
         // ambiguous names ("Weekly average" said nothing about days-vs-count).
-        assertThat(ActionStatField.LONGEST_GAP.label())
+        assertThat(StatField.LONGEST_GAP.label())
             .as("unexpected value")
             .isEqualTo("Longest gap");
-        assertThat(ActionStatField.TOTAL_DAYS.label())
+        assertThat(StatField.TOTAL_DAYS.label())
             .as("unexpected value")
             .isEqualTo("Total unique days");
-        assertThat(ActionStatField.WEEKLY_DAY_AVERAGE.label())
+        assertThat(StatField.WEEKLY_DAY_AVERAGE.label())
             .as("unexpected value")
             .isEqualTo("Average days per week");
-        assertThat(ActionStatField.WEEKLY_COUNT_AVERAGE.label())
+        assertThat(StatField.WEEKLY_COUNT_AVERAGE.label())
             .as("unexpected value")
             .isEqualTo("Average count per week");
-        assertThat(ActionStatField.VS_LAST_MONTH.label())
+        assertThat(StatField.VS_LAST_MONTH.label())
             .as("unexpected value")
             .isEqualTo("Change from last month");
     }
 
     @Test
     void keys_areUniqueAndNeverTheEnumName() {
-        final List<String> keys = Arrays.stream(ActionStatField.values()).map(ActionStatField::key).toList();
+        final List<String> keys = Arrays.stream(StatField.values()).map(StatField::key).toList();
         assertThat(keys)
             .as("a duplicated key would silently collapse two stats into one stored slot")
             .doesNotHaveDuplicates();
@@ -221,7 +221,7 @@ class ActionStatFieldTest {
 
     @Test
     void choices_marksLastPerformedMandatory() {
-        assertThat(ActionStatField.choices(null))
+        assertThat(StatField.choices(null))
             .as("exactly last-performed is mandatory")
             .filteredOn(Choice::mandatory)
             .extracting(Choice::key)
@@ -232,7 +232,7 @@ class ActionStatFieldTest {
 
     @Test
     void encode_disablesUncheckedInPlaceAndKeepsOrder() {
-        final List<StatFieldPref> encoded = ActionStatField.encode(
+        final List<StatFieldPref> encoded = StatField.encode(
             List.of("best-year", "total-days", "current-streak"),
             List.of("best-year", "current-streak"),
             Map.of());
@@ -249,7 +249,7 @@ class ActionStatFieldTest {
 
     @Test
     void encode_forcesLastPerformedEnabledEvenIfNotTicked() {
-        final List<StatFieldPref> encoded = ActionStatField.encode(
+        final List<StatFieldPref> encoded = StatField.encode(
             List.of("last-performed", "current-streak"),
             List.of("current-streak"),
             Map.of());
@@ -262,7 +262,7 @@ class ActionStatFieldTest {
 
     @Test
     void encode_dropsUnknownKeys() {
-        final List<StatFieldPref> encoded = ActionStatField.encode(
+        final List<StatFieldPref> encoded = StatField.encode(
             List.of("made-up", "current-streak", "last-performed"),
             List.of("current-streak", "last-performed"),
             Map.of());
@@ -275,20 +275,20 @@ class ActionStatFieldTest {
 
     @Test
     void encode_roundTripsThroughChoices() {
-        final List<StatFieldPref> encoded = ActionStatField.encode(
+        final List<StatFieldPref> encoded = StatField.encode(
             List.of("best-year", "total-days", "current-streak"),
             List.of("best-year", "current-streak"),
             Map.of());
 
         // Re-reading the stored value reproduces the same arrangement + enabled state.
-        assertThat(ActionStatField.choices(encoded))
+        assertThat(StatField.choices(encoded))
             .as("stored arrangement re-reads consistently")
             .extracting(Choice::key)
             .startsWith("best-year", "total-days", "current-streak");
-        assertThat(ActionStatField.displayFields(encoded))
+        assertThat(StatField.displayFields(encoded))
             .as("only enabled fields render, in order; disabled total-days omitted")
             .extracting(DisplayStat::field)
-            .startsWith(ActionStatField.BEST_YEAR, ActionStatField.CURRENT_STREAK);
+            .startsWith(StatField.BEST_YEAR, StatField.CURRENT_STREAK);
     }
 
     @Test
@@ -297,7 +297,7 @@ class ActionStatFieldTest {
         // second loop — each field present exactly once, no omissions and no duplicates. This pins the
         // append loop's guard directly at the encode level (the choices()/displayFields() re-parse would
         // otherwise mask a dropped field, so the other encode tests don't detect it).
-        final List<StatFieldPref> encoded = ActionStatField.encode(
+        final List<StatFieldPref> encoded = StatField.encode(
             List.of("current-streak", "best-year"),
             List.of("current-streak"),
             Map.of());
@@ -306,7 +306,7 @@ class ActionStatFieldTest {
             .as("every field stored exactly once; omitted fields appended, none duplicated")
             .extracting(StatFieldPref::key)
             .containsExactlyInAnyOrderElementsOf(
-            Arrays.stream(ActionStatField.values()).map(ActionStatField::key).toList());
+            Arrays.stream(StatField.values()).map(StatField::key).toList());
         assertThat(encoded)
             .as("an omitted field is appended, enabled")
             .contains(new StatFieldPref("biggest-gap", true, null));
@@ -314,30 +314,30 @@ class ActionStatFieldTest {
 
     @Test
     void encode_emptySubmission_appendsAllEnabled() {
-        final List<StatFieldPref> encoded = ActionStatField.encode(List.of(), List.of(), Map.of());
+        final List<StatFieldPref> encoded = StatField.encode(List.of(), List.of(), Map.of());
         assertThat(encoded)
             .as("an empty submission stores every field, all enabled")
             .allMatch(StatFieldPref::enabled);
-        assertThat(ActionStatField.displayFields(encoded))
+        assertThat(StatField.displayFields(encoded))
             .as("every field renders (a reset to all)")
             .extracting(DisplayStat::field)
-            .containsExactly(ActionStatField.values());
+            .containsExactly(StatField.values());
     }
 
     // ── custom stat names ─────────────────────────────────────────────────────
 
     @Test
     void maxLabelLength_admitsEveryBuiltInLabel() {
-        final int longestBuiltIn = Arrays.stream(ActionStatField.values())
+        final int longestBuiltIn = Arrays.stream(StatField.values())
             .mapToInt(field -> field.label().length())
             .max()
             .orElseThrow();
-        assertThat(ActionStatField.MAX_LABEL_LENGTH)
+        assertThat(StatField.MAX_LABEL_LENGTH)
             .as("the cap is sized against the catalogue's own wording, so re-labelling must never outgrow it")
             .isGreaterThanOrEqualTo(longestBuiltIn);
 
         // The point of sizing it that way: a user can always rename a stat to any wording the app itself uses.
-        assertThat(Arrays.stream(ActionStatField.values()).map(ActionStatField::label).toList())
+        assertThat(Arrays.stream(StatField.values()).map(StatField::label).toList())
             .as("every built-in label must itself be a legal custom name")
             .allMatch(label -> TextValidation.check(TextFields.STAT_NAME, label) instanceof TextOutcome.Valid);
     }
@@ -346,10 +346,10 @@ class ActionStatFieldTest {
     void encode_ownLabel_isNotStoredAsRenamed() {
         // The settings editor pre-fills with the current caption, so opening an un-renamed row and saving it
         // untouched submits the built-in label. Storing that would pin the wording against future re-labelling.
-        final List<StatFieldPref> encoded = ActionStatField.encode(
+        final List<StatFieldPref> encoded = StatField.encode(
             List.of("current-streak", "best-year"),
             List.of("current-streak", "best-year"),
-            Map.of("current-streak", ActionStatField.CURRENT_STREAK.label(), "best-year", "Top year"));
+            Map.of("current-streak", StatField.CURRENT_STREAK.label(), "best-year", "Top year"));
 
         assertThat(encoded.getFirst())
             .as("naming a stat what it is already called is not a rename")
@@ -362,33 +362,33 @@ class ActionStatFieldTest {
     @Test
     void encode_anotherStatsLabel_isStillRenamed() {
         // Only a stat's OWN label is neutral: deliberately borrowing another stat's wording is a real rename.
-        final List<StatFieldPref> encoded = ActionStatField.encode(
+        final List<StatFieldPref> encoded = StatField.encode(
             List.of("current-gap"),
             List.of("current-gap"),
-            Map.of("current-gap", ActionStatField.LONGEST_GAP.label()));
+            Map.of("current-gap", StatField.LONGEST_GAP.label()));
 
         assertThat(encoded.getFirst())
             .as("another stat's label is an ordinary custom name")
-            .isEqualTo(new StatFieldPref("current-gap", true, ActionStatField.LONGEST_GAP.label()));
+            .isEqualTo(new StatFieldPref("current-gap", true, StatField.LONGEST_GAP.label()));
     }
 
     @Test
     void displayFields_aStoredSelfLabel_readsAsNotRenamed() {
         // Defensive on read too (an arrangement stored before this rule, or written straight to the DB), so a
         // stat that merely repeats its own label still tracks the catalogue if that label is ever re-worded.
-        final List<StatFieldPref> stored = List.of(new StatFieldPref("current-streak", true, ActionStatField.CURRENT_STREAK.label()));
+        final List<StatFieldPref> stored = List.of(new StatFieldPref("current-streak", true, StatField.CURRENT_STREAK.label()));
 
-        assertThat(ActionStatField.choices(stored).getFirst().customLabel())
+        assertThat(StatField.choices(stored).getFirst().customLabel())
             .as("a stored name equal to the stat's own label reads back as no rename")
             .isEmpty();
-        assertThat(ActionStatField.displayFields(stored).getFirst().label())
+        assertThat(StatField.displayFields(stored).getFirst().label())
             .as("and it still renders under the catalogue label")
-            .isEqualTo(ActionStatField.CURRENT_STREAK.label());
+            .isEqualTo(StatField.CURRENT_STREAK.label());
     }
 
     @Test
     void labelsByKey_pairsTheParallelFormLists() {
-        final Map<String, String> labels = ActionStatField.labelsByKey(
+        final Map<String, String> labels = StatField.labelsByKey(
             List.of("  current-streak  ", "best-year", "total-days"),
             List.of("Days in row", "  ", " Top year "));
 
@@ -399,13 +399,13 @@ class ActionStatFieldTest {
 
     @Test
     void labelsByKey_unpairedOrAbsentNames_areIgnored() {
-        assertThat(ActionStatField.labelsByKey(List.of("current-streak", "best-year"), null))
+        assertThat(StatField.labelsByKey(List.of("current-streak", "best-year"), null))
             .as("a submission with no names at all renames nothing")
             .isEmpty();
-        assertThat(ActionStatField.labelsByKey(List.of("current-streak", "best-year"), List.of("Days in row")))
+        assertThat(StatField.labelsByKey(List.of("current-streak", "best-year"), List.of("Days in row")))
             .as("a trailing key with no matching name is ignored rather than taking the next row's name")
             .containsExactly(Map.entry("current-streak", "Days in row"));
-        assertThat(ActionStatField.labelsByKey(List.of("current-streak"), List.of("Days in row", "Top year")))
+        assertThat(StatField.labelsByKey(List.of("current-streak"), List.of("Days in row", "Top year")))
             .as("a trailing name with no matching key is dropped")
             .containsExactly(Map.entry("current-streak", "Days in row"));
     }
@@ -416,7 +416,7 @@ class ActionStatFieldTest {
     void encode_storesTheNameItIsGiven() {
         // Names arrive already validated and normalised - ProfileService makes that single pass, and SettingsIT covers it end to end - so encode
         // stores what it is handed rather than cleaning it a second time.
-        final List<StatFieldPref> encoded = ActionStatField.encode(
+        final List<StatFieldPref> encoded = StatField.encode(
             List.of("current-streak", "best-year"),
             List.of("current-streak", "best-year"),
             Map.of("current-streak", "Days in row"));
@@ -435,23 +435,23 @@ class ActionStatFieldTest {
             new StatFieldPref("current-streak", true, "Days in row"),
             new StatFieldPref("best-year", true, null));
 
-        assertThat(ActionStatField.displayFields(stored))
+        assertThat(StatField.displayFields(stored))
             .as("a renamed stat renders under the user's name; an un-renamed one under the catalogue label")
             .extracting(DisplayStat::label)
-            .startsWith("Days in row", ActionStatField.BEST_YEAR.label());
+            .startsWith("Days in row", StatField.BEST_YEAR.label());
     }
 
     @Test
     void displayFields_blankStoredName_fallsBackToTheCatalogueLabel() {
         final List<StatFieldPref> blank = List.of(new StatFieldPref("current-streak", true, "   "));
-        assertThat(ActionStatField.displayFields(blank).getFirst().label())
+        assertThat(StatField.displayFields(blank).getFirst().label())
             .as("a stored blank name falls back to the catalogue label")
-            .isEqualTo(ActionStatField.CURRENT_STREAK.label());
+            .isEqualTo(StatField.CURRENT_STREAK.label());
     }
 
     @Test
     void choices_carryTheCustomNameSeparatelyFromTheCaption() {
-        final List<Choice> choices = ActionStatField.choices(List.of(new StatFieldPref("current-streak", true, "Days in row")));
+        final List<Choice> choices = StatField.choices(List.of(new StatFieldPref("current-streak", true, "Days in row")));
 
         final Choice renamed = choices.getFirst();
         assertThat(renamed.label())
@@ -462,7 +462,7 @@ class ActionStatFieldTest {
             .isEqualTo("Days in row");
         assertThat(renamed.defaultLabel())
             .as("the catalogue label is offered as the rename field's placeholder")
-            .isEqualTo(ActionStatField.CURRENT_STREAK.label());
+            .isEqualTo(StatField.CURRENT_STREAK.label());
 
         final Choice untouched = choices.get(1);
         assertThat(untouched.customLabel())
@@ -476,16 +476,16 @@ class ActionStatFieldTest {
     @Test
     void encode_roundTripsRenameThroughChoices() {
         final Map<String, String> labels = Map.of("current-streak", "Days in row");
-        final List<StatFieldPref> encoded = ActionStatField.encode(List.of("current-streak"), List.of("current-streak"), labels);
+        final List<StatFieldPref> encoded = StatField.encode(List.of("current-streak"), List.of("current-streak"), labels);
 
-        assertThat(ActionStatField.choices(encoded).getFirst().customLabel())
+        assertThat(StatField.choices(encoded).getFirst().customLabel())
             .as("a stored rename re-reads as the same name")
             .isEqualTo("Days in row");
 
         // Re-submitting the same arrangement with a blank name is how the UI clears a rename.
-        final List<StatFieldPref> cleared = ActionStatField.encode(List.of("current-streak"), List.of("current-streak"), Map.of());
-        assertThat(ActionStatField.choices(cleared).getFirst().label())
+        final List<StatFieldPref> cleared = StatField.encode(List.of("current-streak"), List.of("current-streak"), Map.of());
+        assertThat(StatField.choices(cleared).getFirst().label())
             .as("clearing the name restores the catalogue label")
-            .isEqualTo(ActionStatField.CURRENT_STREAK.label());
+            .isEqualTo(StatField.CURRENT_STREAK.label());
     }
 }

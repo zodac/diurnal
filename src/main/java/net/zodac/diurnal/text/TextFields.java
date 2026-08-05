@@ -56,6 +56,17 @@ public final class TextFields {
     public static final int STAT_NAME_MAX_LENGTH = 25;
 
     /**
+     * The longest accepted note, matching the {@code notes.content} column width.
+     *
+     * <p>
+     * A hygiene bound rather than a storage limit: roughly four pages of prose, comfortably past any real journal entry, while keeping the calendar's
+     * notes feed bounded (the dashboard prefetches a three-month window of note content in one response). It is also why the column is
+     * {@code VARCHAR} rather than {@code TEXT} — {@code character_maximum_length} is {@code NULL} for {@code TEXT}, which would silently disable the
+     * bound-vs-column guard in {@code TextFieldsSchemaIT}.
+     */
+    public static final int NOTE_MAX_LENGTH = 10_000;
+
+    /**
      * The shortest accepted email address - the shortest string that can hold a local part, an {@code @} and a domain.
      */
     public static final int EMAIL_MIN_LENGTH = 3;
@@ -106,6 +117,17 @@ public final class TextFields {
      */
     public static final TextField PASSWORD = TextField.secret("Password", PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH);
 
+    /**
+     * A single day's free-text note. The one {@link Normalisation#MULTILINE} field: it is a block of prose, so its line breaks are part of what the
+     * user wrote and must survive normalisation - every other field is a label, where a newline is an accident worth folding to a space.
+     *
+     * <p>
+     * Optional, like {@link #STAT_NAME}: a blank submission is accepted and normalises to the empty string, which the service reads as "this day has
+     * no note" and removes the row. Clearing the box and saving is how a note is deleted, so a blank value is a legitimate request rather than a
+     * rejection - exactly as a count of zero removes a log entry rather than failing.
+     */
+    public static final TextField NOTE = TextField.multiline("Note", 0, NOTE_MAX_LENGTH);
+
     private TextFields() {
 
     }
@@ -116,6 +138,6 @@ public final class TextFields {
      * @return the catalogue
      */
     public static List<TextField> all() {
-        return List.of(ACTION_NAME, DISPLAY_NAME, STAT_NAME, EMAIL, PASSWORD);
+        return List.of(ACTION_NAME, DISPLAY_NAME, STAT_NAME, EMAIL, PASSWORD, NOTE);
     }
 }

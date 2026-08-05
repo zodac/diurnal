@@ -142,6 +142,56 @@ class ConditionalGetIT extends IntegrationTestBase {
                 .then().statusCode(304);
     }
 
+    // ── GET /api/v1/notes ───────────────────────────────────────────────────────
+
+    @Test
+    void notes_ifNoneMatch_returns304_thenBustedByAWrite() {
+        final String etag = notesEtag();
+
+        given().header("If-None-Match", etag)
+                .queryParam("start", TODAY.toString())
+                .queryParam("end", TODAY.toString())
+                .get("/api/v1/notes")
+                .then().statusCode(304);
+
+        given().contentType(io.restassured.http.ContentType.JSON)
+                .body("""
+                        {"content":"Ran 5k"}
+                        """)
+                .put("/api/v1/notes/" + TODAY)
+                .then().statusCode(200);
+
+        assertThat(notesEtag())
+            .as("writing a note in the range must bust the range's validator")
+            .isNotEqualTo(etag);
+    }
+
+    @Test
+    void notes_afterANoteIsEdited_tagIsBusted() {
+        // The count is unchanged by an edit, so this is the case the MAX(updated_at) half of the signature exists to catch.
+        runInTx(() -> newNote(userId, TODAY, "First draft"));
+        final String etag = notesEtag();
+
+        given().contentType(io.restassured.http.ContentType.JSON)
+                .body("""
+                        {"content":"Second draft"}
+                        """)
+                .put("/api/v1/notes/" + TODAY)
+                .then().statusCode(200);
+
+        assertThat(notesEtag())
+            .as("editing a note without changing the row count must still bust the validator")
+            .isNotEqualTo(etag);
+    }
+
+    private static String notesEtag() {
+        return given().queryParam("start", TODAY.toString())
+            .queryParam("end", TODAY.toString())
+            .get("/api/v1/notes")
+            .then().statusCode(200)
+            .extract().header("ETag");
+    }
+
     // ── GET /api/v1/actions ─────────────────────────────────────────────────────
 
     @Test
