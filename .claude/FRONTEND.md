@@ -174,6 +174,13 @@ family lives un-layered at the bottom of `app.css` beside `.d-*` and `.chart-*`.
 - **Status line**: "Unsaved changes" in `text-brand` (the active navbar link's colour), "Saved" in `text-success` (the
   settings cards' green), flashed for 2s. Both are set explicitly at each call site — deriving them from the dirty flag
   is what made an earlier version clear "Saved" the instant it was set.
+- **The unsaved draft survives a navigation**, mirrored into `sessionStorage` under `diurnal.noteDraft` as
+  `{date, content}` — **exactly one**, the day last edited, written on every keystroke and removed once the draft catches
+  up with the stored note (a save or an undo). Drafts on other days still ride the in-memory per-date map across a date
+  change; they just do not survive a page load. That is the tab's own lifetime: in-app navigation and reloads keep the
+  draft, closing the tab drops it, and `app.js` clears the key on the login page beside `diurnal.selectedDate` so a
+  journal entry never carries across a logout. **No `beforeunload` prompt** — an earlier version raised the browser's
+  confirmation on every in-app click and was replaced by retaining the work; the status line is the whole of the signal.
 
 ### Calendar note markers & the split month cache
 
