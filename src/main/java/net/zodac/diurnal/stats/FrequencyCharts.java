@@ -57,24 +57,24 @@ final class FrequencyCharts {
     /**
      * Builds the chart for one or more actions over one window.
      *
-     * @param charted the actions to chart, in legend order; the first is the one the graph was opened from and is not removable
+     * @param charted the subjects to chart, in legend order; the first is the one the graph was opened from and is not removable
      * @param period the window's period
      * @param anchor the first day of the window
-     * @param countsByAction each charted action's logged counts, keyed by day-of-month (a month window) or month-of-year (a year window); an absent
-     *     action, or an absent slot within one, is empty
+     * @param countsByAction each charted subject's counts, keyed by day-of-month (a month window) or month-of-year (a year window); an absent
+     *     subject, or an absent slot within one, is empty
      * @param today the current day, which bounds how far forward the chart may be stepped
-     * @param earliest the earliest day any charted action was logged, which bounds how far back it may be stepped, or {@code null} when none of them
-     *     has ever been logged
+     * @param earliest the earliest day any charted subject has an entry, which bounds how far back it may be stepped, or {@code null} when none
+     *     of them has any
      * @return the assembled chart
      */
-    static FrequencyChart build(final List<ChartedAction> charted, final FrequencyPeriod period, final LocalDate anchor,
+    static FrequencyChart build(final List<StatSubject> charted, final FrequencyPeriod period, final LocalDate anchor,
         final Map<UUID, Map<Integer, Long>> countsByAction, final LocalDate today, final @Nullable LocalDate earliest) {
         final int slots = slotCount(period, anchor);
 
         long total = 0L;
         long peak = 0L;
-        for (final ChartedAction action : charted) {
-            final Map<Integer, Long> counts = countsByAction.getOrDefault(action.id(), Map.of());
+        for (final StatSubject subject : charted) {
+            final Map<Integer, Long> counts = countsByAction.getOrDefault(subject.id(), Map.of());
             for (int slot = 1; slot <= slots; slot++) {
                 final long count = counts.getOrDefault(slot, 0L);
                 total += count;
@@ -85,9 +85,9 @@ final class FrequencyCharts {
         final List<FrequencySlot> columns = new ArrayList<>(slots);
         for (int slot = 1; slot <= slots; slot++) {
             final List<FrequencyBar> bars = new ArrayList<>(charted.size());
-            for (final ChartedAction action : charted) {
-                final long count = countsByAction.getOrDefault(action.id(), Map.of()).getOrDefault(slot, 0L);
-                bars.add(new FrequencyBar(action.name(), action.colour(), count, heightPercent(count, peak)));
+            for (final StatSubject subject : charted) {
+                final long count = countsByAction.getOrDefault(subject.id(), Map.of()).getOrDefault(slot, 0L);
+                bars.add(new FrequencyBar(subject.name(), subject.colour(), count, heightPercent(count, peak)));
             }
             columns.add(new FrequencySlot(shortLabel(period, anchor, slot), fullLabel(period, anchor, slot), tipAlign(slot, slots),
                 List.copyOf(bars)));
@@ -95,9 +95,9 @@ final class FrequencyCharts {
 
         final List<FrequencySeries> series = new ArrayList<>(charted.size());
         for (int index = 0; index < charted.size(); index++) {
-            final ChartedAction action = charted.get(index);
-            series.add(new FrequencySeries(action.id(), action.name(), action.colour(),
-                seriesTotal(countsByAction.getOrDefault(action.id(), Map.of()), slots), index > 0));
+            final StatSubject subject = charted.get(index);
+            series.add(new FrequencySeries(subject.id(), subject.name(), subject.colour(),
+                seriesTotal(countsByAction.getOrDefault(subject.id(), Map.of()), slots), index > 0));
         }
 
         final LocalDate previous = FrequencyKeys.shift(period, anchor, -1);
@@ -179,15 +179,4 @@ final class FrequencyCharts {
         };
     }
 
-    /**
-     * One action to chart, reduced to just what the chart draws. Keeps the builder free of the {@code Action} entity so it stays a pure,
-     * database-free unit.
-     *
-     * @param id the action's id
-     * @param name the action's name
-     * @param colour the action's display colour
-     */
-    record ChartedAction(UUID id, String name, String colour) {
-
-    }
 }

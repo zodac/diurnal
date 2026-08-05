@@ -40,7 +40,7 @@ import net.zodac.diurnal.auth.PasswordChangeResult;
 import net.zodac.diurnal.auth.PasswordChangeService;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
-import net.zodac.diurnal.stats.ActionStatField;
+import net.zodac.diurnal.stats.StatField;
 import net.zodac.diurnal.web.RollbackOnErrorStatus;
 import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
@@ -268,7 +268,7 @@ public class UserResource {
             final List<String> order = statsFields.stream().map(StatFieldPref::key).toList();
             final List<String> enabled = statsFields.stream().filter(StatFieldPref::enabled).map(StatFieldPref::key).toList();
             final List<String> labels = statsFields.stream().map(pref -> pref.label() == null ? "" : pref.label()).toList();
-            result = profileService.updateStatsFields(user, order, enabled, ActionStatField.labelsByKey(order, labels));
+            result = profileService.updateStatsFields(user, order, enabled, StatField.labelsByKey(order, labels));
         }
         return result;
     }

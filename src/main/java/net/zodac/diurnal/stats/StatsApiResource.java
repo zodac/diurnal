@@ -82,10 +82,12 @@ public class StatsApiResource {
      */
     @GET
     @Operation(
-        summary = "List per-action statistics",
-        description = "Returns one page of computed statistics (totals, streaks, trends, high scores) for every action with at least one "
-        + "logged entry; actions that have never been logged are omitted. The page size is the user's 'items per page' preference; an "
-        + "out-of-range page is rejected with a 400 (never silently clamped).")
+        summary = "List per-subject statistics",
+        description = "Returns one page of computed statistics (totals, streaks, trends, high scores) for every subject with at least one entry. A "
+        + "subject is either one of the user's actions or their day notes; each item says which via 'kind'. The day-notes item, when the user has "
+        + "written any, is always the FIRST item of the first page and carries the nil ID; actions follow, name-ascending, with any that have never "
+        + "been logged omitted. The page size is the user's 'items per page' preference; an out-of-range page is rejected with a 400 (never silently "
+        + "clamped).")
     @SecurityRequirement(name = "BearerAuth")
     @APIResponses({
         @APIResponse(responseCode = "200", description = "The requested page of per-action statistics.",
@@ -99,7 +101,7 @@ public class StatsApiResource {
         description = "The 1-based page to return (default 1); out-of-range values are rejected.")
         @QueryParam("page") @DefaultValue("1") final int pageNum) {
         final User user = currentUser.get();
-        final StatsInternalResource.PaginatedStats page = StatsInternalResource.paginate(statsService.forAllActiveActions(user.id), pageNum,
+        final StatsInternalResource.PaginatedStats page = StatsInternalResource.paginate(statsService.forAllSubjects(user.id), pageNum,
             user.pageSize);
         // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range) so a
         // page number is never silently changed to some other page.
@@ -114,37 +116,39 @@ public class StatsApiResource {
     /**
      * Returns one to three actions' logged frequency over a single calendar window — the figures behind the Stats page's per-action graph.
      *
-     * @param actionId the action to chart
+     * @param subjectId the subject to chart
      * @param compareIds the further actions to chart alongside it
      * @param period the window's period ({@code month}/{@code year})
      * @param at the window key ({@code yyyy-MM}/{@code yyyy})
      * @return the assembled frequency chart
      */
     @GET
-    @Path("/{actionId}/frequency")
+    @Path("/{subjectId}/frequency")
     @Operation(
-        summary = "Get an action's logged frequency over a window",
-        description = "Returns one action's logged frequency over a single calendar window as an ordered series of slots: a month window yields one "
-        + "slot per day, a year window one slot per month. Every slot of the window is returned, including the ones with nothing logged, so the "
-        + "series is evenly spaced. Up to two further actions can be charted alongside it with 'compare', in which case every slot carries one bar "
-        + "per action and all of them are scaled against a single peak, so the figures are directly comparable. An unrecognised period, a malformed "
-        + "window key, a repeated action, more actions than may be charted together, or a comparison action that has never been logged is rejected "
-        + "with a 400 (never silently corrected).")
+        summary = "Get a subject's frequency over a window",
+        description = "Returns one subject's frequency over a single calendar window as an ordered series of slots: a month window yields one "
+        + "slot per day, a year window one slot per month. Every slot of the window is returned, including the ones with nothing recorded, so the "
+        + "series is evenly spaced. A subject is either one of the user's actions or their day notes, which are charted by passing the nil ID "
+        + "'00000000-0000-0000-0000-000000000000' (one note counts as one occurrence on its day). Up to two further subjects can be charted "
+        + "alongside the first with 'compare', in which case every slot carries one bar per subject and all of them are scaled against a single "
+        + "peak, so the figures are directly comparable. An unrecognised period, a malformed window key, a repeated subject, more subjects than may "
+        + "be charted together, or a comparison subject with no entries at all is rejected with a 400 (never silently corrected).")
     @SecurityRequirement(name = "BearerAuth")
     @APIResponses({
-        @APIResponse(responseCode = "200", description = "The actions' frequency over the requested window.",
+        @APIResponse(responseCode = "200", description = "The subjects' frequency over the requested window.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = FrequencyChartDto.class))),
-        @APIResponse(responseCode = "400", description = "The period, the window key or the set of actions to chart is not valid.",
+        @APIResponse(responseCode = "400", description = "The period, the window key or the set of subjects to chart is not valid.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
         @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
         @APIResponse(responseCode = "404", description = "One of the requested IDs does not belong to the authenticated user.")
     })
     public Response frequency(
-        @Parameter(name = "actionId", in = ParameterIn.PATH, description = "The ID of the action to chart.")
-        @PathParam("actionId") final UUID actionId,
+        @Parameter(name = "subjectId", in = ParameterIn.PATH,
+        description = "The ID of the subject to chart: an action's ID, or the nil ID for the user's day notes.")
+        @PathParam("subjectId") final UUID subjectId,
         @Parameter(name = "compare", in = ParameterIn.QUERY,
-        description = "The ID of a further action to chart alongside the first; repeatable. At most two, each of which must have been logged at "
-        + "least once and must not repeat an action already being charted.")
+        description = "The ID of a further subject to chart alongside the first; repeatable. At most two, each of which must have at least one "
+        + "entry and must not repeat a subject already being charted.")
         @QueryParam("compare") final List<UUID> compareIds,
         @Parameter(name = "period", in = ParameterIn.QUERY,
         description = "The window to chart: 'month' (one bar per day) or 'year' (one bar per month). Defaults to 'month'.")
@@ -153,14 +157,14 @@ public class StatsApiResource {
         description = "The window to chart, as 'yyyy-MM' for a month or 'yyyy' for a year. Defaults to the window containing today.")
         @QueryParam("at") final @Nullable String at) {
         final User user = currentUser.get();
-        return switch (statsService.frequency(user.id, actionId, compareIds, period, at)) {
+        return switch (statsService.frequency(user.id, subjectId, compareIds, period, at)) {
             case FrequencyResult.Charted(final FrequencyChart chart) -> Response.ok(FrequencyChartDto.from(chart)).build();
             case FrequencyResult.UnknownPeriod(final String submitted) -> badRequest("Unknown period '" + submitted + "'");
             case FrequencyResult.UnknownWindow(final String submitted) ->
                 badRequest("Window '" + submitted + "' is not valid for the requested period");
-            case FrequencyResult.TooManyActions(final int submitted, final int maximum) ->
+            case FrequencyResult.TooManySubjects(final int submitted, final int maximum) ->
                 badRequest("Cannot chart " + submitted + " actions together; the maximum is " + maximum);
-            case FrequencyResult.DuplicateAction(final UUID duplicate) -> badRequest("Action " + duplicate + " is charted more than once");
+            case FrequencyResult.DuplicateSubject(final UUID duplicate) -> badRequest("Action " + duplicate + " is charted more than once");
             case FrequencyResult.NotLogged(final UUID unlogged) ->
                 badRequest("Action " + unlogged + " has never been logged, so it cannot be compared against");
             case final FrequencyResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
@@ -176,7 +180,7 @@ public class StatsApiResource {
     /**
      * Computed statistics for a single action, as exposed by the public API.
      *
-     * @param actionId       the action's id
+     * @param subjectId      the subject's ID
      * @param name           the action's name
      * @param colour         the action's display colour
      * @param totalDays      the number of distinct days the action was logged
@@ -190,25 +194,29 @@ public class StatsApiResource {
      * @param thisMonthCount the total count this calendar month
      * @param lastMonthCount the total count last calendar month
      * @param thisYearCount  the total count this calendar year
+     * @param kind           what the statistics are about ({@code action} or {@code notes})
      * @param lastYearCount  the total count last calendar year
      * @param bestMonthLabel the label of the highest-count month (e.g. {@code 2026-06})
      * @param bestMonthCount the highest single-month count
      * @param bestYearLabel  the label of the highest-count year (e.g. {@code 2026})
      * @param bestYearCount  the highest single-year count
      */
-    @Schema(description = "Computed statistics for a single action.")
-    public record ActionStatsDto(
-        @Schema(description = "The action's ID.") UUID actionId,
-        @Schema(examples = "Morning run", description = "The action's name.") String name,
-        @Schema(examples = "#6366f1", description = "The action's display colour as a CSS hex value.") String colour,
-        @Schema(examples = "42", description = "The number of distinct days the action was logged.") int totalDays,
-        @Schema(examples = "57", description = "The sum of every day's count.") long totalCount,
-        @Schema(examples = "2026-01-03", description = "The first logged day.") @Nullable LocalDate firstPerformed,
-        @Schema(examples = "2026-06-15", description = "The most recent logged day.") @Nullable LocalDate lastPerformed,
-        @Schema(examples = "5", description = "The current run of consecutive logged days.") int currentStreak,
-        @Schema(examples = "14", description = "The longest run of consecutive logged days.") int longestStreak,
-        @Schema(examples = "3", description = "The number of days since the action was last logged (0 if logged today or never).") int currentGap,
-        @Schema(examples = "9", description = "The longest run of consecutive unlogged days between two logged days.") int longestGap,
+    @Schema(description = "Computed statistics for a single subject: one of the user's actions, or their day notes.")
+    public record SubjectStatsDto(
+        @Schema(examples = "action", enumeration = {"action", "notes"},
+        description = "What the statistics are about: an action, or the user's day notes.") String kind,
+        @Schema(description = "The subject's ID. An action's own ID, or the nil ID for the day-notes subject.") UUID subjectId,
+        @Schema(examples = "Morning run", description = "The subject's name.") String name,
+        @Schema(examples = "#6366f1", description = "The subject's display colour as a CSS hex value.") String colour,
+        @Schema(examples = "42", description = "The number of distinct days the subject has an entry on.") int totalDays,
+        @Schema(examples = "57", description = "The sum of every day's count. For notes this equals totalDays, since a note counts once.")
+        long totalCount,
+        @Schema(examples = "2026-01-03", description = "The first day with an entry.") @Nullable LocalDate firstPerformed,
+        @Schema(examples = "2026-06-15", description = "The most recent day with an entry.") @Nullable LocalDate lastPerformed,
+        @Schema(examples = "5", description = "The current run of consecutive days with an entry.") int currentStreak,
+        @Schema(examples = "14", description = "The longest run of consecutive days with an entry.") int longestStreak,
+        @Schema(examples = "3", description = "The number of days since the last entry (0 if there is one today, or none ever).") int currentGap,
+        @Schema(examples = "9", description = "The longest run of consecutive empty days between two entries.") int longestGap,
         @Schema(examples = "12", description = "The total count this calendar month.") long thisMonthCount,
         @Schema(examples = "18", description = "The total count last calendar month.") long lastMonthCount,
         @Schema(examples = "57", description = "The total count this calendar year.") long thisYearCount,
@@ -219,23 +227,24 @@ public class StatsApiResource {
         @Schema(examples = "203", description = "The highest single-year count.") long bestYearCount) {
 
         /**
-         * Maps a computed {@link ActionStats} to its API representation.
+         * Maps a computed {@link SubjectStats} to its API representation.
          *
          * @param stats the computed statistics
          * @return the DTO
          */
-        public static ActionStatsDto from(final ActionStats stats) {
-            return new ActionStatsDto(
-                stats.action().id,
-                stats.action().name,
-                stats.action().colour,
+        public static SubjectStatsDto from(final SubjectStats stats) {
+            return new SubjectStatsDto(
+                stats.subject().kind() == StatSubjectKind.NOTES ? "notes" : "action",
+                stats.subject().id(),
+                stats.subject().name(),
+                stats.subject().colour(),
                 stats.totalDays(),
                 stats.totalCount(),
                 stats.firstPerformed(),
                 stats.lastPerformed(),
                 Durations.days(stats.currentStreak()),
                 Durations.days(stats.longestStreak()),
-                ActionStatsExtensions.currentGap(stats),
+                SubjectStatsExtensions.currentGap(stats),
                 Durations.days(stats.longestGap()),
                 stats.thisMonthCount(),
                 stats.lastMonthCount(),
@@ -251,12 +260,12 @@ public class StatsApiResource {
     /**
      * One charted action's contribution to a single slot, as exposed by the public API.
      *
-     * @param actionId the charted action's ID
+     * @param subjectId the charted subject's ID
      * @param count the summed count that action logged in the slot
      */
     @Schema(description = "One charted action's contribution to a single slot.")
     public record FrequencyBarDto(
-        @Schema(description = "The charted action's ID.") UUID actionId,
+        @Schema(description = "The charted subject's ID.") UUID subjectId,
         @Schema(examples = "4", description = "The summed count that action logged in the slot.") long count) {
 
     }
@@ -279,14 +288,14 @@ public class StatsApiResource {
     /**
      * One charted action and its whole-window total, as exposed by the public API.
      *
-     * @param actionId the charted action's ID
+     * @param subjectId the charted subject's ID
      * @param name the charted action's name
      * @param colour the charted action's display colour
      * @param total the action's summed count across the whole window
      */
     @Schema(description = "One charted action and its whole-window total.")
     public record FrequencySeriesDto(
-        @Schema(description = "The charted action's ID.") UUID actionId,
+        @Schema(description = "The charted subject's ID.") UUID subjectId,
         @Schema(examples = "Morning run", description = "The charted action's name.") String name,
         @Schema(examples = "#6366f1", description = "The charted action's display colour as a CSS hex value.") String colour,
         @Schema(examples = "57", description = "The action's summed count across the whole window.") long total) {
@@ -322,14 +331,14 @@ public class StatsApiResource {
          */
         static FrequencyChartDto from(final FrequencyChart chart) {
             final List<UUID> actionIds = chart.series().stream()
-                .map(FrequencySeries::actionId)
+                .map(FrequencySeries::subjectId)
                 .toList();
             return new FrequencyChartDto(
                 chart.period().value(),
                 chart.periodKey(),
                 chart.periodLabel(),
                 chart.series().stream()
-                    .map(series -> new FrequencySeriesDto(series.actionId(), series.actionName(), series.actionColour(), series.total()))
+                    .map(series -> new FrequencySeriesDto(series.subjectId(), series.subjectName(), series.subjectColour(), series.total()))
                     .toList(),
                 chart.slots().stream().map(slot -> slotDto(slot, actionIds)).toList(),
                 chart.total(),
@@ -346,17 +355,17 @@ public class StatsApiResource {
     }
 
     /**
-     * One page of per-action statistics.
+     * One page of per-subject statistics.
      *
      * @param items       the page's statistics
-     * @param totalCount  the total number of active actions
+     * @param totalCount  the total number of subjects
      * @param totalPages  the page count
      * @param currentPage the returned 1-based page (always the requested page — an out-of-range page is rejected, not clamped)
      */
-    @Schema(description = "One page of per-action statistics.")
+    @Schema(description = "One page of per-subject statistics.")
     public record StatsPageDto(
-        @Schema(description = "The page's per-action statistics.") List<ActionStatsDto> items,
-        @Schema(examples = "12", description = "The total number of active actions across all pages.") int totalCount,
+        @Schema(description = "The page's per-subject statistics.") List<SubjectStatsDto> items,
+        @Schema(examples = "12", description = "The total number of subjects across all pages.") int totalCount,
         @Schema(examples = "3", description = "The total number of pages.") int totalPages,
         @Schema(examples = "1", description = "The returned 1-based page (always the requested page; out-of-range is rejected).") int currentPage) {
 
@@ -368,7 +377,7 @@ public class StatsApiResource {
          */
         static StatsPageDto from(final StatsInternalResource.PaginatedStats page) {
             return new StatsPageDto(
-                page.items().stream().map(ActionStatsDto::from).toList(),
+                page.items().stream().map(SubjectStatsDto::from).toList(),
                 page.totalCount(),
                 page.totalPages(),
                 page.currentPage());

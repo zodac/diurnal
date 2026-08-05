@@ -134,7 +134,7 @@ public class StatsInternalResource {
         }
 
         final User user = currentUser.get();
-        final Map<LocalDate, List<ActionStats>> byDate = statsService.forMonth(user.id, yearMonth, StatsSummary.ACTION_LIMIT);
+        final Map<LocalDate, List<SubjectStats>> byDate = statsService.forMonth(user.id, yearMonth, StatsSummary.ACTION_LIMIT);
 
         final Map<String, String> cards = new LinkedHashMap<>();
         final LocalDate end = yearMonth.atEndOfMonth();
@@ -153,27 +153,27 @@ public class StatsInternalResource {
      * Rendering server-side (rather than shipping the figures as JSON and drawing them in the browser) keeps the bars, their captions and their hover
      * values on the same code path as every other rendered figure, so the modal needs no client-side charting at all - only the fetch and the swap.
      *
-     * @param actionId the action to chart
+     * @param subjectId the subject to chart
      * @param period the window's period ({@code month}/{@code year}); defaults to {@link FrequencyPeriod#DEFAULT}
      * @param at the window key ({@code yyyy-MM}/{@code yyyy}); defaults to the window containing today
      * @return {@code 200} with the rendered chart, {@code 400} for an unrecognised period or malformed window, or {@code 404} when the action is not
      *     the user's
      */
     @GET
-    @Path("/chart/{actionId}")
+    @Path("/chart/{subjectId}")
     @Produces(MediaType.TEXT_HTML)
-    public Response chart(@PathParam("actionId") final UUID actionId, @QueryParam("compare") final List<UUID> compareIds,
+    public Response chart(@PathParam("subjectId") final UUID subjectId, @QueryParam("compare") final List<UUID> compareIds,
         @QueryParam("period") final @Nullable String period, @QueryParam("at") final @Nullable String at) {
         final User user = currentUser.get();
-        return switch (statsService.frequency(user.id, actionId, compareIds, period, at)) {
+        return switch (statsService.frequency(user.id, subjectId, compareIds, period, at)) {
             case FrequencyResult.Charted(final FrequencyChart chart) -> Response.ok(statsChartTemplate
                 .data("chart", chart)
                 .data("decimalPlaces", user.decimalPlaces)
                 .data("candidates", statsService.compareCandidates(user.id, chartedIds(chart), null))).build();
             case final FrequencyResult.UnknownPeriod ignored -> Response.status(Response.Status.BAD_REQUEST).build();
             case final FrequencyResult.UnknownWindow ignored -> Response.status(Response.Status.BAD_REQUEST).build();
-            case final FrequencyResult.TooManyActions ignored -> Response.status(Response.Status.BAD_REQUEST).build();
-            case final FrequencyResult.DuplicateAction ignored -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final FrequencyResult.TooManySubjects ignored -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final FrequencyResult.DuplicateSubject ignored -> Response.status(Response.Status.BAD_REQUEST).build();
             case final FrequencyResult.NotLogged ignored -> Response.status(Response.Status.BAD_REQUEST).build();
             case final FrequencyResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
         };
@@ -188,26 +188,26 @@ public class StatsInternalResource {
      * actions have been logged at least once - is already the exact set {@code GET /api/v1/stats} returns, and the comparison itself is available
      * through the {@code compare} parameter on {@code GET /api/v1/stats/{actionId}/frequency}.
      *
-     * @param actionId the action the graph was opened from
+     * @param subjectId the subject the graph was opened from
      * @param compareIds the actions already being compared, which are never offered again
      * @param query the case-insensitive name filter
      * @return the rendered candidate list
      */
     @GET
-    @Path("/chart/{actionId}/candidates")
+    @Path("/chart/{subjectId}/candidates")
     @Produces(MediaType.TEXT_HTML)
-    public TemplateInstance chartCandidates(@PathParam("actionId") final UUID actionId, @QueryParam("compare") final List<UUID> compareIds,
+    public TemplateInstance chartCandidates(@PathParam("subjectId") final UUID subjectId, @QueryParam("compare") final List<UUID> compareIds,
         @QueryParam("q") final @Nullable String query) {
         final User user = currentUser.get();
         final List<UUID> charted = new ArrayList<>();
-        charted.add(actionId);
+        charted.add(subjectId);
         charted.addAll(compareIds);
         return statsChartCandidatesTemplate.data("candidates", statsService.compareCandidates(user.id, charted, query));
     }
 
     private static List<UUID> chartedIds(final FrequencyChart chart) {
         return chart.series().stream()
-            .map(FrequencySeries::actionId)
+            .map(FrequencySeries::subjectId)
             .toList();
     }
 
@@ -224,26 +224,27 @@ public class StatsInternalResource {
         final User user = currentUser.get();
         return statsCardsTemplate
                 .data("decimalPlaces", user.decimalPlaces)
-                .data("statsFields", ActionStatField.displayFields(user.statsFields))
-                .data("page", paginate(statsService.forAllActiveActions(user.id), pageNum, user.pageSize));
+                .data("statsFields", StatField.displayFields(user.statsFields))
+                .data("page", paginate(statsService.forAllSubjects(user.id), pageNum, user.pageSize));
     }
 
     /**
-     * Pages a pre-computed list of per-action stats in memory. Shared with the full-page render ({@link StatsWebResource}). Only actions with at
-     * least one logged entry are in the list ({@code forAllActiveActions} filters them).
+     * Pages a pre-computed list of per-subject stats in memory. Shared with the full-page render ({@link StatsWebResource}). Only subjects with data
+     * are in the list ({@code forAllSubjects} filters them), and the notes subject is already pinned to the front of it — so it lands on page one
+     * rather than on whichever page it happened to fall.
      *
-     * @param all      every active action's stats, in display order
+     * @param all      every subject's stats, in display order
      * @param pageNum  the requested 1-based page (clamped into range)
      * @param pageSize the user's page size
      * @return the requested page of stats
      */
-    static PaginatedStats paginate(final List<ActionStats> all, final int pageNum, final int pageSize) {
+    static PaginatedStats paginate(final List<SubjectStats> all, final int pageNum, final int pageSize) {
         final int totalCount = all.size();
         final int totalPages = (totalCount + pageSize - 1) / pageSize;
         final int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
         final int skip = (actualPage - 1) * pageSize;
 
-        final List<ActionStats> items = all.stream()
+        final List<SubjectStats> items = all.stream()
             .skip(skip)
             .limit(pageSize)
             .toList();
@@ -259,7 +260,7 @@ public class StatsInternalResource {
      * @param totalPages  the page count
      * @param currentPage the rendered (clamped) 1-based page
      */
-    record PaginatedStats(List<ActionStats> items, int totalCount, int totalPages, int currentPage) {
+    record PaginatedStats(List<SubjectStats> items, int totalCount, int totalPages, int currentPage) {
 
     }
 }

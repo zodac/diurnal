@@ -36,6 +36,18 @@ class TextFieldTest {
     }
 
     @Test
+    void multiline_buildsMultilineFieldCarryingTheNewlineTolerantRules() {
+        final TextField field = TextField.multiline("Journal", 1, 5000);
+
+        // The rule swap is the whole point of the factory: a multi-line field must carry the newline-TOLERANT invisible-character rule, because the
+        // strict one rejects the line feed it exists to preserve. It keeps the stacked-marks rule unchanged.
+        final List<TextRule> expected = List.of(TextRules.NO_INVISIBLE_CHARACTERS_ALLOWING_NEWLINE, TextRules.NO_STACKED_MARKS);
+        assertThat(field)
+            .as("a multi-line field must keep the shared content policy, with only the newline exempted")
+            .isEqualTo(new TextField("Journal", 1, 5000, Normalisation.MULTILINE, expected));
+    }
+
+    @Test
     void secret_buildsVerbatimFieldWithoutRules() {
         final TextField field = TextField.secret("Passphrase", 1, 64);
 

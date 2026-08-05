@@ -78,4 +78,13 @@ public class TextFieldCatalogue {
     public TextField password() {
         return TextFields.PASSWORD;
     }
+
+    /**
+     * The day-note field.
+     *
+     * @return the field specification
+     */
+    public TextField note() {
+        return TextFields.NOTE;
+    }
 }

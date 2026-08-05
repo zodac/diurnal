@@ -33,6 +33,22 @@ window.Diurnal.requiredFilled = function (form) {
     })
 }
 
+// Guard every fetch against an expired session. A session that has gone shows up in TWO different shapes,
+// because the two namespaces challenge differently (see CLAUDE.md):
+//   • /api/v1/* answers 401 — no redirect, which is the right answer for a programmatic client;
+//   • /internal/* answers 302 to the login PAGE, and fetch FOLLOWS redirects, so the response arrives as
+//     the login HTML with status 200 and a url of /login.
+// The second shape is the damaging one: a JSON caller throws a parse error into its own retry path (leaving
+// the page sitting there, silently never loading), and an HTML caller swaps the entire login page into
+// whatever element it was filling. Run every response through this before touching its body.
+window.Diurnal.requireSession = function (resp) {
+    if (resp.status === 401 || (resp.redirected && new URL(resp.url).pathname === '/login')) {
+        window.location.assign('/login')
+        throw new Error('session expired')
+    }
+    return resp
+}
+
 // POST a form via fetch as a URL-encoded body — the shared submission core for every
 // fetch-submitted form (the login/register cards below, the settings password steps). fetch (not
 // htmx) keeps expected, handled 4xx outcomes off the console — htmx unsuppressably console.errors

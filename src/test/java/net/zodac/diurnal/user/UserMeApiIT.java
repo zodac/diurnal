@@ -30,7 +30,7 @@ import java.time.Instant;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.auth.Session;
 import net.zodac.diurnal.auth.SessionStore;
-import net.zodac.diurnal.stats.ActionStatField;
+import net.zodac.diurnal.stats.StatField;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -261,7 +261,7 @@ class UserMeApiIT extends IntegrationTestBase {
                 .contentType(ContentType.JSON)
                 .body("""
                         {"preferences":{"statsFields":[{"key":"current-streak","enabled":true,"label":"%s"}]}}
-                        """.formatted("a".repeat(ActionStatField.MAX_LABEL_LENGTH + 1)))
+                        """.formatted("a".repeat(StatField.MAX_LABEL_LENGTH + 1)))
                 .patch("/api/v1/users/me")
                 .then().statusCode(400)
                 .body("message", containsString("Stat name must be at most"));

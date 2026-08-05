@@ -1,17 +1,18 @@
 {!
-  The frequency chart's compare-picker list: the actions that can still be added to the graph. Rendered
+  The frequency chart's compare-picker list: the subjects (the day notes, and the actions) that can still be
+  added to the graph. Rendered
   in two places from this one partial — embedded unfiltered by partials/stats-chart.html on every chart
   render, and swapped in on its own by the search box (GET /internal/stats/chart/{ id}/candidates), so
   the filtered and unfiltered lists can never drift apart.
 
   Selecting a row is handled by stats.js off the data-chart-add hook (it re-fetches the chart with the
-  action appended), so these are buttons rather than links — nothing here navigates.
+  subject appended), so these are buttons rather than links — nothing here navigates.
 
   Params:
-    candidates — the offerable actions (required; may be empty)
+    candidates — the offerable StatSubjects (required; may be empty)
 !}
 {#if candidates.isEmpty()}
-<p class="empty-note">No other logged actions to compare.</p>
+<p class="empty-note">Nothing else to compare.</p>
 {#else}
 <ul class="chart-candidates">
     {#for candidate in candidates}

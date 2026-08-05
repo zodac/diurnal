@@ -299,6 +299,74 @@ class NaughtyStringsTest {
             .isEqualTo(new TextOutcome.Valid(value));
     }
 
+    // ── the multi-line field: the newline survives, nothing else is relaxed ───
+    // The note is the one field whose value is prose rather than a label, so it keeps its line breaks. Everything else about it is the shared policy,
+    // and these cases pin that the relaxation is exactly one code point wide.
+
+    @Test
+    void check_note_keepsTheShapeTheUserWrote() {
+        final String entry = "Ran 5k before work.\n\nFelt good - much easier than last week.";
+
+        assertThat(TextValidation.check(TextFields.NOTE, entry))
+            .as("a journal entry's paragraphs must survive, or every note would be flattened into one block")
+            .isEqualTo(new TextOutcome.Valid(entry));
+    }
+
+    @ParameterizedTest
+    @MethodSource("invisibleValues")
+    void check_note_rejectsEveryInvisibleCharacterTheOtherFieldsReject(final String invisible) {
+        // The same sweep the readable fields get. A multi-line field opts out of the newline half of the rule and NOTHING else, so a note must still
+        // be unable to carry a bidi override, a blank letter or a zalgo run.
+        assertThat(TextValidation.check(TextFields.NOTE, "First line\nru" + invisible + "n"))
+            .as("the multi-line exemption must not become a hole in the shared content policy")
+            .isInstanceOf(TextOutcome.RuleFailed.class);
+    }
+
+    @Test
+    void check_note_foldsTheCarriageReturnsBrowsersSubmit() {
+        // An HTML textarea submits CRLF per the specification, so this is the everyday path rather than an edge case.
+        assertThat(TextValidation.check(TextFields.NOTE, "First\r\nSecond"))
+            .as("CRLF must be stored as a bare newline, so what is read back is what was written")
+            .isEqualTo(new TextOutcome.Valid("First\nSecond"));
+    }
+
+    @Test
+    void check_note_condensesRunOfBlankLines() {
+        assertThat(TextValidation.check(TextFields.NOTE, "First\n\n\n\n\n\nSecond"))
+            .as("one blank line is a paragraph break; a run of them is padding")
+            .isEqualTo(new TextOutcome.Valid("First\n\nSecond"));
+    }
+
+    @Test
+    void check_note_ofOnlyNewlines_normalisesToEmpty() {
+        // Without the blank-line condensing, a "note" of five hundred newlines would pass the length check while rendering as nothing. The note is an
+        // OPTIONAL field, so the empty result is the accepted "this day has no note" reset rather than a rejection - the service deletes the row.
+        assertThat(TextValidation.check(TextFields.NOTE, "\n".repeat(500)))
+            .as("a value that is nothing but line breaks must normalise to empty, which the service reads as 'no note'")
+            .isEqualTo(new TextOutcome.Valid(""));
+    }
+
+    @Test
+    void check_note_countsItsNewlinesTowardTheBound() {
+        // A newline is a stored character like any other, so it must be measured. Two lines of half the bound plus the newline between them is one
+        // code point over.
+        final int half = TextFields.NOTE_MAX_LENGTH / 2;
+        final String twoLines = "a".repeat(half) + '\n' + "b".repeat(half);
+
+        assertThat(TextValidation.check(TextFields.NOTE, twoLines))
+            .as("the newline itself must count toward the length, or the column could overflow")
+            .isInstanceOf(TextOutcome.TooLong.class);
+    }
+
+    @Test
+    void check_note_acceptsRealTextAcrossSeveralLines() {
+        final String entry = "Café run " + EMOJI_FLEXED_BICEPS + "\nپیاده روی\n終わった";
+
+        assertThat(TextValidation.check(TextFields.NOTE, entry))
+            .as("emoji and every script must be as ordinary in a note as they are in a name")
+            .isEqualTo(new TextOutcome.Valid(entry));
+    }
+
     // ── the secret, which is exempt from all of it ────────────────────────────
 
     @ParameterizedTest

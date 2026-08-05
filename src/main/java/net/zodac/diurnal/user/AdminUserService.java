@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
+import net.zodac.diurnal.note.Note;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -100,7 +101,7 @@ public class AdminUserService {
     }
 
     /**
-     * Hard-deletes a user and all their actions/logs, refusing to delete the last administrator.
+     * Hard-deletes a user and all their actions, logs and notes, refusing to delete the last administrator.
      *
      * @param actorEmail the administrator performing the deletion, for the audit log
      * @param id         the target user's id
@@ -116,8 +117,10 @@ public class AdminUserService {
             return new AdminUserResult.LastAdmin();
         }
 
-        // Hard-delete in FK order: logs → actions → user. Each step is a single bulk statement (all the
-        // account's logs key on its userId), so a big account does not fan out into a per-action delete.
+        // Hard-delete in FK order: notes → logs → actions → user. Each step is a single bulk statement
+        // (all the account's rows key on its userId), so a big account does not fan out into a per-action
+        // delete. Notes reference only the user, so they can go first with the logs.
+        Note.deleteByUser(target.id);
         ActionLog.deleteByUser(target.id);
         Action.delete("userId", target.id);
         target.delete();

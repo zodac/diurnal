@@ -23,7 +23,7 @@ import org.jspecify.annotations.Nullable;
 /**
  * One entry in a user's persisted "Action stats" arrangement: a stat field's stable key paired with whether it is enabled (shown on the Stats page)
  * and the user's optional rename of it. The arrangement is stored as a JSON array of these on {@code users.stats_fields} ({@code jsonb}), in the
- * user's chosen order — so a field keeps its position whether shown or hidden. Keys are resolved against the {@code ActionStatField} catalogue on
+ * user's chosen order — so a field keeps its position whether shown or hidden. Keys are resolved against the {@code StatField} catalogue on
  * read; unknown keys are ignored, so removing a stat from the catalogue never breaks deserialisation.
  *
  * <p>
@@ -31,7 +31,7 @@ import org.jspecify.annotations.Nullable;
  * (the missing JSON property reads as {@code null}) — so the column needed no migration, and a stat only ever pins its caption once the user has
  * deliberately renamed it.
  *
- * @param key the {@code ActionStatField} key
+ * @param key the {@code StatField} key
  * @param enabled whether the stat is shown on the Stats page
  * @param label the user's custom name for the stat, or {@code null} to use the catalogue label
  */

@@ -317,7 +317,8 @@ class TextValidationTest {
             TextFields.DISPLAY_NAME,
             TextFields.STAT_NAME,
             TextFields.EMAIL,
-            TextFields.PASSWORD);
+            TextFields.PASSWORD,
+            TextFields.NOTE);
 
         assertThat(TextFields.all())
             .as("a field missing from the catalogue escapes every test that sweeps it")
@@ -334,11 +335,20 @@ class TextValidationTest {
 
     @ParameterizedTest
     @MethodSource("catalogue")
-    void catalogue_onlyThePasswordIsVerbatim(final TextField field) {
-        final Normalisation expected = field.equals(TextFields.PASSWORD) ? Normalisation.VERBATIM : Normalisation.CLEANED;
+    void catalogue_eachFieldCarriesItsExpectedNormalisation(final TextField field) {
+        // Exactly one field may skip normalisation (the secret) and exactly one may keep its newlines (the note); everything else is a label, and a
+        // label that grew a line break has been pasted by accident.
+        final Normalisation expected;
+        if (field.equals(TextFields.PASSWORD)) {
+            expected = Normalisation.VERBATIM;
+        } else if (field.equals(TextFields.NOTE)) {
+            expected = Normalisation.MULTILINE;
+        } else {
+            expected = Normalisation.CLEANED;
+        }
 
         assertThat(field.normalisation())
-            .as("only a secret may skip normalisation")
+            .as("only a secret may skip normalisation, and only a prose field may keep its newlines")
             .isEqualTo(expected);
     }
 }

@@ -27,6 +27,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
+import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.user.Role;
 import org.junit.jupiter.api.Test;
 
@@ -243,7 +244,7 @@ class SurfaceParityIT extends IntegrationTestBase {
             .as("the API stores the very same name for the very same input")
             .contains(new net.zodac.diurnal.user.StatFieldPref("current-streak", true, "Days in row")));
 
-        final String tooLong = "a".repeat(net.zodac.diurnal.stats.ActionStatField.MAX_LABEL_LENGTH + 1);
+        final String tooLong = "a".repeat(net.zodac.diurnal.stats.StatField.MAX_LABEL_LENGTH + 1);
         given().contentType(ContentType.JSON)
                 .body("""
                         {"preferences":{"statsFields":[{"key":"current-streak","enabled":true,"label":"%s"}]}}
@@ -260,6 +261,121 @@ class SurfaceParityIT extends IntegrationTestBase {
         runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().statsFields)
             .as("an over-long name must be rejected by BOTH surfaces, keeping the previous rename")
             .contains(new net.zodac.diurnal.user.StatFieldPref("current-streak", true, "Days in row")));
+    }
+
+    // ── notes ─────────────────────────────────────────────────────────────────
+
+    @Test
+    void overlongNote_rejectedOnBothSurfaces_nothingPersisted() {
+        final String tooLong = "x".repeat(net.zodac.diurnal.text.TextFields.NOTE_MAX_LENGTH + 1);
+
+        given().contentType(ContentType.JSON)
+                .body("{\"content\":\"" + tooLong + "\"}")
+                .put("/api/v1/notes/" + TODAY)
+                .then().statusCode(400);
+
+        given().contentType(ContentType.JSON)
+                .body("{\"content\":\"" + tooLong + "\"}")
+                .post("/internal/notes/" + TODAY)
+                .then().statusCode(422); // the web surface answers 422 where the API answers 400
+
+        runInTx(() -> assertThat(Note.findEntry(primaryId, TODAY))
+            .as("an over-long note must be rejected by BOTH surfaces without persisting")
+            .isNull());
+    }
+
+    @Test
+    void invisibleCharacterInNote_rejectedOnBothSurfaces_nothingPersisted() {
+        given().contentType(ContentType.JSON)
+                .body("{\"content\":\"Ran 5k\\u200bbefore work\"}")
+                .put("/api/v1/notes/" + TODAY)
+                .then().statusCode(400);
+
+        given().contentType(ContentType.JSON)
+                .body("{\"content\":\"Ran 5k\\u200bbefore work\"}")
+                .post("/internal/notes/" + TODAY)
+                .then().statusCode(422);
+
+        runInTx(() -> assertThat(Note.findEntry(primaryId, TODAY))
+            .as("the shared content policy must reject a note on BOTH surfaces without persisting")
+            .isNull());
+    }
+
+    @Test
+    void multiLineNote_storedIdenticallyByBothSurfaces() {
+        // The normalisation pass is the interesting part: both surfaces must condense the same blank-line run and keep the same paragraph break.
+        final String expected = "First\n\nSecond";
+
+        given().contentType(ContentType.JSON)
+                .body("{\"content\":\"First\\r\\n\\r\\n\\r\\n\\r\\nSecond\"}")
+                .put("/api/v1/notes/" + TODAY)
+                .then().statusCode(200);
+        runInTx(() -> assertThat(Note.findEntry(primaryId, TODAY))
+            .as("the API must store the normalised multi-line form")
+            .isNotNull()
+            .extracting(note -> note.content)
+            .isEqualTo(expected));
+
+        given().contentType(ContentType.JSON)
+                .body("{\"content\":\"First\\r\\n\\r\\n\\r\\n\\r\\nSecond\"}")
+                .post("/internal/notes/" + TOMORROW)
+                .then().statusCode(200);
+        runInTx(() -> assertThat(Note.findEntry(primaryId, TOMORROW))
+            .as("the web surface must store byte-identically to the API")
+            .isNotNull()
+            .extracting(note -> note.content)
+            .isEqualTo(expected));
+    }
+
+    @Test
+    void futureDatedNote_acceptedOnBothSurfaces() {
+        // The deliberate asymmetry with logging: an action cannot be logged against tomorrow (futureDateWrite_rejectedOnBothSurfaces_noEntryCreated
+        // pins that), but a note CAN be written against it. Both surfaces must agree, or the API and the dashboard would disagree about a future day.
+        final LocalDate farFuture = TODAY.plusMonths(2);
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"content":"Booked the day off"}
+                        """)
+                .put("/api/v1/notes/" + farFuture)
+                .then().statusCode(200);
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"content":"Booked the day off"}
+                        """)
+                .post("/internal/notes/" + TOMORROW)
+                .then().statusCode(200);
+
+        runInTx(() -> assertThat(Note.count("userId = ?1 and (noteDate = ?2 or noteDate = ?3)", primaryId, farFuture, TOMORROW))
+            .as("a future-dated note must be accepted by BOTH surfaces")
+            .isEqualTo(2));
+    }
+
+    @Test
+    void blankNote_clearsOnBothSurfaces() {
+        runInTx(() -> {
+            newNote(primaryId, TODAY, "To be cleared by the API");
+            newNote(primaryId, TOMORROW, "To be cleared by the web form");
+        });
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"content":"   "}
+                        """)
+                .put("/api/v1/notes/" + TODAY)
+                .then().statusCode(200);
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"content":"   "}
+                        """)
+                .post("/internal/notes/" + TOMORROW)
+                .then().statusCode(200);
+
+        runInTx(() -> assertThat(Note.count("userId = ?1", primaryId))
+            .as("a blank note must remove the row on BOTH surfaces, rather than storing an empty one")
+            .isZero());
     }
 
     @Test

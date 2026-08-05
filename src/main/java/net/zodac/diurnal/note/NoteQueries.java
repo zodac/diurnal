@@ -1,0 +1,91 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+package net.zodac.diurnal.note;
+
+/**
+ * The hand-written SQL and JPQL queries backing {@link Note}'s static finder and mutation methods, held here as named constants to keep the entity
+ * itself readable — the {@code ActionLogQueries} pattern. Each query binds its parameters by name ({@code :name} placeholders), and
+ * {@code NoteQueriesTest} pins every constant's parameter surface (via {@code SqlParameters}) to the exact set the corresponding {@link Note} method
+ * binds, so a mistyped or orphaned placeholder fails at unit speed rather than only surfacing when the query is first executed against the database.
+ */
+final class NoteQueries {
+
+    /**
+     * JPQL producing a cheap change-signature for a user's notes within the inclusive {@code [:from, :to]} date range: the row {@code COUNT} paired
+     * with the latest {@code updated_at}, projected into a typed {@link net.zodac.diurnal.http.ChangeSignature} (never a positional
+     * {@code Object[]}). The pair changes on any insert, update or delete in the range — a delete lowers the count even when it does not move the
+     * maximum — so it is a sound weak-ETag validator for the calendar's notes feed that never has to read the notes themselves.
+     */
+    static final String RANGE_VERSION_JPQL = """
+            SELECT new net.zodac.diurnal.http.ChangeSignature(COUNT(n), MAX(n.updatedAt))
+            FROM Note n
+            WHERE n.userId = :userId AND n.noteDate >= :from AND n.noteDate <= :to""";
+
+    /**
+     * JPQL rolling the user's notes up into one {@link net.zodac.diurnal.log.MonthlyActionTotal} per calendar month - the same projection the Stats
+     * page already consumes for an action, so the notes subject flows through the identical assembly with no parallel code path. The subject id is
+     * bound as a parameter ({@code StatSubject.NOTES_ID}) rather than selected from a column, because notes have no per-subject row.
+     *
+     * <p>
+     * The total is a plain {@code COUNT}: one note per day is one occurrence, which is what makes a notes subject's total count equal its total days.
+     */
+    static final String MONTHLY_TOTALS_JPQL = """
+            SELECT new net.zodac.diurnal.log.MonthlyActionTotal(:subjectId, YEAR(n.noteDate), MONTH(n.noteDate), COUNT(n))
+            FROM Note n
+            WHERE n.userId = :userId
+            GROUP BY YEAR(n.noteDate), MONTH(n.noteDate)""";
+
+    /**
+     * JPQL selecting every date the user has written a note on, ascending - the minimal data needed to compute the streak and gap figures. A note's
+     * date is unique per user, so the dates are already distinct.
+     */
+    static final String NOTE_DATES_JPQL = """
+            SELECT n.noteDate
+            FROM Note n
+            WHERE n.userId = :userId
+            ORDER BY n.noteDate""";
+
+    /**
+     * JPQL counting the user's notes per day within the inclusive {@code [:from, :to]} window, as a {@link net.zodac.diurnal.log.DailyActionTotal} -
+     * the daily rollup behind the frequency graph's month window. At most one note exists per day, so each total is {@code 1}; it is written as an
+     * aggregate so the projection stays a plain {@code long} regardless.
+     */
+    static final String DAILY_TOTALS_JPQL = """
+            SELECT new net.zodac.diurnal.log.DailyActionTotal(:subjectId, n.noteDate, COUNT(n))
+            FROM Note n
+            WHERE n.userId = :userId AND n.noteDate >= :from AND n.noteDate <= :to
+            GROUP BY n.noteDate
+            ORDER BY n.noteDate""";
+
+    /**
+     * Native upsert writing a day's note in one statement: it inserts a new row or, on the {@code notes_unique} conflict, overwrites the existing
+     * content. Doing the whole read-modify-write in one statement means two concurrent saves of the same day cannot race a find-then-insert into a
+     * unique-constraint violation (a 500) — the loser simply overwrites, which is the correct last-write-wins semantic for a single owner editing
+     * their own note from two tabs. {@code created_at} is deliberately left untouched on the update arm, so it keeps recording when the note was
+     * first written.
+     */
+    static final String UPSERT_SQL = """
+            INSERT INTO notes (id, user_id, note_date, content, created_at, updated_at)
+            VALUES (:id, :userId, :date, :content, :now, :now)
+            ON CONFLICT ON CONSTRAINT notes_unique
+            DO UPDATE SET content = EXCLUDED.content, updated_at = :now""";
+
+    private NoteQueries() {
+
+    }
+}

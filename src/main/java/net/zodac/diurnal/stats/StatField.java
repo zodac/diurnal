@@ -53,10 +53,10 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * <strong>Adding a new stat:</strong> any newly-computed statistic that should be user-visible on the Stats page MUST be registered here as a new
- * constant AND given a tile mapping in {@link ActionStatsExtensions#tiles(ActionStats, List, int)} — otherwise it will never appear in the picker or
- * on the page.
+ * constant AND given a tile mapping in {@link SubjectStatsExtensions#tiles(SubjectStats, List, int)} — otherwise it will never appear in the
+ * picker or on the page.
  */
-public enum ActionStatField {
+public enum StatField {
 
     /**
      * Date the action was last performed. Always shown (mandatory).
@@ -174,7 +174,7 @@ public enum ActionStatField {
     private final boolean mandatory;
     private final String description;
 
-    ActionStatField(final String key, final String label, final boolean mandatory, final String description) {
+    StatField(final String key, final String label, final boolean mandatory, final String description) {
         this.key = key;
         this.label = label;
         this.mandatory = mandatory;
@@ -223,7 +223,7 @@ public enum ActionStatField {
      * @param key the key to look up (can be {@code null})
      * @return the matching field, or empty if none matches
      */
-    public static Optional<ActionStatField> fromKey(@Nullable final String key) {
+    public static Optional<StatField> fromKey(@Nullable final String key) {
         if (key == null) {
             return Optional.empty();
         }
@@ -262,7 +262,7 @@ public enum ActionStatField {
         return byKey;
     }
 
-    private record Entry(ActionStatField field, boolean enabled, @Nullable String customLabel) {
+    private record Entry(StatField field, boolean enabled, @Nullable String customLabel) {
 
     }
 
@@ -271,7 +271,7 @@ public enum ActionStatField {
     // stat's wording against any future re-labelling. Applied on write and on read, so both surfaces agree.
     // The name arrives already normalised (ProfileService on write, a previously normalised row on read), so this
     // only applies the rule - it never cleans the value a second time.
-    private static @Nullable String customLabelFor(final ActionStatField field, @Nullable final String name) {
+    private static @Nullable String customLabelFor(final StatField field, @Nullable final String name) {
         return name == null || name.isBlank() || field.label.equals(name) ? null : name;
     }
 
@@ -283,16 +283,16 @@ public enum ActionStatField {
 
     private static List<Entry> parse(@Nullable final List<StatFieldPref> stored) {
         final List<Entry> entries = new ArrayList<>();
-        final Set<ActionStatField> seen = EnumSet.noneOf(ActionStatField.class);
+        final Set<StatField> seen = EnumSet.noneOf(StatField.class);
         if (stored != null) {
             for (final StatFieldPref pref : stored) {
-                final Optional<ActionStatField> field = fromKey(pref.key());
+                final Optional<StatField> field = fromKey(pref.key());
                 if (field.isPresent() && seen.add(field.get())) {
                     entries.add(new Entry(field.get(), pref.enabled() || field.get().mandatory, customLabelFor(field.get(), pref.label())));
                 }
             }
         }
-        for (final ActionStatField field : values()) {
+        for (final StatField field : values()) {
             if (seen.add(field)) {
                 entries.add(new Entry(field, true, null));
             }
@@ -363,15 +363,15 @@ public enum ActionStatField {
     public static List<StatFieldPref> encode(final List<String> order, final Collection<String> enabledKeys, final Map<String, String> labels) {
         final Set<String> enabled = enabledKeys.stream().map(String::strip).collect(Collectors.toSet());
         final List<StatFieldPref> prefs = new ArrayList<>();
-        final Set<ActionStatField> seen = EnumSet.noneOf(ActionStatField.class);
+        final Set<StatField> seen = EnumSet.noneOf(StatField.class);
         for (final String rawKey : order) {
-            final Optional<ActionStatField> field = fromKey(rawKey);
+            final Optional<StatField> field = fromKey(rawKey);
             if (field.isPresent() && seen.add(field.get())) {
                 final String key = field.get().key();
                 prefs.add(new StatFieldPref(key, enabled.contains(key) || field.get().mandatory, customLabelFor(field.get(), labels.get(key))));
             }
         }
-        for (final ActionStatField field : values()) {
+        for (final StatField field : values()) {
             if (seen.add(field)) {
                 prefs.add(new StatFieldPref(field.key(), true, null));
             }

@@ -27,7 +27,7 @@ import net.zodac.diurnal.user.User;
  *
  * <p>
  * A pure data carrier: its derived display label lives in {@link UserRowExtensions} (a Qute template extension), keeping behaviour off the record —
- * the same data/logic split used by {@code ActionStats} / {@code ActionStatsExtensions}.
+ * the same data/logic split used by {@code SubjectStats} / {@code SubjectStatsExtensions}.
  *
  * @param id the user's id
  * @param email the user's email

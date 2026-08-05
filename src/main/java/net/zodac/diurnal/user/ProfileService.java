@@ -21,7 +21,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import net.zodac.diurnal.stats.ActionStatField;
+import net.zodac.diurnal.stats.StatField;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
@@ -39,7 +39,7 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * Every submitted value is validated and an unrecognised one is <em>rejected</em> (never silently coerced) so the client keeps the previous value;
  * the one deliberate special case is a blank timezone, the explicit "follow the server default" reset. Every rule delegates to the single validators
- * on {@link UserSettings}, the picker enums and {@link ActionStatField}. Free-text values (the display name) go through the shared
+ * on {@link UserSettings}, the picker enums and {@link StatField}. Free-text values (the display name) go through the shared
  * {@link TextValidation} pipeline, so they obey the same blank/length/content rules as every other text input in the app.
  *
  * <p>
@@ -177,11 +177,11 @@ public class ProfileService {
     /**
      * Updates which per-action stats show on the Stats page, in what order, and under what name: {@code order} is EVERY field key in the arranged
      * order, {@code enabled} the shown subset, and {@code labels} the custom name of each renamed stat (a key with no entry, or a blank name, keeps
-     * the built-in one). Encoded by {@link ActionStatField#encode(List, java.util.Collection, Map)} (disabled fields kept in place, the mandatory
+     * the built-in one). Encoded by {@link StatField#encode(List, java.util.Collection, Map)} (disabled fields kept in place, the mandatory
      * field forced enabled), so unknown keys are dropped identically on every surface. A display-only preference.
      *
      * <p>
-     * A name that breaks any rule of the shared text pipeline - longer than {@link ActionStatField#MAX_LABEL_LENGTH} characters, or holding an
+     * A name that breaks any rule of the shared text pipeline - longer than {@link StatField#MAX_LABEL_LENGTH} characters, or holding an
      * invisible or text-direction character - is rejected rather than truncated or cleaned, on BOTH surfaces, so a stat is never captioned with
      * something other than what was typed.
      *
@@ -209,7 +209,7 @@ public class ProfileService {
         // Logs WHICH stats were renamed, never the names themselves: a name is free text that may hold
         // non-ASCII the container console cannot render (see CLAUDE.md), and the keys identify the change.
         final String logValue = "order=" + order + " enabled=" + enabled + " renamed=" + names.keySet();
-        return applySetting(user, "Action stats", logValue, () -> user.statsFields = ActionStatField.encode(order, enabled, names));
+        return applySetting(user, "Action stats", logValue, () -> user.statsFields = StatField.encode(order, enabled, names));
     }
 
     private static String allowedValues(final PreviewOption[] options) {

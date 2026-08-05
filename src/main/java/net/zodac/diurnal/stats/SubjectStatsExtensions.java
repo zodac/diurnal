@@ -27,17 +27,17 @@ import net.zodac.diurnal.time.DaySpan;
 import net.zodac.diurnal.time.Durations;
 
 /**
- * Derived labels, trends and predicates computed from an {@link ActionStats} record.
+ * Derived labels, trends and predicates computed from an {@link SubjectStats} record.
  *
  * <p>
- * This behaviour is deliberately held here rather than on the {@code ActionStats} record so that PITest can mutation-test it. PITest hot-swaps each
+ * This behaviour is deliberately held here rather than on the {@code SubjectStats} record so that PITest can mutation-test it. PITest hot-swaps each
  * mutant into the running minion JVM via {@code Instrumentation.redefineClasses}, which the JVM refuses for a class carrying a {@code Record}
  * attribute — every record mutant failed with "class redefinition failed: attempted to change the Record attribute" (the "Minion exited abnormally
  * due to RUN_ERROR" lint warnings), leaving the logic untested. As methods on this plain class the same logic redefines cleanly and is fully mutated.
  * The template-facing methods are {@link TemplateExtension}s, so Qute still resolves {@code {s.monthTrend}}, {@code {s.latestLabel}} etc.
- * against an {@code ActionStats} value.
+ * against an {@code SubjectStats} value.
  */
-public final class ActionStatsExtensions {
+public final class SubjectStatsExtensions {
 
     // Dates render at FULL width (the month spelled out); the front-end shortens "June" -> "Jun" -> and the
     // year to two digits only when the rendered label does not fit its tile - see Diurnal.fitFigures in app.js.
@@ -47,7 +47,7 @@ public final class ActionStatsExtensions {
     private static final String TIME_UNIT = "time";
     private static final String RANGE_SEPARATOR = " – ";
 
-    private ActionStatsExtensions() {
+    private SubjectStatsExtensions() {
 
     }
 
@@ -59,7 +59,7 @@ public final class ActionStatsExtensions {
      * @param stats the statistics to inspect
      * @return {@code true} if the action has at least one logged day
      */
-    public static boolean hasData(final ActionStats stats) {
+    public static boolean hasData(final SubjectStats stats) {
         return stats.totalDays() > 0;
     }
 
@@ -69,7 +69,7 @@ public final class ActionStatsExtensions {
      * @param stats the statistics to inspect
      * @return {@code true} if the action was performed this month
      */
-    public static boolean performedThisMonth(final ActionStats stats) {
+    public static boolean performedThisMonth(final SubjectStats stats) {
         return stats.thisMonthCount() > 0;
     }
 
@@ -89,13 +89,13 @@ public final class ActionStatsExtensions {
      * @return the ordered tiles to render
      */
     @TemplateExtension
-    public static List<StatTile> tiles(final ActionStats stats, final List<DisplayStat> fields, final int decimalPlaces) {
+    public static List<StatTile> tiles(final SubjectStats stats, final List<DisplayStat> fields, final int decimalPlaces) {
         return fields.stream()
                 .map(displayed -> tile(stats, displayed, decimalPlaces))
                 .toList();
     }
 
-    private static StatTile tile(final ActionStats stats, final DisplayStat displayed, final int decimalPlaces) {
+    private static StatTile tile(final SubjectStats stats, final DisplayStat displayed, final int decimalPlaces) {
         final String label = displayed.label();
         return switch (displayed.field()) {
             case CURRENT_STREAK -> durationTile(label, stats.currentStreak(), true);
@@ -164,7 +164,7 @@ public final class ActionStatsExtensions {
      * @return the formatted last-performed date, or "Never"
      */
     @TemplateExtension
-    public static String lastLabel(final ActionStats stats) {
+    public static String lastLabel(final SubjectStats stats) {
         return stats.lastPerformed() == null ? "Never" : stats.lastPerformed().format(DATE_FMT);
     }
 
@@ -175,7 +175,7 @@ public final class ActionStatsExtensions {
      * @return the formatted first-performed date, or "Never"
      */
     @TemplateExtension
-    public static String firstLabel(final ActionStats stats) {
+    public static String firstLabel(final SubjectStats stats) {
         return stats.firstPerformed() == null ? "Never" : stats.firstPerformed().format(DATE_FMT);
     }
 
@@ -187,7 +187,7 @@ public final class ActionStatsExtensions {
      * @return the formatted "Latest" label
      */
     @TemplateExtension
-    public static String latestLabel(final ActionStats stats) {
+    public static String latestLabel(final SubjectStats stats) {
         final LocalDate lastPerformed = stats.lastPerformed();
         if (lastPerformed == null) {
             return "Never";
@@ -206,7 +206,7 @@ public final class ActionStatsExtensions {
      * @return the relative last-performed label
      */
     @TemplateExtension
-    public static String sinceLabel(final ActionStats stats) {
+    public static String sinceLabel(final SubjectStats stats) {
         return stats.lastPerformed() == null ? "—" : agoLabel(currentGapSpan(stats));
     }
 
@@ -218,7 +218,7 @@ public final class ActionStatsExtensions {
      * @return the relative first-performed label
      */
     @TemplateExtension
-    public static String sinceFirstLabel(final ActionStats stats) {
+    public static String sinceFirstLabel(final SubjectStats stats) {
         final LocalDate firstPerformed = stats.firstPerformed();
         return firstPerformed == null ? "—" : agoLabel(new DaySpan(firstPerformed, stats.today()));
     }
@@ -250,7 +250,7 @@ public final class ActionStatsExtensions {
      * @return the average active days per week, as a display string
      */
     @TemplateExtension
-    public static String weeklyDayAverage(final ActionStats stats, final int decimalPlaces) {
+    public static String weeklyDayAverage(final SubjectStats stats, final int decimalPlaces) {
         return average(stats, stats.totalDays(), ChronoUnit.WEEKS, decimalPlaces);
     }
 
@@ -262,7 +262,7 @@ public final class ActionStatsExtensions {
      * @return the average active days per month, as a display string
      */
     @TemplateExtension
-    public static String monthlyDayAverage(final ActionStats stats, final int decimalPlaces) {
+    public static String monthlyDayAverage(final SubjectStats stats, final int decimalPlaces) {
         return average(stats, stats.totalDays(), ChronoUnit.MONTHS, decimalPlaces);
     }
 
@@ -275,7 +275,7 @@ public final class ActionStatsExtensions {
      * @return the average count per week, as a display string
      */
     @TemplateExtension
-    public static String weeklyCountAverage(final ActionStats stats, final int decimalPlaces) {
+    public static String weeklyCountAverage(final SubjectStats stats, final int decimalPlaces) {
         return average(stats, stats.totalCount(), ChronoUnit.WEEKS, decimalPlaces);
     }
 
@@ -288,11 +288,11 @@ public final class ActionStatsExtensions {
      * @return the average count per month, as a display string
      */
     @TemplateExtension
-    public static String monthlyCountAverage(final ActionStats stats, final int decimalPlaces) {
+    public static String monthlyCountAverage(final SubjectStats stats, final int decimalPlaces) {
         return average(stats, stats.totalCount(), ChronoUnit.MONTHS, decimalPlaces);
     }
 
-    private static String average(final ActionStats stats, final long total, final ChronoUnit unit, final int decimalPlaces) {
+    private static String average(final SubjectStats stats, final long total, final ChronoUnit unit, final int decimalPlaces) {
         final LocalDate firstPerformed = stats.firstPerformed();
         if (firstPerformed == null) {
             return formatDecimal(0.0, decimalPlaces);
@@ -329,13 +329,13 @@ public final class ActionStatsExtensions {
      *
      * <p>
      * Framed as the blank run rather than as "the distance from the last logged date to today" so that the current gap is measured exactly the same
-     * way as {@link ActionStats#longestGap()} - the current gap becomes one of those the moment the action is performed again, and the two must not
+     * way as {@link SubjectStats#longestGap()} - the current gap becomes one of those the moment the action is performed again, and the two must not
      * disagree about their own length or wording.
      *
      * @param stats the statistics to inspect
      * @return the current gap
      */
-    public static DaySpan currentGapSpan(final ActionStats stats) {
+    public static DaySpan currentGapSpan(final SubjectStats stats) {
         final LocalDate lastPerformed = stats.lastPerformed();
         return lastPerformed == null
                 ? new DaySpan(stats.today(), stats.today())
@@ -349,7 +349,7 @@ public final class ActionStatsExtensions {
      * @return the current gap in days
      */
     @TemplateExtension
-    public static int currentGap(final ActionStats stats) {
+    public static int currentGap(final SubjectStats stats) {
         return Durations.days(currentGapSpan(stats));
     }
 
@@ -360,7 +360,7 @@ public final class ActionStatsExtensions {
      * @return the total-days unit phrase
      */
     @TemplateExtension
-    public static String totalDaysUnit(final ActionStats stats) {
+    public static String totalDaysUnit(final SubjectStats stats) {
         return Durations.plural(stats.totalDays(), "unique day");
     }
 
@@ -373,18 +373,18 @@ public final class ActionStatsExtensions {
      * @return the month trend label
      */
     @TemplateExtension
-    public static String monthTrend(final ActionStats stats) {
+    public static String monthTrend(final SubjectStats stats) {
         return trend(stats.thisMonthCount(), stats.lastMonthCount());
     }
 
     /**
-     * The CSS colour class matching {@link #monthTrend(ActionStats)} (up/down/flat).
+     * The CSS colour class matching {@link #monthTrend(SubjectStats)} (up/down/flat).
      *
      * @param stats the statistics to inspect
      * @return the month trend colour class
      */
     @TemplateExtension
-    public static String monthTrendClass(final ActionStats stats) {
+    public static String monthTrendClass(final SubjectStats stats) {
         return trendClass(stats.thisMonthCount(), stats.lastMonthCount());
     }
 
@@ -395,7 +395,7 @@ public final class ActionStatsExtensions {
      * @return the month context string
      */
     @TemplateExtension
-    public static String monthContext(final ActionStats stats) {
+    public static String monthContext(final SubjectStats stats) {
         return stats.thisMonthCount() + " this month · " + stats.lastMonthCount() + " last month";
     }
 
@@ -406,7 +406,7 @@ public final class ActionStatsExtensions {
      * @return the this-month context string
      */
     @TemplateExtension
-    public static String thisMonthContext(final ActionStats stats) {
+    public static String thisMonthContext(final SubjectStats stats) {
         return stats.thisMonthCount() + " this month";
     }
 
@@ -417,18 +417,18 @@ public final class ActionStatsExtensions {
      * @return the year trend label
      */
     @TemplateExtension
-    public static String yearTrend(final ActionStats stats) {
+    public static String yearTrend(final SubjectStats stats) {
         return trend(stats.thisYearCount(), stats.lastYearCount());
     }
 
     /**
-     * The CSS colour class matching {@link #yearTrend(ActionStats)} (up/down/flat).
+     * The CSS colour class matching {@link #yearTrend(SubjectStats)} (up/down/flat).
      *
      * @param stats the statistics to inspect
      * @return the year trend colour class
      */
     @TemplateExtension
-    public static String yearTrendClass(final ActionStats stats) {
+    public static String yearTrendClass(final SubjectStats stats) {
         return trendClass(stats.thisYearCount(), stats.lastYearCount());
     }
 
@@ -439,7 +439,7 @@ public final class ActionStatsExtensions {
      * @return the year context string
      */
     @TemplateExtension
-    public static String yearContext(final ActionStats stats) {
+    public static String yearContext(final SubjectStats stats) {
         return stats.thisYearCount() + " this year · " + stats.lastYearCount() + " last year";
     }
 

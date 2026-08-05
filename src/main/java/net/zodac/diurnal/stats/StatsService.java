@@ -31,6 +31,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -39,6 +40,7 @@ import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.log.ActionPerformedDate;
 import net.zodac.diurnal.log.DailyActionTotal;
 import net.zodac.diurnal.log.MonthlyActionTotal;
+import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.time.DaySpan;
 import net.zodac.diurnal.time.Durations;
@@ -67,21 +69,52 @@ public class StatsService {
     }
 
     /**
-     * Returns stats for every active action of the user that has at least one logged entry, ordered by action name.
+     * Returns stats for every subject of the user that has any data: their day NOTES first, then each active action that has at least one logged
+     * entry, ordered by action name.
      *
      * <p>
-     * The per-action totals, comparative counts and best-month/best-year figures are aggregated in the database (a monthly {@code GROUP BY}); only
+     * Notes are pinned ahead of the actions here, BEFORE the caller paginates, so "first" means the first card on page one rather than the first card
+     * of whichever page it happened to land on. They are a subject like any other from this point on — the statistics themselves are computed by the
+     * same {@link #assemble} from the same shape of input, so nothing downstream needs to know which kind it is holding.
+     *
+     * <p>
+     * The per-subject totals, comparative counts and best-month/best-year figures are aggregated in the database (a monthly {@code GROUP BY}); only
      * the distinct performed dates are read back, and solely to compute the streak/gap figures — so a long history no longer hydrates every log row.
+     *
+     * @param userId the user whose stats to compute
+     * @return the notes subject (when it has any data) followed by every action that has been logged
      */
-    public List<ActionStats> forAllActiveActions(final UUID userId) {
+    public List<SubjectStats> forAllSubjects(final UUID userId) {
+        // Resolved ONCE and threaded down: every subject's figures must be measured against the same "today", and resolving it reads the user.
         final LocalDate today = todayFor(userId);
+
+        // The note dates double as the existence check, so reading them FIRST means a user who has never written a note pays for this one query and
+        // nothing else - no monthly rollup, no assembly. That is the common case on the Stats page's and GET /api/v1/stats' hot path.
+        final List<LocalDate> noteDates = Note.datesFor(userId);
+        final List<SubjectStats> actions = activeActions(userId, today);
+        if (noteDates.isEmpty()) {
+            return actions;
+        }
+
+        // The notes subject is assembled from exactly the same two inputs an action's is - the dates it happened on, and its monthly rollup - both
+        // projected into the shared MonthlyActionTotal/date shapes by the note queries, so there is no parallel computation to keep in step.
+        final List<SubjectStats> subjects = new ArrayList<>(actions.size() + 1);
+        subjects.add(assemble(StatSubject.notes(), Note.monthlyTotals(userId, StatSubject.NOTES_ID), noteDates, today));
+        subjects.addAll(actions);
+        return List.copyOf(subjects);
+    }
+
+    // Every action that has at least one logged entry, name-ascending. Split out of forAllSubjects only so the notes subject can be prepended to it;
+    // nothing outside this class wants the actions alone (the Stats page and GET /api/v1/stats both show every subject). Takes `today` rather than
+    // resolving it, so answering one request never reads the user twice.
+    private static List<SubjectStats> activeActions(final UUID userId, final LocalDate today) {
         final List<Action> actions = Action.findByUser(userId);   // name-ascending
         if (actions.isEmpty()) {
             return List.of();
         }
         final List<UUID> actionIds = actions.stream().map(action -> action.id).toList();
         return assembleAll(userId, actions, actionIds, today).stream()
-                .filter(ActionStatsExtensions::hasData)
+                .filter(SubjectStatsExtensions::hasData)
                 .toList();
     }
 
@@ -98,7 +131,7 @@ public class StatsService {
      * @param limit the maximum number of actions to return
      * @return the day's top actions' stats, highest daily count first
      */
-    public List<ActionStats> forDate(final UUID userId, final LocalDate date, final int limit) {
+    public List<SubjectStats> forDate(final UUID userId, final LocalDate date, final int limit) {
         return forCounts(userId, Map.of(date, ActionLog.countsByAction(userId, date)), limit)
                 .getOrDefault(date, List.of());
     }
@@ -115,7 +148,7 @@ public class StatsService {
      * @param limit the maximum number of actions per day
      * @return each logged day of the month mapped to its top actions' stats; days with no logs are absent
      */
-    public Map<LocalDate, List<ActionStats>> forMonth(final UUID userId, final YearMonth month, final int limit) {
+    public Map<LocalDate, List<SubjectStats>> forMonth(final UUID userId, final YearMonth month, final int limit) {
         final Map<LocalDate, Map<UUID, Integer>> countsByDate = ActionLog.findByUserAndRange(userId, month.atDay(1), month.atEndOfMonth())
             .stream()
             .collect(Collectors.groupingBy(log -> log.logDate, Collectors.toMap(log -> log.actionId, log -> log.count)));
@@ -125,7 +158,7 @@ public class StatsService {
     // Picks each date's top `limit` actions from its pre-fetched counts, then aggregates the UNION of those actions once. The daily counts only rank
     // the actions; every returned figure still spans the action's full history. Ties keep the name-ascending order Action.findByUser returns them in
     // (the sort is stable), which is how the day panel orders the same actions.
-    private Map<LocalDate, List<ActionStats>> forCounts(final UUID userId, final Map<LocalDate, Map<UUID, Integer>> countsByDate, final int limit) {
+    private Map<LocalDate, List<SubjectStats>> forCounts(final UUID userId, final Map<LocalDate, Map<UUID, Integer>> countsByDate, final int limit) {
         final boolean anyLogged = countsByDate.values().stream().anyMatch(counts -> !counts.isEmpty());
         if (!anyLogged) {
             return Map.of();
@@ -154,10 +187,10 @@ public class StatsService {
         final List<Action> unionActions = all.stream()
             .filter(action -> unionIds.contains(action.id))
             .toList();
-        final Map<UUID, ActionStats> statsByAction = assembleAll(userId, unionActions, List.copyOf(unionIds), today).stream()
-            .collect(Collectors.toMap(stats -> stats.action().id, stats -> stats));
+        final Map<UUID, SubjectStats> statsByAction = assembleAll(userId, unionActions, List.copyOf(unionIds), today).stream()
+            .collect(Collectors.toMap(stats -> stats.subject().id(), stats -> stats));
 
-        final Map<LocalDate, List<ActionStats>> byDate = new LinkedHashMap<>();
+        final Map<LocalDate, List<SubjectStats>> byDate = new LinkedHashMap<>();
         topByDate.forEach((date, top) -> byDate.put(date, top.stream().map(action -> statsByAction.get(action.id)).toList()));
         return byDate;
     }
@@ -174,13 +207,13 @@ public class StatsService {
      * containing today, and {@code compareIds} to charting {@code actionId} alone.
      *
      * @param userId the user whose logs to chart
-     * @param actionId the action the graph was opened from, always the first series
+     * @param subjectId the subject the graph was opened from, always the first series
      * @param compareIds the further actions to chart alongside it, in the order they were added
      * @param rawPeriod the requested period, or {@code null}/blank for the default
      * @param rawAt the requested window key, or {@code null}/blank for the window containing today
      * @return the assembled chart, or the case explaining why it could not be assembled
      */
-    public FrequencyResult frequency(final UUID userId, final UUID actionId, final List<UUID> compareIds, final @Nullable String rawPeriod,
+    public FrequencyResult frequency(final UUID userId, final UUID subjectId, final List<UUID> compareIds, final @Nullable String rawPeriod,
         final @Nullable String rawAt) {
         final String periodValue = rawPeriod == null || rawPeriod.isBlank() ? FrequencyPeriod.DEFAULT.value() : rawPeriod;
         if (!FrequencyPeriod.isValid(periodValue)) {
@@ -189,29 +222,38 @@ public class StatsService {
         final FrequencyPeriod period = FrequencyPeriod.of(periodValue);
 
         final List<UUID> requested = new ArrayList<>();
-        requested.add(actionId);
+        requested.add(subjectId);
         requested.addAll(compareIds);
         if (requested.size() > FrequencyCharts.MAX_SERIES) {
-            return new FrequencyResult.TooManyActions(requested.size(), FrequencyCharts.MAX_SERIES);
+            return new FrequencyResult.TooManySubjects(requested.size(), FrequencyCharts.MAX_SERIES);
         }
         final UUID repeated = firstRepeated(requested);
         if (repeated != null) {
-            return new FrequencyResult.DuplicateAction(repeated);
+            return new FrequencyResult.DuplicateSubject(repeated);
         }
+
+        // The notes subject is charted alongside actions, and is resolved FIRST — before any action lookup — so its sentinel id can never be
+        // shadowed by a row. It needs no ownership check: there is exactly one notes subject per user, and it is theirs by construction.
+        final List<UUID> actionIds = requested.stream().filter(id -> !StatSubject.NOTES_ID.equals(id)).toList();
+        final boolean notesCharted = requested.size() != actionIds.size();
 
         // Ordered by the request, not by the name-ascending order findByUserAndIds returns: the legend and the bar order within each column follow
         // the order the user built the comparison in, so adding an action never re-shuffles the bars already on screen.
-        final Map<UUID, Action> ownedById = Action.findByUserAndIds(userId, requested).stream()
-            .collect(Collectors.toMap(action -> action.id, action -> action));
-        if (ownedById.size() != requested.size()) {
+        final Map<UUID, Action> ownedById = actionIds.isEmpty()
+            ? Map.of()
+            : Action.findByUserAndIds(userId, actionIds).stream().collect(Collectors.toMap(action -> action.id, action -> action));
+        if (ownedById.size() != actionIds.size()) {
             return new FrequencyResult.NotOwned();
         }
 
-        // The compare picker only offers actions with at least one logged entry, so the API rejects the same set rather than drawing a flat series
-        // the UI could never produce. The graph's OWN action is exempt: its card is reachable with no logs, and an empty chart is the honest answer.
+        // The compare picker only offers subjects with at least one entry, so the API rejects the same set rather than drawing a flat series the UI
+        // could never produce - for notes that means "has written at least one note". The graph's OWN subject is exempt: its card is reachable with
+        // no entries, and an empty chart is the honest answer there.
         final Set<UUID> logged = ActionLog.loggedActionIds(userId);
+        final boolean hasAnyNote = Note.count("userId = ?1", userId) > 0;
         for (final UUID compareId : compareIds) {
-            if (!logged.contains(compareId)) {
+            final boolean present = StatSubject.NOTES_ID.equals(compareId) ? hasAnyNote : logged.contains(compareId);
+            if (!present) {
                 return new FrequencyResult.NotLogged(compareId);
             }
         }
@@ -226,14 +268,23 @@ public class StatsService {
             return new FrequencyResult.UnknownWindow(rawAt);
         }
 
-        final List<FrequencyCharts.ChartedAction> charted = requested.stream()
-            .map(ownedById::get)
-            .map(action -> new FrequencyCharts.ChartedAction(action.id, action.name, action.colour))
+        final List<StatSubject> charted = requested.stream()
+            .map(id -> StatSubject.NOTES_ID.equals(id) ? StatSubject.notes() : StatSubject.of(Objects.requireNonNull(ownedById.get(id))))
             .toList();
 
-        final List<MonthlyActionTotal> monthlyTotals = ActionLog.monthlyTotalsForActions(userId, requested);
+        // Both sources project into the SAME monthly/daily rollup records, so the two are simply concatenated and the chart builder never learns that
+        // more than one kind of subject exists. Each query is skipped entirely when its side is not charted (the action rollups reject an empty id
+        // list, and a notes query would otherwise be a pointless round trip).
+        final List<MonthlyActionTotal> monthlyTotals = new ArrayList<>();
+        if (!actionIds.isEmpty()) {
+            monthlyTotals.addAll(ActionLog.monthlyTotalsForActions(userId, actionIds));
+        }
+        if (notesCharted) {
+            monthlyTotals.addAll(Note.monthlyTotals(userId, StatSubject.NOTES_ID));
+        }
+
         final Map<UUID, Map<Integer, Long>> countsByAction = switch (period) {
-            case MONTH -> dailySlots(ActionLog.dailyTotalsForActions(userId, requested, anchor, FrequencyKeys.end(period, anchor)));
+            case MONTH -> dailySlots(dailyTotals(userId, actionIds, notesCharted, anchor, FrequencyKeys.end(period, anchor)));
             case YEAR -> monthlySlots(monthlyTotals, anchor.getYear());
         };
 
@@ -242,23 +293,34 @@ public class StatsService {
     }
 
     /**
-     * The actions the frequency chart's compare picker may offer: the user's actions that have been logged at least once, are not already on the
-     * graph, and whose name matches the search term. Name-ascending, matching every other action list in the app.
+     * The subjects the frequency chart's compare picker may offer: the user's day notes and their actions that have at least one entry, are not
+     * already on the graph, and whose name matches the search term. The notes subject is offered first (as it is on the Stats page); the actions
+     * follow name-ascending, matching every other action list in the app.
      *
-     * @param userId the user whose actions to offer
-     * @param charted the actions already on the graph (the primary plus any comparisons), which are never offered again
+     * @param userId the user whose subjects to offer
+     * @param charted the subjects already on the graph (the primary plus any comparisons), which are never offered again
      * @param query the case-insensitive name filter, or {@code null}/blank for no filtering
-     * @return the offerable actions, name-ascending
+     * @return the offerable subjects, notes first then actions name-ascending
      */
-    public List<Action> compareCandidates(final UUID userId, final List<UUID> charted, final @Nullable String query) {
+    public List<StatSubject> compareCandidates(final UUID userId, final List<UUID> charted, final @Nullable String query) {
         final Set<UUID> logged = ActionLog.loggedActionIds(userId);
         final Set<UUID> excluded = Set.copyOf(charted);
         final String term = query == null ? "" : query.strip().toLowerCase(Locale.ENGLISH);
-        return Action.findByUser(userId).stream()   // name-ascending
+
+        final List<StatSubject> candidates = new ArrayList<>();
+        final StatSubject notes = StatSubject.notes();
+        if (!excluded.contains(StatSubject.NOTES_ID)
+            && Note.count("userId = ?1", userId) > 0
+            && (term.isEmpty() || notes.name().toLowerCase(Locale.ENGLISH).contains(term))) {
+            candidates.add(notes);
+        }
+        Action.findByUser(userId).stream()   // name-ascending
             .filter(action -> logged.contains(action.id))
             .filter(action -> !excluded.contains(action.id))
             .filter(action -> term.isEmpty() || action.name.toLowerCase(Locale.ENGLISH).contains(term))
-            .toList();
+            .map(StatSubject::of)
+            .forEach(candidates::add);
+        return List.copyOf(candidates);
     }
 
     private static @Nullable UUID firstRepeated(final List<UUID> ids) {
@@ -269,6 +331,18 @@ public class StatsService {
             }
         }
         return null;
+    }
+
+    private static List<DailyActionTotal> dailyTotals(final UUID userId, final List<UUID> actionIds, final boolean notesCharted,
+        final LocalDate from, final LocalDate to) {
+        final List<DailyActionTotal> totals = new ArrayList<>();
+        if (!actionIds.isEmpty()) {
+            totals.addAll(ActionLog.dailyTotalsForActions(userId, actionIds, from, to));
+        }
+        if (notesCharted) {
+            totals.addAll(Note.dailyTotals(userId, StatSubject.NOTES_ID, from, to));
+        }
+        return totals;
     }
 
     private static Map<UUID, Map<Integer, Long>> dailySlots(final List<DailyActionTotal> dailyTotals) {
@@ -301,12 +375,12 @@ public class StatsService {
         return clock.today(clock.zoneFor(user == null ? null : user.timezone));
     }
 
-    private static List<ActionStats> assembleAll(final UUID userId, final List<Action> actions,
+    private static List<SubjectStats> assembleAll(final UUID userId, final List<Action> actions,
         final List<UUID> actionIds, final LocalDate today) {
         final Map<UUID, List<MonthlyActionTotal>> monthly = groupMonthly(ActionLog.monthlyTotalsForActions(userId, actionIds));
         final Map<UUID, List<LocalDate>> dates = groupDates(ActionLog.distinctDatesForActions(userId, actionIds));
         return actions.stream()
-                .map(action -> assemble(action, monthly.getOrDefault(action.id, List.of()),
+                .map(action -> assemble(StatSubject.of(action), monthly.getOrDefault(action.id, List.of()),
                         dates.getOrDefault(action.id, List.of()), today))
                 .toList();
     }
@@ -328,11 +402,11 @@ public class StatsService {
         return byAction;
     }
 
-    private static ActionStats assemble(final Action action, final List<MonthlyActionTotal> monthlyTotals,
+    private static SubjectStats assemble(final StatSubject subject, final List<MonthlyActionTotal> monthlyTotals,
         final List<LocalDate> sortedDates, final LocalDate today) {
         if (sortedDates.isEmpty()) {
             final DaySpan noSpan = new DaySpan(today, today);
-            return new ActionStats(action, 0, 0L, null, null, noSpan, noSpan, noSpan,
+            return new SubjectStats(subject, 0, 0L, null, null, noSpan, noSpan, noSpan,
                     0L, 0L, 0L, 0L, "—", 0L, "—", 0L, today);
         }
 
@@ -354,8 +428,8 @@ public class StatsService {
         final Map.Entry<Integer, Long> bestYear = byYear.entrySet().stream()
             .max(Map.Entry.comparingByValue()).orElse(null);
 
-        return new ActionStats(
-                action,
+        return new SubjectStats(
+                subject,
                 sortedDates.size(),
                 totalCount,
                 sortedDates.getFirst(),

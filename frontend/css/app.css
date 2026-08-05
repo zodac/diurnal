@@ -162,6 +162,9 @@
     --color-danger: #dc2626;         /* red-600 */
     --color-danger-strong: #991b1b;  /* red-800 — deeper danger, for active hovers */
     --color-success: #16a34a;        /* green-600 */
+    /* The note marker, lightened for use ON the brand fill (today's calendar cell). green-600 on brand is
+       about 1.4:1 and unreadable; green-300 clears 3:1 while still reading unmistakably as green. */
+    --color-success-on-brand: #86efac; /* green-300 */
 
     /* Confirm-delete data-table row highlight ring (the edit ring is brand-derived, see @generated:brand). */
     --color-ring-confirm: #fca5a5;   /* red-300 */
@@ -229,6 +232,7 @@
     --color-danger: #f87171;         /* red-400 */
     --color-danger-strong: #fca5a5;  /* red-300 */
     --color-success: #4ade80;        /* green-400 */
+    --color-success-on-brand: #86efac; /* green-300 — same on both themes; the fill beneath it is too */
 
     --color-ring-confirm: #b91c1c;   /* red-700 */
 
@@ -1296,6 +1300,164 @@
   @media (min-width: 640px) {
     .d-stk-bar { width: 68%; }
   }
+
+/* ── Calendar: days that have a note ──────────────────────────────────────── */
+/* A day with a note shows its day NUMBER in green. `.d-note-day` sits on the shared `.d-min-cell`, so one
+   pair of rules covers all three calendar styles: `full` colours its top-right `.d-full-daynum`, and
+   `minimal`/`stacked` colour the digits inside the date circle.
+   The colour is the existing --color-success token, which is already green-600 in light mode and green-400
+   in dark, so both shades come for free and the green matches the Notes swatch on the Stats page. Today's
+   cell is the one exception (see below), because its number sits on the brand fill.
+   These rules are un-layered and come after the calendar block, so they win over the plain day-number
+   colours above without needing !important. */
+  .d-cal-full .d-min-cell.d-note-day .d-full-daynum { color: var(--color-success); }
+  .d-min-cell.d-note-day .d-min-date { color: var(--color-success); }
+
+/* Selection keeps its brand ring/fill, but the NUMBER still says "this day has a note" — the two signals
+   are about different things, so neither may hide the other. */
+  .d-min-cell.d-min-selected.d-note-day .d-min-date,
+  .dark .d-min-cell.d-min-selected.d-note-day .d-min-date { color: var(--color-success); }
+  .d-cal-full .d-min-cell.d-min-selected:not(.d-min-today).d-note-day .d-full-daynum,
+  .dark .d-cal-full .d-min-cell.d-min-selected:not(.d-min-today).d-note-day .d-full-daynum {
+    color: var(--color-success);
+  }
+
+/* TODAY is the one exception, because its number sits on a solid brand fill: the ordinary green-600 would be
+   about 1.4:1 against it and simply unreadable. The number still turns GREEN — that is the whole signal — but
+   in the lightened --color-success-on-brand, which clears 3:1 on the fill. An earlier version kept the number
+   white and marked today with only a thin green underline; it was so easy to miss that the marker read as
+   broken. Every style gets the same treatment, so "a day with a note has a green number" holds without
+   exception. */
+  .d-min-cell.d-min-today.d-note-day .d-min-date,
+  .d-min-cell.d-min-today.d-min-selected.d-note-day .d-min-date,
+  .d-cal-full .d-min-cell.d-min-today.d-note-day .d-full-daynum {
+    color: var(--color-success-on-brand);
+  }
+
+/* Adjacent-month cells keep their existing muting: the container is already faded, so the green simply
+   arrives at the same reduced strength as the rest of that cell. */
+  .d-min-cell.d-min-other.d-note-day .d-min-date,
+  .d-cal-full .d-min-cell.d-min-other.d-note-day .d-full-daynum { opacity: 0.5; }
+
+/* ── Dashboard note box ───────────────────────────────────────────────────── */
+/* Lives here (un-layered, like the calendar and chart blocks) because the note box is a self-contained
+   widget with its own namespace, and because the resize handles must beat Tailwind's layered utilities.
+   Every colour is a `var(--color-*)` token, so there are no `.dark` twins. */
+
+/* The note box's DEFAULT height: sized to a stats-summary card showing three action rows, so the two
+   panels sit level at the `lg` breakpoint. Derived from that card's own metrics rather than guessed —
+   `.card p-4` (2rem) + an `h3 text-base` with `mb-3` (1.5rem + 0.75rem) + three `.stat-tile px-3 py-2`
+   rows separated by `gap-3` (2 x 0.75rem), where a row is its 1rem of padding, its 2px border and a
+   three-line compact tile (text-xs 1rem + text-sm 1.25rem + text-xs 1rem). Pinned by the Playwright
+   guard in `tests/ui/dashboard.spec.ts`, which renders a real three-action summary and compares the
+   two heights — if a summary metric changes, that test fails with the delta to apply here.
+   It is only meaningful at `lg` and above: below that the summary card stacks its rows and grows much
+   taller, and the note box keeps its own default rather than chasing it. */
+:root {
+  --note-default-h: 19rem;
+}
+
+#note-panel {
+  height: var(--note-default-h);
+  /* The floor for the drag handles, so the box can only ever be made LARGER than its default. */
+  min-height: var(--note-default-h);
+  min-width: 0;
+}
+
+/* The textarea takes whatever height the panel has left, so dragging the panel grows the writing area
+   rather than leaving a gap. `resize: none` because the panel's own handles own resizing — the native
+   corner grip would fight them and would size the textarea instead of the box. */
+.note-input {
+  flex: 1 1 auto;
+  min-height: 0;
+  width: 100%;
+  resize: none;
+  overflow-y: auto;
+  line-height: 1.45;
+  font-family: inherit;
+}
+
+/* While a drag is in progress: kill text selection and pointer-driven scrolling everywhere, so a drag
+   that leaves the handle does not select the page or scroll the textarea under the cursor. */
+.note-resizing, .note-resizing * {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Hidden below `lg`. In one column the box already spans the full width, so there is nothing to widen
+   into, and an 8px edge is far under a usable touch target — offering it there is a control that mostly
+   misses. The box remains fully usable at its default size, and the textarea scrolls. */
+.note-resize {
+  display: none;
+  position: absolute;
+  touch-action: none;
+  z-index: 1;
+}
+@media (min-width: 1024px) {
+  .note-resize { display: block; }
+}
+/* Generous hit areas (8px edges, a 14px corner) that sit just inside the card's rounded border, so the
+   grab target is comfortable on a mouse and reachable with a finger without overlapping the textarea. */
+.note-resize-right {
+  top: 0.5rem; bottom: 0.9rem; right: -3px; width: 8px;
+  cursor: ew-resize;
+}
+.note-resize-bottom {
+  left: 0.5rem; right: 0.9rem; bottom: -3px; height: 8px;
+  cursor: ns-resize;
+}
+.note-resize-corner {
+  right: -3px; bottom: -3px; width: 14px; height: 14px;
+  cursor: nwse-resize;
+}
+/* A faint corner grip, so the box does not look fixed-size. The edges stay invisible (their cursor is
+   the affordance), matching how a native textarea shows only its corner. */
+.note-resize-corner::after {
+  content: "";
+  position: absolute;
+  right: 4px; bottom: 4px;
+  width: 6px; height: 6px;
+  border-right: 2px solid var(--color-border);
+  border-bottom: 2px solid var(--color-border);
+}
+#note-panel:hover .note-resize-corner::after { border-color: var(--color-text-faint); }
+
+/* The character counter. Muted while the note is within its bound, danger-coloured once it is over — the
+   colour IS the explanation for the disabled Save beside it, so it has to be unmissable. */
+.note-count {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+.note-count.note-count-over {
+  color: var(--color-danger);
+  font-weight: 600;
+}
+
+/* The note box's own buttons. Deliberately NOT `.btn-primary`/`.btn-secondary`: those are full-width
+   block buttons for auth cards and would each take a whole row here. Same tokens, inline sizing. */
+.note-btn-primary, .note-btn-secondary {
+  border-radius: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+.note-btn-primary {
+  background-color: var(--color-brand);
+  color: var(--color-on-brand);
+}
+.note-btn-primary:hover { background-color: var(--color-brand-strong); }
+.note-btn-primary:disabled, .note-btn-secondary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+.note-btn-secondary {
+  border: 1px solid var(--color-input-border);
+  color: var(--color-text-muted);
+}
+.note-btn-secondary:hover { background-color: var(--color-surface-muted); }
 
 /* ── Stats-page frequency graph (modal + bar chart) ───────────────────────── */
 /* Lives here (un-layered, like the calendar block above) because the chart is a self-contained widget

@@ -72,7 +72,7 @@ class StatsApiResourceIT extends IntegrationTestBase {
         given().get("/api/v1/stats")
                 .then().statusCode(200)
                 .body("items.size()", equalTo(1))
-                .body("items[0].actionId", equalTo(action.id.toString()))
+                .body("items[0].subjectId", equalTo(action.id.toString()))
                 .body("items[0].name", equalTo("Running"))
                 .body("items[0].totalDays", equalTo(2))
                 .body("items[0].totalCount", equalTo(5))
@@ -81,6 +81,49 @@ class StatsApiResourceIT extends IntegrationTestBase {
                 .body("items[0].currentGap", equalTo(0)) // logged today
                 .body("items[0].firstPerformed", equalTo(TODAY.minusDays(1).toString()))
                 .body("items[0].lastPerformed", equalTo(TODAY.toString()));
+    }
+
+    @Test
+    void stats_everyItemSaysWhatKindItIs() {
+        runInTx(() -> newLog(primaryId, action.id, TODAY, 1));
+
+        given().get("/api/v1/stats")
+                .then().statusCode(200)
+                .body("items[0].kind", equalTo("action"));
+    }
+
+    @Test
+    void stats_notesArePinnedFirst_andCarryTheNilId() {
+        // The notes subject joins the published list, always ahead of the actions and carrying the nil ID so it stays
+        // distinguishable from one. Its `kind` is what a client should branch on.
+        runInTx(() -> {
+            newLog(primaryId, action.id, TODAY, 1);
+            newNote(primaryId, TODAY, "Today's note");
+            newNote(primaryId, TODAY.minusDays(1), "Yesterday's note");
+        });
+
+        given().get("/api/v1/stats")
+                .then().statusCode(200)
+                .body("items.size()", equalTo(2))
+                .body("totalCount", equalTo(2))
+                .body("items[0].kind", equalTo("notes"))
+                .body("items[0].subjectId", equalTo("00000000-0000-0000-0000-000000000000"))
+                .body("items[0].name", equalTo("Notes"))
+                .body("items[0].totalDays", equalTo(2))
+                // One note is one occurrence, so a notes item's total count always equals its total days.
+                .body("items[0].totalCount", equalTo(2))
+                .body("items[1].kind", equalTo("action"))
+                .body("items[1].name", equalTo("Running"));
+    }
+
+    @Test
+    void stats_withNoNotes_theSubjectIsAbsent() {
+        runInTx(() -> newLog(primaryId, action.id, TODAY, 1));
+
+        given().get("/api/v1/stats")
+                .then().statusCode(200)
+                .body("items.size()", equalTo(1))
+                .body("items[0].kind", equalTo("action"));
     }
 
     @Test

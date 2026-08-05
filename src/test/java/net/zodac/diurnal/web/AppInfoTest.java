@@ -61,7 +61,7 @@ class AppInfoTest {
         final String jsActionsFile, final String jsAdminFile, final String jsApiDocsFile,
         final String jsSettingsFile, final String jsStatsFile) {
         return appInfo(new StubAppConfig(repositoryUrl, buildTimestamp, cssFile, jsFile, jsAppFile, jsDashboardFile,
-            jsActionsFile, jsAdminFile, jsApiDocsFile, jsSettingsFile, jsStatsFile, SETTINGS_IMAGES, HASHED_IMAGES));
+            "note.js", jsActionsFile, jsAdminFile, jsApiDocsFile, jsSettingsFile, jsStatsFile, SETTINGS_IMAGES, HASHED_IMAGES));
     }
 
     private static AppInfo appInfo(final AppConfig appConfig) {

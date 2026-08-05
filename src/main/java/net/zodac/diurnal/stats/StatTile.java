@@ -18,7 +18,7 @@
 package net.zodac.diurnal.stats;
 
 /**
- * A single rendered Stats-page tile, pre-computed from an {@link ActionStats} for one {@link ActionStatField}. A pure data carrier for the
+ * A single rendered Stats-page tile, pre-computed from an {@link SubjectStats} for one {@link StatField}. A pure data carrier for the
  * {@code partials/stat-tile} template.
  *
  * @param label the tile caption

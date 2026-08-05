@@ -155,6 +155,67 @@ class TextRulesTest {
             .isTrue();
     }
 
+    // ── the newline-tolerant variant ──────────────────────────────────────────
+    // The exemption is exactly one code point wide. Both rules are asserted against the same values so the pair cannot drift into disagreeing about
+    // anything other than the line feed itself.
+
+    @Test
+    void noInvisibleCharacters_rejectsNewline() {
+        // The reason the variant below has to exist: a line feed is a Cc control character. No CLEANED field ever meets one (normalisation turns it
+        // into a space first), so this is the behaviour a multi-line field cannot use.
+        assertThat(TextRules.NO_INVISIBLE_CHARACTERS.accepts().test("first\nsecond"))
+            .as("the strict rule must reject a newline, since it is a control character")
+            .isFalse();
+    }
+
+    @Test
+    void noInvisibleCharactersAllowingNewline_acceptsNewline() {
+        assertThat(TextRules.NO_INVISIBLE_CHARACTERS_ALLOWING_NEWLINE.accepts().test("first\nsecond"))
+            .as("the multi-line variant must accept the line feed it exists for")
+            .isTrue();
+    }
+
+    @ParameterizedTest
+    @ValueSource(ints = {
+        0x200B,     // zero-width space
+        0x00AD,     // soft hyphen
+        0x202E,     // right-to-left override
+        0x3164,     // hangul filler
+        0xFDD0      // a noncharacter
+    })
+    void noInvisibleCharactersAllowingNewline_stillRejectsEveryOtherInvisibleCharacter(final int codePoint) {
+        // The exemption must be the newline and nothing else - a variant that relaxed the whole rule would let a note carry a bidi override.
+        final String value = "first\nsec" + new String(Character.toChars(codePoint)) + "ond";
+
+        assertThat(TextRules.NO_INVISIBLE_CHARACTERS_ALLOWING_NEWLINE.accepts().test(value))
+            .as("only the line feed is exempt; every other invisible character is still rejected")
+            .isFalse();
+    }
+
+    @Test
+    void noInvisibleCharactersAllowingNewline_stillRejectsJoinerBesideNewline() {
+        // A joiner joins nothing across a line break, exactly as it joins nothing beside a space, so the exemption must not make it joinable.
+        assertThat(TextRules.NO_INVISIBLE_CHARACTERS_ALLOWING_NEWLINE.accepts().test("first\n" + ZERO_WIDTH_JOINER + "second"))
+            .as("a joiner at the start of a line is invisible padding, and must stay rejected")
+            .isFalse();
+    }
+
+    @Test
+    void noInvisibleCharactersAllowingNewline_acceptsJoinerBetweenTwoLetters() {
+        final String persian = "پیاده" + ZERO_WIDTH_NON_JOINER + "روی";
+
+        assertThat(TextRules.NO_INVISIBLE_CHARACTERS_ALLOWING_NEWLINE.accepts().test("first\n" + persian))
+            .as("the joiner exception must work the same way on a multi-line field")
+            .isTrue();
+    }
+
+    @Test
+    void noInvisibleCharactersAllowingNewline_acceptsOrdinaryText() {
+        assertThat(TextRules.NO_INVISIBLE_CHARACTERS_ALLOWING_NEWLINE.accepts().test("Morning run"))
+            .as("ordinary single-line text must be accepted by the variant too")
+            .isTrue();
+    }
+
     // ── stacked combining marks ───────────────────────────────────────────────
 
     @Test

@@ -3,7 +3,7 @@
   inline by the dashboard page (for the initially selected day) and on its own by
   /internal/stats/summary/{date}, which dashboard.js swaps in whenever the calendar selection moves —
   so the markup lives here once. Params:
-    dayStats      — the day's ActionStats, highest count on that day first (may be empty)
+    dayStats      — the day's SubjectStats, highest count on that day first (may be empty)
     summaryFields — the DisplayStats to render per row (the user's top three enabled "Action stats")
     decimalPlaces — the user's fractional-stat preference, for the tile figures
     dateLabel     — the selected day, spelled out ("Monday, 15 June 2026")
@@ -20,8 +20,8 @@
         <div class="stat-tile px-3 py-2 border border-line-subtle
                     flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
             <div class="flex items-center gap-2 min-w-0 sm:w-40 sm:shrink-0">
-                <span class="swatch swatch-sm" style="background-color: {s.action.colour}"></span>
-                <span class="text-sm font-medium text-ink truncate">{s.action.name}</span>
+                <span class="swatch swatch-sm" style="background-color: {s.subject.colour}"></span>
+                <span class="text-sm font-medium text-ink truncate">{s.subject.name}</span>
             </div>
             {! Mirrors the Stats page: the tiles shown are the user's top three enabled "Action
                stats" (summaryFields), in their chosen order. The backend always computes every

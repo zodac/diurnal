@@ -42,6 +42,11 @@ class TextFieldsSchemaIT extends IntegrationTestBase {
     }
 
     @Test
+    void note_boundMatchesItsColumn() {
+        assertColumnWidth("notes", "content", TextFields.NOTE_MAX_LENGTH);
+    }
+
+    @Test
     void email_boundFitsItsColumn() {
         assertThat(columnWidth("users", "email"))
             .as("the email column must be at least as wide as the bound the app accepts")

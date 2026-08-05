@@ -38,6 +38,7 @@ public final class TextRules { // NOPMD: DataClass - a catalogue of rule constan
 
     private static final int ZERO_WIDTH_JOINER = 0x200D;
     private static final int ZERO_WIDTH_NON_JOINER = 0x200C;
+    private static final int LINE_FEED = 0x000A;
 
     private static final Set<Integer> BLANK_CHARACTERS = Set.of(
         0x115F,     // hangul choseong filler
@@ -95,8 +96,26 @@ public final class TextRules { // NOPMD: DataClass - a catalogue of rule constan
      * Unassigned code points are also deliberately NOT rejected (beyond the noncharacters, which can never become assigned) - the JDK's Unicode
      * tables lag new emoji releases, so rejecting them would reject emoji that a current browser renders perfectly.
      */
-    public static final TextRule NO_INVISIBLE_CHARACTERS = new TextRule("noInvisibleCharacters", TextRules::hasNoInvisibleCharacters,
-        "cannot contain invisible or text-direction characters.");
+    public static final TextRule NO_INVISIBLE_CHARACTERS = new TextRule("noInvisibleCharacters",
+        value -> hasNoInvisibleCharacters(value, false), "cannot contain invisible or text-direction characters.");
+
+    /**
+     * {@link #NO_INVISIBLE_CHARACTERS}, with the line feed exempted - the rule a {@link Normalisation#MULTILINE} field carries in place of it.
+     *
+     * <p>
+     * A line feed is a {@code Cc} control character, so the rule above rejects it. Every other field never meets one: {@link Normalisation#CLEANED}
+     * turns every control character into a space long before the rules run, which is exactly why this exemption has not been needed until now. A
+     * multi-line field deliberately keeps its line feeds through normalisation, so without this variant the shared invisible-character policy would
+     * reject every note that has a second line.
+     *
+     * <p>
+     * The exemption is the line feed and nothing else: a carriage return has already been folded away by normalisation, and every other invisible
+     * character - the zero-width space, the bidirectional overrides, the blank letters, the noncharacters - is still rejected here exactly as it is
+     * everywhere else. The wording is deliberately identical, because a newline is simply allowed rather than being a special case a user needs
+     * explaining.
+     */
+    public static final TextRule NO_INVISIBLE_CHARACTERS_ALLOWING_NEWLINE = new TextRule("noInvisibleCharactersAllowingNewline",
+        value -> hasNoInvisibleCharacters(value, true), "cannot contain invisible or text-direction characters.");
 
     /**
      * A value may not stack more than {@link #MAX_CONSECUTIVE_MARKS} combining marks on one character.
@@ -108,9 +127,14 @@ public final class TextRules { // NOPMD: DataClass - a catalogue of rule constan
 
     }
 
-    private static boolean hasNoInvisibleCharacters(final String value) {
+    private static boolean hasNoInvisibleCharacters(final String value, final boolean newlineAllowed) {
         final int[] codePoints = value.codePoints().toArray();
         for (int index = 0; index < codePoints.length; index++) {
+            // The exemption is applied HERE rather than inside isInvisible, so isJoinable below keeps asking the strict question: a joiner beside a
+            // newline is padding joining nothing, exactly like one beside a space, and must stay rejected on a multi-line field too.
+            if (newlineAllowed && codePoints[index] == LINE_FEED) {
+                continue;
+            }
             final boolean rejected = isJoiner(codePoints[index])
                 ? !joinsTwoCharacters(codePoints, index)
                 : isInvisible(codePoints[index]);
