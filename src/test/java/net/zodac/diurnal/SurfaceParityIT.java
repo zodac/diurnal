@@ -219,6 +219,43 @@ class SurfaceParityIT extends IntegrationTestBase {
     }
 
     @Test
+    void noteColour_appliedIdenticallyOnBothSurfaces_andMalformedRejectedByBoth() {
+        // One rule (ProfileService.updateNoteColour): both surfaces store the picked value verbatim, and both reject anything that is not a
+        // #rrggbb hex rather than falling back to the default.
+        given().formParam("noteColour", "#0284c7")
+                .patch("/internal/settings")
+                .then().statusCode(204);
+        runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().noteColour)
+            .as("the web form stores the picked colour")
+            .isEqualTo("#0284c7"));
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"noteColour":"#d946ef"}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(200);
+        runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().noteColour)
+            .as("the API stores the picked colour the very same way")
+            .isEqualTo("#d946ef"));
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"noteColour":"lime"}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(400);
+
+        given().formParam("noteColour", "lime")
+                .patch("/internal/settings")
+                .then().statusCode(422);
+
+        runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().noteColour)
+            .as("a malformed colour must be rejected by BOTH surfaces, keeping the previous value")
+            .isEqualTo("#d946ef"));
+    }
+
+    @Test
     void statFieldRename_appliedIdenticallyOnBothSurfaces() {
         // Renaming a stat is one shared rule (ProfileService.updateStatsFields): both surfaces normalise
         // the name the same way, and both REJECT an over-long one rather than truncating it.

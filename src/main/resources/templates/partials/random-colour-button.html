@@ -1,10 +1,12 @@
 {!
   Randomise-colour button with the shared "Random colour" tooltip, wrapped in the `group relative`
-  tooltip host. Asks the server (which knows every action's colour, not just the ones on this page)
-  for a colour unlike the ones already in use and drops it into the nearest colour input - the one
-  in the button's own <form> (the new-action card) or its own <td> (a table row's edit state). Wired
-  by data-random-colour in /js/actions.js; the value is only submitted with the surrounding form, so
-  nothing is stored until that form is saved.
+  tooltip host. Asks the server (which knows every colour the user has in use, not just the ones on
+  this page) for a colour unlike them and drops it into the nearest colour input - the one in the
+  button's own <form> (the new-action card), its own <td> (a table row's edit state) or its own
+  [data-colour-scope] (the Settings note-colour row). Wired by data-random-colour in /js/app.js.
+  On the action forms the value is only submitted with the surrounding form, so nothing is stored
+  until that form is saved; the Settings row auto-saves, because the handler fires a `change` event
+  and that row's input carries hx-trigger="change".
   Params:
     btnCls     — the button's class list (required — sizing differs per context: the large round
                  new-action control vs the compact .dt-icon-btn in a data-table row)
@@ -14,12 +16,16 @@
     align      — optional, default 'left': the tooltip's horizontal anchor
     tipPos     — optional, default 'bottom': which side the tooltip opens on. Pass 'top' inside a
                  `.dt-table` row - see the note in partials/action-row.html.
+    url        — optional, default '/internal/actions/random-colour': the suggestion endpoint. The
+                 default suits every caller today - the suggestion avoids every colour the user has
+                 in use (their actions' AND their note colour), so both pages want the same answer.
 !}
-{#let wrapperCls=wrapperCls.or('') iconCls=iconCls.or('') dtEdit=dtEdit.or(false) align=align.or('left') tipPos=tipPos.or('bottom')}
+{#let wrapperCls=wrapperCls.or('') iconCls=iconCls.or('') dtEdit=dtEdit.or(false) align=align.or('left') tipPos=tipPos.or('bottom')
+    url=url.or('/internal/actions/random-colour')}
 <span {#if dtEdit}data-dt-edit {/if}class="group relative inline-flex{#if wrapperCls} {wrapperCls}{/if}">
     <button type="button"
             data-random-colour
-            data-random-colour-url="/internal/actions/random-colour"
+            data-random-colour-url="{url}"
             class="{btnCls}"
             aria-label="Random colour">
         {#include partials/icon name='shuffle' cls=iconCls /}

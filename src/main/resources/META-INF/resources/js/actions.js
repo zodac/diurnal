@@ -31,29 +31,6 @@ document.getElementById('new-action-form').addEventListener('htmx:afterRequest',
     }
 })
 
-// Randomise: fetch a suggested colour (the server picks one unlike every colour the user already
-// uses — the client only ever sees the current page of actions, so it cannot make that choice) and
-// drop it into the colour input beside the button. Delegated from the body because the edit-row
-// buttons arrive with every swapped-in row, so a per-element listener would miss them; the input is
-// found within the button's own scope — its <form> on the new-action card, or its <td> in a table
-// row (whose picker belongs to the row form via form=, not by nesting). Plain fetch rather than
-// htmx: the target is an <input> value, not markup, and a failed suggestion is a no-op (the picker
-// keeps whatever it showed) rather than an error the user has to clear. The button is disabled for
-// the duration so an impatient double-click can't race two suggestions into the same input.
-document.body.addEventListener('click', function (e) {
-    const btn = e.target.closest('[data-random-colour]')
-    if (!btn) {return}
-    const scope = btn.closest('form, td')
-    const input = scope ? scope.querySelector('input[name="colour"]') : null
-    if (!input) {return}
-    btn.disabled = true
-    fetch(btn.dataset.randomColourUrl, {headers: {'Accept': 'application/json'}})
-        .then(function (resp) { return resp.ok ? resp.json() : null })
-        .then(function (body) { if (body && body.colour) {input.value = body.colour} })
-        .catch(function () { /* keep the current colour */ })
-        .finally(function () { btn.disabled = false })
-})
-
 // The delete endpoint returns 204 with an empty body. Handle the surgical removal here,
 // rather than on the button itself (its outerHTML swap removes the button — and its own
 // after-request listener — before that listener would fire):

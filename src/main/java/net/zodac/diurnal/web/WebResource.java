@@ -58,6 +58,7 @@ import net.zodac.diurnal.auth.RegistrationResult;
 import net.zodac.diurnal.auth.RegistrationService;
 import net.zodac.diurnal.auth.Session;
 import net.zodac.diurnal.auth.SessionStore;
+import net.zodac.diurnal.colour.Colours;
 import net.zodac.diurnal.config.IpThrottleConfig;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
@@ -625,6 +626,7 @@ public class WebResource {
      * @param theme            the new theme, when submitted
      * @param font             the new font, when submitted
      * @param calendarView     the new dashboard calendar style, when submitted
+     * @param noteColour       the new day-notes colour, when submitted
      * @param timezone         the new IANA timezone, when submitted
      * @param pageSize         the new list page size, when submitted
      * @param decimalPlaces    the new decimal-place count, when submitted
@@ -644,6 +646,7 @@ public class WebResource {
         @FormParam("theme") @Nullable final String theme,
         @FormParam("font") @Nullable final String font,
         @FormParam("calendarView") @Nullable final String calendarView,
+        @FormParam("noteColour") @Nullable final String noteColour,
         @FormParam("timezone") @Nullable final String timezone,
         @FormParam("pageSize") @Nullable final String pageSize,
         @FormParam("decimalPlaces") @Nullable final String decimalPlaces,
@@ -665,6 +668,9 @@ public class WebResource {
         }
         if (calendarView != null && !(result instanceof ProfileResult.Invalid)) {
             result = profileService.updateCalendarView(user, calendarView);
+        }
+        if (noteColour != null && !(result instanceof ProfileResult.Invalid)) {
+            result = profileService.updateNoteColour(user, noteColour);
         }
         if (timezone != null && !(result instanceof ProfileResult.Invalid)) {
             result = profileService.updateTimezone(user, timezone);
@@ -815,6 +821,9 @@ public class WebResource {
                 .data("fontOptions", Font.values())
                 .data("calendarView", user.calendarView)
                 .data("calendarViewOptions", CalendarView.values())
+                .data("noteColour", user.noteColour)
+                // Rendered onto the "Default colour" button so the constant is written down once, in Java.
+                .data("noteColourDefault", UserSettings.DEFAULT_NOTE_COLOUR)
                 .data("statsFieldChoices", StatField.choices(user.statsFields))
                 .data("timezoneChoices",
                         UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone));
@@ -846,6 +855,11 @@ public class WebResource {
                 .data("isAdmin", user.isAdmin())
                 .data("calendarView", user.calendarView)
                 .data("today", today.toString())
+                // The calendar's note marker is the user's colour verbatim, plus the lightened variant the one cell whose
+                // number sits on the solid brand fill needs to stay readable. Both ride CSS custom properties set on the
+                // calendar, so the marker rules stay a single pair regardless of the colour behind them.
+                .data("noteColour", user.noteColour)
+                .data("noteColourOnBrand", Colours.readableOn(user.noteColour, Colours.BRAND_FILL))
                 .data("showStatsSummary", user.showStatsSummary);
     }
 }

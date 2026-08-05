@@ -21,9 +21,9 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.random.RandomGenerator;
 import java.util.stream.Stream;
+import net.zodac.diurnal.colour.Colours;
 
 /**
  * The pure colour-suggestion rules behind the "randomise" control on the new-action form, applied by {@link ActionService} (the single implementation
@@ -79,7 +79,7 @@ final class ActionColours {
      * The brand indigo that fills the calendar's "today" cell. A generated colour keeps its distance from it for the same reason no palette entry
      * sits near it - a dot in that colour would vanish into the cell it most needs to be visible in.
      */
-    static final String BRAND_COLOUR = "#6366f1";
+    static final String BRAND_COLOUR = Colours.BRAND_FILL;
 
     private static final List<String> RESERVED = List.of(ActionValidation.DEFAULT_COLOUR, BRAND_COLOUR);
     private static final int MIN_DISTANCE_SQUARED = MIN_DISTANCE * MIN_DISTANCE;
@@ -88,9 +88,6 @@ final class ActionColours {
     private static final int SATURATION_SPAN_PERCENT = 30;
     private static final int LIGHTNESS_MIN_PERCENT = 45;
     private static final int LIGHTNESS_SPAN_PERCENT = 20;
-    private static final int SECTOR_DEGREES = 60;
-    private static final int CHANNEL_MAX = 255;
-    private static final int PERCENT = 100;
     private static final int RED_OFFSET = 1;
     private static final int GREEN_OFFSET = 3;
     private static final int BLUE_OFFSET = 5;
@@ -115,32 +112,6 @@ final class ActionColours {
         return unused.isEmpty() ? generate(existingColours, random) : unused.get(random.nextInt(unused.size()));
     }
 
-    /**
-     * Builds the {@code #rrggbb} form of an HSL colour. Package-private so the conversion can be unit-tested against known values in its own right.
-     *
-     * @param hue               the hue in degrees, {@code [0, 360)}
-     * @param saturationPercent the saturation, {@code [0, 100]}
-     * @param lightnessPercent  the lightness, {@code [0, 100]}
-     * @return the colour as {@code #rrggbb}
-     */
-    static String fromHsl(final int hue, final int saturationPercent, final int lightnessPercent) {
-        final double saturation = (double) saturationPercent / PERCENT;
-        final double lightness = (double) lightnessPercent / PERCENT;
-        final double chroma = (1 - Math.abs((2 * lightness) - 1)) * saturation;
-        final double sector = (double) hue / SECTOR_DEGREES;
-        final double secondary = chroma * (1 - Math.abs((sector % 2) - 1));
-        final double base = lightness - (chroma / 2);
-
-        return switch ((int) sector) {
-            case 0 -> hex(chroma + base, secondary + base, base);
-            case 1 -> hex(secondary + base, chroma + base, base);
-            case 2 -> hex(base, chroma + base, secondary + base);
-            case 3 -> hex(base, secondary + base, chroma + base);
-            case 4 -> hex(secondary + base, base, chroma + base);
-            default -> hex(chroma + base, base, secondary + base);
-        };
-    }
-
     private static String generate(final Collection<String> existingColours, final RandomGenerator random) {
         final List<String> avoid = Stream.concat(existingColours.stream(), RESERVED.stream()).toList();
         final List<String> sampled = new ArrayList<>(GENERATION_ATTEMPTS);
@@ -159,18 +130,10 @@ final class ActionColours {
     }
 
     private static String randomReadableColour(final RandomGenerator random) {
-        return fromHsl(
+        return Colours.fromHsl(
             random.nextInt(HUE_DEGREES),
             SATURATION_MIN_PERCENT + random.nextInt(SATURATION_SPAN_PERCENT),
             LIGHTNESS_MIN_PERCENT + random.nextInt(LIGHTNESS_SPAN_PERCENT));
-    }
-
-    private static String hex(final double red, final double green, final double blue) {
-        return String.format(Locale.ROOT, "#%02x%02x%02x", channelValue(red), channelValue(green), channelValue(blue));
-    }
-
-    private static int channelValue(final double fraction) {
-        return Math.toIntExact(Math.round(fraction * CHANNEL_MAX));
     }
 
     private static int nearestDistanceSquared(final String colour, final Collection<String> others) {

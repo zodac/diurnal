@@ -25,7 +25,14 @@ single-use markup speculatively — note it as a candidate and extract on the se
   `dt-confirm-delete-row`, `preview-option`/`preview-thumb`, `eye-icons`, `password-constraints`,
   `nav-links`, `navbar`, `footer`, `calendar-toolbar`, `stats-chart`/`stats-chart-candidates`,
   `colour-picker`/`random-colour-button` (the pair that make up a colour control - the new-action
-  card and an action row's edit state each include both).
+  card, an action row's edit state and the Settings "Note colour" row each include both). That pair is
+  the worked example of an optional `endpoint=` param: pass one and the picker auto-saves its own value
+  on change (`hx-patch`, no swap, exactly like `select-field`); leave it off and the colour is only
+  submitted with the surrounding form. The randomise button finds its input by walking up to the nearest
+  `form`, `td` or `[data-colour-scope]` - mark a non-form host (a Settings row) with the last of those.
+  The full-size geometry of the pair is the `.colour-picker-input` / `.colour-picker-btn` component
+  classes (the data-table row keeps its own compact `.dt-color-input` / `.dt-icon-btn` variants), so the
+  picker and every button beside it cannot drift apart in size.
 - **A single-use block stays inline.** The dashboard's note box is the worked example: it is rendered exactly once and
   is deliberately never a swap target (see [`FRONTEND.md`](FRONTEND.md)), so it lives in `dashboard.html` rather than
   becoming `partials/note-card.html`. Extract it if a second caller ever appears.

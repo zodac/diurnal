@@ -36,8 +36,12 @@
                    body — the same 7×6 #d-min-grid; only its per-cell rendering differs (full = bordered
                    cells with event lists, minimal = dots, stacked = bars), keyed off `calendarView`. The
                    active style is mirrored onto the wrapper as `d-cal-{view}` so CSS can scope each look.
-                   The wrapper is `position: relative` so the toolbar's jump-to-month popup anchors to it. !}
-                <div id="calendar-wrap" class="relative d-cal-{calendarView}">
+                   The wrapper is `position: relative` so the toolbar's jump-to-month popup anchors to it.
+                   The two note-marker custom properties carry the user's chosen note colour (verbatim) and the
+                   lightened variant today's brand-filled cell needs, so the `.d-note-day` rules stay one pair
+                   whatever colour is behind them - see the marker block in app.css. !}
+                <div id="calendar-wrap" class="relative d-cal-{calendarView}"
+                     style="--note-colour: {noteColour}; --note-colour-on-brand: {noteColourOnBrand}">
                     {#include partials/calendar-toolbar /}
                     <div class="d-min-dow-header">
                         <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>

@@ -95,6 +95,13 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     @Column(name = "calendar_view", nullable = false)
     public String calendarView = CalendarView.DEFAULT.value();
 
+    // The colour the user's day notes are shown in: the calendar's day-number marker, the Notes
+    // card's swatch on the Stats page and its bars on the frequency graph. Stored and rendered
+    // exactly as picked in both themes, like an action's colour.
+    @Preference
+    @Column(name = "note_colour", nullable = false)
+    public String noteColour = UserSettings.DEFAULT_NOTE_COLOUR;
+
     // User-configurable "Action stats" display preference: the full, ordered arrangement of every
     // stat (its StatField key + enabled flag) selecting which per-action stats show on the Stats
     // page and in what order. Stored as a jsonb array of StatFieldPref, so a field keeps its position

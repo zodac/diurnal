@@ -350,6 +350,30 @@ document.getElementById('prefs-form').addEventListener('change', function (e) {
     }
 })
 
+// ── Note colour: revert to the built-in default ──────────────────────────
+// The picker itself auto-saves (hx-trigger="change"), and the randomise button beside it is the
+// shared handler in app.js — so this only has to write the value in and fire the same `change`
+// event a hand-picked colour would, which htmx then turns into the identical PATCH. The default
+// hex is read off the button's data attribute rather than repeated here: the server renders it
+// from UserSettings.DEFAULT_NOTE_COLOUR, which stays the one place it is written down.
+//
+// The button is inert while the colour ALREADY is the default, so it can never send a no-op save
+// (the same rule the note box's Save follows). Kept in step by listening for `change` on the
+// input, which covers every path that sets it — the picker, the randomise button and this button.
+const noteColourInput = document.getElementById('noteColour')
+const noteColourDefaultBtn = document.getElementById('note-colour-default')
+
+function syncNoteColourDefaultBtn() {
+    noteColourDefaultBtn.disabled = noteColourInput.value.toLowerCase() === noteColourDefaultBtn.dataset.colourDefault
+}
+
+noteColourDefaultBtn.addEventListener('click', function () {
+    noteColourInput.value = noteColourDefaultBtn.dataset.colourDefault
+    noteColourInput.dispatchEvent(new Event('change', {bubbles: true}))
+})
+noteColourInput.addEventListener('change', syncNoteColourDefaultBtn)
+syncNoteColourDefaultBtn()
+
 // Full-size preview overlay for the Theme / Calendar-style tiles. It is a per-setting
 // gallery: opening any tile's (!) lets you step (prev/next) through the OTHER options of
 // the SAME picker only — the tiles are scoped by their shared data-preview-group.

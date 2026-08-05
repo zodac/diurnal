@@ -58,7 +58,8 @@ into `microprofile-config.properties` (read by `AppConfig`/`AppInfo`). All are t
 - `htmx.min.js` (`AppInfo.jsFile`) — **vendored** from npm by `scripts/vendor-assets.cjs` (`.gitignored` build artifact).
 - `app.js` (`AppInfo.jsAppFile`) — the shared per-page behaviour extracted from `layout.html` (dt edit/confirm toggles,
   form validation + AJAX submit, locale number grouping, the tooltip long-press, the password-requirements popover, the
-  delegated `htmx:configRequest` search-filter listener, the mobile-menu toggle). A **committed** handwritten file.
+  delegated `htmx:configRequest` search-filter listener, the mobile-menu toggle, the delegated
+  `[data-random-colour]` suggestion handler). A **committed** handwritten file.
   Loaded as a classic script at the end of `<body>` on every page, so the document is parsed when it runs and its
   document-level handlers register in the original order (the `data-validate` handler must precede `data-ajax-submit`).
 - `dashboard.js` (`AppInfo.jsDashboardFile`) — the hand-rolled calendar engine extracted from `dashboard.html`. A
@@ -176,11 +177,16 @@ family lives un-layered at the bottom of `app.css` beside `.d-*` and `.chart-*`.
 
 ### Calendar note markers & the split month cache
 
-A day with a note gets a **green day number** (`.d-note-day` on the shared `.d-min-cell`, so one rule covers all three
-styles), coloured from the existing `--color-success` token. **Today is the one exception**: its number sits on a solid
-brand fill where green-600 is ~1.4:1, so it turns the lightened `--color-success-on-brand` instead — the number still
-goes green, which is the whole signal. An earlier version kept today's number white and marked it with a thin underline
-or a ring; both were reported as the marker "not working".
+A day with a note gets a **coloured day number** (`.d-note-day` on the shared `.d-min-cell`, so one rule covers all
+three styles), painted with **`--note-colour`** — an inline custom property `dashboard.html` sets on `#calendar-wrap`
+from the user's `noteColour` preference (default green-600). It is the picked value **verbatim in both themes**, like an
+action's colour, so there is deliberately no `.dark` twin; the `:root` declaration is only the fallback for a render
+that has not set it. **Today is the one exception**: its number sits on a solid brand fill where green-600 (and any
+other dark pick) is ~1.4:1, so it takes **`--note-colour-on-brand`** — the same colour raised up the HSL lightness axis
+by `Colours.readableOn` until it clears 3:1, computed server-side per request. The number still goes the note colour,
+which is the whole signal. An earlier version kept today's number white and marked it with a thin underline or a ring;
+both were reported as the marker "not working". Full rationale (including why it is ONE picker, not a light/dark pair):
+[`NOTES.md`](NOTES.md).
 
 Notes ride the calendar's **existing** per-month cache, with their own promise map, loaded flag and radius:
 

@@ -2,7 +2,8 @@
 
 > A per-day free-text note (a journal entry), alongside the existing per-day action logs. One note per user per day,
 > writable for **any** date including future ones, surfaced on the dashboard beside the day logger, indicated on the
-> calendar by a green day number, and treated as a first-class stats subject pinned first on the Stats page.
+> calendar by a coloured day number (the colour is a per-user setting, defaulting to green), and treated as a
+> first-class stats subject pinned first on the Stats page.
 >
 > **Status: IMPLEMENTED (all 10 steps), plus a post-implementation review pass** (see
 > [Review findings](#review-findings-actioned)). Notes are written on the dashboard, marked on the calendar with a green day
@@ -18,7 +19,8 @@
 ## Requirements (as agreed)
 
 1. Free text per date, like a note or journal entry.
-2. A date with a note shows its calendar day number in **green** (light and dark shades both considered).
+2. A date with a note shows its calendar day number in **green** (light and dark shades both considered). *Superseded:
+   the colour is now a per-user setting defaulting to that green — see [The note colour](#the-note-colour).*
 3. The Stats Summary is limited to the calendar's width; the Note box sits alongside it, directly under the day logger.
 4. When the viewport is constrained (or on mobile) the order is **calendar, day logger, note, stats summary**.
 5. The note box's default height matches a 3-stat Stats Summary, and the user can drag it **larger** (never smaller).
@@ -44,6 +46,7 @@ Each of these was a real fork; the rejected option is recorded so it is not sile
 | Notes prefetch radius | **±1 month** (events stay at ±2), 12-month shared LRU cap | ±2 for both. Rejected: notes are the heavier payload and the marginal value of a month two clicks away is low |
 | Note card rendering | Server-rendered **once** with the page; date changes only set the textarea value client-side | A per-day HTMX fragment swap. Rejected once content came from the client cache — there is nothing left to swap |
 | Resize | Three custom Pointer Events handles (right, bottom, corner) | Native CSS `resize: both`. Rejected: it gives only a corner grip and cannot do edges, which requirement 8 asks for explicitly |
+| Note colour | **One user preference, one hex, rendered verbatim in both themes** — see [The note colour](#the-note-colour) | Two pickers (light + dark), and a single pick auto-adjusted per theme. Both rejected: see that section |
 
 ## Design
 
@@ -193,8 +196,9 @@ monthly)`, so notes plug straight in with no new aggregation.
 - `StatSubjectExtensions.notes(subject)` is a `@TemplateExtension` predicate rather than a Qute enum comparison —
   comparing a Java enum against a string literal in Qute is silently `false`. The Stats card uses it to hide the
   frequency-graph button on the notes card until step 8 makes notes chartable.
-- Notes colour is `var(--color-success)` — the same green as the calendar highlight, so the swatch, the day number and
-  the chart bars all read as one thing.
+- The subject's colour is the user's own `noteColour` (`StatSubject.notes(colour)`), the same value the calendar
+  highlight uses, so the swatch, the day number and the chart bars all read as one thing. See
+  [The note colour](#the-note-colour).
 - **Count semantics:** one note is a count of 1, so `totalCount == totalDays` and the count averages equal the day
   averages. The tiles render honestly rather than being hidden, because the stat picker is a single global preference.
 - **Frequency graph:** `FrequencyCharts.ChartedAction` was DELETED rather than renamed — it was structurally
@@ -333,18 +337,71 @@ invariants. `tests/ui/dashboard.spec.ts` covers it.
   which now re-pulls notes too. Harmless and self-correcting.
 - The stats-summary cache is untouched.
 
-### Green day numbers
+### The note colour
+
+**The colour notes are shown in is a per-user preference** (`User.noteColour`, `@Preference`, `V27__add_note_colour.sql`), picked in
+**Settings → Appearance → Note colour** with the same `colour-picker` + `random-colour-button` pair the new-action card uses, plus a
+**"Default colour"** button (`#note-colour-default`) that reverts to `UserSettings.DEFAULT_NOTE_COLOUR`. That button is this row's alone — an action
+has no default to go back to, its colour being whatever was picked when it was created — so it stays inline markup wired in `settings.js`, writing
+the value in and firing the same `change` event a hand-picked colour would. It carries the default as a `data-colour-default` attribute rendered by
+the server, so the constant is written down once (in Java), and it is **disabled while the colour already IS the default**, so it can never send a
+save that changes nothing. It defaults to
+`UserSettings.DEFAULT_NOTE_COLOUR` (`#16a34a`, the green-600 the marker was fixed at before), so every existing account keeps exactly the colour it
+had. The write rule is `ProfileService.updateNoteColour`, held to the shared `Colours.isInvalidHex` format rule — the same one an action's colour
+obeys — and **rejected, never coerced**, on both surfaces (`422` on the web form, `400` on `PATCH /api/v1/users/me`).
+
+It reaches the three places notes are coloured:
+
+| Surface | How |
+|---|---|
+| Calendar day-number marker | `--note-colour` / `--note-colour-on-brand`, set as inline custom properties on `#calendar-wrap` by `dashboard.html`, read by the `.d-note-day` rules |
+| Stats page Notes swatch | `StatSubject.notes(colour)` — the colour is a constructor argument now, resolved by `StatsService` from the same `User` read that resolves "today" |
+| Frequency-graph bars | the same `StatSubject`, unchanged downstream |
+
+> **One picker, not two — and the colour is used EXACTLY as picked in both themes.** This was a real fork, so both rejected options are recorded.
+> Before the setting existed the app was already inconsistent: the calendar marker rode `--color-success` (green-600 light / green-400 dark, so it
+> shifted with the theme) while the Stats swatch was a literal `#16a34a` in both. A user-set colour had to resolve that.
+>
+> - **Chosen: one hex, verbatim in both themes.** It is exactly how an action's colour already works, and the notes subject sits in the same Stats
+>   list as the actions, where every other swatch is a single hex.
+> - **Rejected — two pickers (light + dark).** It doubles the `@Preference` fields, the `/api/v1/users/me` properties, the Settings rows and the
+>   parity tests, for a choice most users set once. Nothing else in the app has a per-theme pair of user values.
+> - **Rejected — one pick, auto-adjusted per theme.** It would preserve the old dark-mode punch, but the rendered colour would then not be the
+>   colour in the swatch the user picked, and it diverges from action colours for no rule anyone can state. The cost of not doing it is small: the
+>   default `#16a34a` still sits at about 5.4:1 on the dark canvas and 4.4:1 on a dark card, so it reads — it is merely less vivid than the
+>   green-400 dark mode used to substitute.
+>
+> **The one derived shade stays derived.** Today's calendar cell has a solid brand fill, where green-600 is about 1.4:1 — and so is any other dark
+> pick. `Colours.readableOn(colour, Colours.BRAND_FILL)` raises the picked colour up the **HSL lightness axis** (hue and saturation untouched) in
+> 5-point steps until it clears **3:1**, so the number still reads unmistakably as *that* colour. The default derives to `#7deda6`, which lands
+> beside the green-300 that was hard-coded before, so the cell looks the way it always did. Mixing towards white was tried and rejected: it
+> desaturates, turning the default into a washed-out mint (`#b9e3c9`) rather than a lighter green. This is a **legibility floor, not a preference**,
+> which is the reason it is computed rather than being a second thing to pick — and the reason the old `--color-success-on-brand` token is gone.
+>
+> **The colour suggester now avoids the note colour too.** `ActionService.suggestColour` feeds `Action.distinctColours(...)` **plus**
+> `user.noteColour` into `ActionColours.suggest`, so "a colour unlike the ones you already use" covers both kinds. An action dot in the note
+> marker's colour on the same calendar is exactly the confusion the distance rules exist to prevent — and it means the Settings randomise button
+> reuses `/internal/actions/random-colour` (and its `GET /api/v1/actions/random-colour` twin) rather than needing an endpoint of its own.
+>
+> **The shared `net.zodac.diurnal.colour.Colours`** is where the format rule, the HSL→hex conversion (moved out of `ActionColours`) and the
+> lightening live, so the two features cannot drift on what a colour is. The delegated randomise-button handler moved from `actions.js` to `app.js`
+> for the same reason, and finds its input via `form, td, [data-colour-scope]` — the Settings row is none of the first two.
+
+### Coloured day numbers
 
 `dashboard.js` reads `noteData[dateStr] !== undefined` in `renderGrid` and adds `.d-note-day` to the cell. All three
 calendar styles are covered at once because the class sits on the shared `.d-min-cell`.
 
-Colours come from the existing **`--color-success`** token, already `green-600` light / `green-400` dark — so
-requirement 2's light/dark shades are handled by construction, and no new token pair is needed.
+Colours come from **`--note-colour`**, the inline custom property `dashboard.html` sets on `#calendar-wrap` from the
+user's preference — the same value in light and dark, with **no `.dark` twin to keep in step**. (Originally this was
+the theme-adaptive `--color-success` token; see [The note colour](#the-note-colour) for why a single value replaced it.)
+The `:root` declaration of both properties is only the fallback for a render that has not set them, and holds the
+defaults every account starts on.
 
-**Contrast rule:** today's number sits on a solid brand fill, where the ordinary green-600 is about **1.4:1** and
-simply unreadable. It still turns GREEN — that is the whole signal — but in a lightened `--color-success-on-brand`
-(green-300), which clears 3:1 on the fill. Every calendar style gets the same treatment, so "a day with a note has a
-green number" holds without exception.
+**Contrast rule:** today's number sits on a solid brand fill, where the default green-600 is about **1.4:1** — and so is
+any other dark pick. It still turns the note colour — that is the whole signal — but in **`--note-colour-on-brand`**,
+the lightened variant `Colours.readableOn` derives to clear 3:1 on the fill. Every calendar style gets the same
+treatment, so "a day with a note has a coloured number" holds without exception.
 
 > **Rejected:** an earlier version kept today's number white and marked it with a thin green underline (`full`) or a
 > green ring on the circle (`minimal`/`stacked`). Both were technically visible and both were reported as the marker
@@ -352,7 +409,7 @@ green number" holds without exception.
 > do not move the signal off the number.
 
 Every other cell — including the brand-*coloured* selected cell, where the selection ring and the note marker say
-different things and neither may hide the other — takes the ordinary green number, and adjacent-month cells keep their
+different things and neither may hide the other — takes the plain note colour, and adjacent-month cells keep their
 existing muting.
 
 > **Asserting the marker in a test needs `expect.poll`.** The calendar repaints its whole grid when a month's events or

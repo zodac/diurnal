@@ -154,37 +154,6 @@ class ActionColoursTest {
     }
 
     @Test
-    void fromHsl_convertsEveryHueSector() {
-        final List<String> converted = List.of(
-            ActionColours.fromHsl(0, 55, 45),
-            ActionColours.fromHsl(30, 55, 45),
-            ActionColours.fromHsl(90, 55, 45),
-            ActionColours.fromHsl(150, 55, 45),
-            ActionColours.fromHsl(210, 55, 45),
-            ActionColours.fromHsl(270, 55, 45),
-            ActionColours.fromHsl(330, 55, 45));
-        final List<String> expected = List.of(
-            "#b23434",
-            "#b27334",
-            "#73b234",
-            "#34b273",
-            "#3473b2",
-            "#7334b2",
-            "#b23473");
-
-        assertThat(converted)
-            .as("each hue sector should convert to its known RGB value")
-            .containsExactlyElementsOf(expected);
-    }
-
-    @Test
-    void fromHsl_appliesSaturationAndLightness() {
-        assertThat(ActionColours.fromHsl(0, 84, 64))
-            .as("a brighter, more saturated red should be produced")
-            .isEqualTo("#f05656");
-    }
-
-    @Test
     void palette_holdsNoDuplicates() {
         assertThat(Set.copyOf(ActionColours.PALETTE))
             .as("the palette should hold no duplicate colours")

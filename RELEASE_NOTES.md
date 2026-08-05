@@ -6,3 +6,4 @@ Notes update.
 - Added stats for notes alongside actions
 - New API endpoints for the notes feature
 - Some UI updates to make things fit and flow smoothly
+- Added user setting to define note colour for calendar highlight

@@ -242,6 +242,12 @@ public class UserResource {
                 return result;
             }
         }
+        if (preferences.noteColour() != null) {
+            result = profileService.updateNoteColour(user, preferences.noteColour());
+            if (result instanceof ProfileResult.Invalid) {
+                return result;
+            }
+        }
         if (preferences.timezone() != null) {
             result = profileService.updateTimezone(user, preferences.timezone());
             if (result instanceof ProfileResult.Invalid) {
@@ -300,6 +306,7 @@ public class UserResource {
      * @param theme            the UI colour scheme; unrecognised values are rejected
      * @param font             the UI font family; unrecognised values are rejected
      * @param calendarView     the dashboard calendar layout; unrecognised values are rejected
+     * @param noteColour       the {@code #rrggbb} colour the user's day notes are shown in; anything else is rejected
      * @param timezone         the IANA timezone override; blank resets to the server default, unrecognised values are rejected
      * @param pageSize         the rows per page in list views; rejected when out of range
      * @param decimalPlaces    the decimal places for fractional stats; rejected when out of range
@@ -314,6 +321,9 @@ public class UserResource {
         @Nullable String font,
         @Schema(examples = "full", description = "Dashboard calendar layout: 'full', 'minimal' or 'stacked'; anything else is rejected.")
         @Nullable String calendarView,
+        @Schema(examples = UserSettings.DEFAULT_NOTE_COLOUR,
+        description = "The colour the user's day notes are shown in, as a '#rrggbb' hex value; anything else is rejected.")
+        @Nullable String noteColour,
         @Schema(examples = "Europe/London",
         description = "IANA timezone override from the offered options; blank resets to the server default, anything else is rejected.")
         @Nullable String timezone,

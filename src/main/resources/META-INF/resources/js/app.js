@@ -915,3 +915,38 @@ document.addEventListener('click', function (e) {
 if (window.location.pathname === '/login') {
     try { sessionStorage.removeItem('diurnal.selectedDate') } catch (e) { /* ignore */ }
 }
+
+// ── Randomise-colour buttons (partials/random-colour-button.html) ─────────────
+// Fetch a suggested colour (the server picks one unlike every colour the user already uses — the
+// client only ever sees the current page of actions, and never the note colour, so it cannot make
+// that choice) and drop it into the colour input beside the button. Lives here rather than in
+// actions.js because the control is shared by the Actions page and the Settings note-colour row;
+// one handler means the two can never drift. Delegated from the body because the edit-row buttons
+// arrive with every swapped-in row, so a per-element listener would miss them; the input is found
+// within the button's own scope — its <form> on the new-action card, its <td> in a table row (whose
+// picker belongs to the row form via form=, not by nesting), or its [data-colour-scope] on a
+// Settings row, which is neither. Plain fetch rather than htmx: the target is an <input> value, not
+// markup, and a failed suggestion is a no-op (the picker keeps whatever it showed) rather than an
+// error the user has to clear. The button is disabled for the duration so an impatient double-click
+// can't race two suggestions into the same input. Setting .value fires no event of its own, so a
+// `change` is dispatched explicitly: the action forms ignore it (their colour is submitted with the
+// form), while the Settings picker's hx-trigger="change" turns it into the auto-save it would have
+// done had the value been picked by hand.
+document.body.addEventListener('click', function (e) {
+    const btn = e.target.closest('[data-random-colour]')
+    if (!btn) {return}
+    const scope = btn.closest('form, td, [data-colour-scope]')
+    const input = scope ? scope.querySelector('input[type="color"]') : null
+    if (!input) {return}
+    btn.disabled = true
+    fetch(btn.dataset.randomColourUrl, {headers: {'Accept': 'application/json'}})
+        .then(function (resp) { return resp.ok ? resp.json() : null })
+        .then(function (body) {
+            if (body && body.colour) {
+                input.value = body.colour
+                input.dispatchEvent(new Event('change', {bubbles: true}))
+            }
+        })
+        .catch(function () { /* keep the current colour */ })
+        .finally(function () { btn.disabled = false })
+})

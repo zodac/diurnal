@@ -396,7 +396,49 @@
                         {#include partials/preview-picker optionsId="calendar-options" label="Calendar style" group="calendarView"
                             endpoint="/internal/settings" options=calendarViewOptions current=calendarView border=true /}
                         {#include partials/preview-picker optionsId="font-options" label="Font" group="font"
-                            endpoint="/internal/settings" options=fontOptions current=font border=false /}
+                            endpoint="/internal/settings" options=fontOptions current=font border=true /}
+
+                        {! Note colour: the same picker + randomise pair the new-action card uses, so a note
+                             is coloured exactly the way an action is, plus a revert-to-default button this row
+                             alone has (an action's colour has no "default" to go back to — it is whatever was
+                             picked when it was created). The picker auto-saves its own value on change
+                             (endpoint=), and both buttons drop a value into it and fire that same change —
+                             data-colour-scope is how the shared handler in app.js finds the input from the
+                             randomise button (the action pages scope it by <form>/<td>, which this row, not
+                             being a form, has neither of). ONE colour, used verbatim in both themes: the only
+                             derived shade is the lightened variant today's brand-filled calendar cell needs,
+                             which the server computes (see NOTES.md). !}
+                        {! The label block is `min-w-0` and NOT `shrink-0`, unlike the other preference rows:
+                             three 36px controls plus their gaps is far more than a single toggle, and with both
+                             sides refusing to shrink the row overflowed its card on a phone - the label ended up
+                             ON TOP of the buttons, swallowing their taps (caught by the mobile E2E project). The
+                             help text wraps instead; the controls keep `shrink-0` so they never squash. !}
+                        <div data-colour-scope class="flex items-center justify-between pt-2">
+                            <div class="min-w-0 pr-4">
+                                <label for="noteColour" class="block text-sm font-medium text-ink">Note colour</label>
+                                <p class="help-text mt-0.5">Colour of days with a note, and of the Notes statistics.</p>
+                            </div>
+                            <div class="ml-4 flex items-center gap-3 shrink-0">
+                                {#include partials/colour-picker id='noteColour' name='noteColour' value=noteColour
+                                    endpoint='/internal/settings' wrapperCls='shrink-0' inputCls='colour-picker-input' /}
+                                {#include partials/random-colour-button wrapperCls='shrink-0' iconCls='w-4 h-4' align='right'
+                                    btnCls='colour-picker-btn' /}
+                                {! Revert to the built-in colour. The default itself is server-rendered onto the
+                                     button rather than repeated in settings.js, so UserSettings.DEFAULT_NOTE_COLOUR
+                                     stays the only place it is written down. Single-use markup, so it stays inline
+                                     rather than becoming a partial (UI_PATTERNS.md section 1). !}
+                                <span class="group relative inline-flex shrink-0">
+                                    <button type="button"
+                                            id="note-colour-default"
+                                            data-colour-default="{noteColourDefault}"
+                                            class="colour-picker-btn"
+                                            aria-label="Default colour">
+                                        {#include partials/icon name='rotate-ccw' cls='w-4 h-4' /}
+                                    </button>
+                                    {#include partials/tooltip text="Default colour" pos="bottom" align="right" /}
+                                </span>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
