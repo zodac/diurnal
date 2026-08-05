@@ -98,6 +98,34 @@ test.describe("Actions page", () => {
         await expect(page.locator("#action-error")).toContainText(/already exists/i)
     })
 
+    test("create action with an invisible character in the name shows error", async ({ authenticatedPage: page }) => {
+        // A zero-width space renders as nothing, so this name is indistinguishable on screen from the plain one. The shared text
+        // pipeline rejects it rather than storing two names that look identical; the UI must surface that as the usual banner.
+        const name = `${unique("Swimming")}\u200B`
+        await page.goto("/actions")
+        await page.waitForFunction(() => typeof (window as {htmx?: unknown}).htmx !== "undefined")
+        await page.fill('input[name="name"]', name)
+        await Promise.all([
+            page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
+        ])
+        await expect(page.locator("#action-error")).toBeVisible()
+        await expect(page.locator("#action-error")).toContainText(/invisible or text-direction/i)
+        await expect(page.locator("#action-list")).not.toContainText("Swimming")
+    })
+
+    test("create action with an emoji in the name is accepted and rendered", async ({ authenticatedPage: page }) => {
+        const name = `${unique("Gym")} 💪`
+        await page.goto("/actions")
+        await page.waitForFunction(() => typeof (window as {htmx?: unknown}).htmx !== "undefined")
+        await page.fill('input[name="name"]', name)
+        await Promise.all([
+            page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
+        ])
+        await expect(page.locator("#action-list")).toContainText("💪")
+    })
+
     test("edit action: inline form appears and updates name in-place", async ({ authenticatedPage: page }) => {
         const origName = unique("OldName")
         const newName = unique("NewName")

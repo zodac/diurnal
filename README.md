@@ -34,6 +34,11 @@
     - [Preferences](#preferences)
     - [Statistics](#statistics)
     - [Appearance](#appearance)
+- [Text Input](#text-input)
+    - [Length Limits](#length-limits)
+    - [Accepted Characters](#accepted-characters)
+    - [Rejected Characters](#rejected-characters)
+    - [Emoji](#emoji)
 - [Administrator Users](#administrator-users)
 - [REST API](#rest-api)
 - [Versioning](#versioning)
@@ -393,6 +398,70 @@ order, and  each can be disabled and re-ordered. The **Last performed** statisti
 | **Theme**          | System, Light, Dark                                            |
 | **Calendar style** | Full, Minimal, Stacked (see [Calendar views](#calendar-views)) |
 | **Font**           | Nova, Standard, OpenDyslexic                                   |
+
+## Text Input
+
+Every free-text value you type - an action name, your display name, a renamed statistic, your email, your password - goes through the same validation,
+whether you enter it in the app or through the [REST API](#rest-api). Nothing is silently truncated or rewritten: a value is either accepted as typed,
+tidied in a way you can see, or rejected with a message explaining what is wrong.
+
+Before a value is checked it is **tidied**: control characters and every kind of space (including the no-break and ideographic spaces that are easy to
+paste in by accident) become ordinary spaces, runs of spaces collapse to one, leading and trailing spaces are removed, and accented characters are
+stored in their standard composed form so two names that look identical are treated as identical. What is stored is what you see. Passwords are the one
+exception - they are used exactly as typed, spaces and all, and none of the restrictions below apply to them.
+
+### Length Limits
+
+Limits are counted in **characters as a reader counts them**, not bytes: an accented letter, a Chinese character and an emoji each count as one.
+
+| Field | Limit |
+| --- | --- |
+| Action name | 1-100 characters |
+| Display name | 2-50 characters |
+| Statistic name | Up to 25 characters (leave it blank to restore the built-in name) |
+| Email | 3-254 characters, and must contain an `@` |
+| Password | 1-128 characters |
+
+### Accepted Characters
+
+Text in **any language or script** is accepted - Latin, Cyrillic, Greek, Arabic, Hebrew, Chinese, Japanese, Korean, Thai, Devanagari and the rest,
+including right-to-left text, accents and combining marks. Punctuation, symbols, currency signs and mathematical characters are all fine, as are
+characters that merely resemble others (a Cyrillic `а` in an otherwise Latin word is accepted, not policed).
+
+Decorative and stylised text is accepted too - upside-down text (`˙ɐnbᴉlɐ`), the mathematical alphabets (`𝕿𝖍𝖊`, `𝕋𝕙𝕖`), small capitals (`ᴛʜᴇ`),
+enclosed letters (`🅃🄷🄴`), full-width forms (`ＡＢＣ`), runes and Unicode digits (`١٢٣`). They are all real characters that display correctly; they
+simply count towards the length limits like any other.
+
+Characters that look like code - `<script>`, `'; DROP TABLE`, `{7*7}`, `%s`, `../../` - are treated as **ordinary text**. They are stored exactly as
+typed and displayed exactly as typed; they are never executed, and they are never rewritten on the way in so that what you get back is what you
+entered.
+
+### Rejected Characters
+
+A value is rejected, with a message, if it contains:
+
+- **Invisible characters** - zero-width spaces, the byte-order mark, soft hyphens, word joiners, tag characters, unpaired surrogates and private-use
+  characters. These render as nothing, which means two different names could look completely identical on screen (`admin` and `ad<zero-width>min`) -
+  so one could be used to impersonate the other, and the duplicate-name check could not catch it. The two zero-width **joiners** are the exception,
+  because they are real spelling rather than a trick - they hold multi-part emoji together, and are mandatory in Persian, Urdu and Pashto - so they
+  are accepted between two characters, and rejected anywhere they are joining nothing.
+- **Characters that are invisible despite being letters** - the Hangul fillers, the Khmer inherent vowels and the blank Braille pattern. These are the
+  characters behind the "blank name" trick, and a name made only of them would appear completely empty.
+- **Unicode noncharacters** (U+FDD0-U+FDEF and the last two code points of each plane), which are permanently reserved and display as a fallback box.
+- **Text-direction characters** - the bidirectional overrides, isolates and marks. These reverse the text that follows them, so a name could be made to
+  display as something other than what it actually is.
+- **More than four stacked combining marks** on a single character (the "zalgo" effect), which renders as a column of glyphs that overflows the row it
+  is shown in. Ordinary accented text, and scripts that legitimately stack marks, are unaffected.
+
+A value made up **entirely of spaces or invisible whitespace** is rejected as empty, rather than being stored as a name that cannot be seen.
+
+### Emoji
+
+Emoji are **fully supported** in action names, display names and statistic names - `Gym 💪` is a perfectly good action name. They are stored and
+displayed exactly as entered, including multi-person emoji, skin-tone variants, flags and keycaps.
+
+One thing worth knowing: an emoji made of several joined parts counts as **more than one character** against the limits above. A family emoji
+(👩‍👩‍👧‍👦), for example, is built from four people joined together and counts as seven characters. Simple emoji count as one each.
 
 ## Administrator Users
 

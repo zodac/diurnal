@@ -286,6 +286,9 @@ public class ActionsApiResource {
             case final ActionResult.NameTooLong ignored -> Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ApiErrorResponse(TextFieldExtensions.lengthMessage(TextFields.ACTION_NAME)))
                 .build();
+            case final ActionResult.InvalidName invalid -> Response.status(Response.Status.BAD_REQUEST)
+                .entity(new ApiErrorResponse(invalid.message()))
+                .build();
             case final ActionResult.InvalidColour ignored -> Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ApiErrorResponse("Action colour is invalid"))
                 .build();

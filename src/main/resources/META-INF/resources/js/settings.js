@@ -136,8 +136,9 @@ document.getElementById('account-form').addEventListener('htmx:afterRequest', fu
         return Array.prototype.every.call(newPasswordTip.querySelectorAll('[data-pw-check]'), function (row) {
             const bound = row.getAttribute('data-pw-value')
             const type = row.getAttribute('data-pw-type')
-            if (type === 'minLength') {return value.length >= parseInt(bound, 10)}
-            if (type === 'maxLength') {return value.length <= parseInt(bound, 10)}
+            // Code points, like the server's TextFieldExtensions.length: `value.length` would count an emoji twice.
+            if (type === 'minLength') {return Array.from(value).length >= parseInt(bound, 10)}
+            if (type === 'maxLength') {return Array.from(value).length <= parseInt(bound, 10)}
             // Re-entering the current password is not a change: the server rejects it, so the step is gated
             // here too rather than letting the user reach the confirm step for nothing.
             if (type === 'differsFrom') {

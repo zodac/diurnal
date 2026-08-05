@@ -109,7 +109,10 @@ public class RegistrationService {
             return new RegistrationResult.LockedOut(ipThrottle.lockoutRemaining(clientIp, now));
         }
 
-        final String emailValue = email == null ? "" : email;
+        // Case-folded BEFORE the pipeline, not after: lower-casing can LENGTHEN a value (a Turkish dotted capital I becomes two code points), so an
+        // address folded afterwards could exceed the bound it was just checked against - and the column - turning a 400 into a 500 at INSERT time.
+        // Folding first also keeps the rule that the value checked is exactly the value stored.
+        final String emailValue = email == null ? "" : email.toLowerCase(Locale.ROOT);
         final String displayNameValue = displayName == null ? "" : displayName;
         final String passwordValue = password == null ? "" : password;
 
@@ -126,8 +129,8 @@ public class RegistrationService {
             return new RegistrationResult.Invalid(missingFields, errors);
         }
 
-        // Lower-cased for the case-insensitive uniqueness the column relies on; the value itself is the one the check above already produced.
-        final String normalised = acceptedValue(emailOutcome, emailValue).toLowerCase(Locale.ROOT);
+        // Already lower-cased above, for the case-insensitive uniqueness the column relies on; this is the value the check produced, unaltered.
+        final String normalised = acceptedValue(emailOutcome, emailValue);
         if (User.findByEmail(normalised).isPresent()) {
             RegistrationAttemptLog.logFailure(LOGGER, ipLockoutService.recordFailure(clientIp, now), emailValue, clientIp);
             return new RegistrationResult.DuplicateEmail();

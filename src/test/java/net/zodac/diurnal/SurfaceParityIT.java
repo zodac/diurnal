@@ -76,6 +76,44 @@ class SurfaceParityIT extends IntegrationTestBase {
     }
 
     @Test
+    void invisibleCharacterInActionName_rejectedOnBothSurfaces_nothingPersisted() {
+        // Renders as "Running" but is a different value, so accepting it on either surface would put two indistinguishable actions in the table.
+        final String invisibleName = "Run" + Character.toString(0x200B) + "ning";
+
+        given().contentType(ContentType.JSON)
+                .body("{\"name\":\"" + invisibleName + "\"}")
+                .post("/api/v1/actions")
+                .then().statusCode(400);
+
+        // The charset is explicit because RestAssured encodes a form body as ISO-8859-1 by default, which would drop the very character under test.
+        given().contentType("application/x-www-form-urlencoded; charset=UTF-8")
+                .formParam("name", invisibleName)
+                .post("/internal/actions")
+                .then().statusCode(409); // the HTMX surface reports every validation failure as a conflict banner
+
+        runInTx(() -> assertThat(Action.count("userId = ?1 and name = ?2", primaryId, invisibleName))
+            .as("a name holding an invisible character must be rejected by BOTH surfaces without persisting")
+            .isZero());
+    }
+
+    @Test
+    void emojiActionName_acceptedOnBothSurfaces() {
+        given().contentType(ContentType.JSON)
+                .body("{\"name\":\"Gym 💪\"}")
+                .post("/api/v1/actions")
+                .then().statusCode(201);
+
+        given().contentType("application/x-www-form-urlencoded; charset=UTF-8")
+                .formParam("name", "Yoga 🧘")
+                .post("/internal/actions")
+                .then().statusCode(200);
+
+        runInTx(() -> assertThat(Action.count("userId = ?1 and (name = ?2 or name = ?3)", primaryId, "Gym 💪", "Yoga 🧘"))
+            .as("an emoji name must round-trip through BOTH surfaces and the column unchanged")
+            .isEqualTo(2));
+    }
+
+    @Test
     void duplicateActionName_rejectedOnBothSurfaces_countUnchanged() {
         given().contentType(ContentType.JSON)
                 .body("""

@@ -855,9 +855,14 @@ document.addEventListener('click', function (e) {
 // the check tokens below (minLength / maxLength) MUST match Constraint.type. One handler serves both
 // the registration and settings pages; each page has a single opted-in field.
 (function () {
+    // Code points, matching the server's TextFieldExtensions.length — `value.length` counts UTF-16 units, so an
+    // emoji would count as two and the row would contradict the answer the server is about to give.
+    function textLength(value) {
+        return Array.from(value).length
+    }
     function met(type, bound, value) {
-        if (type === 'minLength') {return value.length >= parseInt(bound, 10)}
-        if (type === 'maxLength') {return value.length <= parseInt(bound, 10)}
+        if (type === 'minLength') {return textLength(value) >= parseInt(bound, 10)}
+        if (type === 'maxLength') {return textLength(value) <= parseInt(bound, 10)}
         // The change-password flow's extra row (partial param `differsFrom`): the bound is the id of the
         // input holding the password the new one must not repeat, not a numeric length.
         if (type === 'differsFrom') {
