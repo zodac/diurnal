@@ -162,9 +162,14 @@
     --color-danger: #dc2626;         /* red-600 */
     --color-danger-strong: #991b1b;  /* red-800 — deeper danger, for active hovers */
     --color-success: #16a34a;        /* green-600 */
-    /* The note marker, lightened for use ON the brand fill (today's calendar cell). green-600 on brand is
-       about 1.4:1 and unreadable; green-300 clears 3:1 while still reading unmistakably as green. */
-    --color-success-on-brand: #86efac; /* green-300 */
+
+    /* The calendar's day-with-a-note marker. Both are per-USER values: the dashboard sets them inline on
+       #calendar-wrap from the noteColour preference (and the lightened on-brand variant the server derives
+       with Colours.readableOn) — these are only the fallback for a render that has not set them, and they
+       hold the defaults every account starts on. Deliberately NO `.dark` twin: a note colour is rendered
+       exactly as picked in both themes, like an action's colour. See the marker block further down. */
+    --note-colour: #16a34a;          /* green-600 — UserSettings.DEFAULT_NOTE_COLOUR */
+    --note-colour-on-brand: #7deda6; /* the default lightened to clear 3:1 on the brand "today" fill */
 
     /* Confirm-delete data-table row highlight ring (the edit ring is brand-derived, see @generated:brand). */
     --color-ring-confirm: #fca5a5;   /* red-300 */
@@ -232,7 +237,6 @@
     --color-danger: #f87171;         /* red-400 */
     --color-danger-strong: #fca5a5;  /* red-300 */
     --color-success: #4ade80;        /* green-400 */
-    --color-success-on-brand: #86efac; /* green-300 — same on both themes; the fill beneath it is too */
 
     --color-ring-confirm: #b91c1c;   /* red-700 */
 
@@ -663,6 +667,20 @@
   .swatch { @apply inline-block rounded-full shrink-0 border border-black/10; }
   .swatch-sm { @apply w-3 h-3; }
   .swatch-md { @apply w-4 h-4; }
+
+  /* The full-size colour control: the picker itself plus the round buttons beside it (randomise on
+     the new-action card, randomise + revert-to-default on the Settings note-colour row). One size
+     for the pair, in one place, so a change to the picker can never leave its buttons behind. The
+     data-table row's colour cell has its own COMPACT variants (`.dt-color-input`/`.dt-icon-btn`,
+     down with the table styling) — same control, deliberately different geometry. */
+  .colour-picker-input { @apply w-9 h-9 rounded-full border border-line cursor-pointer p-0.5 bg-surface; }
+  .colour-picker-btn {
+    @apply w-9 h-9 rounded-full border border-line bg-surface text-ink-muted hover:text-brand
+           inline-flex items-center justify-center transition-colors;
+  }
+  /* Inert once it would be a no-op (the Settings "Default" button while the colour already IS the
+     default), so a pointless save is never sent. pointer-events-none also kills the hover. */
+  .colour-picker-btn:disabled { @apply opacity-50 cursor-not-allowed pointer-events-none; }
 
   /* Calendar month/year picker nav arrow (dashboard). Used by both the server-rendered
      overlay and the JS that rebuilds it on year change, so the styling lives in one place. */
@@ -1302,36 +1320,40 @@
   }
 
 /* ── Calendar: days that have a note ──────────────────────────────────────── */
-/* A day with a note shows its day NUMBER in green. `.d-note-day` sits on the shared `.d-min-cell`, so one
-   pair of rules covers all three calendar styles: `full` colours its top-right `.d-full-daynum`, and
-   `minimal`/`stacked` colour the digits inside the date circle.
-   The colour is the existing --color-success token, which is already green-600 in light mode and green-400
-   in dark, so both shades come for free and the green matches the Notes swatch on the Stats page. Today's
-   cell is the one exception (see below), because its number sits on the brand fill.
+/* A day with a note shows its day NUMBER in the user's note colour. `.d-note-day` sits on the shared
+   `.d-min-cell`, so one pair of rules covers all three calendar styles: `full` colours its top-right
+   `.d-full-daynum`, and `minimal`/`stacked` colour the digits inside the date circle.
+   The colour is --note-colour, set as an inline custom property on #calendar-wrap from the user's
+   `noteColour` preference (dashboard.html). It is the picked value VERBATIM in both themes, exactly like an
+   action's colour — there is deliberately no light/dark pair to keep in step, and no theme-adaptive token.
+   The fallback below is only the pre-render/no-inline-style case; the server always sets both properties.
+   Today's cell is the one exception (see below), because its number sits on the brand fill.
    These rules are un-layered and come after the calendar block, so they win over the plain day-number
    colours above without needing !important. */
-  .d-cal-full .d-min-cell.d-note-day .d-full-daynum { color: var(--color-success); }
-  .d-min-cell.d-note-day .d-min-date { color: var(--color-success); }
+  .d-cal-full .d-min-cell.d-note-day .d-full-daynum { color: var(--note-colour); }
+  .d-min-cell.d-note-day .d-min-date { color: var(--note-colour); }
 
 /* Selection keeps its brand ring/fill, but the NUMBER still says "this day has a note" — the two signals
    are about different things, so neither may hide the other. */
   .d-min-cell.d-min-selected.d-note-day .d-min-date,
-  .dark .d-min-cell.d-min-selected.d-note-day .d-min-date { color: var(--color-success); }
+  .dark .d-min-cell.d-min-selected.d-note-day .d-min-date { color: var(--note-colour); }
   .d-cal-full .d-min-cell.d-min-selected:not(.d-min-today).d-note-day .d-full-daynum,
   .dark .d-cal-full .d-min-cell.d-min-selected:not(.d-min-today).d-note-day .d-full-daynum {
-    color: var(--color-success);
+    color: var(--note-colour);
   }
 
-/* TODAY is the one exception, because its number sits on a solid brand fill: the ordinary green-600 would be
-   about 1.4:1 against it and simply unreadable. The number still turns GREEN — that is the whole signal — but
-   in the lightened --color-success-on-brand, which clears 3:1 on the fill. An earlier version kept the number
-   white and marked today with only a thin green underline; it was so easy to miss that the marker read as
-   broken. Every style gets the same treatment, so "a day with a note has a green number" holds without
-   exception. */
+/* TODAY is the one exception, because its number sits on a solid brand fill: the default green-600 sits at
+   about 1.4:1 against it and is simply unreadable, and any dark colour the user picks has the same problem.
+   The number still turns the note colour — that is the whole signal — but in --note-colour-on-brand, the
+   lightened variant Colours.readableOn() derives to clear 3:1 on the fill (hue and saturation kept, so it is
+   still recognisably the chosen colour). Deriving it is why the colour setting is ONE picker: this is a
+   legibility floor, not a preference. An earlier version kept the number white and marked today with only a
+   thin green underline; it was so easy to miss that the marker read as broken. Every style gets the same
+   treatment, so "a day with a note has a coloured number" holds without exception. */
   .d-min-cell.d-min-today.d-note-day .d-min-date,
   .d-min-cell.d-min-today.d-min-selected.d-note-day .d-min-date,
   .d-cal-full .d-min-cell.d-min-today.d-note-day .d-full-daynum {
-    color: var(--color-success-on-brand);
+    color: var(--note-colour-on-brand);
   }
 
 /* Adjacent-month cells keep their existing muting: the container is already faded, so the green simply

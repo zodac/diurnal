@@ -45,6 +45,7 @@ import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.time.DaySpan;
 import net.zodac.diurnal.time.Durations;
 import net.zodac.diurnal.user.User;
+import net.zodac.diurnal.user.UserSettings;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -85,8 +86,10 @@ public class StatsService {
      * @return the notes subject (when it has any data) followed by every action that has been logged
      */
     public List<SubjectStats> forAllSubjects(final UUID userId) {
-        // Resolved ONCE and threaded down: every subject's figures must be measured against the same "today", and resolving it reads the user.
-        final LocalDate today = todayFor(userId);
+        // Read ONCE and threaded down: every subject's figures must be measured against the same "today", and the same read carries the colour the
+        // notes subject is drawn in.
+        final User user = User.findById(userId);
+        final LocalDate today = todayFor(user);
 
         // The note dates double as the existence check, so reading them FIRST means a user who has never written a note pays for this one query and
         // nothing else - no monthly rollup, no assembly. That is the common case on the Stats page's and GET /api/v1/stats' hot path.
@@ -99,7 +102,7 @@ public class StatsService {
         // The notes subject is assembled from exactly the same two inputs an action's is - the dates it happened on, and its monthly rollup - both
         // projected into the shared MonthlyActionTotal/date shapes by the note queries, so there is no parallel computation to keep in step.
         final List<SubjectStats> subjects = new ArrayList<>(actions.size() + 1);
-        subjects.add(assemble(StatSubject.notes(), Note.monthlyTotals(userId, StatSubject.NOTES_ID), noteDates, today));
+        subjects.add(assemble(StatSubject.notes(noteColourFor(user)), Note.monthlyTotals(userId, StatSubject.NOTES_ID), noteDates, today));
         subjects.addAll(actions);
         return List.copyOf(subjects);
     }
@@ -183,7 +186,7 @@ public class StatsService {
             return Map.of();
         }
 
-        final LocalDate today = todayFor(userId);
+        final LocalDate today = todayFor(User.findById(userId));
         final List<Action> unionActions = all.stream()
             .filter(action -> unionIds.contains(action.id))
             .toList();
@@ -258,7 +261,8 @@ public class StatsService {
             }
         }
 
-        final LocalDate today = todayFor(userId);
+        final User user = User.findById(userId);
+        final LocalDate today = todayFor(user);
         final LocalDate anchor;
         if (rawAt == null || rawAt.isBlank()) {
             anchor = FrequencyKeys.anchorOf(period, today);
@@ -268,8 +272,9 @@ public class StatsService {
             return new FrequencyResult.UnknownWindow(rawAt);
         }
 
+        final StatSubject notesSubject = StatSubject.notes(noteColourFor(user));
         final List<StatSubject> charted = requested.stream()
-            .map(id -> StatSubject.NOTES_ID.equals(id) ? StatSubject.notes() : StatSubject.of(Objects.requireNonNull(ownedById.get(id))))
+            .map(id -> StatSubject.NOTES_ID.equals(id) ? notesSubject : StatSubject.of(Objects.requireNonNull(ownedById.get(id))))
             .toList();
 
         // Both sources project into the SAME monthly/daily rollup records, so the two are simply concatenated and the chart builder never learns that
@@ -308,7 +313,7 @@ public class StatsService {
         final String term = query == null ? "" : query.strip().toLowerCase(Locale.ENGLISH);
 
         final List<StatSubject> candidates = new ArrayList<>();
-        final StatSubject notes = StatSubject.notes();
+        final StatSubject notes = StatSubject.notes(noteColourFor(User.findById(userId)));
         if (!excluded.contains(StatSubject.NOTES_ID)
             && Note.count("userId = ?1", userId) > 0
             && (term.isEmpty() || notes.name().toLowerCase(Locale.ENGLISH).contains(term))) {
@@ -369,10 +374,13 @@ public class StatsService {
 
     // ── Shared computation ────────────────────────────────────────────────
 
-    private LocalDate todayFor(final UUID userId) {
+    private LocalDate todayFor(final @Nullable User user) {
         // Streak boundaries are evaluated in the user's own timezone (else the server default).
-        final User user = User.findById(userId);
         return clock.today(clock.zoneFor(user == null ? null : user.timezone));
+    }
+
+    private static String noteColourFor(final @Nullable User user) {
+        return user == null ? UserSettings.DEFAULT_NOTE_COLOUR : user.noteColour;
     }
 
     private static List<SubjectStats> assembleAll(final UUID userId, final List<Action> actions,

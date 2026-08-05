@@ -21,6 +21,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import net.zodac.diurnal.colour.Colours;
 import net.zodac.diurnal.stats.StatField;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
@@ -31,9 +32,9 @@ import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The single owner of every profile and preference update — display name, theme, font, calendar view, timezone, page size, decimal places,
- * stats-summary toggle and the "Action stats" arrangement — shared by the Settings page's HTMX endpoints ({@code WebResource}) and the REST API's
- * {@code PATCH /api/v1/users/me} ({@code UserResource}), so a rule added or changed here applies to both surfaces by construction (the
+ * The single owner of every profile and preference update — display name, theme, font, calendar view, note colour, timezone, page size, decimal
+ * places, stats-summary toggle and the "Action stats" arrangement — shared by the Settings page's HTMX endpoints ({@code WebResource}) and the REST
+ * API's {@code PATCH /api/v1/users/me} ({@code UserResource}), so a rule added or changed here applies to both surfaces by construction (the
  * {@code AuthenticationService} pattern). The resources only translate the returned {@link ProfileResult} into their medium.
  *
  * <p>
@@ -111,6 +112,22 @@ public class ProfileService {
             return new ProfileResult.Invalid("Calendar style must be one of: " + allowedValues(CalendarView.values()) + ".");
         }
         return applySetting(user, "Calendar view", calendarView, () -> user.calendarView = calendarView);
+    }
+
+    /**
+     * Updates the colour the user's day notes are shown in, rejecting anything that is not a {@code #rrggbb} hex value. Held to the same
+     * {@link Colours#isInvalidHex(String)} rule as an action's colour, and stored exactly as picked: the app renders it unchanged in both themes,
+     * and derives a lightened variant only where the marker sits on the calendar's brand fill (see {@link Colours#readableOn(String, String)}).
+     *
+     * @param user       the acting user
+     * @param noteColour the submitted colour
+     * @return the outcome
+     */
+    public ProfileResult updateNoteColour(final User user, final @Nullable String noteColour) {
+        if (noteColour == null || Colours.isInvalidHex(noteColour)) {
+            return new ProfileResult.Invalid(UserSettings.NOTE_COLOUR_MESSAGE);
+        }
+        return applySetting(user, "Note colour", noteColour, () -> user.noteColour = noteColour);
     }
 
     /**

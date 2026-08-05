@@ -343,6 +343,20 @@ test.describe("Dashboard – calendar note markers", () => {
         ])
     }
 
+    // The colour the marker is CURRENTLY set to: --note-colour on #calendar-wrap, which the dashboard renders
+    // from the user's noteColour preference. Returned in the `rgb(r, g, b)` form getComputedStyle().color gives.
+    async function markerColour(page: Page): Promise<string> {
+        return page.locator("#calendar-wrap").evaluate((el: HTMLElement) => {
+            const hex = globalThis.getComputedStyle(el).getPropertyValue("--note-colour").trim()
+            const probe = globalThis.document.createElement("span")
+            probe.style.color = hex
+            globalThis.document.body.appendChild(probe)
+            const colour = globalThis.getComputedStyle(probe).color
+            probe.remove()
+            return colour
+        })
+    }
+
     function numberSelector(view: string): string {
         return view === "full" ? ".d-full-daynum" : ".d-min-date"
     }
@@ -377,15 +391,9 @@ test.describe("Dashboard – calendar note markers", () => {
             await fetch(`/api/v1/notes/${without}`, { method: "DELETE" })
         }, [marked, plain])
 
-        // The same green the Notes swatch uses, resolved from the shared token.
-        const green = await page.evaluate(() => {
-            const probe = globalThis.document.createElement("span")
-            probe.className = "text-success"
-            globalThis.document.body.appendChild(probe)
-            const colour = globalThis.getComputedStyle(probe).color
-            probe.remove()
-            return colour
-        })
+        // The user's own note colour, read from the custom property the server sets on the calendar — so this
+        // follows the setting rather than pinning a literal that a changed default would break.
+        const noteColour = await markerColour(page)
 
         for (const view of CALENDAR_VIEWS) {
             await page.goto("/settings")
@@ -393,8 +401,8 @@ test.describe("Dashboard – calendar note markers", () => {
             await page.goto("/")
             await expect(page.locator(`.d-min-cell[data-date="${marked}"]`)).toHaveClass(/d-note-day/)
 
-            await expect.poll(() => numberColour(page, view, marked)).toBe(green)
-            await expect.poll(() => numberColour(page, view, plain)).not.toBe(green)
+            await expect.poll(() => numberColour(page, view, marked)).toBe(noteColour)
+            await expect.poll(() => numberColour(page, view, plain)).not.toBe(noteColour)
         }
     })
 
@@ -434,7 +442,9 @@ test.describe("Dashboard – calendar note markers", () => {
             })
         }, todayStr())
 
-        const onBrandGreen = "rgb(134, 239, 172)"   // --color-success-on-brand (green-300)
+        // Colours.readableOn(#16a34a, #6366f1): the default green-600 raised up the HSL lightness axis until it
+        // clears 3:1 on the fill. Pinned as a literal on purpose — it is the derivation itself under test here.
+        const onBrandGreen = "rgb(125, 237, 166)"   // #7deda6
         const todayCell = page.locator(`.d-min-cell[data-date="${todayStr()}"]`)
 
         for (const view of CALENDAR_VIEWS) {
@@ -516,5 +526,118 @@ test.describe("Dashboard – note character counter", () => {
         // Stepping the month clears the day selection, so there is nothing to count against.
         await page.locator("#cal-prev").click()
         await expect(page.locator("#note-count")).toBeHidden()
+    })
+})
+
+// The note COLOUR setting. One picker in Settings > Appearance, stored as one hex and rendered verbatim
+// in both themes (like an action's colour); the only derived shade is the lightened variant today's
+// brand-filled calendar cell needs, which the server computes. These pin the wiring end to end — picker
+// to preference to the two places the colour is shown — which no server test can see.
+test.describe("Settings – note colour", () => {
+    const DEFAULT_NOTE_COLOUR = "#16a34a"
+
+    async function setNoteColour(page: Page, value: string): Promise<void> {
+        await Promise.all([
+            page.waitForResponse(r => r.url().includes("/internal/settings") && r.request().method() === "PATCH"),
+            page.locator("#noteColour").evaluate((el: HTMLInputElement, colour: string) => {
+                el.value = colour
+                el.dispatchEvent(new Event("change", { bubbles: true }))
+            }, value),
+        ])
+    }
+
+    // Restored through the API rather than the picker: every other marker spec pins the DEFAULT colour
+    // (and the shade derived from it), so a run that left a different one would break them.
+    test.afterEach(async ({ authenticatedPage: page }) => {
+        await page.goto("/")
+        await page.evaluate(async (colour: string) => {
+            await fetch("/api/v1/users/me", {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ preferences: { noteColour: colour } }),
+            })
+        }, DEFAULT_NOTE_COLOUR)
+    })
+
+    test("the picked colour recolours the calendar marker and the Notes statistics", async ({ authenticatedPage: page }) => {
+        const day = pastDateStr(3)
+        await page.goto("/")
+        await page.evaluate(async (d: string) => {
+            await fetch(`/api/v1/notes/${d}`, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ content: "Coloured day" }),
+            })
+        }, day)
+
+        await page.goto("/settings")
+        await expect(page.locator("#noteColour")).toHaveValue(DEFAULT_NOTE_COLOUR)
+        await setNoteColour(page, "#0284c7")
+
+        // It is really persisted, not just left in the input.
+        await page.reload()
+        await expect(page.locator("#noteColour")).toHaveValue("#0284c7")
+
+        // The calendar's day number is the picked colour verbatim...
+        await page.goto("/")
+        // Whichever element holds the number in the calendar style in force: `full` has .d-full-daynum,
+        // `minimal`/`stacked` the digits inside .d-min-date. Both take --note-colour from the same rule pair.
+        const marked = page.locator(
+            `.d-min-cell[data-date="${day}"] .d-full-daynum, .d-min-cell[data-date="${day}"] .d-min-date`).first()
+        await expect(page.locator(`.d-min-cell[data-date="${day}"]`)).toHaveClass(/d-note-day/)
+        await expect.poll(async () => {
+            try {
+                return await marked.evaluate((el: HTMLElement) => globalThis.getComputedStyle(el).color)
+            } catch {
+                return ""
+            }
+        }).toBe("rgb(2, 132, 199)")
+
+        // ...and so is the Notes card's swatch on the Stats page, which is pinned first.
+        await page.goto("/stats")
+        await expect(page.locator(".swatch").first()).toHaveAttribute("style", /background-color:\s*#0284c7/)
+    })
+
+    test("randomising suggests a colour, saves it, and never repeats the one already set", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        await setNoteColour(page, DEFAULT_NOTE_COLOUR)
+
+        await Promise.all([
+            page.waitForResponse(r => r.url().includes("/internal/settings") && r.request().method() === "PATCH"),
+            page.locator("#settings-appearance [data-random-colour]").click(),
+        ])
+
+        const suggested = await page.locator("#noteColour").inputValue()
+        expect(suggested).toMatch(/^#[0-9a-f]{6}$/)
+        expect(suggested).not.toBe(DEFAULT_NOTE_COLOUR)
+
+        // The randomise button drops its suggestion in AND saves it — the same auto-save a hand-picked
+        // colour gets, because the handler fires the input's own `change` event.
+        await page.reload()
+        await expect(page.locator("#noteColour")).toHaveValue(suggested)
+    })
+
+    test("the default button reverts the colour, and is inert once it already is the default", async ({ authenticatedPage: page }) => {
+        const defaultBtn = page.locator("#note-colour-default")
+
+        await page.goto("/settings")
+        // Nothing to revert to on a fresh account, so the button starts inert — a click could only send
+        // a save that changes nothing.
+        await expect(defaultBtn).toBeDisabled()
+
+        await setNoteColour(page, "#d946ef")
+        await expect(defaultBtn).toBeEnabled()
+
+        await Promise.all([
+            page.waitForResponse(r => r.url().includes("/internal/settings") && r.request().method() === "PATCH"),
+            defaultBtn.click(),
+        ])
+        await expect(page.locator("#noteColour")).toHaveValue(DEFAULT_NOTE_COLOUR)
+        await expect(defaultBtn).toBeDisabled()
+
+        // Reverting SAVES, exactly as picking a colour by hand does.
+        await page.reload()
+        await expect(page.locator("#noteColour")).toHaveValue(DEFAULT_NOTE_COLOUR)
+        await expect(defaultBtn).toBeDisabled()
     })
 })

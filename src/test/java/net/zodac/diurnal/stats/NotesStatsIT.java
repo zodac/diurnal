@@ -27,6 +27,7 @@ import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.time.Durations;
+import net.zodac.diurnal.user.UserSettings;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -176,7 +177,7 @@ class NotesStatsIT extends IntegrationTestBase {
 
         assertThat(statsService.forAllSubjects(userId).getFirst().subject())
             .as("the notes subject travels with its sentinel id, so every id-keyed path stays UUID-typed")
-            .isEqualTo(StatSubject.notes());
+            .isEqualTo(StatSubject.notes(UserSettings.DEFAULT_NOTE_COLOUR));
     }
 
     // ── the frequency graph ───────────────────────────────────────────────────

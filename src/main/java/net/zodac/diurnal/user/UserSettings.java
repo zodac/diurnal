@@ -42,6 +42,13 @@ public record UserSettings(String theme, int pageSize) {
     // Whether the dashboard renders the per-action stats-summary strip.
     public static final boolean DEFAULT_SHOW_STATS_SUMMARY = true;
 
+    // The colour a user's day notes are shown in, until they pick their own: green-600, the shade the notes
+    // marker and the Stats page's Notes swatch were fixed at before the colour became a preference.
+    public static final String DEFAULT_NOTE_COLOUR = "#16a34a";
+    // User-facing rejection message when a malformed note colour is submitted. Named as the setting the user
+    // sees, and worded to show the accepted shape (the same #rrggbb form an action's colour takes).
+    public static final String NOTE_COLOUR_MESSAGE = "Note colour must be a hex value, e.g. " + DEFAULT_NOTE_COLOUR + ".";
+
     // Number of decimal places used to render fractional stats (e.g. the weekly average).
     public static final int DEFAULT_DECIMAL_PLACES = 1;
     public static final int MIN_DECIMAL_PLACES = 0;

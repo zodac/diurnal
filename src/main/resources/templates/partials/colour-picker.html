@@ -12,13 +12,21 @@
     form       — optional owning form id ('' when the input is nested inside its own <form>)
     tipPos     — optional, default 'bottom': which side the tooltip opens on. Pass 'top' inside a
                  `.dt-table` row - see the note in partials/action-row.html.
+    id         — optional, default '': the input's id, for a visible <label for="…"> to point at
+    name       — optional, default 'colour': the field name the endpoint reads as its @FormParam
+    endpoint   — optional, default '': set it to make the input auto-save its OWN value on change
+                 (hx-patch, 204, no swap — the same shape as partials/select-field.html). Left empty
+                 on the action forms, whose colour is only submitted when their form is saved.
 !}
-{#let wrapperCls=wrapperCls.or('') dtEdit=dtEdit.or(false) form=form.or('') tipPos=tipPos.or('bottom')}
+{#let wrapperCls=wrapperCls.or('') dtEdit=dtEdit.or(false) form=form.or('') tipPos=tipPos.or('bottom')
+    id=id.or('') name=name.or('colour') endpoint=endpoint.or('')}
 <span {#if dtEdit}data-dt-edit {/if}class="group relative inline-flex{#if wrapperCls} {wrapperCls}{/if}">
     <input type="color"
-           name="colour"
+           {#if id}id="{id}"
+           {/if}name="{name}"
            value="{value}"
            {#if form}form="{form}"
+           {/if}{#if endpoint}hx-patch="{endpoint}" hx-trigger="change" hx-swap="none"
            {/if}class="{inputCls}"
            aria-label="Pick a colour">
     {#include partials/tooltip text="Pick a colour" pos=tipPos align="left" /}

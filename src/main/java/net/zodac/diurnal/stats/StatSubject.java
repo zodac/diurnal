@@ -51,13 +51,6 @@ public record StatSubject(UUID id, String name, String colour, StatSubjectKind k
     public static final String NOTES_NAME = "Notes";
 
     /**
-     * The notes subject's display colour: the same green-600 the calendar marks a day-with-a-note with, so the swatch, the day number and the graph's
-     * bars all read as one thing. A literal hex rather than the {@code --color-success} token because a subject's colour is rendered into an inline
-     * {@code style=} exactly like an action's.
-     */
-    public static final String NOTES_COLOUR = "#16a34a";
-
-    /**
      * The subject describing one of the user's actions.
      *
      * @param action the action
@@ -68,11 +61,14 @@ public record StatSubject(UUID id, String name, String colour, StatSubjectKind k
     }
 
     /**
-     * The subject describing the user's day notes. There is exactly one per user, so it takes no argument.
+     * The subject describing the user's day notes. There is exactly one per user, so the only thing it varies by is the colour they chose to see
+     * their notes in ({@code User.noteColour}) - the same colour the calendar marks a day-with-a-note with, so the swatch, the day number and the
+     * graph's bars all read as one thing.
      *
+     * @param colour the user's note colour, as a CSS hex value
      * @return the notes subject
      */
-    public static StatSubject notes() {
-        return new StatSubject(NOTES_ID, NOTES_NAME, NOTES_COLOUR, StatSubjectKind.NOTES);
+    public static StatSubject notes(final String colour) {
+        return new StatSubject(NOTES_ID, NOTES_NAME, colour, StatSubjectKind.NOTES);
     }
 }

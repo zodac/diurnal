@@ -17,6 +17,8 @@
 
 package net.zodac.diurnal.action;
 
+import net.zodac.diurnal.colour.Colours;
+
 /**
  * The pure validation rules for a user-submitted action, applied by {@link ActionService} (the single mutation path shared by the web UI and the
  * public REST API) so both surfaces accept exactly the same values.
@@ -38,13 +40,14 @@ final class ActionValidation {
     }
 
     /**
-     * Whether the submitted colour is an invalid {@code #rrggbb} hex value. Submissions with a malformed colour are rejected by the caller
-     * ({@link ActionService}) rather than coerced; an <em>absent</em> colour on creation falls back to {@link #DEFAULT_COLOUR}.
+     * Whether the submitted colour is an invalid {@code #rrggbb} hex value, per the shared {@link Colours#isInvalidHex(String)} rule that every
+     * user-chosen colour in the app is held to. Submissions with a malformed colour are rejected by the caller ({@link ActionService}) rather than
+     * coerced; an <em>absent</em> colour on creation falls back to {@link #DEFAULT_COLOUR}.
      *
      * @param colour the submitted colour
      * @return {@code true} when the colour is an invalid hex value
      */
     static boolean isColourInvalid(final String colour) {
-        return !colour.matches("^#[0-9a-fA-F]{6}$");
+        return Colours.isInvalidHex(colour);
     }
 }

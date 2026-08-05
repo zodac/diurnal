@@ -143,6 +143,7 @@ Under `src/main/java/net/zodac/diurnal/`:
 | `note`   | `Note` entity + `NoteQueries` + `NoteService`/`NoteResult` (the single owner of every note write) + `NotesInternalResource` (`/internal/notes` range feed + save/clear) + `NotesApiResource` (`/api/v1/notes` public CRUD). One free-text note per user per day, writable for ANY date including future ones |
 | `user`   | `User` entity, `UserResource` (`/api/v1/users/me`), `UserSettings`, and the settings-picker enums `Theme`/`Font`/`CalendarView` (each `implements PreviewOption`)                                                                                                                                                   |
 | `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings) + the `/internal/settings/*` preference endpoints; `AdminWebResource` (admin pages) + `AdminUsersInternalResource` (`/internal/admin/users` fragments) + `AppInfo` (footer/template metadata bean)                         |
+| `colour` | `Colours` - the rules every user-chosen colour obeys: the `#rrggbb` format check, the HSL-to-hex conversion, and the lightening that makes a colour readable on a background (the calendar's brand-filled "today" cell). Shared by `action` and `user`                                                    |
 | `update` | `UpdateCheckService` (admin-only footer "newer version available" check) + `UpdateCheck` (pure version/URL logic) + `UpdateStatus`/`UpdateAvailability` + `LatestReleaseClient`/`GitHubLatestReleaseClient` (the outbound GitHub-release lookup seam)                                                               |
 
 ### API namespaces (the rule for every new endpoint)
@@ -278,7 +279,8 @@ height.
   (`/internal/stats/chart/{actionId}`, its `compare` parameter, `GET /api/v1/stats/{actionId}/frequency`) stay
   `UUID`-typed. `StatsService.forAllSubjects` pins notes ahead of the actions BEFORE pagination, so "first" means page
   one. Every figure is computed by one `assemble(...)` from the same shape of input, so a new kind of subject needs no
-  new statistics code.
+  new statistics code. The notes subject's colour is the user's own `noteColour` preference (`StatSubject.notes(colour)`),
+  resolved from the same `User` read that resolves "today".
 - Actions are hard-deleted along with their logs when an action is deleted (no soft-delete/archive).
 - **All date-boundary "now"/"today" goes through `AppClock`** (`@ApplicationScoped`). Business logic calls `clock.today()`/`clock.zone()`. Entity
   audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`) use `Instant.now()` directly (zone-independent, not date-boundary sensitive).
@@ -287,6 +289,14 @@ height.
 - Action colour defaults to `#64748b` (a neutral slate, deliberately *not* the brand indigo `#6366f1` — a
   brand-coloured dot would vanish into the full calendar's brand-filled "today" cell); invalid hex is
   silently corrected to the default.
+- **Every user-chosen colour obeys one shared rule set in `colour/Colours`** — the `#rrggbb` format check
+  (`isInvalidHex`, which `ActionValidation` delegates to), the HSL→hex conversion, and `readableOn(colour,
+  background)`, which lightens a colour up the HSL lightness axis until it clears 3:1. A colour is stored and
+  rendered **exactly as picked, in both themes** (there is no light/dark pair for any of them); the ONE derived
+  shade in the app is the note marker on the calendar's brand-filled "today" cell, and it is derived precisely
+  because it is a legibility floor rather than a preference. The colour suggester avoids every colour the user
+  has in use — their actions' *and* their `noteColour` — so one endpoint (`/internal/actions/random-colour` +
+  its API twin) serves both pickers. See [`NOTES.md`](NOTES.md).
 - Dark-mode checkbox: hidden `<input value="false">` + real `<input value="true">`. Checked posts `["false","true"]`; unchecked posts `["false"]`.
   `updateSettings` checks for `"true"` in the list.
 - `password.auth.enabled=false` disables register (404, except during first-run setup) and skips `PasswordIdentityProvider`. `AppLifecycle` enforces

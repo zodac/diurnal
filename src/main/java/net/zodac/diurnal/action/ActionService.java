@@ -19,6 +19,8 @@ package net.zodac.diurnal.action;
 
 import io.quarkus.hibernate.orm.panache.Panache;
 import jakarta.enterprise.context.ApplicationScoped;
+import java.util.ArrayList;
+import java.util.Collection;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import net.zodac.diurnal.log.ActionLog;
@@ -162,14 +164,18 @@ class ActionService {
     }
 
     /**
-     * Suggests a colour for a new action, visibly distinct from the ones the user's existing actions already use (the rules are
-     * {@link ActionColours}). This only reads - nothing is persisted, and a repeated call is free to return a different colour.
+     * Suggests a colour visibly distinct from every colour the user has already given something (the rules are {@link ActionColours}). "Already in
+     * use" means their actions' colours <em>and</em> their note colour: the two are drawn on the same calendar, so an action dot in the note
+     * marker's colour is exactly the confusion the distance rules exist to prevent. This only reads - nothing is persisted, and a repeated call is
+     * free to return a different colour.
      *
      * @param user the acting user
      * @return the suggested {@code #rrggbb} colour
      */
     String suggestColour(final User user) {
-        return ActionColours.suggest(Action.distinctColours(user.id), ThreadLocalRandom.current());
+        final Collection<String> inUse = new ArrayList<>(Action.distinctColours(user.id));
+        inUse.add(user.noteColour);
+        return ActionColours.suggest(inUse, ThreadLocalRandom.current());
     }
 
     // The blank and over-long cases keep their own banners because both surfaces already word them; every content-rule rejection is carried as the

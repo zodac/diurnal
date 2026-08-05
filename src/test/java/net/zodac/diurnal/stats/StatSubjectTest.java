@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.UUID;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.user.UserSettings;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -41,10 +42,10 @@ class StatSubjectTest {
     }
 
     @Test
-    void notes_isTheFixedSubject() {
-        assertThat(StatSubject.notes())
-            .as("there is exactly one notes subject per user, so it carries fixed values rather than a row's")
-            .isEqualTo(new StatSubject(StatSubject.NOTES_ID, "Notes", "#16a34a", StatSubjectKind.NOTES));
+    void notes_isTheFixedSubjectInTheUsersOwnColour() {
+        assertThat(StatSubject.notes("#0284c7"))
+            .as("there is exactly one notes subject per user, so only the colour they picked varies")
+            .isEqualTo(new StatSubject(StatSubject.NOTES_ID, "Notes", "#0284c7", StatSubjectKind.NOTES));
     }
 
     @Test
@@ -61,7 +62,7 @@ class StatSubjectTest {
 
     @Test
     void notes_isRecognisedByTheTemplatePredicate() {
-        assertThat(StatSubjectExtensions.notes(StatSubject.notes()))
+        assertThat(StatSubjectExtensions.notes(StatSubject.notes(UserSettings.DEFAULT_NOTE_COLOUR)))
             .as("the notes subject must be recognised as such")
             .isTrue();
     }

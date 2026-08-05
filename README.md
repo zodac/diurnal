@@ -92,7 +92,10 @@ writing (leaving the emptied note for you to Save or Undo, so no single click is
 saving removes it — an empty note is no note. The box can be dragged larger from its right edge, its bottom edge or its
 corner; the size is kept while you move between dates and resets when you leave the page.
 
-A day that has a note is marked on the calendar with a **green day number**, in every calendar style.
+A day that has a note is marked on the calendar with a **coloured day number**, in every calendar style. The colour is
+yours to choose in [Settings](#appearance) - it defaults to green, and is used for the calendar marker and for the Notes
+card and graph on the Stats page alike. On today's cell, whose number sits on a solid brand-coloured fill, the app draws
+a lightened shade of your colour so the marker stays legible whichever colour you pick.
 
 ### Calendar Views
 
@@ -417,6 +420,7 @@ order, and  each can be disabled and re-ordered. The **Last performed** statisti
 | **Theme**          | System, Light, Dark                                            |
 | **Calendar style** | Full, Minimal, Stacked (see [Calendar views](#calendar-views)) |
 | **Font**           | Nova, Standard, OpenDyslexic                                   |
+| **Note colour**    | Any colour - picked, randomised, or reset to the default       |
 
 ## Text Input
 

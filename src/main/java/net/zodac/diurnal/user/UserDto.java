@@ -49,6 +49,7 @@ public record UserDto(
      * @param showStatsSummary whether the dashboard renders the per-action stats-summary strip
      * @param decimalPlaces the number of decimal places used to render fractional stats
      * @param calendarView the dashboard calendar style: {@code full}, {@code minimal} or {@code stacked}
+     * @param noteColour the {@code #rrggbb} colour the user's day notes are shown in
      * @param statsFields the ordered "Action stats" arrangement (key + enabled + optional custom name per stat), or {@code null} if never customised
      * @param timezone the user's IANA timezone override, or {@code null} to follow the server default
      */
@@ -61,6 +62,8 @@ public record UserDto(
         boolean showStatsSummary,
         @Schema(examples = "1", description = "Number of decimal places used to render fractional stats.") int decimalPlaces,
         @Schema(examples = "full", description = "Dashboard calendar layout: 'full', 'minimal', or 'stacked'.") String calendarView,
+        @Schema(examples = UserSettings.DEFAULT_NOTE_COLOUR,
+        description = "The colour the user's day notes are shown in, as a '#rrggbb' hex value.") String noteColour,
         @Schema(description = "The ordered 'Action stats' arrangement (key + enabled + optional custom name per stat); null if never customised.")
         @Nullable List<StatFieldPref> statsFields,
         @Schema(examples = "Europe/London", description = "IANA timezone override; null means the server default is used.")
@@ -84,6 +87,7 @@ public record UserDto(
                         user.showStatsSummary,
                         user.decimalPlaces,
                         user.calendarView,
+                        user.noteColour,
                         user.statsFields,
                         user.timezone));
     }
