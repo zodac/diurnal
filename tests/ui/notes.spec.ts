@@ -178,14 +178,26 @@ test.describe("Dashboard – note box", () => {
     })
 
     test("a rejected note shows a banner and persists nothing", async ({ authenticatedPage: page }) => {
-        await page.goto("/")
         // A zero-width space: rendered as nothing, so the shared content policy refuses it.
-        await page.locator("#note-input").fill(`Ran 5k\u200Bbefore work ${Date.now()}`)
+        const body = `Ran 5k\u200Bbefore work ${Date.now()}`
+        await page.goto("/")
+        await page.locator("#note-input").fill(body)
         await page.locator("#note-save").click()
 
         await expect(page.locator("#note-error")).toContainText("invisible or text-direction characters")
+
+        // "Persists nothing" is asked of the SERVER (404 = the day has no note), not of the box: the refused
+        // text is deliberately kept as an ordinary unsaved draft, retained across the reload, so it can be
+        // corrected rather than retyped from memory.
+        const status = await page.evaluate(async (day: string) => {
+            const resp = await fetch(`/api/v1/notes/${day}`)
+            return resp.status
+        }, todayStr())
+        expect(status, "the refused note must not have been stored").toBe(404)
+
         await page.reload()
-        await expect(page.locator("#note-input")).toHaveValue("")
+        await expect(page.locator("#note-input")).toHaveValue(body)
+        await expect(page.locator("#note-status")).toHaveText("Unsaved changes")
     })
 })
 

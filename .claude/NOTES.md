@@ -47,6 +47,7 @@ Each of these was a real fork; the rejected option is recorded so it is not sile
 | Note card rendering | Server-rendered **once** with the page; date changes only set the textarea value client-side | A per-day HTMX fragment swap. Rejected once content came from the client cache — there is nothing left to swap |
 | Resize | Three custom Pointer Events handles (right, bottom, corner) | Native CSS `resize: both`. Rejected: it gives only a corner grip and cannot do edges, which requirement 8 asks for explicitly |
 | Note colour | **One user preference, one hex, rendered verbatim in both themes** — see [The note colour](#the-note-colour) | Two pickers (light + dark), and a single pick auto-adjusted per theme. Both rejected: see that section |
+| Unsaved drafts | **Retained per tab in `sessionStorage`** — see [Draft retention](#draft-retention) | A `beforeunload` confirmation (shipped first, then replaced), `localStorage`, and server-side autosave. All rejected: see that section |
 
 ## Design
 
@@ -267,7 +268,7 @@ the resize dimensions durable with no re-application.
   stored one), and the save handler re-checks before firing — so a stale enabled button cannot slip a no-op through
   either. Editing away and back again therefore sends nothing.
 - **Unsaved edits are kept in the client cache keyed by date**, so switching days and back restores them and shows an
-  "unsaved" state. No data-loss footgun, no confirm dialog.
+  "unsaved" state. No data-loss footgun, no confirm dialog — see [Draft retention](#draft-retention).
 - **Resize: three custom handles** (`right`, `bottom`, `bottom-right`) in `dashboard.js` via Pointer Events — the
   project already hand-rolls exactly this kind of gesture (the stats-field picker). Clamped to `min` = the default size
   (never smaller, requirement 5) and `max` = the grid container. Widening expands the right-hand `1fr` track and the
@@ -286,6 +287,51 @@ the resize dimensions durable with no re-application.
   own metrics (`p-4` + `h3 mb-3` + 3 x `.stat-tile px-3 py-2` + 2 x `gap-3`), pinned by a Playwright guard that seeds a
   3-action day and asserts the two cards match within 1px at the `lg` breakpoint. **Caveat:** only meaningful at `lg`
   and above — below that the summary stacks and gets much taller, so the note keeps its own default.
+
+### Draft retention
+
+**An unsaved draft survives navigating around the app, and is dropped when the tab closes.** The draft being written is
+mirrored from `note.js`'s in-memory `noteDrafts` map into `sessionStorage` under **`diurnal.noteDraft`** (one
+`{date, content}` JSON object), restored into that same map when the module initialises, and painted by the first
+`loadNote` — so the box comes back with the half-written text *and* its "Unsaved changes" line. Every page in the app is
+a full load, so without this the map starts empty on every navigation.
+
+- **Exactly ONE draft is carried: the day last edited.** Drafts on other days still survive moving around the calendar —
+  that is the in-memory map's job and it is untouched — they simply do not survive a page load. The alternative
+  (mirroring the whole map) was implemented first and then narrowed: it put a month of private prose in browser storage
+  where one note's worth answers the actual need, which matters because `sessionStorage` is written to the browser
+  profile **on disk**, unlike the map.
+- **Written synchronously on every keystroke** (and on save/undo/clear), deliberately not debounced: a debounce's flush
+  window is exactly the moment a navigation lands. A full quota or unavailable storage is swallowed **silently** — the
+  draft then just does not outlive the page, which is the behaviour this replaced, so there is nothing to tell the user.
+- **A draft equal to the stored note is not carried**, so a save or an undo removes the key rather than rewriting it.
+- **Cleared on the login page** by `app.js`, beside `diurnal.selectedDate` — an explicit logout, a session expiry or a
+  second user on the same tab must never find someone else's journal entry waiting in the box.
+- Restoration is defensive (bad JSON, a non-object, a non-ISO date or a non-string content are all ignored): the stored
+  value is not a contract with the server, and a corrupt one — or one written by a past release — must never break the
+  box.
+- **A REFUSED note stays in the box**, and now survives a reload with it: `notes.spec.ts`'s "persists nothing" case
+  therefore asks the *server* (`GET /api/v1/notes/{date}` → 404) rather than reading the emptied textarea. Keeping the
+  text is the point — an over-long or invisible-character note can be corrected instead of retyped from memory.
+
+> **Rejected — the browser's `beforeunload` confirmation**, which is what shipped first (see
+> [Review findings](#review-findings-actioned) item 2). It stopped the data loss but at the wrong price: the "Leave
+> site? Changes you made may not be saved" dialog fired on *every* in-app click, its wording cannot be controlled, and
+> it asked the user to make a decision the app can avoid needing entirely. Retaining the work is strictly better —
+> nothing is lost, nothing is asked, and the "Unsaved changes" status line carries the whole signal.
+>
+> **Rejected — `localStorage`.** It has no expiry at all, so a draft would still be sitting there weeks later, on a
+> shared machine, after the browser had been closed and a different person had signed in. `sessionStorage`'s per-tab
+> lifetime is precisely the requirement.
+>
+> **Known limits of that lifetime, accepted:** browsers persist `sessionStorage` to the profile for session restore, so
+> a *crash* restore can bring a draft back after the tab "closed"; duplicating a tab copies the draft into the copy; and
+> a draft can now outlive many navigations, widening the window in which a note changed elsewhere (another tab, the API)
+> is overwritten by a stale one — notes are last-write-wins either way, with no conflict detection.
+>
+> **Rejected — autosaving the draft to the server.** The house convention is an explicit Save everywhere except
+> Settings > User Preferences, and a per-keystroke write of a 10,000-character field is a real cost; it would also make
+> "unsaved" meaningless and turn a half-written thought into a stored note (and a green day marker).
 
 ### Calendar caching
 
@@ -513,10 +559,9 @@ A review after the feature was complete turned up four things, all since fixed:
    — so the pair is now wrapped in a flex column owning column 3, via a conditional wrapper in `dashboard.html` (Qute
    is a text templater, so the wrapper's tags open and close inside `{#if}` rather than the card being duplicated).
 2. **An unsaved note was lost silently on navigation.** Drafts are held per date so moving around the calendar never
-   loses them, but nothing carries them across a page load — clicking a navbar link discarded half-written prose with
-   no prompt. `dashboard.js` now registers a `beforeunload` guard covering the box on screen AND any draft left on
-   another date. The browser's own confirmation is used deliberately: it is the only thing that intercepts a link
-   click, a Back gesture and a tab close alike.
+   loses them, but nothing carried them across a page load — clicking a navbar link discarded half-written prose with
+   no prompt. The first fix was a `beforeunload` guard covering the box on screen AND any draft left on another date;
+   see [Draft retention](#draft-retention) for what replaced it.
 3. **The Stats read path did needless work.** `forAllSubjects` ran both notes queries unconditionally and resolved
    `today` twice (reading the user twice). It now resolves `today` once and reads the note DATES first — those double
    as the existence check, so a user who has never written a note pays for one query and nothing else, which is the

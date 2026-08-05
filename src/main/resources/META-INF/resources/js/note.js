@@ -1,6 +1,6 @@
 // ── The dashboard's note box ─────────────────────────────────────────────────────────────────────
 // A day's free-text note: the textarea, its two caches, the Save/Undo/Clear controls, the character
-// counter, the drag-resize, and the guard against navigating away with unsaved writing.
+// counter, the drag-resize, and the per-tab retention of unsaved writing across a navigation.
 //
 // Split out of dashboard.js, which had grown to hold the calendar engine, three separate caches, the day
 // panel, the stats summary AND all of this. The seam is a real one rather than a line-count exercise: the
@@ -27,8 +27,7 @@ window.Diurnal = window.Diurnal || {};
             disable: function () {},
             hasNote: function () { return false },
             mergeMonths: function () {},
-            dropMonth: function () {},
-            hasUnsaved: function () { return false }
+            dropMonth: function () {}
         }
         return
     }
@@ -67,6 +66,60 @@ window.Diurnal = window.Diurnal || {};
     const noteSaved   = {} // dateStr -> saved content ('' when the day has no note)
     const noteDrafts  = {} // dateStr -> unsaved edit
     let noteDate = null    // the day the box is currently showing, or null when nothing is selected
+
+    // ── The draft that outlives the page ─────────────────────────────────────
+    // A draft only ever lived in the map above, so clicking a navbar link discarded half-written prose:
+    // every page here is a full load, which re-executes this script against empty caches. The draft being
+    // WRITTEN is therefore mirrored into sessionStorage, which has exactly the lifetime wanted — scoped to
+    // THIS tab, surviving in-app navigation and a reload, wiped when the tab (or the browser) closes. It is
+    // also dropped on the login page (app.js, beside the retained day selection), so a logout or a second
+    // user on the same tab never inherits the first one's journal.
+    //
+    // An earlier version instead raised the browser's own beforeunload confirmation. Retaining the work is
+    // strictly better: the prompt could not be worded, appeared on every in-app click, and asked the user to
+    // make a decision the app can simply avoid needing. The "Unsaved changes" status line is the whole of the
+    // signal now, and it comes back with the draft.
+    //
+    // ONE draft is carried, not the whole map: the day last edited, which is the writing the user is actually
+    // in the middle of. Drafts on other days still survive moving around the calendar (that is the map's job,
+    // and it is untouched) — they simply do not survive a page load. That keeps a single note's worth of
+    // private content in browser storage rather than a month of it, which matters because sessionStorage is
+    // written to the browser profile on disk, unlike the map.
+    const NOTE_DRAFT_KEY = 'diurnal.noteDraft'
+    // `\d\d\d\d` rather than `\d{4}`: see the same guard in dashboard.js — a `{4}` quantifier reads as a Qute
+    // expression, which corrupts the pattern.
+    const ISO_DATE = /^\d\d\d\d-\d\d-\d\d$/
+
+    // Called wherever the shown day's draft changes. Written on every keystroke, deliberately synchronous
+    // rather than debounced: a debounce's flush window is exactly the moment a navigation lands. A full quota
+    // (or storage being unavailable at all) is swallowed — the draft then simply does not outlive the page,
+    // which is the behaviour this whole mechanism replaced and so needs no telling.
+    function persistDraft() {
+        const draft = noteDate === null ? undefined : noteDrafts[noteDate]
+        // Nothing to carry: no day is showing, it has no draft, or its draft has caught up with the stored
+        // note (which is the case after a save or an undo) — so the previous day's entry goes too.
+        if (draft === undefined || draft === noteSaved[noteDate]) {
+            try { sessionStorage.removeItem(NOTE_DRAFT_KEY) } catch (e) {}
+            return
+        }
+        try { sessionStorage.setItem(NOTE_DRAFT_KEY, JSON.stringify({ date: noteDate, content: draft })) } catch (e) {}
+    }
+
+    // Restore whatever the previous page in this tab left behind, into the ordinary per-date draft map — so a
+    // restored draft is thereafter indistinguishable from one typed on this page. Anything malformed is
+    // ignored rather than thrown: the stored value is not a contract with the server, and a bad one (a hand-
+    // edited key, a format from a past release) must never break the box.
+    function restoreDraft() {
+        let stored = null
+        try { stored = sessionStorage.getItem(NOTE_DRAFT_KEY) } catch (e) {}
+        if (!stored) {return}
+        let parsed = null
+        try { parsed = JSON.parse(stored) } catch (e) { return }
+        if (parsed === null || typeof parsed !== 'object') {return}
+        if (ISO_DATE.test(parsed.date) && typeof parsed.content === 'string') {
+            noteDrafts[parsed.date] = parsed.content
+        }
+    }
 
     // Merge one range response into the note cache. The feed holds ONLY the days that HAVE a note, so every
     // other day of a merged month is recorded as '' — recording the absence is what makes a later day switch
@@ -208,6 +261,7 @@ window.Diurnal = window.Diurnal || {};
         noteInput.addEventListener('input', function () {
             if (noteDate === null) {return}
             noteDrafts[noteDate] = noteInput.value
+            persistDraft()
             if (noteError) { noteError.innerHTML = '' }
             refreshNoteState()
             setNoteStatus(noteIsDirty() ? 'Unsaved changes' : '', 'brand')
@@ -239,6 +293,7 @@ window.Diurnal = window.Diurnal || {};
             }).then(function (stored) {
                 noteSaved[dateStr] = stored.content
                 delete noteDrafts[dateStr]
+                persistDraft()
                 if (noteDate === dateStr) {
                     noteInput.value = stored.content // the STORED (normalised) form, not what was typed
                 }
@@ -263,6 +318,7 @@ window.Diurnal = window.Diurnal || {};
         noteUndoBtn.addEventListener('click', function () {
             if (noteDate === null) {return}
             delete noteDrafts[noteDate]
+            persistDraft()
             if (noteError) { noteError.innerHTML = '' }
             showNote(noteDate)
         })
@@ -276,34 +332,13 @@ window.Diurnal = window.Diurnal || {};
             if (noteDate === null || noteInput.value === '') {return}
             noteInput.value = ''
             noteDrafts[noteDate] = ''
+            persistDraft()
             if (noteError) { noteError.innerHTML = '' }
             refreshNoteState()
             setNoteStatus(noteIsDirty() ? 'Unsaved changes' : '', 'brand')
             noteInput.focus()
         })
     }
-
-    // Any note holding unsaved work — the one on screen, or one left half-written on another date. Drafts
-    // are kept per date so moving around the calendar never loses them, but nothing can carry them across a
-    // page load, so this is what the unload guard below asks about.
-    function hasUnsavedNotes() {
-        if (noteIsDirty()) {return true}
-        return Object.keys(noteDrafts).some(function (d) {
-            return noteDrafts[d] !== (noteSaved[d] || '')
-        })
-    }
-
-    // The note box is the only thing on this page holding work the user TYPED — the day panel and the
-    // summary are views of state written elsewhere, and every log mutation commits immediately. So leaving
-    // the page with an unsaved note is the one way to lose real writing here, and it happened silently:
-    // clicking a navbar link discarded a half-written entry with no prompt at all. The browser's own
-    // confirmation is deliberately used rather than an in-app dialog: it is the only thing that can
-    // intercept a link click, a Back gesture and a tab close alike.
-    window.addEventListener('beforeunload', function (ev) {
-        if (!hasUnsavedNotes()) {return}
-        ev.preventDefault()
-        ev.returnValue = ''   // some browsers still require this to raise the prompt
-    })
 
     // ── Note box resize ──────────────────────────────────────────────────────
     // Three drag handles: the right edge, the bottom edge and the corner. Native `resize: both` gives only
@@ -387,6 +422,11 @@ window.Diurnal = window.Diurnal || {};
         noteSaved[notePanel.dataset.noteDate] = noteInput.value
     }
 
+    // Then bring back anything left unsaved earlier in this tab. Only the CACHE is filled here: the box is
+    // painted by the first loadNote (dashboard.js selects a day on DOMContentLoaded), which reads a draft in
+    // preference to the stored note and puts the "Unsaved changes" line back with it.
+    restoreDraft()
+
     // The interface the calendar drives, and nothing else.
     window.Diurnal.noteBox = {
         bindCalendar: function (adapter) { cal = adapter },
@@ -394,7 +434,6 @@ window.Diurnal = window.Diurnal || {};
         disable: function () { noteDate = null; setNoteEnabled(false) },
         hasNote: hasNote,
         mergeMonths: mergeNoteMonths,
-        dropMonth: dropNoteMonth,
-        hasUnsaved: hasUnsavedNotes
+        dropMonth: dropNoteMonth
     }
 })()

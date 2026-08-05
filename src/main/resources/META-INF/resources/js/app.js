@@ -907,13 +907,18 @@ document.addEventListener('click', function (e) {
     })
 })()
 
-// ── Login page: drop the per-tab dashboard day selection ──────────────────────
+// ── Login page: drop the per-tab dashboard state ──────────────────────────────
 // Reaching the login page ends the working session: an explicit logout, a session-cookie expiry
-// redirect, or a different user about to log in on this tab. Drop the selection so it is tied to
-// the authentication session, never leaking across logins. Guarded to the login page only (path
-// check, not a data-page marker — avoids threading a new param through every full-page template).
+// redirect, or a different user about to log in on this tab. Drop the retained day selection and
+// the retained note draft (see note.js) so both are tied to the authentication session, never
+// leaking across logins — which for a journal entry is a privacy matter, not just tidiness.
+// Guarded to the login page only (path check, not a data-page marker — avoids threading a new param
+// through every full-page template).
 if (window.location.pathname === '/login') {
-    try { sessionStorage.removeItem('diurnal.selectedDate') } catch (e) { /* ignore */ }
+    try {
+        sessionStorage.removeItem('diurnal.selectedDate')
+        sessionStorage.removeItem('diurnal.noteDraft')
+    } catch (e) { /* ignore */ }
 }
 
 // ── Randomise-colour buttons (partials/random-colour-button.html) ─────────────
