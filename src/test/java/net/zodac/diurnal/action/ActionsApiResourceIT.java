@@ -163,6 +163,38 @@ class ActionsApiResourceIT extends IntegrationTestBase {
     }
 
     @Test
+    void create_absentColour_takesASuggestedColour() {
+        final String colour = given().contentType(ContentType.JSON)
+            .body("{\"name\":\"No Colour\"}")
+            .post("/api/v1/actions")
+            .then().statusCode(201)
+            .extract().path("colour");
+
+        assertThat(colour)
+            .as("an omitted colour should be suggested, not left as the neutral slate")
+            .isNotEqualTo(ActionValidation.DEFAULT_COLOUR)
+            .isIn(ActionColours.PALETTE);
+    }
+
+    @Test
+    void create_absentColour_avoidsTheColoursAlreadyInUse() {
+        final List<String> inUse = ActionColours.PALETTE.subList(0, ActionColours.PALETTE.size() - 1);
+        runInTx(() -> {
+            for (int i = 0; i < inUse.size(); i++) {
+                newAction(primaryId, "Action-" + i).colour = inUse.get(i);
+            }
+        });
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"name":"No Colour"}
+                        """)
+                .post("/api/v1/actions")
+                .then().statusCode(201)
+                .body("colour", equalTo(ActionColours.PALETTE.getLast()));
+    }
+
+    @Test
     void create_invalidColour_isRejected() {
         given().contentType(ContentType.JSON)
                 .body("""

@@ -40,21 +40,30 @@ public class ActionsWebResource {
 
     private final Template actionsTemplate;
     private final CurrentUser currentUser;
+    private final ActionService actionService;
 
     /**
-     * Injects the page template and current-user accessor.
+     * Injects the page template, current-user accessor and the shared action service.
      *
      * @param actionsTemplate the full actions-page template
      * @param currentUser the current-user accessor
+     * @param actionService the shared action service, for the new-action form's pre-filled colour
      */
     @Inject
-    public ActionsWebResource(@Location("actions") final Template actionsTemplate, final CurrentUser currentUser) {
+    public ActionsWebResource(@Location("actions") final Template actionsTemplate, final CurrentUser currentUser,
+        final ActionService actionService) {
         this.actionsTemplate = actionsTemplate;
         this.currentUser = currentUser;
+        this.actionService = actionService;
     }
 
     /**
      * Renders the full actions page for the current user.
+     *
+     * <p>
+     * The new-action form's colour picker arrives already set to a suggestion rather than the neutral slate, so an action added without touching the
+     * picker is still tellable apart from every other one on the calendar. It is the same suggestion the randomise button would fetch, taken here at
+     * render time; the page's script re-draws it after each successful add (the colour just used is in use from then on).
      *
      * @return the rendered page
      */
@@ -68,6 +77,7 @@ public class ActionsWebResource {
                 .data("email", user.email)
                 .data("isAdmin", user.isAdmin())
                 .data("page", page)
+                .data("suggestedColour", actionService.suggestColour(user))
                 .data("theme", user.theme)
                 .data("font", user.font);
     }

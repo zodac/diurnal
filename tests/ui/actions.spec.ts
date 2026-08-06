@@ -43,18 +43,55 @@ test.describe("Actions page", () => {
         await expect(page.locator("#action-list")).toContainText("Running")
     })
 
+    // The form is served with a suggestion already in the picker, so a new action is distinguishable on the
+    // calendar even from a user who never touches the control. #64748b is the neutral slate that used to be
+    // the initial value (ActionValidation.DEFAULT_COLOUR) - nothing is created in it any more.
+    test("the new-action colour picker opens on a randomised colour, not the neutral grey", async ({ authenticatedPage: page }) => {
+        await page.goto("/actions")
+        const picker = page.locator('#new-action-form input[name="colour"]')
+
+        await expect(picker).toHaveValue(/^#[0-9a-f]{6}$/)
+        await expect(picker).not.toHaveValue("#64748b")
+    })
+
+    // A successful add resets the form, which would restore the colour the new action now owns. The page
+    // script draws a fresh suggestion instead, so the "already randomised" state holds for every add.
+    test("adding an action re-randomises the picker away from the colour just used", async ({ authenticatedPage: page }) => {
+        const name = unique("Rerandomised")
+        await page.goto("/actions")
+        await page.waitForFunction(() => typeof (window as {htmx?: unknown}).htmx !== "undefined")
+        const picker = page.locator('#new-action-form input[name="colour"]')
+        const used = await picker.inputValue()
+
+        await page.fill('input[name="name"]', name)
+        await Promise.all([
+            page.waitForResponse(r => r.url().endsWith("/internal/actions/random-colour")),
+            page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
+        ])
+
+        await expect(page.locator("#action-list")).toContainText(name)
+        await expect(picker).not.toHaveValue(used)
+    })
+
     test("randomise button fills the colour picker with a new colour", async ({ authenticatedPage: page }) => {
         await page.goto("/actions")
         const picker = page.locator('#new-action-form input[name="colour"]')
         const before = await picker.inputValue()
 
-        await Promise.all([
-            page.waitForResponse(r => r.url().endsWith("/internal/actions/random-colour")),
-            page.locator("[data-random-colour]").click(),
-        ])
+        // The picker already shows a suggestion, and the suggester excludes the colours the user has SAVED -
+        // not the one merely on display - so a single draw may legitimately return the value already there.
+        // Click until it moves; a button that does nothing fails on the attempts running out.
+        let after = before
+        for (let attempt = 0; attempt < 10 && after === before; attempt++) {
+            await Promise.all([
+                page.waitForResponse(r => r.url().endsWith("/internal/actions/random-colour")),
+                page.locator("[data-random-colour]").click(),
+            ])
+            after = await picker.inputValue()
+        }
 
-        await expect(picker).not.toHaveValue(before)
-        expect(await picker.inputValue()).toMatch(/^#[0-9a-f]{6}$/)
+        expect(after).not.toBe(before)
+        expect(after).toMatch(/^#[0-9a-f]{6}$/)
     })
 
     test("randomised colour is used by the created action", async ({ authenticatedPage: page }) => {

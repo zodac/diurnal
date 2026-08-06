@@ -39,8 +39,8 @@ import org.jspecify.annotations.Nullable;
  * control, shared by the web UI's HTMX endpoints ({@link ActionsInternalResource}) and
  * the public REST API ({@link ActionsApiResource}), so a rule added or changed here applies to both surfaces by construction (the
  * {@code AuthenticationService} pattern). The resources only translate the returned {@link ActionResult} into their medium; validation order is
- * blank → too long → duplicate → colour. A malformed colour is rejected on both surfaces (never silently corrected); only an <em>absent</em> colour
- * on creation falls back to the default.
+ * blank → too long → duplicate → colour. A malformed colour is rejected on both surfaces (never silently corrected); an <em>absent</em> colour on
+ * creation is filled in with a suggestion ({@link #suggestColour(User)}), the same answer the randomise control would have given.
  *
  * <p>
  * The name is validated and normalised by the shared {@link TextValidation} pipeline against {@link TextFields#ACTION_NAME}, so it obeys the same
@@ -59,7 +59,7 @@ class ActionService {
      *
      * @param user   the acting user
      * @param name   the submitted name ({@code null} is treated as blank)
-     * @param colour the submitted colour; {@code null} falls back to the default, a malformed value is rejected
+     * @param colour the submitted colour; {@code null} takes a suggested one, a malformed value is rejected
      * @return the outcome
      */
     ActionResult create(final User user, final @Nullable String name, final @Nullable String colour) {
@@ -78,8 +78,11 @@ class ActionService {
         final Action action = new Action();
         action.userId = user.id;
         action.name = normName;
-        // An absent colour on creation is the one defaulted field (the caller submitted no input to preserve).
-        action.colour = colour == null ? ActionValidation.DEFAULT_COLOUR : colour;
+        // An absent colour on creation is the one filled-in field (the caller submitted no input to preserve). It takes a suggestion rather than the
+        // neutral slate: an action's colour exists to tell its calendar dot from every other one, which a shared grey does not do, and the user who
+        // did not choose is exactly the one who gets no value from being asked to. The web form shows the same suggestion up front, so this is only
+        // reached by an API caller that omitted the field.
+        action.colour = colour == null ? suggestColour(user) : colour;
         action.persist();
 
         // The duplicate pre-check above is a TOCTOU: two concurrent creates of the same name can both pass it, and the loser would otherwise

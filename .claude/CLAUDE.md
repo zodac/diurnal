@@ -299,9 +299,15 @@ height.
   audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`) use `Instant.now()` directly (zone-independent, not date-boundary sensitive).
 - `app.timezone` (default `UTC`) feeds `AppClock`; must match `TZ` in `docker-compose.yml`.
 - `LogWebResource.isFuture()` blocks logging for future dates in the user's configured timezone.
-- Action colour defaults to `#64748b` (a neutral slate, deliberately *not* the brand indigo `#6366f1` — a
-  brand-coloured dot would vanish into the full calendar's brand-filled "today" cell); invalid hex is
-  silently corrected to the default.
+- **A new action's colour is pre-randomised, never the neutral grey.** The `/actions` new-action picker is rendered
+  with `ActionService.suggestColour(...)` already selected (`ActionsWebResource`), and `actions.js` re-draws it after
+  every successful add — the colour just used is in use from then on, so a reset alone would hand the next action its
+  twin. An **absent** colour on create takes that same suggestion in `ActionService.create`, so `POST /api/v1/actions`
+  with no `colour` behaves like the form. `#64748b` (`ActionValidation.DEFAULT_COLOUR`, a neutral slate deliberately
+  *not* the brand indigo `#6366f1` — a brand-coloured dot would vanish into the full calendar's brand-filled "today"
+  cell) is no longer what anything is created in: it survives as the `Action.colour` column default, the edit form's
+  `@DefaultValue` fallback, and a colour the suggester keeps its distance from. A malformed colour is **rejected** on
+  both surfaces, never silently corrected.
 - **Every user-chosen colour obeys one shared rule set in `colour/Colours`** — the `#rrggbb` format check
   (`isInvalidHex`, which `ActionValidation` delegates to), the HSL→hex conversion, and `readableOn(colour,
   background)`, which lightens a colour up the HSL lightness axis until it clears 3:1. A colour is stored and
