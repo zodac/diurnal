@@ -59,7 +59,8 @@ into `microprofile-config.properties` (read by `AppConfig`/`AppInfo`). All are t
 - `app.js` (`AppInfo.jsAppFile`) — the shared per-page behaviour extracted from `layout.html` (dt edit/confirm toggles,
   form validation + AJAX submit, locale number grouping, the tooltip long-press, the password-requirements popover, the
   delegated `htmx:configRequest` search-filter listener, the mobile-menu toggle, the delegated
-  `[data-random-colour]` suggestion handler). A **committed** handwritten file.
+  `[data-random-colour]` suggestion handler + the `Diurnal.suggestColourInto(input, url, keep)` helper behind it, which
+  `actions.js` reuses to re-randomise the new-action picker after each add). A **committed** handwritten file.
   Loaded as a classic script at the end of `<body>` on every page, so the document is parsed when it runs and its
   document-level handlers register in the original order (the `data-validate` handler must precede `data-ajax-submit`).
 - `dashboard.js` (`AppInfo.jsDashboardFile`) — the hand-rolled calendar engine extracted from `dashboard.html`. A

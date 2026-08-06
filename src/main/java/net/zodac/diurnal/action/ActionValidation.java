@@ -30,8 +30,11 @@ import net.zodac.diurnal.colour.Colours;
 final class ActionValidation {
 
     /**
-     * The default action colour — a neutral slate, deliberately not the brand indigo (a brand-coloured dot would vanish into the full calendar's
-     * brand-filled "today" cell).
+     * The neutral fallback action colour — a slate, deliberately not the brand indigo (a brand-coloured dot would vanish into the full calendar's
+     * brand-filled "today" cell). No action is created in it any more (a colour the caller did not choose is
+     * {@link ActionService#suggestColour(net.zodac.diurnal.user.User) suggested} instead); it remains the {@link Action#colour} column default, the
+     * value an edit form falling back on it would send, and a colour a user may still pick by hand, so {@link ActionColours} goes on keeping its
+     * suggestions clear of it.
      */
     static final String DEFAULT_COLOUR = "#64748b";
 
@@ -42,7 +45,7 @@ final class ActionValidation {
     /**
      * Whether the submitted colour is an invalid {@code #rrggbb} hex value, per the shared {@link Colours#isInvalidHex(String)} rule that every
      * user-chosen colour in the app is held to. Submissions with a malformed colour are rejected by the caller ({@link ActionService}) rather than
-     * coerced; an <em>absent</em> colour on creation falls back to {@link #DEFAULT_COLOUR}.
+     * coerced; an <em>absent</em> colour on creation takes a suggested one.
      *
      * @param colour the submitted colour
      * @return {@code true} when the colour is an invalid hex value

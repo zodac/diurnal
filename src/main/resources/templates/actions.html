@@ -21,7 +21,10 @@
                   hx-target="#actions-tbody"
                   hx-swap="afterbegin"
                   class="flex items-center gap-3">
-                {#include partials/colour-picker value='#64748b' wrapperCls='shrink-0' inputCls='colour-picker-input' /}
+                {! Pre-randomised, not the neutral slate: the picker opens on a colour unlike everything the user
+                     already uses, so adding an action without touching it still yields a distinguishable calendar
+                     dot. /js/actions.js re-draws it after each successful add. !}
+                {#include partials/colour-picker value=suggestedColour wrapperCls='shrink-0' inputCls='colour-picker-input' /}
                 {#include partials/random-colour-button wrapperCls='shrink-0' iconCls='w-4 h-4' btnCls='colour-picker-btn' /}
                 <input type="text"
                        name="name"

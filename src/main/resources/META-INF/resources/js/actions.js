@@ -13,10 +13,19 @@
 // delegated), so `this` is the form. A duplicate-name rejection (409) is handled by the
 // htmx:beforeSwap opt-in below — the server's HX-Retarget/HX-Reswap headers route its banner into
 // #action-error (the same mechanism as admin-users.js).
+//
+// The colour picker is re-randomised as part of that reset. The server renders the page with a
+// suggestion already in the picker (ActionsWebResource), but reset() restores exactly that value —
+// which the action just added now uses, so the next one would silently be its twin on the calendar.
+// Asking for a fresh suggestion here keeps the "already randomised" state true for every add, not
+// just the first, and it is only correct AFTER the add: the suggestion avoids the colours in use,
+// which now includes the one just taken.
 document.getElementById('new-action-form').addEventListener('htmx:afterRequest', function (event) {
     if (event.detail.xhr.status === 200) {
         document.getElementById('action-error').innerHTML = ''
         this.reset()
+        const picker = this.querySelector('input[type="color"]')
+        if (picker) {window.Diurnal.suggestColourInto(picker, '/internal/actions/random-colour', true)}
         const er = document.getElementById('actions-empty-row')
         if (er) {er.remove()}
         const sh = document.getElementById('showing-shown')

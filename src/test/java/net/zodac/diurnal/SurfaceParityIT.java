@@ -46,6 +46,9 @@ class SurfaceParityIT extends IntegrationTestBase {
 
     static final int SUGGESTION_DRAWS = 10;
 
+    // action.ActionValidation.DEFAULT_COLOUR, repeated here because it is package-private to that package.
+    static final String NEUTRAL_COLOUR = "#64748b";
+
     static final LocalDate TODAY    = FIXED_TODAY;
     static final LocalDate TOMORROW = FIXED_TODAY.plusDays(1);
 
@@ -154,6 +157,29 @@ class SurfaceParityIT extends IntegrationTestBase {
         runInTx(() -> assertThat(Action.count("userId = ?1", primaryId))
             .as("suggesting a colour must persist nothing on either surface")
             .isEqualTo(1));
+    }
+
+    @Test
+    void actionCreatedWithoutAColour_takesASuggestionOnBothSurfaces() {
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"name":"Colourless API"}
+                        """)
+                .post("/api/v1/actions")
+                .then().statusCode(201);
+
+        given().formParam("name", "Colourless Web")
+                .post("/internal/actions")
+                .then().statusCode(200);
+
+        runInTx(() -> {
+            assertThat(Action.count("userId = ?1 and colour = ?2", primaryId, NEUTRAL_COLOUR))
+                .as("an omitted colour must be filled in with a suggestion by BOTH surfaces, never left as the neutral slate")
+                .isZero();
+            assertThat(colourOf("Colourless API"))
+                .as("the two surfaces must draw from the same suggester, so neither may repeat a colour already in use")
+                .isNotEqualTo(colourOf("Colourless Web"));
+        });
     }
 
     @Test
@@ -425,5 +451,12 @@ class SurfaceParityIT extends IntegrationTestBase {
         given().formParam("count", "1")
                 .post("/internal/logs/" + TODAY + "/" + unknown + "/set")
                 .then().statusCode(404);
+    }
+
+    private String colourOf(final String name) {
+        return Action.<Action>find("userId = ?1 and name = ?2", primaryId, name)
+                .firstResultOptional()
+                .orElseThrow()
+                .colour;
     }
 }

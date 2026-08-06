@@ -170,7 +170,7 @@ public class ActionsInternalResource {
      * Creates a new action for the current user, rejecting blank or duplicate names.
      *
      * @param name   the new action's name
-     * @param colour the new action's colour (a malformed value is rejected; an absent form field defaults to {@link ActionValidation#DEFAULT_COLOUR})
+     * @param colour the new action's colour (a malformed value is rejected; an absent form field takes a suggested colour)
      * @return the rendered row partial for the created action
      */
     @POST
@@ -179,9 +179,10 @@ public class ActionsInternalResource {
     @Transactional
     public Response createAction(
         @FormParam("name") final String name,
-        @FormParam("colour") @DefaultValue(ActionValidation.DEFAULT_COLOUR) final String colour) {
+        @FormParam("colour") final @Nullable String colour) {
         // The form always submits a name; normalise a missing field to blank so it is rejected rather
-        // than treated as a PATCH-style "keep" by the shared service.
+        // than treated as a PATCH-style "keep" by the shared service. A missing colour is passed on as
+        // null, so it takes the same suggestion the API gives a caller that omitted it.
         return translate(actionService.create(currentUser.get(), name == null ? "" : name, colour));
     }
 

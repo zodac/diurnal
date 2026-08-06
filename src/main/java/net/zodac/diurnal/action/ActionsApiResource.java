@@ -145,8 +145,8 @@ public class ActionsApiResource {
     @Transactional
     @Operation(
         summary = "Create an action",
-        description = "Creates a new action. A missing colour uses the default, but a malformed colour is rejected (never silently corrected); names "
-        + "must be unique per user.")
+        description = "Creates a new action. A missing colour is filled in with a suggested one (as GET /api/v1/actions/random-colour would give), "
+        + "but a malformed colour is rejected (never silently corrected); names must be unique per user.")
     @SecurityRequirement(name = "BearerAuth")
     @APIResponses({
         @APIResponse(responseCode = "201", description = "The action was created.",
@@ -303,13 +303,13 @@ public class ActionsApiResource {
      * The body for creating or updating an action.
      *
      * @param name   the action's name (required on create; optional on update)
-     * @param colour the action's colour as {@code #rrggbb} (optional; a malformed value is rejected, an absent one uses the default on create)
+     * @param colour the action's colour as {@code #rrggbb} (optional; a malformed value is rejected, an absent one is suggested on create)
      */
     @Schema(description = "Fields for creating or updating an action.")
     public record ActionRequest(
         @Schema(examples = "Morning run", description = "The action's name; unique per user, at most 100 characters.") @Nullable String name,
         @Schema(examples = "#6366f1",
-        description = "The action's display colour as a CSS hex value; a malformed value is rejected, omit to use the default on create.")
+        description = "The action's display colour as a CSS hex value; a malformed value is rejected, omit to have one suggested on create.")
         @Nullable String colour) {
     }
 
