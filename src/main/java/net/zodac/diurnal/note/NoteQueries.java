@@ -78,12 +78,16 @@ final class NoteQueries {
      * unique-constraint violation (a 500) — the loser simply overwrites, which is the correct last-write-wins semantic for a single owner editing
      * their own note from two tabs. {@code created_at} is deliberately left untouched on the update arm, so it keeps recording when the note was
      * first written.
+     *
+     * <p>
+     * The value written is the SEALED form — the only form there is. There is no plaintext column to keep in step (it was dropped in {@code V29}),
+     * so a note cannot be stored readable by any path.
      */
     static final String UPSERT_SQL = """
-            INSERT INTO notes (id, user_id, note_date, content, created_at, updated_at)
-            VALUES (:id, :userId, :date, :content, :now, :now)
+            INSERT INTO notes (id, user_id, note_date, content_encrypted, created_at, updated_at)
+            VALUES (:id, :userId, :date, :contentEncrypted, :now, :now)
             ON CONFLICT ON CONSTRAINT notes_unique
-            DO UPDATE SET content = EXCLUDED.content, updated_at = :now""";
+            DO UPDATE SET content_encrypted = EXCLUDED.content_encrypted, updated_at = :now""";
 
     private NoteQueries() {
 

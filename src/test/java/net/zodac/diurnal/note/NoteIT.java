@@ -20,6 +20,7 @@ package net.zodac.diurnal.note;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 import net.zodac.diurnal.IntegrationTestBase;
@@ -57,26 +58,26 @@ class NoteIT extends IntegrationTestBase {
 
     @Test
     void upsert_onADayWithNoNote_insertsIt() {
-        runInTx(() -> Note.upsert(owner.id, DAY, "First entry"));
+        runInTx(() -> Note.upsert(owner.id, DAY, sealed("First entry")));
 
         runInTx(() -> assertThat(Note.findEntry(owner.id, DAY))
             .as("the inserted note must be readable back")
             .isNotNull()
-            .extracting(note -> note.content)
-            .isEqualTo("First entry"));
+            .extracting(note -> note.contentEncrypted)
+            .isEqualTo(sealed("First entry")));
     }
 
     @Test
     void upsert_onADayThatAlreadyHasANote_overwritesItWithoutColliding() {
-        runInTx(() -> Note.upsert(owner.id, DAY, "First entry"));
-        runInTx(() -> Note.upsert(owner.id, DAY, "Replaced entry"));
+        runInTx(() -> Note.upsert(owner.id, DAY, sealed("First entry")));
+        runInTx(() -> Note.upsert(owner.id, DAY, sealed("Replaced entry")));
 
         runInTx(() -> {
             assertThat(Note.findEntry(owner.id, DAY))
                 .as("the second upsert must overwrite the content rather than trip notes_unique")
                 .isNotNull()
-                .extracting(note -> note.content)
-                .isEqualTo("Replaced entry");
+                .extracting(note -> note.contentEncrypted)
+                .isEqualTo(sealed("Replaced entry"));
             assertThat(Note.count("userId = ?1 and noteDate = ?2", owner.id, DAY))
                 .as("a day must never hold more than one note")
                 .isEqualTo(1L);
@@ -85,10 +86,10 @@ class NoteIT extends IntegrationTestBase {
 
     @Test
     void upsert_keepsTheOriginalCreatedAt_butMovesUpdatedAt() {
-        runInTx(() -> Note.upsert(owner.id, DAY, "First entry"));
+        runInTx(() -> Note.upsert(owner.id, DAY, sealed("First entry")));
 
         final Note inserted = readNote();
-        runInTx(() -> Note.upsert(owner.id, DAY, "Replaced entry"));
+        runInTx(() -> Note.upsert(owner.id, DAY, sealed("Replaced entry")));
         final Note updated = readNote();
 
         assertThat(updated.createdAt)
@@ -101,27 +102,27 @@ class NoteIT extends IntegrationTestBase {
 
     @Test
     void upsert_isScopedToItsOwnUser() {
-        runInTx(() -> Note.upsert(owner.id, DAY, "Owner's entry"));
-        runInTx(() -> Note.upsert(other.id, DAY, "Other's entry"));
+        runInTx(() -> Note.upsert(owner.id, DAY, sealed("Owner's entry")));
+        runInTx(() -> Note.upsert(other.id, DAY, sealed("Other's entry")));
 
         runInTx(() -> {
             assertThat(Note.findEntry(owner.id, DAY))
                 .as("the same day for two users must be two independent notes")
                 .isNotNull()
-                .extracting(note -> note.content)
-                .isEqualTo("Owner's entry");
+                .extracting(note -> note.contentEncrypted)
+                .isEqualTo(sealed("Owner's entry"));
             assertThat(Note.findEntry(other.id, DAY))
                 .as("the same day for two users must be two independent notes")
                 .isNotNull()
-                .extracting(note -> note.content)
-                .isEqualTo("Other's entry");
+                .extracting(note -> note.contentEncrypted)
+                .isEqualTo(sealed("Other's entry"));
         });
     }
 
     @Test
     void upsert_acceptsAFutureDate() {
         final LocalDate future = DAY.plusMonths(2);
-        runInTx(() -> Note.upsert(owner.id, future, "Written ahead of time"));
+        runInTx(() -> Note.upsert(owner.id, future, sealed("Written ahead of time")));
 
         runInTx(() -> assertThat(Note.findEntry(owner.id, future))
             .as("a note must be writable for a future date, unlike an action log")
@@ -129,14 +130,14 @@ class NoteIT extends IntegrationTestBase {
     }
 
     @Test
-    void upsert_acceptsContentAtTheColumnMaximum() {
+    void upsert_acceptsContentAtTheCatalogueMaximum() {
         final String maximal = "x".repeat(TextFields.NOTE_MAX_LENGTH);
-        runInTx(() -> Note.upsert(owner.id, DAY, maximal));
+        runInTx(() -> Note.upsert(owner.id, DAY, sealed(maximal)));
 
         runInTx(() -> assertThat(Note.findEntry(owner.id, DAY))
-            .as("content exactly at the catalogue bound must fit its column")
+            .as("a note at the catalogue bound must round-trip whole - sealing expands it, so the stored form is larger than the bound itself")
             .isNotNull()
-            .extracting(note -> note.content.length())
+            .extracting(note -> note.contentEncrypted.length)
             .isEqualTo(TextFields.NOTE_MAX_LENGTH));
     }
 
@@ -204,10 +205,10 @@ class NoteIT extends IntegrationTestBase {
     void rangeVersion_changesOnInsertUpdateAndDelete() {
         final ChangeSignature empty = rangeVersion();
 
-        runInTx(() -> Note.upsert(owner.id, DAY, "First entry"));
+        runInTx(() -> Note.upsert(owner.id, DAY, sealed("First entry")));
         final ChangeSignature afterInsert = rangeVersion();
 
-        runInTx(() -> Note.upsert(owner.id, DAY, "Replaced entry"));
+        runInTx(() -> Note.upsert(owner.id, DAY, sealed("Replaced entry")));
         final ChangeSignature afterUpdate = rangeVersion();
 
         runInTx(() -> Note.deleteEntry(owner.id, DAY));
@@ -243,5 +244,13 @@ class NoteIT extends IntegrationTestBase {
         final Note[] note = new Note[1];
         runInTx(() -> note[0] = Note.findEntry(owner.id, DAY));
         return note[0];
+    }
+
+    // Stands in for a sealed note. These tests are about STORAGE semantics - one row per day, an upsert that overwrites
+    // rather than colliding, a sparse range read - none of which care what the bytes mean, so a plain UTF-8 encoding
+    // keeps each assertion readable where a real AES-GCM seal would be opaque and non-deterministic. The sealing itself
+    // is covered by Aes256GcmTest and NoteContentTest.
+    private static byte[] sealed(final String content) {
+        return content.getBytes(StandardCharsets.UTF_8);
     }
 }

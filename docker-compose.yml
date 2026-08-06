@@ -22,6 +22,11 @@ services:
       DB_NAME: ${DB_NAME:-diurnal_db}
       DB_USER: ${DB_USER:-diurnal_user}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+      # Notes are encrypted at rest; this is the only thing that opens them, and it deliberately does
+      # NOT live in the database. LOSING IT LOSES EVERY NOTE. Generate: openssl rand -base64 32
+      NOTE_ENCRYPTION_KEY: ${NOTE_ENCRYPTION_KEY:?NOTE_ENCRYPTION_KEY must be set}
+      # Only set while rotating the key above; the next start moves every account onto the new one.
+      NOTE_ENCRYPTION_PREVIOUS_KEYS: ${NOTE_ENCRYPTION_PREVIOUS_KEYS:-}
       TZ: ${TZ:-UTC}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # DB query tracing. Independent of LOG_LEVEL (which only covers net.zodac.diurnal): set to TRACE

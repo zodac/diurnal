@@ -33,7 +33,6 @@ import java.util.UUID;
 import net.zodac.diurnal.http.ChangeSignature;
 import net.zodac.diurnal.log.DailyActionTotal;
 import net.zodac.diurnal.log.MonthlyActionTotal;
-import net.zodac.diurnal.text.TextFields;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -62,8 +61,11 @@ public class Note extends PanacheEntityBase {
     @Column(name = "note_date", nullable = false)
     public LocalDate noteDate;
 
-    @Column(nullable = false, length = TextFields.NOTE_MAX_LENGTH)
-    public String content;
+    // The note, sealed under its owner's data key and bound to (userId, noteDate) as associated data.
+    // There is no plaintext column: a note is unreadable without the owner's passphrase, including to
+    // an administrator holding the whole database. See NoteContent and NOTES.md.
+    @Column(name = "content_encrypted", nullable = false)
+    public byte[] contentEncrypted;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     public Instant createdAt = Instant.now();
@@ -184,14 +186,14 @@ public class Note extends PanacheEntityBase {
      *
      * @param userId the owning user
      * @param date the day to write against
-     * @param content the normalised note content (must be non-blank)
+     * @param contentEncrypted the sealed note content (the normalised value, encrypted under the owner's data key)
      */
-    public static void upsert(final UUID userId, final LocalDate date, final String content) {
+    public static void upsert(final UUID userId, final LocalDate date, final byte[] contentEncrypted) {
         Panache.getEntityManager().createNativeQuery(NoteQueries.UPSERT_SQL)
             .setParameter("id", UUID.randomUUID())
             .setParameter("userId", userId)
             .setParameter("date", date)
-            .setParameter("content", content)
+            .setParameter("contentEncrypted", contentEncrypted)
             .setParameter("now", Instant.now())
             .executeUpdate();
     }

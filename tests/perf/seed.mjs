@@ -7,9 +7,10 @@
 //   1. Bootstrap the initial administrator via the web /register form — the ONLY sanctioned first-user
 //      path (the API refuses to create the very first account). This admin is also the load user.
 //   2. Create a "heavy" account's worth of data via the public API: SEED_ACTIONS actions, each logged
-//      across SEED_LOG_DAYS consecutive days ending today. This is what turns the list / stats /
-//      calendar-feed scenarios into meaningful regression guards (N+1 queries, unindexed scans, per-log
-//      fan-out) rather than empty-DB best cases.
+//      across SEED_LOG_DAYS consecutive days ending today, plus a note on each of the most recent
+//      SEED_NOTE_DAYS days. This is what turns the list / stats / calendar-feed / notes scenarios into
+//      meaningful regression guards (N+1 queries, unindexed scans, per-log fan-out, per-note decryption)
+//      rather than empty-DB best cases.
 //
 // Run with: k6 run -e BASE_URL=... [-e SEED_ACTIONS=..] [-e SEED_LOG_DAYS=..]
 // It is a single-iteration script (default 1 VU, 1 iteration) — no thresholds, it only seeds.
@@ -30,6 +31,9 @@ import encoding from "k6/encoding"
 const BASE_URL = __ENV.BASE_URL || "http://127.0.0.1:8083"
 const SEED_ACTIONS = Number(__ENV.SEED_ACTIONS || 50)
 const SEED_LOG_DAYS = Number(__ENV.SEED_LOG_DAYS || 90)
+// Notes are ENCRYPTED at rest, so every read decrypts and every write encrypts. Seeding a note on most
+// of the logged days is what makes the notes scenarios measure that work rather than an empty range.
+const SEED_NOTE_DAYS = Number(__ENV.SEED_NOTE_DAYS || 60)
 
 const ADMIN = {
     email: `perf-admin-${Date.now()}@example.com`,
@@ -92,6 +96,23 @@ export default function seed() {
         }
     }
 
+    // 3b. Seed a note on each of the most recent SEED_NOTE_DAYS days. Notes are sealed individually, so a
+    //     range read has to open the account's data key once and then decrypt per day - the cost this is
+    //     here to keep an eye on. The body is representative prose rather than a token string, because the
+    //     range feed is gzipped and a repeated tiny value would compress away the payload being measured.
+    const noteBody = "Ran before work, then a long afternoon on the refactor. Felt slow to start but the "
+        + "second half went well. Worth repeating the early start tomorrow if the weather holds.";
+    for (let d = 0; d < SEED_NOTE_DAYS; d++) {
+        const written = http.put(
+            `${BASE_URL}/api/v1/notes/${isoDay(d)}`,
+            JSON.stringify({ content: `${noteBody} (day ${d})` }),
+            { headers: authHeaders },
+        )
+        if (!check(written, { "seed note written 200": r => r.status === 200 })) {
+            fail(`seed note for day ${d} failed: ${written.status} ${written.body}`)
+        }
+    }
+
     // 4. Emit the credentials + identifiers on a single marked, base64-encoded stdout line for
     //    run-perf.sh to capture and hand to load.mjs (see the handover note at the top).
     const state = {
@@ -105,7 +126,9 @@ export default function seed() {
         rangeEnd: today,
         seedActions: SEED_ACTIONS,
         seedLogDays: SEED_LOG_DAYS,
+        seedNoteDays: SEED_NOTE_DAYS,
+        noteRangeStart: isoDay(SEED_NOTE_DAYS - 1),
     }
-    console.log(`[seed] ${SEED_ACTIONS} actions × ${SEED_LOG_DAYS} days seeded for ${ADMIN.email}`)
+    console.log(`[seed] ${SEED_ACTIONS} actions × ${SEED_LOG_DAYS} days and ${SEED_NOTE_DAYS} notes seeded for ${ADMIN.email}`)
     console.log(`PERFSTATE:${encoding.b64encode(JSON.stringify(state))}:ENDPERFSTATE`)
 }

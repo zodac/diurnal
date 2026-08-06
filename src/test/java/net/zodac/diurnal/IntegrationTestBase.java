@@ -27,13 +27,20 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.Base64;
+import java.util.Objects;
 import java.util.UUID;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.crypto.Aes256Gcm;
+import net.zodac.diurnal.crypto.DataKeyEnvelope;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
+import net.zodac.diurnal.note.NoteContent;
+import net.zodac.diurnal.note.UserNotesKey;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
+import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 
@@ -64,6 +71,15 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
      */
     public static final LocalDate FIXED_TODAY = LocalDate.of(2026, 6, 15);
 
+    /**
+     * The notes encryption master key the test profile is configured with ({@code application-test.properties}).
+     *
+     * <p>
+     * Held here so a test can open a stored note the way the application does — every note is sealed under a per-user data key, and that key is only
+     * ever stored wrapped under this one.
+     */
+    public static final String NOTES_MASTER_KEY = "ZGl1cm5hbC10ZXN0LW5vdGVzLWtleS0zMi1ieXRlcyE=";
+
     @Inject
     UserTransaction tx;
 
@@ -76,6 +92,7 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
         tx.begin();
         try {
             Note.deleteAll();
+            UserNotesKey.deleteAll();
             ActionLog.deleteAll();
             Action.deleteAll();
             User.deleteAll();
@@ -185,6 +202,14 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
         u.passwordHash = TEST_ARGON2.hash(plaintextPassword).getResult();
         u.role = role;
         u.persist();
+
+        // Mirrors what RegistrationService and OidcUserProvisioner do at account creation: every user has a notes
+        // data key from the moment they exist, so no test has to arrange one before writing a note.
+        final UserNotesKey notesKey = new UserNotesKey();
+        notesKey.userId = u.id;
+        notesKey.dekWrapped = DataKeyEnvelope.wrap(Aes256Gcm.randomKey(), Base64.getDecoder().decode(NOTES_MASTER_KEY), u.id);
+        notesKey.persist();
+
         return u;
     }
 
@@ -213,14 +238,50 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
     }
 
     /**
-     * Persists a single day's note for the given user. The content is stored exactly as given — this seeds the row directly, bypassing the text
-     * pipeline, so a test may plant a value the service itself would have normalised or rejected.
+     * Reads a stored note back as its owner would see it: opens the user's data key with the configured master, then opens the note with that.
+     *
+     * @param userId the owning user
+     * @param date the day whose note to read
+     * @return the readable content, or {@code null} when the day has no note
+     */
+    protected static @Nullable String storedNoteContent(final UUID userId, final LocalDate date) {
+        final Note note = Note.findEntry(userId, date);
+        if (note == null) {
+            return null;
+        }
+        return NoteContent.open(dataKeyFor(userId), userId, date, note.contentEncrypted).orElse(null);
+    }
+
+    /**
+     * Seals content with the same key {@link #storedNoteContent} reads it back with, for a test that needs the stored form directly.
+     *
+     * @param userId the owning user, bound into the seal
+     * @param date the day the note belongs to, bound into the seal
+     * @param content the content to seal
+     * @return the sealed form
+     */
+    protected static byte[] sealNote(final UUID userId, final LocalDate date, final String content) {
+        return NoteContent.seal(dataKeyFor(userId), userId, date, content);
+    }
+
+    // The user's own data key, opened the way the application opens it: read the wrapped value and unwrap with the
+    // configured master. newUser() mints one, so this resolves for any account a test has created.
+    private static byte[] dataKeyFor(final UUID userId) {
+        final UserNotesKey stored = Objects.requireNonNull(UserNotesKey.findForUser(userId), "user has no notes data key");
+        return DataKeyEnvelope.unwrap(stored.dekWrapped, Base64.getDecoder().decode(NOTES_MASTER_KEY), userId)
+            .orElseThrow(() -> new IllegalStateException("the test master key does not open this user's data key"));
+    }
+
+    /**
+     * Persists a single day's note for the given user, sealed under their own data key so it reads back through the notes surfaces exactly as one
+     * written through them would. The content is sealed exactly as given, bypassing the text pipeline, so a test may plant a value the service itself
+     * would have normalised or rejected.
      */
     protected static Note newNote(final UUID userId, final LocalDate date, final String content) {
         final Note n = new Note();
         n.userId = userId;
         n.noteDate = date;
-        n.content = content;
+        n.contentEncrypted = sealNote(userId, date, content);
         n.persist();
         return n;
     }

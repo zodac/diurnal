@@ -18,7 +18,13 @@
 package net.zodac.diurnal.note;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
@@ -56,9 +62,68 @@ import org.jspecify.annotations.Nullable;
  * Callers own the transaction (each resource write method is {@code @Transactional}); this bean only assumes one is active.
  */
 @ApplicationScoped
-class NoteService {
+public class NoteService {
 
     private static final Logger LOGGER = LogManager.getLogger(NoteService.class);
+
+    private final NoteKeys noteKeys;
+
+    /**
+     * Injects the notes key service, which opens the acting user's data key.
+     *
+     * @param noteKeys the shared notes key service
+     */
+    @Inject
+    public NoteService(final NoteKeys noteKeys) {
+        this.noteKeys = noteKeys;
+    }
+
+    /**
+     * Returns a stored note's readable content.
+     *
+     * <p>
+     * An empty result means the note cannot be opened at all — the owner has no data key, or the configured master key is not the one it was wrapped
+     * with. Both are deployment faults rather than user-facing states (a note cannot exist without a key, and the key is validated at startup), so
+     * the caller omits the note rather than failing the whole response: one damaged row must not take down a month of calendar.
+     *
+     * @param note the stored note
+     * @return the readable content, or empty when it cannot be opened
+     */
+    public Optional<String> readContent(final Note note) {
+        return noteKeys.forUser(note.userId)
+            .flatMap(dataKey -> NoteContent.open(dataKey, note.userId, note.noteDate, note.contentEncrypted));
+    }
+
+    /**
+     * Opens a whole range of one user's notes, keyed by date and holding only the days that could be read.
+     *
+     * <p>
+     * The data key is resolved ONCE for the range rather than once per note. Every note in it belongs to the same account and is sealed under the
+     * same key, so opening it per note re-ran the row lookup, the master-key derivation and an AES pass for each — and the dashboard warms a
+     * three-month window in a single request, so that was ninety repetitions of identical work.
+     *
+     * <p>
+     * A note that will not open is omitted rather than failing the range: one damaged row must not take down a month of calendar. {@code NoteKeys}
+     * has already logged the cause when it is the key at fault, which is the case that actually matters.
+     *
+     * @param userId the owning user, whose key opens every note in the range
+     * @param notes the stored notes, in the order the caller wants them back
+     * @return the readable content by date, in the given order
+     */
+    public Map<LocalDate, String> readContents(final UUID userId, final List<Note> notes) {
+        final Optional<byte[]> dataKey = noteKeys.forUser(userId);
+        if (dataKey.isEmpty()) {
+            return Map.of();
+        }
+
+        // A LinkedHashMap so the caller's ordering survives; the feeds render chronologically.
+        final Map<LocalDate, String> byDate = new LinkedHashMap<>();
+        for (final Note note : notes) {
+            NoteContent.open(dataKey.get(), note.userId, note.noteDate, note.contentEncrypted)
+                .ifPresent(content -> byDate.put(note.noteDate, content));
+        }
+        return byDate;
+    }
 
     /**
      * Writes the day's note, creating it or overwriting whatever was there.
@@ -88,9 +153,14 @@ class NoteService {
             return clear(user, day);
         }
 
+        // Minted here if the account somehow has none - an account created before notes were encrypted, or by a path
+        // that predates NoteKeys.assignTo. This is the write path, so it is transactional and can create one.
+        final byte[] dataKey = noteKeys.forUserCreatingIfAbsent(user.id)
+            .orElseThrow(() -> new IllegalStateException("Unable to open the notes data key - check NOTE_ENCRYPTION_KEY"));
+
         // Atomic upsert: a find-then-insert race between two tabs saving the same day would otherwise trip
-        // the notes_unique constraint as a 500.
-        Note.upsert(user.id, day, normalised);
+        // the notes_unique constraint as a 500. What is stored is the SEALED form of the normalised value.
+        Note.upsert(user.id, day, NoteContent.seal(dataKey, user.id, day, normalised));
         // The DATE and the user only - never the content. See the class Javadoc.
         LOGGER.debug("Note saved for {} by user {}", day, user.email);
         return new NoteResult.Saved(day, normalised);

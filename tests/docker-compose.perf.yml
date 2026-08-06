@@ -45,6 +45,9 @@ services:
       AUTH_IP_THROTTLE_ENABLED: "false"
       # No outbound GitHub update-check lookup at startup from the isolated perf stack (keeps boot timing about the app).
       APP_UPDATE_CHECK_ENABLED: "false"
+      # Notes are encrypted at rest and the app refuses to boot without a key. Fixed here because this
+      # tier is torn down after every run and holds nothing worth protecting.
+      NOTE_ENCRYPTION_KEY: ZGl1cm5hbC1jaS1ub3Rlcy1rZXktMzItYnl0ZXMhISE=
     depends_on:
       db:
         condition: service_healthy

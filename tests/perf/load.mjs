@@ -54,6 +54,8 @@ export const options = {
         logsWrite: sc("logsWrite", 8),
         calendarFeed: sc("calendarFeed", RATE),
         stats: sc("stats", RATE),
+        notesFeed: sc("notesFeed", RATE),
+        notesWrite: sc("notesWrite", 8),
     },
     thresholds: {
         // Per-scenario p95 latency + error-rate budgets. Tune to the deployment's SLOs; these are
@@ -79,6 +81,14 @@ export const options = {
         "http_req_duration{scenario:calendarFeed}": p95(800), // heaviest read (per-log fan-out)
         "http_req_failed{scenario:stats}": ["rate<0.02"],
         "http_req_duration{scenario:stats}": p95(800), // full recompute per call
+        // Notes are encrypted at rest, so these two are the only scenarios doing cryptographic work on the
+        // request path. The read opens the account's data key once for the range and then decrypts per day;
+        // the budget is a little above calendarFeed because the payload is prose rather than counts, and
+        // generous enough to absorb contention while still catching a per-note key resolution creeping back.
+        "http_req_failed{scenario:notesFeed}": ["rate<0.02"],
+        "http_req_duration{scenario:notesFeed}": p95(900),
+        "http_req_failed{scenario:notesWrite}": ["rate<0.01"],
+        "http_req_duration{scenario:notesWrite}": p95(500),
     },
 }
 
@@ -98,6 +108,13 @@ function sc(exec, rate) {
 // A random seeded action ID, for the read/write scenarios that target an existing action.
 function anyActionId() {
     return STATE.actionIds[Math.floor(Math.random() * STATE.actionIds.length)]
+}
+
+// A date beyond the seeded window, so note writes never disturb the range the read scenario measures.
+function futureDay() {
+    const d = new Date()
+    d.setUTCDate(d.getUTCDate() + 1 + Math.floor(Math.random() * 90))
+    return d.toISOString().slice(0, 10)
 }
 
 // ── Scenario exec functions (one per use-case group) ────────────────────────────
@@ -182,4 +199,27 @@ export function calendarFeed() {
 export function stats() {
     const res = http.get(`${BASE_URL}/api/v1/stats`, { headers: AUTH, tags: { name: "stats" } })
     check(res, { "stats 200": r => r.status === 200 })
+}
+
+// GET /api/v1/notes?start=&end= — the seeded note range. Every note in it is individually sealed, so this
+// is the read that measures decryption: one data-key resolution for the range, then one AES pass per day.
+// A regression here is most likely to mean the key is being resolved per note again rather than per range.
+export function notesFeed() {
+    const res = http.get(
+        `${BASE_URL}/api/v1/notes?start=${STATE.noteRangeStart}&end=${STATE.rangeEnd}`,
+        { headers: AUTH, tags: { name: "notesFeed" } },
+    )
+    check(res, { "notes 200": r => r.status === 200 })
+}
+
+// PUT /api/v1/notes/{date} — the write side of the same path: normalise, seal, upsert. Targets a FUTURE
+// date so it never overwrites the seeded range the read scenario is measuring against (a note may be
+// written for any date, unlike a log entry).
+export function notesWrite() {
+    const res = http.put(
+        `${BASE_URL}/api/v1/notes/${futureDay()}`,
+        JSON.stringify({ content: `Load-written note at ${Date.now()}, long enough to be worth sealing properly.` }),
+        { headers: { ...AUTH, "Content-Type": "application/json" }, tags: { name: "notesWrite" } },
+    )
+    check(res, { "note written 200": r => r.status === 200 })
 }

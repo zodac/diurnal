@@ -20,6 +20,8 @@ package net.zodac.diurnal;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import net.zodac.diurnal.note.NoteKeys;
+import net.zodac.diurnal.stub.StubNotesEncryptionConfig;
 import net.zodac.diurnal.stub.StubOidcConfig;
 import net.zodac.diurnal.stub.StubPasswordAuthConfig;
 import net.zodac.diurnal.stub.StubQuarkusOidcConfig;
@@ -34,6 +36,8 @@ import org.junit.jupiter.api.Test;
  * running app to make an HTTP call against.
  */
 class AppLifecycleTest {
+
+    private static final String VALID_NOTES_KEY = "ZGl1cm5hbC10ZXN0LW5vdGVzLWtleS0zMi1ieXRlcyE=";
 
     // ── Both auth mechanisms disabled → refuse to start ──────────────────────────────────────────
 
@@ -88,9 +92,42 @@ class AppLifecycleTest {
             .doesNotThrowAnyException();
     }
 
+    // ── notes encryption key ──────────────────────────────────────────────────
+
+    @Test
+    void validateNotesEncryptionKey_withUsableKey_passes() {
+        assertThatCode(() -> lifecycle(true, false, "", VALID_NOTES_KEY).validateNotesEncryptionKey())
+            .as("a well-formed 32-byte key should boot")
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    void validateNotesEncryptionKey_withNoKey_failsFast() {
+        assertThatThrownBy(() -> lifecycle(true, false, "", "").validateNotesEncryptionKey())
+            .as("booting without a key would leave every note unreadable and unwritable, which must not be discovered at first use")
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("NOTE_ENCRYPTION_KEY");
+    }
+
+    @Test
+    void validateNotesEncryptionKey_withShortKey_failsFast() {
+        assertThatThrownBy(() -> lifecycle(true, false, "", "c2hvcnQ=").validateNotesEncryptionKey())
+            .as("a key of the wrong length must be refused at startup rather than at the first note")
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("32 bytes");
+    }
+
     private static AppLifecycle lifecycle(final boolean passwordEnabled, final boolean oidcEnabled, final String issuerUrl) {
+        return lifecycle(passwordEnabled, oidcEnabled, issuerUrl, VALID_NOTES_KEY);
+    }
+
+    private static AppLifecycle lifecycle(final boolean passwordEnabled, final boolean oidcEnabled, final String issuerUrl,
+        final String notesKey) {
         // validateAuthConfig() never reads the OidcConfig, but the constructor requires a non-null instance, so an inert stub is supplied.
+        // The startup probe needs a database and is exercised by NoteKeysIT; these cases are about the pure
+        // configuration checks, which never reach it, so an inert instance is enough to construct the bean.
+        final StubNotesEncryptionConfig notesConfig = StubNotesEncryptionConfig.of(notesKey);
         return new AppLifecycle(new StubPasswordAuthConfig(passwordEnabled, true),
-            new StubQuarkusOidcConfig(oidcEnabled, issuerUrl, true), StubOidcConfig.inert());
+            new StubQuarkusOidcConfig(oidcEnabled, issuerUrl, true), StubOidcConfig.inert(), notesConfig, new NoteKeys(notesConfig));
     }
 }
