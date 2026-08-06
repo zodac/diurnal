@@ -21,6 +21,8 @@ import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
+import jakarta.persistence.PersistenceException;
+import jakarta.transaction.Transactional;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.net.URI;
@@ -28,12 +30,17 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import net.zodac.diurnal.auth.OidcDiscovery;
+import net.zodac.diurnal.config.NotesEncryptionConfig;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.config.QuarkusOidcConfig;
+import net.zodac.diurnal.crypto.MasterKey;
+import net.zodac.diurnal.note.KeyReconciliation;
+import net.zodac.diurnal.note.NoteKeys;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -55,6 +62,8 @@ public class AppLifecycle {
     private final PasswordAuthConfig passwordAuthConfig;
     private final QuarkusOidcConfig quarkusOidcConfig;
     private final OidcConfig oidcConfig;
+    private final NotesEncryptionConfig notesEncryptionConfig;
+    private final NoteKeys noteKeys;
 
     /**
      * Injects the authentication configuration views validated and logged at startup.
@@ -62,12 +71,17 @@ public class AppLifecycle {
      * @param passwordAuthConfig the password-auth settings
      * @param quarkusOidcConfig the Quarkus OIDC tenant settings
      * @param oidcConfig the application OIDC policy settings
+     * @param notesEncryptionConfig the notes encryption settings, whose key is validated at startup
+     * @param noteKeys the notes key service, used to prove the configured key opens the stored data
      */
     @Inject
-    public AppLifecycle(final PasswordAuthConfig passwordAuthConfig, final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig) {
+    public AppLifecycle(final PasswordAuthConfig passwordAuthConfig, final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig,
+        final NotesEncryptionConfig notesEncryptionConfig, final NoteKeys noteKeys) {
         this.passwordAuthConfig = passwordAuthConfig;
         this.quarkusOidcConfig = quarkusOidcConfig;
         this.oidcConfig = oidcConfig;
+        this.notesEncryptionConfig = notesEncryptionConfig;
+        this.noteKeys = noteKeys;
     }
 
     /**
@@ -76,6 +90,8 @@ public class AppLifecycle {
     @SuppressWarnings("unused") // CDI startup observer — invoked by Quarkus, not called directly
     void onStart(@Observes final StartupEvent ev) {
         validateAuthConfig();
+        validateNotesEncryptionKey();
+        verifyNotesEncryptionKeyOpensExistingData();
         verifyOidcDiscovery();
 
         // Wall-clock time from JVM launch to now, read from the RuntimeMXBean whose start timestamp is
@@ -100,6 +116,73 @@ public class AppLifecycle {
             }
         }
         LOGGER.info("=================================================");
+    }
+
+    /**
+     * Fails fast when the notes encryption key is missing or malformed.
+     *
+     * <p>
+     * Checked here rather than on first use because the failure is a deployment mistake, not a runtime case: without a usable key no note can be read
+     * or written, and finding that out when a user first opens their journal is far worse than refusing to boot. The message names the variable and
+     * how to generate one, and never the value.
+     *
+     * @throws IllegalStateException if the configured key is absent, not base64, or the wrong length
+     */
+    void validateNotesEncryptionKey() {
+        MasterKey.validate(notesEncryptionConfig.key().orElse(null)).ifPresent(problem -> {
+            throw new IllegalStateException(problem);
+        });
+
+        // A typo in a retired key would otherwise look exactly like "no previous key was configured", and the boot would
+        // fail with a misleading reason - a mismatch rather than the malformed value that actually caused it.
+        for (final String retired : notesEncryptionConfig.previousKeys().orElseGet(List::of)) {
+            if (retired.isBlank()) {
+                continue;
+            }
+            MasterKey.validate(retired).ifPresent(problem -> {
+                throw new IllegalStateException("NOTE_ENCRYPTION_PREVIOUS_KEYS holds an unusable entry: " + problem);
+            });
+        }
+    }
+
+    /**
+     * Fails fast when the configured notes key is well-formed but does not open the data this installation already holds.
+     *
+     * <p>
+     * This is the check that matters. {@link #validateNotesEncryptionKey()} proves only that {@code NOTE_ENCRYPTION_KEY} is 32 bytes of base64 — a
+     * rotated, regenerated or mistyped key passes that and then opens nothing, at which point every note disappears from every screen while the rows
+     * sit untouched in the table. The calendar's day markers would still show, because they are computed from dates and never read content, so a user
+     * would see markers saying they wrote something beside an empty box. Refusing to start is the only honest answer to that.
+     *
+     * <p>
+     * Best-effort about finding something to check: a fresh installation with no accounts has nothing to prove and passes, as does one whose schema
+     * has not been migrated yet (the query throws and is swallowed). Only a definite mismatch fails.
+     *
+     * @throws IllegalStateException if stored keys exist and the configured key opens none of them
+     */
+    @Transactional
+    void verifyNotesEncryptionKeyOpensExistingData() {
+        final KeyReconciliation outcome;
+        try {
+            outcome = noteKeys.reconcile();
+        } catch (final PersistenceException e) {
+            // No schema to read yet - a first boot, where there is by definition nothing to verify.
+            LOGGER.debug("Skipping the notes encryption key check: the schema is not readable yet", e);
+            return;
+        }
+
+        if (outcome.unopenable() > 0) {
+            throw new IllegalStateException(
+                "NOTE_ENCRYPTION_KEY does not open the notes data already in this database, for at least " + outcome.unopenable()
+                + " account(s). It is well-formed but not the key that data was written under - starting would make those notes unreadable while "
+                + "appearing to work. Restore the original key, put it in NOTE_ENCRYPTION_PREVIOUS_KEYS to rotate onto the new one, or clear the "
+                + "user_notes_keys and notes tables to start afresh (which discards every note).");
+        }
+
+        if (outcome.rotated() > 0) {
+            LOGGER.info("Notes encryption key rotated: {} account(s) moved onto the current NOTE_ENCRYPTION_KEY. "
+                + "NOTE_ENCRYPTION_PREVIOUS_KEYS can be removed once every deployment has started at least once.", outcome.rotated());
+        }
     }
 
     /**

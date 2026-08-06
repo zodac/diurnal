@@ -112,10 +112,8 @@ class NotesInternalResourceIT extends IntegrationTestBase {
             .then().statusCode(200)
             .body("content", org.hamcrest.Matchers.equalTo("Ran 5k before work"));
 
-        runInTx(() -> assertThat(Note.findEntry(userId, DAY))
+        runInTx(() -> assertThat(storedNoteContent(userId, DAY))
             .as("the normalised value must be what is persisted")
-            .isNotNull()
-            .extracting(note -> note.content)
             .isEqualTo("Ran 5k before work"));
     }
 

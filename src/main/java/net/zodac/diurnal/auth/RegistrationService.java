@@ -26,6 +26,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import net.zodac.diurnal.note.NoteKeys;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
@@ -65,6 +66,7 @@ public class RegistrationService {
     private final RoleAssigner roleAssigner;
     private final IpThrottle ipThrottle;
     private final IpLockoutService ipLockoutService;
+    private final NoteKeys noteKeys;
 
     /**
      * Injects collaborators and a lazy self-reference. The self {@link Instance} resolves the CDI client proxy on demand so the short
@@ -76,15 +78,17 @@ public class RegistrationService {
      * @param roleAssigner the shared role-assignment policy
      * @param ipThrottle the per-IP registration throttle
      * @param ipLockoutService the shared per-IP lockout recorder (records the failure and persists a history row when a lockout trips)
+     * @param noteKeys the notes key service, which mints the new account's data key
      */
     @Inject
     public RegistrationService(final Instance<RegistrationService> self, final Passwords passwords, final RoleAssigner roleAssigner,
-        final IpThrottle ipThrottle, final IpLockoutService ipLockoutService) {
+        final IpThrottle ipThrottle, final IpLockoutService ipLockoutService, final NoteKeys noteKeys) {
         this.self = self;
         this.passwords = passwords;
         this.roleAssigner = roleAssigner;
         this.ipThrottle = ipThrottle;
         this.ipLockoutService = ipLockoutService;
+        this.noteKeys = noteKeys;
     }
 
     /**
@@ -167,6 +171,10 @@ public class RegistrationService {
         // Registration logs the account straight in on both surfaces (a session is minted from the result), so the first login is now.
         user.lastLoginAt = Instant.now();
         user.persist();
+
+        // Every account gets its notes data key at creation, so no part of the application ever has to treat
+        // "user without a key" as a live state. Invisible to the user - see NoteKeys.
+        noteKeys.assignTo(user.id);
 
         // The duplicate-email pre-check in register() is a TOCTOU: two concurrent registrations of the same email can both pass it, and the loser
         // would otherwise surface the users_email_unique violation as a 500 at commit. Flushing here forces the INSERT now, turning that race into a

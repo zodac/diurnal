@@ -60,4 +60,5 @@ sealed interface NoteResult permits NoteResult.Saved, NoteResult.Cleared, NoteRe
     record Invalid(String message) implements NoteResult {
 
     }
+
 }

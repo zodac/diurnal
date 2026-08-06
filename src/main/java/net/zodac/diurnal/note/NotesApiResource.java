@@ -169,8 +169,11 @@ public class NotesApiResource {
             return EntityTags.withPrivateValidator(notModified, tag).build();
         }
 
-        final List<NoteDto> all = Note.findByUserAndRange(user.id, startDate, endDate).stream()
-            .map(NoteDto::from)
+        // One key opens the whole range, so it is resolved once rather than per note. A note that will not open is
+        // dropped rather than reported: one damaged row must not fail the range for every other day in it.
+        final List<NoteDto> all = noteService.readContents(user.id, Note.findByUserAndRange(user.id, startDate, endDate))
+            .entrySet().stream()
+            .map(entry -> new NoteDto(entry.getKey().toString(), entry.getValue()))
             .toList();
         final int totalPages = (all.size() + PAGE_SIZE - 1) / PAGE_SIZE;
 
@@ -252,7 +255,9 @@ public class NotesApiResource {
         if (found == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        return EntityTags.withPrivateValidator(Response.ok(NoteDto.from(found)), tag).build();
+        return noteService.readContent(found)
+            .map(content -> EntityTags.withPrivateValidator(Response.ok(NoteDto.of(found, content)), tag).build())
+            .orElseGet(() -> Response.status(Response.Status.NOT_FOUND).build());
     }
 
     /**
@@ -360,8 +365,8 @@ public class NotesApiResource {
          * @param note the stored note
          * @return the DTO
          */
-        static NoteDto from(final Note note) {
-            return new NoteDto(note.noteDate.toString(), note.content);
+        static NoteDto of(final Note note, final String content) {
+            return new NoteDto(note.noteDate.toString(), content);
         }
     }
 }

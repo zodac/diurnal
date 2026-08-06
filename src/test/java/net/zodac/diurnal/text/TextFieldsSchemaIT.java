@@ -41,9 +41,27 @@ class TextFieldsSchemaIT extends IntegrationTestBase {
         assertColumnWidth("users", "display_name", TextFields.DISPLAY_NAME_MAX_LENGTH);
     }
 
+    /**
+     * A note has no column to pin its bound against, and must not grow one.
+     *
+     * <p>
+     * Every other field here is stored as the value the user typed, in a {@code VARCHAR} whose width has to track its catalogue bound. A note is
+     * stored SEALED, in an unbounded {@code bytea} — the ciphertext is longer than the plaintext and by a margin that depends on the value, so no
+     * column width could express {@link TextFields#NOTE_MAX_LENGTH} even in principle. The bound is enforced solely by {@code TextValidation} before
+     * the value is encrypted.
+     *
+     * <p>
+     * What this asserts instead is that the plaintext column has not come back: it was dropped in {@code V29}, and a note reappearing in a readable
+     * column is the one regression in this area that would matter.
+     */
     @Test
-    void note_boundMatchesItsColumn() {
-        assertColumnWidth("notes", "content", TextFields.NOTE_MAX_LENGTH);
+    void note_hasNoPlaintextColumnToBound() {
+        assertThat(columnExists("notes", "content"))
+            .as("notes.content was dropped in V29 - a note must not be storable in readable form by any path")
+            .isFalse();
+        assertThat(columnExists("notes", "content_encrypted"))
+            .as("the sealed column must be the one a note is stored in")
+            .isTrue();
     }
 
     @Test
@@ -57,6 +75,15 @@ class TextFieldsSchemaIT extends IntegrationTestBase {
         assertThat(columnWidth(table, column))
             .as("the " + table + '.' + column + " column and its TextFields bound must state the same maximum")
             .isEqualTo(expected);
+    }
+
+    private static boolean columnExists(final String table, final String column) {
+        final Object count = Panache.getEntityManager()
+            .createNativeQuery("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = ?1 AND column_name = ?2")
+            .setParameter(1, table)
+            .setParameter(2, column)
+            .getSingleResult();
+        return ((Number) count).intValue() > 0;
     }
 
     private static int columnWidth(final String table, final String column) {

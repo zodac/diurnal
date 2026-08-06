@@ -79,7 +79,7 @@ bash tests/run-e2e.sh 8081 "$(pwd)/target" "$(pwd)"   # E2E runner (needs a buil
 bash tests/run-smoke.sh 8082 "$(pwd)"                 # deployment-smoke runner (self-contained)
 
 # Full Docker deployment
-cp docs/.env.example .env   # fill in DB_PASSWORD and SESSION_ENCRYPTION_KEY
+cp docs/.env.example .env   # fill in DB_PASSWORD and NOTE_ENCRYPTION_KEY (openssl rand -base64 32)
 docker compose up -d --build
 docker compose logs -f app
 ```
@@ -140,10 +140,11 @@ Under `src/main/java/net/zodac/diurnal/`:
 | `log`    | `ActionLog` entity + `LogWebResource` (`/internal/logs` day-panel fragments + increment/decrement) + `LogsApiResource` (`/api/v1/logs` public events feed + day read/write) + `CalendarResource` (`/internal/logs/minimal-events` dashboard feed) + `LogGuards`/`DateRanges` (shared rules)                         |
 | `stats`  | `StatsService` + `SubjectStats` (data record, keyed on a `StatSubject` — an action OR the user's notes; `StatSubjectKind`/`StatSubjectExtensions`) + `SubjectStatsExtensions` (template extensions) + `StatField` (Stats-page tile catalogue) + `DisplayStat` (a shown stat + its caption) + `StatTile` (tile view-model) + `StatsSummary` (the dashboard summary card's shared parameter binding) + the frequency-graph family (`FrequencyPeriod`/`FrequencyKeys`/`FrequencyCharts` + the `FrequencyChart`/`FrequencySeries`/`FrequencySlot`/`FrequencyBar` records + their `*Extensions` + the sealed `FrequencyResult`) + `StatsWebResource` (the `/stats` page) + `StatsInternalResource` (`/internal/stats/list` + `/internal/stats/chart/{actionId}`(`/candidates`), plus the dashboard's `/internal/stats/summary/{date}` + `/internal/stats/summary-month/{yyyy-MM}`) + `StatsApiResource` (`GET /api/v1/stats`, `GET /api/v1/stats/{actionId}/frequency`)  |
 | `auth`   | `AuthResource` (`/api/v1/auth` register/login/logout/revoke → session token), `AuthenticationService`+`LoginResult`, `RegistrationService`+`RegistrationResult`, `SessionStore`/`PostgresSessionStore` + `Session` entity + `SessionTokens` + `SessionAuthMechanism` + `SessionIdentityProvider` + `SessionSweeper` |
-| `note`   | `Note` entity + `NoteQueries` + `NoteService`/`NoteResult` (the single owner of every note write) + `NotesInternalResource` (`/internal/notes` range feed + save/clear) + `NotesApiResource` (`/api/v1/notes` public CRUD). One free-text note per user per day, writable for ANY date including future ones |
+| `note`   | `Note` entity + `NoteQueries` + `NoteService`/`NoteResult` (the single owner of every note write, and the encrypt/decrypt of content) + `NoteContent` (the per-note seal, bound to owner+date) + `UserNotesKey` entity + `NoteKeys` (mints an account's data key at creation, opens it per request) + `NotesInternalResource` (`/internal/notes` range feed + save/clear) + `NotesApiResource` (`/api/v1/notes` public CRUD). One free-text note per user per day, writable for ANY date including future ones, encrypted at rest |
 | `user`   | `User` entity, `UserResource` (`/api/v1/users/me`), `UserSettings`, and the settings-picker enums `Theme`/`Font`/`CalendarView` (each `implements PreviewOption`)                                                                                                                                                   |
 | `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings) + the `/internal/settings/*` preference endpoints; `AdminWebResource` (admin pages) + `AdminUsersInternalResource` (`/internal/admin/users` fragments) + `AppInfo` (footer/template metadata bean)                         |
 | `colour` | `Colours` - the rules every user-chosen colour obeys: the `#rrggbb` format check, the HSL-to-hex conversion, and the lightening that makes a colour readable on a background (the calendar's brand-filled "today" cell). Shared by `action` and `user`                                                    |
+| `crypto` | The encryption primitives, all pure statics with no persistence or request state: `Aes256Gcm` (AEAD seal/open, IV-prefixed), `Hkdf` (RFC 5869 over HMAC-SHA-256, for domain separation), `DataKeyEnvelope` (wrap/unwrap a user's data key under the application master key) and `MasterKey` (decode/validate the configured value). Used by `note`                     |
 | `update` | `UpdateCheckService` (admin-only footer "newer version available" check) + `UpdateCheck` (pure version/URL logic) + `UpdateStatus`/`UpdateAvailability` + `LatestReleaseClient`/`GitHubLatestReleaseClient` (the outbound GitHub-release lookup seam)                                                               |
 
 ### API namespaces (the rule for every new endpoint)
@@ -274,6 +275,18 @@ height.
 - **A day NOTE may be written for any date, including a future one** — `NoteService` deliberately does not apply the
   `LogGuards.isFuture` rule that blocks logging. An empty note is no row (saving blank content deletes it), and a note's
   CONTENT must never reach the application log. See [`NOTES.md`](NOTES.md).
+- **Note content is ENCRYPTED AT REST, invisibly to the user.** Each account gets a random data key when it is created
+  (`NoteKeys.assignTo`, from `RegistrationService.createUser` and `OidcUserProvisioner.provision`); every note is
+  AES-256-GCM sealed under it with `user_id || note_date` as associated data; and the data key itself is stored only
+  wrapped under `NOTE_ENCRYPTION_KEY`, which lives in **configuration, never the database**, in its own
+  `user_notes_keys` table. **Nothing is asked of the user and no part of the UI mentions it** — there is no passphrase,
+  no unlock step, no locked state. A stolen dump, backup or replica opens nothing; reading a note needs the database AND
+  the environment file. It does **not** defend against an administrator with the running server, so this is encryption
+  **at rest**, not end-to-end — **never describe it to a user as end-to-end or zero-knowledge.** Losing the key loses
+  every note; `AppLifecycle` refuses to boot without a usable one, **and refuses to boot when a well-formed key does not
+  open the data already stored** — otherwise a rotated key starts cleanly and every note silently vanishes from the UI
+  while the rows sit untouched. **Rotation is config-driven** (`NOTE_ENCRYPTION_PREVIOUS_KEYS`): startup re-wraps every
+  stored data key onto the current one, touching no note. See [`NOTES.md`](NOTES.md).
 - **Statistics are computed per `StatSubject`, not per action.** A subject is an action or the user's day notes; the
   notes subject carries the fixed nil-UUID `StatSubject.NOTES_ID`, which is what lets every id-keyed path
   (`/internal/stats/chart/{actionId}`, its `compare` parameter, `GET /api/v1/stats/{actionId}/frequency`) stay

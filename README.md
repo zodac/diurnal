@@ -22,6 +22,8 @@
     - [Required](#required)
     - [Database](#database)
     - [Application](#application)
+    - [Notes Encryption](#notes-encryption)
+        - [Rotating the Key](#rotating-the-key)
     - [Authentication](#authentication)
         - [Password Sign-in](#password-sign-in)
         - [Password Hashing](#password-hashing)
@@ -97,6 +99,27 @@ yours to choose in [Settings](#appearance) - it defaults to green, and is used f
 card and graph on the Stats page alike. On today's cell, whose number sits on a solid brand-coloured fill, the app draws
 a lightened shade of your colour so the marker stays legible whichever colour you pick.
 
+Your notes are also a **statistics subject in their own right**, pinned first on the Stats page with the same tiles an
+action gets - streaks, gaps, totals, best month - so a writing habit is tracked exactly like any other.
+
+<!-- markdownlint-disable MD013 MD033 -- centered note-box screenshot: intentional inline HTML -->
+<p align="center">
+  <img src="docs/screenshots/note-box-dark.webp" alt="The note box on the dashboard, holding a written note" width="420">
+</p>
+<!-- markdownlint-enable MD013 MD033 -->
+
+<details>
+<summary>Screenshot: notes as a statistics subject</summary>
+
+<img src="docs/screenshots/stats-notes-dark.webp" alt="The Notes card on the Stats page, showing streaks, gaps and totals" width="320">
+
+</details>
+
+**Your notes are encrypted before they are stored.** Every note is sealed with a key belonging to your account, so a copy
+of the database on its own - a backup, a dump, a stolen disk - contains nothing readable. This needs nothing from you:
+there is no passphrase and no unlock step. It is worth knowing what it does and does not cover, and there is one thing the
+person running the server has to get right, so see [Notes Encryption](#notes-encryption) for both.
+
 ### Calendar Views
 
 The dashboard calendar can be drawn in one of three styles, chosen per user in [Settings](#appearance):
@@ -161,15 +184,20 @@ curl -o docker-compose.yml https://raw.githubusercontent.com/zodac/diurnal/maste
 
 **2. Set your secrets:**
 
-Edit `docker-compose.yml` and change the required value (in **both** the `diurnal` and `diurnal-db` services where noted):
+Edit `docker-compose.yml` and set the two required values:
 
-- `DB_PASSWORD`: a strong PostgreSQL password
+- `DB_PASSWORD`: a strong PostgreSQL password (set it in **both** the `diurnal` and `diurnal-db` services)
+- `NOTE_ENCRYPTION_KEY`: the key your notes are encrypted with (see [Notes Encryption](#notes-encryption))
 
-A quick way to generate a good value:
+A quick way to generate either:
 
 ```bash
 openssl rand -base64 32
 ```
+
+> **Back `NOTE_ENCRYPTION_KEY` up somewhere other than the database, and make sure it survives a container rebuild.** It is
+> the only thing that can read your notes, it is deliberately not stored in the database, and **there is no recovery if it
+> is lost** - every note becomes permanently unreadable. Treat it exactly as you treat `DB_PASSWORD`.
 
 Every setting is documented in [Environment Variables](#environment-variables) below;
 [`.env.example`](docs/.env.example) shows the same options in `.env` form.
@@ -197,9 +225,10 @@ sensible default.
 
 ### Required
 
-| Variable      | Description                                                             |
-|---------------|-------------------------------------------------------------------------|
-| `DB_PASSWORD` | PostgreSQL password (must match the password on the database container) |
+| Variable                | Description                                                                                              |
+|-------------------------|----------------------------------------------------------------------------------------------------------|
+| `DB_PASSWORD`           | PostgreSQL password (must match the password on the database container)                                  |
+| `NOTE_ENCRYPTION_KEY`   | Key your notes are encrypted with; see [Notes Encryption](#notes-encryption). Losing it loses every note |
 
 ### Database
 
@@ -217,6 +246,71 @@ sensible default.
 | `TZ`           | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                                        |
 | `LOG_LEVEL`    | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                    |
 | `DB_LOG_LEVEL` | `WARN`  | Set to `TRACE` to log every SQL statement + bound parameters (verbose; may expose parameter values) |
+
+### Notes Encryption
+
+Your [notes](#notes) are **encrypted before they are stored**. Nothing is asked of you to make that happen: there is no
+passphrase to set, no unlock step, and nothing about it appears anywhere in the app.
+
+Each account gets its own randomly-generated key when it is created, and every note is sealed under that key. The account
+keys are themselves stored only in encrypted form, protected by `NOTE_ENCRYPTION_KEY` - which lives in your
+configuration and **deliberately never in the database**.
+
+**What that buys you:** a stolen database dump, a nightly backup, a read replica or a restored disk image contains
+nothing but ciphertext. Reading a single note requires the database *and* the environment file, which are lost to
+different accidents.
+
+**What it does not:** anyone with access to the running server has both, and can read notes. This is encryption *at
+rest*, protecting you against losing the database - it is not end-to-end encryption, and it does not hide your notes from
+whoever administers the instance. (If that is you, on your own hardware, this is exactly the protection you want.)
+
+| Variable                          | Default   | Description                                                                                  |
+|-----------------------------------|-----------|----------------------------------------------------------------------------------------------|
+| `NOTE_ENCRYPTION_KEY`             |           | **Required.** Base64, decoding to 32 bytes. Generate with `openssl rand -base64 32`          |
+| `NOTE_ENCRYPTION_PREVIOUS_KEYS`   |           | Comma-separated retired keys, set only while [rotating](#rotating-the-key)                   |
+
+Diurnal **refuses to start** rather than run in a state where notes are quietly unreadable. It will not boot if the key is
+missing or malformed, and it will not boot if a well-formed key does not actually open the data already in the database -
+because a wrong key would otherwise start cleanly and make every note silently vanish from the interface while the rows
+sat untouched in the table.
+
+#### Rotating the Key
+
+**Why you might want to.** A key is worth replacing whenever it may have been seen by someone who should not have it:
+
+- It was committed to source control, pasted into a chat or a ticket, or left in a shell history or CI log
+- The `.env` file was copied somewhere less private - a shared drive, an unencrypted backup, a support bundle
+- Someone with server access left, or the machine changed hands
+- The value was not generated randomly (reused from another service, or typed by hand)
+- Your own policy simply says to roll secrets periodically
+
+**How.** Put the new key in `NOTE_ENCRYPTION_KEY`, move the old one into `NOTE_ENCRYPTION_PREVIOUS_KEYS`, and restart:
+
+```yaml
+environment:
+  NOTE_ENCRYPTION_KEY: <the new key>
+  NOTE_ENCRYPTION_PREVIOUS_KEYS: <the old key>
+```
+
+On start, every account key that no longer opens under the new key is re-encrypted with it. **No note is rewritten** -
+only the small amount of key material around it - so this takes the same moment whether you have ten notes or ten years
+of them. Once it has run, clear `NOTE_ENCRYPTION_PREVIOUS_KEYS` and restart again.
+
+**What to watch for:**
+
+- **Check the log line.** A successful rotation logs `Notes encryption key rotated: N account(s)`. `N` should match your
+  number of accounts. No line at all means there was nothing to do - usually the sign that the old key was not actually
+  the one in use.
+- **If it refuses to start**, the pair of keys you have configured does not include the one the data was written under.
+  Find the real old key. Do **not** clear the `notes` and `user_notes_keys` tables to get past it - that is the "throw
+  every note away" option, and the error says so precisely because it is irreversible.
+- **Keep the old key for as long as you keep backups made with it.** This is the one that catches people out: a database
+  backup taken *before* the rotation is still encrypted with the *old* key, so restoring it needs that key, not the new
+  one. Retire an old key only once every backup it applies to has aged out.
+- **Leaving `NOTE_ENCRYPTION_PREVIOUS_KEYS` set is harmless** - a restart with nothing to rotate does nothing at all -
+  but it does mean a retired key is still sitting in your configuration, which rather defeats the point of rotating.
+  Clear it once the rotation has run.
+- **Running more than one instance?** Do not clear the previous key until every one of them has started at least once.
 
 ### Authentication
 
@@ -441,14 +535,14 @@ and a run of blank lines is condensed to one - so a note reads back exactly as i
 
 Limits are counted in **characters as a reader counts them**, not bytes: an accented letter, a Chinese character and an emoji each count as one.
 
-| Field | Limit |
-| --- | --- |
-| Action name | 1-100 characters |
-| Display name | 2-50 characters |
+| Field          | Limit                                                             |
+|----------------|-------------------------------------------------------------------|
+| Action name    | 1-100 characters                                                  |
+| Display name   | 2-50 characters                                                   |
 | Statistic name | Up to 25 characters (leave it blank to restore the built-in name) |
-| Note | Up to 10,000 characters (leave it blank to remove the note) |
-| Email | 3-254 characters, and must contain an `@` |
-| Password | 1-128 characters |
+| Note           | Up to 10,000 characters (leave it blank to remove the note)       |
+| Email          | 3-254 characters, and must contain an `@`                         |
+| Password       | 1-128 characters                                                  |
 
 ### Accepted Characters
 

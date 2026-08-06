@@ -30,7 +30,7 @@
  *   page-{nova,standard,dyslexic}-full-dark.webp   — Font picker (Full calendar, dark)
  *   (page-nova-full-dark is shared between the Theme-dark tile and the Font-nova tile.)
  *
- * `documentation` — 13 WebP files in docs/screenshots/, all captured dark / Full / Nova unless noted:
+ * `documentation` — 15 WebP files in docs/screenshots/, all captured dark / Full / Nova unless noted:
  *   dashboard-{system,dark,light}.webp             — dashboard banner + theme pair (system = light/dark split)
  *   dashboard-mobile.webp                          — dashboard at a phone viewport (minimal calendar), same light/dark
  *                                                    diagonal split as -system (viewport-only shots, not fullPage)
@@ -38,6 +38,10 @@
  *   {actions,stats,admin,settings}-dark.webp       — the four page screenshots
  *   stats-graph-dark.webp                          — the Stats page's frequency-graph modal, three actions
  *                                                    compared over one month (element shot of the dialog panel)
+ *   note-box-dark.webp                             — the dashboard's note box holding the featured multi-paragraph
+ *                                                    note (element shot of #note-panel)
+ *   stats-notes-dark.webp                          — the Notes card on the Stats page, i.e. notes treated as a
+ *                                                    statistics subject (element shot, located by subject name)
  *   login-dark.webp                                — the login page (logged-OUT, own context; shows password
  *                                                    + OIDC sign-in, so needs the OIDC preview boot below)
  *
@@ -530,7 +534,13 @@ async function shotFullPage(page, dir, file) {
 // pickers' full-size previews are framed identically. An element screenshot captures the whole element
 // even where it overflows the viewport, so it is never cut off.
 async function shotCalendar(page, dir, file) {
-  const pngBuf = await page.locator('#calendar-wrap').screenshot()
+  await shotElement(page.locator('#calendar-wrap'), dir, file)
+}
+
+// An element screenshot of an arbitrary locator, written to `dir`. Captures the whole element even where
+// it overflows the viewport, so a tall card is never cut off.
+async function shotElement(locator, dir, file) {
+  const pngBuf = await locator.screenshot()
   fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf))
   console.log('wrote', file)
 }
@@ -779,6 +789,40 @@ async function shotStatsGraph(ctx, dir, file) {
   await page.close()
 }
 
+// The dashboard's note box, framed as the #note-panel card. showSeededMonth selects the last day of the
+// seeded month, which is the day carrying NOTE_FEATURED — so this shows the box holding real multi-paragraph
+// prose rather than its empty-day placeholder.
+//
+// Waits for the textarea to actually hold text, not merely to exist: the note card ships with the page and
+// is filled from the client-side month cache when the date changes, so the element is present and EMPTY for
+// a moment before the seeded note lands in it. Screenshotting on presence alone yields a blank box.
+async function shotNoteBox(ctx, dir, file) {
+  const page = await openDashboard(ctx, 'full')
+  await page.waitForFunction(
+    () => (document.getElementById('note-input')?.value.length ?? 0) > 0,
+    null,
+    { timeout: 15000 })
+  await page.waitForTimeout(300) // settle the auto-sized box
+  await shotElement(page.locator('#note-panel'), dir, file)
+  await page.close()
+}
+
+// The Notes card on the Stats page. Selected by its chart button's subject name rather than by position:
+// notes are pinned first today (StatsService.forAllSubjects), but a shot that silently captures whichever
+// card happens to be first is a shot that starts lying the moment that ordering changes.
+async function shotNotesStatsCard(ctx, dir, file) {
+  const page = await ctx.newPage()
+  await page.goto(`${BASE}/stats`, { waitUntil: 'load' })
+  await page.waitForSelector('#stats-list .card')
+  const card = page.locator('#stats-list .card')
+    .filter({ has: page.locator('[data-chart-name="Notes"]') })
+    .first()
+  await card.waitFor({ timeout: 15000 })
+  await page.waitForTimeout(600) // settle fonts/layout
+  await shotElement(card, dir, file)
+  await page.close()
+}
+
 async function captureDocsScreenshots(ctx, browser) {
   // Nova, full, light → the light dashboard; store PNG for the system composite.
   await setPrefs(ctx, 'light', 'full', 'nova')
@@ -818,6 +862,10 @@ async function captureDocsScreenshots(ctx, browser) {
   await shotPage(ctx, '/admin/users', '#admin-users-list .dt-table', SHOTS, 'admin-dark.webp')
   await shotPage(ctx, '/settings',    '#prefs-form',                 SHOTS, 'settings-dark.webp')
   await shotStatsGraph(ctx, SHOTS, 'stats-graph-dark.webp')
+
+  // The two Notes shots the README's Notes section pairs: the editor, and notes as a statistics subject.
+  await shotNoteBox(ctx, SHOTS, 'note-box-dark.webp')
+  await shotNotesStatsCard(ctx, SHOTS, 'stats-notes-dark.webp')
 
   // The two shots that need their own browser context: the login page is anonymous, and the mobile
   // dashboard is a different viewport. Both run last so the mobile one inherits the dark/Full/Nova

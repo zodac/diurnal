@@ -463,6 +463,113 @@ existing muting.
 > detached by the time `getComputedStyle` runs, which yields an empty string rather than a colour. Read every computed
 > style through `expect.poll` with a `try`/`catch` returning `""`.
 
+### Encryption at rest
+
+> A note is the most private thing this application stores, and it used to sit in a plaintext `VARCHAR(10000)` that any
+> copy of the database — a `pg_dump`, a nightly backup, a restored volume, a read replica, an injection read — handed
+> over in full. Notes are now encrypted at rest, with nothing asked of the user.
+
+**What made this affordable:** nothing on the server reads a note's content except to hand it back to its author. The
+statistics (`Note.datesFor`/`monthlyTotals`/`dailyTotals`), the calendar's day markers and the ETag validator
+(`Note.rangeVersion`) are all dates and counts. Encrypting the column cost no functionality at all.
+
+#### The design
+
+Envelope encryption, two levels:
+
+| | What | Where |
+|---|---|---|
+| Note | `AES-256-GCM` under the owner's data key, AAD = `user_id \|\| note_date` | `notes.content_encrypted` |
+| Data key | 32 random bytes, sealed under the application master key | `user_notes_keys.dek_wrapped` |
+| Master key | `NOTE_ENCRYPTION_KEY`, base64, 32 bytes | **configuration — never the database** |
+
+A data key is minted when the account is created (`NoteKeys.assignTo`, called from `RegistrationService.createUser` and
+`OidcUserProvisioner.provision`) and never changes. `NotesKeyAssignmentTest` fails if any path constructs a `User`
+without minting one, and `NoteKeysIT` proves the registration path mints a key that actually opens — between them, the
+wiring cannot be deleted silently. The user is not involved at any point: they do not choose it, cannot
+see it, cannot change it, and no part of the interface mentions it.
+
+**Key material lives in its own table.** An account row is read and returned all over the application — the admin user
+list, the profile endpoints, every `CurrentUser` lookup — and none of those paths has any business carrying the thing
+that opens someone's journal.
+
+**The per-user indirection earns its place** even though one key would do: rotating the master rewrites one small row per
+user rather than every note ever written, and a future change of scheme re-wraps those same rows and leaves every sealed
+note untouched.
+
+**A range opens its key once, not once per note.** `NoteService.readContents` resolves the owner's data key for the whole
+range; the dashboard warms a three-month window in a single request, and opening per note repeated the row lookup, the
+master-key decode and an AES pass ninety times over to produce the same key.
+
+**A note is bound to its owner and its date** through the AEAD associated data (`NoteContent`). The rest of the row stays
+in the clear for the calendar and statistics to read — and an administrator can edit those columns — so binding them into
+the seal makes moving a ciphertext between days or accounts fail to open rather than silently succeed.
+
+#### What this defends against, and what it does not
+
+**Defends against losing the database.** A dump, backup, replica or restored volume carries sealed notes and wrapped data
+keys and opens neither. Reading a note takes the database **and** the environment file, which are lost to different
+accidents.
+
+**Does not defend against the operator.** An administrator with the running server has both. This is encryption *at
+rest*, not end-to-end encryption, and **must never be described to a user as end-to-end or zero-knowledge.** Anything
+stronger requires the user to hold a secret — which was built, and removed; see below.
+
+**Losing `NOTE_ENCRYPTION_KEY` loses every note.** There is no second copy and no recovery. `AppLifecycle` refuses to
+boot without a usable one, so the failure is a startup error rather than a discovery at someone's first note.
+
+#### Decisions taken
+
+| Decision | Chosen | Rejected, and why |
+|---|---|---|
+| Where the key lives | **Configuration** (`NOTE_ENCRYPTION_KEY`) | A column beside the data. Rejected: the database would then hold both the lock and the key — decrypting is a join and ten lines of this project's own public source, so it would stop casual browsing and nothing else |
+| Who holds the secret | **The deployment** | The user, as a passphrase. Built in `V28`–`V30`, then removed: it bought protection from the operator, and cost a second secret to keep, an unlock step on every new session, and a failure mode where forgetting it destroyed years of writing with no remedy |
+| Key scope | **One data key per user**, wrapped by one master | Encrypting notes with the master directly. Rejected: rotation would then rewrite every note, and any future change of scheme could not be a re-wrap |
+| Key storage | **A table of its own** (`user_notes_keys`) | A column on `users`. Rejected: account rows are returned by the admin list and the profile endpoints, none of which should carry key material |
+| Missing key at startup | **Refuse to boot**, naming the variable | Failing lazily at first use. Rejected: the first sign would be a user unable to open their journal, long after the deployment mistake |
+| Key rotation | **Config-driven**, via `NOTE_ENCRYPTION_PREVIOUS_KEYS` | A button in the admin console. Rejected because it cannot work: the key lives in configuration and the application cannot write its own configuration, so a UI trigger could only re-run what boot already does — with a worse place to put the new key |
+| Existing plaintext notes | **`V28` empties the table and drops the column** | Keeping it for compatibility. Rejected: a readable column is a standing invitation, and every path that could write one had gone. There is no key at migration time to seal them with, and inventing one in SQL would mean writing it into the very database this protects |
+| A key that does not open the data | **Refuse to start** (`NoteKeys.opensExistingKeys`) | Carrying on and returning nothing. Rejected outright: a rotated or mistyped key is well-formed, so it passes the format check, opens nothing, and every note disappears from every screen while the rows sit untouched — and the calendar markers still show, because they are computed from dates. A user would see markers saying they wrote something beside an empty box, with nothing logged |
+
+#### Rotating the key
+
+Set `NOTE_ENCRYPTION_KEY` to the new value, move the old one into `NOTE_ENCRYPTION_PREVIOUS_KEYS`, and deploy. At startup
+`NoteKeys.reconcile` opens every stored data key that no longer fits under the current key, re-wraps it under the new
+one and bumps its `key_version`; `AppLifecycle` logs how many moved. Then clear the previous-keys setting whenever
+convenient.
+
+**No note is rewritten.** The data key inside each wrapping is unchanged, so rotation touches one small row per account
+however many years of notes they hold — which is the whole reason for the per-user indirection.
+
+It is **idempotent** (a second boot finds nothing to do), so it is safe to leave the setting in place; and the list is
+comma-separated so two rotations close together cannot strand an account that missed the first. A retired key is
+validated on the same terms as the current one, because a typo there would otherwise look exactly like "no previous key"
+and fail the boot for the wrong reason.
+
+With no previous keys configured, reconciliation reads a **single row** — the full pass only happens during a rotation
+deploy.
+
+#### Consequences to keep in mind
+
+- **The key must be backed up separately from the database, and must survive a container rebuild.** It belongs wherever
+  the deployment keeps `DB_PASSWORD`. Losing it is unrecoverable.
+- **A restored older backup still opens**, since the data key is unchanged and travels with the row — as long as the same
+  `NOTE_ENCRYPTION_KEY` is still configured. If it is not, the application refuses to start rather than serving empty
+  notes: `AppLifecycle.verifyNotesEncryptionKeyOpensExistingData` opens one stored key at boot and fails loudly when it
+  cannot. A per-request failure additionally logs at `error` naming the account, never the key.
+- **`notes.content` no longer exists**, so there is no column in this schema that can hold a readable note. The
+  length bound on a note is consequently enforced **only** by `TextValidation`; a sealed value's length depends on its
+  content, so no `VARCHAR(n)` could express it. `TextFieldsSchemaIT.note_hasNoPlaintextColumnToBound` fails if the column
+  reappears.
+- **The perf tier exercises the crypto.** `seed.mjs` writes `SEED_NOTE_DAYS` (60) notes and `load.mjs` runs `notesFeed`
+  and `notesWrite` scenarios, so the decrypt path is measured rather than assumed. A `notesFeed` regression most likely
+  means the data key is being resolved per note again rather than once per range.
+- **Note content and key material cannot reach the logs.** `SecretsStayOutOfLogsTest` fails if any logging statement in
+  the `note` or `crypto` packages so much as mentions an identifier holding either — the rule was stated in four places
+  and enforced by none.
+- **There is no locked state and no unlock step.** The application can open any user's data key on any request, so notes
+  behave exactly as they did before encryption: no `423`, no session key, no gate on sign-in.
+
 ## Implementation steps
 
 Mark each `- [ ]` as `- [x]` when the step is complete, and update the **Status** line at the top of this document.

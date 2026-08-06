@@ -45,9 +45,16 @@ SQL
 
 # ── App (the previewbuild fast-jar; renders the styled dashboard the generator screenshots) ────────
 echo "→ Booting the app…"
+# Notes are encrypted at rest and the app refuses to boot without a key, so this stage needs one even
+# though it never looks at a note: the generator seeds notes to give the calendar its day markers. Fixed
+# and in plain sight on purpose - the database it protects is created, used and destroyed inside this one
+# build layer, so there is nothing here worth a real secret. A deployment sets NOTE_ENCRYPTION_KEY itself.
+PREVIEW_NOTE_KEY='ZGl1cm5hbC1wcmV2aWV3LWJ1aWxkLWtleS0zMmJ5dGU='
+
 # DB_HOST=127.0.0.1 matches the trust host rule; the throttle is disabled so seeding is never limited.
 cd "${APP_DIR}"
-DB_HOST=127.0.0.1 AUTH_IP_THROTTLE_ENABLED=false java -jar quarkus-run.jar >/tmp/app.log 2>&1 &
+DB_HOST=127.0.0.1 AUTH_IP_THROTTLE_ENABLED=false NOTE_ENCRYPTION_KEY="${PREVIEW_NOTE_KEY}" \
+  java -jar quarkus-run.jar >/tmp/app.log 2>&1 &
 app_pid=$!
 
 cleanup() {

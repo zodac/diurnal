@@ -38,7 +38,7 @@ class NoteQueriesTest {
 
     @Test
     void upsertSql_bindsExpectedParameters() {
-        assertParameters(NoteQueries.UPSERT_SQL, List.of("id", "userId", "date", "content", "now"));
+        assertParameters(NoteQueries.UPSERT_SQL, List.of("id", "userId", "date", "contentEncrypted", "now"));
     }
 
     @Test

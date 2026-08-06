@@ -66,6 +66,7 @@ import net.zodac.diurnal.config.QuarkusOidcConfig;
 import net.zodac.diurnal.config.RegistrationConfig;
 import net.zodac.diurnal.config.SessionConfig;
 import net.zodac.diurnal.note.Note;
+import net.zodac.diurnal.note.NoteService;
 import net.zodac.diurnal.stats.StatField;
 import net.zodac.diurnal.stats.StatsService;
 import net.zodac.diurnal.stats.StatsSummary;
@@ -118,6 +119,7 @@ public class WebResource {
     private final SecurityIdentity identity;
     private final CurrentUser currentUser;
     private final StatsService statsService;
+    private final NoteService noteService;
     private final AppClock clock;
     private final AuthenticationService authenticationService;
     private final RegistrationService registrationService;
@@ -143,6 +145,7 @@ public class WebResource {
      * @param identity the current request's security identity
      * @param currentUser the current-user accessor
      * @param statsService the shared stats service
+     * @param noteService the shared note service, consulted for whether this session can read notes and to decrypt the seeded note
      * @param clock the application clock for date-boundary logic
      * @param authenticationService the shared credential-verification service
      * @param registrationService the shared registration service
@@ -160,7 +163,7 @@ public class WebResource {
     public WebResource(@Location("login") final Template loginTemplate, @Location("register") final Template registerTemplate,
         @Location("dashboard") final Template dashboardTemplate, @Location("settings") final Template settingsTemplate,
         @Location("setup") final Template setupTemplate, final SecurityIdentity identity, final CurrentUser currentUser,
-        final StatsService statsService, final AppClock clock,
+        final StatsService statsService, final NoteService noteService, final AppClock clock,
         final AuthenticationService authenticationService,
         final RegistrationService registrationService, final ProfileService profileService, final PasswordChangeService passwordChangeService,
         final SessionStore sessionStore, final SessionConfig sessionConfig, final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig,
@@ -173,6 +176,7 @@ public class WebResource {
         this.identity = identity;
         this.currentUser = currentUser;
         this.statsService = statsService;
+        this.noteService = noteService;
         this.clock = clock;
         this.authenticationService = authenticationService;
         this.registrationService = registrationService;
@@ -847,7 +851,7 @@ public class WebResource {
         // dashboard.js seeds its client-side cache from it, so opening the dashboard costs no request.
         final Note note = Note.findEntry(user.id, today);
         return StatsSummary.render(dashboardTemplate, user, today, statsService)
-                .data("noteContent", note == null ? "" : note.content)
+                .data("noteContent", note == null ? "" : noteService.readContent(note).orElse(""))
                 .data("email", user.email)
                 .data("displayName", user.displayName)
                 .data("theme", user.theme)

@@ -347,20 +347,16 @@ class SurfaceParityIT extends IntegrationTestBase {
                 .body("{\"content\":\"First\\r\\n\\r\\n\\r\\n\\r\\nSecond\"}")
                 .put("/api/v1/notes/" + TODAY)
                 .then().statusCode(200);
-        runInTx(() -> assertThat(Note.findEntry(primaryId, TODAY))
+        runInTx(() -> assertThat(storedNoteContent(primaryId, TODAY))
             .as("the API must store the normalised multi-line form")
-            .isNotNull()
-            .extracting(note -> note.content)
             .isEqualTo(expected));
 
         given().contentType(ContentType.JSON)
                 .body("{\"content\":\"First\\r\\n\\r\\n\\r\\n\\r\\nSecond\"}")
                 .post("/internal/notes/" + TOMORROW)
                 .then().statusCode(200);
-        runInTx(() -> assertThat(Note.findEntry(primaryId, TOMORROW))
+        runInTx(() -> assertThat(storedNoteContent(primaryId, TOMORROW))
             .as("the web surface must store byte-identically to the API")
-            .isNotNull()
-            .extracting(note -> note.content)
             .isEqualTo(expected));
     }
 

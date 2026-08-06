@@ -43,6 +43,7 @@ import java.util.Optional;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.config.SessionConfig;
+import net.zodac.diurnal.note.NoteKeys;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextValidation;
@@ -95,6 +96,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
 
     private final Instance<OidcUserProvisioner> self;
     private final RoleAssigner roleAssigner;
+    private final NoteKeys noteKeys;
     private final PasswordAuthConfig passwordAuthConfig;
     private final OidcConfig oidcConfig;
     private final AccountLinkService accountLinkService;
@@ -114,13 +116,15 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
      * @param sessionStore the session store used to mint the OIDC session
      * @param sessionConfig the session settings
      * @param clock the application clock for date-boundary logic
+     * @param noteKeys the notes key service, which mints a provisioned account's data key
      */
     @Inject
     public OidcUserProvisioner(final Instance<OidcUserProvisioner> self, final RoleAssigner roleAssigner, final PasswordAuthConfig passwordAuthConfig,
         final OidcConfig oidcConfig, final AccountLinkService accountLinkService, final SessionStore sessionStore, final SessionConfig sessionConfig,
-        final AppClock clock) {
+        final AppClock clock, final NoteKeys noteKeys) {
         this.self = self;
         this.roleAssigner = roleAssigner;
+        this.noteKeys = noteKeys;
         this.passwordAuthConfig = passwordAuthConfig;
         this.oidcConfig = oidcConfig;
         this.accountLinkService = accountLinkService;
@@ -288,6 +292,11 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         user.oidcIssuer = iss;
         user.role = idpRole.orElseGet(roleAssigner::roleForNewUser);
         user.persist();
+
+        // An OIDC account gets its notes data key here, exactly as a local one does at registration - the two
+        // creation paths must leave an account in the same state. Invisible to the user; see NoteKeys.
+        noteKeys.assignTo(user.id);
+
         LOGGER.info("Provisioned new OIDC user: {} (role={})", normalised, user.role);
         return user;
     }
