@@ -1,0 +1,73 @@
+{!
+  The Settings Data card's import panel. Rendered INLINE (idle, empty) with the page, and returned
+  on its own by /internal/data/import/preview and /internal/data/import as the fragment that
+  replaces it — one partial for both, so the two forms cannot drift (UI_PATTERNS.md section 1).
+
+  It is swapped in by fetch() in settings.js rather than by htmx: a refused archive is an expected,
+  handled outcome answered with a 422, and htmx logs every 4xx to the console unsuppressably (the
+  same reason the login/register/password cards fetch).
+
+  Params — ALL optional, since the inline include passes none:
+    state         — 'idle' | 'preview' | 'applied' | 'rejected'   (default 'idle')
+    summary       — the ImportSummary; required for 'preview' and 'applied'
+    problems      — the located ImportProblems; required for 'rejected'
+    totalProblems — how many problems there were in total, which may exceed the list; required for 'rejected'
+    message       — the banner text for 'applied' and 'rejected'   (default '')
+
+  Only `state` and `message` are defaulted. The rest are read ONLY inside the branch that needs
+  them, which is never entered by the parameterless inline include — Qute has no empty-list literal
+  to default a collection with, and inventing one is not worth a wrapper object.
+!}
+{#let state=state.or('idle') message=message.or('')}
+<div id="import-panel" class="mt-3">
+
+    {#if state == 'preview'}
+    {! Nothing has been written yet. The figures are the real ones, read from the real file — the
+         preview runs the identical parse and stops short of the write — so the confirmation below
+         is an informed one rather than a formality. !}
+    <div class="rounded-lg border border-line bg-surface-muted p-3">
+        <p class="text-sm text-ink">
+            This archive holds {summary.actionsLabel}, {summary.logsLabel} and {summary.notesLabel}.
+        </p>
+        {#if summary.replacesExistingData}
+        <p class="help-text mt-1">
+            Importing it permanently removes the {summary.replacedLabel} you have now.
+        </p>
+        {#else}
+        <p class="help-text mt-1">
+            You have nothing tracked yet, so nothing will be removed.
+        </p>
+        {/if}
+        {! Destructive action on the LEFT, Cancel on the RIGHT — the same arrangement as every other
+             confirm cluster in the app (partials/confirm-actions.html), so a double-click safely
+             dismisses rather than confirming. !}
+        <div class="dt-actions mt-3">
+            <button type="button" id="data-import-confirm" class="dt-btn dt-btn-danger">Import</button>
+            <button type="button" id="data-import-cancel" class="dt-btn dt-btn-cancel">Cancel</button>
+        </div>
+    </div>
+
+    {#else if state == 'applied'}
+    {#include partials/banner variant='success' cls='' message=message /}
+
+    {#else if state == 'rejected'}
+    {#include partials/banner variant='error' cls='' message=message /}
+    {#if problems}
+    {! Each problem names its member and line, because the user's only route forward is to correct
+         the file. A reason never quotes note content — see ImportProblem. !}
+    <ul class="mt-2 space-y-1 text-xs text-ink-muted max-h-48 overflow-y-auto">
+        {#for problem in problems}
+        <li>
+            <span class="font-medium text-ink">{problem.file}{#if problem.line > 0}, line {problem.line}{/if}</span>
+            &mdash; {problem.reason}
+        </li>
+        {/for}
+    </ul>
+    {/if}
+    {#if totalProblems > problems.size}
+    <p class="help-text mt-2">Showing the first {problems.size} of {totalProblems} problems.</p>
+    {/if}
+    {/if}
+
+</div>
+{/let}

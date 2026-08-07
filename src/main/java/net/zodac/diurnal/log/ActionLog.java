@@ -85,6 +85,20 @@ public class ActionLog extends PanacheEntityBase {
     }
 
     /**
+     * Returns every one of the user's log entries, earliest first - their whole tracked history in one read, for the data export.
+     *
+     * <p>
+     * Deliberately unbounded, where every other read here takes a date window: an export is the one operation whose correct answer IS everything, and
+     * inventing a range for it would silently drop whatever fell outside. It is a user-initiated, once-in-a-while request rather than a hot path.
+     *
+     * @param userId the owning user
+     * @return the user's log entries, ascending by date
+     */
+    public static List<ActionLog> findByUser(final UUID userId) {
+        return list("userId = ?1 order by logDate", userId);
+    }
+
+    /**
      * Returns a cheap change-signature for the user's log entries in the inclusive {@code [start, end]} date range — the row count paired with the
      * latest {@code updatedAt} — used as an HTTP conditional-request (ETag) validator so an unchanged range can be answered with a {@code 304}
      * without reading the entries. The signature changes on any insert, update or delete in the range (a delete lowers the count even when it does

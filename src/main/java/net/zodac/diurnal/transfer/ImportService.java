@@ -1,0 +1,184 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+package net.zodac.diurnal.transfer;
+
+import io.quarkus.hibernate.orm.panache.Panache;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
+import java.time.LocalDate;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.UUID;
+import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.log.ActionLog;
+import net.zodac.diurnal.note.Note;
+import net.zodac.diurnal.note.NoteService;
+import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.user.User;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
+/**
+ * The single owner of the data import, shared by the web UI's HTMX endpoints ({@code TransferInternalResource}) and the public REST API
+ * ({@code TransferApiResource}), so a rule added or changed here applies to both surfaces by construction. The resources only translate the returned
+ * {@link ImportResult} into their medium.
+ *
+ * <p>
+ * <strong>An import REPLACES.</strong> Every action, day count and note the account holds is removed, and the archive's contents are written in their
+ * place - the account ends up holding exactly what the file describes, and nothing else. That is what makes the archive a backup that can actually be
+ * restored, and it is also why the operation is worth confirming: {@link #preview(User, byte[])} runs the identical read and validation and stops
+ * short of the write, so the confirmation is shown real figures from the real file rather than an estimate.
+ *
+ * <p>
+ * The preview deliberately keeps <strong>no server-side state</strong> - the browser simply sends the same file again to confirm. Staging a parsed
+ * archive between two requests would mean holding one user's whole journal, in the clear, in memory or in a table, for as long as they left the tab
+ * open; re-reading the upload costs a few milliseconds and holds nothing. It also means the committed import validates the bytes it is about to
+ * write, rather than trusting a verdict reached on an earlier request.
+ *
+ * <p>
+ * Writes go through each package's own owner: {@link Note} content is written by {@link NoteService#replaceAll(User, Map)}, which is the only thing
+ * that can seal it, and the bulk deletes are the same entity statements {@code AdminUserService} uses to clear an account. Actions are inserted
+ * before their logs and flushed, because a log names its action by NAME and the id it needs does not exist until the action row does.
+ *
+ * <p>
+ * The caller owns the transaction: {@link #apply(User, byte[])} must be invoked from a {@code @Transactional} endpoint, so a rejection part-way
+ * through rolls back everything the deletes had already done. {@link #preview(User, byte[])} writes nothing and needs none.
+ */
+@ApplicationScoped
+public class ImportService {
+
+    private static final Logger LOGGER = LogManager.getLogger(ImportService.class);
+
+    private final NoteService noteService;
+    private final AppClock clock;
+
+    /**
+     * Injects the shared notes service, which owns every note write, and the application clock.
+     *
+     * @param noteService the shared notes service
+     * @param clock       the application clock for date-boundary logic
+     */
+    @Inject
+    public ImportService(final NoteService noteService, final AppClock clock) {
+        this.noteService = noteService;
+        this.clock = clock;
+    }
+
+    /**
+     * Reads and validates an archive without writing anything, reporting what an import of it would do.
+     *
+     * @param user    the acting user
+     * @param archive the uploaded archive bytes
+     * @return the outcome, never {@link ImportResult.Applied}
+     */
+    public ImportResult preview(final User user, final byte[] archive) {
+        return read(user, archive, false);
+    }
+
+    /**
+     * Reads, validates and applies an archive, replacing everything the account holds.
+     *
+     * <p>
+     * Must be called from within a transaction.
+     *
+     * @param user    the acting user
+     * @param archive the uploaded archive bytes
+     * @return the outcome, never {@link ImportResult.Previewed}
+     */
+    public ImportResult apply(final User user, final byte[] archive) {
+        return read(user, archive, true);
+    }
+
+    // The one code path both surfaces AND both steps take: `commit` decides only whether the last statement runs, so a preview cannot
+    // accept an archive the import would then refuse.
+    private ImportResult read(final User user, final byte[] archive, final boolean commit) {
+        return switch (TransferArchive.unpack(archive)) {
+            case final ArchiveOutcome.Malformed malformed -> {
+                LOGGER.debug("Import archive refused for user {}: {}", user.email, malformed.reason());
+                yield new ImportResult.Malformed(malformed.reason());
+            }
+            case final ArchiveOutcome.Unpacked unpacked -> validate(user, unpacked.members(), commit);
+        };
+    }
+
+    private ImportResult validate(final User user, final Map<String, String> members, final boolean commit) {
+        // Resolved once for the whole file, in the user's own timezone - the same day boundary a single log write is judged against.
+        final LocalDate today = clock.today(clock.zoneFor(user.timezone));
+
+        return switch (ImportParser.parse(members, today)) {
+            case final ParseOutcome.Rejected rejected -> {
+                LOGGER.debug("Import rejected for user {}: {} problem(s)", user.email, rejected.totalFound());
+                yield new ImportResult.Rejected(rejected.problems(), rejected.totalFound());
+            }
+            case final ParseOutcome.Planned planned -> commitOrPreview(user, planned.plan(), commit);
+        };
+    }
+
+    private ImportResult commitOrPreview(final User user, final ImportPlan plan, final boolean commit) {
+        final ImportSummary summary = new ImportSummary(
+            plan.actions().size(), plan.logs().size(), plan.notes().size(),
+            Math.toIntExact(Action.count("userId", user.id)),
+            Math.toIntExact(ActionLog.count("userId", user.id)),
+            Math.toIntExact(Note.count("userId", user.id)));
+
+        if (!commit) {
+            return new ImportResult.Previewed(summary);
+        }
+
+        write(user, plan);
+        // The COUNTS only - never an action name, and never a note's content.
+        LOGGER.info("Data imported for user {}: {} action(s), {} log(s), {} note(s), replacing {}/{}/{}",
+            user.email, summary.actions(), summary.logs(), summary.notes(),
+            summary.replacedActions(), summary.replacedLogs(), summary.replacedNotes());
+        return new ImportResult.Applied(summary);
+    }
+
+    private void write(final User user, final ImportPlan plan) {
+        // Logs before actions: a log has no meaning once its action is gone, and this is the order an account is cleared in elsewhere.
+        ActionLog.deleteByUser(user.id);
+        Action.delete("userId", user.id);
+
+        final Map<String, UUID> actionIds = new HashMap<>();
+        for (final ActionDraft draft : plan.actions()) {
+            final Action action = new Action();
+            action.userId = user.id;
+            action.name = draft.name();
+            action.colour = draft.colour();
+            action.persist();
+            actionIds.put(draft.name(), action.id);
+        }
+
+        // The log write below is a native statement, which does not see anything still sitting in the persistence context - so the action rows have
+        // to actually be in the database before a log can reference one.
+        Panache.getEntityManager().flush();
+
+        for (final LogDraft draft : plan.logs()) {
+            // Never absent: the parser refuses a log whose action is not one of the plan's own, so every name here was just inserted above.
+            final UUID actionId = Objects.requireNonNull(actionIds.get(draft.actionName()), "imported log names an action the plan does not hold");
+            ActionLog.setCount(user.id, actionId, draft.date(), draft.count());
+        }
+
+        final Map<LocalDate, String> notes = new LinkedHashMap<>();
+        for (final NoteDraft draft : plan.notes()) {
+            notes.put(draft.date(), draft.content());
+        }
+        noteService.replaceAll(user, notes);
+    }
+}

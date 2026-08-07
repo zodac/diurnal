@@ -26,9 +26,10 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The guards every log mutation applies, shared by the web UI's HTMX endpoints ({@link LogWebResource}) and the public REST API
- * ({@link LogsApiResource}) so both surfaces enforce exactly the same rules.
+ * ({@link LogsApiResource}) so both surfaces enforce exactly the same rules. The future-date rule is also applied to an imported log by
+ * {@code transfer.ImportParser}, which is why it carries a second, purely date-based form.
  */
-final class LogGuards {
+public final class LogGuards {
 
     private LogGuards() {
 
@@ -44,7 +45,22 @@ final class LogGuards {
      * @return {@code true} when the date is after the user's "today"
      */
     static boolean isFuture(final LocalDate date, final User user, final AppClock clock) {
-        return date.isAfter(clock.today(clock.zoneFor(user.timezone)));
+        return isFuture(date, clock.today(clock.zoneFor(user.timezone)));
+    }
+
+    /**
+     * Whether the date is after the given "today", for a caller that has already resolved the acting user's day boundary.
+     *
+     * <p>
+     * This is the rule itself, with the timezone resolution lifted out - which is what lets the pure import parser apply exactly the same rule to a
+     * whole file of logs while resolving the user's "today" only once, rather than restating "a log may not be in the future" a second time.
+     *
+     * @param date  the date being logged against
+     * @param today the acting user's current date
+     * @return {@code true} when the date is after their "today"
+     */
+    public static boolean isFuture(final LocalDate date, final LocalDate today) {
+        return date.isAfter(today);
     }
 
     /**

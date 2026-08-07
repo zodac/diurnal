@@ -542,6 +542,18 @@
   /* Disabled state (e.g. the Sign in button during a lockout countdown): visibly greyed and inert —
      pointer-events-none also suppresses the brand hover so it can't look live. */
   .btn-primary:disabled { @apply opacity-50 cursor-not-allowed pointer-events-none; }
+  /* The native file input's own button (Settings → Data import). It carries the SAME brand surface as
+     .btn-primary because it is the same kind of action, sitting a few pixels from the Export button —
+     a browser-default grey beside it reads as broken rather than as deliberately neutral. It cannot
+     simply BE .btn-primary: ::file-selector-button is a shadow pseudo-element, reachable only through
+     a selector of its own, so the surface is re-applied here rather than in the template (which would
+     be exactly the hand-kept duplicate the .btn-primary note above warns about). */
+  .file-input::file-selector-button {
+    @apply mr-3 inline-flex items-center justify-center rounded-lg border-0 px-3 py-1.5
+           text-xs font-medium bg-brand text-on-brand cursor-pointer transition-colors;
+  }
+  .file-input:hover::file-selector-button { @apply bg-brand-hover; }
+  .file-input:active::file-selector-button { @apply bg-brand-strong; }
   /* Circular icon button (modal close + gallery prev/next). One responsive size (≈0.8x on mobile →
      full on sm:) so every preview button scales by the same factor across viewports; glyph in step. */
   .icon-btn-primary { @apply rounded-full w-8 h-8 sm:w-10 sm:h-10; }
