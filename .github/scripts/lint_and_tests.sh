@@ -17,6 +17,9 @@
 #                    summary carrying the per-substep breakdown (the long-running
 #                    substeps' own output is hidden until one fails). Turn it on to stream
 #                    every substep's output live — useful when a run fails and you need the detail.
+#                    During the parallel phase only the `java` gate is streamed; the other lanes are
+#                    captured and replayed in step order afterwards, because concurrent live streams
+#                    interleave line-by-line into something neither readable nor greppable.
 #
 #                  -f, --force
 #                    Run ALL steps, skipping the git-diff auto-detection (equivalent to passing
@@ -26,6 +29,16 @@
 #                    Stop at the first failing step instead of running the remaining steps. Off by
 #                    default (every step runs and all failures are reported together); used by the
 #                    release pipeline (publish.yml) to fail fast rather than burn time on later steps.
+#                    Steps still running when the first failure lands are signalled and reported as
+#                    CANCELLED (their result is unknown), separately from the step that actually failed.
+#
+#                  Execution order (see LANE_STEPS):
+#                    The lane-eligible steps - every linter plus `java` - run CONCURRENTLY, so the
+#                    linters' runtime disappears inside the multi-minute JVM gate. `grype` and `perf`
+#                    then run serially afterwards: grype builds the production runtime image that the
+#                    java step's smoke tier also builds (serial = a cache hit, concurrent = built twice),
+#                    and perf MEASURES the application, so anything else running invalidates its numbers.
+#                    Selecting a single lane-eligible step skips the machinery and runs it inline.
 #
 #                  Valid steps:
 #                    - docker      Lint the Dockerfiles with hadolint
@@ -71,7 +84,16 @@
 
 set -uo pipefail
 
-trap 'echo; echo "❌ Interrupted"; exit 130' INT
+# State of the concurrently-running steps (see the "parallel lanes" section): PID, step name, captured-output
+# file and exit code (empty while still running) per lane. Declared up here because the INT trap below reads
+# them - a Ctrl-C during the parallel phase must signal every lane's process group, or the shell exits and
+# leaves mvn, the smoke stack and the test DB running behind it.
+LANE_PIDS=()
+LANE_NAMES=()
+LANE_LOGS=()
+LANE_RCS=()
+
+trap 'echo; echo "❌ Interrupted"; lane_abort_all; exit 130' INT
 
 # Absolute path to this script (basedir + filename), so the "re-run ..." hints printed on failure are
 # copy/paste-ready from any working directory rather than a bare filename. Each command substitution is
@@ -158,6 +180,11 @@ overall_exit_code=0
 # steps); `final_exit_code` is the real accumulator that survives the per-step reset of overall_exit_code.
 failed_steps=()
 final_exit_code=0
+
+# Steps that were stopped, or never started, because -e/--exit-on-failure tripped on another step's failure.
+# Kept apart from failed_steps on purpose: a cancelled step did not fail, its result is simply unknown, so it
+# must not be named in the "re-run the failures" hint as though it were something to go and fix.
+cancelled_steps=()
 
 # Yellow highlight for the copy/paste-ready "re-run …" command in failure messages, so it stands out
 # from the surrounding text. Only emit the ANSI codes when stdout is a real terminal — piped/redirected
@@ -851,6 +878,172 @@ run_shellcheck() {
     fi
 }
 
+# --- parallel lanes (the linters alongside the java gate) ---------------------------------------------
+# Which steps may run concurrently with one another. Every entry is either a self-contained `docker run`
+# over the working tree (no host port, no database, no build output, seconds to a couple of minutes) or the
+# multi-minute `java` gate. Run together, the linters' runtime disappears entirely inside the gate's.
+#
+# `grype` and `perf` are deliberately NOT lane-eligible:
+#   - grype builds the production runtime image, which the java step's smoke tier also builds from the same
+#     Dockerfile with the same GENERATE_PREVIEWS=false. Run after it, that build is a cache hit (the whole
+#     point of the note in run_grype); run alongside it, both start cold and the image is built twice.
+#   - perf MEASURES the application - cold-boot latency, post-boot RSS, k6 latency thresholds. Its ports are
+#     disjoint from everything else, so the problem is not a clash but CONTENTION: a machine also running
+#     PITest, Chromium and a multi-stage Docker build makes every threshold a coin flip. It runs alone.
+LANE_STEPS=("docker" "java" "javascript" "markdown" "shellcheck" "typescript")
+
+# True when ${1} appears in the remaining arguments.
+lane_contains() {
+    local needle="${1}"
+    shift
+    local item
+    for item in "$@"; do
+        [[ "${item}" == "${needle}" ]] && return 0
+    done
+    return 1
+}
+
+# Signal a still-running lane's whole process group and wait for it to go. TERM to the GROUP (the leading
+# "-" on the pid) is what reaches the descendants that matter - mvn, the docker CLI, run-smoke.sh,
+# run-e2e.sh - so the tier runners' own traps fire and tear their Docker stacks down. Signalling only the
+# subshell would kill the bookkeeping and orphan every one of them, leaving containers and the test DB
+# standing. The wait is what gives those traps time to finish; abandoning the child would leak its stack.
+lane_stop() {
+    local pid="${1}"
+    kill -TERM -- -"${pid}" 2>/dev/null || kill -TERM "${pid}" 2>/dev/null || true
+    wait "${pid}" 2>/dev/null || true
+}
+
+# Stop every lane that has not yet been reaped. Called by the INT trap (Ctrl-C) and by the fail-fast abort.
+lane_abort_all() {
+    local i
+    for i in "${!LANE_PIDS[@]}"; do
+        [[ -n "${LANE_RCS[i]}" ]] && continue
+        lane_stop "${LANE_PIDS[i]}"
+        LANE_RCS[i]="cancelled"
+    done
+}
+
+# Launch one step in the background with its output captured to a temp file. The caller enables job control
+# (`set -m`) first, which is what places each launched job in its OWN process group so lane_stop can signal
+# the whole tree rather than just the subshell. The monitor flag is inherited by the subshell but is turned
+# off again inside it, so the step's own background tiers (run_java's smoke/e2e) stay in that same group and
+# remain reachable by the group kill.
+#
+# A step reports failure by setting the global overall_exit_code, which a background subshell cannot write
+# back to the parent - so the subshell re-emits it as its own exit status, which is what the reaper reads.
+lane_start() {
+    local step="${1}"
+    local log
+    log="$(mktemp)"
+    (
+        set +m
+        overall_exit_code=0
+        STEP_START_NS="$(date +%s%N)"
+        "run_${step}"
+        exit "${overall_exit_code}"
+    ) > "${log}" 2>&1 &
+    LANE_PIDS+=("$!")
+    LANE_NAMES+=("${step}")
+    LANE_LOGS+=("${log}")
+    LANE_RCS+=("")
+}
+
+# Run every step named in the arguments concurrently and block until they have all finished - or, under
+# -e/--exit-on-failure, until the first failure stops the rest. Results are folded into failed_steps /
+# cancelled_steps / final_exit_code, and each step's captured output is replayed afterwards in the order the
+# steps were given, so a parallel run reads like a serial one.
+#
+# The java gate's log is STREAMED live while the others stay captured: its per-tier progress lines are the
+# only feedback a multi-minute step gives, and two live streams interleave line-by-line into something
+# neither readable nor greppable (the same reason run_supervised_tier never streams the smoke tier).
+run_lanes() {
+    local lane_steps=("$@")
+    LANE_PIDS=()
+    LANE_NAMES=()
+    LANE_LOGS=()
+    LANE_RCS=()
+
+    echo
+    echo "Running ${#lane_steps[@]} steps in parallel: $(IFS=', '; echo "${lane_steps[*]}")"
+
+    # The javascript and typescript steps share one locally-built eslint image. Started together they would
+    # race to build the same tag and pay the npm install twice over, so build it once here; each step's own
+    # ensure_eslint_image call is then a cache hit. A failure is not reported here - the steps themselves
+    # re-run it and fail with the detail attributed to the right step.
+    if lane_contains "javascript" "${lane_steps[@]}" || lane_contains "typescript" "${lane_steps[@]}"; then
+        substep "preparing the shared eslint image (${ESLINT_BUILD_IMAGE})"
+        ensure_eslint_image > /dev/null 2>&1 || true
+    fi
+
+    local step
+    set -m
+    for step in "${lane_steps[@]}"; do
+        lane_start "${step}"
+    done
+    set +m
+
+    local i tail_pid=""
+    for i in "${!LANE_NAMES[@]}"; do
+        if [[ "${LANE_NAMES[i]}" == "java" ]]; then
+            tail -f "${LANE_LOGS[i]}" 2>/dev/null &
+            tail_pid=$!
+            break
+        fi
+    done
+
+    local remaining="${#LANE_PIDS[@]}" aborted=false
+    while [[ "${remaining}" -gt 0 ]]; do
+        for i in "${!LANE_PIDS[@]}"; do
+            [[ -n "${LANE_RCS[i]}" ]] && continue
+            tier_reap "${LANE_PIDS[i]}" || continue
+            LANE_RCS[i]="${TIER_RC}"
+            remaining=$((remaining - 1))
+            # String comparison, not -eq: an empty value compares equal to 0 in bash's arithmetic context,
+            # so a lane whose exit code was somehow never captured would be treated as a pass (same reason
+            # record_substep_time does it this way).
+            if [[ "${LANE_RCS[i]}" != "0" && "${FAIL_FAST}" == true ]]; then
+                aborted=true
+            fi
+        done
+        [[ "${aborted}" == true ]] && break
+        # 1s poll, matching run_supervised_tier: coarse enough to cost nothing over a multi-minute lane.
+        [[ "${remaining}" -gt 0 ]] && sleep 1
+    done
+
+    # -e/--exit-on-failure: a lane failed, so stop the ones still running rather than paying for the rest of
+    # their minutes. They are CANCELLED, not failed - nothing is known about their result.
+    [[ "${aborted}" == true ]] && lane_abort_all
+
+    if [[ -n "${tail_pid}" ]]; then
+        kill "${tail_pid}" 2>/dev/null || true
+        wait "${tail_pid}" 2>/dev/null || true
+    fi
+
+    # Replay in the caller's order. The java lane was streamed live, so only its outcome is noted here.
+    local name rc
+    for i in "${!LANE_NAMES[@]}"; do
+        name="${LANE_NAMES[i]}"
+        rc="${LANE_RCS[i]}"
+        if [[ "${name}" != "java" && -s "${LANE_LOGS[i]}" ]]; then
+            cat "${LANE_LOGS[i]}"
+        fi
+        rm -f "${LANE_LOGS[i]}"
+        case "${rc}" in
+        0) ;;
+        cancelled)
+            echo
+            echo "⏹  [${name}] cancelled - another step failed first (-e/--exit-on-failure)"
+            cancelled_steps+=("${name}")
+            ;;
+        *)
+            failed_steps+=("${name}")
+            final_exit_code=1
+            ;;
+        esac
+    done
+}
+
 detect_changed_steps() {
     local latest_tag
     latest_tag=$(git tag --sort=-version:refname 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
@@ -1053,7 +1246,43 @@ fi
 # so the command substitution's exit status isn't masked (SC2312).
 overall_start=""
 overall_start="$(date +%s%N)"
+
+# Split the selected steps into the parallel lane set and the serial tail, keeping the order they were
+# selected in. See LANE_STEPS for why grype and perf are excluded from the lanes; running them after the
+# parallel phase is also what makes grype's image build a cache hit off the java step's smoke tier.
+parallel_selected=()
+serial_selected=()
 for step in "${steps[@]}"; do
+    if lane_contains "${step}" "${LANE_STEPS[@]}"; then
+        parallel_selected+=("${step}")
+    else
+        serial_selected+=("${step}")
+    fi
+done
+
+# A lone lane-eligible step has nothing to run alongside, so run it inline instead: no supervision
+# machinery, no captured-and-replayed output, and the everyday `lint_and_tests.sh java` (or `… shellcheck`)
+# behaves exactly as it always has. It leads the serial tail so grype, if also selected, still follows it.
+if [[ "${#parallel_selected[@]}" -eq 1 ]]; then
+    serial_selected=("${parallel_selected[@]}" "${serial_selected[@]}")
+    parallel_selected=()
+fi
+
+if [[ "${#parallel_selected[@]}" -gt 0 ]]; then
+    run_lanes "${parallel_selected[@]}"
+fi
+
+# -e/--exit-on-failure: a failure in the parallel phase skips the serial tail entirely. Those steps never
+# ran at all, so they are cancelled rather than failed.
+if [[ "${FAIL_FAST}" == true && "${final_exit_code}" -ne 0 && "${#serial_selected[@]}" -gt 0 ]]; then
+    echo
+    echo "⏹  Stopping early after first failure (-e/--exit-on-failure)"
+    cancelled_steps+=("${serial_selected[@]}")
+    serial_selected=()
+fi
+
+for idx in "${!serial_selected[@]}"; do
+    step="${serial_selected[idx]}"
     STEP_START_NS="$(date +%s%N)"
     # Reset the per-step signal so we can tell whether THIS step failed (each run_* sets it to 1 on
     # failure); the real cumulative result is kept in final_exit_code / failed_steps below.
@@ -1077,6 +1306,10 @@ for step in "${steps[@]}"; do
     if [[ "${FAIL_FAST}" == true && "${overall_exit_code}" -ne 0 ]]; then
         echo
         echo "⏹  Stopping early after first failure (-e/--exit-on-failure)"
+        remaining_steps=("${serial_selected[@]:idx+1}")
+        if [[ "${#remaining_steps[@]}" -gt 0 ]]; then
+            cancelled_steps+=("${remaining_steps[@]}")
+        fi
         break
     fi
 done
@@ -1100,6 +1333,12 @@ if [[ "${final_exit_code}" -ne 0 ]]; then
     failed_list="$(IFS=','; echo "${failed_steps[*]}")"
     echo
     echo "❌ Failed steps (${#failed_steps[@]}): ${RED}${failed_list}${RESET}"
+    # Cancelled steps are listed separately and kept OUT of the re-run command: they did not fail, they were
+    # stopped (or never started) by -e, so nothing about them is known and none of them is a thing to fix.
+    if [[ "${#cancelled_steps[@]}" -gt 0 ]]; then
+        cancelled_list="$(IFS=','; echo "${cancelled_steps[*]}")"
+        echo "⏹  Cancelled steps (${#cancelled_steps[@]}): ${cancelled_list} - stopped by -e, result unknown"
+    fi
     echo "   Re-run with: ${YELLOW}'${SCRIPT_PATH} -v ${failed_list}'${RESET} for the full output"
     exit 1
 fi
