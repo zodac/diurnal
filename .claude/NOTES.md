@@ -48,6 +48,9 @@ Each of these was a real fork; the rejected option is recorded so it is not sile
 | Resize | Three custom Pointer Events handles (right, bottom, corner) | Native CSS `resize: both`. Rejected: it gives only a corner grip and cannot do edges, which requirement 8 asks for explicitly |
 | Note colour | **One user preference, one hex, rendered verbatim in both themes** — see [The note colour](#the-note-colour) | Two pickers (light + dark), and a single pick auto-adjusted per theme. Both rejected: see that section |
 | Unsaved drafts | **Retained per tab in `sessionStorage`** — see [Draft retention](#draft-retention) | A `beforeunload` confirmation (shipped first, then replaced), `localStorage`, and server-side autosave. All rejected: see that section |
+| Searching sealed notes | **Open the notes and scan them in the application** — see [Searching notes](#searching-notes) | A per-word blind index, and searching the client's month cache. Both rejected: see that section |
+| Where search lives | **A dedicated `/notes` page**, which is also the browse-all view | Search inside the dashboard note panel. Rejected: the grid is a settled 2x2 and the panel's height is pinned to a 3-stat summary, so results would need an overlay |
+| Opening a result | **A link to `/?date=…`** on the dashboard | Expanding the note in the results list. Rejected: the dashboard already shows a note in full beside that day's actions and calendar, so a second way to render one would be strictly worse |
 
 ## Design
 
@@ -463,6 +466,112 @@ existing muting.
 > detached by the time `getComputedStyle` runs, which yields an empty string rather than a colour. Read every computed
 > style through `expect.poll` with a `try`/`catch` returning `""`.
 
+### Searching notes
+
+> A journal kept per date was only reachable one day at a time through the calendar: there was no way to re-read what
+> was written last spring, or to find the day something was mentioned, without already knowing the date. The `/notes`
+> page is both the browse-all view and the search over it.
+
+#### How you search something that is encrypted
+
+**You cannot, in the database — so the application opens the notes and scans them.** `NoteService.search(userId, query,
+notes)` resolves the owner's data key once (`readContents`), opens each note, and keeps the ones whose text contains the
+term case-insensitively (`NoteSearch.matches`). There is no index, no `LIKE`, and no `WHERE` clause that could help:
+the content exists only as ciphertext.
+
+The cost is smaller than it sounds, because the hot path already does a smaller version of this work. The dashboard
+opens a ±1-month window (~90 notes) on **every** load, and the perf tier measures it as `notesFeed`. A ten-year daily
+journal is ~3,650 notes — roughly 40× that — on a cold, deliberate, user-initiated path. Per-note cost is dominated by
+`Cipher.getInstance` inside `Aes256Gcm.open`, not by the bytes.
+
+> **Rejected — a blind index** (a `note_tokens` table of `HMAC(word)` under an HKDF-derived per-user index key). It is
+> the only way to push matching into SQL, and `crypto/Hkdf` already exists for exactly that kind of domain separation.
+> It was rejected because it **leaks**: deterministic per-word tokens over natural-language prose are the textbook
+> frequency-analysis target — token counts follow Zipf, so a dump lets an attacker map the commonest tokens onto
+> "the/and/I/work" and work down. That reinstates precisely the threat encrypting the column was built against ("a
+> dump, backup or replica opens nothing"). It also only does exact whole-word matching (`run` would miss `running`
+> without a language-specific stemmer), needs a backfill that must open every note anyway, an index rewrite on every
+> save, and rotation handling for a second key. It buys a SQL index for a dataset that fits in one in-memory pass.
+>
+> **Rejected — searching the client's month cache.** Free, but the cache holds ±1 month, so "search" would silently
+> mean "search the three months you happen to have loaded" — the worst kind of wrong answer.
+
+**Matching is a plain case-insensitive substring test**, the same rule the actions and day-panel filters use, so
+"search" means one thing across the app. No tokenising, stemming or word boundaries: `run` finds `running` (which a
+word index could not) and finds it inside `brunch` too (which it would not). No language is assumed, which matters for
+a field that accepts every script.
+
+> **The scan runs over the ORIGINAL text via `String.regionMatches`, never over a lower-cased copy.** Lower-casing can
+> change a string's LENGTH (`U+0130` becomes two characters), which would slide every index after it and cut the
+> snippet in the wrong place — a bug that only appears for some users' text.
+
+#### The search term is a secret too
+
+**A term is drawn from the writing it is meant to find**, so recording "user searched for `<name>`" gives the note away
+as surely as logging the note would. `NoteService` logs the match COUNT only, and `SecretsStayOutOfLogsTest`'s
+`FORBIDDEN` list now covers `query`/`searchTerm`/`term`/`snippet` alongside the content and key identifiers.
+
+The term **does** ride the URL as `?q=`, and therefore enters browser history and the `Referer` header. That was a
+conscious call: it matches every other search in the app, reuses `partials/search-input.html` and the
+`data-search-source` pagination plumbing unchanged, and gives working back-button and bookmark behaviour. The
+alternative — a bespoke `POST` endpoint to keep terms out of history — was rejected as a lot of divergence for a
+partial win. It is *why* nothing writes a term server-side.
+
+#### Snippets, and why they are a list
+
+A result row is the day (spelled out via `DayLabels`, linking to `/?date=…`) plus a one-line snippet: a ±60-character
+window of the note's own text centred on the first match, with every occurrence inside the window flagged. Line breaks
+are flattened to spaces first — a row per note that grows to the height of its own paragraph makes the list
+unscannable. With a blank term it is simply the head of the note (180 characters), which is what makes the page a
+browse view before anything is typed.
+
+> **`NoteSearch.snippet` returns a `List<NoteSnippetPart>`, never a marked-up string.** Emitting `<mark>` into a string
+> would mean rendering a note's text raw, which is the one thing this feature must never do (`TEXT_INPUT.md`'s "made
+> safe where it is RENDERED" rule). The template loops the parts and decides the markup itself, so every character is
+> still escaped on the way out. `NotesInternalResourceIT.list_escapesNoteContentRatherThanRenderingIt` pins it.
+
+> **Window cuts land on code-point boundaries** (`NoteSearch.boundary`). Notes accept emoji, so an unadjusted cut would
+> split a surrogate pair and emit an unpaired half that renders as a replacement character.
+
+#### The page and its API twin
+
+| Surface | Selection | Order |
+|---|---|---|
+| `/notes` + `GET /internal/notes/list?q=&page=` | the whole history (`Note.findByUser`) | latest first |
+| `GET /api/v1/notes?q=&start=&end=&page=` | a date range, or the whole history when **both** bounds are omitted | earliest first |
+
+Both call the **same** `NoteService.search`; the caller supplies the notes and their order, exactly as `readContents`
+already worked. Only the matching rule is shared — selection and ordering are each surface's own presentation, and
+`SurfaceParityIT.noteSearch_matchesTheSameNotesOnBothSurfaces` pins that the same term picks the same days.
+
+- **`start`/`end` became optional** on the public endpoint (a relaxation, so backward-compatible — no contract entry
+  changed). **Half a range is a 400**: it is a request the caller did not mean to make, so it is rejected rather than
+  quietly completed with an open end (the reject-never-coerce rule). `Note.version(userId)` is the unbounded ETag
+  validator, written as its own query rather than calling the ranged one with sentinel dates — `LocalDate.MIN`/`MAX`
+  are far outside what a `DATE` column can even hold.
+- **The ETag now includes the search term**: two different terms over an unchanged journal are different bodies.
+- The web surface **clamps** an out-of-range page (`NotePages.of`), the API **rejects** it — the split every other list
+  pair already has.
+
+#### The dashboard deep link
+
+`dashboard.js` reads `?date=` from the URL and prefers it over the `sessionStorage` restore, then **consumes it** with
+`history.replaceState`. Left in the address bar it would out-rank the session's own selection on every reload, so
+clicking around the calendar and refreshing would snap back to whatever day the search result named. The same ISO-date
+format guard applies to it as to the stored value, since it is interpolated into fetch URLs.
+
+#### Shared bits that changed
+
+- `partials/search-input.html` gained optional `placeholder` and `value` params (defaulted with `.or(...)`, since Qute
+  is strict). The three existing callers now pass `placeholder="Search actions…"` explicitly, so nothing moved.
+- `.dt-table-fixed` is now a real class (it was only ever named in comments). The notes list is the one table whose
+  cells must not size the columns — a note is prose of arbitrary length, so the `<colgroup>` proportions win and
+  `.note-snippet` truncates inside its share.
+- `--color-mark-bg` is a new token pair: a translucent brand tint, because a `<mark>`'s UA default (black on yellow)
+  ignores the theme and is unreadable in dark mode. Deliberately **not** the user's `--note-colour` — an arbitrary
+  picked colour as a text background has no contrast guarantee, and this marks "your search matched here", which is
+  about the search rather than about notes.
+
 ### Encryption at rest
 
 > A note is the most private thing this application stores, and it used to sit in a plaintext `VARCHAR(10000)` that any
@@ -636,13 +745,24 @@ Each step should leave the tree green; run the scoped gate named in the step bef
   whole login page into the day panel or the summary card had it been an HTML caller). Verified by reverting the guard
   and watching the dashboard strand itself on its placeholder; pinned by `auth.spec.ts`.
 
+- [x] **The note box could come up empty on a day that has a note.** `cal.ensureNotes(date)` resolved *immediately*
+  whenever a fetch for that month was already in flight: `fetchNoteSpan` dedupes against `notePromises` and hands back
+  `null`, which the adapter read as "nothing to wait for". Selecting a day in a not-yet-loaded month does exactly that —
+  `selectDay` calls `goToMonth` (starting the fetch) and then `noteBox.load` a line later — so the box painted from a
+  cache that had not arrived, and since nothing repaints it afterwards, it just stayed blank. Found by the notes-search
+  deep link, which lands on an arbitrary old day at page load and so hits the race every time; before that it needed a
+  click into an uncached month at the right moment, which is why it went unnoticed. `ensureNotes` now waits on the
+  in-flight promise when there is one. Pinned by `note-search.spec.ts`'s "following a result opens the dashboard on that
+  day, with the note in the box".
+
 ## Deliberately out of scope
 
 - **No markdown or rich text.** A note is plain text, rendered as plain text. Qute escapes by default and the calendar
   writes `textContent`, exactly as for every other user value (see the "made safe where it is RENDERED" row in
   [`TEXT_INPUT.md`](TEXT_INPUT.md)).
 - **No note in the dashboard stats-summary strip** — see [Decisions taken](#decisions-taken).
-- **No search over note content**, and no note column on the Actions page.
+- **No note column on the Actions page.**
+- ~~No search over note content~~ — **superseded 2026-08-07**; see [Searching notes](#searching-notes).
 - **No `?content=` split on the range feed.** It was considered when the prefetch radius was ±2 and the worst-case
   payload was ~1.5 MB; at ±1 the pathological case is small enough that the second `monthContentLoaded` flag it would
   need is not worth paying for. Revisit only if a real payload problem appears.

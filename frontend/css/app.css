@@ -171,6 +171,13 @@
     --note-colour: #16a34a;          /* green-600 — UserSettings.DEFAULT_NOTE_COLOUR */
     --note-colour-on-brand: #7deda6; /* the default lightened to clear 3:1 on the brand "today" fill */
 
+    /* The notes page's search-match highlight. A translucent brand tint rather than a solid fill, so the
+       matched run keeps the row's own text colour and stays legible whatever it sits on — a <mark>'s UA
+       default (black on yellow) is unreadable in dark mode and ignores the theme entirely. Deliberately
+       NOT the user's --note-colour: an arbitrary picked colour as a text background has no contrast
+       guarantee, and this marks "your search matched here", which is about the search, not about notes. */
+    --color-mark-bg: rgb(99 102 241 / 0.18);
+
     /* Confirm-delete data-table row highlight ring (the edit ring is brand-derived, see @generated:brand). */
     --color-ring-confirm: #fca5a5;   /* red-300 */
 
@@ -237,6 +244,8 @@
     --color-danger: #f87171;         /* red-400 */
     --color-danger-strong: #fca5a5;  /* red-300 */
     --color-success: #4ade80;        /* green-400 */
+
+    --color-mark-bg: rgb(129 140 248 / 0.34);
 
     --color-ring-confirm: #b91c1c;   /* red-700 */
 
@@ -737,6 +746,11 @@
            rely on this; each sets its value cells whitespace-nowrap and its column proportions via a
            <colgroup>. */
         .dt-table { width: 100%; font-size: .875rem; line-height: 1.25rem; }
+        /* Fixed layout, for the one table whose cells must NOT size the columns: the notes list, where the
+           snippet is free prose of arbitrary length. The tables above want auto layout so a long value
+           widens its column and scrolls; a note would instead make the column unboundedly wide, so here the
+           <colgroup> proportions win and the snippet truncates inside its share (see .note-snippet). */
+        .dt-table-fixed { table-layout: fixed; }
         .dt-table thead tr { border-bottom: 1px solid var(--color-border); }
         .dt-head-cell { padding: .75rem 1rem; text-align: left; font-size: .75rem; line-height: 1rem;
             font-weight: 500; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .025em; }
@@ -977,6 +991,20 @@
         .dt-select { font-size: .75rem; border: 1px solid var(--color-input-border); border-radius: .375rem;
             background: var(--color-input-bg); color: var(--color-text); padding: .25rem 1.5rem .25rem .5rem; cursor: pointer; }
         .dt-select:focus { outline: none; box-shadow: 0 0 0 1px var(--color-brand-ring); }
+
+        /* ── Notes page rows ──────────────────────────────────────────────────
+           A result's whole point is the day it belongs to, so the DATE is the link (to the dashboard on
+           that day) and the snippet beside it is quiet supporting text. The snippet is clipped to a single
+           line: it is free prose, and a row per note that grows to the height of its own paragraph makes
+           the list unscannable — the search term's own window is what the reader needs to see, and the
+           full note is one click away. This needs the table's fixed layout (.dt-table-fixed) to have a
+           share of width to truncate INSIDE; with auto layout the cell would just widen instead. */
+        .note-row-link { color: var(--color-text); font-weight: 500; transition: color .15s; }
+        .note-row-link:hover { color: var(--color-brand); }
+        .note-snippet { color: var(--color-text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        /* A <mark>'s UA default is black-on-yellow, which ignores the theme and is unreadable in dark mode.
+           Both properties are re-set: the tint carries the signal, the text keeps the row's own colour. */
+        .note-mark { background-color: var(--color-mark-bg); color: inherit; border-radius: .125rem; padding: 0 .0625rem; }
 
         /* Empty state + pagination footer. All colours are tokens that flip in dark mode. */
         .dt-empty { padding: 2rem 1rem; text-align: center; color: var(--color-text-muted); }

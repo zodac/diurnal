@@ -1,0 +1,35 @@
+{#include layout.html}
+
+{#body}
+<div class="page-shell">
+
+    {! Navigation !}
+    {#include partials/navbar active='notes' /}
+
+    {! Content !}
+    <main id="notes-main" class="page-container px-4 py-8">
+        <h2 class="page-title mb-1">Notes</h2>
+        <p class="page-subtitle">
+            Everything you have written, most recent first. Search the text to find a day, then open it to see what you logged.
+        </p>
+
+        {! Search + list. Unlike the Actions page there is no "hide it all when empty" wrapper: with no
+             notes at all the empty row's own copy points at the dashboard, which is where a note is written,
+             and the search box is still worth leaving in place for the account that simply deleted its last
+             note. `value` re-seeds the box from ?q= so a bookmarked or reloaded search still reads correctly. !}
+        {#include partials/search-input id="note-search-input" url="/internal/notes/list?page=1" target="#note-list"
+                  placeholder="Search your notes…" value=searchTerm /}
+
+        <div class="card overflow-hidden">
+            <div id="note-list">
+                {#include partials/notes-list page=page extraQuery=extraQuery /}
+            </div>
+        </div>
+    </main>
+
+    {#include partials/footer /}
+</div>
+
+{/body}
+
+{/include}

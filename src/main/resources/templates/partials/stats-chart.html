@@ -77,7 +77,7 @@
          user types, so the search box keeps focus and its caret across a keystroke. The hx-get URL
          already carries the currently-charted comparisons, so an action on the graph is never offered. !}
     <div id="chart-compare-panel" class="chart-compare-panel hidden">
-        {#include partials/search-input id="chart-candidate-search" url=chart.candidatesUrl target="#chart-candidate-list" /}
+        {#include partials/search-input id="chart-candidate-search" url=chart.candidatesUrl target="#chart-candidate-list" placeholder="Search actions…" /}
         <div id="chart-candidate-list">
             {#include partials/stats-chart-candidates candidates=candidates /}
         </div>

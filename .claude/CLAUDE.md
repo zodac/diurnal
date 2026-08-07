@@ -140,7 +140,7 @@ Under `src/main/java/net/zodac/diurnal/`:
 | `log`    | `ActionLog` entity + `LogWebResource` (`/internal/logs` day-panel fragments + increment/decrement) + `LogsApiResource` (`/api/v1/logs` public events feed + day read/write) + `CalendarResource` (`/internal/logs/minimal-events` dashboard feed) + `LogGuards`/`DateRanges` (shared rules)                         |
 | `stats`  | `StatsService` + `SubjectStats` (data record, keyed on a `StatSubject` — an action OR the user's notes; `StatSubjectKind`/`StatSubjectExtensions`) + `SubjectStatsExtensions` (template extensions) + `StatField` (Stats-page tile catalogue) + `DisplayStat` (a shown stat + its caption) + `StatTile` (tile view-model) + `StatsSummary` (the dashboard summary card's shared parameter binding) + the frequency-graph family (`FrequencyPeriod`/`FrequencyKeys`/`FrequencyCharts` + the `FrequencyChart`/`FrequencySeries`/`FrequencySlot`/`FrequencyBar` records + their `*Extensions` + the sealed `FrequencyResult`) + `StatsWebResource` (the `/stats` page) + `StatsInternalResource` (`/internal/stats/list` + `/internal/stats/chart/{actionId}`(`/candidates`), plus the dashboard's `/internal/stats/summary/{date}` + `/internal/stats/summary-month/{yyyy-MM}`) + `StatsApiResource` (`GET /api/v1/stats`, `GET /api/v1/stats/{actionId}/frequency`)  |
 | `auth`   | `AuthResource` (`/api/v1/auth` register/login/logout/revoke → session token), `AuthenticationService`+`LoginResult`, `RegistrationService`+`RegistrationResult`, `SessionStore`/`PostgresSessionStore` + `Session` entity + `SessionTokens` + `SessionAuthMechanism` + `SessionIdentityProvider` + `SessionSweeper` |
-| `note`   | `Note` entity + `NoteQueries` + `NoteService`/`NoteResult` (the single owner of every note write, and the encrypt/decrypt of content) + `NoteContent` (the per-note seal, bound to owner+date) + `UserNotesKey` entity + `NoteKeys` (mints an account's data key at creation, opens it per request) + `NotesInternalResource` (`/internal/notes` range feed + save/clear) + `NotesApiResource` (`/api/v1/notes` public CRUD). One free-text note per user per day, writable for ANY date including future ones, encrypted at rest |
+| `note`   | `Note` entity + `NoteQueries` + `NoteService`/`NoteResult` (the single owner of every note write and every search, and the encrypt/decrypt of content) + `NoteContent` (the per-note seal, bound to owner+date) + `UserNotesKey` entity + `NoteKeys` (mints an account's data key at creation, opens it per request) + `NoteSearch` (the pure match + snippet rules) + `NoteHit`/`NoteSnippetPart`/`NoteRow`/`PaginatedNotes` + `NotePages` (the notes page's slice/row presentation) + `NotesWebResource` (the `/notes` page) + `NotesInternalResource` (`/internal/notes` range feed + `/list` search fragment + save/clear) + `NotesApiResource` (`/api/v1/notes` public CRUD + search). One free-text note per user per day, writable for ANY date including future ones, encrypted at rest |
 | `user`   | `User` entity, `UserResource` (`/api/v1/users/me`), `UserSettings`, and the settings-picker enums `Theme`/`Font`/`CalendarView` (each `implements PreviewOption`)                                                                                                                                                   |
 | `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings) + the `/internal/settings/*` preference endpoints; `AdminWebResource` (admin pages) + `AdminUsersInternalResource` (`/internal/admin/users` fragments) + `AppInfo` (footer/template metadata bean)                         |
 | `colour` | `Colours` - the rules every user-chosen colour obeys: the `#rrggbb` format check, the HSL-to-hex conversion, and the lightening that makes a colour readable on a background (the calendar's brand-filled "today" cell). Shared by `action` and `user`                                                    |
@@ -156,7 +156,7 @@ Under `src/main/java/net/zodac/diurnal/`:
   leaking into the docs) fails CI until the contract is consciously updated. Breaking changes to `/api/v1/*` are MAJOR-version events (see README).
 - **`/internal/*` — web-UI plumbing** (HTMX fragments, fragment mutations, UI-cache JSON like `/internal/logs/month`). Never documented, no
   stability guarantees, anonymous requests get the browser `302 /login` challenge (vs `401` for `/api/*`).
-- **Page routes stay top-level** (`/`, `/actions`, `/stats`, `/settings`, `/admin/*`, `/login`, `/register`, `/logout`), as do the OIDC routes.
+- **Page routes stay top-level** (`/`, `/actions`, `/notes`, `/stats`, `/settings`, `/admin/*`, `/login`, `/register`, `/logout`), as do the OIDC routes.
   **The operational status/health probe is `GET /api/v1/status`** (a public API endpoint like any other, fully OpenAPI-annotated and in the
   `OpenApiSurfaceIT.PUBLIC_API_CONTRACT`): it returns JSON `{liveness, readiness, version, uptime}`, is anonymous (container `HEALTHCHECK`s / load
   balancers reach it tokenless), and is **readiness-gated** — `200` when the database is reachable, `503` when not — so the Docker `HEALTHCHECK` (and
@@ -287,6 +287,16 @@ height.
   open the data already stored** — otherwise a rotated key starts cleanly and every note silently vanishes from the UI
   while the rows sit untouched. **Rotation is config-driven** (`NOTE_ENCRYPTION_PREVIOUS_KEYS`): startup re-wraps every
   stored data key onto the current one, touching no note. See [`NOTES.md`](NOTES.md).
+- **Notes are searched by OPENING them, never by a database predicate.** The content exists only as ciphertext, so
+  `NoteService.search` resolves the owner's data key once, opens the notes the caller selected and keeps the ones whose
+  text contains the term (`NoteSearch.matches`, a plain case-insensitive substring — the same rule the actions and
+  day-panel filters use). A per-word blind index was rejected: deterministic tokens over prose are the textbook
+  frequency-analysis target, which would undo what encrypting the column bought. **The search TERM is as private as the
+  note it finds and must never be logged** — `SecretsStayOutOfLogsTest` fails on `query`/`searchTerm`/`term`/`snippet`
+  in a `note`/`crypto` logging statement, alongside the content and key identifiers. The `/notes` page and
+  `GET /api/v1/notes?q=` share that one rule but choose their own selection and ordering (whole history newest-first vs
+  a date range earliest-first); snippets are a `List<NoteSnippetPart>`, never marked-up HTML, so Qute still escapes
+  every character. See [`NOTES.md`](NOTES.md).
 - **Statistics are computed per `StatSubject`, not per action.** A subject is an action or the user's day notes; the
   notes subject carries the fixed nil-UUID `StatSubject.NOTES_ID`, which is what lets every id-keyed path
   (`/internal/stats/chart/{actionId}`, its `compare` parameter, `GET /api/v1/stats/{actionId}/frequency`) stay

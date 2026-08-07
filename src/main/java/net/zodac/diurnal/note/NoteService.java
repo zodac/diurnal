@@ -126,6 +126,43 @@ public class NoteService {
     }
 
     /**
+     * Opens the given notes and keeps the ones matching a search term, in the order they were handed in.
+     *
+     * <p>
+     * <strong>The notes are opened and scanned in memory</strong> — there is no index and no {@code WHERE} clause that could do this, because the
+     * content exists only as ciphertext (see {@link NoteSearch} for why a searchable-encryption index was rejected). The cost is one AES pass per
+     * note, all under a data key resolved once by {@link #readContents(UUID, List)}; the dashboard already opens a three-month window on every load,
+     * so a deliberate, user-initiated search over a whole journal is a larger version of work the hot path already does.
+     *
+     * <p>
+     * A blank term matches every note, which is what makes the notes page a browse view of the whole journal before anything is typed.
+     *
+     * <p>
+     * <strong>The caller chooses which notes and in what order</strong>, exactly as {@link #readContents(UUID, List)} does — the notes page passes
+     * its whole history newest-first, the public API passes a date range earliest-first. Only the matching RULE is shared, which is the part that
+     * must not differ between the two surfaces; the selection and the ordering are each surface's own presentation.
+     *
+     * @param userId the owning user, whose key opens every note
+     * @param query  the search term ({@code null} or blank keeps everything)
+     * @param notes  the stored notes to search, in the order the caller wants them back
+     * @return the matching notes, in the given order
+     */
+    public List<NoteHit> search(final UUID userId, final @Nullable String query, final List<Note> notes) {
+        final String term = query == null ? "" : query.strip();
+        final List<NoteHit> hits = readContents(userId, notes)
+            .entrySet()
+            .stream()
+            .filter(entry -> NoteSearch.matches(entry.getValue(), term))
+            .map(entry -> new NoteHit(entry.getKey(), entry.getValue()))
+            .toList();
+
+        // The COUNT only. Never the note, and never the SEARCH TERM either: a term is drawn from the writing it is
+        // meant to find, so logging "user searched for <name>" leaks the note as surely as logging the note would.
+        LOGGER.debug("Notes search matched {} of {} note(s) for user {}", hits.size(), notes.size(), userId);
+        return hits;
+    }
+
+    /**
      * Writes the day's note, creating it or overwriting whatever was there.
      *
      * <p>

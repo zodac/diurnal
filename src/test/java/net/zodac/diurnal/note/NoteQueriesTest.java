@@ -37,6 +37,11 @@ class NoteQueriesTest {
     }
 
     @Test
+    void allVersionJpql_bindsExpectedParameters() {
+        assertParameters(NoteQueries.ALL_VERSION_JPQL, List.of("userId"));
+    }
+
+    @Test
     void upsertSql_bindsExpectedParameters() {
         assertParameters(NoteQueries.UPSERT_SQL, List.of("id", "userId", "date", "contentEncrypted", "now"));
     }

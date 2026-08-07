@@ -21,7 +21,9 @@ single-use markup speculatively — note it as a candidate and extract on the se
 - Blocks that vary per call site use `{#insert}` slots (see `partials/select-field.html`'s
   `{#options}` block).
 - Existing partials are the catalogue — reuse before writing new markup: `banner`, `form-field`,
-  `select-field`, `search-input`, `tooltip`, `stat-tile`, `pagination`, `dt-row-actions`,
+  `select-field`, `search-input` (optional `placeholder=`/`value=` params, both defaulted with
+  `.or(...)`; pass `value=` for a page whose search term rides the URL, as `/notes` does),
+  `tooltip`, `stat-tile`, `pagination`, `dt-row-actions`,
   `dt-confirm-delete-row`, `preview-option`/`preview-thumb`, `eye-icons`, `password-constraints`,
   `nav-links`, `navbar`, `footer`, `calendar-toolbar`, `stats-chart`/`stats-chart-candidates`,
   `colour-picker`/`random-colour-button` (the pair that make up a colour control - the new-action

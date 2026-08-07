@@ -153,9 +153,98 @@ class NotesApiResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    void listNotes_withoutARange_isBadRequest() {
+    void listNotes_withoutRange_coversTheWholeHistory_earliestFirst() {
+        // The range became optional when the notes page's search needed an unbounded twin. Omitting BOTH bounds is the whole journal, still ordered
+        // earliest first - this endpoint's published ordering, even though the page it mirrors reads newest first.
+        runInTx(() -> {
+            newNote(userId, DAY.minusYears(2), "Long ago");
+            newNote(userId, DAY, "Today");
+        });
+
         given().get("/api/v1/notes")
+            .then().statusCode(200)
+            .body("totalCount", org.hamcrest.Matchers.is(2))
+            .body("items[0].date", org.hamcrest.Matchers.equalTo(DAY.minusYears(2).toString()))
+            .body("items[1].date", org.hamcrest.Matchers.equalTo(DAY.toString()));
+    }
+
+    @Test
+    void listNotes_withHalfRange_isBadRequest() {
+        // Half a range is a request the caller did not mean to make, so it is rejected rather than being quietly completed with an open end.
+        given().queryParam("start", DAY.toString())
+            .get("/api/v1/notes")
             .then().statusCode(400);
+
+        given().queryParam("end", DAY.toString())
+            .get("/api/v1/notes")
+            .then().statusCode(400);
+    }
+
+    // ── search ────────────────────────────────────────────────────────────────
+
+    @Test
+    void listNotes_withSearchTerm_keepsOnlyMatchingNotes() {
+        runInTx(() -> {
+            newNote(userId, DAY.minusDays(2), "Ran a 5k before work");
+            newNote(userId, DAY.minusDays(1), "Swam at the pool");
+            newNote(userId, DAY, "Another 5K, faster this time");
+        });
+
+        given().queryParam("q", "5k")
+            .get("/api/v1/notes")
+            .then().statusCode(200)
+            .body("totalCount", org.hamcrest.Matchers.is(2))
+            .body("items[0].date", org.hamcrest.Matchers.equalTo(DAY.minusDays(2).toString()))
+            .body("items[1].date", org.hamcrest.Matchers.equalTo(DAY.toString()));
+    }
+
+    @Test
+    void listNotes_withSearchTerm_appliesInsideAGivenRange() {
+        runInTx(() -> {
+            newNote(userId, DAY.minusDays(5), "Ran a 5k");
+            newNote(userId, DAY, "Ran a 5k");
+        });
+
+        given().queryParam("start", DAY.minusDays(1).toString())
+            .queryParam("end", DAY.toString())
+            .queryParam("q", "5k")
+            .get("/api/v1/notes")
+            .then().statusCode(200)
+            .body("totalCount", org.hamcrest.Matchers.is(1))
+            .body("items[0].date", org.hamcrest.Matchers.equalTo(DAY.toString()));
+    }
+
+    @Test
+    void listNotes_withUnmatchedSearchTerm_isAnEmptyFirstPage() {
+        runInTx(() -> newNote(userId, DAY, "Ran a 5k"));
+
+        given().queryParam("q", "cycling")
+            .get("/api/v1/notes")
+            .then().statusCode(200)
+            .body("totalCount", org.hamcrest.Matchers.is(0))
+            .body("currentPage", org.hamcrest.Matchers.is(1));
+    }
+
+    @Test
+    void listNotes_withBlankSearchTerm_keepsEveryNote() {
+        runInTx(() -> newNote(userId, DAY, "Ran a 5k"));
+
+        given().queryParam("q", "   ")
+            .get("/api/v1/notes")
+            .then().statusCode(200)
+            .body("totalCount", org.hamcrest.Matchers.is(1));
+    }
+
+    @Test
+    void listNotes_searchNeverReachesAnotherUsersNotes() {
+        final UUID[] otherId = new UUID[1];
+        runInTx(() -> otherId[0] = newUser("notes-api-other@lt.test", "Other").id);
+        runInTx(() -> newNote(otherId[0], DAY, "Ran a 5k"));
+
+        given().queryParam("q", "5k")
+            .get("/api/v1/notes")
+            .then().statusCode(200)
+            .body("totalCount", org.hamcrest.Matchers.is(0));
     }
 
     // ── write ─────────────────────────────────────────────────────────────────
