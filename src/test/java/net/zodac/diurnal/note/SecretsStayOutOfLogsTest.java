@@ -31,7 +31,8 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 /**
- * The logging guard for the two things in this application that must never be written to a log: a note's content, and any key that opens one.
+ * The logging guard for the things in this application that must never be written to a log: a note's content, any key that opens one, and the term a
+ * user searched their notes for - which is drawn from the writing it is meant to find, so recording it gives the note away just as surely.
  *
  * <p>
  * The rule is stated in {@code NoteService}, {@code NoteKeys}, {@code CLAUDE.md} and {@code NOTES.md}, and every statement obeys it — but until now
@@ -52,10 +53,11 @@ class SecretsStayOutOfLogsTest {
     // A logging call and everything up to the end of its statement, across line breaks.
     private static final Pattern LOG_STATEMENT = Pattern.compile("LOGGER\\.\\w+\\(.*?\\);", Pattern.DOTALL);
 
-    // Identifiers that hold a note's content or a key. Whole-word, so prose in a format string ("the notes data key")
-    // does not trip it and only an actual reference does.
+    // Identifiers that hold a note's content, a search term drawn from one, or a key. Whole-word, so prose in a format
+    // string ("the notes data key") does not trip it and only an actual reference does.
     private static final List<String> FORBIDDEN = List.of(
         "content", "contentEncrypted", "normalised", "plaintext", "noteContent",
+        "query", "searchTerm", "term", "snippet",
         "dataKey", "dekWrapped", "masterKey", "wrappingKey", "retiredKeys");
 
     @Test

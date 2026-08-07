@@ -37,6 +37,7 @@ import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
 import java.util.List;
+import net.zodac.diurnal.http.ChangeSignature;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.log.DateRanges;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
@@ -60,12 +61,14 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The public REST API for a user's per-day notes: {@code GET /api/v1/notes} lists the notes in a date range, {@code GET /api/v1/notes/{date}} reads
+ * The public REST API for a user's per-day notes: {@code GET /api/v1/notes} lists (and searches) them, {@code GET /api/v1/notes/{date}} reads
  * one day's note, and {@code PUT}/{@code DELETE} write and remove it. External integrations call these with a Bearer session token (see
  * {@code POST /api/v1/auth/login}); the dashboard reads the same data through {@link NotesInternalResource}. The write endpoints share one
  * implementation with the web UI — both surfaces call the same {@link NoteService}, so the write rules (the shared text pipeline's length and content
  * checks, a blank note removing the day's row, a future date being allowed) cannot diverge; this resource only translates {@link NoteResult}
- * outcomes into JSON.
+ * outcomes into JSON. The {@code q} filter is the {@code /notes} page's search, over the same {@link NoteService} method — the surfaces differ only
+ * in what they select and how they order it (this one a date range, earliest first; the page the whole history, latest first), never in what counts
+ * as a match.
  *
  * <p>
  * The range feed is {@link Compressed}: the dashboard warms three months of note content in one request, which is repetitive prose that gzips
@@ -115,65 +118,83 @@ public class NotesApiResource {
     }
 
     /**
-     * Returns the user's notes within a date range, earliest first, or {@code 304} when the range is unchanged since the caller's ETag.
+     * Returns the user's notes, earliest first — optionally narrowed to a date range and/or to those containing a search term — or {@code 304} when
+     * the result is unchanged since the caller's ETag.
      *
-     * @param start   inclusive start of the range (ISO-8601 date)
-     * @param end     inclusive end of the range (ISO-8601 date)
-     * @param request the JAX-RS request, used to evaluate the {@code If-None-Match} conditional against the range's ETag
-     * @return the notes in the range, or an empty {@code 304} response
+     * @param start      inclusive start of the range (ISO-8601 date); omitted together with {@code end} covers the whole history
+     * @param end        inclusive end of the range (ISO-8601 date); omitted together with {@code start} covers the whole history
+     * @param searchTerm the optional case-insensitive content filter
+     * @param pageNum    the 1-based page to return (out of range is rejected, never clamped)
+     * @param request    the JAX-RS request, used to evaluate the {@code If-None-Match} conditional against the result's ETag
+     * @return the matching notes, or an empty {@code 304} response
      */
     @Compressed
     @GET
     @Operation(
-        summary = "List notes in a date range",
-        description = "Returns one page of the user's notes within the date range, earliest first. Days with no note are simply absent, so the "
-        + "result is exactly the set of days that have one. Paginated at a fixed 31 notes per page - one full calendar month, so the usual "
-        + "'give me this month' call is a single page - because a note may run to 10,000 characters and an unbounded range would be the largest "
-        + "response the API can produce. An out-of-range page is rejected with a 400 (never silently clamped)."
+        summary = "List or search notes",
+        description = "Returns one page of the user's notes, earliest first. Days with no note are simply absent, so the "
+        + "result is exactly the set of days that have one. Give 'start' and 'end' to restrict the result to a date range, or omit BOTH to cover "
+        + "the user's whole history; give 'q' to keep only the notes whose content contains that text, case-insensitively. Paginated at a fixed 31 "
+        + "notes per page - one full calendar month, so the usual 'give me this month' call is a single page - because a note may run to 10,000 "
+        + "characters and an unbounded range would be the largest response the API can produce. An out-of-range page is rejected with a 400 (never "
+        + "silently clamped)."
     )
     @SecurityRequirement(name = "BearerAuth")
     @APIResponses({
-        @APIResponse(responseCode = "200", description = "One page of the notes in the range, earliest first.",
+        @APIResponse(responseCode = "200", description = "One page of the matching notes, earliest first.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = NotesPageDto.class))),
-        @APIResponse(responseCode = "304", description = "Not modified: the range is unchanged since the ETag in the 'If-None-Match' request "
+        @APIResponse(responseCode = "304", description = "Not modified: the result is unchanged since the ETag in the 'If-None-Match' request "
                 + "header, so no body is returned."),
-        @APIResponse(responseCode = "400", description = "The 'start' or 'end' query parameter is missing or not a valid ISO-8601 date, or the "
-                + "requested page is out of range.",
+        @APIResponse(responseCode = "400", description = "Only one of 'start' and 'end' was given, or one of them is not a valid ISO-8601 date, or "
+                + "the requested page is out of range.",
                 content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
         @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     })
     public Response notes(
-        @Parameter(name = "start", in = ParameterIn.QUERY, required = true,
-        description = "Inclusive start of the range, as an ISO-8601 date (yyyy-MM-dd); only the date part is used.",
+        @Parameter(name = "start", in = ParameterIn.QUERY,
+        description = "Inclusive start of the range, as an ISO-8601 date (yyyy-MM-dd); only the date part is used. Omit together with 'end' "
+        + "to cover the whole history.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-01"))
-        @QueryParam("start") final String start,
-        @Parameter(name = "end", in = ParameterIn.QUERY, required = true,
-        description = "Inclusive end of the range, as an ISO-8601 date (yyyy-MM-dd); only the date part is used.",
+        @QueryParam("start") final @Nullable String start,
+        @Parameter(name = "end", in = ParameterIn.QUERY,
+        description = "Inclusive end of the range, as an ISO-8601 date (yyyy-MM-dd); only the date part is used. Omit together with 'start' "
+        + "to cover the whole history.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-30"))
-        @QueryParam("end") final String end,
+        @QueryParam("end") final @Nullable String end,
+        @Parameter(name = "q", in = ParameterIn.QUERY,
+        description = "Keep only the notes whose content contains this text, matched case-insensitively as a plain substring (no word "
+        + "boundaries, no stemming). Blank or omitted keeps every note.",
+        schema = @Schema(type = SchemaType.STRING, examples = "5k"))
+        @QueryParam("q") @DefaultValue("") final String searchTerm,
         @Parameter(name = "page", in = ParameterIn.QUERY,
-        description = "The 1-based page of the range to return, 31 notes per page. Defaults to the first page.",
+        description = "The 1-based page of the result to return, 31 notes per page. Defaults to the first page.",
         schema = @Schema(type = SchemaType.INTEGER, examples = "1"))
         @QueryParam("page") @DefaultValue("1") final int pageNum,
         @Context final Request request) {
 
         final User user = currentUser.get();
-        final LocalDate startDate = DateRanges.requireDate("start", start);
-        final LocalDate endDate   = DateRanges.requireDate("end", end);
+        final DateWindow window = window(start, end);
 
-        // The response carries nothing but the notes themselves, so the range's own signature - plus the page being asked for - is the whole
-        // validator.
-        final EntityTag tag = EntityTags.weak(user.id, startDate, endDate, pageNum, Note.rangeVersion(user.id, startDate, endDate));
+        // The response carries nothing but the notes themselves, so the notes' own signature - plus everything that selects among them - is the
+        // whole validator. The search term is part of it: two different terms over an unchanged journal are different bodies.
+        final ChangeSignature version = window == null ? Note.version(user.id) : Note.rangeVersion(user.id, window.start(), window.end());
+        final EntityTag tag = EntityTags.weak(user.id, window, searchTerm, pageNum, version);
         final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
         if (notModified != null) {
             return EntityTags.withPrivateValidator(notModified, tag).build();
         }
 
-        // One key opens the whole range, so it is resolved once rather than per note. A note that will not open is
+        // One key opens every note, so it is resolved once rather than per note. A note that will not open is
         // dropped rather than reported: one damaged row must not fail the range for every other day in it.
-        final List<NoteDto> all = noteService.readContents(user.id, Note.findByUserAndRange(user.id, startDate, endDate))
-            .entrySet().stream()
-            .map(entry -> new NoteDto(entry.getKey().toString(), entry.getValue()))
+        // The unbounded read is reversed because its finder is ordered for the notes page (newest first) while this endpoint's published contract is
+        // earliest-first. A sentinel-dated call to the ranged finder would avoid the flip, but there is no date bound safely outside every real
+        // note_date - LocalDate.MIN/MAX are far outside what the DATE column can even hold.
+        final List<Note> stored = window == null
+            ? Note.findByUser(user.id).reversed()
+            : Note.findByUserAndRange(user.id, window.start(), window.end());
+        final List<NoteDto> all = noteService.search(user.id, searchTerm, stored)
+            .stream()
+            .map(hit -> new NoteDto(hit.date().toString(), hit.content()))
             .toList();
         final int totalPages = (all.size() + PAGE_SIZE - 1) / PAGE_SIZE;
 
@@ -189,10 +210,23 @@ public class NotesApiResource {
             .skip((long) (pageNum - 1) * PAGE_SIZE)
             .limit(PAGE_SIZE)
             .toList();
-        // The COUNT only, never a note's content - see NoteService's logging rule.
-        LOGGER.debug("Notes API read {} of {} note(s) in [{}, {}] (page {}) for user {}",
-            items.size(), all.size(), startDate, endDate, pageNum, user.email);
+        // The COUNT and the window only - never a note's content, and never what was searched for; see NoteService's logging rule.
+        LOGGER.debug("Notes API read {} of {} note(s) over {} (page {}) for user {}",
+            items.size(), all.size(), window == null ? "the whole history" : window.start() + " to " + window.end(), pageNum, user.email);
         return EntityTags.withPrivateValidator(Response.ok(new NotesPageDto(items, all.size(), totalPages, pageNum)), tag).build();
+    }
+
+    // Surface input policy: the range is optional, but it is a RANGE - half of one is a request the caller did not mean to make, so requireDate
+    // rejects it with a 400 rather than quietly completing it with "the beginning of time" or "today" (the reject-never-coerce rule for /api/v1).
+    private static @Nullable DateWindow window(final @Nullable String start, final @Nullable String end) {
+        if ((start == null || start.isBlank()) && (end == null || end.isBlank())) {
+            return null;
+        }
+        return new DateWindow(DateRanges.requireDate("start", start), DateRanges.requireDate("end", end));
+    }
+
+    private record DateWindow(LocalDate start, LocalDate end) {
+
     }
 
     /**

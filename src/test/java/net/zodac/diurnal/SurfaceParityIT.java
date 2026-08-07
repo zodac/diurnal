@@ -438,6 +438,33 @@ class SurfaceParityIT extends IntegrationTestBase {
     }
 
     @Test
+    void noteSearch_matchesTheSameNotesOnBothSurfaces() {
+        // The two surfaces deliberately differ in what they select and how they order it (the API a date range, earliest first; the page the whole
+        // history, latest first) - but never in what COUNTS as a match. Same term, same set of days, or the notes page and the API disagree about
+        // whether a note mentions something.
+        runInTx(() -> {
+            newNote(primaryId, TODAY, "Ran a 5K before work");
+            newNote(primaryId, TOMORROW, "Swam at the pool");
+        });
+
+        given().queryParam("q", "5k")
+                .get("/api/v1/notes")
+                .then().statusCode(200)
+                .body("totalCount", org.hamcrest.Matchers.is(1))
+                .body("items[0].date", org.hamcrest.Matchers.equalTo(TODAY.toString()));
+
+        final String html = given().queryParam("q", "5k")
+            .get("/internal/notes/list")
+            .then().statusCode(200)
+            .extract().asString();
+
+        assertThat(html)
+            .as("the same case-insensitive term must select the same day on the web surface")
+            .contains(TODAY.toString())
+            .doesNotContain(TOMORROW.toString());
+    }
+
+    @Test
     void unownedAction_rejectedOnBothSurfaces() {
         final UUID unknown = UUID.randomUUID();
 

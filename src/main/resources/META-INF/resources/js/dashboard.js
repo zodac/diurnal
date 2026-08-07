@@ -976,7 +976,15 @@ document.addEventListener('DOMContentLoaded', function () {
             ensureNotes: function (dateStr) {
                 const y = parseInt(dateStr.substring(0, 4), 10)
                 const m = parseInt(dateStr.substring(5, 7), 10) - 1
-                if (monthNotesLoaded[monthKey(y, m)]) { return Promise.resolve() }
+                const key = monthKey(y, m)
+                if (monthNotesLoaded[key]) { return Promise.resolve() }
+                // A fetch for this month may already be IN FLIGHT — selecting a day in another month calls
+                // goToMonth (which starts one) immediately before the note box's own read. fetchNoteSpan
+                // dedupes against it and hands back nothing to wait on, so waiting must be on the pending
+                // promise itself: resolving straight away instead repaints the box from a cache that has not
+                // arrived, and nothing ever repaints it again — an empty note box on a day that has one.
+                const inFlight = notePromises[key]
+                if (inFlight) { return inFlight.then(function () { renderGrid() }) }
                 const p = fetchNoteSpan([[y, m]], false)
                 return p ? p.then(function () { renderGrid() }) : Promise.resolve()
             },
@@ -1109,15 +1117,28 @@ document.addEventListener('DOMContentLoaded', function () {
         }
     })
 
-    // Open the day panel immediately, without clicking the calendar. Restore the day chosen earlier this
-    // working session (retained per-tab via sessionStorage) if there is a valid one; otherwise fall back to
-    // today. The format guard is load-bearing: selectedDate is interpolated straight into the
-    // /internal/logs/day/<date> fetch URL, so only a well-formed ISO date is accepted. The regex uses \d\d… rather
-    // than \d{4} on purpose: Qute would read the {4}/{2} quantifiers as template expressions (see the
-    // brace-parsing note in CLAUDE.md) and corrupt the pattern.
+    // Open the day panel immediately, without clicking the calendar. An explicit ?date= in the URL wins —
+    // that is a deliberate request to land on a specific day, sent by a notes-page search result (/?date=…)
+    // so the note found there can be read beside the actions logged against it. With no such parameter,
+    // restore the day chosen earlier this working session (retained per-tab via sessionStorage); failing
+    // that, fall back to today. selectDay() then persists whichever was used, so the choice survives moving
+    // around the app exactly as a click on the calendar would.
+    // The format guard is load-bearing, and doubly so for the URL: selectedDate is interpolated straight
+    // into the /internal/logs/day/<date> fetch URL, so only a well-formed ISO date is accepted — anything
+    // else is ignored rather than sent. The regex uses \d\d… rather than \d{4} on purpose: Qute would read
+    // the {4}/{2} quantifiers as template expressions (see the brace-parsing note in CLAUDE.md) and corrupt
+    // the pattern.
     const ISO_DATE = /^\d\d\d\d-\d\d-\d\d$/
     let restoredDate = null
-    try { restoredDate = sessionStorage.getItem('diurnal.selectedDate') } catch (e) {}
+    try { restoredDate = new URLSearchParams(window.location.search).get('date') } catch (e) {}
+    if (ISO_DATE.test(restoredDate)) {
+        // Consume it: the deep link is a one-shot instruction, not a state the page should keep re-applying.
+        // Left in the address bar it would out-rank the session's own selection on every reload, so clicking
+        // around the calendar and refreshing would snap back to whatever day the search result named.
+        try { window.history.replaceState(null, '', window.location.pathname) } catch (e) {}
+    } else {
+        try { restoredDate = sessionStorage.getItem('diurnal.selectedDate') } catch (e) {}
+    }
 
     // The page already carries the server-rendered summary for the day it was rendered for (today), so seed
     // the cache with it: opening the dashboard on today then costs no summary request at all, and a

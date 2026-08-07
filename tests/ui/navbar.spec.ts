@@ -7,6 +7,7 @@ test.describe("Navbar — desktop", () => {
 
         await expect(page.locator('nav a:has-text("Dashboard")').first()).toBeVisible()
         await expect(page.locator('nav a:has-text("Actions")').first()).toBeVisible()
+        await expect(page.locator('nav a:has-text("Notes")').first()).toBeVisible()
         await expect(page.locator('nav a:has-text("Stats")').first()).toBeVisible()
 
         // Hamburger button should not be visible at desktop width
@@ -40,6 +41,7 @@ test.describe("Navbar — mobile", () => {
             .or(page.locator("nav").locator('[class*="flex-col"]').first())
         await expect(menu.locator('a:has-text("Dashboard")')).toBeVisible()
         await expect(menu.locator('a:has-text("Actions")')).toBeVisible()
+        await expect(menu.locator('a:has-text("Notes")')).toBeVisible()
         await expect(menu.locator('a:has-text("Stats")')).toBeVisible()
     })
 

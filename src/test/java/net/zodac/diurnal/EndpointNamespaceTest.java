@@ -60,6 +60,7 @@ class EndpointNamespaceTest {
         "/register",
         "/logout",
         "/actions",
+        "/notes",
         "/stats",
         "/settings",
         "/admin/users",

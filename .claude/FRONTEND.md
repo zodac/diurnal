@@ -183,6 +183,26 @@ family lives un-layered at the bottom of `app.css` beside `.d-*` and `.chart-*`.
   journal entry never carries across a logout. **No `beforeunload` prompt** — an earlier version raised the browser's
   confirmation on every in-app click and was replaced by retaining the work; the status line is the whole of the signal.
 
+### The notes page (`/notes`)
+
+The browse-and-search view over every note: `partials/search-input.html` (with the new `placeholder=`/`value=` params)
+over `partials/notes-list.html` in `#note-list`, swapped by `GET /internal/notes/list?q=&page=` on the shared 300ms
+debounce, with the usual `partials/pagination.html` footer carrying the encoded `&q=` and the `data-search-source`
+marker. No page-specific JavaScript at all — it is the standard list-page shape.
+
+- **The table is `.dt-table dt-table-fixed`** — the one table in the app that needs fixed layout. Every other data
+  table wants auto layout so a long value widens its column and scrolls, but a note is prose of arbitrary length, so
+  the `<colgroup>` proportions win and `.note-snippet` truncates inside its share (single line, ellipsis).
+- **The snippet is rendered from a LIST of parts**, never a marked-up string: `{#for part in row.snippet}` decides
+  where `<mark class="note-mark">` goes, so Qute still escapes every character of the note. **Never** render note text
+  with `.raw`.
+- **`--color-mark-bg`** is the highlight tint (translucent brand, a `.dark` twin, `color: inherit`) — a `<mark>`'s UA
+  default is black-on-yellow, which ignores the theme entirely. Deliberately NOT the user's `--note-colour`: an
+  arbitrary picked colour as a text background has no contrast guarantee.
+- **Each row's date links to `/?date=…`**. `dashboard.js` prefers that parameter over the `sessionStorage` restore and
+  then **consumes it with `history.replaceState`** — left in the address bar it would out-rank the session's own
+  selection on every reload. The same ISO-date format guard applies, since the value reaches fetch URLs.
+
 ### Calendar note markers & the split month cache
 
 A day with a note gets a **coloured day number** (`.d-note-day` on the shared `.d-min-cell`, so one rule covers all

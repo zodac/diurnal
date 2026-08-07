@@ -108,6 +108,31 @@ public class Note extends PanacheEntityBase {
     }
 
     /**
+     * Returns every one of the user's notes, <strong>latest first</strong> - the order the notes page lists them in, so the most recent writing is on
+     * page one. This is the whole journal in one read, which is what a search over sealed content costs: the content lives only in the ciphertext, so
+     * there is no predicate the database could filter on and the match has to be made on the opened text.
+     *
+     * @param userId the owning user
+     * @return the user's notes, most recent first
+     */
+    public static List<Note> findByUser(final UUID userId) {
+        return list("userId = ?1 order by noteDate desc", userId);
+    }
+
+    /**
+     * Returns the change-signature for the whole of a user's notes - the same validator as
+     * {@link #rangeVersion(UUID, LocalDate, LocalDate)} without a date window, for the list and search endpoints that are not bounded by one.
+     *
+     * @param userId the owning user
+     * @return the user's whole-history {@link ChangeSignature} (count {@code 0}, {@code null} timestamp when they have no notes)
+     */
+    public static ChangeSignature version(final UUID userId) {
+        return Panache.getEntityManager().createQuery(NoteQueries.ALL_VERSION_JPQL, ChangeSignature.class)
+            .setParameter("userId", userId)
+            .getSingleResult();
+    }
+
+    /**
      * Returns a cheap change-signature for the user's notes in the inclusive {@code [start, end]} date range — the row count paired with the latest
      * {@code updatedAt} — used as an HTTP conditional-request (ETag) validator so an unchanged range can be answered with a {@code 304} without
      * reading the notes. The signature changes on any insert, update or delete in the range (a delete lowers the count even when it does not move the

@@ -37,6 +37,16 @@ final class NoteQueries {
             WHERE n.userId = :userId AND n.noteDate >= :from AND n.noteDate <= :to""";
 
     /**
+     * JPQL producing the same change-signature as {@link #RANGE_VERSION_JPQL} over the user's <strong>whole</strong> history, for the notes list and
+     * search - which are not bounded by a date range, so there is no {@code [:from, :to]} to pin them to. Written as its own query rather than
+     * calling the ranged one with sentinel dates, so no bound has to be invented that a real {@code note_date} could one day sit outside.
+     */
+    static final String ALL_VERSION_JPQL = """
+            SELECT new net.zodac.diurnal.http.ChangeSignature(COUNT(n), MAX(n.updatedAt))
+            FROM Note n
+            WHERE n.userId = :userId""";
+
+    /**
      * JPQL rolling the user's notes up into one {@link net.zodac.diurnal.log.MonthlyActionTotal} per calendar month - the same projection the Stats
      * page already consumes for an action, so the notes subject flows through the identical assembly with no parallel code path. The subject id is
      * bound as a parameter ({@code StatSubject.NOTES_ID}) rather than selected from a column, because notes have no per-subject row.

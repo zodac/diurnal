@@ -11,6 +11,7 @@
 {#let showTips=showTips.or(false)}
 <a href="/" class="group relative {#if active == 'dashboard'}nav-link-active{#else}nav-link{/if}">Dashboard{#if showTips}{#include partials/tooltip text="Calendar and daily log" pos="bottom" align="left" /}{/if}</a>
 <a href="/actions" class="group relative {#if active == 'actions'}nav-link-active{#else}nav-link{/if}">Actions{#if showTips}{#include partials/tooltip text="Create and manage your habits" pos="bottom" /}{/if}</a>
+<a href="/notes" class="group relative {#if active == 'notes'}nav-link-active{#else}nav-link{/if}">Notes{#if showTips}{#include partials/tooltip text="Search everything you've written" pos="bottom" /}{/if}</a>
 <a href="/stats" class="group relative {#if active == 'stats'}nav-link-active{#else}nav-link{/if}">Stats{#if showTips}{#include partials/tooltip text="Streaks and trends for your habits" pos="bottom" /}{/if}</a>
 {#if isAdmin}<a href="/admin/users" class="group relative {#if active == 'admin'}nav-link-active{#else}nav-link{/if}">Admin{#if showTips}{#include partials/tooltip text="Manage users" pos="bottom" /}{/if}</a>{/if}
 {#if isAdmin}<a href="/admin/api-docs" class="group relative {#if active == 'api'}nav-link-active{#else}nav-link{/if}">API{#if showTips}{#include partials/tooltip text="Swagger API documentation" pos="bottom" /}{/if}</a>{/if}

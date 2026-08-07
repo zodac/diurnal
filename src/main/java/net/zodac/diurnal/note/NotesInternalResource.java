@@ -17,11 +17,14 @@
 
 package net.zodac.diurnal.note;
 
+import io.quarkus.qute.Location;
+import io.quarkus.qute.Template;
 import io.quarkus.vertx.http.Compressed;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import jakarta.ws.rs.Consumes;
+import jakarta.ws.rs.DefaultValue;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
 import jakarta.ws.rs.Path;
@@ -35,6 +38,7 @@ import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.log.DateRanges;
@@ -48,8 +52,9 @@ import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The web UI's internal endpoints for notes: the dashboard's date-range feed, plus the save and clear the note box posts to. It is web-UI plumbing,
- * not part of the public API — that is {@link NotesApiResource}, which shares the same {@link NoteService} so the write rules cannot diverge.
+ * The web UI's internal endpoints for notes: the dashboard's date-range feed, the notes page's search/pagination list fragment, plus the save and
+ * clear the note box posts to. It is web-UI plumbing, not part of the public API — that is {@link NotesApiResource}, which shares the same
+ * {@link NoteService} so the write and search rules cannot diverge.
  *
  * <p>
  * The feed answers a map of {@code date -> content} covering only the days that HAVE a note, which the dashboard merges into the same per-month cache
@@ -75,17 +80,21 @@ public class NotesInternalResource {
     // Not on Response.Status in this JAX-RS version, and the same literal the settings endpoints already answer text rejections with.
     private static final int UNPROCESSABLE_ENTITY = 422;
 
+    private final Template notesListTemplate;
     private final CurrentUser currentUser;
     private final NoteService noteService;
 
     /**
-     * Injects the current-user accessor and the shared note service.
+     * Injects the notes-list partial template, current-user accessor and the shared note service.
      *
-     * @param currentUser the current-user accessor
-     * @param noteService the shared note-mutation service
+     * @param notesListTemplate the notes-page list partial
+     * @param currentUser       the current-user accessor
+     * @param noteService       the shared note-mutation service
      */
     @Inject
-    public NotesInternalResource(final CurrentUser currentUser, final NoteService noteService) {
+    public NotesInternalResource(@Location("partials/notes-list") final Template notesListTemplate, final CurrentUser currentUser,
+        final NoteService noteService) {
+        this.notesListTemplate = notesListTemplate;
         this.currentUser = currentUser;
         this.noteService = noteService;
     }
@@ -123,6 +132,27 @@ public class NotesInternalResource {
         // The COUNT only, never a note's content - see NoteService's logging rule.
         LOGGER.debug("Notes feed served {} note(s) in [{}, {}] for user {}", byDate.size(), startDate, endDate, user.email);
         return EntityTags.withValidator(Response.ok(byDate), tag).build();
+    }
+
+    /**
+     * Returns the notes-page list partial - one page of the user's notes, filtered by the search term - for the HTMX swap behind the search box and
+     * the pagination links.
+     *
+     * @param searchTerm the optional case-insensitive content filter
+     * @param pageNum    the 1-based page to render (clamped into range)
+     * @return the rendered list partial
+     */
+    @GET
+    @Path("list")
+    @Produces(MediaType.TEXT_HTML)
+    public Response notesList(
+        @QueryParam("q") @DefaultValue("") final String searchTerm,
+        @QueryParam("page") @DefaultValue("1") final int pageNum) {
+
+        final User user = currentUser.get();
+        final List<NoteHit> hits = noteService.search(user.id, searchTerm, Note.findByUser(user.id));
+        final PaginatedNotes page = NotePages.of(hits, searchTerm.strip(), pageNum, user.pageSize);
+        return Response.ok(notesListTemplate.data("page", page, "extraQuery", NotePages.extraQuery(searchTerm))).build();
     }
 
     /**

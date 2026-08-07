@@ -1,0 +1,47 @@
+{!
+  The notes data table (header + rows + pagination). Rendered on the full page (inside #note-list)
+  and returned wholesale by GET /internal/notes/list for HTMX swaps.
+  Params: page (PaginatedNotes), extraQuery (pre-encoded "&q=..." or "").
+
+  Every row is a link to the dashboard on that day (/?date=…) rather than an expander: the day is
+  the unit the app is built around, and the dashboard already shows the note in full beside the
+  actions logged against it, so following a result lands somewhere richer than expanding here.
+
+  The snippet is a LIST of parts, not a marked-up string, so Qute still escapes every character of
+  the note on the way out — {part.text} is escaped exactly like any other user value, and this
+  template (not the server's string building) decides where the <mark> goes. Never render a note's
+  text with {part.text.raw}.
+!}
+<div class="overflow-x-auto">
+<table class="dt-table dt-table-fixed">
+    <colgroup>
+        <col style="width: 16rem">
+        <col>
+    </colgroup>
+    <thead>
+        <tr>
+            <th class="dt-head-cell dt-text-inset">Date</th>
+            <th class="dt-head-cell">Note</th>
+        </tr>
+    </thead>
+    <tbody id="notes-tbody" class="dt-tbody">
+        {#for row in page.items}
+        <tr class="note-row">
+            <td class="dt-cell dt-text-inset whitespace-nowrap">
+                <a href="/?date={row.date}" class="note-row-link">{row.dayLabel}</a>
+            </td>
+            <td class="dt-cell note-snippet">
+                {#for part in row.snippet}{#if part.highlighted}<mark class="note-mark">{part.text}</mark>{#else}{part.text}{/if}{/for}
+            </td>
+        </tr>
+        {/for}
+        {#if page.items.isEmpty()}
+        <tr id="notes-empty-row">
+            <td colspan="2" class="dt-empty">{#if extraQuery}No notes match your search.{#else}No notes yet — write one on the dashboard.{/if}</td>
+        </tr>
+        {/if}
+    </tbody>
+</table>
+</div>
+
+{#include partials/pagination page=page pageUrl="/notes" listUrl="/internal/notes/list" target="#note-list" extraQuery=extraQuery alwaysShow=true borderless=false /}

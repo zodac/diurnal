@@ -65,7 +65,7 @@ longest streaks, weekly averages, month-over-month trends, and more.
 
 - **User-defined actions**: Define any habit/activities you want to track, each with its own name and colour
 - **Daily logging**: Log the occurrences of an action for a day
-- **Notes**: Write a free-text note or journal entry against any day, including future ones
+- **Notes**: Write a free-text note or journal entry against any day, including future ones, and search back through them all
 - **Calendar views**: Your whole history on a calendar, with a choice of different styles
 - **Statistics**: Streaks, totals, averages and trends per action, with the tiles you care about in the order you want them
 - **Mobile view**: Styled for both web browser and mobile usage
@@ -93,6 +93,12 @@ Notes are saved explicitly: **Save** commits, **Undo** discards an unsaved edit,
 writing (leaving the emptied note for you to Save or Undo, so no single click is destructive). Clearing a note and
 saving removes it — an empty note is no note. The box can be dragged larger from its right edge, its bottom edge or its
 corner; the size is kept while you move between dates and resets when you leave the page.
+
+The **Notes** page lists everything you have written, most recent first, with a search box over it. Searching matches
+the text of your notes, case-insensitively, and each result shows the day it was written on beside the part of the note
+that matched; opening a result takes you to that day on the dashboard, where the note sits beside the actions you
+logged. Your notes are encrypted at rest, so the search happens in the app rather than in the database — see
+[Notes Encryption](#notes-encryption).
 
 A day that has a note is marked on the calendar with a **coloured day number**, in every calendar style. The colour is
 yours to choose in [Settings](#appearance) - it defaults to green, and is used for the calendar marker and for the Notes

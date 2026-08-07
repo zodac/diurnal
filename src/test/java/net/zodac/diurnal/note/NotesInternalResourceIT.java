@@ -195,4 +195,84 @@ class NotesInternalResourceIT extends IntegrationTestBase {
         given().post(DAY_PATH + "/delete")
             .then().statusCode(200);
     }
+
+    // ── the notes-page list ───────────────────────────────────────────────────
+
+    @Test
+    void list_returnsEveryNote_latestFirst() {
+        runInTx(() -> {
+            newNote(userId, DAY.minusDays(2), "Two days back");
+            newNote(userId, DAY, "Today");
+        });
+
+        final String html = given().get("/internal/notes/list")
+            .then().statusCode(200)
+            .extract().asString();
+
+        assertThat(html.indexOf("Today")).as("both notes must be listed").isNotNegative();
+        assertThat(html.indexOf(DAY.toString()))
+            .as("the newest note must be rendered before the older one")
+            .isLessThan(html.indexOf(DAY.minusDays(2).toString()));
+    }
+
+    @Test
+    void list_filtersToTheSearchTermAndMarksTheMatch() {
+        runInTx(() -> {
+            newNote(userId, DAY.minusDays(1), "Swam at the pool");
+            newNote(userId, DAY, "Ran a 5k before work");
+        });
+
+        final String html = given().queryParam("q", "5k")
+            .get("/internal/notes/list")
+            .then().statusCode(200)
+            .extract().asString();
+
+        assertThat(html)
+            .as("the matching note's day must be listed, with the matched run wrapped for highlighting")
+            .contains(DAY.toString())
+            .contains("<mark class=\"note-mark\">5k</mark>");
+        assertThat(html)
+            .as("the non-matching note must be filtered out")
+            .doesNotContain(DAY.minusDays(1).toString());
+    }
+
+    @Test
+    void list_withNoMatches_rendersTheSearchEmptyState() {
+        runInTx(() -> newNote(userId, DAY, "Ran a 5k"));
+
+        assertThat(given().queryParam("q", "cycling").get("/internal/notes/list").then().statusCode(200).extract().asString())
+            .as("a search matching nothing must say so, rather than showing the 'no notes yet' copy")
+            .contains("No notes match your search.");
+    }
+
+    @Test
+    void list_withNoNotesAtAll_rendersTheEmptyState() {
+        assertThat(given().get("/internal/notes/list").then().statusCode(200).extract().asString())
+            .as("an account with no notes must be pointed at where a note is written")
+            .contains("No notes yet");
+    }
+
+    @Test
+    void list_escapesNoteContentRatherThanRenderingIt() {
+        // A note is stored verbatim, including markup, and is made safe where it is RENDERED. The snippet is built as a list of parts precisely so
+        // this escaping still applies to every character of it.
+        runInTx(() -> newNote(userId, DAY, "<script>alert(1)</script>"));
+
+        assertThat(given().get("/internal/notes/list").then().statusCode(200).extract().asString())
+            .as("note content must be escaped in the list, never rendered as markup")
+            .doesNotContain("<script>alert(1)</script>")
+            .contains("&lt;script&gt;");
+    }
+
+    @Test
+    void list_neverShowsAnotherUsersNotes() {
+        final UUID[] otherId = new UUID[1];
+        runInTx(() -> otherId[0] = newUser("notes-internal-other@lt.test", "Other").id);
+        runInTx(() -> newNote(otherId[0], DAY, "Someone else's private entry"));
+
+        assertThat(given().get("/internal/notes/list").then().statusCode(200).extract().asString())
+            .as("the list is scoped to the acting user")
+            .doesNotContain("Someone else's private entry")
+            .contains("No notes yet");
+    }
 }
