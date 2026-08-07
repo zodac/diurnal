@@ -42,6 +42,11 @@ import net.zodac.diurnal.user.User;
  * here: with an empty box it lists everything, and typing narrows it.
  *
  * <p>
+ * The box is <strong>disabled</strong> for an account that has written no note at all. The page is nothing but a view over the journal, so there is
+ * nothing a term could match, and an inert box says that up front rather than answering every keystroke with "no matches". Nothing on this page
+ * writes a note, so the state is settled once at render time, off the unfiltered list this render has already loaded - it costs no extra query.
+ *
+ * <p>
  * A result links to {@code /?date=…} rather than expanding in place. The day is the unit the whole application is built around, and the dashboard
  * already shows a note in full beside the actions logged against that day and the calendar around it - so following a result lands somewhere richer
  * than any amount of expansion here could be, and needs no second way of rendering a note.
@@ -87,7 +92,8 @@ public class NotesWebResource {
         @QueryParam("page") @DefaultValue("1") final int pageNum) {
 
         final User user = currentUser.get();
-        final List<NoteHit> hits = noteService.search(user.id, searchTerm, Note.findByUser(user.id));
+        final List<Note> notes = Note.findByUser(user.id);
+        final List<NoteHit> hits = noteService.search(user.id, searchTerm, notes);
         final PaginatedNotes page = NotePages.of(hits, searchTerm.strip(), pageNum, user.pageSize);
 
         return notesTemplate
@@ -95,6 +101,7 @@ public class NotesWebResource {
             .data("email", user.email)
             .data("isAdmin", user.isAdmin())
             .data("page", page)
+            .data("searchDisabled", notes.isEmpty())
             .data("searchTerm", searchTerm)
             .data("extraQuery", NotePages.extraQuery(searchTerm))
             .data("theme", user.theme)

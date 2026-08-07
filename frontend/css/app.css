@@ -605,6 +605,10 @@
            bg-white dark:bg-gray-700 text-ink
            focus:outline-hidden focus:ring-2 focus:ring-brand-ring focus:border-transparent;
   }
+  /* Disabled state (the /notes search box for an account with no notes to search): greyed and inert.
+     Unlike .btn-primary:disabled there is no pointer-events-none — a disabled input has no hover state
+     to suppress, and suppressing pointer events would take the not-allowed cursor with it. */
+  .form-input:disabled { @apply opacity-50 cursor-not-allowed; }
   /* Settings-style select. `max-w-full` + `min-w-0` keep it bounded on narrow screens: a <select>'s
      intrinsic width is its WIDEST <option> (e.g. long timezone names), so without these it overruns
      its container on mobile. Its flex wrapper must also be allowed to shrink (`min-w-0` on the wrapper)

@@ -10,10 +10,12 @@
     placeholder — the input's placeholder text                                     (optional, default "Search…")
     value  — the initial value, for a page rendered with a search term already in the URL
              (the notes page, whose ?q= survives a reload/bookmark)                (optional, default "")
-  The two optional params are defaulted with `.or(...)` because Qute is strict: a bare {placeholder}
+    disabled — renders the box inert, for a list with nothing in it to search yet
+             (the notes page for an account that has written no note)              (optional, default false)
+  The three optional params are defaulted with `.or(...)` because Qute is strict: a bare {placeholder}
   on a caller that doesn't pass the key throws "Key not found" at render time.
 !}
-{#let placeholder=placeholder.or('Search…') value=value.or('')}
+{#let placeholder=placeholder.or('Search…') value=value.or('') disabled=disabled.or(false)}
 <div class="mb-4">
     <input type="text"
            id="{id}"
@@ -24,6 +26,6 @@
            hx-target="{target}"
            hx-trigger="input changed delay:300ms"
            data-search-source="{id}"
-           class="form-input w-full">
+           class="form-input w-full"{#if disabled} disabled{/if}>
 </div>
 {/let}
