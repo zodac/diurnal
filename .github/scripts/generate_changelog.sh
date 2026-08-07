@@ -40,6 +40,15 @@ git log "${log_range}" --pretty=format:"%h %s" | while read -r commit_hash subje
             ;;
     esac
 
+    # The release automation's own version bump (bump_version.sh commits "[CI] Prepare next version:
+    # <version>") says nothing to a reader of the release notes, and one lands in every single release.
+    # Matched on the message rather than the full subject so a hand-made bump without the "[CI]" prefix
+    # is dropped too.
+    case "${message}" in
+        "Prepare next version: "*) continue ;;
+        *) ;;
+    esac
+
     # Commits with no (or an unparseable) "[Category]" prefix are grouped rather than silently dropped.
     [ -z "${category}" ] && category="${UNCATEGORISED}"
 
