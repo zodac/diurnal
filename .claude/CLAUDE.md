@@ -10,6 +10,11 @@
 > conventions in [`TESTING.md`](TESTING.md); the shared free-text validation pipeline in
 > [`TEXT_INPUT.md`](TEXT_INPUT.md).
 
+> **The per-user data export/import** (the ZIP of CSVs, the replace-everything import and its preview, the Settings
+> "Data" card) is documented in [`TRANSFER.md`](TRANSFER.md) — the file format, the decisions taken *with the rejected
+> alternatives*, and the untrusted-input rules. **Read it before touching `net.zodac.diurnal.transfer`,
+> `NoteService.replaceAll`, or the Settings Data card.**
+
 > **The per-date free-text notes feature** (the note box, the calendar's green day markers, notes as a stats subject)
 > is documented in [`NOTES.md`](NOTES.md) — design, the decisions taken *with the rejected alternatives*, and the
 > implementation history. **Read it before touching `net.zodac.diurnal.note`, the dashboard layout/grid, the calendar's
@@ -145,6 +150,7 @@ Under `src/main/java/net/zodac/diurnal/`:
 | `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings) + the `/internal/settings/*` preference endpoints; `AdminWebResource` (admin pages) + `AdminUsersInternalResource` (`/internal/admin/users` fragments) + `AppInfo` (footer/template metadata bean)                         |
 | `colour` | `Colours` - the rules every user-chosen colour obeys: the `#rrggbb` format check, the HSL-to-hex conversion, and the lightening that makes a colour readable on a background (the calendar's brand-filled "today" cell). Shared by `action` and `user`                                                    |
 | `crypto` | The encryption primitives, all pure statics with no persistence or request state: `Aes256Gcm` (AEAD seal/open, IV-prefixed), `Hkdf` (RFC 5869 over HMAC-SHA-256, for domain separation), `DataKeyEnvelope` (wrap/unwrap a user's data key under the application master key) and `MasterKey` (decode/validate the configured value). Used by `note`                     |
+| `transfer` | The per-user data export/import: `Csv` (RFC 4180 read/write) + `TransferArchive` (ZIP pack/unpack with zip-bomb caps) + `TransferFiles` (the three members and their headers) + `ImportParser`/`ParseOutcome` (the pure parse+validate) + the `ImportPlan`/`ActionDraft`/`LogDraft`/`NoteDraft`/`ImportProblem`/`ImportSummary` records (+ `ImportSummaryExtensions`) + `ExportService` + `ImportService`/`ImportResult` (the single owner of the import) + `TransferApiResource` (`/api/v1/data/*`) + `TransferInternalResource` (`/internal/data/*`). See [`TRANSFER.md`](TRANSFER.md) |
 | `update` | `UpdateCheckService` (admin-only footer "newer version available" check) + `UpdateCheck` (pure version/URL logic) + `UpdateStatus`/`UpdateAvailability` + `LatestReleaseClient`/`GitHubLatestReleaseClient` (the outbound GitHub-release lookup seam)                                                               |
 
 ### API namespaces (the rule for every new endpoint)
@@ -305,6 +311,17 @@ height.
   new statistics code. The notes subject's colour is the user's own `noteColour` preference (`StatSubject.notes(colour)`),
   resolved from the same `User` read that resolves "today".
 - Actions are hard-deleted along with their logs when an action is deleted (no soft-delete/archive).
+- **A data import REPLACES everything and is all-or-nothing.** `ImportService` removes every action, day count and
+  note the account holds and writes the archive's contents in their place; if ANY row is refused, nothing at all is
+  written (a partial commit would delete the data the refused rows were the replacement for). The preview is the
+  same code path with the write left off, and is **stateless** — the browser re-sends the file to confirm, so no
+  journal is ever staged server-side. Every row obeys the rules that already exist (`TextFields.ACTION_NAME`/`NOTE`,
+  `Colours.isInvalidHex`, `ActionLog.MAX_DAILY_COUNT`, `LogGuards.isFuture`) and is **rejected, never coerced** — a
+  count of 1500 is refused rather than clamped, because a file of ten thousand rows cannot afford a silent
+  correction nobody is watching. **The exported archive holds note content in the CLEAR** (encryption is at rest;
+  an export necessarily opens them), which is why `transfer` joins `note`/`crypto` in
+  `SecretsStayOutOfLogsTest.GUARDED_PACKAGES` and why no rejection message may quote note content. Notes are written
+  back only through `NoteService.replaceAll`, the one thing that can seal them. See [`TRANSFER.md`](TRANSFER.md).
 - **All date-boundary "now"/"today" goes through `AppClock`** (`@ApplicationScoped`). Business logic calls `clock.today()`/`clock.zone()`. Entity
   audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`) use `Instant.now()` directly (zone-independent, not date-boundary sensitive).
 - `app.timezone` (default `UTC`) feeds `AppClock`; must match `TZ` in `docker-compose.yml`.

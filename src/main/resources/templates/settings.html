@@ -375,6 +375,53 @@
                         endpoint='/internal/settings' min=1 max=100 value=pageSize options=pageSizeOptions
                         stepper=true minusLabel='Fewer items per page' plusLabel='More items per page' border=false /}
                 </div>
+
+                {! Data (export / import). Left column per the "first free vertical slot" rule above —
+                     the right column already carries the two tall pickers. order-last drops it below
+                     Appearance on mobile; lg:order-none restores desktop order. !}
+                <div id="settings-data" class="card p-4 order-last lg:order-none">
+                    {#include partials/card-header title='User Data'
+                        help='Backup your data' /}
+
+                    <div class="space-y-4">
+                        {! Export. A plain link to the PUBLIC endpoint, not an /internal twin: a cookie is
+                             accepted on /api/v1 and the bytes are identical on both surfaces, so a second
+                             endpoint would duplicate the export rather than plumb it (see
+                             TransferInternalResource). !}
+                        <div class="flex items-center justify-between gap-3">
+                            <div class="min-w-0">
+                                <p class="text-sm font-medium text-ink">Export</p>
+                                {! Stated plainly, because it is true and the user is about to put the file
+                                     somewhere: notes are encrypted in the database, and a download of them
+                                     cannot be. !}
+                                <p class="help-text mt-0.5">
+                                    A ZIP holding CSV files of your data.
+                                </p>
+                            </div>
+                            {! shrink-0 + whitespace-nowrap keep the label on one line; the help text
+                                 beside it carries min-w-0 so IT absorbs the width instead. !}
+                            <a id="data-export-link" href="/api/v1/data/export" download
+                               class="btn-primary text-xs px-3 py-1.5 shrink-0 whitespace-nowrap">Export User Data</a>
+                        </div>
+
+                        {! Import. The file is never submitted by the input itself — settings.js reads it and
+                             posts the raw bytes, first to the preview and then, only if the user confirms, to
+                             the import. !}
+                        <div class="pt-4 border-t border-line">
+                            <p class="text-sm font-medium text-ink">Import</p>
+                            <p class="help-text mt-0.5">
+                                Restores an exported archive. This <strong class="text-ink">replaces</strong> everything
+                                for your user.
+                            </p>
+                            {! .file-input gives the browser's own "Choose file" button the same brand
+                                 surface as the Export button above (see app.css). !}
+                            <input type="file" id="data-import-file" accept=".zip,application/zip"
+                                   aria-label="Choose an export archive to import"
+                                   class="file-input mt-3 block w-full text-sm text-ink-muted">
+                            {#include partials/import-panel /}
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {! Right column on desktop (Appearance, then Statistics below it); on mobile

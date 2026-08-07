@@ -85,28 +85,9 @@ time, set an exact count, or erase the day entirely.
 
 ### Notes
 
-Alongside the daily log, each day can carry a **note** — a free-text entry of up to 10,000 characters, written from the
-box beneath the action logger on the dashboard. Unlike logging an action, a note can be written for **any** date,
-including one that has not arrived yet, so a day can be planned ahead as well as recorded.
-
-Notes are saved explicitly: **Save** commits, **Undo** discards an unsaved edit, and **Clear** empties the box without
-writing (leaving the emptied note for you to Save or Undo, so no single click is destructive). Clearing a note and
-saving removes it — an empty note is no note. The box can be dragged larger from its right edge, its bottom edge or its
-corner; the size is kept while you move between dates and resets when you leave the page.
-
-The **Notes** page lists everything you have written, most recent first, with a search box over it. Searching matches
-the text of your notes, case-insensitively, and each result shows the day it was written on beside the part of the note
-that matched; opening a result takes you to that day on the dashboard, where the note sits beside the actions you
-logged. Your notes are encrypted at rest, so the search happens in the app rather than in the database — see
-[Notes Encryption](#notes-encryption).
-
-A day that has a note is marked on the calendar with a **coloured day number**, in every calendar style. The colour is
-yours to choose in [Settings](#appearance) - it defaults to green, and is used for the calendar marker and for the Notes
-card and graph on the Stats page alike. On today's cell, whose number sits on a solid brand-coloured fill, the app draws
-a lightened shade of your colour so the marker stays legible whichever colour you pick.
-
-Your notes are also a **statistics subject in their own right**, pinned first on the Stats page with the same tiles an
-action gets - streaks, gaps, totals, best month - so a writing habit is tracked exactly like any other.
+Alongside the daily log, each day can carry a **note**, a free-text entry of up to 10,000 characters. Unlike logging an action, a note can be written
+for any date, including ones in the future. The **Notes** page lists everything you have written, (most recent first) with the ability to search your
+notes.
 
 <!-- markdownlint-disable MD013 MD033 -- centered note-box screenshot: intentional inline HTML -->
 <p align="center">
@@ -120,11 +101,6 @@ action gets - streaks, gaps, totals, best month - so a writing habit is tracked 
 <img src="docs/screenshots/stats-notes-dark.webp" alt="The Notes card on the Stats page, showing streaks, gaps and totals" width="320">
 
 </details>
-
-**Your notes are encrypted before they are stored.** Every note is sealed with a key belonging to your account, so a copy
-of the database on its own - a backup, a dump, a stolen disk - contains nothing readable. This needs nothing from you:
-there is no passphrase and no unlock step. It is worth knowing what it does and does not cover, and there is one thing the
-person running the server has to get right, so see [Notes Encryption](#notes-encryption) for both.
 
 ### Calendar Views
 
@@ -154,13 +130,12 @@ Every action gets a full set of statistics, including
 
 These can be enabled/disabled or re-ordered in user settings (see [Statistics](#statistics) below).
 
-Your **notes** are treated as a subject in their own right: they get the same set of tiles as an action (streaks, gaps,
-totals, averages, best month and so on), shown first on the page. One note counts as one occurrence on its day, so a
-notes card's total count always matches its number of days.
+Your **notes** are treated as a subject in their own right: they get the same set of tiles as an action (streaks, gaps, totals, averages, and so on),
+shown first on the page.
 
 Each subject also has a **frequency graph**, opened from the chart icon on its card: a bar per day over a month, or a bar per month over a year, with
 the exact figures on hover. Up to three subjects can be charted together with **Compare to...**, all scaled against a single peak so they read against
-each other directly — including notes compared against an action.
+each other directly, including notes compared against an action.
 
 |                                                    Stats page                                                     |                                                         Frequency graph                                                          |
 |:-----------------------------------------------------------------------------------------------------------------:|:--------------------------------------------------------------------------------------------------------------------------------:|
@@ -231,10 +206,10 @@ sensible default.
 
 ### Required
 
-| Variable                | Description                                                                                              |
-|-------------------------|----------------------------------------------------------------------------------------------------------|
-| `DB_PASSWORD`           | PostgreSQL password (must match the password on the database container)                                  |
-| `NOTE_ENCRYPTION_KEY`   | Key your notes are encrypted with; see [Notes Encryption](#notes-encryption). Losing it loses every note |
+| Variable                | Description                                                                  |
+|-------------------------|------------------------------------------------------------------------------|
+| `DB_PASSWORD`           | PostgreSQL password (must match the password on the database container)      |
+| `NOTE_ENCRYPTION_KEY`   | The key notes are encrypted with (see [Notes Encryption](#notes-encryption)) |
 
 ### Database
 
@@ -255,42 +230,18 @@ sensible default.
 
 ### Notes Encryption
 
-Your [notes](#notes) are **encrypted before they are stored**. Nothing is asked of you to make that happen: there is no
-passphrase to set, no unlock step, and nothing about it appears anywhere in the app.
-
-Each account gets its own randomly-generated key when it is created, and every note is sealed under that key. The account
-keys are themselves stored only in encrypted form, protected by `NOTE_ENCRYPTION_KEY` - which lives in your
-configuration and **deliberately never in the database**.
-
-**What that buys you:** a stolen database dump, a nightly backup, a read replica or a restored disk image contains
-nothing but ciphertext. Reading a single note requires the database *and* the environment file, which are lost to
-different accidents.
-
-**What it does not:** anyone with access to the running server has both, and can read notes. This is encryption *at
-rest*, protecting you against losing the database - it is not end-to-end encryption, and it does not hide your notes from
-whoever administers the instance. (If that is you, on your own hardware, this is exactly the protection you want.)
+Your [notes](#notes) are **encrypted before they are stored**. Each account gets its own randomly-generated key when it is created, and every note is
+sealed under that key. The account keys are themselves stored only in encrypted form, protected by `NOTE_ENCRYPTION_KEY`.
 
 | Variable                          | Default   | Description                                                                                  |
 |-----------------------------------|-----------|----------------------------------------------------------------------------------------------|
 | `NOTE_ENCRYPTION_KEY`             |           | **Required.** Base64, decoding to 32 bytes. Generate with `openssl rand -base64 32`          |
 | `NOTE_ENCRYPTION_PREVIOUS_KEYS`   |           | Comma-separated retired keys, set only while [rotating](#rotating-the-key)                   |
 
-Diurnal **refuses to start** rather than run in a state where notes are quietly unreadable. It will not boot if the key is
-missing or malformed, and it will not boot if a well-formed key does not actually open the data already in the database -
-because a wrong key would otherwise start cleanly and make every note silently vanish from the interface while the rows
-sat untouched in the table.
-
 #### Rotating the Key
 
-**Why you might want to.** A key is worth replacing whenever it may have been seen by someone who should not have it:
-
-- It was committed to source control, pasted into a chat or a ticket, or left in a shell history or CI log
-- The `.env` file was copied somewhere less private - a shared drive, an unencrypted backup, a support bundle
-- Someone with server access left, or the machine changed hands
-- The value was not generated randomly (reused from another service, or typed by hand)
-- Your own policy simply says to roll secrets periodically
-
-**How.** Put the new key in `NOTE_ENCRYPTION_KEY`, move the old one into `NOTE_ENCRYPTION_PREVIOUS_KEYS`, and restart:
+If you choose to rotate your key, generate a new one, and put the new key in `NOTE_ENCRYPTION_KEY`. Then copy the old one into
+`NOTE_ENCRYPTION_PREVIOUS_KEYS`, and restart:
 
 ```yaml
 environment:
@@ -298,25 +249,8 @@ environment:
   NOTE_ENCRYPTION_PREVIOUS_KEYS: <the old key>
 ```
 
-On start, every account key that no longer opens under the new key is re-encrypted with it. **No note is rewritten** -
-only the small amount of key material around it - so this takes the same moment whether you have ten notes or ten years
-of them. Once it has run, clear `NOTE_ENCRYPTION_PREVIOUS_KEYS` and restart again.
-
-**What to watch for:**
-
-- **Check the log line.** A successful rotation logs `Notes encryption key rotated: N account(s)`. `N` should match your
-  number of accounts. No line at all means there was nothing to do - usually the sign that the old key was not actually
-  the one in use.
-- **If it refuses to start**, the pair of keys you have configured does not include the one the data was written under.
-  Find the real old key. Do **not** clear the `notes` and `user_notes_keys` tables to get past it - that is the "throw
-  every note away" option, and the error says so precisely because it is irreversible.
-- **Keep the old key for as long as you keep backups made with it.** This is the one that catches people out: a database
-  backup taken *before* the rotation is still encrypted with the *old* key, so restoring it needs that key, not the new
-  one. Retire an old key only once every backup it applies to has aged out.
-- **Leaving `NOTE_ENCRYPTION_PREVIOUS_KEYS` set is harmless** - a restart with nothing to rotate does nothing at all -
-  but it does mean a retired key is still sitting in your configuration, which rather defeats the point of rotating.
-  Clear it once the rotation has run.
-- **Running more than one instance?** Do not clear the previous key until every one of them has started at least once.
+On start, every account key that no longer opens under the new key is re-encrypted with it (no notes are rewritten). Once this has run,
+clear `NOTE_ENCRYPTION_PREVIOUS_KEYS` and restart again.
 
 ### Authentication
 
@@ -528,14 +462,9 @@ Every free-text value you type - an action name, your display name, a renamed st
 same validation, whether you enter it in the app or through the [REST API](#rest-api). Nothing is silently truncated or rewritten: a value is either
 accepted as typed, tidied in a way you can see, or rejected with a message explaining what is wrong.
 
-Before a value is checked it is **tidied**: control characters and every kind of space (including the no-break and ideographic spaces that are easy to
-paste in by accident) become ordinary spaces, runs of spaces collapse to one, leading and trailing spaces are removed, and accented characters are
-stored in their standard composed form so two names that look identical are treated as identical. What is stored is what you see. Passwords are the one
-exception - they are used exactly as typed, spaces and all, and none of the restrictions below apply to them.
-
-A **note** is the one value that may span several lines, so its line breaks are kept where every other field folds them
-into a space. The tidying is otherwise identical: line endings are unified, each line has its trailing spaces removed,
-and a run of blank lines is condensed to one - so a note reads back exactly as it looked when you wrote it.
+A **note** is the one value that may span several lines, so its line breaks are kept where every other field folds them into a space. The parsing is
+otherwise identical: line endings are unified, each line has its trailing spaces removed, and a run of blank lines is condensed to one, so a note
+reads back exactly as it looked when you wrote it.
 
 ### Length Limits
 
@@ -571,7 +500,7 @@ A value is rejected, with a message, if it contains:
 - **Invisible characters** - zero-width spaces, the byte-order mark, soft hyphens, word joiners, tag characters, unpaired surrogates and private-use
   characters. These render as nothing, which means two different names could look completely identical on screen (`admin` and `ad<zero-width>min`) -
   so one could be used to impersonate the other, and the duplicate-name check could not catch it. The two zero-width **joiners** are the exception,
-  because they are real spelling rather than a trick - they hold multi-part emoji together, and are mandatory in Persian, Urdu and Pashto - so they
+  because they are real spelling rather than a trick - they hold multipart emoji together, and are mandatory in Persian, Urdu and Pashto - so they
   are accepted between two characters, and rejected anywhere they are joining nothing.
 - **Characters that are invisible despite being letters** - the Hangul fillers, the Khmer inherent vowels and the blank Braille pattern. These are the
   characters behind the "blank name" trick, and a name made only of them would appear completely empty.

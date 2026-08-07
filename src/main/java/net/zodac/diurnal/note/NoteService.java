@@ -204,6 +204,53 @@ public class NoteService {
     }
 
     /**
+     * Replaces the user's ENTIRE journal with the given notes: every existing note is removed, and each supplied day is written in its place.
+     *
+     * <p>
+     * This exists for the data import, which restores a whole account rather than editing a day. It lives here, rather than the importer writing
+     * rows itself, because a note has exactly one legitimate way to be stored - sealed under the owner's data key, bound to their id and the date -
+     * and {@link NoteService} is the only thing that knows it. An importer reaching for {@code Note.upsert} directly would be the one path in the
+     * app capable of writing a note in the clear.
+     *
+     * <p>
+     * The data key is resolved ONCE for the whole set, exactly as {@link #readContents(UUID, List)} does on the way out: an import restores a whole
+     * history in one request, and re-running the key lookup and unwrap per note would repeat that work thousands of times.
+     *
+     * <p>
+     * <strong>The content is expected to have been validated already</strong> - by {@code transfer.ImportParser}, against the same
+     * {@link TextFields#NOTE} field this service's own {@link #save(User, LocalDate, String)} uses. The rule is not re-applied here because it was
+     * applied once, to produce exactly these values (the validate-once rule in {@code CODE_STYLE.md}); an empty entry is skipped rather than stored,
+     * since an empty note is no note.
+     *
+     * @param user  the acting user
+     * @param notes the content to write, keyed by day
+     * @return how many notes were written
+     */
+    public int replaceAll(final User user, final Map<LocalDate, String> notes) {
+        Note.deleteByUser(user.id);
+        if (notes.isEmpty()) {
+            LOGGER.info("Notes replaced with an empty journal for user {}", user.email);
+            return 0;
+        }
+
+        final byte[] dataKey = noteKeys.forUserCreatingIfAbsent(user.id)
+            .orElseThrow(() -> new IllegalStateException("Unable to open the notes data key - check NOTE_ENCRYPTION_KEY"));
+
+        int written = 0;
+        for (final Map.Entry<LocalDate, String> entry : notes.entrySet()) {
+            if (entry.getValue().isEmpty()) {
+                continue;
+            }
+            Note.upsert(user.id, entry.getKey(), NoteContent.seal(dataKey, user.id, entry.getKey(), entry.getValue()));
+            written++;
+        }
+
+        // The COUNT and the user only - never a date's content. See the class Javadoc.
+        LOGGER.info("Notes replaced: {} written for user {}", written, user.email);
+        return written;
+    }
+
+    /**
      * Removes the day's note. Clearing a day that has no note is a no-op success, so a caller never has to check first.
      *
      * @param user the acting user

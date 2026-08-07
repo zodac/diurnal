@@ -23,11 +23,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import io.restassured.http.ContentType;
+import java.time.Instant;
 import java.time.LocalDate;
+import java.util.Map;
 import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
+import net.zodac.diurnal.transfer.TransferArchive;
+import net.zodac.diurnal.transfer.TransferFiles;
 import net.zodac.diurnal.user.Role;
 import org.junit.jupiter.api.Test;
 
@@ -478,6 +482,69 @@ class SurfaceParityIT extends IntegrationTestBase {
         given().formParam("count", "1")
                 .post("/internal/logs/" + TODAY + "/" + unknown + "/set")
                 .then().statusCode(404);
+    }
+
+    @Test
+    void dataImport_appliesTheSameArchiveIdenticallyOnBothSurfaces() {
+        final byte[] archive = TransferArchive.pack(Map.of(
+            TransferFiles.ACTIONS_FILE, "name,colour\r\nSwimming,#22c55e\r\n",
+            TransferFiles.LOGS_FILE, "date,action,count\r\n" + TODAY + ",Swimming,3\r\n",
+            TransferFiles.NOTES_FILE, "date,content\r\n" + TODAY + ",\"imported note\"\r\n"),
+            Instant.now());
+
+        given().contentType("application/zip").body(archive)
+                .post("/api/v1/data/import")
+                .then().statusCode(200);
+
+        final String afterApi = importedState();
+
+        given().contentType("application/zip").body(archive)
+                .post("/internal/data/import")
+                .then().statusCode(200);
+
+        assertThat(importedState())
+            .as("the same archive through the HTMX surface must leave the account in exactly the state the API left it in")
+            .isEqualTo(afterApi);
+    }
+
+    @Test
+    void dataImport_refusedArchiveWritesNothingOnEitherSurface() {
+        // A count outside 1..999 - rejected rather than clamped, on both surfaces.
+        final byte[] archive = TransferArchive.pack(Map.of(
+            TransferFiles.ACTIONS_FILE, "name,colour\r\nSwimming,#22c55e\r\n",
+            TransferFiles.LOGS_FILE, "date,action,count\r\n" + TODAY + ",Swimming,9999\r\n",
+            TransferFiles.NOTES_FILE, "date,content\r\n"),
+            Instant.now());
+
+        given().contentType("application/zip").body(archive)
+                .post("/api/v1/data/import")
+                .then().statusCode(400);
+
+        // 422 on the web where the API answers 400 - the same per-surface split every other rejected input uses.
+        given().contentType("application/zip").body(archive)
+                .post("/internal/data/import")
+                .then().statusCode(422);
+
+        runInTx(() -> assertThat(Action.count("userId = ?1 and name = ?2", primaryId, "Swimming"))
+            .as("a refused archive must write nothing on EITHER surface - and must not leave the account wiped either")
+            .isZero());
+        runInTx(() -> assertThat(Action.count("userId = ?1 and name = ?2", primaryId, "Running"))
+            .as("the seeded action is still there, so neither surface committed the delete half of the replace")
+            .isOne());
+    }
+
+    // Everything an import writes, as one comparable string: the actions with their colours, the day counts, and whether the note landed.
+    private String importedState() {
+        final StringBuilder state = new StringBuilder();
+        runInTx(() -> {
+            Action.<Action>list("userId = ?1 order by name", primaryId)
+                .forEach(a -> state.append(a.name).append('=').append(a.colour).append(';'));
+            state.append(ActionLog.count("userId", primaryId))
+                .append(';')
+                .append(storedNoteContent(primaryId, TODAY))
+                .append(';');
+        });
+        return state.toString();
     }
 
     private String colourOf(final String name) {

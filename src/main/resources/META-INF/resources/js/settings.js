@@ -870,3 +870,71 @@ if (oidcConnectArm) {
         swapField('oidc-connect-confirm', 'oidc-connect-view')
     })
 }
+
+// ── Data import (Settings → Data) ─────────────────────────────────
+// Two steps over ONE upload: the chosen file is posted to /preview, which writes nothing and answers
+// the panel describing what would change; the Import button in that panel posts the very same bytes to
+// /import, which commits. Nothing is staged on the server between them — re-sending a few kilobytes
+// costs less than holding a user's whole journal in memory (in the clear) for as long as a tab is open,
+// and it means the commit validates the bytes it is about to write rather than trusting an earlier
+// verdict.
+//
+// fetch, not htmx: a refused archive is an expected outcome answered with a 422, and htmx
+// unsuppressably console.errors every 4xx (the login/register/password cards fetch for the same reason).
+;(function () {
+    const fileInput = document.getElementById('data-import-file')
+    if (!fileInput) {return}
+
+    // The panel is replaced wholesale on every response, so it is looked up per use rather than held.
+    function panel() {return document.getElementById('import-panel')}
+
+    function showPanel(html) {
+        const current = panel()
+        if (current) {current.outerHTML = html}
+    }
+
+    function failed(message) {
+        showPanel(`<div id="import-panel" class="mt-3">${window.Diurnal.bannerHtml(message)}</div>`)
+    }
+
+    // The bytes of the file currently under consideration. Held only between the preview and the
+    // confirmation, and dropped as soon as either finishes.
+    let pending = null
+
+    function post(url) {
+        return fetch(url, {
+            method: 'POST',
+            body: pending,
+            headers: {'Content-Type': 'application/zip', 'Accept': 'text/html'}
+        })
+            .then(window.Diurnal.requireSession)
+            .then(function (resp) {return resp.text()})
+            .then(showPanel)
+            .catch(function () {failed('Something went wrong. Please try again.')})
+    }
+
+    fileInput.addEventListener('change', function () {
+        const file = fileInput.files && fileInput.files[0]
+        if (!file) {return}
+        file.arrayBuffer().then(function (bytes) {
+            pending = bytes
+            return post('/internal/data/import/preview')
+        }).catch(function () {failed('That file could not be read.')})
+    })
+
+    // Delegated: the Import/Cancel buttons only exist once a preview has been rendered into the panel.
+    document.getElementById('settings-data').addEventListener('click', function (e) {
+        if (e.target.id === 'data-import-confirm') {
+            if (!pending) {return}
+            e.target.disabled = true
+            post('/internal/data/import').then(function () {
+                pending = null
+                fileInput.value = ''
+            })
+        } else if (e.target.id === 'data-import-cancel') {
+            pending = null
+            fileInput.value = ''
+            showPanel('<div id="import-panel" class="mt-3"></div>')
+        }
+    })
+})()

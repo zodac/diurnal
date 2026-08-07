@@ -46,9 +46,12 @@ import org.junit.jupiter.api.Test;
  */
 class SecretsStayOutOfLogsTest {
 
+    // `transfer` is guarded for the same reason as the other two: an export decrypts every note the account holds and an import carries a whole
+    // journal in the clear, so it handles more plaintext at once than any other package in the app.
     private static final List<Path> GUARDED_PACKAGES = List.of(
         Path.of("src", "main", "java", "net", "zodac", "diurnal", "note"),
-        Path.of("src", "main", "java", "net", "zodac", "diurnal", "crypto"));
+        Path.of("src", "main", "java", "net", "zodac", "diurnal", "crypto"),
+        Path.of("src", "main", "java", "net", "zodac", "diurnal", "transfer"));
 
     // A logging call and everything up to the end of its statement, across line breaks.
     private static final Pattern LOG_STATEMENT = Pattern.compile("LOGGER\\.\\w+\\(.*?\\);", Pattern.DOTALL);

@@ -87,6 +87,9 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
         "GET /api/v1/notes/{date}",
         "PUT /api/v1/notes/{date}",
         "DELETE /api/v1/notes/{date}",
+        "GET /api/v1/data/export",
+        "POST /api/v1/data/import",
+        "POST /api/v1/data/import/preview",
         "GET /api/v1/stats",
         "GET /api/v1/stats/{subjectId}/frequency",
         "GET /api/v1/status");
