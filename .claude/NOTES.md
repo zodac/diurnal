@@ -552,6 +552,15 @@ already worked. Only the matching rule is shared — selection and ordering are 
 - **The ETag now includes the search term**: two different terms over an unchanged journal are different bodies.
 - The web surface **clamps** an out-of-range page (`NotePages.of`), the API **rejects** it — the split every other list
   pair already has.
+- **An account with no notes gets a DISABLED search box**, not a hidden one and not a live one. There is nothing a term
+  could match, and a box that answers every keystroke with "no matches" is a worse answer than one saying up front it
+  has nothing to do; hiding it would instead shift the layout under the user the moment they wrote their first note.
+  What decides it is the account's whole note list, never the current result — a term that happens to match nothing
+  leaves the box editable, or there would be no way to correct the term. Nothing on `/notes` writes a note, so
+  `NotesWebResource` settles the state once at render time off the unfiltered list it has already loaded (no extra
+  query). The list below stays either way: its empty row is the copy that points at the dashboard, which is why this
+  page does not follow the Actions page in hiding its search-and-list section wholesale. Pinned by
+  `NotesWebResourceIT`.
 
 #### The dashboard deep link
 
@@ -562,8 +571,11 @@ format guard applies to it as to the stored value, since it is interpolated into
 
 #### Shared bits that changed
 
-- `partials/search-input.html` gained optional `placeholder` and `value` params (defaulted with `.or(...)`, since Qute
-  is strict). The three existing callers now pass `placeholder="Search actions…"` explicitly, so nothing moved.
+- `partials/search-input.html` gained optional `placeholder`, `value` and `disabled` params (defaulted with `.or(...)`,
+  since Qute is strict). The three existing callers now pass `placeholder="Search actions…"` explicitly, so nothing
+  moved. `.form-input:disabled` is the greyed/inert state that goes with the last of them — no `pointer-events-none`
+  (unlike `.btn-primary:disabled`), since a disabled input has no hover to suppress and suppressing pointer events
+  would take the `not-allowed` cursor with it.
 - `.dt-table-fixed` is now a real class (it was only ever named in comments). The notes list is the one table whose
   cells must not size the columns — a note is prose of arbitrary length, so the `<colgroup>` proportions win and
   `.note-snippet` truncates inside its share.

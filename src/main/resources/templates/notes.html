@@ -15,10 +15,13 @@
 
         {! Search + list. Unlike the Actions page there is no "hide it all when empty" wrapper: with no
              notes at all the empty row's own copy points at the dashboard, which is where a note is written,
-             and the search box is still worth leaving in place for the account that simply deleted its last
-             note. `value` re-seeds the box from ?q= so a bookmarked or reloaded search still reads correctly. !}
+             so the box keeps its place in the layout and is simply DISABLED - there is nothing to search,
+             and a box that can only ever answer "no matches" is worse than one that says up front it has
+             nothing to do. Nothing on this page creates a note, so the state only has to be decided at
+             render time. `value` re-seeds the box from ?q= so a bookmarked or reloaded search still reads
+             correctly. !}
         {#include partials/search-input id="note-search-input" url="/internal/notes/list?page=1" target="#note-list"
-                  placeholder="Search your notes…" value=searchTerm /}
+                  placeholder="Search your notes…" value=searchTerm disabled=searchDisabled /}
 
         <div class="card overflow-hidden">
             <div id="note-list">
