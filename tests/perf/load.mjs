@@ -43,6 +43,15 @@ function p95(ms) {
     return [`p(95)<${Math.round(ms * P95_TOLERANCE)}`]
 }
 
+// How many iterations k6 may fail to START before the run is a failure. This closes a blind spot rather
+// than tuning one: with a constant-arrival-rate executor, an app that slows down does NOT make the
+// latency percentiles climb — k6 simply stops being able to launch iterations on schedule and DROPS
+// them. A dropped iteration is in neither http_req_duration nor http_req_failed, so a genuine
+// throughput regression could sail through every threshold below while the offered load quietly
+// collapsed. Default 0 (nothing may be dropped); raise it on a box where the generator itself is the
+// bottleneck, the same way PERF_P95_TOLERANCE absorbs a slow runner's service time.
+const DROPPED_MAX = Number(__ENV.PERF_DROPPED_MAX || 0)
+
 // One scenario per use-case group. `startTime` staggers nothing — they run concurrently on purpose to
 // model a realistic mixed workload against the single-instance deploy.
 export const options = {
@@ -58,6 +67,12 @@ export const options = {
         notesWrite: sc("notesWrite", 8),
     },
     thresholds: {
+        // The offered load must actually be offered (see DROPPED_MAX), and every check must hold. The
+        // checks threshold is what gives the check() calls in the scenarios below any teeth at all:
+        // without it a failing check is recorded and then ignored, so only the status-code budgets
+        // below could ever fail the run.
+        dropped_iterations: [`count<=${DROPPED_MAX}`],
+        checks: ["rate==1.00"],
         // Per-scenario p95 latency + error-rate budgets. Tune to the deployment's SLOs; these are
         // deliberately generous starting points for a single-instance box under mixed load.
         "http_req_failed{scenario:status}": ["rate<0.01"],
@@ -177,7 +192,12 @@ export function logsWrite() {
         JSON.stringify({ amount: 1 }),
         { headers: AUTH, tags: { name: "logIncrement" } },
     )
-    check(inc, { "increment 200/400": r => r.status === 200 || r.status === 400 })
+    // 200 only. Tolerating a 400 here was misleading: http_req_failed already counts a 400 as a failure
+    // against this scenario's rate<0.01 budget, so the two disagreed about the same response. Nor is a
+    // 400 reachable - the seeded counts are 1-5 so the 999 cap is far away, a decrement at zero removes
+    // the entry with a 200, and STATE.today can only go STALE INTO THE PAST as a run proceeds, which the
+    // future-date guard permits.
+    check(inc, { "increment 200": r => r.status === 200 })
     http.post(
         `${BASE_URL}/api/v1/logs/${day}/${id}/decrement`,
         JSON.stringify({ amount: 1 }),

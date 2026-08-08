@@ -11,9 +11,16 @@ export default defineConfig({
     // API registration (which the app refuses until that initial account exists).
     globalSetup: "./global-setup.ts",
     fullyParallel: false,
-    forbidOnly: process.env.CI !== undefined,
-    retries: process.env.CI !== undefined ? 1 : 0,
+    // Unconditional, for the reason given in playwright.config.ts.
+    forbidOnly: true,
+    // No retries, for the reason given in playwright.config.ts.
+    retries: 0,
     workers: 1,
+    // A dedicated artefact directory. Playwright defaults outputDir to "test-results" beside the config
+    // and CLEARS it at the start of a run - which is the same directory the E2E config resolves to. The
+    // smoke tier runs in parallel with the Maven gate, so if a slow image build pushes it past the point
+    // where the E2E tier starts, one run would wipe the other's traces for the failure being diagnosed.
+    outputDir: "./test-results-smoke",
     // `list` (not `html`) so the run never spawns a report server that would hang a CI step.
     reporter: [["list"]],
 

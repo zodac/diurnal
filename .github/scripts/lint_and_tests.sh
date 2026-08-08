@@ -106,6 +106,18 @@ SCRIPT_PATH="${SCRIPT_DIR}/${SCRIPT_NAME}"
 
 ESLINT_BUILD_IMAGE="local/diurnal-eslint:latest"
 ESLINT_NODE_IMAGE="node:26.5.1-alpine"
+
+# Exact pins for the linting toolchain baked into ESLINT_BUILD_IMAGE. Pinned, rather than the floating
+# majors this used to install, because the versions resolve when the IMAGE is built: a developer's image
+# is cached indefinitely while CI builds a fresh one every run, so the same commit could be linted by two
+# different rule sets - and a new minor release could turn the gate red with no change to this repo. The
+# two @typescript-eslint packages share one pin because they are released in lockstep. All are bumped by
+# .github/scripts/update_dependency_versions.sh, like every other pin in this file.
+ESLINT_VERSION="9.39.5"
+ESLINT_JS_VERSION="9.39.5"
+TYPESCRIPT_ESLINT_VERSION="8.66.0"
+ESLINT_GLOBALS_VERSION="17.9.0"
+TYPESCRIPT_VERSION="5.9.3"
 GRYPE_DOCKER_IMAGE="anchore/grype:v0.116.1"
 HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.15.1-alpine"
 MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.2"
@@ -351,12 +363,12 @@ ensure_eslint_image() {
         docker build -t "${ESLINT_BUILD_IMAGE}" - 2>&1 <<EOF
 FROM ${ESLINT_NODE_IMAGE}
 RUN npm install -g --no-audit --no-fund \
-    eslint@9 \
-    @eslint/js@9 \
-    @typescript-eslint/eslint-plugin@8 \
-    @typescript-eslint/parser@8 \
-    globals \
-    typescript@5 \
+    eslint@${ESLINT_VERSION} \
+    @eslint/js@${ESLINT_JS_VERSION} \
+    @typescript-eslint/eslint-plugin@${TYPESCRIPT_ESLINT_VERSION} \
+    @typescript-eslint/parser@${TYPESCRIPT_ESLINT_VERSION} \
+    globals@${ESLINT_GLOBALS_VERSION} \
+    typescript@${TYPESCRIPT_VERSION} \
     && ln -s /usr/local/lib/node_modules /node_modules
 EOF
     )
@@ -383,7 +395,11 @@ run_docker() {
         done_in="$(step_time)"
         echo "✅ Dockerfile lint passed, finished in ${GREEN}${done_in}${RESET}"
     else
-        echo "${output}" | jq .
+        # hadolint reports findings as JSON, so pretty-print them - but fall back to the raw text when
+        # the output is not JSON at all. It often isn't: a docker-level failure (daemon down, image pull
+        # refused) writes a plain error here, and piping that straight into jq replaced the one line
+        # explaining the failure with a parse error about it.
+        echo "${output}" | jq . 2>/dev/null || echo "${output}"
         local done_in
         done_in="$(step_time)"
         echo "❌ Dockerfile lint failed after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v docker'${RESET} for the full output"
@@ -498,6 +514,20 @@ tier_reap() {
 stop_tier() {
     kill "${1}" 2>/dev/null || true
     wait "${1}" 2>/dev/null || true
+}
+
+# Remove the Maven gate's managed IT database. Only needed on the abort path: the `all` profile starts it
+# in pre-integration-test and removes it in post-integration-test, and failsafe defers its failure to
+# `verify` precisely so that teardown still runs when an IT fails. But a SIGNALLED Maven - which is what
+# happens when the parallel smoke tier fails first - never reaches post-integration-test at all, and
+# leaves the container standing.
+#
+# Signalling Maven's process GROUP instead (the way lane_stop does) would not help: the tiers are
+# deliberately started inside the lane's own group so a Ctrl-C reaches all of them at once, and giving
+# mvn a group of its own would put it out of reach of that. Maven has no teardown hook to fire either
+# way, so the container is swept here explicitly instead.
+sweep_test_db() {
+    docker compose -f "${PWD}/docker-compose.dev.yml" rm -sf diurnal-db-dev >/dev/null 2>&1 || true
 }
 
 # Print the parallel smoke tier's completion line and record its (coloured) duration. Called the moment
@@ -666,6 +696,9 @@ run_java() {
         mvn "${mvn_args[@]}" || failed_at="${mvn_label}"
     if [[ "${TIER_STOPPED_EARLY}" == true ]]; then
         failed_at="tests/run-smoke.sh"
+        # Maven was signalled mid-flight, so its post-integration-test teardown never ran (see
+        # sweep_test_db); remove the IT database it may have left standing.
+        sweep_test_db
     fi
 
     if [[ -z "${failed_at}" ]]; then
@@ -745,10 +778,11 @@ run_javascript() {
     # The --others flag is load-bearing: a bare "git ls-files" lists only TRACKED files, so a brand-new
     # script was silently skipped until the moment it was committed. That is exactly when linting it is most
     # valuable, and it let a genuine syntax error through a passing gate once already.
-    local files=()
+    local files=() module_files=()
     mapfile -t files < <(git ls-files --cached --others --exclude-standard '*.js' '*.cjs' | sort -u || true)
+    mapfile -t module_files < <(git ls-files --cached --others --exclude-standard '*.mjs' | sort -u || true)
     local done_in
-    if [[ "${#files[@]}" -eq 0 ]]; then
+    if [[ "${#files[@]}" -eq 0 && "${#module_files[@]}" -eq 0 ]]; then
         done_in="$(step_time)"
         echo "✅ JavaScript lint passed (no JavaScript files found), finished in ${GREEN}${done_in}${RESET}"
         return
@@ -768,6 +802,36 @@ run_javascript() {
         "${ESLINT_BUILD_IMAGE}" \
         --config code-quality-config/javascript/eslint.config.cjs \
         "${files[@]}" 2>&1); then
+        [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
+    else
+        echo "${output}"
+        done_in="$(step_time)"
+        echo "❌ JavaScript lint failed after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v javascript'${RESET} for the full output"
+        overall_exit_code=1
+        return
+    fi
+
+    # The *.mjs files (the k6 perf scripts and tests/measure.mjs) get a PARSE check rather than the full
+    # eslint pass above. They are ES modules, and the shared config is `sourceType: 'script'` — which is
+    # exactly why they were given the .mjs extension in the first place, so eslint would not try to parse
+    # them. The side effect was that nothing checked them at all: tests/measure.mjs sat calling an
+    # endpoint that had been renamed, and a syntax error in load.mjs would only surface when the perf
+    # step actually ran it. `node --check` reads the module syntax per extension and costs milliseconds,
+    # so the "does this file even parse" class is covered without editing the shared submodule config.
+    if [[ "${#module_files[@]}" -eq 0 ]]; then
+        done_in="$(step_time)"
+        echo "✅ JavaScript lint passed, finished in ${GREEN}${done_in}${RESET}"
+        return
+    fi
+    substep "node --check (${#module_files[@]} ES module file(s))"
+    if output=$(docker run --rm \
+        -u "${HOST_UID}:${HOST_GID}" \
+        -e HOME=/tmp \
+        -v "${PWD}":/app \
+        -w /app \
+        --entrypoint sh \
+        "${ESLINT_BUILD_IMAGE}" \
+        -c 'for f in "$@"; do node --check "${f}" || exit 1; done' _ "${module_files[@]}" 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
         done_in="$(step_time)"
         echo "✅ JavaScript lint passed, finished in ${GREEN}${done_in}${RESET}"
@@ -790,7 +854,15 @@ run_typescript() {
     # The TS config is type-aware (parserOptions.project) so the tests/ dependencies must be installed
     # for the type-checker to resolve imports. eslint is run from within tests/ so it picks up
     # tests/tsconfig.json and tests/node_modules; the config path is relative to that dir.
-    substep "npm ci + eslint (tests/**/*.ts)"
+    #
+    # The install is CONDITIONAL, and that is a concurrency fix rather than a saving. tests/ is a bind
+    # mount of the working tree, and `npm ci` DELETES node_modules before reinstalling it - on the host,
+    # in the middle of a run where this lane is racing the java gate, whose smoke and E2E tiers resolve
+    # Playwright out of that very directory (measured: it vanished for ~0.4-0.5s about 9s into every
+    # full run). Installing only when the directory is absent removes the window entirely in the normal
+    # case - the java step and CI both require those dependencies to exist already - while a standalone
+    # `lint_and_tests.sh typescript` on a fresh clone still installs what the type-checker needs.
+    substep "eslint (tests/**/*.ts; npm ci only if tests/node_modules is missing)"
     if output=$(docker run --rm \
         -u "${HOST_UID}:${HOST_GID}" \
         -e HOME=/tmp \
@@ -799,7 +871,7 @@ run_typescript() {
         -w /app/tests \
         --entrypoint sh \
         "${ESLINT_BUILD_IMAGE}" \
-        -c "npm ci --no-audit --no-fund && \
+        -c "if [ ! -d node_modules ]; then npm ci --no-audit --no-fund; fi && \
             eslint \
             --config ../code-quality-config/typescript/eslint.config.mjs \
             '**/*.ts'" 2>&1); then
@@ -1044,6 +1116,21 @@ run_lanes() {
     done
 }
 
+# True when any of the given paths is UNTRACKED, i.e. a brand-new file. Load-bearing for
+# detect_changed_steps: an untracked file produces NO `git diff` output at all, so any filter that
+# judges a change by its diff CONTENT is blind to one and reads it as "nothing changed".
+any_untracked() {
+    (($# == 0)) && return 1
+    local untracked_file
+    while IFS= read -r untracked_file; do
+        [[ -z "${untracked_file}" ]] && continue
+        if printf '%s\n' "$@" | grep -qxF -- "${untracked_file}"; then
+            return 0
+        fi
+    done < <(git ls-files --others --exclude-standard || true)
+    return 1
+}
+
 detect_changed_steps() {
     local latest_tag
     latest_tag=$(git tag --sort=-version:refname 2>/dev/null | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' | head -1 || true)
@@ -1089,12 +1176,27 @@ detect_changed_steps() {
             run_java=true
             java_changed_files+=("${file}")
         fi
-        [[ "${file}" =~ \.(js|cjs)$ || "${file}" =~ ^code-quality-config/javascript/ ]] && run_javascript=true
+        # .mjs is included because the step now parse-checks ES modules too (see run_javascript).
+        [[ "${file}" =~ \.(js|cjs|mjs)$ || "${file}" =~ ^code-quality-config/javascript/ ]] && run_javascript=true
         [[ "${file}" =~ ^tests/.*\.ts$ || "${file}" =~ ^tests/tsconfig\.json$ || "${file}" =~ ^tests/package(-lock)?\.json$ || "${file}" =~ ^code-quality-config/typescript/ ]] && run_typescript=true
         [[ "${file}" =~ \.md$ || "${file}" =~ ^code-quality-config/markdown/ ]] && run_markdown=true
         [[ "${file}" =~ \.sh$ || "${file}" =~ ^code-quality-config/shellscript/ ]] && run_shellcheck=true
         # The perf suite's own inputs — its k6 scripts (tests/perf/), the runner, and its compose stack.
         [[ "${file}" =~ ^tests/perf/ || "${file}" == "tests/run-perf.sh" || "${file}" == "tests/docker-compose.perf.yml" ]] && perf_own_files=true
+        # A submodule bump is reported as the BARE gitlink path, with no trailing slash, so not one of
+        # the `^code-quality-config/<tool>/` patterns above can match it - and the bump changes EVERY
+        # linter's config at once. Select them all rather than guessing which tool's rules moved; the
+        # alternative (what this fixes) is a config bump that silently runs nothing at all.
+        if [[ "${file}" == "code-quality-config" ]]; then
+            run_docker=true
+            run_grype=true
+            run_java=true
+            run_javascript=true
+            run_markdown=true
+            run_shellcheck=true
+            run_typescript=true
+            java_changed_files+=("${file}")
+        fi
     done < <(
         {
             git diff --name-only "${latest_tag}..HEAD" || true
@@ -1110,7 +1212,13 @@ detect_changed_steps() {
     # The project version is the sole top-level (4-space-indented) <version> in pom.xml; the
     # 8-space-indented parent <version> and any dependency/property version are NOT stripped, so a
     # genuine dependency or parent bump still triggers the build.
-    if [[ "${run_java}" == true ]]; then
+    #
+    # A brand-new file is UNTRACKED, so `git diff` reports NOTHING for it - the filter would then see an
+    # empty diff and conclude "comments only", skipping the whole JVM gate for a newly added class or
+    # spec. That is the same trap the linters' `git ls-files --others` flag exists to avoid, and it is
+    # worst exactly when the gate matters most. So check first whether any java-triggering file is
+    # untracked, and if so keep the step without consulting the diff at all.
+    if [[ "${run_java}" == true ]] && ! any_untracked "${java_changed_files[@]}"; then
         local non_comment_diff
         non_comment_diff=$(
             {

@@ -16,7 +16,8 @@
 #                   regenerating each package-lock.json so `npm ci` stays in sync
 #                 - Debian packages in the main Dockerfile's screenshots stage (# BEGIN/END DEBIAN
 #                   PACKAGES block — cwebp, on the Postgres/Debian base)
-#                 - Docker image pins in .github/scripts/lint_and_tests.sh
+#                 - Docker image pins AND the pinned eslint toolchain (eslint, @eslint/js,
+#                   @typescript-eslint, globals, typescript) in .github/scripts/lint_and_tests.sh
 #                   (node when confirmed; hadolint + markdownlint-cli2 + shellcheck + grype best-effort)
 #                   Note: shellcheck installed as an apt/apk package instead (pinned in a
 #                   # BEGIN/END … PACKAGES block) is handled generically by the package updaters.
@@ -442,6 +443,31 @@ update_lint_script() {
         sed -i "s|GRYPE_DOCKER_IMAGE=\"anchore/grype:[^\"]*\"|GRYPE_DOCKER_IMAGE=\"anchore/grype:${grype_tag}\"|" "${LINT_SCRIPT}"
         ok "grype image → anchore/grype:${grype_tag}"
     fi
+
+    # ── the eslint toolchain baked into ESLINT_BUILD_IMAGE (best-effort) ──────
+    # These are npm packages rather than images, but they live in the same file and are pinned for the
+    # same reason: they used to be installed as floating majors resolved when the image was built, so a
+    # cached local image and a freshly built CI one could lint the same commit under different rules.
+    # Each is bumped to the registry's latest, exactly as the package.json pins below are — the full
+    # gate runs immediately afterwards in the monthly workflow, which is what catches a breaking bump.
+    # The two @typescript-eslint packages share one variable because they release in lockstep, so the
+    # plugin's version is the one resolved.
+    local pkg var latest
+    for pkg in "eslint:ESLINT_VERSION" \
+               "@eslint/js:ESLINT_JS_VERSION" \
+               "@typescript-eslint/eslint-plugin:TYPESCRIPT_ESLINT_VERSION" \
+               "globals:ESLINT_GLOBALS_VERSION" \
+               "typescript:TYPESCRIPT_VERSION"; do
+        var="${pkg##*:}"
+        pkg="${pkg%:*}"
+        latest=$(curl_get "https://registry.npmjs.org/${pkg/\//%2f}/latest" | jq -r '.version // empty')
+        if [[ -z "${latest}" ]]; then
+            warn "Could not fetch latest version for '${pkg}', skipping"
+            continue
+        fi
+        sed -i "s|^${var}=\"[^\"]*\"|${var}=\"${latest}\"|" "${LINT_SCRIPT}"
+        ok "${pkg} → ${latest}"
+    done
 
     ok "Lint script Docker images processed"
 }

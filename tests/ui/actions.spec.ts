@@ -83,11 +83,14 @@ test.describe("Actions page", () => {
         // Click until it moves; a button that does nothing fails on the attempts running out.
         let after = before
         for (let attempt = 0; attempt < 10 && after === before; attempt++) {
-            await Promise.all([
+            const [suggestion] = await Promise.all([
                 page.waitForResponse(r => r.url().endsWith("/internal/actions/random-colour")),
                 page.locator("[data-random-colour]").click(),
             ])
-            after = await picker.inputValue()
+            // The response body is what the server actually drew; reading the input instead can return
+            // the PREVIOUS colour, because app.js applies the new one only after resp.json() resolves.
+            after = (await suggestion.json()).colour as string
+            await expect(picker).toHaveValue(after)
         }
 
         expect(after).not.toBe(before)
@@ -98,11 +101,18 @@ test.describe("Actions page", () => {
         const name = unique("Randomised")
         await page.goto("/actions")
         await page.waitForFunction(() => typeof (window as {htmx?: unknown}).htmx !== "undefined")
-        await Promise.all([
+        // The response landing is NOT the value landing: app.js applies the suggestion in a .then()
+        // after resp.json() resolves, i.e. strictly after waitForResponse returns. Reading the picker
+        // straight afterwards can therefore capture the PREVIOUS colour, while the form goes on to post
+        // the new one - leaving the assertion below hunting a colour no row has. Take the colour from
+        // the response body (the source of truth) and wait for the picker to converge on it.
+        const [suggestion] = await Promise.all([
             page.waitForResponse(r => r.url().endsWith("/internal/actions/random-colour")),
             page.locator("[data-random-colour]").click(),
         ])
-        const colour = await page.locator('#new-action-form input[name="colour"]').inputValue()
+        const colour = (await suggestion.json()).colour as string
+        const picker = page.locator('#new-action-form input[name="colour"]')
+        await expect(picker).toHaveValue(colour)
 
         await page.fill('input[name="name"]', name)
         await Promise.all([
@@ -237,11 +247,18 @@ test.describe("Actions page", () => {
         const picker = editRow.locator('input[name="colour"]')
         const before = await picker.inputValue()
 
-        await Promise.all([
+        // Same rule as the new-action picker above: the suggestion is applied in a .then() after
+        // resp.json(), so read the colour from the response and let a retrying assertion wait for the
+        // input to catch up. Reading the input directly here saw the PREVIOUS colour under load, and
+        // the plain (non-retrying) equality below then failed on the spot.
+        const [suggestion] = await Promise.all([
             page.waitForResponse(r => r.url().endsWith("/internal/actions/random-colour")),
             editRow.getByRole("button", { name: "Random colour" }).click(),
         ])
-        const randomised = await picker.inputValue()
+        const randomised = (await suggestion.json()).colour as string
+        await expect(picker).toHaveValue(randomised)
+        // The suggester avoids every colour the user has SAVED, which includes this action's current
+        // one, so a fresh suggestion can never come back as the colour already on the row.
         expect(randomised).not.toBe(before)
 
         // The randomised value is a real change, so Save posts it and the row comes back in the new colour.
@@ -301,9 +318,11 @@ test.describe("Actions page", () => {
         await item.hover()
         await item.getByRole("button", { name: "Delete" }).click()
 
-        // Confirm delete button appears inside the same element
-        await expect(item).toContainText(/delete|confirm/i)
-        await item.locator("button").filter({ hasText: /delete|yes|confirm/i }).click()
+        // The confirm row (partials/dt-confirm-delete-row) replaces the row in place, and its
+        // destructive button is the only .dt-btn-danger on the page. Locating it by CLASS rather than
+        // by /delete|confirm/i text is load-bearing: that text also matches the pre-swap "Delete"
+        // trigger, so on a slow swap the filter re-clicks the trigger and no delete is ever sent.
+        await item.locator(".dt-btn-danger").click()
 
         await expect(page.locator("#action-list")).not.toContainText("ToDelete")
     })
@@ -446,7 +465,9 @@ test.describe("Actions page", () => {
         const item = page.locator('#action-list [id^="action-"]').filter({ hasText: name })
         await item.hover()
         await item.getByRole("button", { name: "Delete" }).click()
-        await item.locator("button").filter({ hasText: /delete|yes|confirm/i }).click()
+        // .dt-btn-danger only exists in the swapped-in confirm row (see the delete test above for why
+        // a text filter is not safe here).
+        await item.locator(".dt-btn-danger").click()
         await expect(page.locator("#actions-section")).toBeHidden()
         await expect(page.locator("#search-input")).toBeHidden()
     })

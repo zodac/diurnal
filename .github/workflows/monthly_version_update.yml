@@ -97,6 +97,10 @@ jobs:
           PERF_RATE: "5"
           PERF_VUS: "10"
           PERF_P95_TOLERANCE: "8"
+          # The 2-vCPU runner shares its cores with the app, Postgres and k6, so the generator
+          # itself can miss its schedule. Allow a few dropped iterations rather than 0 (the
+          # local default), while still failing on a collapse in offered load.
+          PERF_DROPPED_MAX: "50"
         run: .github/scripts/lint_and_tests.sh -f -v
 
       - name: Check for changes

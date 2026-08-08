@@ -203,6 +203,7 @@ docker run --rm --network host \
   -e PERF_VUS \
   -e PERF_DURATION \
   -e PERF_P95_TOLERANCE \
+  -e PERF_DROPPED_MAX \
   "${K6_IMAGE}" run /scripts/load.mjs
 
 echo "[perf] load suite passed all thresholds"

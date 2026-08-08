@@ -31,6 +31,9 @@ src/main/resources/META-INF/resources/img/settings/*.webp
 node_modules/
 tests/playwright-report/
 tests/test-results/
+# The deployment-smoke tier's own artefact dir, kept apart from the E2E one so the two tiers cannot
+# clear each other's traces when they overlap (see tests/playwright.smoke.config.ts).
+tests/test-results-smoke/
 
 # Perf suite (tests/run-perf.sh) seed->load handover scratch dir — normally removed by the script's
 # own cleanup trap; ignored as a safety net if a run is killed before that trap fires.
