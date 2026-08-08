@@ -28,6 +28,10 @@
 #                 - Git submodules (latest tag, best-effort)
 #                 - GitHub Actions (latest release tag, best-effort)
 #
+#               Every resolved version is filtered through is_prerelease() first: a release
+#               candidate, alpha/beta, milestone, preview/early-access, nightly or snapshot is
+#               NEVER a valid update, whatever the upstream calls "latest".
+#
 # Usage:        .github/scripts/update_dependency_versions.sh
 #               (Run from the repository root.)
 #
@@ -90,6 +94,63 @@ hub_tag_exists() {
     [[ "${status}" == "200" ]]
 }
 
+# ── Pre-release filtering ─────────────────────────────────────────────────────
+# Nothing that is not a final release may ever be pinned: a release candidate, alpha/beta,
+# milestone, preview, early-access build, nightly or snapshot is unstable by definition, and a
+# monthly unattended bump is exactly where one must not slip in. Upstreams cannot be trusted to
+# say so themselves — Apache Maven published `maven-3.10.0-rc-1` WITHOUT GitHub's pre-release
+# flag, so `releases/latest` served it as the latest release — hence the marker check below.
+#
+# A marker only counts as one when it is a whole token (delimited by a non-alphanumeric, or the
+# start/end of the string) optionally followed by digits: `3.10.0-rc-1`, `1.0.0-alpha2` and
+# `2.0_beta` are rejected, while `1.5.0-0.1`, `26.0.1_8` and `5:29.7.2-1~debian.13~trixie` are
+# not. A bare `m` is deliberately NOT a marker (far too easy to hit by accident) — only the
+# `M1`-style milestone form with digits is.
+PRERELEASE_MARKERS='alpha|beta|rc|cr|snapshot|milestone|preview|pre|ea|nightly|canary|dev|unstable|m[0-9]+'
+
+# Returns 0 if the given version string is a pre-release, 1 if it is a final release.
+is_prerelease() {
+    local version="${1,,}"
+    [[ "${version}" =~ (^|[^a-z0-9])(${PRERELEASE_MARKERS})[0-9]*([^a-z0-9]|$) ]]
+}
+
+# Reads candidate versions on stdin, writes out only the final releases (order preserved).
+filter_stable_versions() {
+    local version
+    while IFS= read -r version; do
+        [[ -n "${version}" ]] || continue
+        is_prerelease "${version}" || printf '%s\n' "${version}"
+    done
+}
+
+# Echoes the latest STABLE release tag of a GitHub repo (empty if none could be resolved).
+# `releases/latest` alone is not enough: GitHub only skips releases the project remembered to
+# FLAG as a pre-release, so an unflagged one is served as latest. When that happens, fall back to
+# the HIGHEST-VERSIONED unflagged, non-pre-release entry in the release list.
+#
+# The fallback deliberately sorts by version (sort -V) rather than taking the API's newest-first
+# order: release dates do not run in version order, so a patch cut on an older branch AFTER a
+# newer release (a backport, a security fix on an LTS line) is the most recent release while
+# being the lower version, and picking it would silently walk the pin BACKWARDS.
+latest_stable_github_release() {
+    local repo="${1}"
+
+    local tag
+    tag=$(github_curl "https://api.github.com/repos/${repo}/releases/latest" | jq -r '.tag_name // empty')
+    if [[ -n "${tag}" ]] && ! is_prerelease "${tag}"; then
+        printf '%s\n' "${tag}"
+        return 0
+    fi
+    [[ -n "${tag}" ]] && warn "Ignoring pre-release '${tag}' offered as ${repo}'s latest release"
+
+    # sort -V compares the numeric runs as numbers, so a shared tag prefix is harmless
+    # (`maven-3.9.16` > `maven-3.9.9`) — and `tail` drains its input, so no SIGPIPE under pipefail.
+    github_curl "https://api.github.com/repos/${repo}/releases?per_page=100" \
+        | jq -r '.[] | select(.draft == false and .prerelease == false) | .tag_name // empty' \
+        | filter_stable_versions \
+        | sort -V | tail -1
+}
+
 # ── 1. Java ───────────────────────────────────────────────────────────────────
 # Updates: pom.xml <java-release>, Dockerfile maven stage (major),
 #          Dockerfile jre stage (full tag), sandbox/Dockerfile jdk stage (full tag)
@@ -127,6 +188,7 @@ update_java() {
     local jdk_tag
     jdk_tag=$(echo "${raw_tags}" \
         | grep -E "^${latest_major}[_.][0-9].*-jdk$" \
+        | filter_stable_versions \
         | sort -t_ -k1,1V -k2,2n \
         | tail -1)
     if [[ -z "${jdk_tag}" ]]; then
@@ -181,10 +243,9 @@ update_maven() {
     echo "🔍 Fetching latest Maven version..."
 
     local latest_version
-    latest_version=$(github_curl "https://api.github.com/repos/apache/maven/releases/latest" \
-        | jq -r '.tag_name // empty')
+    latest_version=$(latest_stable_github_release "apache/maven")
     if [[ -z "${latest_version}" ]]; then
-        warn "Could not fetch Maven version from GitHub, skipping"
+        warn "Could not fetch a stable Maven version from GitHub, skipping"
         return 0
     fi
     latest_version="${latest_version#maven-}"
@@ -235,10 +296,9 @@ update_node() {
     echo "🔍 Fetching latest Node.js version..."
 
     local latest_version
-    latest_version=$(github_curl "https://api.github.com/repos/nodejs/node/releases/latest" \
-        | jq -r '.tag_name // empty')
+    latest_version=$(latest_stable_github_release "nodejs/node")
     if [[ -z "${latest_version}" ]]; then
-        warn "Could not fetch Node.js version from GitHub, skipping"
+        warn "Could not fetch a stable Node.js version from GitHub, skipping"
         return 0
     fi
     latest_version="${latest_version#v}"
@@ -312,6 +372,8 @@ update_postgres() {
     echo "  Current: ${current} (major ${major})"
 
     # Highest ${major}.x-alpine tag on Docker Hub (sorted semver-aware; API order is not guaranteed).
+    # The anchored X.Y regex admits no pre-release suffix (a `${major}beta1-alpine` never matches),
+    # so no further pre-release filtering is needed here.
     local latest
     latest=$(curl_get "https://hub.docker.com/v2/repositories/library/postgres/tags?name=${major}.&page_size=100" \
         | jq -r '.results[].name' \
@@ -387,10 +449,9 @@ update_lint_script() {
 
     # ── hadolint (best-effort) ────────────────────────────────────────────────
     local hadolint_tag
-    hadolint_tag=$(github_curl "https://api.github.com/repos/hadolint/hadolint/releases/latest" \
-        | jq -r '.tag_name // empty')
+    hadolint_tag=$(latest_stable_github_release "hadolint/hadolint")
     if [[ -z "${hadolint_tag}" ]]; then
-        warn "Could not fetch hadolint version, skipping"
+        warn "Could not fetch a stable hadolint version, skipping"
     elif ! hub_tag_exists "hadolint/hadolint" "${hadolint_tag}-alpine"; then
         warn "hadolint/hadolint:${hadolint_tag}-alpine not on Docker Hub, skipping"
     else
@@ -401,6 +462,7 @@ update_lint_script() {
     # ── markdownlint-cli2 (best-effort) ───────────────────────────────────────
     # markdownlint-cli2 publishes NO GitHub Releases (only git tags), so releases/latest 404s.
     # Use the tags API and pick the highest vX.Y.Z via sort -V (the API's order is not guaranteed).
+    # The anchored X.Y.Z regex already admits no pre-release suffix, so no further filtering.
     local mdl_tag
     mdl_tag=$(github_curl "https://api.github.com/repos/DavidAnson/markdownlint-cli2/tags" \
         | jq -r '.[].name // empty' \
@@ -417,10 +479,9 @@ update_lint_script() {
 
     # ── shellcheck (best-effort) ──────────────────────────────────────────────
     local shellcheck_tag
-    shellcheck_tag=$(github_curl "https://api.github.com/repos/koalaman/shellcheck/releases/latest" \
-        | jq -r '.tag_name // empty')
+    shellcheck_tag=$(latest_stable_github_release "koalaman/shellcheck")
     if [[ -z "${shellcheck_tag}" ]]; then
-        warn "Could not fetch shellcheck version, skipping"
+        warn "Could not fetch a stable shellcheck version, skipping"
     elif ! hub_tag_exists "koalaman/shellcheck" "${shellcheck_tag}"; then
         warn "koalaman/shellcheck:${shellcheck_tag} not on Docker Hub, skipping"
     else
@@ -433,10 +494,9 @@ update_lint_script() {
     # whose Docker Hub tag is confirmed. DIURNAL_RUNTIME_IMAGE is our own build tag, not a pin — it
     # is never bumped here.
     local grype_tag
-    grype_tag=$(github_curl "https://api.github.com/repos/anchore/grype/releases/latest" \
-        | jq -r '.tag_name // empty')
+    grype_tag=$(latest_stable_github_release "anchore/grype")
     if [[ -z "${grype_tag}" ]]; then
-        warn "Could not fetch grype version, skipping"
+        warn "Could not fetch a stable grype version, skipping"
     elif ! hub_tag_exists "anchore/grype" "${grype_tag}"; then
         warn "anchore/grype:${grype_tag} not on Docker Hub, skipping"
     else
@@ -465,6 +525,12 @@ update_lint_script() {
             warn "Could not fetch latest version for '${pkg}', skipping"
             continue
         fi
+        # The `latest` dist-tag is a convention, not a guarantee — a package may point it at a
+        # pre-release, which must never be pinned.
+        if is_prerelease "${latest}"; then
+            warn "Latest '${pkg}' (${latest}) is a pre-release, skipping"
+            continue
+        fi
         sed -i "s|^${var}=\"[^\"]*\"|${var}=\"${latest}\"|" "${LINT_SCRIPT}"
         ok "${pkg} → ${latest}"
     done
@@ -490,10 +556,9 @@ update_perf_script() {
     fi
 
     local k6_tag k6_ver
-    k6_tag=$(github_curl "https://api.github.com/repos/grafana/k6/releases/latest" \
-        | jq -r '.tag_name // empty')
+    k6_tag=$(latest_stable_github_release "grafana/k6")
     if [[ -z "${k6_tag}" ]]; then
-        warn "Could not fetch k6 version, skipping"
+        warn "Could not fetch a stable k6 version, skipping"
         return 0
     fi
     k6_ver="${k6_tag#v}"
@@ -601,6 +666,11 @@ update_npm_packages() {
                 latest=$(curl_get "https://registry.npmjs.org/${encoded}/latest" | jq -r '.version // empty')
                 if [[ -z "${latest}" ]]; then
                     warn "Could not fetch latest version for '${pkg}', skipping"
+                    continue
+                fi
+                # A package is free to point its `latest` dist-tag at a pre-release; never pin one.
+                if is_prerelease "${latest}"; then
+                    warn "Latest '${pkg}' (${latest}) is a pre-release, skipping"
                     continue
                 fi
 
@@ -778,11 +848,16 @@ update_apt_packages() {
             docker image rm "${temp_image}" >/dev/null 2>&1 || true
         fi
 
-        # Verify all packages resolved after quick or fallback path
+        # Verify all packages resolved to a final release after the quick or fallback path
         local all_found=true
         for package in "${package_names[@]}"; do
             if [[ -z "${apt_versions["${package}"]:-}" ]]; then
                 warn "Could not resolve version for '${package}', skipping section ${section}"
+                all_found=false
+                break
+            fi
+            if is_prerelease "${apt_versions[${package}]}"; then
+                warn "Candidate '${package}=${apt_versions[${package}]}' is a pre-release, skipping section ${section}"
                 all_found=false
                 break
             fi
@@ -882,11 +957,17 @@ update_alpine_packages() {
             fi
         done
 
-        # Verify all packages resolved
+        # Verify all packages resolved to a final release
         local all_found=true
         for package in "${package_names[@]}"; do
             if [[ -z "${alpine_versions["${package}"]:-}" ]]; then
                 warn "Could not resolve version for '${package}', skipping section ${section}"
+                all_found=false
+                break
+            fi
+            # Alpine spells pre-releases in the version itself (`1.2.0_rc1-r0`, `..._beta2-r0`).
+            if is_prerelease "${alpine_versions[${package}]}"; then
+                warn "Candidate '${package}=${alpine_versions[${package}]}' is a pre-release, skipping section ${section}"
                 all_found=false
                 break
             fi
@@ -940,6 +1021,15 @@ update_submodules() {
             latest_tag="$(git describe --tags "$(git rev-list --tags --max-count=1)" 2>/dev/null || true)"
             current_tag="$(git describe --tags --exact-match 2>/dev/null || echo 'detached')"
 
+            # The most recently tagged commit may carry a pre-release tag; fall back to the
+            # HIGHEST-VERSIONED tag that is a final release. By version, not by tag date, for the
+            # same reason as latest_stable_github_release: a backport tagged after a newer release
+            # is the most recent tag while being the lower version.
+            if [[ -n "${latest_tag}" ]] && is_prerelease "${latest_tag}"; then
+                warn "Ignoring pre-release tag '${latest_tag}' in submodule '${path}'"
+                latest_tag="$(git tag | filter_stable_versions | sort -V | tail -1)"
+            fi
+
             if [[ -z "${latest_tag}" ]]; then
                 warn "No tags in submodule '${path}', skipping"
                 exit 0
@@ -986,10 +1076,11 @@ update_parent_pom() {
     latest_version=$(curl_get \
         "https://repo1.maven.org/maven2/net/zodac/parent-pom/maven-metadata.xml" \
         | grep -oP '(?<=<version>)[^<]+' \
+        | filter_stable_versions \
         | sort -V | tail -1)
 
     if [[ -z "${latest_version}" ]]; then
-        warn "Could not fetch parent-pom version from Maven Central, skipping"
+        warn "Could not fetch a stable parent-pom version from Maven Central, skipping"
         return 0
     fi
 
@@ -1042,12 +1133,10 @@ update_github_actions() {
         action="${ref%@*}"
         current_version="${ref#*@}"
 
-        latest_version=$(github_curl \
-            "https://api.github.com/repos/${action}/releases/latest" \
-            | jq -r '.tag_name // empty')
+        latest_version=$(latest_stable_github_release "${action}")
 
         if [[ -z "${latest_version}" ]]; then
-            warn "Could not fetch latest version for ${action}, skipping"
+            warn "Could not fetch a stable version for ${action}, skipping"
             continue
         fi
 

@@ -54,7 +54,7 @@
 #             (the -trixie tag matches this base's glibc exactly).
 FROM eclipse-temurin:26.0.1_8-jdk AS jdk
 FROM maven:3.9.16-eclipse-temurin-26 AS maven
-FROM node:26.5.1-trixie AS node
+FROM node:26.7.0-trixie AS node
 
 # ── Runtime base ─────────────────────────────────────────────────────────────
 FROM debian:13.5
@@ -152,11 +152,11 @@ RUN install -m 0755 -d /etc/apt/keyrings \
 # BEGIN DEBIAN PACKAGES
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -yqq --no-install-recommends \
-        docker-ce="5:29.7.1-1~debian.13~trixie" \
-        docker-ce-cli="5:29.7.1-1~debian.13~trixie" \
-        containerd.io="2.2.6-1~debian.13~trixie" \
-        docker-buildx-plugin="0.36.0-1~debian.13~trixie" \
-        docker-compose-plugin="5.3.1-1~debian.13~trixie"
+        docker-ce="5:29.7.2-1~debian.13~trixie" \
+        docker-ce-cli="5:29.7.2-1~debian.13~trixie" \
+        containerd.io="2.3.3-1~debian.13~trixie" \
+        docker-buildx-plugin="0.36.1-1~debian.13~trixie" \
+        docker-compose-plugin="5.4.0-1~debian.13~trixie"
 # END DEBIAN PACKAGES
 
 # ── JDK 26 / Maven / Node (copied from the toolchain stages above) ───────────
@@ -260,7 +260,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
         git="1:2.47.3-0+deb13u1" \
         imagemagick="8:7.1.1.43+dfsg1-1+deb13u11" \
         iproute2="6.15.0-1" \
-        jq="1.7.1-6+deb13u2" \
+        jq="1.7.1-6+deb13u3" \
         librsvg2-bin="2.60.0+dfsg-1" \
         lsof="4.99.4+dfsg-2" \
         optipng="0.7.8+ds-1+b1" \

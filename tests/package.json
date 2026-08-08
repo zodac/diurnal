@@ -10,8 +10,8 @@
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
-    "@types/node": "26.1.2",
-    "@types/pg": "8.20.3",
-    "pg": "8.22.0"
+    "@types/node": "26.2.0",
+    "@types/pg": "8.21.0",
+    "pg": "8.23.0"
   }
 }

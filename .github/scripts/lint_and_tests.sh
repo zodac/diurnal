@@ -105,7 +105,7 @@ SCRIPT_NAME="$(basename -- "${SCRIPT_SOURCE}")"
 SCRIPT_PATH="${SCRIPT_DIR}/${SCRIPT_NAME}"
 
 ESLINT_BUILD_IMAGE="local/diurnal-eslint:latest"
-ESLINT_NODE_IMAGE="node:26.5.1-alpine"
+ESLINT_NODE_IMAGE="node:26.7.0-alpine"
 
 # Exact pins for the linting toolchain baked into ESLINT_BUILD_IMAGE. Pinned, rather than the floating
 # majors this used to install, because the versions resolve when the IMAGE is built: a developer's image
@@ -113,11 +113,11 @@ ESLINT_NODE_IMAGE="node:26.5.1-alpine"
 # different rule sets - and a new minor release could turn the gate red with no change to this repo. The
 # two @typescript-eslint packages share one pin because they are released in lockstep. All are bumped by
 # .github/scripts/update_dependency_versions.sh, like every other pin in this file.
-ESLINT_VERSION="9.39.5"
-ESLINT_JS_VERSION="9.39.5"
+ESLINT_VERSION="10.8.1"
+ESLINT_JS_VERSION="10.0.1"
 TYPESCRIPT_ESLINT_VERSION="8.66.0"
 ESLINT_GLOBALS_VERSION="17.9.0"
-TYPESCRIPT_VERSION="5.9.3"
+TYPESCRIPT_VERSION="7.0.2"
 GRYPE_DOCKER_IMAGE="anchore/grype:v0.116.1"
 HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.15.1-alpine"
 MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.2"
