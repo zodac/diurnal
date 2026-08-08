@@ -38,6 +38,8 @@ import net.zodac.diurnal.config.IpThrottleConfig;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.AdminUserService;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.PageSection;
+import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 
@@ -97,7 +99,7 @@ public class AdminWebResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance usersPage(@QueryParam("page") @DefaultValue("1") final int pageNum) {
         final User actor = currentUser.get();
-        final AdminUserService.UsersPage page = adminUserService.usersPage(pageNum, actor.pageSize);
+        final AdminUserService.UsersPage page = adminUserService.usersPage(pageNum, PageSizes.forSection(actor, PageSection.USERS));
         final ZoneId zone = clock.zoneFor(actor.timezone);
         final Instant now = clock.now();
         final List<UUID> ids = page.users().stream().map(u -> u.id).toList();

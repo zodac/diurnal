@@ -46,6 +46,7 @@ public record UserDto(
      * @param theme the UI theme: {@code light}, {@code dark} or {@code system}
      * @param font the UI font family: {@code nova} (brand typography), {@code standard} (system sans) or {@code dyslexic} (OpenDyslexic)
      * @param pageSize the number of rows shown per page in list views
+     * @param pageSizes the per-section page-size overrides; a section with no entry (or {@code null} altogether) follows {@code pageSize}
      * @param showStatsSummary whether the dashboard renders the per-action stats-summary strip
      * @param decimalPlaces the number of decimal places used to render fractional stats
      * @param calendarView the dashboard calendar style: {@code full}, {@code minimal} or {@code stacked}
@@ -58,6 +59,9 @@ public record UserDto(
         @Schema(examples = "system", description = "The UI colour scheme: 'light', 'dark', or 'system'.") String theme,
         @Schema(examples = "nova", description = "The UI font family: 'nova', 'standard' or 'dyslexic'.") String font,
         @Schema(examples = "25", description = "Number of rows displayed per page in list views.") int pageSize,
+        @Schema(description = "Per-section overrides of the page size ('dashboard', 'actions', 'notes', 'stats', 'users'); a section with no entry, "
+        + "or null altogether, uses 'pageSize'.")
+        @Nullable List<PageSizePref> pageSizes,
         @Schema(examples = "true", description = "Whether the dashboard renders the per-action stats-summary strip.")
         boolean showStatsSummary,
         @Schema(examples = "1", description = "Number of decimal places used to render fractional stats.") int decimalPlaces,
@@ -84,6 +88,7 @@ public record UserDto(
                         user.theme,
                         user.font,
                         user.pageSize,
+                        user.pageSizes,
                         user.showStatsSummary,
                         user.decimalPlaces,
                         user.calendarView,

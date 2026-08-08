@@ -27,6 +27,8 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.PageSection;
+import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 
@@ -71,7 +73,7 @@ public class ActionsWebResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance actionsPage() {
         final User user = currentUser.get();
-        final var page = ActionsInternalResource.getActions(user.id, 1, "", user.pageSize);
+        final var page = ActionsInternalResource.getActions(user.id, 1, "", PageSizes.forSection(user, PageSection.ACTIONS));
         return actionsTemplate
                 .data("displayName", user.displayName)
                 .data("email", user.email)

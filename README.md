@@ -440,7 +440,9 @@ Each user can customise Diurnal from the **Settings** page (top-right menu).
 - **Statistics summary**: Whether to show the selected day's top actions on the dashboard
 - **Decimal places**: Precision of the averages and abbreviated totals shown on the Statistics page and dashboard summary (`0`, `1` or `2`, default
   `1`)
-- **Items per page**: Page size for lists, like actions, day panel, stats, etc. (`1`-`100`, default `5`)
+- **Items per page**: Page size for lists, like actions, day panel, stats, etc. (`1`-`100`, default `5`). **Set a different value for each section**
+  expands a row per paginated list (dashboard actions, actions, notes, statistics, and — for an administrator — users), each of which can take its
+  own page size; a section stays on **Default** — following the value above it — until it is given a number of its own
 
 ### Statistics
 

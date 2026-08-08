@@ -40,6 +40,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.PageSection;
+import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.jspecify.annotations.Nullable;
@@ -225,7 +227,7 @@ public class StatsInternalResource {
         return statsCardsTemplate
                 .data("decimalPlaces", user.decimalPlaces)
                 .data("statsFields", StatField.displayFields(user.statsFields))
-                .data("page", paginate(statsService.forAllSubjects(user.id), pageNum, user.pageSize));
+                .data("page", paginate(statsService.forAllSubjects(user.id), pageNum, PageSizes.forSection(user, PageSection.STATS)));
     }
 
     /**

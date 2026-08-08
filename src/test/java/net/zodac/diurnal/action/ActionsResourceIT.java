@@ -27,7 +27,10 @@ import io.quarkus.test.security.TestSecurity;
 import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.user.PageSection;
+import net.zodac.diurnal.user.PageSizePref;
 import net.zodac.diurnal.user.Role;
+import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.user.UserSettings;
 import org.junit.jupiter.api.Test;
 
@@ -193,6 +196,40 @@ class ActionsResourceIT extends IntegrationTestBase {
         runInTx(() -> createActions(UserSettings.DEFAULT_PAGE_SIZE));
         given().queryParam("page", 99).get("/internal/actions/list")
             .then().statusCode(200)
+            .body(not(containsString("Next")));
+    }
+
+    @Test
+    void actionsList_sectionOverride_pagesByTheActionsValueRatherThanTheGeneralOne() {
+        // Two full general pages' worth of actions, with the Actions section pinned to a single row: the
+        // list must page by the override, not by the preference every other list follows.
+        runInTx(() -> {
+            createActions(UserSettings.DEFAULT_PAGE_SIZE);
+            final User user = User.findByEmail(PRIMARY).orElseThrow();
+            user.pageSizes = List.of(new PageSizePref(PageSection.ACTIONS.key(), 1));
+            user.persist();
+        });
+
+        given().queryParam("page", 1).get("/internal/actions/list")
+            .then().statusCode(200)
+            .body(containsString("Action01"))
+            .body(not(containsString("Action02")))
+            .body(containsString("Next"));
+    }
+
+    @Test
+    void actionsList_overrideForAnotherSection_leavesTheActionsListOnTheGeneralValue() {
+        runInTx(() -> {
+            createActions(UserSettings.DEFAULT_PAGE_SIZE);
+            final User user = User.findByEmail(PRIMARY).orElseThrow();
+            user.pageSizes = List.of(new PageSizePref(PageSection.NOTES.key(), 1));
+            user.persist();
+        });
+
+        given().queryParam("page", 1).get("/internal/actions/list")
+            .then().statusCode(200)
+            .body(containsString("Action01"))
+            .body(containsString(String.format("Action%02d", UserSettings.DEFAULT_PAGE_SIZE)))
             .body(not(containsString("Next")));
     }
 

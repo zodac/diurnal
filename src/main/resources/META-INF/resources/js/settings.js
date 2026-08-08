@@ -533,11 +533,19 @@ document.addEventListener('keydown', function (e) {
 // Decimal places has no stepper (its pills are the whole range), so `minus`/`plus` resolve to
 // null there and the stepper wiring is skipped; its hidden field cannot be typed into either,
 // leaving the pills as the only input.
+//
+// Two optional shapes serve the per-section page sizes: a `data-num-pref-clear` pill in the
+// preset strip CLEARS the field (an empty value is what tells the server that section follows
+// the general preference, so the ± then steps from the inherited number the field shows as its
+// placeholder), and `saveOn` moves the htmx save onto another element — those rows hang their
+// hx-patch on the panel, so one PATCH carries every row rather than one row at a time.
 function wireNumericPref(opts) {
     const field   = document.getElementById(opts.field)
     const minus   = document.getElementById(opts.minus)
     const plus    = document.getElementById(opts.plus)
     const presets = document.getElementById(opts.presets)
+    const saveOn  = opts.saveOn ? document.getElementById(opts.saveOn) : field
+    const clearPill = presets.querySelector('[data-num-pref-clear]')
     const MIN = opts.min
     const MAX = opts.max
     // The last value the server accepted — the value to restore if a typed entry is rejected.
@@ -549,44 +557,69 @@ function wireNumericPref(opts) {
         return n
     }
 
-    // Highlight the preset pill matching the current value (none, if it is a custom value).
+    function mark(pill, active) {
+        pill.classList.toggle('num-pref-pill-active', active)
+        pill.setAttribute('aria-pressed', active ? 'true' : 'false')
+    }
+
+    // Highlight the preset pill matching the current value (none, if it is a custom value), or
+    // the "Default" pill when the field is empty.
     function syncPills() {
         const val = parseInt(field.value, 10)
         presets.querySelectorAll('.num-pref-pill').forEach(function (pill) {
-            const active = parseInt(pill.dataset.value, 10) === val
-            pill.classList.toggle('num-pref-pill-active', active)
-            pill.setAttribute('aria-pressed', active ? 'true' : 'false')
+            mark(pill, parseInt(pill.dataset.value, 10) === val)
         })
+        if (clearPill) { mark(clearPill, field.value === '') }
     }
 
-    // Bounded controls (pills, ±): the value is clamped into range, so it always validates.
-    // A clamped result equal to the current value (e.g. pressing − at the minimum, or a pill
-    // for the already-selected value) is a no-op — skip the save so we don't PATCH an unchanged
-    // setting.
-    function setValid(n) {
-        const next = String(clamp(n))
+    // Shows a new value and saves it. A value equal to the one already shown (e.g. pressing − at
+    // the minimum, or a pill for the already-selected value) is a no-op — skip the save so we
+    // don't PATCH an unchanged setting.
+    //
+    // A number equal to the inherited one is deliberately NOT folded back to the empty "Default"
+    // state: setting a row to 25 while the general preference happens to be 25 is an explicit
+    // choice to page THAT list by 25, and it must survive the general preference moving to
+    // something else. Only the "Default" pill clears a row.
+    function commit(next) {
         if (next === field.value) { return }
         field.value = next
         syncPills()
-        htmx.trigger(field, 'save')
+        htmx.trigger(saveOn, 'save')
     }
 
-    if (minus) { minus.addEventListener('click', function () { setValid(parseInt(field.value, 10) - 1) }) }
-    if (plus)  { plus.addEventListener('click',  function () { setValid(parseInt(field.value, 10) + 1) }) }
+    // Bounded controls (pills, ±): the value is clamped into range, so it always validates.
+    function setValid(n) {
+        commit(String(clamp(n)))
+    }
+
+    // ± steps from the shown value, or — for a cleared field — from the inherited value it is
+    // showing as its placeholder, so the first press lands next to what the user sees.
+    function shown() {
+        return parseInt(field.value === '' ? field.placeholder : field.value, 10)
+    }
+
+    if (minus) { minus.addEventListener('click', function () { setValid(shown() - 1) }) }
+    if (plus)  { plus.addEventListener('click',  function () { setValid(shown() + 1) }) }
     presets.addEventListener('click', function (e) {
         const pill = e.target.closest('.num-pref-pill')
-        if (pill) { setValid(parseInt(pill.dataset.value, 10)) }
+        if (!pill) { return }
+        if (pill.hasAttribute('data-num-pref-clear')) {
+            commit('')
+        } else {
+            setValid(parseInt(pill.dataset.value, 10))
+        }
     })
     // Direct typing / native arrow keys: send the RAW value (no clamping) so the server
     // validates it. The `save` event (not `change`) carries the PATCH, so this handler is
     // not re-entered by the save itself.
     field.addEventListener('change', function () {
         syncPills()
-        htmx.trigger(field, 'save')
+        htmx.trigger(saveOn, 'save')
     })
     // Save result: remember an accepted value, or revert to the last accepted one on
-    // rejection (the red error message is shown by the shared prefs handler above).
-    field.addEventListener('htmx:afterRequest', function (e) {
+    // rejection (the red error message is shown by the shared prefs handler above). Rows that
+    // share a `saveOn` element each handle the one response, restoring their own field.
+    saveOn.addEventListener('htmx:afterRequest', function (e) {
         if (e.detail.successful) {
             lastGood = field.value
         } else {
@@ -601,6 +634,33 @@ function wireNumericPref(opts) {
 wireNumericPref({ field: 'pageSize', minus: 'pageSizeMinus', plus: 'pageSizePlus',
                   presets: 'pageSizePresets', min: 1, max: 100 })
 wireNumericPref({ field: 'decimalPlaces', presets: 'decimalPlacesPresets', min: 0, max: 2 })
+
+// Per-section page sizes: the same control as the row above, plus the "Default" pill, saving
+// through the panel so one PATCH carries the whole set (the endpoint replaces every override
+// with what it is sent, so a row must never save on its own).
+const pageSizeFields = document.querySelectorAll('[data-page-size-section]')
+pageSizeFields.forEach(function (field) {
+    wireNumericPref({ field: field.id, minus: `${field.id}-minus`, plus: `${field.id}-plus`,
+                      presets: `${field.id}-presets`, min: 1, max: 100, saveOn: 'page-size-sections-panel' })
+})
+
+// The general "Items per page" is what a section without its own value falls back to, and every
+// such row shows it as a placeholder — so re-label them all when it changes, rather than leaving
+// a stale number on screen (and under the ± steppers) until the next page load.
+const generalPageSize = document.getElementById('pageSize')
+generalPageSize.addEventListener('htmx:afterRequest', function (e) {
+    if (!e.detail.successful) { return }
+    pageSizeFields.forEach(function (field) { field.placeholder = generalPageSize.value })
+})
+
+// The overrides disclosure: collapsed on load, since most users want one value everywhere.
+const pageSizeToggle = document.getElementById('page-size-sections-toggle')
+const pageSizePanel = document.getElementById('page-size-sections-panel')
+pageSizeToggle.addEventListener('click', function () {
+    const opening = pageSizePanel.classList.contains('hidden')
+    pageSizePanel.classList.toggle('hidden', !opening)
+    pageSizeToggle.setAttribute('aria-expanded', String(opening))
+})
 
 // Assign src from data-src for all preview thumbnails so fetches are deferred until
 // after the page renders. decode() is called so the lightbox open is flash-free.

@@ -46,6 +46,8 @@ import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.AdminUserResult;
 import net.zodac.diurnal.user.AdminUserService;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.PageSection;
+import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 
@@ -110,7 +112,7 @@ public class AdminUsersInternalResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance usersList(@QueryParam("page") @DefaultValue("1") final int pageNum) {
         final User actor = currentUser.get();
-        return adminUsersListTemplate.data("page", pageRows(adminUserService.usersPage(pageNum, actor.pageSize)));
+        return adminUsersListTemplate.data("page", pageRows(adminUserService.usersPage(pageNum, PageSizes.forSection(actor, PageSection.USERS))));
     }
 
     /**
@@ -196,8 +198,7 @@ public class AdminUsersInternalResource {
             case final AdminUserResult.NotFound ignored -> HtmxResponses.conflictBanner("#admin-error", "User not found.");
             case final AdminUserResult.LastAdmin ignored -> HtmxResponses.conflictBanner("#admin-error", "Cannot delete the last administrator.");
             case final AdminUserResult.InvalidRole ignored -> HtmxResponses.conflictBanner("#admin-error", "Invalid role value.");
-            case final AdminUserResult.Success ignored ->
-                Response.ok(adminUsersListTemplate.data("page", pageRows(adminUserService.usersPage(1, currentUser.get().pageSize)))).build();
+            case final AdminUserResult.Success ignored -> Response.ok(adminUsersListTemplate.data("page", pageRows(firstPage()))).build();
         };
     }
 
@@ -210,6 +211,12 @@ public class AdminUsersInternalResource {
     private PaginatedUsers pageRows(final AdminUserService.UsersPage page) {
         final List<UUID> ids = page.users().stream().map(u -> u.id).toList();
         return toRows(page, actorZone(), sessionActivityService.recentActivityByUser(ids, clock.now()));
+    }
+
+    // The first page of the list, as re-rendered after a mutation, sized by the viewing administrator's own
+    // "Users" page-size override (or their general preference, when they have none).
+    private AdminUserService.UsersPage firstPage() {
+        return adminUserService.usersPage(1, PageSizes.forSection(currentUser.get(), PageSection.USERS));
     }
 
     // A single row (post-mutation re-render / cancel restore), with its own recently-active presence resolved.
