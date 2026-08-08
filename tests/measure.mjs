@@ -6,7 +6,7 @@ const api=await b.newContext();
 // The API refuses to create the initial account, so bootstrap the first (admin) user via the web
 // /register form, then register this measurement user via the API.
 await api.request.post(BASE+'/register',{form:{email:'measure-admin@example.com',displayName:'Measure Admin',password:'bootstrap_password123',confirmPassword:'bootstrap_password123'}});
-await api.request.post(BASE+'/api/auth/register',{data:u});
+await api.request.post(BASE+'/api/v1/auth/register',{data:u});
 async function measure(w,h,label){
   const ctx=await b.newContext({viewport:{width:w,height:h}});
   const p=await ctx.newPage();

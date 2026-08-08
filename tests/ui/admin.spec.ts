@@ -13,12 +13,26 @@ const ADMIN: TestUser = {
     displayName: "E2E Admin User",
 }
 
-// Register → promote to admin in the DB → log in. The promotion must precede login because roles
-// are baked into the session at authentication time (PasswordIdentityProvider).
+// Register → promote to admin in the DB → log in → widen the Users page size. The promotion must
+// precede login because roles are baked into the session at authentication time
+// (PasswordIdentityProvider).
+//
+// The page size is not a detail: /admin/users page 1 shows the OLDEST rows by created_at, and the
+// default size is 5. Every spec in the run registers its own fixture user against one shared database,
+// so ADMIN's position in that ordering depends on how the worker pool happened to interleave — it was
+// measured sitting at position 4 of 5, one row from falling off page 1 and taking every assertion here
+// with it. Overriding just this section (PageSection.USERS) puts the row on page 1 for good, whatever
+// order the suite runs in.
 async function loginAsAdmin(page: Page): Promise<void> {
     await registerUser(ADMIN)
     await ensureSoleAdmin(ADMIN.email)
     await loginAs(page, ADMIN)
+    const widened = await page.request.patch("/api/v1/users/me", {
+        data: { preferences: { pageSizes: [{ section: "users", pageSize: 100 }] } },
+    })
+    if (!widened.ok()) {
+        throw new Error(`could not widen the admin Users page size: HTTP ${widened.status()}`)
+    }
 }
 
 // A dedicated non-admin user for the access-control tests. The per-spec fixture user would do,

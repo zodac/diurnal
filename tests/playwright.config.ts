@@ -5,8 +5,16 @@ export default defineConfig({
     // Create the initial admin locally before any spec runs; the per-spec API registrations depend on it.
     globalSetup: "./global-setup.ts",
     fullyParallel: false, // tests within a file stay sequential; parallelism is file/project-level
-    forbidOnly: process.env.CI !== undefined,
-    retries: process.env.CI !== undefined ? 1 : 0,
+    // Unconditional, not CI-only: a stray `test.only` locally made the gate pass green having run a
+    // single test, which is the one place the check is actually needed - CI runs from a clean checkout
+    // that rarely carries one, whereas a working tree routinely does mid-debug.
+    forbidOnly: true,
+    // No retries, anywhere. A retry cannot rescue a spec that mutates its own fixture user and asserts
+    // pristine state on the way in - the second attempt starts from the state the first one left, so it
+    // fails deterministically - and where a retry DOES pass, it converts a real race into a green run
+    // that nobody investigates. Every flake here is a bug in the spec (each one found so far has been a
+    // missing DOM barrier), so the suite is held to passing first time.
+    retries: 0,
     // 2 is deliberate, and measured: raising it to 4 made the suite BOTH slower (64s vs 61s) and red.
     // The specs share one app instance and one never-reset database, so more workers only add users to
     // the paginated admin list and contention to the shared fixtures - admin.spec.ts asserts on a

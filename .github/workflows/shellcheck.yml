@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/shellcheck.yml'
       - '**/*.sh'
+      # A submodule bump changes the shared .shellcheckrc; it is reported as this bare gitlink path.
+      - 'code-quality-config'
   workflow_dispatch: # allows manual trigger
 
 jobs:

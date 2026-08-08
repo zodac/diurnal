@@ -5,9 +5,14 @@ on:
     branches: [ master ]
     paths:
       - '.github/workflows/javascript_typescript.yml'
-      # JavaScript sources linted by the `javascript` step
+      # JavaScript sources linted by the `javascript` step. The served app scripts are the bulk of them
+      # (the step lints every tracked *.js/*.cjs), so leaving them out meant a change to dashboard.js or
+      # app.js was linted in CI only by the monthly full-gate run.
+      - 'src/main/resources/META-INF/resources/js/**'
       - 'frontend/tailwind.config.js'
       - 'scripts/**/*.cjs'
+      # A submodule bump changes both eslint configs; it is reported as this bare gitlink path.
+      - 'code-quality-config'
       # TypeScript sources linted by the `typescript` step
       - 'tests/**/*.ts'
       - 'tests/tsconfig.json'
