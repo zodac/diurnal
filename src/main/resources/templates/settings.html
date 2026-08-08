@@ -371,9 +371,63 @@
                         endpoint='/internal/settings' min=0 max=2 value=decimalPlaces options=decimalPlacesOptions
                         stepper=false minusLabel='' plusLabel='' border=true /}
 
-                    {#include partials/num-pref-row rowId='page-size-row' id='pageSize' label='Items per page' help=''
+                    {#include partials/num-pref-row rowId='page-size-row' id='pageSize' label='Items per page'
+                        help='Default number of items per page.'
                         endpoint='/internal/settings' min=1 max=100 value=pageSize options=pageSizeOptions
                         stepper=true minusLabel='Fewer items per page' plusLabel='More items per page' border=false /}
+
+                    {! Per-section overrides: a disclosure holding one row per paginated list (the admin-only
+                         ones only for an administrator - the rows come from PageSizes.rows(user)). Each row is
+                         the same pill + stepper control as the row above, with a "Default" pill that clears its
+                         override: an EMPTY value is "follow the setting above", which is why the box shows the
+                         inherited number as a placeholder rather than as a value the user never chose.
+
+                         The hx-patch sits on the PANEL, not on each field, so one save always carries the whole
+                         set (the endpoint replaces every override with what it is sent) and the section keys and
+                         values pair up by index. settings.js wires the toggle and each row's pills/stepper. !}
+                    <div class="pb-4">
+                        <button type="button" id="page-size-sections-toggle" aria-expanded="false"
+                                aria-controls="page-size-sections-panel"
+                                class="group flex items-center gap-1.5 text-xs font-medium text-ink-muted cursor-pointer rounded-md
+                                       transition-colors hover:text-ink focus:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-ring">
+                            {#include partials/icon name='chevron-right' cls='w-3.5 h-3.5 transition-transform duration-200 group-aria-expanded:rotate-90' /}
+                            Set a different value for each section
+                        </button>
+
+                        <div id="page-size-sections-panel" class="hidden"
+                             hx-patch="/internal/settings" hx-trigger="save" hx-swap="none"
+                             hx-include="#page-size-sections-panel">
+                            {#for row in pageSizeSections}
+                            <div class="py-3 border-t border-line-subtle">
+                                <div class="flex items-center justify-between gap-4">
+                                    <label for="page-size-{row.key}" class="block text-sm text-ink-muted shrink-0">{row.label}</label>
+                                    <div id="page-size-{row.key}-presets" class="flex flex-wrap justify-end gap-1.5">
+                                        <button type="button" class="num-pref-pill" data-num-pref-clear aria-pressed="false">Default</button>
+                                        {#for option in pageSizeOptions}
+                                        <button type="button" class="num-pref-pill" data-value="{option}" aria-pressed="false">{option}</button>
+                                        {/for}
+                                    </div>
+                                </div>
+                                <div class="mt-3 flex justify-end">
+                                    <div class="num-pref-stepper shrink-0">
+                                        <button type="button" id="page-size-{row.key}-minus" class="num-pref-stepper-btn"
+                                                aria-label="Fewer items per page for {row.label}">
+                                            {#include partials/icon name='minus' cls='w-3.5 h-3.5' /}
+                                        </button>
+                                        <input type="hidden" name="pageSizeSection" value="{row.key}">
+                                        <input type="number" id="page-size-{row.key}" name="pageSizeValue" min="1" max="100"
+                                               value="{row.value.or('')}" placeholder="{pageSize}" inputmode="numeric"
+                                               data-page-size-section aria-label="Items per page for {row.label}" class="num-pref-value">
+                                        <button type="button" id="page-size-{row.key}-plus" class="num-pref-stepper-btn"
+                                                aria-label="More items per page for {row.label}">
+                                            {#include partials/icon name='plus' cls='w-3.5 h-3.5' /}
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            {/for}
+                        </div>
+                    </div>
                 </div>
 
                 {! Data (export / import). Left column per the "first free vertical slot" rule above —

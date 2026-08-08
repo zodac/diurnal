@@ -34,6 +34,8 @@ import java.util.UUID;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.time.Durations;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.PageSection;
+import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.eclipse.microprofile.openapi.annotations.Operation;
@@ -102,7 +104,7 @@ public class StatsApiResource {
         @QueryParam("page") @DefaultValue("1") final int pageNum) {
         final User user = currentUser.get();
         final StatsInternalResource.PaginatedStats page = StatsInternalResource.paginate(statsService.forAllSubjects(user.id), pageNum,
-            user.pageSize);
+            PageSizes.forSection(user, PageSection.STATS));
         // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range) so a
         // page number is never silently changed to some other page.
         if (pageNum < 1 || pageNum > Math.max(1, page.totalPages())) {

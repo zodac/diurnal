@@ -1,36 +1,10 @@
 import type { Page } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
+import { establishNumericPref, waitForSave } from "../helpers/prefs"
 
 // Geometry of one stats-picker row, measured RELATIVE to the row so page scrolling cannot mask a shift.
 interface ElementBox { left: number, top: number, height: number }
 interface RowGeometry { rowHeight: number, text: ElementBox | null, button: ElementBox | null }
-
-// Every preference (and the display name) auto-saves via an HTMX PATCH to the single consolidated
-// /internal/settings endpoint, each control submitting just its own field on `change`. That PATCH is
-// asynchronous, so a test MUST wait for it to finish before reloading/navigating — otherwise the
-// reload races the save and reads the stale value (the root cause of the previous flakiness).
-async function waitForSave(page: Page, action: Promise<unknown>): Promise<void> {
-    await Promise.all([
-        page.waitForResponse(r => new URL(r.url()).pathname === "/internal/settings" && r.request().method() === "PATCH"),
-        action,
-    ])
-}
-
-// Set a numeric preference (page size / decimal places) to `value` via its preset pill,
-// tolerating the case where it is ALREADY that value. Clicking a preset for the current value is
-// a deliberate no-op that fires no PATCH (settings.js `setValid`), so `waitForSave` would hang —
-// only wait for a save when the value actually changes.
-async function establishNumericPref(
-    page: Page, presetsId: string, fieldId: string, value: string,
-): Promise<void> {
-    const alreadySet = (await page.locator(`#${fieldId}`).inputValue()) === value
-    const click = page.locator(`#${presetsId} .num-pref-pill[data-value="${value}"]`).click()
-    if (alreadySet) {
-        await click
-    } else {
-        await waitForSave(page, click)
-    }
-}
 
 // Theme and calendar style are chosen from preview tiles backed by hidden radio inputs. Tests in
 // a spec share one user, so a value may already be selected; we check the radio and always dispatch

@@ -29,6 +29,9 @@ import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.stats.StatField;
+import net.zodac.diurnal.user.PageSection;
+import net.zodac.diurnal.user.PageSizePref;
+import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.StatFieldPref;
 import net.zodac.diurnal.user.User;
@@ -505,6 +508,93 @@ class SettingsIT extends IntegrationTestBase {
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
             .as("a non-numeric value must not change the stored page size")
             .isEqualTo(25));
+    }
+
+    // ── PATCH /settings (per-section page sizes) ─────────────────────────────────
+    // The overrides panel posts every row: its section key as pageSizeSection and its value as
+    // pageSizeValue (blank = follow the general "Items per page"), the two pairing up by index.
+
+    @Test
+    void updatePageSizes_valuesForSomeSections_storesOnlyThoseSections() {
+        given().formParam("pageSizeSection", "dashboard", "actions", "notes", "stats", "users")
+                .formParam("pageSizeValue", "", "25", "", "50", "")
+                .patch("/internal/settings")
+                .then().statusCode(204);
+
+        final List<PageSizePref> expected = List.of(
+            new PageSizePref("actions", 25),
+            new PageSizePref("stats", 50));
+        runInTx(() -> {
+            final User user = User.findByEmail(PRIMARY).orElseThrow();
+            assertThat(user.pageSizes)
+                .as("a blank row is the 'follow the general setting' reset, so it is not stored at all")
+                .containsExactlyElementsOf(expected);
+            assertThat(PageSizes.forSection(user, PageSection.ACTIONS))
+                .as("an overridden section pages by its own value")
+                .isEqualTo(25);
+            assertThat(PageSizes.forSection(user, PageSection.NOTES))
+                .as("a section with no override pages by the general preference")
+                .isEqualTo(user.pageSize);
+        });
+    }
+
+    @Test
+    void updatePageSizes_everyRowBlank_clearsEveryOverride() {
+        given().formParam("pageSizeSection", "actions").formParam("pageSizeValue", "25").patch("/internal/settings");
+
+        given().formParam("pageSizeSection", "dashboard", "actions", "notes", "stats", "users")
+                .formParam("pageSizeValue", "", "", "", "", "")
+                .patch("/internal/settings")
+                .then().statusCode(204);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSizes)
+            .as("no overrides is stored as nothing at all, the state a user who never opened the panel is in")
+            .isNull());
+    }
+
+    @Test
+    void updatePageSizes_outOfRangeValue_rejectedAndNothingStored() {
+        given().formParam("pageSizeSection", "actions").formParam("pageSizeValue", "25").patch("/internal/settings");
+
+        given().formParam("pageSizeSection", "dashboard", "actions")
+                .formParam("pageSizeValue", "5", "999")
+                .patch("/internal/settings")
+                .then().statusCode(422)
+                .body(containsString("100"));
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSizes)
+            .as("a save carries the whole set, so a rejected row must not commit the rows beside it")
+            .containsExactly(new PageSizePref("actions", 25)));
+    }
+
+    @Test
+    void updatePageSizes_unknownSection_isIgnored() {
+        given().formParam("pageSizeSection", "retired-section", "actions")
+                .formParam("pageSizeValue", "10", "25")
+                .patch("/internal/settings")
+                .then().statusCode(204);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSizes)
+            .as("an unrecognised section is dropped, exactly as an unknown stats-field key is")
+            .containsExactly(new PageSizePref("actions", 25)));
+    }
+
+    @Test
+    void updatePageSizes_leavesTheGeneralPageSizeUntouched() {
+        given().formParam("pageSize", "10").patch("/internal/settings");
+
+        given().formParam("pageSizeSection", "actions").formParam("pageSizeValue", "25").patch("/internal/settings")
+                .then().statusCode(204);
+
+        runInTx(() -> {
+            final User user = User.findByEmail(PRIMARY).orElseThrow();
+            assertThat(user.pageSize)
+                .as("the general preference is a separate field, and an override must not overwrite it")
+                .isEqualTo(10);
+            assertThat(PageSizes.forSection(user, PageSection.DASHBOARD))
+                .as("every section but the overridden one still follows the general preference")
+                .isEqualTo(10);
+        });
     }
 
     // ── PATCH /settings/decimal-places ───────────────────────────────────────────

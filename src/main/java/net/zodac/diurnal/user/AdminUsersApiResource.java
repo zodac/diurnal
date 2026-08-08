@@ -104,7 +104,8 @@ public class AdminUsersApiResource {
         @Parameter(name = "page", in = ParameterIn.QUERY,
         description = "The 1-based page to return (default 1); out-of-range values are rejected.")
         @QueryParam("page") @DefaultValue("1") final int pageNum) {
-        final AdminUserService.UsersPage page = adminUserService.usersPage(pageNum, currentUser.get().pageSize);
+        final User actor = currentUser.get();
+        final AdminUserService.UsersPage page = adminUserService.usersPage(pageNum, PageSizes.forSection(actor, PageSection.USERS));
         // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range) so a
         // page number is never silently changed to some other page.
         if (pageNum < 1 || pageNum > Math.max(1, page.totalPages())) {

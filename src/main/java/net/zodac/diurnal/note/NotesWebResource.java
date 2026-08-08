@@ -30,6 +30,8 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import java.util.List;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.PageSection;
+import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 
@@ -94,7 +96,7 @@ public class NotesWebResource {
         final User user = currentUser.get();
         final List<Note> notes = Note.findByUser(user.id);
         final List<NoteHit> hits = noteService.search(user.id, searchTerm, notes);
-        final PaginatedNotes page = NotePages.of(hits, searchTerm.strip(), pageNum, user.pageSize);
+        final PaginatedNotes page = NotePages.of(hits, searchTerm.strip(), pageNum, PageSizes.forSection(user, PageSection.NOTES));
 
         return notesTemplate
             .data("displayName", user.displayName)

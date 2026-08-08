@@ -165,6 +165,28 @@ public class ProfileService {
     }
 
     /**
+     * Updates the per-section page-size overrides: {@code sections} holds one {@link PageSection} key per row and {@code values} the page size
+     * submitted for it, pairing up by index. The submission carries the user's WHOLE set (both surfaces post every row), so a section left out of it
+     * loses any override it had.
+     *
+     * <p>
+     * Every rule is {@link PageSizes#parse(List, List)}: a blank value resets that section to the general "Items per page" preference, an
+     * unrecognised section key is dropped, and a non-numeric or out-of-range value is rejected rather than coerced - the same treatment, and the same
+     * message, the general page size gets.
+     *
+     * @param sections the submitted section keys
+     * @param values   the submitted page sizes, in the same order as {@code sections}
+     * @param user     the acting user
+     * @return the outcome: {@link ProfileResult.Invalid} for a rejected value, otherwise {@link ProfileResult.Updated}
+     */
+    public ProfileResult updatePageSizes(final User user, final List<String> sections, final @Nullable List<String> values) {
+        return switch (PageSizes.parse(sections, values)) {
+            case final PageSizes.Outcome.Failure failure -> new ProfileResult.Invalid(failure.message());
+            case final PageSizes.Outcome.Valid valid -> applyPageSizes(user, valid.overrides());
+        };
+    }
+
+    /**
      * Updates the decimal-place preference, rejecting a non-numeric or out-of-range value.
      *
      * @param user          the acting user
@@ -231,6 +253,10 @@ public class ProfileService {
 
     private static String allowedValues(final PreviewOption[] options) {
         return java.util.Arrays.stream(options).map(PreviewOption::value).collect(java.util.stream.Collectors.joining(", "));
+    }
+
+    private static ProfileResult applyPageSizes(final User user, final @Nullable List<PageSizePref> overrides) {
+        return applySetting(user, "Page sizes", PageSizes.describe(overrides), () -> user.pageSizes = overrides);
     }
 
     private static ProfileResult applySetting(final User user, final String settingName, final @Nullable Object newValue, final Runnable mutation) {

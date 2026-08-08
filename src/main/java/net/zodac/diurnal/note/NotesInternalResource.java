@@ -44,6 +44,8 @@ import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.log.DateRanges;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.PageSection;
+import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.web.RollbackOnErrorStatus;
@@ -151,7 +153,7 @@ public class NotesInternalResource {
 
         final User user = currentUser.get();
         final List<NoteHit> hits = noteService.search(user.id, searchTerm, Note.findByUser(user.id));
-        final PaginatedNotes page = NotePages.of(hits, searchTerm.strip(), pageNum, user.pageSize);
+        final PaginatedNotes page = NotePages.of(hits, searchTerm.strip(), pageNum, PageSizes.forSection(user, PageSection.NOTES));
         return Response.ok(notesListTemplate.data("page", page, "extraQuery", NotePages.extraQuery(searchTerm))).build();
     }
 

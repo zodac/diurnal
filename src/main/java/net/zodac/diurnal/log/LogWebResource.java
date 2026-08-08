@@ -50,6 +50,8 @@ import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.time.DayLabels;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.PageSection;
+import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.web.RollbackOnErrorStatus;
@@ -107,7 +109,7 @@ public class LogWebResource {
     public TemplateInstance dayPanel(@PathParam("date") final LocalDate date) {
         final User user = currentUser.get();
         final boolean future = LogGuards.isFuture(date, user, clock);
-        final var page = future ? null : getActions(user.id, date, 1, "", user.pageSize);
+        final var page = future ? null : getActions(user.id, date, 1, "", PageSizes.forSection(user, PageSection.DASHBOARD));
 
         return dayPanelTemplate
             .data("date", date)
@@ -127,7 +129,7 @@ public class LogWebResource {
         @QueryParam("page") @DefaultValue("1") final int pageNum,
         @QueryParam("q") @DefaultValue("") final String searchTerm) {
         final User user = currentUser.get();
-        final var page = getActions(user.id, date, pageNum, searchTerm, user.pageSize);
+        final var page = getActions(user.id, date, pageNum, searchTerm, PageSizes.forSection(user, PageSection.DASHBOARD));
         return dayActionsListTemplate.data("date", date, "page", page);
     }
 
@@ -172,10 +174,11 @@ public class LogWebResource {
             .stream()
             .collect(Collectors.groupingBy(log -> log.logDate, Collectors.toMap(log -> log.actionId, log -> log.count)));
 
+        final int dayPageSize = PageSizes.forSection(user, PageSection.DASHBOARD);
         final Map<String, String> panels = new LinkedHashMap<>();
         for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
             final boolean future = LogGuards.isFuture(date, user, clock);
-            final var page = future ? null : paginate(all, countsByDate.getOrDefault(date, Map.of()), 1, "", user.pageSize);
+            final var page = future ? null : paginate(all, countsByDate.getOrDefault(date, Map.of()), 1, "", dayPageSize);
             panels.put(date.toString(), dayPanelTemplate
                 .data("date", date)
                 .data("dateLabel", DayLabels.spelledOut(date))

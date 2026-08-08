@@ -39,6 +39,8 @@ import java.util.UUID;
 import net.zodac.diurnal.text.TextFieldExtensions;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.PageSection;
+import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.web.HtmxResponses;
@@ -99,7 +101,7 @@ public class ActionsInternalResource {
         @QueryParam("page") @DefaultValue("1") final int pageNum,
         @QueryParam("q") @DefaultValue("") final String searchTerm) {
         final User user = currentUser.get();
-        final var page = getActions(user.id, pageNum, searchTerm, user.pageSize);
+        final var page = getActions(user.id, pageNum, searchTerm, PageSizes.forSection(user, PageSection.ACTIONS));
         final String extraQuery = (searchTerm == null || searchTerm.isBlank())
             ? ""
             : "&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8);

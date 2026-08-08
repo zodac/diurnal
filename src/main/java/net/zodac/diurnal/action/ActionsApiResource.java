@@ -42,6 +42,8 @@ import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.text.TextFieldExtensions;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.PageSection;
+import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.web.RollbackOnErrorStatus;
@@ -118,13 +120,14 @@ public class ActionsApiResource {
 
         // The validator folds in the page, filter and page-size (all of which change the response) plus the user's action
         // signature. It is computed before the page query so an unchanged listing can return 304 without building the page.
-        final EntityTag tag = EntityTags.weak(user.id, pageNum, searchTerm, user.pageSize, Action.userVersion(user.id));
+        final int pageSize = PageSizes.forSection(user, PageSection.ACTIONS);
+        final EntityTag tag = EntityTags.weak(user.id, pageNum, searchTerm, pageSize, Action.userVersion(user.id));
         final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
         if (notModified != null) {
             return EntityTags.withPrivateValidator(notModified, tag).build();
         }
 
-        final ActionsInternalResource.PaginatedActions page = ActionsInternalResource.getActions(user.id, pageNum, searchTerm, user.pageSize);
+        final ActionsInternalResource.PaginatedActions page = ActionsInternalResource.getActions(user.id, pageNum, searchTerm, pageSize);
         // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range) so a
         // page number is never silently changed to some other page.
         if (pageNum < 1 || pageNum > Math.max(1, page.totalPages())) {

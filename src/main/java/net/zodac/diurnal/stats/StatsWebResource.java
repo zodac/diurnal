@@ -30,6 +30,8 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.PageSection;
+import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 
@@ -68,6 +70,7 @@ public class StatsWebResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance statsPage(@QueryParam("page") @DefaultValue("1") final int pageNum) {
         final User user = currentUser.get();
+        final int statsPageSize = PageSizes.forSection(user, PageSection.STATS);
         return statsTemplate
                 .data("email", user.email)
                 .data("displayName", user.displayName)
@@ -77,6 +80,6 @@ public class StatsWebResource {
                 .data("hasActions", !Action.findByUser(user.id).isEmpty())
                 .data("decimalPlaces", user.decimalPlaces)
                 .data("statsFields", StatField.displayFields(user.statsFields))
-                .data("page", StatsInternalResource.paginate(statsService.forAllSubjects(user.id), pageNum, user.pageSize));
+                .data("page", StatsInternalResource.paginate(statsService.forAllSubjects(user.id), pageNum, statsPageSize));
     }
 }

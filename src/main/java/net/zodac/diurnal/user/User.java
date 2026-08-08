@@ -81,6 +81,15 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     @Column(name = "page_size", nullable = false)
     public int pageSize = UserSettings.DEFAULT_PAGE_SIZE;
 
+    // Per-section overrides of the page size above: a jsonb array of PageSizePref, holding an entry only for
+    // the sections the user gave their own value. NULL (and an absent entry) = follow pageSize, so "the
+    // default everywhere" has one representation. Resolved by PageSizes.forSection(...), which every
+    // paginated list asks for its size.
+    @Preference
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "page_sizes", columnDefinition = "jsonb")
+    public @Nullable List<PageSizePref> pageSizes;
+
     // Whether the dashboard renders the per-action stats-summary strip.
     @Preference
     @Column(name = "show_stats_summary", nullable = false)

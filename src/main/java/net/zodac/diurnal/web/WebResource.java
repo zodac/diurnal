@@ -74,6 +74,7 @@ import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.CalendarView;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Font;
+import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.ProfileResult;
 import net.zodac.diurnal.user.ProfileService;
 import net.zodac.diurnal.user.Role;
@@ -633,6 +634,8 @@ public class WebResource {
      * @param noteColour       the new day-notes colour, when submitted
      * @param timezone         the new IANA timezone, when submitted
      * @param pageSize         the new list page size, when submitted
+     * @param pageSizeSection  every per-section page-size row's section key, when the overrides panel is submitted
+     * @param pageSizeValue    each of those rows' page size (blank = follow {@code pageSize}), in the same order as {@code pageSizeSection}
      * @param decimalPlaces    the new decimal-place count, when submitted
      * @param showStatsSummary the stats-summary checkbox values (hidden {@code "false"} + ticked {@code "true"}), when submitted
      * @param statsOrder       every "Action stats" field key in the arranged order, when submitted
@@ -653,6 +656,8 @@ public class WebResource {
         @FormParam("noteColour") @Nullable final String noteColour,
         @FormParam("timezone") @Nullable final String timezone,
         @FormParam("pageSize") @Nullable final String pageSize,
+        @FormParam("pageSizeSection") @Nullable final List<String> pageSizeSection,
+        @FormParam("pageSizeValue") @Nullable final List<String> pageSizeValue,
         @FormParam("decimalPlaces") @Nullable final String decimalPlaces,
         @FormParam("showStatsSummary") @Nullable final List<String> showStatsSummary,
         @FormParam("statsOrder") @Nullable final List<String> statsOrder,
@@ -681,6 +686,11 @@ public class WebResource {
         }
         if (pageSize != null && !(result instanceof ProfileResult.Invalid)) {
             result = profileService.updatePageSize(user, pageSize);
+        }
+        // The overrides panel posts EVERY section row (its key as pageSizeSection, its value as pageSizeValue), so the two lists pair up by index
+        // and a save carries the user's whole set - a row cleared back to "Default" arrives as a blank value.
+        if (pageSizeSection != null && !pageSizeSection.isEmpty() && !(result instanceof ProfileResult.Invalid)) {
+            result = profileService.updatePageSizes(user, pageSizeSection, pageSizeValue);
         }
         if (decimalPlaces != null && !(result instanceof ProfileResult.Invalid)) {
             result = profileService.updateDecimalPlaces(user, decimalPlaces);
@@ -818,6 +828,9 @@ public class WebResource {
                 .data("isAdmin", user.isAdmin())
                 .data("pageSize", user.pageSize)
                 .data("pageSizeOptions", UserSettings.PAGE_SIZE_OPTIONS)
+                // One row per section the user can reach (the admin-only ones only for an administrator), each carrying
+                // its override or null to follow the general value above.
+                .data("pageSizeSections", PageSizes.rows(user))
                 .data("showStatsSummary", user.showStatsSummary)
                 .data("decimalPlaces", user.decimalPlaces)
                 .data("decimalPlacesOptions", UserSettings.DECIMAL_PLACES_OPTIONS)

@@ -260,6 +260,17 @@ public class UserResource {
                 return result;
             }
         }
+        // The whole override set, like statsFields: the resource pairs its own JSON shape into the two lists the shared service takes (the settings
+        // form posts the same pair), and the service holds every rule. An empty array clears every override.
+        final List<PageSizePref> pageSizes = preferences.pageSizes();
+        if (pageSizes != null) {
+            final List<String> sections = pageSizes.stream().map(PageSizePref::section).toList();
+            final List<String> values = pageSizes.stream().map(pref -> Integer.toString(pref.pageSize())).toList();
+            result = profileService.updatePageSizes(user, sections, values);
+            if (result instanceof ProfileResult.Invalid) {
+                return result;
+            }
+        }
         if (preferences.decimalPlaces() != null) {
             result = profileService.updateDecimalPlaces(user, Integer.toString(preferences.decimalPlaces()));
             if (result instanceof ProfileResult.Invalid) {
@@ -309,6 +320,7 @@ public class UserResource {
      * @param noteColour       the {@code #rrggbb} colour the user's day notes are shown in; anything else is rejected
      * @param timezone         the IANA timezone override; blank resets to the server default, unrecognised values are rejected
      * @param pageSize         the rows per page in list views; rejected when out of range
+     * @param pageSizes        the FULL set of per-section page-size overrides; a section left out follows {@code pageSize}
      * @param decimalPlaces    the decimal places for fractional stats; rejected when out of range
      * @param showStatsSummary whether the dashboard renders the stats-summary strip
      * @param statsFields      the full ordered "Action stats" arrangement (key + enabled + optional custom name per stat)
@@ -329,6 +341,10 @@ public class UserResource {
         @Nullable String timezone,
         @Schema(examples = "25", description = "Number of rows displayed per page in list views (1-100); rejected when out of range.")
         @Nullable Integer pageSize,
+        @Schema(description = "The FULL set of per-section page-size overrides ('dashboard', 'actions', 'notes', 'stats', 'users'): a section left "
+        + "out of the array falls back to 'pageSize', an empty array clears every override, unknown section keys are ignored, and a size outside "
+        + "1-100 is rejected.")
+        @Nullable List<PageSizePref> pageSizes,
         @Schema(examples = "1", description = "Number of decimal places used to render fractional stats (0-2); rejected when out of range.")
         @Nullable Integer decimalPlaces,
         @Schema(examples = "true", description = "Whether the dashboard renders the per-action stats-summary strip.")

@@ -273,6 +273,83 @@ class UserMeApiIT extends IntegrationTestBase {
     }
 
     @Test
+    void patchMe_pageSizeOverrides_roundTripThroughGetMe() {
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"pageSize":10,"pageSizes":[
+                            {"section":"stats","pageSize":50},
+                            {"section":"actions","pageSize":25}
+                        ]}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(200)
+                // Stored in the catalogue's own order, not the order they were sent in.
+                .body("preferences.pageSizes[0].section", equalTo("actions"))
+                .body("preferences.pageSizes[0].pageSize", equalTo(25))
+                .body("preferences.pageSizes[1].section", equalTo("stats"))
+                .body("preferences.pageSizes[1].pageSize", equalTo(50));
+
+        given().header("Authorization", "Bearer " + token())
+                .get("/api/v1/users/me")
+                .then().statusCode(200)
+                .body("preferences.pageSize", equalTo(10))
+                .body("preferences.pageSizes.size()", equalTo(2));
+    }
+
+    @Test
+    void patchMe_emptyPageSizeOverrides_clearThemAll() {
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"pageSizes":[{"section":"actions","pageSize":25}]}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(200);
+
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("{\"preferences\":{\"pageSizes\":[]}}")
+                .patch("/api/v1/users/me")
+                .then().statusCode(200)
+                .body("preferences.pageSizes", nullValue());
+    }
+
+    @Test
+    void patchMe_outOfRangePageSizeOverride_isRejected() {
+        // Rejected, never clamped: the same treatment the general page size gets.
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"pageSizes":[{"section":"actions","pageSize":999}]}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(400)
+                .body("message", containsString("100"));
+
+        given().header("Authorization", "Bearer " + token())
+                .get("/api/v1/users/me")
+                .then().statusCode(200)
+                .body("preferences.pageSizes", nullValue());
+    }
+
+    @Test
+    void patchMe_unknownPageSizeSection_isIgnored() {
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"pageSizes":[
+                            {"section":"retired-section","pageSize":10},
+                            {"section":"notes","pageSize":25}
+                        ]}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(200)
+                .body("preferences.pageSizes.size()", equalTo(1))
+                .body("preferences.pageSizes[0].section", equalTo("notes"));
+    }
+
+    @Test
     void patchMe_emptyBody_isNoOp200() {
         given().header("Authorization", "Bearer " + token())
                 .contentType(ContentType.JSON)
