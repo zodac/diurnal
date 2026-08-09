@@ -1,5 +1,6 @@
 import type { APIRequestContext, Locator, Page } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
+import { todayStr, pastDateStr } from "../helpers/dates"
 
 // Find an action's id by name, paging the public listing (it is paginated by the user's page-size
 // preference, so a single page cannot be assumed to hold every action).
@@ -38,7 +39,7 @@ test.describe("Stats page", () => {
         const actionId = actionIdMatch?.replace("action-", "")
 
         if (actionId !== undefined) {
-            const today = new Date().toISOString().slice(0, 10)
+            const today = todayStr()
             await apiCtx.post(`/internal/logs/${today}/${actionId}/increment`)
         }
 
@@ -49,7 +50,7 @@ test.describe("Stats page", () => {
 
     test("stats pagination: next and previous navigate pages", async ({ authenticatedPage: page }) => {
         const apiCtx = page.context().request
-        const today = new Date().toISOString().slice(0, 10)
+        const today = todayStr()
 
         // Create and log 11 actions to exceed one page. Created through the public API so the id comes back
         // as JSON: scraping it out of the returned HTML fragment (as this did) breaks silently the moment
@@ -87,7 +88,7 @@ test.describe("Stats page", () => {
         const actionId = created.ok()
             ? (await created.json()).id
             : await findActionIdByName(apiCtx, "CaptionFit")
-        const today = new Date().toISOString().slice(0, 10)
+        const today = todayStr()
         await apiCtx.put(`/api/v1/logs/${today}/${actionId}`, { data: { count: 1 } })
 
         await page.goto("/settings")
@@ -152,10 +153,10 @@ test.describe("Stats page", () => {
 
     test("frequency graph: opens, toggles period, steps windows, and compares actions", async ({ authenticatedPage: page }) => {
         const apiCtx = page.context().request
-        const today = new Date().toISOString().slice(0, 10)
+        const today = todayStr()
         // The "Earlier" step is only offered back as far as the charted action's first logged entry, so
         // GraphAlpha gets some history - otherwise that button is (correctly) disabled and untestable.
-        const backThen = new Date(Date.now() - 70 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+        const backThen = pastDateStr(70)
 
         // Two logged actions, so one can be charted and the other offered as a comparison. Ids are read
         // back through the public API rather than scraped out of the create fragment, which returns the
@@ -224,16 +225,6 @@ test.describe("Stats page", () => {
 // The notes subject on the Stats page: a card like any other, pinned first, and chartable alongside an
 // action on the shared frequency graph.
 test.describe("Stats page – notes", () => {
-    function todayStr(): string {
-        return new Date().toISOString().slice(0, 10)
-    }
-
-    function pastDateStr(daysAgo: number): string {
-        const d = new Date()
-        d.setUTCDate(d.getUTCDate() - daysAgo)
-        return d.toISOString().slice(0, 10)
-    }
-
     // A unique name per run, so creating it always succeeds and its id comes straight back from the API —
     // these specs share a user and DB, so the paginated Actions page cannot be used to find an action by
     // position, and a fixed name would 409 on the second run leaving nothing to read the id from.

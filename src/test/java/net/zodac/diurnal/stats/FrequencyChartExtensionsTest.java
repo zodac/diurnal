@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 
 class FrequencyChartExtensionsTest {
@@ -30,7 +31,7 @@ class FrequencyChartExtensionsTest {
     private static final UUID THIRD = UUID.fromString("33333333-3333-3333-3333-333333333333");
 
     private static FrequencyChart chartOf(final UUID... actionIds) {
-        final List<FrequencySeries> series = List.of(actionIds).stream()
+        final List<FrequencySeries> series = Stream.of(actionIds)
             .map(id -> new FrequencySeries(id, "Action", "#64748b", 1L, !id.equals(actionIds[0])))
             .toList();
         return new FrequencyChart(FrequencyPeriod.MONTH, "2026-07", "July 2026", series, List.of(), 1L, 1L, false, "2026-06", false, "2026-08");

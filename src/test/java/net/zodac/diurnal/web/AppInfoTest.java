@@ -127,6 +127,18 @@ class AppInfoTest {
     }
 
     @Test
+    void jsNoteFile_returnsInjectedHashedFilename() {
+        // Built from the stub directly: the appInfoWith(...) overloads pin the note filename, so it is the one
+        // hashed script no overload can vary.
+        final AppInfo appInfo = appInfo(new StubAppConfig("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
+            "note.9f3a1c2b4d5e.js", "actions.js", "admin-users.js", "admin-api-docs.js", "settings.js", "stats.js",
+            SETTINGS_IMAGES, HASHED_IMAGES));
+        assertThat(appInfo.getJsNoteFile())
+            .as("hashed note-script filename should be returned verbatim")
+            .isEqualTo("note.9f3a1c2b4d5e.js");
+    }
+
+    @Test
     void jsActionsFile_returnsInjectedHashedFilename() {
         final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
             "actions.9f3a1c2b4d5e.js", "admin-users.js", "admin-api-docs.js", "settings.js", "stats.js");

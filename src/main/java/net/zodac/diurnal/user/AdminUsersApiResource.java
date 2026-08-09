@@ -226,6 +226,7 @@ public class AdminUsersApiResource {
      * @param role the new role's value
      */
     @Schema(description = "The new role to assign.")
+    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record RoleChangeRequest(
         @Schema(examples = Role.Values.USER, description = "The new role: 'user' or 'admin'.") @Nullable String role) {
     }

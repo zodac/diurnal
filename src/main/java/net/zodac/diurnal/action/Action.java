@@ -29,7 +29,9 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import net.zodac.diurnal.http.ChangeSignature;
 
 /**
@@ -74,6 +76,19 @@ public class Action extends PanacheEntityBase {
      */
     public static List<Action> findByUserAndIds(final UUID userId, final Collection<UUID> actionIds) {
         return list("userId = ?1 and id in ?2", userId, actionIds);
+    }
+
+    /**
+     * Returns the user's actions keyed by id, for a caller that resolves each of a range of logs back to the action it was logged against (the
+     * calendar feeds, which embed the action's name and colour in every event).
+     *
+     * @param userId the owning user
+     * @return the user's actions, keyed by their id
+     */
+    public static Map<UUID, Action> mapByUser(final UUID userId) {
+        return Action.<Action>list("userId = ?1", userId)
+            .stream()
+            .collect(Collectors.toMap(action -> action.id, action -> action));
     }
 
     /**

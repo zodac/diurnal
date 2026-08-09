@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
@@ -147,15 +146,13 @@ public class LogsApiResource {
 
         // The response embeds each action's name/colour, so the validator folds in both the range's log signature
         // and the user's action signature — a rename or recolour must invalidate an otherwise-unchanged range.
-        final EntityTag tag = EntityTags.weak(userId, startDate, endDate,
-            ActionLog.rangeVersion(userId, startDate, endDate), Action.userVersion(userId));
+        final EntityTag tag = LogValidators.rangeValidator(userId, startDate, endDate);
         final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
         if (notModified != null) {
             return EntityTags.withPrivateValidator(notModified, tag).build();
         }
 
-        final Map<UUID, Action> actionMap = Action.<Action>list("userId = ?1", userId)
-            .stream().collect(Collectors.toMap(a -> a.id, a -> a));
+        final Map<UUID, Action> actionMap = Action.mapByUser(userId);
 
         final List<CalendarEventDto> events = ActionLog.findByUserAndRange(userId, startDate, endDate).stream()
             .filter(log -> actionMap.containsKey(log.actionId))
@@ -428,6 +425,7 @@ public class LogsApiResource {
      * @param count the count to set; {@code 0} removes the entry
      */
     @Schema(description = "The count to set for the day.")
+    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record SetCountRequest(
         @Schema(examples = "3", description = "The count to set; 0 removes the day's entry, a value above 999 is rejected.")
         @Nullable Integer count) {
@@ -439,6 +437,7 @@ public class LogsApiResource {
      * @param amount the amount to adjust by (default 1)
      */
     @Schema(description = "The amount to adjust the day's count by.")
+    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record AmountRequest(
         @Schema(examples = "1", description = "The amount to adjust by; must be at least 1. Defaults to 1 when omitted.")
         @Nullable Integer amount) {

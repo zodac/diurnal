@@ -113,14 +113,10 @@ public class IpThrottle {
     }
 
     /**
-     * @return the underlying throttle (test support)
-     */
-    AttemptThrottle throttle() {
-        return throttle;
-    }
-
-    /**
-     * Forgets all tracked attempts (test support).
+     * Forgets all tracked attempts. Test support: this bean is {@code @ApplicationScoped}, so its in-memory state outlives a single test, and
+     * {@code IpThrottleIT}/{@code AdminIpLockoutsApiIT} wipe it in {@code @BeforeEach}. Package-private deliberately, so only tests in
+     * {@code net.zodac.diurnal.auth} can reach it - a test elsewhere resets by unlocking each of {@link #currentLockouts(Instant)} instead (see
+     * {@code web.AdminIpLockoutsInternalIT}), and no production caller can clear an IP's brute-force budget.
      */
     void clear() {
         throttle.clear();

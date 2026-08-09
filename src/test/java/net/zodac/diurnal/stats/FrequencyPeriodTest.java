@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
@@ -33,7 +34,7 @@ class FrequencyPeriodTest {
         final List<String> expected = List.of(
             "month",
             "year");
-        assertThat(List.of(FrequencyPeriod.values()).stream().map(FrequencyPeriod::value).toList())
+        assertThat(Stream.of(FrequencyPeriod.values()).map(FrequencyPeriod::value).toList())
             .as("the toggle should offer exactly month then year")
             .containsExactlyElementsOf(expected);
     }

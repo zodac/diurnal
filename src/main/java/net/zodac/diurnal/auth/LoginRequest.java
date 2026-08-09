@@ -27,6 +27,7 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
  * {@code AuthResource.login} so a rejection carries the shared {@code ApiErrorResponse} body.
  */
 @Schema(description = "Email/password credentials submitted to exchange for a Bearer session token.")
+@SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
 public record LoginRequest(
     @NotBlank @Email @Schema(examples = "ada@example.com", description = "Registered email address of the account.") String email,
     @NotBlank @Schema(examples = "correct horse battery staple", description = "Account password.") String password

@@ -1,33 +1,11 @@
 import type { Page } from "@playwright/test"
 import { test, expect, loginAs, logout } from "../helpers/fixtures"
+import { todayStr, pastDateStr, futureDateStr } from "../helpers/dates"
 
 // Unique action name for this test run — kept live, so no DB unique-constraint collision
 // across repeated runs or across chromium/mobile-chrome sharing the same user+DB.
 // Contains 'DashAction' so toContainText('DashAction') still matches.
 const DASH_NAME = `DashAction${Date.now()}`
-
-// Helper: today's date as YYYY-MM-DD in UTC — matches the server (app.timezone=UTC under -Dall).
-function todayStr(): string {
-    return new Date().toISOString().slice(0, 10)
-}
-
-// Helper: a past date offset by -n days, computed entirely in UTC. Using setUTCDate/getUTCDate
-// (not the local setDate/getDate) keeps the arithmetic in the same zone as toISOString(), so a
-// non-UTC host (e.g. NZST) near midnight can't shift the result by a day.
-function pastDateStr(daysAgo: number): string {
-    const d = new Date()
-    d.setUTCDate(d.getUTCDate() - daysAgo)
-    return d.toISOString().slice(0, 10)
-}
-
-// Helper: a future date offset by +n days, computed in UTC (same rationale as pastDateStr). A
-// small offset stays within the rendered month grid (which also shows trailing days of the next
-// month), so the cell is clickable without paging the calendar.
-function futureDateStr(daysAhead: number): string {
-    const d = new Date()
-    d.setUTCDate(d.getUTCDate() + daysAhead)
-    return d.toISOString().slice(0, 10)
-}
 
 // Helper: a date guaranteed to be in the current UTC month (so its cell is a primary cell of the
 // rendered month grid) and different from today. Uses the 1st, or the 2nd when today is the 1st.

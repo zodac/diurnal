@@ -87,6 +87,7 @@ public class UpdateCheckService {
      *
      * @param event the fired {@link StartupEvent}
      */
+    @SuppressWarnings("unused") // CDI startup observer - invoked by Quarkus, not called directly; `event` is the observed type, not a value read here
     void onStartup(@Observes final StartupEvent event) {
         if (!config.enabled()) {
             LOGGER.debug("Update check is disabled - skipping startup version check");

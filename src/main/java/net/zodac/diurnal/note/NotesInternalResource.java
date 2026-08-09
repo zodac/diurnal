@@ -215,6 +215,7 @@ public class NotesInternalResource {
      *
      * @param content the submitted content; blank or {@code null} removes the day's note
      */
+    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record NoteSubmission(@Nullable String content) {
 
     }

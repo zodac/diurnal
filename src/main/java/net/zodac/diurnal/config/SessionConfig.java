@@ -62,7 +62,7 @@ public interface SessionConfig {
      */
     @WithName("cleanup-interval")
     @WithDefault("PT1H")
-    Duration cleanupInterval();
+    Duration cleanupInterval();   // NB: no Java caller - SessionSweeper reads the key via @Scheduled(every = "{session.cleanup-interval}")
 
     /**
      * The name of the cookie carrying the session token for the web UI.

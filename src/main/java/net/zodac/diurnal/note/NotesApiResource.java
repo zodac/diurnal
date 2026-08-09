@@ -41,6 +41,8 @@ import net.zodac.diurnal.http.ChangeSignature;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.log.DateRanges;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.page.PageWindow;
+import net.zodac.diurnal.page.Pages;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
@@ -196,24 +198,22 @@ public class NotesApiResource {
             .stream()
             .map(hit -> new NoteDto(hit.date().toString(), hit.content()))
             .toList();
-        final int totalPages = (all.size() + PAGE_SIZE - 1) / PAGE_SIZE;
+        final PageWindow pageWindow = Pages.window(all.size(), pageNum, PAGE_SIZE);
 
         // Surface input policy, matching every other paginated API endpoint: an out-of-range page is REJECTED rather than clamped, so a page number
-        // is never silently answered with some other page. Page 1 of an empty range is legal and returns nothing.
-        if (pageNum < 1 || pageNum > Math.max(1, totalPages)) {
+        // is never silently answered with some other page. Page 1 of an empty range is legal and returns nothing. Past this guard the requested page
+        // is in range, so the clamp the shared window applied for the web surface has left it exactly as asked for.
+        if (pageNum < 1 || pageNum > Math.max(1, pageWindow.totalPages())) {
             return Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ApiErrorResponse("Page " + pageNum + " is out of range"))
                 .build();
         }
 
-        final List<NoteDto> items = all.stream()
-            .skip((long) (pageNum - 1) * PAGE_SIZE)
-            .limit(PAGE_SIZE)
-            .toList();
+        final List<NoteDto> items = Pages.slice(all, pageWindow);
         // The COUNT and the window only - never a note's content, and never what was searched for; see NoteService's logging rule.
         LOGGER.debug("Notes API read {} of {} note(s) over {} (page {}) for user {}",
             items.size(), all.size(), window == null ? "the whole history" : window.start() + " to " + window.end(), pageNum, user.email);
-        return EntityTags.withPrivateValidator(Response.ok(new NotesPageDto(items, all.size(), totalPages, pageNum)), tag).build();
+        return EntityTags.withPrivateValidator(Response.ok(new NotesPageDto(items, all.size(), pageWindow.totalPages(), pageNum)), tag).build();
     }
 
     // Surface input policy: the range is optional, but it is a RANGE - half of one is a request the caller did not mean to make, so requireDate
@@ -377,6 +377,7 @@ public class NotesApiResource {
      * @param content the note content; blank removes the note
      */
     @Schema(description = "The content to write for the day.")
+    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record NoteRequest(
         @Schema(examples = "Ran 5k before work.", description = "The note content; blank or omitted removes the day's note.")
         @Nullable String content) {

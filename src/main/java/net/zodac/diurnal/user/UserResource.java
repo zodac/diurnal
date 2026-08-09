@@ -304,6 +304,7 @@ public class UserResource {
      * @param preferences the preference fields to change, or {@code null} to change none
      */
     @Schema(description = "Fields for partially updating the current user; absent fields keep their current value.")
+    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record UpdateMeRequest(
         @Schema(examples = "Ada Lovelace", description = "The new display name; 2-100 characters.") @Nullable String displayName,
         @Schema(description = "The preference fields to change; absent fields keep their current value.")
@@ -362,6 +363,7 @@ public class UserResource {
      * @param newPassword     the new password
      */
     @Schema(description = "The current password (as proof of ownership) and the new password to set.")
+    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record ChangePasswordRequest(
         @Schema(examples = "correct horse battery staple", description = "The existing password, as proof of account ownership.")
         @Nullable String currentPassword,
