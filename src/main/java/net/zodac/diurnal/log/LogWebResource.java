@@ -47,6 +47,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.page.PageWindow;
+import net.zodac.diurnal.page.Pages;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.time.DayLabels;
 import net.zodac.diurnal.user.CurrentUser;
@@ -213,20 +215,13 @@ public class LogWebResource {
             .sorted(Comparator.comparingInt(DayActionStatus::count).reversed())
             .toList();
 
-        final int totalCount = filtered.size();
-        final int totalPages = (totalCount + pageSize - 1) / pageSize;
-        final int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
-        final int skip = (actualPage - 1) * pageSize;
+        final PageWindow window = Pages.window(filtered.size(), pageNum, pageSize);
+        final List<DayActionStatus> items = Pages.slice(filtered, window);
 
-        final var items = filtered.stream()
-            .skip(skip)
-            .limit(pageSize)
-            .toList();
-
-        final int fillers = totalPages > 1 ? Math.max(0, pageSize - items.size()) : 0;
+        final int fillers = window.totalPages() > 1 ? Math.max(0, pageSize - items.size()) : 0;
         final List<Integer> fillerRows = IntStream.range(0, fillers).boxed().toList();
 
-        return new PaginatedDayActions(items, totalCount, totalPages, actualPage, fillerRows);
+        return new PaginatedDayActions(items, filtered.size(), window.totalPages(), window.currentPage(), fillerRows);
     }
 
     // ── Single item ───────────────────────────────────────────────────────

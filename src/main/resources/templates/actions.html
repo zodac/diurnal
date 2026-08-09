@@ -63,7 +63,7 @@
 
 {! The counter-surgery behaviour for the search filter + delete flow. Extracted from the inline
      block that used to sit here into /js/actions.js so it rides the content-hashed `immutable`
-     cache instead of being re-parsed on every page load. Served as actions.<hash>.js in prod
+     cache instead of being parsed again on every page load. Served as actions.<hash>.js in prod
      (baked into AppInfo.jsActionsFile), actions.js in dev; runs after the shared /js/app.js. !}
 <script src="/js/{inject:appInfo.jsActionsFile}"></script>
 

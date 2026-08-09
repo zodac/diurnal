@@ -309,6 +309,7 @@ public class ActionsApiResource {
      * @param colour the action's colour as {@code #rrggbb} (optional; a malformed value is rejected, an absent one is suggested on create)
      */
     @Schema(description = "Fields for creating or updating an action.")
+    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record ActionRequest(
         @Schema(examples = "Morning run", description = "The action's name; unique per user, at most 100 characters.") @Nullable String name,
         @Schema(examples = "#6366f1",

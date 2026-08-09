@@ -36,7 +36,12 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * Every "today"/"now" that drives visible behaviour MUST go through this bean rather than calling {@link LocalDate#now()} / {@link Instant#now()}
  * directly, so a test can freeze time and exercise edge cases (midnight rollover, non-UTC zones) deterministically. The clock is built from
- * {@code app.timezone}, so {@link #today()} is always "today in the configured zone".
+ * {@code app.timezone}, which is the zone {@link #zone()} reports and the fallback {@link #zoneFor(String)} lands on.
+ *
+ * <p>
+ * There is deliberately no zero-argument {@code today()}: every date boundary the user can see belongs to <em>their</em> configured timezone, so a
+ * caller resolves it as {@code today(zoneFor(user.timezone))}. A server-default-zone overload would read as the obvious thing to call and would
+ * silently be wrong for every user who has set a timezone.
  *
  * <p>
  * Entity audit timestamps ({@code createdAt}/{@code updatedAt}/{@code lastLoginAt}) deliberately stay on plain {@link Instant#now()} — they are
@@ -74,13 +79,6 @@ public class AppClock {
      */
     public Instant now() {
         return clock.instant();
-    }
-
-    /**
-     * "Today" in the configured (server-default) zone.
-     */
-    public LocalDate today() {
-        return LocalDate.now(clock);
     }
 
     /**

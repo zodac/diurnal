@@ -26,7 +26,6 @@ import com.password4j.Argon2Function;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.util.List;
-import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.stats.StatField;
 import net.zodac.diurnal.user.PageSection;
@@ -40,7 +39,6 @@ import org.junit.jupiter.api.Test;
 
 @QuarkusTest
 @TestSecurity(user = "settings-it@lt.test", roles = Role.Values.USER)
-@SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class SettingsIT extends IntegrationTestBase {
 
     static final String PRIMARY = "settings-it@lt.test";
@@ -48,12 +46,11 @@ class SettingsIT extends IntegrationTestBase {
     // hidden and its endpoint refused for accounts whose auth is managed by an identity provider.
     static final String OIDC_USER = "settings-oidc-it@lt.test";
 
-    UUID primaryId;
-    UUID oidcId;
-
     @Override
     protected void createDbState() {
-        primaryId = newUser(PRIMARY, "Settings User").id;
+        // Both accounts are addressed by email throughout (the tests act as the signed-in user, or re-read by
+        // findByEmail), so neither id is kept - persisting them is the whole point of this method.
+        newUser(PRIMARY, "Settings User");
 
         final User oidc = new User();
         oidc.email = OIDC_USER;
@@ -61,7 +58,6 @@ class SettingsIT extends IntegrationTestBase {
         oidc.oidcSubject = "oidc-subject-123";
         oidc.oidcIssuer = "https://diurnal.example.com";
         oidc.persist();
-        oidcId = oidc.id;
     }
 
     // ── PATCH /internal/settings (display name) ──────────────────────────────

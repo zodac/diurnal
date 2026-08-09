@@ -39,6 +39,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import net.zodac.diurnal.page.PageWindow;
+import net.zodac.diurnal.page.Pages;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
@@ -241,17 +243,8 @@ public class StatsInternalResource {
      * @return the requested page of stats
      */
     static PaginatedStats paginate(final List<SubjectStats> all, final int pageNum, final int pageSize) {
-        final int totalCount = all.size();
-        final int totalPages = (totalCount + pageSize - 1) / pageSize;
-        final int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
-        final int skip = (actualPage - 1) * pageSize;
-
-        final List<SubjectStats> items = all.stream()
-            .skip(skip)
-            .limit(pageSize)
-            .toList();
-
-        return new PaginatedStats(items, totalCount, totalPages, actualPage);
+        final PageWindow window = Pages.window(all.size(), pageNum, pageSize);
+        return new PaginatedStats(Pages.slice(all, window), all.size(), window.totalPages(), window.currentPage());
     }
 
     /**

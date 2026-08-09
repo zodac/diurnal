@@ -1,14 +1,6 @@
 import type { Page } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
-
-// Date helpers, in UTC to match the server (app.timezone=UTC under -Dall). Deliberately duplicated from
-// the other note specs rather than shared, for the same reason they are: one-line expressions are not
-// worth coupling two independent specs over.
-function pastDateStr(daysAgo: number): string {
-    const d = new Date()
-    d.setUTCDate(d.getUTCDate() - daysAgo)
-    return d.toISOString().slice(0, 10)
-}
+import { pastDateStr } from "../helpers/dates"
 
 // The /notes page: the browse-and-search view over everything the user has written. The matching rule
 // and the paging are covered by the unit tests and ITs; these pin what only a browser can show — the

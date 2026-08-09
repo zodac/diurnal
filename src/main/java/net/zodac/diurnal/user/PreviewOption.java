@@ -21,6 +21,12 @@ package net.zodac.diurnal.user;
  * A single choice in one of the settings preview-tile pickers (Theme, Font, Calendar style). Implemented by the {@link Theme}, {@link Font} and
  * {@link CalendarView} enums so the settings template can render every picker's tiles from one uniform shape — each tile's radio value, caption,
  * lightbox heading/alt text, and preview thumbnail — by looping the enum's constants (see {@code partials/preview-option.html}).
+ *
+ * <p>
+ * <strong>Only {@link #value()} has a Java caller</strong> ({@code ProfileService.allowedValues}, wording the rejection for an unrecognised
+ * submission). The other four are read by NAME out of {@code partials/preview-picker.html}, which forwards each one into
+ * {@code partials/preview-option.html}, so an IDE reports them unused. They are what makes this interface worth having: the picker loops
+ * {@code PreviewOption[]} and reads the same five names off every option, which is why adding a theme or a font needs no template change.
  */
 public interface PreviewOption {
 
@@ -36,6 +42,7 @@ public interface PreviewOption {
      *
      * @return the option label
      */
+    @SuppressWarnings("unused") // read by name from partials/preview-picker.html; no Java caller
     String label();
 
     /**
@@ -43,6 +50,7 @@ public interface PreviewOption {
      *
      * @return the option title
      */
+    @SuppressWarnings("unused") // read by name from partials/preview-picker.html; no Java caller
     String title();
 
     /**
@@ -50,6 +58,7 @@ public interface PreviewOption {
      *
      * @return the option image alt text
      */
+    @SuppressWarnings("unused") // read by name from partials/preview-picker.html; no Java caller
     String alt();
 
     /**
@@ -57,5 +66,6 @@ public interface PreviewOption {
      *
      * @return the preview image base name
      */
+    @SuppressWarnings("unused") // read by name from partials/preview-picker.html; no Java caller
     String previewImage();
 }

@@ -36,6 +36,8 @@ import jakarta.ws.rs.core.Response;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import net.zodac.diurnal.page.PageWindow;
+import net.zodac.diurnal.page.Pages;
 import net.zodac.diurnal.text.TextFieldExtensions;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.user.CurrentUser;
@@ -246,17 +248,8 @@ public class ActionsInternalResource {
             || a.name.toLowerCase(Locale.ROOT).contains(searchTerm.toLowerCase(Locale.ROOT)))
             .toList();
 
-        final int totalCount = filtered.size();
-        final int totalPages = (totalCount + pageSize - 1) / pageSize;
-        final int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
-        final int skip = (actualPage - 1) * pageSize;
-
-        final var items = filtered.stream()
-            .skip(skip)
-            .limit(pageSize)
-            .toList();
-
-        return new PaginatedActions(items, totalCount, totalPages, actualPage);
+        final PageWindow window = Pages.window(filtered.size(), pageNum, pageSize);
+        return new PaginatedActions(Pages.slice(filtered, window), filtered.size(), window.totalPages(), window.currentPage());
     }
 
     private Response translate(final ActionResult result) {

@@ -25,6 +25,8 @@ import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
+import net.zodac.diurnal.page.PageWindow;
+import net.zodac.diurnal.page.Pages;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -53,14 +55,13 @@ public class AdminUserService {
      */
     public UsersPage usersPage(final int pageNum, final int pageSize) {
         final long totalCount = User.count();
-        final int totalPages = (int) ((totalCount + pageSize - 1) / pageSize);
-        final int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
+        final PageWindow window = Pages.window(totalCount, pageNum, pageSize);
 
         final List<User> users = User.<User>findAll(Sort.by("createdAt"))
-            .page(Page.of(actualPage - 1, pageSize))
+            .page(Page.of(window.currentPage() - 1, pageSize))
             .list();
 
-        return new UsersPage(users, totalCount, totalPages, actualPage);
+        return new UsersPage(users, totalCount, window.totalPages(), window.currentPage());
     }
 
     /**

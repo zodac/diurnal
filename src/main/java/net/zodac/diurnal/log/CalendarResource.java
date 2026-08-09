@@ -37,7 +37,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.UUID;
-import java.util.stream.Collectors;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.user.CurrentUser;
@@ -95,17 +94,15 @@ public class CalendarResource {
         final LocalDate startDate = DateRanges.requireDate("start", start);
         final LocalDate endDate   = DateRanges.requireDate("end", end);
 
-        // Same validator as the public events feed: the dots carry each action's colour/name, so fold in the action
-        // signature too. The Cache-Control here is supplied by the html-pages filter (no-cache); only the ETag is added.
-        final EntityTag tag = EntityTags.weak(userId, startDate, endDate,
-            ActionLog.rangeVersion(userId, startDate, endDate), Action.userVersion(userId));
+        // The same validator as the public events feed (see LogValidators). The Cache-Control here is supplied by the
+        // html-pages filter (no-cache); only the ETag is added.
+        final EntityTag tag = LogValidators.rangeValidator(userId, startDate, endDate);
         final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
         if (notModified != null) {
             return EntityTags.withValidator(notModified, tag).build();
         }
 
-        final Map<UUID, Action> actionMap = Action.<Action>list("userId = ?1", userId)
-            .stream().collect(Collectors.toMap(a -> a.id, a -> a));
+        final Map<UUID, Action> actionMap = Action.mapByUser(userId);
 
         // Group logs by date (TreeMap keeps dates sorted), collect one dot per action per day.
         final Map<String, List<ActionDotDto>> byDate = new TreeMap<>();

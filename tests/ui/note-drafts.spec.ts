@@ -1,17 +1,5 @@
 import { test, expect, loginAs, logout } from "../helpers/fixtures"
-
-// Date helpers, in UTC to match the server (app.timezone=UTC under -Dall). Deliberately duplicated from
-// notes.spec.ts rather than shared, for the reason recorded there: they are one-line expressions, and a
-// helpers module for them would couple two independent specs for no gain.
-function todayStr(): string {
-    return new Date().toISOString().slice(0, 10)
-}
-
-function pastDateStr(daysAgo: number): string {
-    const d = new Date()
-    d.setUTCDate(d.getUTCDate() - daysAgo)
-    return d.toISOString().slice(0, 10)
-}
+import { todayStr, pastDateStr } from "../helpers/dates"
 
 // An unsaved note draft outlives a navigation but not the tab, and exactly ONE is carried — the day last
 // edited. Split from notes.spec.ts (which covers the box itself) because it is a lifetime question rather

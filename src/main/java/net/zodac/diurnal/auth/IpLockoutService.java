@@ -26,6 +26,8 @@ import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.auth.AttemptThrottle.ActiveLockout;
 import net.zodac.diurnal.auth.AttemptThrottle.FailureOutcome;
+import net.zodac.diurnal.page.PageWindow;
+import net.zodac.diurnal.page.Pages;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -120,11 +122,10 @@ public class IpLockoutService {
     public HistoryPage history(final int pageNum, final int pageSize, final Instant now) {
         final Instant cutoff = now.minus(IpLockout.HISTORY_RETENTION);
         final long totalCount = IpLockout.countWithin(cutoff);
-        final int totalPages = (int) ((totalCount + pageSize - 1) / pageSize);
-        final int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
+        final PageWindow window = Pages.window(totalCount, pageNum, pageSize);
 
-        final List<IpLockout> rows = IpLockout.pageWithin(cutoff, actualPage - 1, pageSize);
-        return new HistoryPage(rows, totalCount, totalPages, actualPage);
+        final List<IpLockout> rows = IpLockout.pageWithin(cutoff, window.currentPage() - 1, pageSize);
+        return new HistoryPage(rows, totalCount, window.totalPages(), window.currentPage());
     }
 
     /**

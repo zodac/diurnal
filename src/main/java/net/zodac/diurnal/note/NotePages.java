@@ -20,6 +20,8 @@ package net.zodac.diurnal.note;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import net.zodac.diurnal.page.PageWindow;
+import net.zodac.diurnal.page.Pages;
 import net.zodac.diurnal.time.DayLabels;
 
 /**
@@ -50,17 +52,14 @@ public final class NotePages {
      * @return the requested page
      */
     public static PaginatedNotes of(final List<NoteHit> hits, final String query, final int pageNum, final int pageSize) {
-        final int totalCount = hits.size();
-        final int totalPages = (totalCount + pageSize - 1) / pageSize;
-        final int actualPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
+        final PageWindow window = Pages.window(hits.size(), pageNum, pageSize);
 
-        final List<NoteRow> items = hits.stream()
-            .skip((long) (actualPage - 1) * pageSize)
-            .limit(pageSize)
+        final List<NoteRow> items = Pages.slice(hits, window)
+            .stream()
             .map(hit -> new NoteRow(hit.date().toString(), DayLabels.spelledOut(hit.date()), NoteSearch.snippet(hit.content(), query)))
             .toList();
 
-        return new PaginatedNotes(items, totalCount, totalPages, actualPage);
+        return new PaginatedNotes(items, hits.size(), window.totalPages(), window.currentPage());
     }
 
     /**

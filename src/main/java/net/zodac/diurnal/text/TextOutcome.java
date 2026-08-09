@@ -46,6 +46,12 @@ public sealed interface TextOutcome permits TextOutcome.Valid, TextOutcome.Failu
         /**
          * The field the value was checked against.
          *
+         * <p>
+         * Never invoked through this interface - every caller switches to a concrete variant first ({@code TextOutcomeExtensions.message}) and calls
+         * that record's own component - so an IDE reports it unused. It is a <strong>contract</strong>, not a call site: declaring it here is what
+         * forces each permitted variant to carry the field, which is the guarantee the class Javadoc above makes and the reason a rejection can be
+         * worded without the caller passing the field back in. A new variant that forgot it would not compile.
+         *
          * @return the field specification
          */
         TextField field();

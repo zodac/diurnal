@@ -48,6 +48,7 @@ public class ErrorStatusRollbackInterceptor {
      * @return the endpoint's own return value, unchanged
      * @throws Exception if the intercepted method throws
      */
+    @SuppressWarnings("unused") // CDI interceptor callback - the container invokes it around every @RollbackOnErrorStatus endpoint
     @AroundInvoke
     Object rollBackOnErrorStatus(final InvocationContext context) throws Exception { // NOPMD: SignatureDeclareThrowsException - @AroundInvoke method
         final Object result = context.proceed();

@@ -25,9 +25,16 @@ import java.util.List;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A user's display preferences plus the allow-lists and sanitisers that validate them.
+ * The allow-lists, defaults and sanitisers behind a user's display preferences - the single source of truth every surface validates a submitted
+ * preference against.
+ *
+ * <p>
+ * Deliberately holds no state of its own. It was once a {@code record UserSettings(String theme, int pageSize)} carrying a snapshot of two
+ * preferences, but the only thing that ever built one was a {@code from(User)} factory nothing called: every caller reads the preference straight off
+ * the {@link User} entity and asks this type only for the rule. Keeping the components would have left a data shape that could drift out of step with
+ * the entity it duplicated, so what remains is a rules holder like {@code colour.Colours} or {@code text.TextFields}.
  */
-public record UserSettings(String theme, int pageSize) {
+public final class UserSettings {
 
     public static final int DEFAULT_PAGE_SIZE = 5;
 
@@ -81,11 +88,8 @@ public record UserSettings(String theme, int pageSize) {
         "America/Denver",
         "America/Los_Angeles");
 
-    /**
-     * Extracts the display preferences from a {@link User} entity.
-     */
-    public static UserSettings from(final User user) {
-        return new UserSettings(user.theme, user.pageSize);
+    private UserSettings() {
+
     }
 
     /**

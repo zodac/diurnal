@@ -1,24 +1,6 @@
 import type { Page } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
-
-// Date helpers, in UTC to match the server (app.timezone=UTC under -Dall). Deliberately duplicated from
-// dashboard.spec.ts rather than shared: they are three one-line expressions, and a helpers module for
-// them would couple two independent specs for no gain.
-function todayStr(): string {
-    return new Date().toISOString().slice(0, 10)
-}
-
-function pastDateStr(daysAgo: number): string {
-    const d = new Date()
-    d.setUTCDate(d.getUTCDate() - daysAgo)
-    return d.toISOString().slice(0, 10)
-}
-
-function futureDateStr(daysAhead: number): string {
-    const d = new Date()
-    d.setUTCDate(d.getUTCDate() + daysAhead)
-    return d.toISOString().slice(0, 10)
-}
+import { todayStr, pastDateStr, futureDateStr } from "../helpers/dates"
 
 // The note box: a day's free-text note, written from the panel under the day logger. The write rules
 // are covered by the ITs; these pin the browser-side behaviour that no server test can see — the caches,

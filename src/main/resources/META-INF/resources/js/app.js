@@ -17,6 +17,16 @@
 // (settings.js, dashboard.js).
 window.Diurnal = window.Diurnal || {}
 
+// m:ss, clamped so it can NEVER render a negative value. Shared by the two live counters below (the
+// lockout countdown ticking DOWN to an expiry, the presence counter ticking UP from a last-seen), which
+// render the same clock and must not drift into two spellings of it.
+window.Diurnal.formatClock = function (totalSeconds) {
+    const s = totalSeconds > 0 ? totalSeconds : 0
+    const mins = Math.floor(s / 60)
+    const secs = s % 60
+    return `${(mins < 10 ? '0' : '') + mins  }:${  secs < 10 ? '0' : ''  }${secs}`
+}
+
 // The ONE place the inline error-banner markup is built client-side, mirroring
 // partials/banner.html (and the Java-built HTMX banners) — a keep-in-sync pair, see
 // .claude/UI_PATTERNS.md. The message is NOT escaped here: callers pass trusted literals, or
@@ -343,14 +353,6 @@ document.addEventListener('click', function (e) {
 (function () {
     const timers = new WeakMap()
 
-    // mm:ss, clamped so it can NEVER render a negative value.
-    function formatClock(totalSeconds) {
-        const s = totalSeconds > 0 ? totalSeconds : 0
-        const mins = Math.floor(s / 60)
-        const secs = s % 60
-        return `${(mins < 10 ? '0' : '') + mins  }:${  secs < 10 ? '0' : ''  }${secs}`
-    }
-
     // Whether a lockout countdown is currently running for this form (the submit handlers stay inert).
     window.Diurnal.lockoutRunning = function (form) {
         return timers.has(form)
@@ -386,7 +388,7 @@ document.addEventListener('click', function (e) {
         function tick() {
             const remaining = Math.round((endTime - Date.now()) / 1000)
             if (remaining < 0) { window.Diurnal.clearLockout(form, slot, submitBtn); return }   // expired
-            if (clock) { clock.textContent = formatClock(remaining) }
+            if (clock) { clock.textContent = window.Diurnal.formatClock(remaining) }
         }
         timers.set(form, setInterval(tick, 1000))
         tick()   // paint immediately, before the first interval
@@ -763,14 +765,6 @@ document.addEventListener('click', function (e) {
     const IDLE_LABEL = 'Inactive'
     const wired = new WeakSet()
 
-    // m:ss, clamped so it can NEVER render a negative value (mirrors the lockout countdown's formatClock).
-    function formatClock(totalSeconds) {
-        const s = totalSeconds > 0 ? totalSeconds : 0
-        const mins = Math.floor(s / 60)
-        const secs = s % 60
-        return `${(mins < 10 ? '0' : '') + mins  }:${  secs < 10 ? '0' : ''  }${secs}`
-    }
-
     function wire(el) {
         if (wired.has(el)) { return }   // idempotent: never start two timers for one element
         const base = parseInt(el.dataset.elapsedSeconds, 10)
@@ -790,7 +784,7 @@ document.addEventListener('click', function (e) {
                 if (timer) { clearInterval(timer) }
                 return
             }
-            if (clock) { clock.textContent = formatClock(Math.floor(elapsedMs / 1000)) }
+            if (clock) { clock.textContent = window.Diurnal.formatClock(Math.floor(elapsedMs / 1000)) }
         }
         const timer = setInterval(tick, 1000)
         tick()   // paint immediately, before the first interval
