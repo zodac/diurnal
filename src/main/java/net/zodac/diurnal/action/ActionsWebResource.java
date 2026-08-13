@@ -37,7 +37,7 @@ import net.zodac.diurnal.user.User;
  * ({@link ActionsInternalResource}).
  */
 @Path("/actions")
-@RolesAllowed(Role.Values.USER)
+@RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 public class ActionsWebResource {
 
     private final Template actionsTemplate;
@@ -52,7 +52,7 @@ public class ActionsWebResource {
      * @param actionService the shared action service, for the new-action form's pre-filled colour
      */
     @Inject
-    public ActionsWebResource(@Location("actions") final Template actionsTemplate, final CurrentUser currentUser,
+    ActionsWebResource(@Location("actions") final Template actionsTemplate, final CurrentUser currentUser,
         final ActionService actionService) {
         this.actionsTemplate = actionsTemplate;
         this.currentUser = currentUser;

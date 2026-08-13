@@ -24,8 +24,6 @@ import jakarta.transaction.Transactional;
 import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
-import net.zodac.diurnal.auth.AttemptThrottle.ActiveLockout;
-import net.zodac.diurnal.auth.AttemptThrottle.FailureOutcome;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
 import org.apache.logging.log4j.LogManager;
@@ -74,8 +72,8 @@ public class IpLockoutService {
      * @param now      the current instant (from {@code AppClock})
      * @return the throttle outcome (failure count, limit, whether this failure tripped the lockout, duration) — for the caller's audit logging
      */
-    public FailureOutcome recordFailure(final String clientIp, final Instant now) {
-        final FailureOutcome outcome = ipThrottle.recordFailure(clientIp, now);
+    public AttemptThrottle.FailureOutcome recordFailure(final String clientIp, final Instant now) {
+        final AttemptThrottle.FailureOutcome outcome = ipThrottle.recordFailure(clientIp, now);
         if (outcome.lockedOut()) {
             self.get().persistLockout(clientIp, now, outcome);
         }
@@ -91,8 +89,11 @@ public class IpLockoutService {
      * @param now      the instant the lockout tripped
      * @param outcome  the throttle outcome carrying the failure tally and the lockout duration
      */
+    // Package-private is REQUIRED, not incidental: this runs through the CDI proxy so the @Transactional interceptor applies, and an
+    // interceptor is never applied to a private method - narrowing it would silently drop the transaction while still compiling.
+    @SuppressWarnings("WeakerAccess")
     @Transactional
-    void persistLockout(final String clientIp, final Instant now, final FailureOutcome outcome) {
+    void persistLockout(final String clientIp, final Instant now, final AttemptThrottle.FailureOutcome outcome) {
         IpLockout.deleteOlderThan(now.minus(IpLockout.HISTORY_RETENTION));
         IpLockout.of(clientIp, now, now.plus(outcome.lockoutDuration()), outcome.failureCount()).persist();
         LOGGER.info("Recorded IP lockout history for {} (locked for {})", clientIp, outcome.lockoutDuration());
@@ -101,12 +102,12 @@ public class IpLockoutService {
     /**
      * The client IPs currently locked out at {@code now} (from the live in-memory enforcement state), each with its expiry and failure tally. This is
      * the actionable "currently locked out" list exposed by the public API ({@code GET /api/v1/admin/ip-lockouts}); the admin page instead surfaces a
-     * single history table and offers the unlock on its active rows.
+     * single history table and offers the unlocking on its active rows.
      *
      * @param now the current instant
      * @return the currently-locked IPs (empty when none are locked or throttling is disabled)
      */
-    public List<ActiveLockout> currentLockouts(final Instant now) {
+    public List<AttemptThrottle.ActiveLockout> currentLockouts(final Instant now) {
         return ipThrottle.currentLockouts(now);
     }
 
@@ -135,7 +136,8 @@ public class IpLockoutService {
      * @param id the lockout row id
      * @return the matching row, or {@code null} when none exists
      */
-    public @Nullable IpLockout find(final UUID id) {
+    @Nullable
+    public IpLockout find(final UUID id) {
         return IpLockout.findById(id);
     }
 
@@ -144,7 +146,7 @@ public class IpLockoutService {
      * unlocked. Reports {@link IpUnlockResult.NotLocked} when the IP was not actually locked (nothing to do). Assumes the calling endpoint owns the
      * transaction, so the stamped rows flush on its commit.
      *
-     * @param actorEmail the administrator performing the unlock, for the audit stamp and log
+     * @param actorEmail the administrator performing the unlocking, for the audit stamp and log
      * @param clientIp   the client IP to unlock
      * @param now        the current instant
      * @return the outcome

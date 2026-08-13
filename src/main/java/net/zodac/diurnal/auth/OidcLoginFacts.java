@@ -17,8 +17,6 @@
 
 package net.zodac.diurnal.auth;
 
-import org.jspecify.annotations.Nullable;
-
 /**
  * The facts {@link OidcLoginPolicy#decide(OidcLoginFacts)} branches on, gathered by {@link OidcUserProvisioner} from the ID-token claims, the
  * configuration and the database. A pure data carrier so the decision logic stays static and unit-testable.
@@ -32,7 +30,9 @@ import org.jspecify.annotations.Nullable;
  * @param demotesLastAdministrator  applying the IdP-derived role to the matched account (linked, or the email match) would demote the final
  *                                  remaining administrator
  * @param emailCollision            an unlinked local account already exists for the token's email address
- * @param emailVerified             the {@code email_verified} claim; {@code null} when the provider does not emit it
+ * @param emailVerified             whether the provider left the address unchallenged: {@code false} ONLY when it explicitly said
+ *                                  {@code email_verified: false}. An absent claim is {@code true}, because a provider that never emits the claim
+ *                                  is not asserting the address is unverified (mapped in {@code OidcUserProvisioner.resolveEmailVerified})
  */
 public record OidcLoginFacts(
     boolean firstUserBootstrapBlocked,
@@ -43,6 +43,6 @@ public record OidcLoginFacts(
     boolean linkedAccountFound,
     boolean demotesLastAdministrator,
     boolean emailCollision,
-    @Nullable Boolean emailVerified) {
+    boolean emailVerified) {
 
 }

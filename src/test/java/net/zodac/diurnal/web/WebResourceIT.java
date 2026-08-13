@@ -328,7 +328,7 @@ class WebResourceIT extends IntegrationTestBase {
     // ── Dashboard (authenticated) ──────────────────────────────────────────────
 
     @Test
-    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER)
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
     void dashboard_authenticated_returns200() {
         // "web-it@lt.test" is pre-created in createDbState()
         given().get("/")
@@ -338,7 +338,7 @@ class WebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER)
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
     void dashboard_withLoggedAction_showsTopThreeEnabledStatTiles() {
         // Seed an action logged TODAY (the day the dashboard renders for) so the stats-summary card
         // renders. With the default (never-customised) "Action stats" preference, the top three enabled
@@ -362,7 +362,7 @@ class WebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER)
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
     void dashboard_summaryShowsActionsLoggedOnTheRenderedDayOnly() {
         // The dashboard summary strip is the "top actions on the selected day" path, and the page renders
         // for today: an action logged only on another day must not appear, while one logged today must.
@@ -381,7 +381,7 @@ class WebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER)
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
     void settingsPage_authenticated_returns200() {
         given().get("/settings")
                 .then().statusCode(200)
@@ -404,7 +404,7 @@ class WebResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER)
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
     void unknownPath_authenticated_returns404WithErrorPage() {
         given().get("/this-path-does-not-exist")
                 .then().statusCode(404)

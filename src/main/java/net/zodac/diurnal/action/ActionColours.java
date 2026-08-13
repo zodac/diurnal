@@ -64,22 +64,13 @@ final class ActionColours {
         "#ca8a04"  // Yellow
     );
 
-    /**
-     * The smallest Euclidean RGB distance at which two colours are considered tellable apart. Distances are compared squared
-     * ({@link #MIN_DISTANCE_SQUARED}) so the arithmetic stays exact integer maths.
-     */
-    static final int MIN_DISTANCE = 60;
+    // How many colours are sampled when the palette is exhausted
+    private static final int GENERATION_ATTEMPTS = 32;
 
-    /**
-     * How many colours are sampled when the palette is exhausted, before settling for the least-similar of them.
-     */
-    static final int GENERATION_ATTEMPTS = 32;
+    // The smallest Euclidean RGB distance at which two colours are considered tellable apart
+    private static final int MIN_DISTANCE = 60;
 
-    /**
-     * The brand indigo that fills the calendar's "today" cell. A generated colour keeps its distance from it for the same reason no palette entry
-     * sits near it - a dot in that colour would vanish into the cell it most needs to be visible in.
-     */
-    static final String BRAND_COLOUR = Colours.BRAND_FILL;
+    private static final String BRAND_COLOUR = Colours.BRAND_FILL;
 
     private static final List<String> RESERVED = List.of(ActionValidation.DEFAULT_COLOUR, BRAND_COLOUR);
     private static final int MIN_DISTANCE_SQUARED = MIN_DISTANCE * MIN_DISTANCE;

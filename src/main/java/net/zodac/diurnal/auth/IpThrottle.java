@@ -53,7 +53,7 @@ public class IpThrottle {
      */
     @Inject
     public IpThrottle(final IpThrottleConfig config) {
-        this.throttle = new AttemptThrottle(config.enabled(), config.maxAttempts(), config.lockoutDuration());
+        throttle = AttemptThrottle.create(config.enabled(), config.maxAttempts(), config.lockoutDuration());
     }
 
     /**

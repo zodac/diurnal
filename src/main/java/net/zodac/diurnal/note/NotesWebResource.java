@@ -59,7 +59,7 @@ import net.zodac.diurnal.user.User;
  * nothing ever writes one to the server's log (see {@link NoteService}).
  */
 @Path("/notes")
-@RolesAllowed(Role.Values.USER)
+@RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 public class NotesWebResource {
 
     private final Template notesTemplate;

@@ -45,10 +45,10 @@ class SessionActivityServiceIT extends IntegrationTestBase {
     @Inject
     SessionStore sessionStore;
 
-    User active;
-    User inactive;
-    User multiSession;
-    User noSessions;
+    private User active;
+    private User inactive;
+    private User multiSession;
+    private User noSessions;
 
     @Override
     protected void createDbState() {

@@ -64,7 +64,7 @@ class HkdfTest {
     @Test
     void deriveKey_isSensitiveToSingleBitOfTheInput() {
         final byte[] nearlyTheSame = TOKEN.clone();
-        nearlyTheSame[0] ^= (byte) 0x01;
+        nearlyTheSame[0] ^= 0x01;
 
         assertThat(Hkdf.deriveKey(TOKEN, INFO))
             .as("flipping one bit of the input should change the derived key entirely")

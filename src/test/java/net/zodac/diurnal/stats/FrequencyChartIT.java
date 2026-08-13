@@ -40,21 +40,21 @@ import org.junit.jupiter.api.Test;
  * a set of actions, that the other rejects.
  */
 @QuarkusTest
-@TestSecurity(user = "freq-it@lt.test", roles = Role.Values.USER)
+@TestSecurity(user = "freq-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class FrequencyChartIT extends IntegrationTestBase {
 
-    static final String PRIMARY = "freq-it@lt.test";
-    static final String OTHER = "freq-other@lt.test";
-    static final LocalDate TODAY = FIXED_TODAY;
+    private static final String PRIMARY = "freq-it@lt.test";
+    private static final String OTHER = "freq-other@lt.test";
+    private static final LocalDate TODAY = FIXED_TODAY;
 
-    UUID primaryId;
-    UUID otherId;
-    Action action;
-    Action second;
-    Action third;
-    Action fourth;
-    Action otherAction;
+    private UUID primaryId;
+    private UUID otherId;
+    private Action action;
+    private Action second;
+    private Action third;
+    private Action fourth;
+    private Action otherAction;
 
     @Override
     protected void createDbState() {

@@ -43,7 +43,7 @@ class NotesStatsIT extends IntegrationTestBase {
     @Inject
     StatsService statsService;
 
-    UUID userId;
+    private UUID userId;
 
     @Override
     protected void createDbState() {

@@ -46,7 +46,7 @@ class UserResourceIT extends IntegrationTestBase {
     @Inject
     AppClock clock;
 
-    User user;
+    private User user;
 
     @Override
     protected void createDbState() {

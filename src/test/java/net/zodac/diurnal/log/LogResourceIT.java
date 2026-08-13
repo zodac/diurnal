@@ -49,33 +49,32 @@ import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
-@TestSecurity(user = "log-it@lt.test", roles = Role.Values.USER)
+@TestSecurity(user = "log-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class LogResourceIT extends IntegrationTestBase {
 
-    static final String PRIMARY = "log-it@lt.test";
-    static final String OTHER   = "log-other@lt.test";
+    private static final String PRIMARY = "log-it@lt.test";
+    private static final String OTHER   = "log-other@lt.test";
 
-    UUID primaryId;
-    UUID otherId;
-    Action primaryAction;
-    Action otherAction;
+    private UUID primaryId;
+    private Action primaryAction;
+    private Action otherAction;
 
     // Anchored on the clock IntegrationTestBase freezes for every test, so date assertions
     // never race the real midnight and don't depend on the host timezone.
-    static final LocalDate TODAY = FIXED_TODAY;
-    static final LocalDate YESTERDAY = TODAY.minusDays(1);
-    static final LocalDate TOMORROW  = TODAY.plusDays(1);
+    private static final LocalDate TODAY = FIXED_TODAY;
+    private static final LocalDate YESTERDAY = TODAY.minusDays(1);
+    private static final LocalDate TOMORROW  = TODAY.plusDays(1);
 
     // Sampling many interleavings gives a race a chance to surface; a single pass could get lucky.
     private static final int RACE_ITERATIONS = 50;
 
     @Override
     protected void createDbState() {
-        primaryId     = newUser(PRIMARY, "Log User").id;
-        otherId       = newUser(OTHER,   "Other User").id;
+        primaryId = newUser(PRIMARY, "Log User").id;
+        final UUID otherId = newUser(OTHER, "Other User").id;
         primaryAction = newAction(primaryId, "PrimaryAction");
-        otherAction   = newAction(otherId,   "OtherAction");
+        otherAction = newAction(otherId, "OtherAction");
     }
 
     // ── Confirm-delete / restore / delete entry ───────────────────────────────
@@ -557,18 +556,18 @@ class LogResourceIT extends IntegrationTestBase {
 
     @Test
     void futureGuard_rollsOverAtMidnight() {
-        final LocalDate d = LocalDate.of(2026, 3, 10);
+        final LocalDate localDate = LocalDate.of(2026, 3, 10);
 
         // 23:59:59 on day d → today() == d; d+1 is still the future and is blocked.
-        freezeInstant(d.atTime(23, 59, 59).toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
-        given().post("/internal/logs/" + d.plusDays(1) + "/" + primaryAction.id + "/increment")
+        freezeInstant(localDate.atTime(23, 59, 59).toInstant(ZoneOffset.UTC), ZoneOffset.UTC);
+        given().post("/internal/logs/" + localDate.plusDays(1) + "/" + primaryAction.id + "/increment")
                 .then().statusCode(400);
-        given().post("/internal/logs/" + d + "/" + primaryAction.id + "/increment")
+        given().post("/internal/logs/" + localDate + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200);
 
         // One second later the clock has rolled into the next day → d+1 is now "today" and allowed.
-        freezeInstant(d.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneOffset.UTC);
-        given().post("/internal/logs/" + d.plusDays(1) + "/" + primaryAction.id + "/increment")
+        freezeInstant(localDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneOffset.UTC);
+        given().post("/internal/logs/" + localDate.plusDays(1) + "/" + primaryAction.id + "/increment")
                 .then().statusCode(200);
     }
 

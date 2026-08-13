@@ -54,7 +54,7 @@ import org.jspecify.annotations.Nullable;
  * ({@link StatsWebResource}); nothing here is part of the public API (that is {@code /api/v1/*}).
  */
 @Path("/internal/stats")
-@RolesAllowed(Role.Values.USER)
+@RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 public class StatsInternalResource {
 
     private final Template statsCardsTemplate;
@@ -142,7 +142,7 @@ public class StatsInternalResource {
 
         final Map<String, String> cards = new LinkedHashMap<>();
         final LocalDate end = yearMonth.atEndOfMonth();
-        for (LocalDate date = yearMonth.atDay(1); !date.isAfter(end); date = date.plusDays(1)) {
+        for (LocalDate date = yearMonth.atDay(1); !date.isAfter(end); date = date.plusDays(1L)) {
             cards.put(date.toString(),
                 StatsSummary.renderPrecomputed(statsSummaryTemplate, user, date, byDate.getOrDefault(date, List.of())).render());
         }

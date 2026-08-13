@@ -46,7 +46,7 @@ import org.junit.jupiter.api.Test;
  */
 @QuarkusTest
 @TestProfile(IpThrottleProfile.class)
-@TestSecurity(user = AdminIpLockoutsInternalIT.ADMIN_EMAIL, roles = Role.Values.ADMIN)
+@TestSecurity(user = AdminIpLockoutsInternalIT.ADMIN_EMAIL, roles = Role.Values.ADMIN_INTERNAL_VALUE)
 class AdminIpLockoutsInternalIT extends IntegrationTestBase {
 
     static final String ADMIN_EMAIL = "iplock-web-admin@lt.test";

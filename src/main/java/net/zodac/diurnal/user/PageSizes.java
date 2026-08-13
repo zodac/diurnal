@@ -93,7 +93,7 @@ public final class PageSizes {
      * @param values   the submitted page sizes, in the same order as {@code sections} (blank = follow the general setting)
      * @return the accepted overrides in {@link PageSection} declaration order ({@code null} when none survive), or the rejection
      */
-    public static Outcome parse(final List<String> sections, final @Nullable List<String> values) {
+    public static PageSizeOutcome parse(final List<String> sections, final @Nullable List<String> values) {
         // A submission that pairs no values at all is just "nothing pairs up", rather than a second, separate empty return.
         final List<String> submitted = values == null ? List.of() : values;
         final int paired = Math.min(sections.size(), submitted.size());
@@ -110,7 +110,7 @@ public final class PageSizes {
 
             final Integer parsed = UserSettings.parsePageSize(raw);
             if (parsed == null) {
-                return new Outcome.Failure(UserSettings.PAGE_SIZE_RANGE_MESSAGE);
+                return new PageSizeOutcome.Failure(UserSettings.PAGE_SIZE_RANGE_MESSAGE);
             }
             overrides.put(section.get(), parsed);
         }
@@ -118,9 +118,9 @@ public final class PageSizes {
         if (overrides.isEmpty()) {
             // No overrides is stored as NULL, the same state a user who never opened the panel is in, so "follows the general
             // setting everywhere" has exactly one representation in the column.
-            return new Outcome.Valid(null);
+            return new PageSizeOutcome.Valid(null);
         }
-        return new Outcome.Valid(overrides.entrySet()
+        return new PageSizeOutcome.Valid(overrides.entrySet()
             .stream()
             .map(entry -> new PageSizePref(entry.getKey().key(), entry.getValue()))
             .toList());
@@ -156,28 +156,6 @@ public final class PageSizes {
         return overrides.stream()
             .map(pref -> pref.section() + "=" + pref.pageSize())
             .collect(Collectors.joining(", "));
-    }
-
-    /**
-     * The outcome of validating a submitted set of overrides.
-     */
-    public sealed interface Outcome {
-
-        /**
-         * The submission was accepted.
-         *
-         * @param overrides the overrides to store, or {@code null} when every section follows the general preference
-         */
-        record Valid(@Nullable List<PageSizePref> overrides) implements Outcome {
-        }
-
-        /**
-         * The submission was rejected, and nothing is stored.
-         *
-         * @param message the user-facing reason
-         */
-        record Failure(String message) implements Outcome {
-        }
     }
 
     /**

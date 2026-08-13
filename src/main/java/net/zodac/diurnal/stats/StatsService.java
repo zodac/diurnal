@@ -35,6 +35,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.log.ActionPerformedDate;
@@ -162,8 +163,8 @@ public class StatsService {
     // the actions; every returned figure still spans the action's full history. Ties keep the name-ascending order Action.findByUser returns them in
     // (the sort is stable), which is how the day panel orders the same actions.
     private Map<LocalDate, List<SubjectStats>> forCounts(final UUID userId, final Map<LocalDate, Map<UUID, Integer>> countsByDate, final int limit) {
-        final boolean anyLogged = countsByDate.values().stream().anyMatch(counts -> !counts.isEmpty());
-        if (!anyLogged) {
+        final boolean noneLogged = countsByDate.values().stream().allMatch(Map::isEmpty);
+        if (noneLogged) {
             return Map.of();
         }
 
@@ -216,7 +217,7 @@ public class StatsService {
      * @param rawAt the requested window key, or {@code null}/blank for the window containing today
      * @return the assembled chart, or the case explaining why it could not be assembled
      */
-    public FrequencyResult frequency(final UUID userId, final UUID subjectId, final List<UUID> compareIds, final @Nullable String rawPeriod,
+    FrequencyResult frequency(final UUID userId, final UUID subjectId, final List<UUID> compareIds, final @Nullable String rawPeriod,
         final @Nullable String rawAt) {
         final String periodValue = rawPeriod == null || rawPeriod.isBlank() ? FrequencyPeriod.DEFAULT.value() : rawPeriod;
         if (!FrequencyPeriod.isValid(periodValue)) {
@@ -224,15 +225,11 @@ public class StatsService {
         }
         final FrequencyPeriod period = FrequencyPeriod.of(periodValue);
 
-        final List<UUID> requested = new ArrayList<>();
-        requested.add(subjectId);
-        requested.addAll(compareIds);
-        if (requested.size() > FrequencyCharts.MAX_SERIES) {
-            return new FrequencyResult.TooManySubjects(requested.size(), FrequencyCharts.MAX_SERIES);
-        }
-        final UUID repeated = firstRepeated(requested);
-        if (repeated != null) {
-            return new FrequencyResult.DuplicateSubject(repeated);
+        // The graph's own subject first, then the comparisons, in the order the user added them.
+        final List<UUID> requested = Stream.concat(Stream.of(subjectId), compareIds.stream()).toList();
+        final FrequencyResult badSelection = rejectSelection(requested);
+        if (badSelection != null) {
+            return badSelection;
         }
 
         // The notes subject is charted alongside actions, and is resolved FIRST — before any action lookup — so its sentinel id can never be
@@ -249,44 +246,20 @@ public class StatsService {
             return new FrequencyResult.NotOwned();
         }
 
-        // The compare picker only offers subjects with at least one entry, so the API rejects the same set rather than drawing a flat series the UI
-        // could never produce - for notes that means "has written at least one note". The graph's OWN subject is exempt: its card is reachable with
-        // no entries, and an empty chart is the honest answer there.
-        final Set<UUID> logged = ActionLog.loggedActionIds(userId);
-        final boolean hasAnyNote = Note.count("userId = ?1", userId) > 0;
-        for (final UUID compareId : compareIds) {
-            final boolean present = StatSubject.NOTES_ID.equals(compareId) ? hasAnyNote : logged.contains(compareId);
-            if (!present) {
-                return new FrequencyResult.NotLogged(compareId);
-            }
+        final FrequencyResult unlogged = rejectUnlogged(userId, compareIds);
+        if (unlogged != null) {
+            return unlogged;
         }
 
         final User user = User.findById(userId);
         final LocalDate today = todayFor(user);
-        final LocalDate anchor;
-        if (rawAt == null || rawAt.isBlank()) {
-            anchor = FrequencyKeys.anchorOf(period, today);
-        } else if (FrequencyKeys.isValid(period, rawAt)) {
-            anchor = FrequencyKeys.anchor(period, rawAt);
-        } else {
-            return new FrequencyResult.UnknownWindow(rawAt);
+        final LocalDate anchor = resolveAnchor(period, rawAt, today);
+        if (anchor == null) {
+            return new FrequencyResult.UnknownWindow(Objects.requireNonNull(rawAt));
         }
 
-        final StatSubject notesSubject = StatSubject.notes(noteColourFor(user));
-        final List<StatSubject> charted = requested.stream()
-            .map(id -> StatSubject.NOTES_ID.equals(id) ? notesSubject : StatSubject.of(Objects.requireNonNull(ownedById.get(id))))
-            .toList();
-
-        // Both sources project into the SAME monthly/daily rollup records, so the two are simply concatenated and the chart builder never learns that
-        // more than one kind of subject exists. Each query is skipped entirely when its side is not charted (the action rollups reject an empty id
-        // list, and a notes query would otherwise be a pointless round trip).
-        final List<MonthlyActionTotal> monthlyTotals = new ArrayList<>();
-        if (!actionIds.isEmpty()) {
-            monthlyTotals.addAll(ActionLog.monthlyTotalsForActions(userId, actionIds));
-        }
-        if (notesCharted) {
-            monthlyTotals.addAll(Note.monthlyTotals(userId, StatSubject.NOTES_ID));
-        }
+        final List<StatSubject> charted = chartedSubjects(requested, ownedById, user);
+        final List<MonthlyActionTotal> monthlyTotals = monthlyRollups(userId, actionIds, notesCharted);
 
         final Map<UUID, Map<Integer, Long>> countsByAction = switch (period) {
             case MONTH -> dailySlots(dailyTotals(userId, actionIds, notesCharted, anchor, FrequencyKeys.end(period, anchor)));
@@ -315,7 +288,7 @@ public class StatsService {
         final List<StatSubject> candidates = new ArrayList<>();
         final StatSubject notes = StatSubject.notes(noteColourFor(User.findById(userId)));
         if (!excluded.contains(StatSubject.NOTES_ID)
-            && Note.count("userId = ?1", userId) > 0
+            && Note.count("userId = ?1", userId) > 0L
             && (term.isEmpty() || notes.name().toLowerCase(Locale.ENGLISH).contains(term))) {
             candidates.add(notes);
         }
@@ -326,6 +299,60 @@ public class StatsService {
             .map(StatSubject::of)
             .forEach(candidates::add);
         return List.copyOf(candidates);
+    }
+
+    private static @Nullable FrequencyResult rejectSelection(final List<UUID> requested) {
+        if (requested.size() > FrequencyCharts.MAX_SERIES) {
+            return new FrequencyResult.TooManySubjects(requested.size(), FrequencyCharts.MAX_SERIES);
+        }
+        final UUID repeated = firstRepeated(requested);
+        return repeated == null ? null : new FrequencyResult.DuplicateSubject(repeated);
+    }
+
+    // The compare picker only offers subjects with at least one entry, so the API rejects the same set rather than drawing a flat series the UI could
+    // never produce - for notes that means "has written at least one note". The graph's OWN subject is exempt: its card is reachable with no entries,
+    // and an empty chart is the honest answer there.
+    private static @Nullable FrequencyResult rejectUnlogged(final UUID userId, final List<UUID> compareIds) {
+        final Set<UUID> logged = ActionLog.loggedActionIds(userId);
+        final long noteCount = Note.count("userId = ?1", userId);
+        for (final UUID compareId : compareIds) {
+            final boolean absent = StatSubject.NOTES_ID.equals(compareId) ? noteCount == 0L : !logged.contains(compareId);
+            if (absent) {
+                return new FrequencyResult.NotLogged(compareId);
+            }
+        }
+        return null;
+    }
+
+    // Null means the caller asked for a window this period cannot name - an absent or blank request is the period's own default, not a rejection.
+    private static @Nullable LocalDate resolveAnchor(final FrequencyPeriod period, final @Nullable String rawAt, final LocalDate today) {
+        if (rawAt == null || rawAt.isBlank()) {
+            return FrequencyKeys.anchorOf(period, today);
+        }
+        return FrequencyKeys.isValid(period, rawAt) ? FrequencyKeys.anchor(period, rawAt) : null;
+    }
+
+    // Ordered by the request, not by the name-ascending order findByUserAndIds returns: the legend and the bar order within each column follow the
+    // order the user built the comparison in, so adding an action never re-shuffles the bars already on screen.
+    private static List<StatSubject> chartedSubjects(final List<UUID> requested, final Map<UUID, Action> ownedById, final @Nullable User user) {
+        final StatSubject notesSubject = StatSubject.notes(noteColourFor(user));
+        return requested.stream()
+            .map(id -> StatSubject.NOTES_ID.equals(id) ? notesSubject : StatSubject.of(Objects.requireNonNull(ownedById.get(id))))
+            .toList();
+    }
+
+    // Both sources project into the SAME monthly rollup record, so the two are simply concatenated and the chart builder never learns that more than
+    // one kind of subject exists. Each query is skipped entirely when its side is not charted (the action rollups reject an empty id list, and a
+    // notes query would otherwise be a pointless round trip).
+    private static List<MonthlyActionTotal> monthlyRollups(final UUID userId, final List<UUID> actionIds, final boolean notesCharted) {
+        final List<MonthlyActionTotal> totals = new ArrayList<>();
+        if (!actionIds.isEmpty()) {
+            totals.addAll(ActionLog.monthlyTotalsForActions(userId, actionIds));
+        }
+        if (notesCharted) {
+            totals.addAll(Note.monthlyTotals(userId, StatSubject.NOTES_ID));
+        }
+        return totals;
     }
 
     private static @Nullable UUID firstRepeated(final List<UUID> ids) {
@@ -419,7 +446,7 @@ public class StatsService {
         }
 
         final YearMonth thisMonth = YearMonth.from(today);
-        final YearMonth prevMonth = thisMonth.minusMonths(1);
+        final YearMonth prevMonth = thisMonth.minusMonths(1L);
         final int thisYear = today.getYear();
 
         final Map<YearMonth, Long> byMonth = new HashMap<>();
@@ -468,16 +495,16 @@ public class StatsService {
      */
     static DaySpan currentStreak(final List<LocalDate> sortedDates, final LocalDate today) {
         final Set<LocalDate> performed = new HashSet<>(sortedDates);
-        final LocalDate lastDay = performed.contains(today) ? today : today.minusDays(1);
+        final LocalDate lastDay = performed.contains(today) ? today : today.minusDays(1L);
         if (!performed.contains(lastDay)) {
             return new DaySpan(today, today);
         }
 
         LocalDate firstDay = lastDay;
-        while (performed.contains(firstDay.minusDays(1))) {
-            firstDay = firstDay.minusDays(1);
+        while (performed.contains(firstDay.minusDays(1L))) {
+            firstDay = firstDay.minusDays(1L);
         }
-        return new DaySpan(firstDay, lastDay.plusDays(1));
+        return new DaySpan(firstDay, lastDay.plusDays(1L));
     }
 
     /**
@@ -492,10 +519,10 @@ public class StatsService {
         DaySpan longest = new DaySpan(today, today);
         for (int i = 1; i < sortedDates.size(); i++) {
             // The blank days between two logged dates: the day after the earlier one, up to (excluding) the later.
-            final DaySpan gap = new DaySpan(sortedDates.get(i - 1).plusDays(1), sortedDates.get(i));
+            final DaySpan gap = new DaySpan(sortedDates.get(i - 1).plusDays(1L), sortedDates.get(i));
             longest = longer(longest, gap);
         }
-        final DaySpan openGap = new DaySpan(sortedDates.getLast().plusDays(1), today.plusDays(1));
+        final DaySpan openGap = new DaySpan(sortedDates.getLast().plusDays(1L), today.plusDays(1L));
         return longer(longest, openGap);
     }
 
@@ -508,14 +535,14 @@ public class StatsService {
         }
 
         final LocalDate first = sortedDates.getFirst();
-        DaySpan longest = new DaySpan(first, first.plusDays(1));
+        DaySpan longest = new DaySpan(first, first.plusDays(1L));
         LocalDate runStart = first;
         for (int i = 1; i < sortedDates.size(); i++) {
             final LocalDate date = sortedDates.get(i);
-            if (!date.equals(sortedDates.get(i - 1).plusDays(1))) {
+            if (!date.equals(sortedDates.get(i - 1).plusDays(1L))) {
                 runStart = date;
             }
-            longest = longer(longest, new DaySpan(runStart, date.plusDays(1)));
+            longest = longer(longest, new DaySpan(runStart, date.plusDays(1L)));
         }
         return longest;
     }

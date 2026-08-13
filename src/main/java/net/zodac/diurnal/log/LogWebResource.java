@@ -62,7 +62,7 @@ import net.zodac.diurnal.web.RollbackOnErrorStatus;
  * Increment/decrement endpoints for a day's action counts, plus the dashboard day-panel partials.
  */
 @Path("/internal/logs")
-@RolesAllowed(Role.Values.USER)
+@RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 @RollbackOnErrorStatus
 public class LogWebResource {
 
@@ -86,7 +86,7 @@ public class LogWebResource {
      * @param logService the shared log-mutation service
      */
     @Inject
-    public LogWebResource(@Location("partials/day-panel") final Template dayPanelTemplate,
+    LogWebResource(@Location("partials/day-panel") final Template dayPanelTemplate,
         @Location("partials/day-actions-list") final Template dayActionsListTemplate,
         @Location("partials/day-action-item") final Template dayActionItemTemplate,
         @Location("partials/day-action-item-confirm-delete") final Template dayActionItemConfirmDeleteTemplate,
@@ -178,7 +178,7 @@ public class LogWebResource {
 
         final int dayPageSize = PageSizes.forSection(user, PageSection.DASHBOARD);
         final Map<String, String> panels = new LinkedHashMap<>();
-        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1)) {
+        for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1L)) {
             final boolean future = LogGuards.isFuture(date, user, clock);
             final var page = future ? null : paginate(all, countsByDate.getOrDefault(date, Map.of()), 1, "", dayPageSize);
             panels.put(date.toString(), dayPanelTemplate
@@ -197,7 +197,8 @@ public class LogWebResource {
 
     }
 
-    private PaginatedDayActions getActions(final UUID userId, final LocalDate date, final int pageNum, final String searchTerm, final int pageSize) {
+    private static PaginatedDayActions getActions(final UUID userId, final LocalDate date, final int pageNum, final String searchTerm,
+        final int pageSize) {
         return paginate(Action.findByUser(userId), ActionLog.countsByAction(userId, date), pageNum, searchTerm, pageSize);
     }
 
@@ -364,7 +365,7 @@ public class LogWebResource {
     /**
      * An action paired with its count for a given day (0 when not yet logged).
      */
-    public record DayActionStatus(Action action, int count) {
+    record DayActionStatus(Action action, int count) {
 
     }
 }

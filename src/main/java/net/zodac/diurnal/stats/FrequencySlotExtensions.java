@@ -54,7 +54,7 @@ public final class FrequencySlotExtensions {
         }
 
         return slot.bars().stream()
-            .map(bar -> bar.subjectName() + ": " + Durations.count(bar.count(), "time"))
+            .map(frequencyBar -> frequencyBar.subjectName() + ": " + Durations.count(frequencyBar.count(), "time"))
             .collect(Collectors.joining("\n", slot.fullLabel() + "\n", ""));
     }
 }

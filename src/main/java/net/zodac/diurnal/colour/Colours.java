@@ -98,7 +98,7 @@ public final class Colours {
     public static String fromHsl(final int hue, final int saturationPercent, final int lightnessPercent) {
         final double saturation = (double) saturationPercent / PERCENT;
         final double lightness = (double) lightnessPercent / PERCENT;
-        final double chroma = (1 - Math.abs((2 * lightness) - 1)) * saturation;
+        final double chroma = (1.0 - Math.abs((2 * lightness) - 1.0)) * saturation;
         final double sector = (double) hue / SECTOR_DEGREES;
         final double secondary = chroma * (1 - Math.abs((sector % 2) - 1));
         final double base = lightness - (chroma / 2);
@@ -168,6 +168,7 @@ public final class Colours {
         return (int) (contrastRatio(colour, background) * TENTHS_PER_UNIT) >= MIN_CONTRAST_TENTHS;
     }
 
+    @SuppressWarnings("FloatingPointEquality")
     private static int hue(final String colour) {
         final double red = fraction(colour, RED_OFFSET);
         final double green = fraction(colour, GREEN_OFFSET);
@@ -178,6 +179,13 @@ public final class Colours {
             return 0;
         }
 
+        // Exact equality is correct here, not the comparison bug FloatingPointEquality exists to catch: Math.max returns one of its arguments
+        // unchanged, so `max` IS bit-for-bit one of the three, and the test is asking which channel it came from rather than whether two computed
+        // values are close.
+        //
+        // The obvious rewrite - `red >= green && red >= blue`, etc. - was tried and reverted. It reads better but is untestable here: at a tie the
+        // two sector formulas agree exactly ((g-b)/c == (b-r)/c + 2 when r == g, and so on for the other two), so mutating `>=` to `>` produces an
+        // EQUIVALENT mutant that no test can kill, and PITest is held at 100% strength. Exact equality has no boundary to mutate.
         final double sector;
         if (max == red) {
             sector = ((green - blue) / chroma) % 6;

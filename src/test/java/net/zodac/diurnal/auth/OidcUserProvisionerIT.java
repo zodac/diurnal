@@ -29,9 +29,9 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Optional;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -48,11 +48,10 @@ class OidcUserProvisionerIT extends IntegrationTestBase {
 
     private static final String OIDC_ISSUER = "https://diurnal.example.com/idp";
 
-    @ConfigProperty(name = "oidc.admin.group")
-    Optional<String> oidcAdminGroup = Optional.empty();
-
-    @ConfigProperty(name = "oidc.user.group")
-    Optional<String> oidcUserGroup = Optional.empty();
+    // Injects the very config the bean under test reads, so these tests stay environment-agnostic: SmallRye resolves .env at a higher priority
+    // than the %test profile, so a specific value cannot be forced here - each expectation is instead derived from the same source the bean uses.
+    @Inject
+    OidcConfig oidcConfig;
 
     @Inject
     OidcUserProvisioner oidcUserProvisioner;
@@ -72,6 +71,47 @@ class OidcUserProvisionerIT extends IntegrationTestBase {
         runInTx(() -> assertThat(User.findByEmail("local@example.com").orElseThrow().oidcSubject)
             .as("The refused login must not link the identity to the local account")
             .isNull());
+    }
+
+    // ── A token with no usable email ───────────────────────────────────────────
+    // Both cases below collapse to the same state inside the provisioner - a blank normalised email - and both must deny. Guarding them because a
+    // provisioner that treats blank as "an email" provisions an account whose email column, and therefore whose security principal, is the empty
+    // string, which every later email-keyed lookup then matches.
+
+    @Test
+    void absentEmailClaim_deniesAndCreatesNoUser() {
+        runInTx(() -> newUser("admin@example.com", "Admin", Role.ADMIN.storageValue()));
+
+        final JsonObject claims = oidcClaims("dropped@example.com", "No Email")
+            .put("groups", authorisingGroups());
+        claims.remove("email");
+
+        assertThatThrownBy(() -> oidcUserProvisioner.linkOrCreate(claims, new IdTokenCredential("dummy.token"), null))
+            .as("A token carrying no email claim must be refused")
+            .isInstanceOf(AuthenticationFailedException.class)
+            .hasMessageContaining("email address");
+
+        runInTx(() -> assertThat(User.count())
+            .as("A refused login must leave only the pre-existing administrator")
+            .isOne());
+    }
+
+    @Test
+    void emailClaimRefusedByTextPipeline_deniesAndCreatesNoUser() {
+        runInTx(() -> newUser("admin@example.com", "Admin", Role.ADMIN.storageValue()));
+
+        // Rejected by the shared text pipeline (no @), so it is treated as no email claim at all.
+        final JsonObject claims = oidcClaims("not-an-email", "Malformed")
+            .put("groups", authorisingGroups());
+
+        assertThatThrownBy(() -> oidcUserProvisioner.linkOrCreate(claims, new IdTokenCredential("dummy.token"), null))
+            .as("An email claim the shared text pipeline refuses must be treated as absent, and refused")
+            .isInstanceOf(AuthenticationFailedException.class)
+            .hasMessageContaining("email address");
+
+        runInTx(() -> assertThat(User.count())
+            .as("A refused login must not provision an account - least of all one holding a blank email")
+            .isOne());
     }
 
     // ── email_verified ─────────────────────────────────────────────────────────
@@ -171,7 +211,7 @@ class OidcUserProvisionerIT extends IntegrationTestBase {
             admin.persist();
         });
 
-        final Optional<String> userGroup = oidcUserGroup.filter(group -> !group.isBlank());
+        final Optional<String> userGroup = oidcConfig.userGroup().filter(group -> !group.isBlank());
         final JsonObject claims = oidcClaims("solo-admin@example.com", "Solo Admin")
             .put("sub", "subject-solo-admin")
             .put("groups", userGroup.map(List::of).orElseGet(List::of));
@@ -205,7 +245,7 @@ class OidcUserProvisionerIT extends IntegrationTestBase {
             admin.persist();
         });
 
-        final Optional<String> userGroup = oidcUserGroup.filter(group -> !group.isBlank());
+        final Optional<String> userGroup = oidcConfig.userGroup().filter(group -> !group.isBlank());
         final JsonObject claims = oidcClaims("demoted@example.com", "Demoted Admin")
             .put("sub", "subject-demoted")
             .put("groups", userGroup.map(List::of).orElseGet(List::of));
@@ -224,8 +264,8 @@ class OidcUserProvisionerIT extends IntegrationTestBase {
     // A group that authorises the login whatever this environment configures: prefer the user group, fall back to the admin group, or none when
     // group mapping is not configured at all (then no group is required). Mirrors FirstUserCreationBlockedIT.
     private List<String> authorisingGroups() {
-        return oidcUserGroup.filter(group -> !group.isBlank())
-            .or(() -> oidcAdminGroup.filter(group -> !group.isBlank()))
+        return oidcConfig.userGroup().filter(group -> !group.isBlank())
+            .or(() -> oidcConfig.adminGroup().filter(group -> !group.isBlank()))
             .map(List::of)
             .orElseGet(List::of);
     }

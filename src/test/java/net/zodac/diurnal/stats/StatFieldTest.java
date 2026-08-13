@@ -22,7 +22,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import net.zodac.diurnal.stats.StatField.Choice;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextValidation;
@@ -141,13 +140,13 @@ class StatFieldTest {
 
     @Test
     void choices_null_marksEveryFieldSelectedInDefaultOrder() {
-        final List<Choice> choices = StatField.choices(null);
+        final List<StatField.Choice> choices = StatField.choices(null);
         assertThat(choices)
             .as("all fields present")
             .hasSize(StatField.values().length);
         assertThat(choices)
             .as("every field selected by default")
-            .allMatch(Choice::selected);
+            .allMatch(StatField.Choice::selected);
         assertThat(choices.getFirst().key())
             .as("default order leads with last-performed")
             .isEqualTo("last-performed");
@@ -155,14 +154,14 @@ class StatFieldTest {
 
     @Test
     void choices_preservesArrangementOrderRegardlessOfEnabledState() {
-        final List<Choice> choices = StatField.choices(CUSTOM);
+        final List<StatField.Choice> choices = StatField.choices(CUSTOM);
 
         final List<String> expectedKeys = List.of("best-year", "current-streak", "total-days", "longest-streak", "current-gap", "biggest-gap",
             "total-count", "weekly-average", "monthly-average", "weekly-count-average", "monthly-count-average", "first-performed", "last-performed",
             "vs-last-month", "vs-last-year", "best-month");
         assertThat(choices)
             .as("every field is represented, in the stored arrangement order")
-            .extracting(Choice::key)
+            .extracting(StatField.Choice::key)
             .containsExactlyElementsOf(expectedKeys);
 
         // The disabled stat keeps its slot (index 2) rather than being pushed down.
@@ -223,8 +222,8 @@ class StatFieldTest {
     void choices_marksLastPerformedMandatory() {
         assertThat(StatField.choices(null))
             .as("exactly last-performed is mandatory")
-            .filteredOn(Choice::mandatory)
-            .extracting(Choice::key)
+            .filteredOn(StatField.Choice::mandatory)
+            .extracting(StatField.Choice::key)
             .containsExactly("last-performed");
     }
 
@@ -283,7 +282,7 @@ class StatFieldTest {
         // Re-reading the stored value reproduces the same arrangement + enabled state.
         assertThat(StatField.choices(encoded))
             .as("stored arrangement re-reads consistently")
-            .extracting(Choice::key)
+            .extracting(StatField.Choice::key)
             .startsWith("best-year", "total-days", "current-streak");
         assertThat(StatField.displayFields(encoded))
             .as("only enabled fields render, in order; disabled total-days omitted")
@@ -451,9 +450,9 @@ class StatFieldTest {
 
     @Test
     void choices_carryTheCustomNameSeparatelyFromTheCaption() {
-        final List<Choice> choices = StatField.choices(List.of(new StatFieldPref("current-streak", true, "Days in row")));
+        final List<StatField.Choice> choices = StatField.choices(List.of(new StatFieldPref("current-streak", true, "Days in row")));
 
-        final Choice renamed = choices.getFirst();
+        final StatField.Choice renamed = choices.getFirst();
         assertThat(renamed.label())
             .as("the picker row reads under the user's name")
             .isEqualTo("Days in row");
@@ -464,7 +463,7 @@ class StatFieldTest {
             .as("the catalogue label is offered as the rename field's placeholder")
             .isEqualTo(StatField.CURRENT_STREAK.label());
 
-        final Choice untouched = choices.get(1);
+        final StatField.Choice untouched = choices.get(1);
         assertThat(untouched.customLabel())
             .as("an un-renamed stat posts back a blank name, so it keeps tracking the catalogue label")
             .isEmpty();

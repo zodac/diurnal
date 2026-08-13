@@ -72,7 +72,7 @@ public class ActionLog extends PanacheEntityBase {
      */
     @PreUpdate
     void onUpdate() {
-        this.updatedAt = Instant.now();
+        updatedAt = Instant.now();
     }
 
     // ── Queries ───────────────────────────────────────────────────────────
@@ -188,7 +188,7 @@ public class ActionLog extends PanacheEntityBase {
      */
     public static Map<UUID, Integer> countsByAction(final UUID userId, final LocalDate date) {
         return ActionLog.<ActionLog>list("userId = ?1 and logDate = ?2", userId, date)
-                .stream().collect(Collectors.toMap(l -> l.actionId, l -> l.count));
+                .stream().collect(Collectors.toMap(actionLog -> actionLog.actionId, actionLog -> actionLog.count));
     }
 
     /**

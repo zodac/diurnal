@@ -19,7 +19,6 @@ package net.zodac.diurnal.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import net.zodac.diurnal.auth.OidcLinkPolicy.IdentityOwner;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -30,7 +29,7 @@ class OidcLinkPolicyTest {
 
     @Test
     void decide_groupCheckEnabledAndNotInGroup_denies() {
-        final OidcLoginDecision decision = OidcLinkPolicy.decide(true, false, IdentityOwner.NONE, false, false, false, true);
+        final OidcLoginDecision decision = OidcLinkPolicy.decide(true, false, OidcLinkPolicy.IdentityOwner.NONE, false, false, false, true);
         assertThat(decision)
             .as("With group mapping configured, a user in no configured group must be refused")
             .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.NOT_IN_GROUP));
@@ -38,7 +37,7 @@ class OidcLinkPolicyTest {
 
     @Test
     void decide_identityOwnedByAnotherAccount_denies() {
-        final OidcLoginDecision decision = OidcLinkPolicy.decide(false, false, IdentityOwner.OTHER_USER, false, false, false, true);
+        final OidcLoginDecision decision = OidcLinkPolicy.decide(false, false, OidcLinkPolicy.IdentityOwner.OTHER_USER, false, false, false, true);
         assertThat(decision)
             .as("An identity already linked to a different account must refuse the link")
             .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.LINK_CONFLICT));
@@ -46,7 +45,7 @@ class OidcLinkPolicyTest {
 
     @Test
     void decide_sessionUserAlreadyLinkedElsewhere_denies() {
-        final OidcLoginDecision decision = OidcLinkPolicy.decide(false, false, IdentityOwner.NONE, true, false, false, true);
+        final OidcLoginDecision decision = OidcLinkPolicy.decide(false, false, OidcLinkPolicy.IdentityOwner.NONE, true, false, false, true);
         assertThat(decision)
             .as("An account already linked to a different identity must refuse a second link")
             .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.ALREADY_LINKED));
@@ -54,7 +53,7 @@ class OidcLinkPolicyTest {
 
     @Test
     void decide_linkDemotingLastAdministrator_denies() {
-        final OidcLoginDecision decision = OidcLinkPolicy.decide(true, true, IdentityOwner.NONE, false, true, false, true);
+        final OidcLoginDecision decision = OidcLinkPolicy.decide(true, true, OidcLinkPolicy.IdentityOwner.NONE, false, true, false, true);
         assertThat(decision)
             .as("A link whose group-derived role would demote the last administrator must be refused")
             .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.ROLE_SYNC_REFUSED));
@@ -62,7 +61,7 @@ class OidcLinkPolicyTest {
 
     @Test
     void decide_identityAlreadyOwnedBySessionUser_isAnOrdinaryLogin() {
-        final OidcLoginDecision decision = OidcLinkPolicy.decide(false, false, IdentityOwner.SESSION_USER, false, false, false, true);
+        final OidcLoginDecision decision = OidcLinkPolicy.decide(false, false, OidcLinkPolicy.IdentityOwner.SESSION_USER, false, false, false, true);
         assertThat(decision)
             .as("A connect round trip for an already-linked identity is just a re-login")
             .isEqualTo(new OidcLoginDecision.UseExisting());
@@ -70,7 +69,7 @@ class OidcLinkPolicyTest {
 
     @Test
     void decide_reLoginDemotingLastAdministrator_denies() {
-        final OidcLoginDecision decision = OidcLinkPolicy.decide(true, true, IdentityOwner.SESSION_USER, false, true, false, true);
+        final OidcLoginDecision decision = OidcLinkPolicy.decide(true, true, OidcLinkPolicy.IdentityOwner.SESSION_USER, false, true, false, true);
         assertThat(decision)
             .as("Even the re-login path must refuse a last-administrator demotion")
             .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.ROLE_SYNC_REFUSED));
@@ -78,7 +77,7 @@ class OidcLinkPolicyTest {
 
     @Test
     void decide_unclaimedIdentityAndUnlinkedAccount_links() {
-        final OidcLoginDecision decision = OidcLinkPolicy.decide(true, true, IdentityOwner.NONE, false, false, false, true);
+        final OidcLoginDecision decision = OidcLinkPolicy.decide(true, true, OidcLinkPolicy.IdentityOwner.NONE, false, false, false, true);
         assertThat(decision)
             .as("An unclaimed identity links to the signed-in account")
             .isEqualTo(new OidcLoginDecision.LinkToSessionUser());
@@ -86,7 +85,7 @@ class OidcLinkPolicyTest {
 
     @Test
     void decide_emailMismatch_deniesTheLink() {
-        final OidcLoginDecision decision = OidcLinkPolicy.decide(false, false, IdentityOwner.NONE, false, false, false, false);
+        final OidcLoginDecision decision = OidcLinkPolicy.decide(false, false, OidcLinkPolicy.IdentityOwner.NONE, false, false, false, false);
         assertThat(decision)
             .as("Completing the round trip with a different IdP account (email mismatch) must not link — the mistaken-account guard")
             .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.LINK_EMAIL_MISMATCH));
@@ -94,7 +93,7 @@ class OidcLinkPolicyTest {
 
     @Test
     void decide_emailMissing_deniesTheLink() {
-        final OidcLoginDecision decision = OidcLinkPolicy.decide(false, false, IdentityOwner.NONE, false, false, true, false);
+        final OidcLoginDecision decision = OidcLinkPolicy.decide(false, false, OidcLinkPolicy.IdentityOwner.NONE, false, false, true, false);
         assertThat(decision)
             .as("Without an email claim the match cannot be verified, so the link is refused")
             .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.EMAIL_MISSING));
@@ -102,7 +101,7 @@ class OidcLinkPolicyTest {
 
     @Test
     void decide_reLogin_ignoresTheEmailMatch() {
-        final OidcLoginDecision decision = OidcLinkPolicy.decide(false, false, IdentityOwner.SESSION_USER, false, false, false, false);
+        final OidcLoginDecision decision = OidcLinkPolicy.decide(false, false, OidcLinkPolicy.IdentityOwner.SESSION_USER, false, false, false, false);
         assertThat(decision)
             .as("The guard only applies to the link itself — an already-linked identity's re-login is resolved by issuer + subject")
             .isEqualTo(new OidcLoginDecision.UseExisting());
@@ -110,7 +109,7 @@ class OidcLinkPolicyTest {
 
     @Test
     void decide_groupCheckDisabled_doesNotRequireGroup() {
-        final OidcLoginDecision decision = OidcLinkPolicy.decide(false, false, IdentityOwner.NONE, false, false, false, true);
+        final OidcLoginDecision decision = OidcLinkPolicy.decide(false, false, OidcLinkPolicy.IdentityOwner.NONE, false, false, false, true);
         assertThat(decision)
             .as("Without group mapping configured, no group membership is required to link")
             .isEqualTo(new OidcLoginDecision.LinkToSessionUser());

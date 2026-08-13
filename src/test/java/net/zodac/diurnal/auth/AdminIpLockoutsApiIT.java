@@ -59,8 +59,8 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
     @Inject
     AppClock clock;
 
-    User admin;
-    User regularUser;
+    private User admin;
+    private User regularUser;
 
     @BeforeEach
     void clearThrottle() {
@@ -76,7 +76,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
 
     @Test
     void listCurrent_listsTheLockedIpWithItsFailureCount() {
-        lockIp(LOCKED_IP);
+        lockIp();
 
         given().header("Authorization", "Bearer " + adminToken())
                 .get("/api/v1/admin/ip-lockouts")
@@ -96,7 +96,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
 
     @Test
     void listHistory_listsTheActiveLockout() {
-        lockIp(LOCKED_IP);
+        lockIp();
 
         given().header("Authorization", "Bearer " + adminToken())
                 .get("/api/v1/admin/ip-lockouts/history")
@@ -111,7 +111,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
 
     @Test
     void listHistory_outOfRangePage_isRejected() {
-        lockIp(LOCKED_IP);
+        lockIp();
 
         given().header("Authorization", "Bearer " + adminToken())
                 .get("/api/v1/admin/ip-lockouts/history?page=2")
@@ -120,7 +120,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
 
     @Test
     void unlock_clearsTheLiveLockoutAndStampsHistoryAsUnlocked() {
-        lockIp(LOCKED_IP);
+        lockIp();
 
         given().header("Authorization", "Bearer " + adminToken())
                 .delete("/api/v1/admin/ip-lockouts/" + LOCKED_IP)
@@ -153,9 +153,9 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
                 .then().statusCode(403);
     }
 
-    private void lockIp(final String ip) {
+    private void lockIp() {
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            ipLockoutService.recordFailure(ip, clock.now());
+            ipLockoutService.recordFailure(LOCKED_IP, clock.now());
         }
     }
 

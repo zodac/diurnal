@@ -130,6 +130,6 @@ public class Action extends PanacheEntityBase {
      */
     @PreUpdate
     void onUpdate() {
-        this.updatedAt = Instant.now();
+        updatedAt = Instant.now();
     }
 }

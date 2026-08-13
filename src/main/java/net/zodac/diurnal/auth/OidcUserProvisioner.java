@@ -39,7 +39,6 @@ import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.Optional;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.config.SessionConfig;
@@ -155,37 +154,44 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
      * @param routingContext the current request, when available, for the denial-reason cookie
      * @return the fresh, database-backed {@link SecurityIdentity}
      */
+    // ProhibitedExceptionThrown is the suppression id of Qodana's BadExceptionThrown; deny() is an exception FACTORY, and RuntimeException is the
+    // narrowest type its two returns share (AuthenticationRedirectException extends RuntimeException, AuthenticationFailedException extends
+    // SecurityException, and AuthenticationException is an interface).
+    @SuppressWarnings("ProhibitedExceptionThrown")
     @Transactional
     SecurityIdentity linkOrCreate(final JsonObject claims, final IdTokenCredential idTokenCred, @Nullable final RoutingContext routingContext) {
-        final String sub = claims.getString("sub");
-        final String iss = claims.getString("iss");
-        final String email = resolveEmail(claims);
-        final String normalised = normaliseEmail(email);
-
-        final Optional<String> role = roleAssigner.roleFromOidcGroups(resolveGroups(claims));
-        final Optional<User> linked = User.findByOidc(iss, sub);
-        final Optional<User> emailMatch = normalised == null || linked.isPresent() ? Optional.empty() : User.findByEmail(normalised);
-        final Optional<User> linkTarget = resolveLinkTarget(routingContext);
-
-        final OidcLoginDecision decision = linkTarget
-            .map(user -> linkDecision(user, linked, role, normalised))
-            .orElseGet(() -> loginDecision(normalised, linked, emailMatch, role, claims));
+        final OidcIdentityState state = resolveIdentity(claims, routingContext);
+        final OidcLoginDecision decision = state.linkTarget() == null ? loginDecision(state, claims) : linkDecision(state);
 
         return switch (decision) {
-            case OidcLoginDecision.Deny(final OidcDenialReason reason) ->
-                throw deny(reason, normalised, iss, sub, routingContext, linkTarget.isPresent());
-            case final OidcLoginDecision.UseExisting ignored -> authenticated(syncRole(linked.orElseThrow(), role), idTokenCred, routingContext);
+            case OidcLoginDecision.Deny(final OidcDenialReason reason) -> throw deny(reason, state, routingContext);
+            case final OidcLoginDecision.UseExisting ignored ->
+                authenticated(syncRole(Objects.requireNonNull(state.linked()), state.idpRole()), idTokenCred, routingContext);
             case final OidcLoginDecision.LinkToSessionUser ignored -> {
-                accountLinkService.link(linkTarget.orElseThrow(), iss, sub);
-                yield authenticated(syncRole(linkTarget.orElseThrow(), role), idTokenCred, routingContext);
+                final User target = Objects.requireNonNull(state.linkTarget());
+                accountLinkService.link(target, state.issuer(), state.subject());
+                yield authenticated(syncRole(target, state.idpRole()), idTokenCred, routingContext);
             }
             case final OidcLoginDecision.AdoptByEmail ignored -> {
-                accountLinkService.link(emailMatch.orElseThrow(), iss, sub);
-                yield authenticated(syncRole(emailMatch.orElseThrow(), role), idTokenCred, routingContext);
+                final User matched = Objects.requireNonNull(state.emailMatch());
+                accountLinkService.link(matched, state.issuer(), state.subject());
+                yield authenticated(syncRole(matched, state.idpRole()), idTokenCred, routingContext);
             }
-            case final OidcLoginDecision.ProvisionNew ignored -> authenticated(provision(Objects.requireNonNull(normalised), iss, sub, claims, role),
-                idTokenCred, routingContext);
+            case final OidcLoginDecision.ProvisionNew ignored -> authenticated(provision(state, claims), idTokenCred, routingContext);
         };
+    }
+
+    // Every database and configuration lookup the two decision paths need, resolved once so neither policy re-queries and both read the same facts.
+    private OidcIdentityState resolveIdentity(final JsonObject claims, @Nullable final RoutingContext routingContext) {
+        final String issuer = claims.getString("iss");
+        final String subject = claims.getString("sub");
+        final String normalisedEmail = normaliseEmail(resolveEmail(claims));
+        final User linked = User.findByOidc(issuer, subject).orElse(null);
+        // An email match only means anything for an identity we do not already know, and only when there is a usable address to match on.
+        final User emailMatch = linked != null || normalisedEmail.isBlank() ? null : User.findByEmail(normalisedEmail).orElse(null);
+
+        return new OidcIdentityState(issuer, subject, normalisedEmail, linked, emailMatch, resolveLinkTarget(routingContext),
+            roleAssigner.roleFromOidcGroups(resolveGroups(claims)).orElse(null));
     }
 
     // The q_session revocation guard (OidcLoginPolicy.revocationGuardSatisfied): outside the code-flow callback, the OIDC session cookie alone must
@@ -201,7 +207,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
             // callback (exempt from this guard) mints a fresh Diurnal session — a transparent round trip while the IdP session is alive. An
             // AuthenticationRedirectException is the one failure type the OIDC layer passes through as a clean redirect (anything else becomes
             // an AuthenticationCompletionException and a bare 401).
-            routingContext.response().addCookie(Cookie.cookie("q_session", "").setPath("/").setMaxAge(0));
+            routingContext.response().addCookie(Cookie.cookie("q_session", "").setPath("/").setMaxAge(0L));
             throw new AuthenticationRedirectException(HttpURLConnection.HTTP_MOVED_TEMP, "/oidc-login");
         }
         return identityFor(user, idTokenCred);
@@ -217,26 +223,30 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
     // First-run guard note: the very first account must ALWAYS be created locally (see the /welcome setup flow, which permits it regardless of
     // ENABLE_REGISTRATION and PASSWORD_AUTH_ENABLED) — in a pure-OIDC deployment that initial administrator is the sysops break-glass credential,
     // so OIDC never provisions the first user.
-    private OidcLoginDecision loginDecision(final @Nullable String normalised, final Optional<User> linked, final Optional<User> emailMatch,
-        final Optional<String> idpRole, final JsonObject claims) {
+    private OidcLoginDecision loginDecision(final OidcIdentityState state, final JsonObject claims) {
+        // The last-administrator guard applies to whichever account the login would act on: the linked one, or the email match it would adopt.
+        final User acted = state.linked() == null ? state.emailMatch() : state.linked();
+
         return OidcLoginPolicy.decide(new OidcLoginFacts(
-            User.count() == 0,
+            User.count() == 0L,
             passwordAuthConfig.enabled(),
-            normalised == null,
+            state.normalisedEmail().isBlank(),
             roleAssigner.isGroupCheckEnabled(),
-            idpRole.isPresent(),
-            linked.isPresent(),
-            demotesLastAdministrator(linked.isPresent() ? linked : emailMatch, idpRole),
-            emailMatch.isPresent(),
+            state.idpRole() != null,
+            state.linked() != null,
+            demotesLastAdministrator(acted, state.idpRole()),
+            state.emailMatch() != null,
             resolveEmailVerified(claims)));
     }
 
-    private OidcLoginDecision linkDecision(final User target, final Optional<User> linked, final Optional<String> idpRole,
-        @Nullable final String normalised) {
+    private OidcLoginDecision linkDecision(final OidcIdentityState state) {
+        final User target = Objects.requireNonNull(state.linkTarget());
+        final User linked = state.linked();
+
         final OidcLinkPolicy.IdentityOwner owner;
-        if (linked.isEmpty()) {
+        if (linked == null) {
             owner = OidcLinkPolicy.IdentityOwner.NONE;
-        } else if (Objects.equals(linked.get().id, target.id)) {
+        } else if (Objects.equals(linked.id, target.id)) {
             owner = OidcLinkPolicy.IdentityOwner.SESSION_USER;
         } else {
             owner = OidcLinkPolicy.IdentityOwner.OTHER_USER;
@@ -244,39 +254,39 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         final boolean linkedElsewhere = owner != OidcLinkPolicy.IdentityOwner.SESSION_USER
             && target.oidcSubject != null && !target.oidcSubject.isBlank();
         // The mistaken-account guard: the token's email must match the signed-in account's (both already normalised to lowercase).
-        return OidcLinkPolicy.decide(roleAssigner.isGroupCheckEnabled(), idpRole.isPresent(), owner, linkedElsewhere,
-            demotesLastAdministrator(Optional.of(target), idpRole), normalised == null, target.email.equals(normalised));
+        return OidcLinkPolicy.decide(roleAssigner.isGroupCheckEnabled(), state.idpRole() != null, owner, linkedElsewhere,
+            demotesLastAdministrator(target, state.idpRole()), state.normalisedEmail().isBlank(),
+            target.email.equals(state.normalisedEmail()));
     }
 
     // The Settings "Connect" flow: the link-intent cookie plus a valid signed-in session identifies the account to link. Anything short of both
     // (no cookie, no session cookie, expired session) falls through to the ordinary login policy.
-    private Optional<User> resolveLinkTarget(@Nullable final RoutingContext routingContext) {
+    private @Nullable User resolveLinkTarget(@Nullable final RoutingContext routingContext) {
         if (routingContext == null || routingContext.request().getCookie(LINK_COOKIE) == null) {
-            return Optional.empty();
+            return null;
         }
         final String rawToken = SessionTokenExtractor.fromRequest(routingContext, sessionConfig.cookieName());
         if (rawToken == null) {
-            return Optional.empty();
+            return null;
         }
-        return sessionStore.resolve(rawToken, clock.now());
+        return sessionStore.resolve(rawToken, clock.now()).orElse(null);
     }
 
     // Applying the IdP-derived role must never demote the final remaining administrator — that would leave the deployment with no admin at all
     // (the admin UI and API docs would become unreachable). AdminUserService refuses the same demotion on the admin page.
-    private static boolean demotesLastAdministrator(final Optional<User> linked, final Optional<String> idpRole) {
-        return linked.isPresent()
-            && linked.get().isAdmin()
-            && idpRole.isPresent()
-            && Role.USER.storageValue().equals(idpRole.get())
-            && User.count("role", Role.ADMIN.storageValue()) <= 1;
+    private static boolean demotesLastAdministrator(@Nullable final User acted, @Nullable final String idpRole) {
+        return acted != null
+            && acted.isAdmin()
+            && Role.USER.storageValue().equals(idpRole)
+            && User.count("role", Role.ADMIN.storageValue()) <= 1L;
     }
 
-    private User syncRole(final User user, final Optional<String> idpRole) {
+    private static User syncRole(final User user, @Nullable final String idpRole) {
         // IdP groups always win on every login for existing users (unless the IdP has no group config); the last-administrator demotion has
         // already been refused by the policy.
-        if (idpRole.isPresent() && !idpRole.get().equals(user.role)) {
-            LOGGER.info("Updating role for {}: {} -> {} (from IdP groups)", user.email, user.role, idpRole.get());
-            user.role = idpRole.get();
+        if (idpRole != null && !idpRole.equals(user.role)) {
+            LOGGER.info("Updating role for {}: {} -> {} (from IdP groups)", user.email, user.role, idpRole);
+            user.role = idpRole;
         }
         // lastLoginAt and the login log are written in WebResource.oidcCallback(), which runs exactly once per login. This augmenter runs on every
         // authenticated request with a q_session cookie, so doing it here would produce one log line and one DB write per page load.
@@ -284,13 +294,16 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         return user;
     }
 
-    private User provision(final String normalised, final String iss, final String sub, final JsonObject claims, final Optional<String> idpRole) {
+    private User provision(final OidcIdentityState state, final JsonObject claims) {
+        final String normalised = state.normalisedEmail();
+        final String idpRole = state.idpRole();
+
         final User user = new User();
         user.email = normalised;
         user.displayName = OidcDisplayName.from(claims.getString("name"), normalised);
-        user.oidcSubject = sub;
-        user.oidcIssuer = iss;
-        user.role = idpRole.orElseGet(roleAssigner::roleForNewUser);
+        user.oidcSubject = state.subject();
+        user.oidcIssuer = state.issuer();
+        user.role = idpRole == null ? roleAssigner.roleForNewUser() : idpRole;
         user.persist();
 
         // An OIDC account gets its notes data key here, exactly as a local one does at registration - the two
@@ -301,8 +314,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         return user;
     }
 
-    private RuntimeException deny(final OidcDenialReason reason, @Nullable final String email, final String iss, final String sub,
-        @Nullable final RoutingContext routingContext, final boolean linkAttempt) {
+    private RuntimeException deny(final OidcDenialReason reason, final OidcIdentityState state, @Nullable final RoutingContext routingContext) {
         final String detail = switch (reason) {
             case SETUP_REQUIRED -> "the initial account must be created locally before OIDC can provision users";
             case EMAIL_MISSING -> "the token carries no email claim - ensure the openid,email scopes are configured";
@@ -314,17 +326,17 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
             case LINK_EMAIL_MISMATCH -> "Settings connect refused: the IdP account's email does not match the signed-in account's email";
             case ALREADY_LINKED -> "Settings connect refused: the signed-in account is already linked to a different identity";
         };
-        LOGGER.warn("Denying OIDC login for {}: {} (iss={}, sub={})", email, detail, iss, sub);
+        LOGGER.warn("Denying OIDC login for {}: {} (iss={}, sub={})", state.normalisedEmail(), detail, state.issuer(), state.subject());
         if (routingContext != null) {
             // A browser flow: an AuthenticationRedirectException is the ONE failure type the OIDC code mechanism passes through untouched —
             // any other exception is wrapped into an AuthenticationCompletionException, which surfaces as a bare 401 error page plus an ERROR
             // stack trace (quarkus.oidc.authentication.error-path only covers errors the IdP itself sends back).
-            if (linkAttempt) {
+            if (state.linkTarget() != null) {
                 // A refused Settings connect: the user's Diurnal session is still perfectly valid, so land them BACK ON SETTINGS with the
                 // reason banner (?msg=<code>) rather than the login page — being bounced there read as a logout. Clear the one-shot intent
                 // marker plus the wrong identity's q_session so the next attempt starts a completely fresh code flow.
-                routingContext.response().addCookie(Cookie.cookie(LINK_COOKIE, "").setPath("/").setMaxAge(0));
-                routingContext.response().addCookie(Cookie.cookie("q_session", "").setPath("/").setMaxAge(0));
+                routingContext.response().addCookie(Cookie.cookie(LINK_COOKIE, "").setPath("/").setMaxAge(0L));
+                routingContext.response().addCookie(Cookie.cookie("q_session", "").setPath("/").setMaxAge(0L));
                 return new AuthenticationRedirectException(HttpURLConnection.HTTP_MOVED_TEMP, "/settings?msg=" + reason.code());
             }
             // An ordinary login denial: to the login page, which renders the reason banner from this cookie and clears the stale q_session
@@ -368,17 +380,15 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
     // An IdP's email claim is as untrusted as anything a user types, and there is no user to report a rejection to - so a claim that the shared
     // pipeline will not accept (over-long, invisible characters, no @) is treated as NO email claim at all, which OidcLoginPolicy already denies with
     // a worded reason. Case-folded BEFORE the check, because folding can lengthen a value and the checked value is the one that reaches the column.
-    private static @Nullable String normaliseEmail(final @Nullable String email) {
+    private static String normaliseEmail(final @Nullable String email) {
         if (email == null) {
-            return null;
+            return "";
         }
 
-        return TextValidation.check(TextFields.EMAIL, email.toLowerCase(Locale.ROOT)) instanceof final TextOutcome.Valid valid
-            ? valid.value()
-            : null;
+        return TextValidation.check(TextFields.EMAIL, email.toLowerCase(Locale.ROOT)) instanceof TextOutcome.Valid(final String value) ? value : "";
     }
 
-    private static @Nullable String resolveEmail(final JsonObject claims) {
+    private static String resolveEmail(final JsonObject claims) {
         final String email = claims.getString("email");
         if (email != null && !email.isBlank()) {
             return email;
@@ -388,19 +398,19 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         if (preferred != null && preferred.contains("@")) {
             return preferred;
         }
-        return null;
+        return "";
     }
 
-    private static @Nullable Boolean resolveEmailVerified(final JsonObject claims) {
-        // Absent = the provider does not emit the claim; only an explicit false blocks provisioning. Some providers emit it as a string.
-        final Object value = claims.getValue("email_verified");
-        if (value instanceof final Boolean bool) {
-            return bool;
-        }
-        if (value instanceof final String str) {
-            return Boolean.parseBoolean(str);
-        }
-        return null;
+    // Only an EXPLICIT false blocks provisioning, so an absent claim answers true: plenty of providers never emit email_verified, and treating
+    // silence as "unverified" would refuse every login from them. The three states the claim can be in (true / false / absent) collapse to the one
+    // question the policy asks - "did the provider say this address is unverified?" - which is why OidcLoginFacts carries a plain boolean.
+    // Some providers emit it as a string, hence the second arm.
+    private static boolean resolveEmailVerified(final JsonObject claims) {
+        return switch (claims.getValue("email_verified")) {
+            case final Boolean booleanValue -> booleanValue;
+            case final String text -> Boolean.parseBoolean(text);
+            case null, default -> true;
+        };
     }
 
     private static JsonObject decodeClaims(final String jwt) {

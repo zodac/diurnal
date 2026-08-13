@@ -27,8 +27,8 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 class PagesTest {
 
-    private static List<Integer> rows(final int count) {
-        return IntStream.rangeClosed(1, count).boxed().toList();
+    private static List<Integer> rows() {
+        return IntStream.rangeClosed(1, 11).boxed().toList();
     }
 
     // ── window: totalPages ────────────────────────────────────────────────────
@@ -120,7 +120,7 @@ class PagesTest {
     @Test
     void slice_firstPage_takesTheLeadingRows() {
         final List<Integer> expected = List.of(1, 2, 3, 4, 5);
-        assertThat(Pages.slice(rows(11), Pages.window(11, 1, 5)))
+        assertThat(Pages.slice(rows(), Pages.window(11, 1, 5)))
             .as("unexpected rows")
             .containsExactlyElementsOf(expected);
     }
@@ -128,7 +128,7 @@ class PagesTest {
     @Test
     void slice_middlePage_skipsTheEarlierPages() {
         final List<Integer> expected = List.of(6, 7, 8, 9, 10);
-        assertThat(Pages.slice(rows(11), Pages.window(11, 2, 5)))
+        assertThat(Pages.slice(rows(), Pages.window(11, 2, 5)))
             .as("unexpected rows")
             .containsExactlyElementsOf(expected);
     }
@@ -136,7 +136,7 @@ class PagesTest {
     @Test
     void slice_finalPage_takesOnlyTheRemainingRows() {
         final List<Integer> expected = List.of(11);
-        assertThat(Pages.slice(rows(11), Pages.window(11, 3, 5)))
+        assertThat(Pages.slice(rows(), Pages.window(11, 3, 5)))
             .as("a partial final page is not padded")
             .containsExactlyElementsOf(expected);
     }
@@ -151,7 +151,7 @@ class PagesTest {
     @Test
     void slice_clampedPage_takesTheLastPagesRows() {
         final List<Integer> expected = List.of(11);
-        assertThat(Pages.slice(rows(11), Pages.window(11, 99, 5)))
+        assertThat(Pages.slice(rows(), Pages.window(11, 99, 5)))
             .as("the clamp decided the page, so the slice follows it")
             .containsExactlyElementsOf(expected);
     }

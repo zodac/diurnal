@@ -29,21 +29,21 @@ class ImportSummaryExtensionsTest {
 
     @Test
     void labels_pluraliseEveryFigure() {
-        final ImportSummary one = new ImportSummary(1, 1, 1, 0, 0, 0);
+        final ImportSummary importSummarySingle = new ImportSummary(1, 1, 1, 0, 0, 0);
 
         final List<String> singular = List.of(
-            ImportSummaryExtensions.actionsLabel(one),
-            ImportSummaryExtensions.logsLabel(one),
-            ImportSummaryExtensions.notesLabel(one));
+            ImportSummaryExtensions.actionsLabel(importSummarySingle),
+            ImportSummaryExtensions.logsLabel(importSummarySingle),
+            ImportSummaryExtensions.notesLabel(importSummarySingle));
         assertThat(singular)
             .as("no preview may ever read '1 actions'")
             .containsExactlyElementsOf(List.of("1 action", "1 day count", "1 note"));
 
-        final ImportSummary many = new ImportSummary(12, 340, 88, 0, 0, 0);
+        final ImportSummary importSummaryMany = new ImportSummary(12, 340, 88, 0, 0, 0);
         final List<String> plural = List.of(
-            ImportSummaryExtensions.actionsLabel(many),
-            ImportSummaryExtensions.logsLabel(many),
-            ImportSummaryExtensions.notesLabel(many));
+            ImportSummaryExtensions.actionsLabel(importSummaryMany),
+            ImportSummaryExtensions.logsLabel(importSummaryMany),
+            ImportSummaryExtensions.notesLabel(importSummaryMany));
         assertThat(plural)
             .as("and the plural forms must survive the shared rule's plain '+s'")
             .containsExactlyElementsOf(List.of("12 actions", "340 day counts", "88 notes"));

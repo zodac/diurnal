@@ -24,45 +24,45 @@ import org.junit.jupiter.api.Test;
 
 class FrequencySlotExtensionsTest {
 
-    private static FrequencySlot slot(final FrequencyBar... bars) {
+    private static FrequencySlot frequencySlot(final FrequencyBar... bars) {
         return new FrequencySlot("3", "3 July 2026", "center", List.of(bars));
     }
 
-    private static FrequencyBar bar(final String name, final long count) {
+    private static FrequencyBar frequencyBar(final String name, final long count) {
         return new FrequencyBar(name, "#64748b", count, 50);
     }
 
     @Test
     void tooltip_singleAction_readsOnOneLine() {
-        assertThat(FrequencySlotExtensions.tooltip(slot(bar("Running", 4L))))
+        assertThat(FrequencySlotExtensions.tooltip(frequencySlot(frequencyBar("Running", 4L))))
             .as("a lone charted action needs no name, so the slot and its count read as one line")
             .isEqualTo("3 July 2026: 4 times");
     }
 
     @Test
     void tooltip_singleEntry_isNotPluralised() {
-        assertThat(FrequencySlotExtensions.tooltip(slot(bar("Running", 1L))))
+        assertThat(FrequencySlotExtensions.tooltip(frequencySlot(frequencyBar("Running", 1L))))
             .as("UI text must never read '1 times'")
             .isEqualTo("3 July 2026: 1 time");
     }
 
     @Test
     void tooltip_emptySlot_readsAsZeroTimes() {
-        assertThat(FrequencySlotExtensions.tooltip(slot(bar("Running", 0L))))
+        assertThat(FrequencySlotExtensions.tooltip(frequencySlot(frequencyBar("Running", 0L))))
             .as("unexpected value")
             .isEqualTo("3 July 2026: 0 times");
     }
 
     @Test
     void tooltip_multipleActions_namesEachOnItsOwnLine() {
-        assertThat(FrequencySlotExtensions.tooltip(slot(bar("Running", 4L), bar("Yoga", 1L))))
+        assertThat(FrequencySlotExtensions.tooltip(frequencySlot(frequencyBar("Running", 4L), frequencyBar("Yoga", 1L))))
             .as("comparing actions is the point, so each is named with its own count")
             .isEqualTo("3 July 2026\nRunning: 4 times\nYoga: 1 time");
     }
 
     @Test
     void tooltip_multipleActions_keepsTheLegendOrderAndEmptyOnes() {
-        assertThat(FrequencySlotExtensions.tooltip(slot(bar("Running", 0L), bar("Yoga", 2L), bar("Reading", 0L))))
+        assertThat(FrequencySlotExtensions.tooltip(frequencySlot(frequencyBar("Running", 0L), frequencyBar("Yoga", 2L), frequencyBar("Reading", 0L))))
             .as("an action that logged nothing in the slot is still listed, so the comparison is complete")
             .isEqualTo("3 July 2026\nRunning: 0 times\nYoga: 2 times\nReading: 0 times");
     }

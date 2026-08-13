@@ -172,6 +172,6 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
      */
     @PreUpdate
     void onUpdate() {
-        this.updatedAt = Instant.now();
+        updatedAt = Instant.now();
     }
 }

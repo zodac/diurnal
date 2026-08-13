@@ -63,10 +63,7 @@ public final class TransferArchive {
      */
     public static final int MAX_MEMBER_BYTES = 8 * 1024 * 1024;
 
-    /**
-     * The most bytes a whole archive may decompress to, across every member read.
-     */
-    public static final int MAX_ARCHIVE_BYTES = 16 * 1024 * 1024;
+    private static final int MAX_ARCHIVE_BYTES = 16 * 1024 * 1024;
 
     /**
      * The most entries an archive may hold, counting the ones the format does not recognise.
@@ -89,7 +86,7 @@ public final class TransferArchive {
      */
     public static byte[] pack(final Map<String, String> members, final Instant modifiedAt) {
         final ByteArrayOutputStream packed = new ByteArrayOutputStream();
-        try (ZipOutputStream archive = new ZipOutputStream(packed, StandardCharsets.UTF_8)) {
+        try (final ZipOutputStream archive = new ZipOutputStream(packed, StandardCharsets.UTF_8)) {
             for (final String name : TransferFiles.ALL_FILES) {
                 final @Nullable String content = members.get(name);
                 if (content == null) {
@@ -143,7 +140,7 @@ public final class TransferArchive {
         int entries = 0;
         int totalBytes = 0;
 
-        try (ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(archive), StandardCharsets.UTF_8)) {
+        try (final ZipInputStream zip = new ZipInputStream(new ByteArrayInputStream(archive), StandardCharsets.UTF_8)) {
             while (true) {
                 final @Nullable ZipEntry entry = zip.getNextEntry();
                 if (entry == null) {

@@ -36,10 +36,8 @@ public final class StatsSummary {
      */
     public static final int ACTION_LIMIT = 3;
 
-    /**
-     * How many of the user's enabled "Action stats" each summary row shows, in their chosen order.
-     */
-    public static final int FIELD_LIMIT = 3;
+    // How many of the user's enabled "Action stats" each summary row shows, in their chosen order.
+    private static final long FIELD_LIMIT = 3L;
 
     private StatsSummary() {
 

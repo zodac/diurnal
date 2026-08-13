@@ -181,8 +181,8 @@ public class ProfileService {
      */
     public ProfileResult updatePageSizes(final User user, final List<String> sections, final @Nullable List<String> values) {
         return switch (PageSizes.parse(sections, values)) {
-            case final PageSizes.Outcome.Failure failure -> new ProfileResult.Invalid(failure.message());
-            case final PageSizes.Outcome.Valid valid -> applyPageSizes(user, valid.overrides());
+            case final PageSizeOutcome.Failure failure -> new ProfileResult.Invalid(failure.message());
+            case final PageSizeOutcome.Valid valid -> applyPageSizes(user, valid.overrides());
         };
     }
 
@@ -236,12 +236,13 @@ public class ProfileService {
         final Map<String, String> names = new LinkedHashMap<>();
         for (final Map.Entry<String, String> submitted : labels.entrySet()) {
             final TextOutcome outcome = TextValidation.check(TextFields.STAT_NAME, submitted.getValue());
-            if (!(outcome instanceof final TextOutcome.Valid valid)) {
+            if (!(outcome instanceof TextOutcome.Valid(final String value))) {
                 return new ProfileResult.Invalid(TextOutcomeExtensions.message((TextOutcome.Failure) outcome));
             }
+
             // A name that normalises to nothing is the reset that restores the catalogue label, so it is simply not carried.
-            if (!valid.value().isEmpty()) {
-                names.put(submitted.getKey(), valid.value());
+            if (!value.isEmpty()) {
+                names.put(submitted.getKey(), value);
             }
         }
 

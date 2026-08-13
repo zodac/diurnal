@@ -56,7 +56,7 @@ import org.jspecify.annotations.Nullable;
  */
 @Tag(name = "Admin", description = "Administrator-only user management: list accounts, change roles, delete accounts.")
 @Path("/api/v1/admin/users")
-@RolesAllowed(Role.Values.ADMIN)
+@RolesAllowed(Role.Values.ADMIN_INTERNAL_VALUE)
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 @RollbackOnErrorStatus
@@ -225,10 +225,12 @@ public class AdminUsersApiResource {
      *
      * @param role the new role's value
      */
+    // Public is forced: Quarkus's generated (de)serializer is not a nestmate so private throws IllegalAccessError, and the endpoint
+    // taking it must be public for JAX-RS, so package-private would trip ClassEscapesItsScope instead.
     @Schema(description = "The new role to assign.")
-    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
+    @SuppressWarnings({"unused", "WeakerAccess"}) // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record RoleChangeRequest(
-        @Schema(examples = Role.Values.USER, description = "The new role: 'user' or 'admin'.") @Nullable String role) {
+        @Schema(examples = Role.Values.USER_INTERNAL_VALUE, description = "The new role: 'user' or 'admin'.") @Nullable String role) {
     }
 
     /**
@@ -242,12 +244,15 @@ public class AdminUsersApiResource {
      * @param createdAt   when the account was created
      * @param lastLoginAt when the account last logged in, or {@code null} if never
      */
+    // Public is forced: Quarkus's generated (de)serializer is not a nestmate so private throws IllegalAccessError, and the endpoint
+    // taking it must be public for JAX-RS, so package-private would trip ClassEscapesItsScope instead.
+    @SuppressWarnings("WeakerAccess")
     @Schema(description = "A user account as seen by an administrator.")
     public record AdminUserDto(
         @Schema(description = "The user's ID.") UUID id,
         @Schema(examples = "ada@example.com", description = "Email address of the account.") String email,
         @Schema(examples = "Ada Lovelace", description = "Human-readable name shown in the UI.") String displayName,
-        @Schema(examples = Role.Values.USER, description = "The account's role: 'user' or 'admin'.") String role,
+        @Schema(examples = Role.Values.USER_INTERNAL_VALUE, description = "The account's role: 'user' or 'admin'.") String role,
         @Schema(examples = "local", description = "How the account signs in: 'local' (password), 'oidc' (identity provider) or 'local+oidc' (both).")
         String authSource,
         @Schema(examples = "2026-01-03T09:15:00Z", description = "When the account was created (ISO-8601 instant).") Instant createdAt,
@@ -260,7 +265,7 @@ public class AdminUsersApiResource {
          * @param user the entity
          * @return the DTO
          */
-        public static AdminUserDto from(final User user) {
+        static AdminUserDto from(final User user) {
             return new AdminUserDto(user.id, user.email, user.displayName, user.role, user.authSource(), user.createdAt, user.lastLoginAt);
         }
     }
@@ -273,6 +278,9 @@ public class AdminUsersApiResource {
      * @param totalPages  the page count
      * @param currentPage the returned (clamped) 1-based page
      */
+    // Public is forced: Quarkus's generated (de)serializer is not a nestmate so private throws IllegalAccessError, and the endpoint
+    // taking it must be public for JAX-RS, so package-private would trip ClassEscapesItsScope instead.
+    @SuppressWarnings("WeakerAccess")
     @Schema(description = "One page of user accounts, ordered by creation time.")
     public record AdminUserPageDto(
         @Schema(description = "The page's accounts, ordered by creation time.") List<AdminUserDto> items,
@@ -280,13 +288,7 @@ public class AdminUsersApiResource {
         @Schema(examples = "5", description = "The total number of pages.") int totalPages,
         @Schema(examples = "1", description = "The returned (clamped) 1-based page.") int currentPage) {
 
-        /**
-         * Maps a service {@link AdminUserService.UsersPage} to its API representation.
-         *
-         * @param page the fetched page
-         * @return the DTO
-         */
-        public static AdminUserPageDto from(final AdminUserService.UsersPage page) {
+        private static AdminUserPageDto from(final AdminUserService.UsersPage page) {
             return new AdminUserPageDto(
                 page.users().stream().map(AdminUserDto::from).toList(),
                 page.totalCount(),

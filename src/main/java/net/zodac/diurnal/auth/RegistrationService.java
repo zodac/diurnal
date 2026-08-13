@@ -161,6 +161,9 @@ public class RegistrationService {
      * @return {@link RegistrationResult.Success} with the new account, or {@link RegistrationResult.DuplicateEmail} when a concurrent registration
      *     won the race for the email
      */
+    // Package-private is REQUIRED, not incidental: this runs through the CDI proxy so the @Transactional interceptor applies, and an
+    // interceptor is never applied to a private method - narrowing it would silently drop the transaction while still compiling.
+    @SuppressWarnings("WeakerAccess")
     @Transactional
     RegistrationResult createUser(final String email, final String displayName, final String passwordHash) {
         final User user = new User();
@@ -193,20 +196,20 @@ public class RegistrationService {
     private static List<String> missingFields(final TextOutcome email, final TextOutcome displayName, final TextOutcome password,
         final @Nullable String confirmPassword) {
         final List<String> missing = new ArrayList<>();
-        if (email instanceof TextOutcome.Blank) {
-            missing.add("Email");
-        }
-        if (displayName instanceof TextOutcome.Blank) {
-            missing.add("Display name");
-        }
-        if (password instanceof TextOutcome.Blank) {
-            missing.add("Password");
-        }
+        addIfBlank(missing, email, "Email");
+        addIfBlank(missing, displayName, "Display name");
+        addIfBlank(missing, password, "Password");
         // Surface policy: the confirmation is a web-form-only field with no stored value, so it has no catalogue entry of its own.
         if (confirmPassword != null && confirmPassword.isEmpty()) {
             missing.add("Confirm password");
         }
         return missing;
+    }
+
+    private static void addIfBlank(final List<String> missing, final TextOutcome outcome, final String label) {
+        if (outcome instanceof TextOutcome.Blank) {
+            missing.add(label);
+        }
     }
 
     private static List<String> errors(final TextOutcome email, final TextOutcome displayName, final TextOutcome password,
@@ -233,6 +236,6 @@ public class RegistrationService {
     // The normalised value the single pipeline pass produced. The fallback is unreachable from register() (every field is known to be Valid by the
     // time this is called) and exists only so the accepted value never has to be recomputed from the raw submission.
     private static String acceptedValue(final TextOutcome outcome, final String submitted) {
-        return outcome instanceof final TextOutcome.Valid valid ? valid.value() : submitted;
+        return outcome instanceof TextOutcome.Valid(final String value) ? value : submitted;
     }
 }

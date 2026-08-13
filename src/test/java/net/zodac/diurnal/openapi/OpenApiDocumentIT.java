@@ -51,7 +51,7 @@ class OpenApiDocumentIT extends IntegrationTestBase {
     @Inject
     SessionStore sessionStore;
 
-    User adminUser;
+    private User adminUser;
 
     @Override
     protected void createDbState() {

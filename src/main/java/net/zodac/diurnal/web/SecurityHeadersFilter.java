@@ -19,6 +19,7 @@ package net.zodac.diurnal.web;
 
 import io.quarkus.runtime.StartupEvent;
 import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
@@ -80,16 +81,18 @@ public class SecurityHeadersFilter {
      */
     @SuppressWarnings("unused") // CDI startup observer — invoked by Quarkus, not called directly
     void onStart(@Observes final StartupEvent ev) {
-        router.route().order(Integer.MIN_VALUE).handler(ctx -> {
-            final var headers = ctx.response().headers();
-            headers.add("Content-Security-Policy", CspPolicy.forPath(ctx.request().path()));
-            headers.add("X-Content-Type-Options", "nosniff");
-            headers.add("Referrer-Policy", "strict-origin-when-cross-origin");
-            headers.add("X-Frame-Options", "SAMEORIGIN");
-            headers.add("Cross-Origin-Opener-Policy", "same-origin");
-            headers.add("Permissions-Policy", PERMISSIONS_POLICY);
-            headers.add("Cross-Origin-Resource-Policy", "same-origin");
-            ctx.next();
-        });
+        router.route().order(Integer.MIN_VALUE).handler(SecurityHeadersFilter::addSecurityHeaders);
+    }
+
+    private static void addSecurityHeaders(final RoutingContext ctx) {
+        final var headers = ctx.response().headers();
+        headers.add("Content-Security-Policy", CspPolicy.forPath(ctx.request().path()));
+        headers.add("X-Content-Type-Options", "nosniff");
+        headers.add("Referrer-Policy", "strict-origin-when-cross-origin");
+        headers.add("X-Frame-Options", "SAMEORIGIN");
+        headers.add("Cross-Origin-Opener-Policy", "same-origin");
+        headers.add("Permissions-Policy", PERMISSIONS_POLICY);
+        headers.add("Cross-Origin-Resource-Policy", "same-origin");
+        ctx.next();
     }
 }

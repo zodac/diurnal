@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Test;
 class EndpointNamespaceTest {
 
     private static final Path SOURCE_ROOT = Path.of("src", "main", "java");
-    private static final Pattern PATH_ANNOTATION = Pattern.compile("@Path\\(\"([^\"]*)\"\\)");
+    private static final Pattern PATH_ANNOTATION = Pattern.compile("@Path\\(\"(?<path>[^\"]*)\"\\)");
     private static final Pattern TYPE_DECLARATION = Pattern.compile("public\\s+(?:final\\s+|abstract\\s+)?(?:class|interface|enum|record)\\s+\\w+");
 
     private static final String PUBLIC_API_PREFIX = "/api/v1/";
@@ -94,7 +94,7 @@ class EndpointNamespaceTest {
     }
 
     private static List<Path> sourceFiles() {
-        try (Stream<Path> paths = Files.walk(SOURCE_ROOT)) {
+        try (final Stream<Path> paths = Files.walk(SOURCE_ROOT)) {
             return paths
                 .filter(path -> path.toString().endsWith(".java"))
                 .sorted()
@@ -119,7 +119,7 @@ class EndpointNamespaceTest {
         final String afterType = source.substring(typeDeclaration.start());
 
         final Matcher baseMatcher = PATH_ANNOTATION.matcher(beforeType);
-        final String base = baseMatcher.find() ? baseMatcher.group(1) : "";
+        final String base = baseMatcher.find() ? baseMatcher.group("path") : "";
 
         final List<String> endpoints = new ArrayList<>();
         if (!base.isEmpty()) {
@@ -129,7 +129,7 @@ class EndpointNamespaceTest {
         }
         final Matcher methodMatcher = PATH_ANNOTATION.matcher(afterType);
         while (methodMatcher.find()) {
-            endpoints.add(join(base, methodMatcher.group(1)));
+            endpoints.add(join(base, methodMatcher.group("path")));
         }
         return endpoints;
     }

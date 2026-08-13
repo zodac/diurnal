@@ -37,8 +37,8 @@ import org.jspecify.annotations.Nullable;
  */
 public final class UpdateCheck {
 
-    private static final Pattern GITHUB_REPOSITORY = Pattern.compile("(?i)^https?://github\\.com/([^/]+)/([^/]+?)(?:\\.git)?/?$");
-    private static final Pattern TAG_NAME = Pattern.compile("\"tag_name\"\\s*:\\s*\"([^\"]+)\"");
+    private static final Pattern GITHUB_REPOSITORY = Pattern.compile("(?i)^https?://github\\.com/(?<owner>[^/]+)/(?<repo>[^/]+?)(?:\\.git)?/?$");
+    private static final Pattern TAG_NAME = Pattern.compile("\"tag_name\"\\s*:\\s*\"(?<tag>[^\"]+)\"");
     private static final Pattern VERSION_CORE = Pattern.compile("\\d+(?:\\.\\d+)*");
     private static final String GITHUB_API_BASE = "https://api.github.com/repos/";
     private static final String RELEASES_PATH = "/releases";
@@ -63,7 +63,7 @@ public final class UpdateCheck {
         if (!matcher.matches()) {
             return Optional.empty();
         }
-        return Optional.of(URI.create(GITHUB_API_BASE + matcher.group(1) + '/' + matcher.group(2) + RELEASES_PATH));
+        return Optional.of(URI.create(GITHUB_API_BASE + matcher.group("owner") + '/' + matcher.group("repo") + RELEASES_PATH));
     }
 
     /**
@@ -101,7 +101,7 @@ public final class UpdateCheck {
         if (!matcher.find()) {
             return Optional.empty();
         }
-        final String tag = matcher.group(1).strip();
+        final String tag = matcher.group("tag").strip();
         return tag.isEmpty() ? Optional.empty() : Optional.of(tag);
     }
 
@@ -116,12 +116,12 @@ public final class UpdateCheck {
      * @return {@code true} when {@code latestVersion} is strictly newer than {@code currentVersion}
      */
     public static boolean isUpdateAvailable(final String currentVersion, final String latestVersion) {
-        final Optional<List<Integer>> current = parseVersion(currentVersion);
-        final Optional<List<Integer>> latest = parseVersion(latestVersion);
+        final List<Integer> current = parseVersion(currentVersion);
+        final List<Integer> latest = parseVersion(latestVersion);
         if (current.isEmpty() || latest.isEmpty()) {
             return false;
         }
-        return compare(latest.get(), current.get()) > 0;
+        return compare(latest, current) > 0;
     }
 
     /**
@@ -166,10 +166,12 @@ public final class UpdateCheck {
         return "Update available - v" + status.latestVersion();
     }
 
-    private static Optional<List<Integer>> parseVersion(final String version) {
+    // An empty list is the "unparseable" answer: a matched version core always yields at least one segment, so an empty
+    // result cannot mean anything else.
+    private static List<Integer> parseVersion(final String version) {
         final Matcher matcher = VERSION_CORE.matcher(version);
         if (!matcher.find()) {
-            return Optional.empty();
+            return List.of();
         }
 
         final String[] segments = matcher.group().split("\\.");
@@ -180,9 +182,9 @@ public final class UpdateCheck {
             }
         } catch (final NumberFormatException e) {
             // A numeric segment too large to fit in an int - treat the whole version as unparseable rather than throwing into the caller.
-            return Optional.empty();
+            return List.of();
         }
-        return Optional.of(parsed);
+        return List.copyOf(parsed);
     }
 
     private static int compare(final List<Integer> left, final List<Integer> right) {

@@ -48,7 +48,7 @@ class UserMeApiIT extends IntegrationTestBase {
     @Inject
     SessionStore sessionStore;
 
-    User user;
+    private User user;
 
     @Override
     protected void createDbState() {

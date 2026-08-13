@@ -39,12 +39,12 @@ public enum Role {
     /**
      * Full administrative access: user management plus all standard capabilities.
      */
-    ADMIN(Values.ADMIN, "Administrator"),
+    ADMIN(Values.ADMIN_INTERNAL_VALUE, "Administrator"),
 
     /**
      * Standard, non-administrative access.
      */
-    USER(Values.USER, "User");
+    USER(Values.USER_INTERNAL_VALUE, "User");
 
     private final String storageValue;
     private final String displayName;
@@ -122,12 +122,12 @@ public enum Role {
         /**
          * The stored value for {@link Role#ADMIN}.
          */
-        public static final String ADMIN = "admin";
+        public static final String ADMIN_INTERNAL_VALUE = "admin";
 
         /**
          * The stored value for {@link Role#USER}.
          */
-        public static final String USER = "user";
+        public static final String USER_INTERNAL_VALUE = "user";
 
         private Values() {
 

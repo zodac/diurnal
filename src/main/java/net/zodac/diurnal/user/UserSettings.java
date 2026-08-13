@@ -40,8 +40,8 @@ public final class UserSettings {
 
     // Presets offered in the picker; a user may also enter any value in [MIN_PAGE_SIZE, MAX_PAGE_SIZE].
     public static final List<Integer> PAGE_SIZE_OPTIONS = List.of(5, 10, 25, 50, 100);
-    public static final int MIN_PAGE_SIZE = 1;
-    public static final int MAX_PAGE_SIZE = 100;
+    private static final int MIN_PAGE_SIZE = 1;
+    private static final int MAX_PAGE_SIZE = 100;
     // User-facing rejection message when an out-of-range or non-numeric page size is submitted.
     public static final String PAGE_SIZE_RANGE_MESSAGE =
         "Items per page must be a whole number between " + MIN_PAGE_SIZE + " and " + MAX_PAGE_SIZE + ".";
@@ -58,8 +58,8 @@ public final class UserSettings {
 
     // Number of decimal places used to render fractional stats (e.g. the weekly average).
     public static final int DEFAULT_DECIMAL_PLACES = 1;
-    public static final int MIN_DECIMAL_PLACES = 0;
-    public static final int MAX_DECIMAL_PLACES = 2;
+    private static final int MIN_DECIMAL_PLACES = 0;
+    private static final int MAX_DECIMAL_PLACES = 2;
     // The complete set of choices, spanning [MIN_DECIMAL_PLACES, MAX_DECIMAL_PLACES]: more than two
     // decimals is noise on a stat averaged over days, so the Settings row offers these as pills only
     // (no stepper, no free entry) and anything else is rejected.

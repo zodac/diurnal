@@ -66,20 +66,14 @@ public final class TextFields {
      */
     public static final int NOTE_MAX_LENGTH = 10_000;
 
-    /**
-     * The shortest accepted email address - the shortest string that can hold a local part, an {@code @} and a domain.
-     */
-    public static final int EMAIL_MIN_LENGTH = 3;
+    private static final int EMAIL_MIN_LENGTH = 3;
 
     /**
      * The longest accepted email address, within the {@code users.email} column width.
      */
     public static final int EMAIL_MAX_LENGTH = 254;
 
-    /**
-     * The shortest accepted raw password.
-     */
-    public static final int PASSWORD_MIN_LENGTH = 1;
+    private static final int PASSWORD_MIN_LENGTH = 1;
 
     /**
      * The longest accepted raw password.

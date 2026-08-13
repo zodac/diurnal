@@ -247,12 +247,12 @@ class UserSettingsTest {
             .as("unexpected value")
             .isEqualTo(UserSettings.TIMEZONE_OPTIONS.size());
         // No "inherit" sentinel entry: every option's value is a real zone id from the curated list.
-        assertThat(choices.stream().noneMatch(c -> c.value().isEmpty()))
+        assertThat(choices.stream().noneMatch(choice -> choice.value().isEmpty()))
             .as("no empty-value entry expected")
             .isTrue();
         assertThat(choices)
             .as("every choice value must be a curated zone id")
-            .allMatch(c -> UserSettings.TIMEZONE_OPTIONS.contains(c.value()));
+            .allMatch(choice -> UserSettings.TIMEZONE_OPTIONS.contains(choice.value()));
     }
 
     @Test
@@ -277,7 +277,7 @@ class UserSettingsTest {
     void timezoneChoices_utcLabelHasNoRedundantOffset() {
         final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, null);
 
-        final var utc = choices.stream().filter(c -> "UTC".equals(c.value())).findFirst().orElseThrow();
+        final var utc = choices.stream().filter(choice -> "UTC".equals(choice.value())).findFirst().orElseThrow();
         assertThat(utc.label())
             .as("unexpected value")
             .isEqualTo("UTC");
@@ -314,7 +314,7 @@ class UserSettingsTest {
             .as("unexpected value")
             .isEqualTo("Asia/Tokyo (UTC+9)");
         // The server default is NOT selected when the user has an override.
-        assertThat(choices.stream().filter(c -> "UTC".equals(c.value())).noneMatch(UserSettings.TimezoneChoice::selected))
+        assertThat(choices.stream().filter(choice -> "UTC".equals(choice.value())).noneMatch(UserSettings.TimezoneChoice::selected))
             .as("server default not selected when user has override")
             .isTrue();
     }

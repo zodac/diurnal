@@ -44,9 +44,9 @@ class OpenApiDocsAuthFilterIT extends IntegrationTestBase {
     @Inject
     SessionStore sessionStore;
 
-    User adminUser;
+    private User adminUser;
 
-    User regularUser;
+    private User regularUser;
 
     @Override
     protected void createDbState() {

@@ -48,8 +48,8 @@ class AdminUsersApiIT extends IntegrationTestBase {
     @Inject
     SessionStore sessionStore;
 
-    User admin;
-    User regularUser;
+    private User admin;
+    private User regularUser;
 
     @Override
     protected void createDbState() {

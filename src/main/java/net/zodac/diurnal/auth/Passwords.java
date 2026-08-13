@@ -56,9 +56,9 @@ public class Passwords {
      */
     @Inject
     public Passwords(final Argon2Config argon2Config) {
-        this.argon2 = Argon2Function.getInstance(argon2Config.memoryKib(), argon2Config.iterations(),
+        argon2 = Argon2Function.getInstance(argon2Config.memoryKib(), argon2Config.iterations(),
                 argon2Config.parallelism(), HASH_LENGTH_BYTES, Argon2.ID);
-        this.dummyHash = argon2.hash(DUMMY_PASSWORD).getResult();
+        dummyHash = argon2.hash(DUMMY_PASSWORD).getResult();
     }
 
     /**

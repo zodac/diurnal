@@ -32,15 +32,20 @@ public final class StubUpdateCheckService extends UpdateCheckService {
 
     private final UpdateStatus status;
 
+    private StubUpdateCheckService(final UpdateStatus status) {
+        super(new StubUpdateCheckConfig(), StubAppConfig.empty(), Optional::empty, StubApplicationVersion.of("dev"));
+        this.status = status;
+    }
+
     /**
      * Creates the stub with the fixed status to report. The super-constructor is fed inert collaborators (never touched, since {@link #status()} is
      * overridden) so no outbound update check can ever run.
      *
      * @param status the {@link UpdateStatus} {@link #status()} should return
+     * @return the stub
      */
-    public StubUpdateCheckService(final UpdateStatus status) {
-        super(new StubUpdateCheckConfig(), StubAppConfig.empty(), Optional::empty, new StubApplicationVersion("dev"));
-        this.status = status;
+    public static StubUpdateCheckService of(final UpdateStatus status) {
+        return new StubUpdateCheckService(status);
     }
 
     @Override

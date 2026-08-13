@@ -42,22 +42,22 @@ import org.junit.jupiter.api.Test;
  * (banner {@code 409}s vs JSON {@code 400}/{@code 409}s), so the authoritative parity assertion is the resulting database state.
  */
 @QuarkusTest
-@TestSecurity(user = "parity-it@lt.test", roles = Role.Values.USER)
+@TestSecurity(user = "parity-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class SurfaceParityIT extends IntegrationTestBase {
 
-    static final String PRIMARY = "parity-it@lt.test";
+    private static final String PRIMARY = "parity-it@lt.test";
 
-    static final int SUGGESTION_DRAWS = 10;
+    private static final int SUGGESTION_DRAWS = 10;
 
     // action.ActionValidation.DEFAULT_COLOUR, repeated here because it is package-private to that package.
-    static final String NEUTRAL_COLOUR = "#64748b";
+    private static final String NEUTRAL_COLOUR = "#64748b";
 
-    static final LocalDate TODAY    = FIXED_TODAY;
-    static final LocalDate TOMORROW = FIXED_TODAY.plusDays(1);
+    private static final LocalDate TODAY    = FIXED_TODAY;
+    private static final LocalDate TOMORROW = FIXED_TODAY.plusDays(1);
 
-    UUID primaryId;
-    Action action;
+    private UUID primaryId;
+    private Action action;
 
     @Override
     protected void createDbState() {

@@ -56,7 +56,7 @@ import org.jspecify.annotations.Nullable;
  * same {@link ActionService}, so the rules cannot diverge; this resource only translates {@link ActionResult} outcomes into partials/banners.
  */
 @Path("/internal/actions")
-@RolesAllowed(Role.Values.USER)
+@RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 @RollbackOnErrorStatus
 public class ActionsInternalResource {
 
@@ -76,7 +76,7 @@ public class ActionsInternalResource {
      * @param actionService the shared action-mutation service
      */
     @Inject
-    public ActionsInternalResource(@Location("partials/actions-list") final Template actionsListTemplate,
+    ActionsInternalResource(@Location("partials/actions-list") final Template actionsListTemplate,
         @Location("partials/action-row") final Template actionRowTemplate,
         @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
         final CurrentUser currentUser, final ActionService actionService) {
@@ -285,7 +285,7 @@ public class ActionsInternalResource {
      *
      * @param colour the suggested {@code #rrggbb} colour
      */
-    public record SuggestedColour(String colour) {
+    record SuggestedColour(String colour) {
 
     }
 }

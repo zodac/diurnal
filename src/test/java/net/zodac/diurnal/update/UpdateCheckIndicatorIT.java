@@ -79,7 +79,7 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER_INTERNAL_VALUE, Role.Values.ADMIN_INTERNAL_VALUE})
     void adminUsersPage_updateAvailable_showsIndicator() {
         primeLatestVersion("999.0.0");
 
@@ -92,7 +92,7 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER_INTERNAL_VALUE, Role.Values.ADMIN_INTERNAL_VALUE})
     void adminApiDocsPage_updateAvailable_showsIndicator() {
         primeLatestVersion("999.0.0");
 
@@ -102,7 +102,7 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER_INTERNAL_VALUE, Role.Values.ADMIN_INTERNAL_VALUE})
     void dashboard_updateAvailable_showsIndicatorForAdmin() {
         // The indicator now rides every page's footer, not just the admin pages: an administrator sees it on the dashboard too.
         primeLatestVersion("999.0.0");
@@ -113,7 +113,7 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER, Role.Values.ADMIN})
+    @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER_INTERNAL_VALUE, Role.Values.ADMIN_INTERNAL_VALUE})
     void adminUsersPage_runningVersionCurrent_hidesIndicator() {
         // An older "latest" than whatever version is running is never an update.
         primeLatestVersion("0.0.1");
@@ -124,7 +124,7 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "user@lt.test", roles = {Role.Values.USER})
+    @TestSecurity(user = "user@lt.test", roles = {Role.Values.USER_INTERNAL_VALUE})
     void dashboard_nonAdmin_hidesIndicator() {
         // Admin-only gate: even with an update available, a regular user's footer never shows the indicator on any page.
         primeLatestVersion("999.0.0");
@@ -135,7 +135,7 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
     }
 
     private void primeLatestVersion(final String latestVersion) {
-        releaseClient.setVersion(Optional.of(latestVersion));
+        releaseClient.setVersion(latestVersion);
         updateCheckService.checkForUpdate();
     }
 
@@ -147,8 +147,8 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
             super(appConfig, updateCheckConfig);
         }
 
-        void setVersion(final Optional<String> latestVersion) {
-            version.set(latestVersion);
+        void setVersion(final String latestVersion) {
+            version.set(Optional.of(latestVersion));
         }
 
         @Override

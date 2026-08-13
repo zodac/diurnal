@@ -24,8 +24,11 @@ import static org.hamcrest.Matchers.not;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
+import jakarta.ws.rs.core.Response;
 import java.util.List;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizePref;
@@ -35,15 +38,15 @@ import net.zodac.diurnal.user.UserSettings;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
-@TestSecurity(user = "actions-it@lt.test", roles = Role.Values.USER)
+@TestSecurity(user = "actions-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class ActionsResourceIT extends IntegrationTestBase {
 
-    static final String PRIMARY = "actions-it@lt.test";
-    static final String OTHER = "actions-other@lt.test";
+    private static final String PRIMARY = "actions-it@lt.test";
+    private static final String OTHER = "actions-other@lt.test";
 
-    UUID primaryId;
-    UUID otherId;
+    private UUID primaryId;
+    private UUID otherId;
 
     @Override
     protected void createDbState() {
@@ -57,7 +60,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     void createAction_validNameAndColour_returnsHtmlWithNameAndColour() {
         given().formParam("name", "Running").formParam("colour", "#ff0000")
             .post("/internal/actions")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .contentType("text/html")
             .body(containsString("Running"))
             .body(containsString("#ff0000"));
@@ -67,7 +70,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     void createAction_trimsName() {
         given().formParam("name", "  Yoga  ").formParam("colour", "#6366f1")
             .post("/internal/actions")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .body(containsString("Yoga"))
             .body(not(containsString("  Yoga  ")));
     }
@@ -83,7 +86,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     @Test
     void createAction_duplicateName_returns409() {
         given().formParam("name", "Cycling").formParam("colour", "#6366f1").post("/internal/actions")
-            .then().statusCode(200);
+            .then().statusCode(Response.Status.OK.getStatusCode());
 
         given().formParam("name", "Cycling").formParam("colour", "#6366f1").post("/internal/actions")
             .then().statusCode(409)
@@ -97,12 +100,12 @@ class ActionsResourceIT extends IntegrationTestBase {
         runInTx(() -> newAction(otherId, "Cycling"));
 
         given().formParam("name", "Cycling").formParam("colour", "#6366f1").post("/internal/actions")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .body(containsString("Cycling"));
 
         assertThat(Action.count("name = ?1", "Cycling"))
             .as("both users should own their own action of the same name")
-            .isEqualTo(2);
+            .isEqualTo(2L);
     }
 
     @Test
@@ -119,7 +122,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     void createAction_validHexColour_preserved() {
         given().formParam("name", "Hiking").formParam("colour", "#abcdef")
             .post("/internal/actions")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .body(containsString("#abcdef"));
     }
 
@@ -128,7 +131,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     @Test
     void randomColour_returnsAPaletteColourAsJson() {
         final String colour = given().get("/internal/actions/random-colour")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .contentType("application/json")
             .extract().path("colour");
 
@@ -143,11 +146,11 @@ class ActionsResourceIT extends IntegrationTestBase {
         for (int i = 0; i < inUse.size(); i++) {
             given().formParam("name", "Action-" + i).formParam("colour", inUse.get(i))
                 .post("/internal/actions")
-                .then().statusCode(200);
+                .then().statusCode(Response.Status.OK.getStatusCode());
         }
 
         final String colour = given().get("/internal/actions/random-colour")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .extract().path("colour");
 
         assertThat(colour)
@@ -160,7 +163,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     @Test
     void actionsList_noActions_returnsEmptyBody() {
         given().get("/internal/actions/list")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .body(not(containsString("<div id=\"action-")));
     }
 
@@ -169,7 +172,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         // Exactly a full page of actions fits without spilling onto a second page.
         runInTx(() -> createActions(UserSettings.DEFAULT_PAGE_SIZE));
         given().queryParam("page", 1).get("/internal/actions/list")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .body(not(containsString("Next")))
             .body(not(containsString("Previous")));
     }
@@ -179,7 +182,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         // One more than a page forces a second page, so page 1 offers a Next control.
         runInTx(() -> createActions(UserSettings.DEFAULT_PAGE_SIZE + 1));
         given().queryParam("page", 1).get("/internal/actions/list")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .body(containsString("Next"));
     }
 
@@ -187,7 +190,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     void actionsList_multiplePages_page2_showsPreviousButton() {
         runInTx(() -> createActions(UserSettings.DEFAULT_PAGE_SIZE + 1));
         given().queryParam("page", 2).get("/internal/actions/list")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .body(containsString("Previous"));
     }
 
@@ -195,7 +198,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     void actionsList_pageNumberBeyondTotal_clampsToLastPage() {
         runInTx(() -> createActions(UserSettings.DEFAULT_PAGE_SIZE));
         given().queryParam("page", 99).get("/internal/actions/list")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .body(not(containsString("Next")));
     }
 
@@ -211,7 +214,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         });
 
         given().queryParam("page", 1).get("/internal/actions/list")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .body(containsString("Action01"))
             .body(not(containsString("Action02")))
             .body(containsString("Next"));
@@ -227,7 +230,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         });
 
         given().queryParam("page", 1).get("/internal/actions/list")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .body(containsString("Action01"))
             .body(containsString(String.format("Action%02d", UserSettings.DEFAULT_PAGE_SIZE)))
             .body(not(containsString("Next")));
@@ -239,7 +242,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         given().formParam("name", "Evening Walk").formParam("colour", "#6366f1").post("/internal/actions");
 
         given().queryParam("q", "MORNING").get("/internal/actions/list")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .body(containsString("Morning Run"))
             .body(not(containsString("Evening Walk")));
     }
@@ -251,7 +254,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         final UUID id = createActionAndGetId("OldName");
         given().formParam("name", "NewName").formParam("colour", "#123456")
             .post("/internal/actions/" + id)
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .body(containsString("NewName"))
             .body(containsString("#123456"));
     }
@@ -279,7 +282,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         final UUID id = createActionAndGetId("SameName");
         given().formParam("name", "SameName").formParam("colour", "#6366f1")
             .post("/internal/actions/" + id)
-            .then().statusCode(200);
+            .then().statusCode(Response.Status.OK.getStatusCode());
     }
 
     @Test
@@ -289,7 +292,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         runInTx(() -> holder[0] = newAction(otherId, "OtherAction"));
         given().formParam("name", "Hacked").formParam("colour", "#6366f1")
             .post("/internal/actions/" + holder[0].id)
-            .then().statusCode(404);
+            .then().statusCode(Response.Status.NOT_FOUND.getStatusCode());
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────
@@ -320,7 +323,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         final long logCount = net.zodac.diurnal.log.ActionLog.count("actionId = ?1", holder[0].id);
         assertThat(logCount)
             .as("unexpected value")
-            .isEqualTo(0);
+            .isEqualTo(0L);
     }
 
     @Test
@@ -328,7 +331,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         final Action[] holder = new Action[1];
         runInTx(() -> holder[0] = newAction(otherId, "OtherToDelete"));
         given().post("/internal/actions/" + holder[0].id + "/delete")
-            .then().statusCode(404);
+            .then().statusCode(Response.Status.NOT_FOUND.getStatusCode());
     }
 
     @Test
@@ -346,7 +349,7 @@ class ActionsResourceIT extends IntegrationTestBase {
 
         assertThat(Action.count("userId = ?1 and name = ?2", primaryId, "Recreatable"))
             .as("exactly one live action should carry the reused name")
-            .isEqualTo(1);
+            .isEqualTo(1L);
     }
 
     // ── Partial fragments ──────────────────────────────────────────────────────
@@ -355,28 +358,28 @@ class ActionsResourceIT extends IntegrationTestBase {
     void viewItem_ownAction_returns200WithRow() {
         final UUID id = createActionAndGetId("ViewMe");
         given().get("/internal/actions/" + id)
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .body(containsString("ViewMe"));
     }
 
     @Test
     void viewItem_unknownId_returns404() {
         given().get("/internal/actions/" + UUID.randomUUID())
-            .then().statusCode(404);
+            .then().statusCode(Response.Status.NOT_FOUND.getStatusCode());
     }
 
     @Test
     void confirmDelete_ownAction_returns200() {
         final UUID id = createActionAndGetId("ConfirmMe");
         given().get("/internal/actions/" + id + "/confirm-delete")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .body(containsString("Delete this action?"));
     }
 
     @Test
     void confirmDelete_unknownId_returns404() {
         given().get("/internal/actions/" + UUID.randomUUID() + "/confirm-delete")
-            .then().statusCode(404);
+            .then().statusCode(Response.Status.NOT_FOUND.getStatusCode());
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
@@ -387,16 +390,15 @@ class ActionsResourceIT extends IntegrationTestBase {
         }
     }
 
-    private UUID createActionAndGetId(final String name) {
+    private static UUID createActionAndGetId(final String name) {
         final String html = given().formParam("name", name).formParam("colour", "#6366f1")
             .post("/internal/actions")
-            .then().statusCode(200)
+            .then().statusCode(Response.Status.OK.getStatusCode())
             .extract().body().asString();
         // The returned HTML contains id="action-{uuid}"
-        final java.util.regex.Matcher m = java.util.regex.Pattern
-            .compile("id=\"action-([0-9a-f-]+)\"").matcher(html);
-        if (m.find()) {
-            return UUID.fromString(m.group(1));
+        final Matcher matcher = Pattern.compile("id=\"action-(?<id>[0-9a-f-]+)\"").matcher(html);
+        if (matcher.find()) {
+            return UUID.fromString(matcher.group("id"));
         }
         throw new IllegalStateException("Could not find action id in response: " + html);
     }

@@ -134,7 +134,7 @@ public class AuthResource {
         if (!passwordAuthConfig.enabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        if (User.count() == 0) {
+        if (User.count() == 0L) {
             LOGGER.warn("Refusing API registration before the initial account exists - it must be created via the setup page");
             return Response.status(Response.Status.FORBIDDEN)
                     .entity(new ApiErrorResponse(SETUP_REQUIRED_MESSAGE))
@@ -240,7 +240,7 @@ public class AuthResource {
     // Overrides the class-level JSON @Consumes: this endpoint takes no body, so any (or no)
     // Content-Type must be accepted rather than rejected with a 415 (same as /revoke).
     @Consumes(MediaType.WILDCARD)
-    @RolesAllowed(Role.Values.USER)
+    @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
     @SecurityRequirement(name = "BearerAuth")
     @Operation(summary = "Log out", description = "Revokes the Bearer session token used to make this request.")
     @APIResponses({
@@ -265,7 +265,7 @@ public class AuthResource {
     // Overrides the class-level JSON @Consumes: this endpoint takes no body, so any (or no)
     // Content-Type must be accepted rather than rejected with a 415.
     @Consumes(MediaType.WILDCARD)
-    @RolesAllowed(Role.Values.USER)
+    @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
     @SecurityRequirement(name = "BearerAuth")
     @Operation(
         summary = "Revoke all sessions (log out from everywhere)",
@@ -290,7 +290,7 @@ public class AuthResource {
 
     // Shared by both the login and registration lockouts — the message is neutral across surfaces (one
     // shared per-IP counter feeds both), so there is a single 429 response builder.
-    private Response lockedResponse(final Duration remaining) {
+    private static Response lockedResponse(final Duration remaining) {
         return Response.status(Response.Status.TOO_MANY_REQUESTS)
                 .header("Retry-After", Math.max(1L, remaining.toSeconds()))
                 .entity(new ApiErrorResponse(LockoutMessages.retryMessage(remaining)))

@@ -98,11 +98,7 @@ public class AuthenticationService {
         final Optional<User> account = User.findByEmail(email)
             .filter(u -> u.passwordHash != null);
 
-        final boolean credentialsValid;
-        // The filter above has already established a non-null stored hash.
-        // No stored hash to verify against. Spend the same time as a real check so a non-existent
-        // account cannot be told apart from a wrong password by response time (user enumeration).
-        credentialsValid = account
+        final boolean credentialsValid = account
             .map(user -> passwords.matches(password, Objects.requireNonNull(user.passwordHash)))
             .orElseGet(() -> passwordAuthConfig.uniformTimingEnabled() && passwords.matchesDummy(password));
 

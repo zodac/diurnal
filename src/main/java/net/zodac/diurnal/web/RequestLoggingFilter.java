@@ -51,6 +51,7 @@ public class RequestLoggingFilter implements ContainerRequestFilter, ContainerRe
 
     private static final Logger LOGGER = LogManager.getLogger(RequestLoggingFilter.class);
     private static final String START_NANOS_PROPERTY = "net.zodac.diurnal.requestStartNanos";
+    private static final long NANOS_PER_MILLISECOND = 1_000_000L;
 
     // Infrastructure probe paths (Docker HEALTHCHECK etc.) that are never logged, at any level.
     private static final Set<String> UNLOGGED_PATHS = Set.of("api/v1/status");
@@ -100,7 +101,7 @@ public class RequestLoggingFilter implements ContainerRequestFilter, ContainerRe
      * @return the elapsed whole milliseconds, {@code (endNanos - startNanos) / 1_000_000}
      */
     static long millisBetween(final long startNanos, final long endNanos) {
-        return (endNanos - startNanos) / 1_000_000L;
+        return (endNanos - startNanos) / NANOS_PER_MILLISECOND;
     }
 
     /**

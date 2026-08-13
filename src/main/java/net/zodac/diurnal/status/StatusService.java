@@ -22,6 +22,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.time.Instant;
 import javax.sql.DataSource;
 import net.zodac.diurnal.web.AppInfo;
@@ -77,9 +78,9 @@ public class StatusService {
     }
 
     private boolean isDatabaseReachable() {
-        try (Connection conn = dataSource.getConnection()) {
-            return conn.isValid(1);
-        } catch (final Exception e) {
+        try (final Connection connection = dataSource.getConnection()) {
+            return connection.isValid(1);
+        } catch (final SQLException e) {
             LOGGER.trace("Readiness check failed, database is not reachable", e);
             LOGGER.debug("Readiness check failed, database is not reachable: {}", e.getMessage());
             return false;

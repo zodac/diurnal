@@ -55,13 +55,14 @@ public class AccountLinkService {
         if (user.oidcSubject != null && !user.oidcSubject.isBlank()) {
             throw new IllegalStateException("Account " + user.email + " is already linked to an identity provider");
         }
+
         final Optional<User> owner = User.findByOidc(issuer, subject);
         if (owner.isPresent() && !Objects.equals(owner.get().id, user.id)) {
             throw new IllegalStateException("OIDC identity is already linked to another account");
         }
         user.oidcIssuer = issuer;
         user.oidcSubject = subject;
-        user.passwordHash = null; // NOPMD: NullAssignment - the conversion to OIDC-only sign-in IS the operation
+        user.passwordHash = null;  // NOPMD: NullAssignment - the conversion to OIDC-only sign-in IS the operation
         user.persist();
         LOGGER.warn("Connected identity provider to account {} - password removed, the account now signs in via the IdP only (iss={})",
             user.email, issuer);

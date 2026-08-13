@@ -24,24 +24,26 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import java.time.LocalDate;
 import java.util.UUID;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.user.Role;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
-@TestSecurity(user = "logs-api-it@lt.test", roles = Role.Values.USER)
+@TestSecurity(user = "logs-api-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class LogsApiResourceIT extends IntegrationTestBase {
 
-    static final String PRIMARY = "logs-api-it@lt.test";
-    static final String OTHER   = "logs-api-other@lt.test";
+    private static final String PRIMARY = "logs-api-it@lt.test";
+    private static final String OTHER   = "logs-api-other@lt.test";
 
-    static final LocalDate TODAY = FIXED_TODAY;
+    private static final LocalDate TODAY = FIXED_TODAY;
 
-    UUID primaryId;
-    UUID otherId;
-    Action primaryAction;
+    private UUID primaryId;
+    private UUID otherId;
+    private Action primaryAction;
 
     @Override
     protected void createDbState() {
@@ -136,13 +138,12 @@ class LogsApiResourceIT extends IntegrationTestBase {
             .post("/internal/actions")
             .then().statusCode(200).extract().body().asString();
 
-        final java.util.regex.Matcher m = java.util.regex.Pattern
-            .compile("id=\"action-([0-9a-f-]+)\"").matcher(html);
-        if (!m.find()) {
+        final Matcher matcher = Pattern.compile("id=\"action-(?<id>[0-9a-f-]+)\"").matcher(html);
+        if (!matcher.find()) {
             return; // skip if extraction fails
         }
 
-        final UUID actionId = UUID.fromString(m.group(1));
+        final UUID actionId = UUID.fromString(matcher.group("id"));
         runInTx(() -> newLog(primaryId, actionId, TODAY, 1));
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())

@@ -67,9 +67,9 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
 
     /**
      * The frozen "today" every IT runs at by default. A fixed date (rather than the real clock) removes the class-load-vs-request midnight race and
-     * lets date-relative tests assert against a stable anchor. Override per-test with {@link #freezeDate}/{@link #freezeInstant}.
+     * lets date-relative tests assert against a stable anchor.
      */
-    public static final LocalDate FIXED_TODAY = LocalDate.of(2026, 6, 15);
+    protected static final LocalDate FIXED_TODAY = LocalDate.of(2026, 6, 15);
 
     /**
      * The notes encryption master key the test profile is configured with ({@code application-test.properties}).
@@ -78,7 +78,7 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
      * Held here so a test can open a stored note the way the application does — every note is sealed under a per-user data key, and that key is only
      * ever stored wrapped under this one.
      */
-    public static final String NOTES_MASTER_KEY = "ZGl1cm5hbC10ZXN0LW5vdGVzLWtleS0zMi1ieXRlcyE=";
+    protected static final String NOTES_MASTER_KEY = "ZGl1cm5hbC10ZXN0LW5vdGVzLWtleS0zMi1ieXRlcyE=";
 
     @Inject
     UserTransaction tx;
@@ -109,10 +109,7 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
         clock.useSystemClock();
     }
 
-    /**
-     * Freeze {@link AppClock} so {@code today()} returns {@code date} (clock pinned to UTC midnight).
-     */
-    protected void freezeDate(final LocalDate date) {
+    private void freezeDate(final LocalDate date) {
         // Pin the zone to the "UTC" region (id "UTC"), matching application-test.properties and
         // production, rather than ZoneOffset.UTC (id "Z") — same instant, but a representative zone id.
         clock.useFixedClock(Clock.fixed(date.atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneId.of("UTC")));
@@ -129,6 +126,7 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
      * Override to insert additional rows needed by a test class. Called inside the setUp transaction — no need to manage your own transaction.
      */
     protected void createDbState() {
+
     }
 
     /**
@@ -229,12 +227,12 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
      * Persists a single action-log entry for the given user, action, day and count.
      */
     protected static void newLog(final UUID userId, final UUID actionId, final LocalDate date, final int count) {
-        final ActionLog l = new ActionLog();
-        l.userId = userId;
-        l.actionId = actionId;
-        l.logDate = date;
-        l.count = count;
-        l.persist();
+        final ActionLog actionLog = new ActionLog();
+        actionLog.userId = userId;
+        actionLog.actionId = actionId;
+        actionLog.logDate = date;
+        actionLog.count = count;
+        actionLog.persist();
     }
 
     /**
@@ -252,15 +250,8 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
         return NoteContent.open(dataKeyFor(userId), userId, date, note.contentEncrypted).orElse(null);
     }
 
-    /**
-     * Seals content with the same key {@link #storedNoteContent} reads it back with, for a test that needs the stored form directly.
-     *
-     * @param userId the owning user, bound into the seal
-     * @param date the day the note belongs to, bound into the seal
-     * @param content the content to seal
-     * @return the sealed form
-     */
-    protected static byte[] sealNote(final UUID userId, final LocalDate date, final String content) {
+    // Seals content with the same key storedNoteContent reads it back with, for the seeding helpers that need the stored form directly.
+    private static byte[] sealNote(final UUID userId, final LocalDate date, final String content) {
         return NoteContent.seal(dataKeyFor(userId), userId, date, content);
     }
 
@@ -277,12 +268,11 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
      * written through them would. The content is sealed exactly as given, bypassing the text pipeline, so a test may plant a value the service itself
      * would have normalised or rejected.
      */
-    protected static Note newNote(final UUID userId, final LocalDate date, final String content) {
-        final Note n = new Note();
-        n.userId = userId;
-        n.noteDate = date;
-        n.contentEncrypted = sealNote(userId, date, content);
-        n.persist();
-        return n;
+    protected static void newNote(final UUID userId, final LocalDate date, final String content) {
+        final Note note = new Note();
+        note.userId = userId;
+        note.noteDate = date;
+        note.contentEncrypted = sealNote(userId, date, content);
+        note.persist();
     }
 }

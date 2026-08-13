@@ -17,8 +17,8 @@
 
 package net.zodac.diurnal.auth;
 
-import java.util.Optional;
 import net.zodac.diurnal.user.User;
+import org.jspecify.annotations.Nullable;
 
 /**
  * The pure authorisation decision for the OpenAPI documentation surface (Swagger UI + the generated OpenAPI document): only an authenticated
@@ -35,13 +35,15 @@ final class OpenApiDocsAccess {
      * Decides how a documentation request must be handled from the user resolved against its session token: served for an administrator, redirected
      * to login when anonymous, and forbidden for an authenticated non-administrator.
      *
-     * @param resolvedUser the user the request's session token resolved to, or empty if anonymous
+     * @param resolvedUser the user the request's session token resolved to, or {@code null} if anonymous
      * @return the {@link Outcome} the filter must apply
      */
-    static Outcome decide(final Optional<User> resolvedUser) {
-        return resolvedUser
-            .map(user -> user.isAdmin() ? Outcome.ALLOW : Outcome.FORBIDDEN)
-            .orElse(Outcome.REDIRECT_TO_LOGIN);
+    static Outcome decide(@Nullable final User resolvedUser) {
+        if (resolvedUser == null) {
+            return Outcome.REDIRECT_TO_LOGIN;
+        }
+
+        return resolvedUser.isAdmin() ? Outcome.ALLOW : Outcome.FORBIDDEN;
     }
 
     /**

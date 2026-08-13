@@ -42,7 +42,7 @@ import org.junit.jupiter.api.Test;
 class SecurityHeadersFilterIT extends IntegrationTestBase {
 
     // The FOUC bootstrap is the only bare `<script>` tag (no `src=`) rendered on any page.
-    private static final Pattern INLINE_SCRIPT = Pattern.compile("<script>(.*?)</script>", Pattern.DOTALL);
+    private static final Pattern INLINE_SCRIPT = Pattern.compile("<script>(?<body>.*?)</script>", Pattern.DOTALL);
 
     @Override
     protected void createDbState() {
@@ -58,7 +58,7 @@ class SecurityHeadersFilterIT extends IntegrationTestBase {
                 .as("The login page must render exactly one bare <script> tag (the FOUC bootstrap)")
                 .isTrue();
 
-        final String hash = sha256Base64(matcher.group(1).getBytes(StandardCharsets.UTF_8));
+        final String hash = sha256Base64(matcher.group("body").getBytes(StandardCharsets.UTF_8));
         final String cspHeader = response.header("Content-Security-Policy");
         assertThat(cspHeader)
                 .as("The CSP header's script-src must contain the FOUC script's actual rendered hash")

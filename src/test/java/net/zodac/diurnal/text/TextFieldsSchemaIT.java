@@ -56,10 +56,10 @@ class TextFieldsSchemaIT extends IntegrationTestBase {
      */
     @Test
     void note_hasNoPlaintextColumnToBound() {
-        assertThat(columnExists("notes", "content"))
+        assertThat(columnExists("content"))
             .as("notes.content was dropped in V29 - a note must not be storable in readable form by any path")
             .isFalse();
-        assertThat(columnExists("notes", "content_encrypted"))
+        assertThat(columnExists("content_encrypted"))
             .as("the sealed column must be the one a note is stored in")
             .isTrue();
     }
@@ -77,10 +77,10 @@ class TextFieldsSchemaIT extends IntegrationTestBase {
             .isEqualTo(expected);
     }
 
-    private static boolean columnExists(final String table, final String column) {
+    private static boolean columnExists(final String column) {
         final Object count = Panache.getEntityManager()
             .createNativeQuery("SELECT COUNT(*) FROM information_schema.columns WHERE table_name = ?1 AND column_name = ?2")
-            .setParameter(1, table)
+            .setParameter(1, "notes")
             .setParameter(2, column)
             .getSingleResult();
         return ((Number) count).intValue() > 0;

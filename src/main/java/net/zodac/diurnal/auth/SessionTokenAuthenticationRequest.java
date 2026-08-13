@@ -24,18 +24,23 @@ import io.quarkus.security.identity.request.BaseAuthenticationRequest;
  * {@link net.zodac.diurnal.user.User}. This indirection lets the blocking database lookup run off the IO thread via the identity-provider machinery,
  * mirroring how the built-in mechanisms hand credentials to their providers.
  */
-public class SessionTokenAuthenticationRequest extends BaseAuthenticationRequest {
+public final class SessionTokenAuthenticationRequest extends BaseAuthenticationRequest {
 
     private final String token;
+
+    private SessionTokenAuthenticationRequest(final String token) {
+        super();
+        this.token = token;
+    }
 
     /**
      * Wraps the raw token presented by the client (from the session cookie or a Bearer header).
      *
      * @param token the raw opaque session token
+     * @return the authentication request to hand to the identity providers
      */
-    public SessionTokenAuthenticationRequest(final String token) {
-        super();
-        this.token = token;
+    public static SessionTokenAuthenticationRequest of(final String token) {
+        return new SessionTokenAuthenticationRequest(token);
     }
 
     /**

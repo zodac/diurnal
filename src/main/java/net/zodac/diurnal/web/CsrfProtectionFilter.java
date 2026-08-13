@@ -134,8 +134,9 @@ public class CsrfProtectionFilter implements ContainerRequestFilter {
         if (expectedAuthority == null || expectedAuthority.isBlank()) {
             return true;
         }
+
         final String sourceAuthority = authorityOf(url);
-        return sourceAuthority == null || !sourceAuthority.equalsIgnoreCase(expectedAuthority);
+        return !expectedAuthority.equalsIgnoreCase(sourceAuthority);
     }
 
     /**

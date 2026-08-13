@@ -33,10 +33,10 @@ class AttemptThrottleTest {
     private static final String KEY2 = "198.51.100.9"; // NOPMD: AvoidUsingHardCodedIP - Test IP key
     private static final Instant T0 = Instant.parse("2026-06-15T12:00:00Z");
     private static final int MAX_ATTEMPTS = 3;
-    private static final Duration LOCKOUT = Duration.ofMinutes(10);
+    private static final Duration LOCKOUT = Duration.ofMinutes(10L);
 
     private static AttemptThrottle throttle(final boolean enabled) {
-        return new AttemptThrottle(enabled, MAX_ATTEMPTS, LOCKOUT);
+        return AttemptThrottle.create(enabled, MAX_ATTEMPTS, LOCKOUT);
     }
 
     @Test
@@ -73,7 +73,7 @@ class AttemptThrottleTest {
         final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
-        assertThat(throttle.isLocked(KEY, T0.plus(LOCKOUT).minusSeconds(1)))
+        assertThat(throttle.isLocked(KEY, T0.plus(LOCKOUT).minusSeconds(1L)))
                 .as("Key must remain locked right up to the expiry instant")
                 .isTrue();
     }
@@ -130,9 +130,9 @@ class AttemptThrottleTest {
         final AttemptThrottle throttle = throttle(true);
         lockOut(throttle);
 
-        assertThat(throttle.lockoutRemaining(KEY, T0.plusSeconds(60)))
+        assertThat(throttle.lockoutRemaining(KEY, T0.plusSeconds(60L)))
                 .as("Remaining lockout must count down as time passes")
-                .isEqualTo(LOCKOUT.minusSeconds(60));
+                .isEqualTo(LOCKOUT.minusSeconds(60L));
     }
 
     @Test
@@ -225,7 +225,7 @@ class AttemptThrottleTest {
         final AttemptThrottle throttle = throttle(true);
         // One failure per window+ elapsed: each is treated as fresh, so the count never climbs to lock.
         for (int i = 0; i < MAX_ATTEMPTS + 2; i++) {
-            final Instant when = T0.plus(LOCKOUT.plusMinutes(1).multipliedBy(i));
+            final Instant when = T0.plus(LOCKOUT.plusMinutes(1L).multipliedBy(i));
             final AttemptThrottle.FailureOutcome outcome = throttle.recordFailure(KEY, when);
             assertThat(outcome.failureCount())
                     .as("A failure a full window after the previous one must reset the count to one")

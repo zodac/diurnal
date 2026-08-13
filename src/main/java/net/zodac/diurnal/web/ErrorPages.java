@@ -52,7 +52,7 @@ final class ErrorPages {
         if (!identity.isAnonymous()) {
             final String attr = identity.getAttribute("displayName");
             displayName = attr != null ? attr : identity.getPrincipal().getName();
-            isAdmin = identity.hasRole(Role.Values.ADMIN);
+            isAdmin = identity.hasRole(Role.Values.ADMIN_INTERNAL_VALUE);
         }
         return Response.status(status)
                 .entity(template

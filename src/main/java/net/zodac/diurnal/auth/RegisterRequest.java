@@ -29,12 +29,19 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
  * shared with the web form. The bounds are taken from the {@link TextFields} catalogue, so the documented schema cannot drift from what is enforced.
  */
 @Schema(description = "Details for a new password-based account: email, display name and password.")
+@SuppressWarnings("unused") // constructed by Jackson when it deserialises the request body; no Java caller
 public record RegisterRequest(
     @NotBlank @Email
-    @Schema(examples = "ada@example.com", description = "Email address for the new account; must be unique.") String email,
+    @Schema(examples = "ada@example.com", description = "Email address for the new account; must be unique.")
+    String email,
+
     @NotBlank @Size(min = TextFields.DISPLAY_NAME_MIN_LENGTH, max = TextFields.DISPLAY_NAME_MAX_LENGTH)
-    @Schema(examples = "Ada Lovelace", description = "Human-readable name shown in the UI.") String displayName,
+    @Schema(examples = "Ada Lovelace", description = "Human-readable name shown in the UI.")
+    String displayName,
+
     @NotBlank @Size(max = TextFields.PASSWORD_MAX_LENGTH, message = "Password must be at most {max} characters")
-    @Schema(examples = "correct horse battery staple", description = "Password for the new account; at most 128 characters.") String password
+    @Schema(examples = "correct horse battery staple", description = "Password for the new account; at most 128 characters.")
+    String password
 ) {
+
 }

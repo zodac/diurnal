@@ -48,7 +48,7 @@ import net.zodac.diurnal.user.User;
  * {@code /internal/admin/users} ({@link AdminUsersInternalResource}).
  */
 @Path("/admin")
-@RolesAllowed(Role.Values.ADMIN)
+@RolesAllowed(Role.Values.ADMIN_INTERNAL_VALUE)
 public class AdminWebResource {
 
     private final Template adminUsersTemplate;

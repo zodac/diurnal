@@ -160,6 +160,9 @@ public class AppLifecycle {
      *
      * @throws IllegalStateException if stored keys exist and the configured key opens none of them
      */
+    // Package-private is REQUIRED, not incidental: @Transactional is applied by an interceptor, which is never applied to a private
+    // method - narrowing it would silently drop the transaction while still compiling.
+    @SuppressWarnings("WeakerAccess")
     @Transactional
     void verifyNotesEncryptionKeyOpensExistingData() {
         final KeyReconciliation outcome;
@@ -205,16 +208,7 @@ public class AppLifecycle {
         }
     }
 
-    /**
-     * When enabled, probes the IdP's discovery endpoint at startup and fails fast on an unreachable or invalid provider. Quarkus fetches the
-     * discovery document lazily (on the first login), so without this a misconfigured issuer boots cleanly and is only discovered by the first user
-     * bounced to {@code /login?error=oidc}. The probe is skipped unless OIDC is enabled, {@code OIDC_VERIFY_ON_STARTUP} is on, and Quarkus discovery
-     * is enabled (with manual endpoints there is no discovery document to fetch). The {@link OidcDiscovery} policy owns the branching; this method is
-     * the untestable HTTP glue.
-     *
-     * @throws IllegalStateException if the provider cannot be reached or does not serve a valid discovery document
-     */
-    void verifyOidcDiscovery() {
+    private void verifyOidcDiscovery() {
         if (!OidcDiscovery.shouldVerify(quarkusOidcConfig.tenantEnabled(), oidcConfig.verifyOnStartup(), quarkusOidcConfig.discoveryEnabled())) {
             return;
         }
@@ -261,23 +255,37 @@ public class AppLifecycle {
             return null;
         }
 
-        try (HttpClient client = HttpClient.newBuilder()
+        try (final HttpClient client = HttpClient.newBuilder()
             .connectTimeout(PROBE_TIMEOUT)
             .followRedirects(HttpClient.Redirect.NORMAL)
             .build()) {
             for (int attempt = 1; attempt <= PROBE_ATTEMPTS; attempt++) {
-                try {
-                    return client.send(request, HttpResponse.BodyHandlers.ofString());
-                } catch (final IOException e) {
-                    LOGGER.debug("OIDC discovery probe attempt {} of {} failed: {}", attempt, PROBE_ATTEMPTS, e.getMessage());
-                    sleepBeforeRetry(attempt);
-                } catch (final InterruptedException e) {
-                    Thread.currentThread().interrupt();
+                final HttpResponse<String> response = sendProbe(client, request, attempt);
+                if (response != null) {
+                    return response;
+                }
+                // An interrupt abandons the probe rather than burning the remaining attempts on a send that
+                // would fail immediately: sendProbe restores the flag before returning, in both places it can.
+                if (Thread.currentThread().isInterrupted()) {
                     return null;
                 }
             }
         }
         return null;
+    }
+
+    @Nullable
+    private static HttpResponse<String> sendProbe(final HttpClient client, final HttpRequest request, final int attempt) {
+        try {
+            return client.send(request, HttpResponse.BodyHandlers.ofString());
+        } catch (final IOException e) {
+            LOGGER.debug("OIDC discovery probe attempt {} of {} failed: {}", attempt, PROBE_ATTEMPTS, e.getMessage());
+            sleepBeforeRetry(attempt);
+            return null;
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return null;
+        }
     }
 
     /**

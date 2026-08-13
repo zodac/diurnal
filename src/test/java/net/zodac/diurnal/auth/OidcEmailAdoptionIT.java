@@ -30,9 +30,9 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Optional;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -50,11 +50,10 @@ class OidcEmailAdoptionIT extends IntegrationTestBase {
 
     private static final String OIDC_ISSUER = "https://diurnal.example.com/idp";
 
-    @ConfigProperty(name = "oidc.admin.group")
-    Optional<String> oidcAdminGroup = Optional.empty();
-
-    @ConfigProperty(name = "oidc.user.group")
-    Optional<String> oidcUserGroup = Optional.empty();
+    // Injects the very config the bean under test reads, so these tests stay environment-agnostic: SmallRye resolves .env at a higher priority
+    // than the %test profile, so a specific value cannot be forced here - each expectation is instead derived from the same source the bean uses.
+    @Inject
+    OidcConfig oidcConfig;
 
     @Inject
     OidcUserProvisioner oidcUserProvisioner;
@@ -109,8 +108,8 @@ class OidcEmailAdoptionIT extends IntegrationTestBase {
         // group config is environment-dependent, so each configuration exercises the branch it can express.
         runInTx(() -> newUser("solo-admin@example.com", "Solo Admin", Role.ADMIN.storageValue()));
 
-        final Optional<String> adminGroup = oidcAdminGroup.filter(group -> !group.isBlank());
-        final Optional<String> userGroup = oidcUserGroup.filter(group -> !group.isBlank());
+        final Optional<String> adminGroup = oidcConfig.adminGroup().filter(group -> !group.isBlank());
+        final Optional<String> userGroup = oidcConfig.userGroup().filter(group -> !group.isBlank());
         final JsonObject claims = oidcClaims("solo-admin@example.com", "Solo Admin")
             .put("groups", adminGroup.or(() -> userGroup).map(List::of).orElseGet(List::of));
 
@@ -156,8 +155,8 @@ class OidcEmailAdoptionIT extends IntegrationTestBase {
 
     private JsonObject oidcClaims(final String email, final String name) {
         // An authorising group (when configured) keeps the login authorised in every environment.
-        final List<String> groups = oidcUserGroup.filter(group -> !group.isBlank())
-            .or(() -> oidcAdminGroup.filter(group -> !group.isBlank()))
+        final List<String> groups = oidcConfig.userGroup().filter(group -> !group.isBlank())
+            .or(() -> oidcConfig.adminGroup().filter(group -> !group.isBlank()))
             .map(List::of)
             .orElseGet(List::of);
         return new JsonObject()

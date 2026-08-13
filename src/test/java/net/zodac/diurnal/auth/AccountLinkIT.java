@@ -46,7 +46,7 @@ class AccountLinkIT extends IntegrationTestBase {
     private static final String OIDC_ISSUER = "https://diurnal.example.com/idp";
 
     @Inject
-    AccountLinkService accountLinkService;
+    private AccountLinkService accountLinkService;
 
     @Override
     protected void createDbState() {
@@ -91,7 +91,7 @@ class AccountLinkIT extends IntegrationTestBase {
     // ── The Settings connect trigger ──────────────────────────────────────────
 
     @Test
-    @TestSecurity(user = LOCAL, roles = Role.Values.USER)
+    @TestSecurity(user = LOCAL, roles = Role.Values.USER_INTERNAL_VALUE)
     void webConnect_localAccount_setsIntentCookieAndEntersCodeFlow() {
         given().redirects().follow(false)
                 .post("/internal/settings/oidc/connect")
@@ -103,7 +103,7 @@ class AccountLinkIT extends IntegrationTestBase {
     // ── The Settings page reflects the link state ─────────────────────────────
 
     @Test
-    @TestSecurity(user = OIDC_ONLY, roles = Role.Values.USER)
+    @TestSecurity(user = OIDC_ONLY, roles = Role.Values.USER_INTERNAL_VALUE)
     void settingsPage_linkedAccount_showsConnectedStateLinkingToTheIdp() {
         // The provider name links to the IdP's base URL (OIDC_ISSUER_URL — the profile's placeholder realm here).
         given().get("/settings")
@@ -113,7 +113,7 @@ class AccountLinkIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = LOCAL, roles = Role.Values.USER)
+    @TestSecurity(user = LOCAL, roles = Role.Values.USER_INTERNAL_VALUE)
     void settingsPage_refusedConnectCode_rendersTheReasonBannerInPlace() {
         // A refused connection redirects back HERE (?msg=<OidcDenialReason code>) with the session intact — never to the login page.
         given().get("/settings?msg=link-email-mismatch")
@@ -122,7 +122,7 @@ class AccountLinkIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = LOCAL, roles = Role.Values.USER)
+    @TestSecurity(user = LOCAL, roles = Role.Values.USER_INTERNAL_VALUE)
     void settingsPage_localAccount_offersConnectWithConversionWarning() {
         given().get("/settings")
                 .then().statusCode(200)

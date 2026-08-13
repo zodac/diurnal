@@ -74,7 +74,7 @@ public class SessionAuthMechanism implements HttpAuthenticationMechanism {
             // Abstain — no session token here; let any other mechanism (e.g. OIDC) authenticate.
             return Uni.createFrom().nullItem();
         }
-        return identityProviderManager.authenticate(new SessionTokenAuthenticationRequest(token));
+        return identityProviderManager.authenticate(SessionTokenAuthenticationRequest.of(token));
     }
 
     @Override

@@ -29,7 +29,7 @@ import java.util.regex.Pattern;
  */
 public final class SqlParameters {
 
-    private static final Pattern NAMED_PARAMETER = Pattern.compile("(?<!:):([A-Za-z][A-Za-z0-9_]*)");
+    private static final Pattern NAMED_PARAMETER = Pattern.compile("(?<!:):(?<name>[A-Za-z][A-Za-z0-9_]*)");
 
     private SqlParameters() {
 
@@ -46,7 +46,7 @@ public final class SqlParameters {
         final Set<String> names = new LinkedHashSet<>();
         final Matcher matcher = NAMED_PARAMETER.matcher(query);
         while (matcher.find()) {
-            names.add(matcher.group(1));
+            names.add(matcher.group("name"));
         }
         return names;
     }

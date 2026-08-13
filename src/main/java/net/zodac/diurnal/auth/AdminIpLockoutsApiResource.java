@@ -61,7 +61,7 @@ import org.jspecify.annotations.Nullable;
  */
 @Tag(name = "Admin", description = "Administrator-only management of the per-IP auth lockout: list locked IPs, read lockout history, unlock an IP.")
 @Path("/api/v1/admin/ip-lockouts")
-@RolesAllowed(Role.Values.ADMIN)
+@RolesAllowed(Role.Values.ADMIN_INTERNAL_VALUE)
 @Produces(MediaType.APPLICATION_JSON)
 @RollbackOnErrorStatus
 public class AdminIpLockoutsApiResource {
@@ -208,18 +208,12 @@ public class AdminIpLockoutsApiResource {
      * @param failureCount the failure tally recorded for the IP
      */
     @Schema(description = "A client IP that is currently locked out.")
-    public record CurrentLockoutDto(
+    record CurrentLockoutDto(
         @Schema(examples = EXAMPLE_IP, description = "The locked-out client IP address.") String ipAddress,
         @Schema(examples = "2026-06-15T07:45:00Z", description = "When the lockout expires (ISO-8601 instant).") Instant lockedUntil,
         @Schema(examples = "15", description = "The failure count recorded for the IP when it was locked.") int failureCount) {
 
-        /**
-         * Maps a live throttle lockout to its API representation.
-         *
-         * @param lockout the live lockout snapshot
-         * @return the DTO
-         */
-        public static CurrentLockoutDto from(final AttemptThrottle.ActiveLockout lockout) {
+        private static CurrentLockoutDto from(final AttemptThrottle.ActiveLockout lockout) {
             return new CurrentLockoutDto(lockout.key(), lockout.lockedUntil(), lockout.failureCount());
         }
     }
@@ -230,7 +224,7 @@ public class AdminIpLockoutsApiResource {
      * @param items the locked-out IPs
      */
     @Schema(description = "The client IPs currently locked out.")
-    public record CurrentLockoutsDto(@Schema(description = "The currently locked-out IPs.") List<CurrentLockoutDto> items) {
+    record CurrentLockoutsDto(@Schema(description = "The currently locked-out IPs.") List<CurrentLockoutDto> items) {
 
     }
 
@@ -246,7 +240,7 @@ public class AdminIpLockoutsApiResource {
      * @param unlockedBy   the email of the administrator who unlocked the IP, or {@code null}
      */
     @Schema(description = "A single historical per-IP lockout.")
-    public record IpLockoutHistoryDto(
+    record IpLockoutHistoryDto(
         @Schema(examples = EXAMPLE_IP, description = "The client IP that was locked out.") String ipAddress,
         @Schema(examples = "2026-06-15T07:30:00Z", description = "When the lockout tripped (ISO-8601 instant).") Instant lockedAt,
         @Schema(examples = "2026-06-15T07:45:00Z", description = "When the lockout would naturally expire (ISO-8601 instant).") Instant lockedUntil,
@@ -264,7 +258,7 @@ public class AdminIpLockoutsApiResource {
          * @param now     the current instant, for the derived status
          * @return the DTO
          */
-        public static IpLockoutHistoryDto from(final IpLockout lockout, final Instant now) {
+        static IpLockoutHistoryDto from(final IpLockout lockout, final Instant now) {
             return new IpLockoutHistoryDto(lockout.ipAddress, lockout.lockedAt, lockout.lockedUntil, lockout.failureCount,
                 IpLockoutStatus.of(lockout, now).name(), lockout.unlockedAt, lockout.unlockedBy);
         }
@@ -279,7 +273,7 @@ public class AdminIpLockoutsApiResource {
      * @param currentPage the returned (clamped) 1-based page
      */
     @Schema(description = "One page of per-IP lockout history, most recent first.")
-    public record IpLockoutHistoryPageDto(
+    record IpLockoutHistoryPageDto(
         @Schema(description = "The page's history records, most recent first.") List<IpLockoutHistoryDto> items,
         @Schema(examples = "42", description = "The total number of history records within the retention window.") long totalCount,
         @Schema(examples = "5", description = "The total number of pages.") int totalPages,
@@ -292,7 +286,7 @@ public class AdminIpLockoutsApiResource {
          * @param now  the current instant, for each record's derived status
          * @return the DTO
          */
-        public static IpLockoutHistoryPageDto from(final IpLockoutService.HistoryPage page, final Instant now) {
+        private static IpLockoutHistoryPageDto from(final IpLockoutService.HistoryPage page, final Instant now) {
             return new IpLockoutHistoryPageDto(
                 page.rows().stream().map(row -> IpLockoutHistoryDto.from(row, now)).toList(),
                 page.totalCount(),

@@ -46,10 +46,12 @@ public final class ClientAddress {
         if (routingContext == null) {
             return "unknown";
         }
+
         final SocketAddress remoteAddress = routingContext.request().remoteAddress();
         if (remoteAddress == null) {
             return "unknown";
         }
+
         final String hostAddress = remoteAddress.hostAddress();
         return hostAddress == null || hostAddress.isBlank() ? "unknown" : hostAddress;
     }

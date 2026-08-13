@@ -67,8 +67,34 @@ mvn package
 .github/scripts/lint_and_tests.sh java            # the full Java gate (== mvn clean install -Dall)
 .github/scripts/lint_and_tests.sh java,shellcheck # multiple steps, comma-separated
 .github/scripts/lint_and_tests.sh -v java         # stream full output (default hides it, prints on fail)
-# Valid steps: docker, grype, java, javascript, markdown, shellcheck, typescript
+# Valid steps: docker, grype, java, javascript, markdown, perf, qodana, shellcheck, typescript
 # Prerequisite for the java step: cd tests && npx playwright install
+
+# The Qodana whole-program analysis is a TIER of the `java` gate above (in parallel with the Maven/E2E/
+# smoke tiers), so `… java` and `-f` both run it. It is the only check that sees an unused PUBLIC/
+# package-private declaration - PMD, ErrorProne and SpotBugs all stop at `private` - running the reviewed
+# inspection set in code-quality-config/java/qodana/profiles/java.yaml (every switched-off rule carries its
+# reason beside it). It is
+# the longest single tier: ~2m35s warm (index + module model cached) against ~4m for Maven, ~10m COLD,
+# where it alone sets the java step's wall clock - CI caches .qodana/cache for exactly that reason, and
+# never .qodana/results (the SARIF, which must not be inherited). Its dead-code check needs the entry
+# points in code-quality-config/java/qodana/overrides/, which the wrapper copies into .qodana/idea-config and
+# mounts over .idea/ inside the scan container - without
+# them 238 framework-instantiated declarations report as unused, with them 0.
+# BOTH INPUTS ARE IN THE SUBMODULE (`git submodule update --init` is a prerequisite of the scan, and the
+# wrapper refuses to start the container without them); qodana.yaml at the repo root is the only Qodana
+# config tracked here, and `.qodana/` is now purely the scan's gitignored working dir (cache/results/
+# idea-config). A change under code-quality-config/java/ auto-detects as the `java` step, so editing the
+# profile now re-triggers the tier that reads it.
+# ORDER DECIDES inside the profile - an individual `- inspection:` entry placed ABOVE its own
+# `- group: "category:..."` is silently re-enabled by it. It reports on JAVA SOURCE ONLY - the profile's
+# first entry is
+# `ignore: ["*", "**/*", "!**/*.java"]`, so every other file type stays with the gate that already covers
+# it (shellcheck, markdown, typescript, hadolint). The profile MUST be reached by `imports:` in
+# qodana.yaml: `profile: path:` / `base: path:` / `--profile-path` are accepted and then silently
+# ignored, falling back to the IDE Default profile (which omits UnusedDeclaration - the whole point of
+# the step). Name it alone to run ONLY the scan, when iterating on its config:
+.github/scripts/lint_and_tests.sh qodana
 
 # Run unit tests only (no DB needed) — the one gate the wrapper has no scoped step for
 mvn test -Dtests
@@ -92,9 +118,10 @@ docker compose logs -f app
 > **Always run the quality gate through `.github/scripts/lint_and_tests.sh`, never `mvn clean install -Dall`
 > directly**, and **scope it to the step you touched**: `… java` after ANY Java/template/CSS/UI-spec/Dockerfile
 > change, `… shellcheck` after a `*.sh` edit, `… markdown` after docs, etc. (comma-separate to combine; bare =
-> auto-detect changed steps; `-v` streams output; `-f`/`--force` runs everything). The `java` step **is** the
-> whole JVM gate — `mvn clean install -Dall` (unit + `*IT` + linters) then, only if green, the E2E and
-> deployment-smoke tiers. **The Maven build is unit + `*IT` (+ linters) ONLY; E2E/smoke/perf are chained onto
+> auto-detect changed steps; `-v` streams output; `-f`/`--force` runs everything — `qodana` is absent from that
+> list only because the `java` gate already runs it as a tier, so naming it too would scan twice). The `java` step **is** the
+> whole JVM gate — `mvn clean install -Dall` (unit + `*IT` + linters) then, only if green, the E2E tier,
+> with the deployment-smoke and Qodana tiers running in parallel alongside them. **The Maven build is unit + `*IT` (+ linters) ONLY; E2E/smoke/perf are chained onto
 > the wrapper's steps, never in any `mvn` command — do not re-add them to the pom.** Full tier detail:
 > [`TESTING.md`](TESTING.md).
 
@@ -148,6 +175,7 @@ Under `src/main/java/net/zodac/diurnal/`:
 | `note`   | `Note` entity + `NoteQueries` + `NoteService`/`NoteResult` (the single owner of every note write and every search, and the encrypt/decrypt of content) + `NoteContent` (the per-note seal, bound to owner+date) + `UserNotesKey` entity + `NoteKeys` (mints an account's data key at creation, opens it per request) + `NoteSearch` (the pure match + snippet rules) + `NoteHit`/`NoteSnippetPart`/`NoteRow`/`PaginatedNotes` + `NotePages` (the notes page's slice/row presentation) + `NotesWebResource` (the `/notes` page) + `NotesInternalResource` (`/internal/notes` range feed + `/list` search fragment + save/clear) + `NotesApiResource` (`/api/v1/notes` public CRUD + search). One free-text note per user per day, writable for ANY date including future ones, encrypted at rest |
 | `user`   | `User` entity, `UserResource` (`/api/v1/users/me`), `UserSettings`, the per-section pagination trio `PageSection`/`PageSizePref`/`PageSizes`, and the settings-picker enums `Theme`/`Font`/`CalendarView` (each `implements PreviewOption`)                                                                                                                                                   |
 | `web`    | `WebResource` — all top-level page routes (dashboard, login, register, logout, settings) + the `/internal/settings/*` preference endpoints; `AdminWebResource` (admin pages) + `AdminUsersInternalResource` (`/internal/admin/users` fragments) + `AppInfo` (footer/template metadata bean)                         |
+| `page`   | `Pages` + `PageWindow` - the one place a requested page number is resolved against a total (`window(...)`, clamping into range) and an already-fetched list is sliced into that page (`slice(...)`). Every list view and its API twin goes through it; see the Pagination section below                                                                                                                                     |
 | `colour` | `Colours` - the rules every user-chosen colour obeys: the `#rrggbb` format check, the HSL-to-hex conversion, and the lightening that makes a colour readable on a background (the calendar's brand-filled "today" cell). Shared by `action` and `user`                                                    |
 | `crypto` | The encryption primitives, all pure statics with no persistence or request state: `Aes256Gcm` (AEAD seal/open, IV-prefixed), `Hkdf` (RFC 5869 over HMAC-SHA-256, for domain separation), `DataKeyEnvelope` (wrap/unwrap a user's data key under the application master key) and `MasterKey` (decode/validate the configured value). Used by `note`                     |
 | `transfer` | The per-user data export/import: `Csv` (RFC 4180 read/write) + `TransferArchive` (ZIP pack/unpack with zip-bomb caps) + `TransferFiles` (the three members and their headers) + `ImportParser`/`ParseOutcome` (the pure parse+validate) + the `ImportPlan`/`ActionDraft`/`LogDraft`/`NoteDraft`/`ImportProblem`/`ImportSummary` records (+ `ImportSummaryExtensions`) + `ExportService` + `ImportService`/`ImportResult` (the single owner of the import) + `TransferApiResource` (`/api/v1/data/*`) + `TransferInternalResource` (`/internal/data/*`). See [`TRANSFER.md`](TRANSFER.md) |
@@ -270,7 +298,13 @@ is only its DEFAULT caption - users may rename any stat (stored per key on `Stat
 
 ### Pagination
 
-All list views (actions, day-panel, stats) use in-memory pagination: fetch all, filter, slice. Page size is a per-user setting: the picker offers
+All list views (actions, day-panel, stats) use in-memory pagination: fetch all, filter, slice. **The arithmetic behind that is `page/Pages`, never
+written out at the list**: `Pages.window(totalCount, pageNum, pageSize)` resolves the requested page (an empty list still has a page 1; a page past
+the end is CLAMPED to the last real one) and `Pages.slice(all, window)` takes its rows. The counted-query lists (admin users, IP-lockout history) ask
+for the same window and feed `currentPage() - 1` to Panache's `Page.of`. A public API resource asks for the window too, but uses only
+`totalPages()` - it REJECTS an out-of-range page instead of taking the clamp (surface policy, marked as such at each API resource).
+
+Page size is a per-user setting: the picker offers
 `{5, 10, 25, 50, 100}` (default `5`), but any whole number in `[MIN_PAGE_SIZE, MAX_PAGE_SIZE]` is accepted, parsed and range-checked in ONE pass by
 `UserSettings.parsePageSize()` - an out-of-range value is rejected, never coerced. `PaginatedDayActions` adds filler rows to keep every page the same
 height.
@@ -332,7 +366,8 @@ admin IP-lockout history follows the general value (no section of its own).
   an export necessarily opens them), which is why `transfer` joins `note`/`crypto` in
   `SecretsStayOutOfLogsTest.GUARDED_PACKAGES` and why no rejection message may quote note content. Notes are written
   back only through `NoteService.replaceAll`, the one thing that can seal them. See [`TRANSFER.md`](TRANSFER.md).
-- **All date-boundary "now"/"today" goes through `AppClock`** (`@ApplicationScoped`). Business logic calls `clock.today()`/`clock.zone()`. Entity
+- **All date-boundary "now"/"today" goes through `AppClock`** (`@ApplicationScoped`). Business logic calls `clock.today(clock.zoneFor(user.timezone))`
+  / `clock.now()` - there is deliberately NO zero-argument `today()`, since every user-visible date boundary belongs to that user's timezone. Entity
   audit timestamps (`createdAt`/`updatedAt`/`lastLoginAt`) use `Instant.now()` directly (zone-independent, not date-boundary sensitive).
 - `app.timezone` (default `UTC`) feeds `AppClock`; must match `TZ` in `docker-compose.yml`.
 - `LogWebResource.isFuture()` blocks logging for future dates in the user's configured timezone.
@@ -404,7 +439,7 @@ Flyway scripts in `src/main/resources/db/migration/`, sequential (`V1__`, `V2__`
 ### Testing tiers & conventions
 
 The integration-test base/helpers (`IntegrationTestBase`, `newUser()`/`newAction()`/`newLog()`/`runInTx()`), the
-deterministic-time/UTC rules (`FIXED_TODAY`, `freezeDate`/`freezeInstant`), and the deployment-smoke
+deterministic-time/UTC rules (`FIXED_TODAY`, `freezeInstant`), and the deployment-smoke
 (`tests/smoke/`) and performance/load (`tests/perf/`) tiers are documented in [`TESTING.md`](TESTING.md). **Read
 it before adding tests or touching a test tier.** Load-bearing reminder: the Maven build is unit + `*IT`
 (+ linters) ONLY - the E2E, smoke and perf tiers are chained onto the wrapper's `java`/`perf` steps, never wired

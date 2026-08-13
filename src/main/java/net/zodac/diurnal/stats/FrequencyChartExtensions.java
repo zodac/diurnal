@@ -53,7 +53,7 @@ public final class FrequencyChartExtensions {
     @TemplateExtension
     public static String compareIds(final FrequencyChart chart) {
         return chart.series().stream()
-            .skip(1)
+            .skip(1L)
             .map(series -> series.subjectId().toString())
             .collect(Collectors.joining(","));
     }
@@ -70,7 +70,7 @@ public final class FrequencyChartExtensions {
     public static String candidatesUrl(final FrequencyChart chart) {
         final UUID primaryId = chart.series().getFirst().subjectId();
         final String compared = chart.series().stream()
-            .skip(1)
+            .skip(1L)
             .map(series -> "compare=" + series.subjectId())
             .collect(Collectors.joining("&"));
         final String base = "/internal/stats/chart/" + primaryId + "/candidates";

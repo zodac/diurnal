@@ -34,18 +34,18 @@ import org.junit.jupiter.api.Test;
  * clock, isolated per user.
  */
 @QuarkusTest
-@TestSecurity(user = "stats-api-it@lt.test", roles = Role.Values.USER)
+@TestSecurity(user = "stats-api-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class StatsApiResourceIT extends IntegrationTestBase {
 
-    static final String PRIMARY = "stats-api-it@lt.test";
-    static final String OTHER   = "stats-api-other@lt.test";
+    private static final String PRIMARY = "stats-api-it@lt.test";
+    private static final String OTHER   = "stats-api-other@lt.test";
 
-    static final LocalDate TODAY = FIXED_TODAY;
+    private static final LocalDate TODAY = FIXED_TODAY;
 
-    UUID primaryId;
-    UUID otherId;
-    Action action;
+    private UUID primaryId;
+    private UUID otherId;
+    private Action action;
 
     @Override
     protected void createDbState() {

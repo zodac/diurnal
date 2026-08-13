@@ -93,7 +93,7 @@ public final class Durations {
      * @return {@code true} if the span reaches a calendar month
      */
     public static boolean exceedsOneMonth(final DaySpan span) {
-        return period(span).toTotalMonths() > 0;
+        return period(span).toTotalMonths() > 0L;
     }
 
     /**
@@ -115,7 +115,7 @@ public final class Durations {
      * @return {@code unit} when {@code count} is exactly one, else {@code unit + "s"}
      */
     public static String plural(final long count, final String unit) {
-        return count == 1 ? unit : unit + "s";
+        return count == 1L ? unit : unit + "s";
     }
 
     private static Period period(final DaySpan span) {

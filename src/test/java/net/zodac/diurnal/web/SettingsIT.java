@@ -38,13 +38,13 @@ import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
-@TestSecurity(user = "settings-it@lt.test", roles = Role.Values.USER)
+@TestSecurity(user = "settings-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
 class SettingsIT extends IntegrationTestBase {
 
-    static final String PRIMARY = "settings-it@lt.test";
+    private static final String PRIMARY = "settings-it@lt.test";
     // A second, OIDC-provisioned account (no password hash) used to prove the password field is
     // hidden and its endpoint refused for accounts whose auth is managed by an identity provider.
-    static final String OIDC_USER = "settings-oidc-it@lt.test";
+    private static final String OIDC_USER = "settings-oidc-it@lt.test";
 
     @Override
     protected void createDbState() {
@@ -238,7 +238,7 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = OIDC_USER, roles = Role.Values.USER)
+    @TestSecurity(user = OIDC_USER, roles = Role.Values.USER_INTERNAL_VALUE)
     void verifyCurrentPassword_oidcAccount_returns403() {
         given().formParam("currentPassword", "anything")
                 .post("/internal/settings/password/verify")
@@ -246,7 +246,7 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = OIDC_USER, roles = Role.Values.USER)
+    @TestSecurity(user = OIDC_USER, roles = Role.Values.USER_INTERNAL_VALUE)
     void updatePassword_oidcAccount_returns403AndSetsNoPassword() {
         given().formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "new_secret_123")
@@ -278,7 +278,7 @@ class SettingsIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = OIDC_USER, roles = Role.Values.USER)
+    @TestSecurity(user = OIDC_USER, roles = Role.Values.USER_INTERNAL_VALUE)
     void settingsPage_oidcAccount_rendersNoPasswordSection() {
         // An OIDC account gets no Password section at all — no change form and no provider note
         // (the Identity Provider section states the connection when OIDC is enabled).

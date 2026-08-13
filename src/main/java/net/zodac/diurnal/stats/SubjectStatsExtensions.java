@@ -70,7 +70,7 @@ public final class SubjectStatsExtensions {
      * @return {@code true} if the action was performed this month
      */
     public static boolean performedThisMonth(final SubjectStats stats) {
-        return stats.thisMonthCount() > 0;
+        return stats.thisMonthCount() > 0L;
     }
 
     // ── Stats-page tiles (user-configurable display) ──────────────────────
@@ -95,6 +95,10 @@ public final class SubjectStatsExtensions {
                 .toList();
     }
 
+    // One exhaustive arm per StatField, so its length is the size of the catalogue rather than complexity. Splitting it would need a second switch
+    // over the same enum, which must either carry an unreachable `default -> throw` (a mutant no test can kill, and PITest is held at 100%) or a
+    // reachable one that silently renders the next field added as whichever case it absorbed. The flat table is the safer form.
+    @SuppressWarnings("OverlyLongMethod")
     private static StatTile tile(final SubjectStats stats, final DisplayStat displayed, final int decimalPlaces) {
         final String label = displayed.label();
         return switch (displayed.field()) {
@@ -149,7 +153,7 @@ public final class SubjectStatsExtensions {
             return "since " + start;
         }
 
-        final LocalDate lastDay = span.endExclusive().minusDays(1);
+        final LocalDate lastDay = span.endExclusive().minusDays(1L);
         return lastDay.equals(span.start()) ? start : start + RANGE_SEPARATOR + lastDay.format(DATE_FMT);
     }
 
@@ -301,15 +305,7 @@ public final class SubjectStatsExtensions {
         return formatDecimal((double) total / periods, decimalPlaces);
     }
 
-    /**
-     * Formats a fractional stat value to {@code decimalPlaces} decimals, simplifying an exact zero to a plain {@code "0"} so an empty average reads
-     * as {@code "0"} rather than {@code "0.0"}.
-     *
-     * @param value the value to format
-     * @param decimalPlaces the number of decimal places to render
-     * @return the formatted value
-     */
-    static String formatDecimal(final double value, final int decimalPlaces) {
+    private static String formatDecimal(final double value, final int decimalPlaces) {
         if (value == ZERO) {
             return "0";
         }
@@ -323,23 +319,11 @@ public final class SubjectStatsExtensions {
     // long run always condenses the same way ("412 days" -> "1 year, 1 month, 17 days"), a one-unit run never
     // reads "1 months", and a short run is never left as a bare number with its unit demoted to the caption.
 
-    /**
-     * The run of days on which the action has NOT been performed since it last was: the day after the last logged date, up to and including today. An
-     * action performed today (or never performed at all) has an empty run.
-     *
-     * <p>
-     * Framed as the blank run rather than as "the distance from the last logged date to today" so that the current gap is measured exactly the same
-     * way as {@link SubjectStats#longestGap()} - the current gap becomes one of those the moment the action is performed again, and the two must not
-     * disagree about their own length or wording.
-     *
-     * @param stats the statistics to inspect
-     * @return the current gap
-     */
-    public static DaySpan currentGapSpan(final SubjectStats stats) {
+    private static DaySpan currentGapSpan(final SubjectStats stats) {
         final LocalDate lastPerformed = stats.lastPerformed();
         return lastPerformed == null
                 ? new DaySpan(stats.today(), stats.today())
-                : new DaySpan(lastPerformed.plusDays(1), stats.today().plusDays(1));
+                : new DaySpan(lastPerformed.plusDays(1L), stats.today().plusDays(1L));
     }
 
     /**
@@ -446,17 +430,17 @@ public final class SubjectStatsExtensions {
     // ── Private ───────────────────────────────────────────────────────────
 
     private static String trend(final long current, final long previous) {
-        if (current == 0 && previous == 0) {
+        if (current == 0L && previous == 0L) {
             return "—";
         }
-        if (previous == 0) {
+        if (previous == 0L) {
             return "+" + current;
         }
         final long diff = current - previous;
-        if (diff > 0) {
+        if (diff > 0L) {
             return "+" + diff;
         }
-        if (diff < 0) {
+        if (diff < 0L) {
             return Long.toString(diff);
         }
         return "=";
@@ -464,10 +448,10 @@ public final class SubjectStatsExtensions {
 
     private static String trendClass(final long current, final long previous) {
         final long diff = current - previous;
-        if (diff > 0) {
+        if (diff > 0L) {
             return "text-green-600";
         }
-        if (diff < 0) {
+        if (diff < 0L) {
             return "text-red-500";
         }
         return "text-gray-400";
