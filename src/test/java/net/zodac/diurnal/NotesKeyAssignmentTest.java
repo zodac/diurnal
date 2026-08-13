@@ -83,7 +83,7 @@ class NotesKeyAssignmentTest {
     }
 
     private static List<Path> sourceFiles() {
-        try (Stream<Path> paths = Files.walk(SOURCE_ROOT)) {
+        try (final Stream<Path> paths = Files.walk(SOURCE_ROOT)) {
             return paths
                 .filter(path -> path.toString().endsWith(".java"))
                 .sorted()

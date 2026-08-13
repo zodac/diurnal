@@ -49,8 +49,8 @@ class LogsApiAuthIT extends IntegrationTestBase {
     @Inject
     AppClock clock;
 
-    User user;
-    Action action;
+    private User user;
+    private Action action;
 
     @Override
     protected void createDbState() {

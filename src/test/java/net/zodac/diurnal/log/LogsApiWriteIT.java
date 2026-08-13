@@ -38,19 +38,19 @@ import org.junit.jupiter.api.Test;
  * the frozen clock) and ownership isolation.
  */
 @QuarkusTest
-@TestSecurity(user = "logs-api-write-it@lt.test", roles = Role.Values.USER)
+@TestSecurity(user = "logs-api-write-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class LogsApiWriteIT extends IntegrationTestBase {
 
-    static final String PRIMARY = "logs-api-write-it@lt.test";
-    static final String OTHER   = "logs-api-write-other@lt.test";
+    private static final String PRIMARY = "logs-api-write-it@lt.test";
+    private static final String OTHER   = "logs-api-write-other@lt.test";
 
-    static final LocalDate TODAY    = FIXED_TODAY;
-    static final LocalDate TOMORROW = FIXED_TODAY.plusDays(1);
+    private static final LocalDate TODAY    = FIXED_TODAY;
+    private static final LocalDate TOMORROW = FIXED_TODAY.plusDays(1);
 
-    UUID primaryId;
-    UUID otherId;
-    Action action;
+    private UUID primaryId;
+    private UUID otherId;
+    private Action action;
 
     @Override
     protected void createDbState() {

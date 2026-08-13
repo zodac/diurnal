@@ -17,11 +17,16 @@
 
 package net.zodac.diurnal.crypto;
 
-import java.security.GeneralSecurityException;
+import java.security.InvalidAlgorithmParameterException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Optional;
+import javax.crypto.BadPaddingException;
 import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -66,8 +71,8 @@ public final class Aes256Gcm {
      * concatenated with the ciphertext and its authentication tag. The associated data is not stored — the caller must supply the identical value to
      * {@link #open(byte[], byte[], byte[])} or the open fails.
      *
-     * @param key the {@value #KEY_BYTES}-byte encryption key
-     * @param plaintext the bytes to encrypt
+     * @param key            the {@value #KEY_BYTES}-byte encryption key
+     * @param plaintext      the bytes to encrypt
      * @param associatedData the context to authenticate but not encrypt, binding the ciphertext to where it is stored
      * @return the sealed blob: 12 bytes of IV, followed by the ciphertext and tag
      */
@@ -85,7 +90,8 @@ public final class Aes256Gcm {
             System.arraycopy(iv, 0, sealed, 0, IV_BYTES);
             System.arraycopy(ciphertext, 0, sealed, IV_BYTES, ciphertext.length);
             return sealed;
-        } catch (final GeneralSecurityException e) {
+        } catch (final BadPaddingException | IllegalBlockSizeException | InvalidAlgorithmParameterException | InvalidKeyException
+                       | NoSuchAlgorithmException | NoSuchPaddingException e) {
             // AES/GCM is a mandated JDK transformation and the key length is fixed by the caller contract, so a failure here is a programming
             // error rather than a runtime case. The message deliberately carries no key, plaintext or associated data.
             throw new IllegalStateException("Unable to seal value", e);
@@ -97,8 +103,8 @@ public final class Aes256Gcm {
      * empty {@link Optional} when the key is wrong, the associated data does not match, or the blob has been truncated or modified — all four are the
      * same answer to the caller ("this key does not open this value"), and none is distinguishable from the others by design.
      *
-     * @param key the {@value #KEY_BYTES}-byte decryption key
-     * @param sealed the blob to open, as returned by {@code seal}
+     * @param key            the {@value #KEY_BYTES}-byte decryption key
+     * @param sealed         the blob to open, as returned by {@code seal}
      * @param associatedData the exact context supplied when the value was sealed
      * @return the decrypted bytes, or empty when the value does not open
      */
@@ -114,7 +120,8 @@ public final class Aes256Gcm {
             cipher.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, KEY_ALGORITHM), new GCMParameterSpec(TAG_BITS, iv));
             cipher.updateAAD(associatedData);
             return Optional.of(cipher.doFinal(ciphertext));
-        } catch (final GeneralSecurityException e) {
+        } catch (final BadPaddingException | IllegalBlockSizeException | InvalidAlgorithmParameterException | InvalidKeyException
+                       | NoSuchAlgorithmException | NoSuchPaddingException e) {
             // The expected failure path, not an error: a wrong passphrase reaches here on every mistyped attempt. Swallowed deliberately - the
             // exception distinguishes a bad tag from a bad key, and surfacing that difference would leak which one the caller got wrong.
             return Optional.empty();

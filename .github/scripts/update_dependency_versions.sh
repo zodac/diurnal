@@ -18,7 +18,8 @@
 #                   PACKAGES block — cwebp, on the Postgres/Debian base)
 #                 - Docker image pins AND the pinned eslint toolchain (eslint, @eslint/js,
 #                   @typescript-eslint, globals, typescript) in .github/scripts/lint_and_tests.sh
-#                   (node when confirmed; hadolint + markdownlint-cli2 + shellcheck + grype best-effort)
+#                   (node when confirmed; hadolint + markdownlint-cli2 + shellcheck + grype + qodana
+#                   best-effort; the qodana pin is also mirrored into qodana.yaml's `linter:`)
 #                   Note: shellcheck installed as an apt/apk package instead (pinned in a
 #                   # BEGIN/END … PACKAGES block) is handled generically by the package updaters.
 #                 - k6 Docker image pin in tests/run-perf.sh (the perf tier's load generator; best-effort)
@@ -56,6 +57,7 @@ POM_XML="./pom.xml"
 WORKFLOWS_DIR=".github/workflows"
 GITMODULES_FILE=".gitmodules"
 LINT_SCRIPT=".github/scripts/lint_and_tests.sh"
+QODANA_CONFIG="qodana.yaml"
 PERF_SCRIPT="./tests/run-perf.sh"
 
 # Node version resolved (and confirmed to exist) by update_node, consumed by update_lint_script for
@@ -424,6 +426,8 @@ update_postgres() {
 #   - HADOLINT_DOCKER_IMAGE, MARKDOWNLINT_DOCKER_IMAGE, SHELLCHECK_DOCKER_IMAGE and GRYPE_DOCKER_IMAGE
 #     are independent best-effort: each is bumped to the latest GitHub release whose corresponding
 #     Docker Hub tag is confirmed to exist.
+#   - QODANA_DOCKER_IMAGE is resolved from Docker Hub's tag list instead (it has no GitHub release to
+#     track), and is the one pin written to two files - the gate script and qodana.yaml's `linter:`.
 #
 # If shellcheck is instead pinned as an apt/apk package (a `shellcheck="<ver>"` line inside a
 # # BEGIN/END … PACKAGES block in a Dockerfile), no work is needed here — update_apt_packages /
@@ -502,6 +506,47 @@ update_lint_script() {
     else
         sed -i "s|GRYPE_DOCKER_IMAGE=\"anchore/grype:[^\"]*\"|GRYPE_DOCKER_IMAGE=\"anchore/grype:${grype_tag}\"|" "${LINT_SCRIPT}"
         ok "grype image → anchore/grype:${grype_tag}"
+    fi
+
+    # ── qodana (best-effort) ──────────────────────────────────────────────────
+    # No GitHub release to key off: the image tracks IntelliJ release trains, tagged YYYY.N on Docker
+    # Hub with a matching YYYY.N-eap pre-release. So read the tag list and take the highest tag that is
+    # bare YYYY.N - the anchored regex drops every -eap, and sort -V picks the newest (the API's order
+    # is not guaranteed). Unlike the other pins this one lives in TWO files: the gate's own
+    # QODANA_DOCKER_IMAGE, and `linter:` in qodana.yaml, which is what the JetBrains CLI reads when the
+    # scan is run by hand. Both are rewritten here so they cannot drift apart.
+    # The tag alone is NOT a pin. JetBrains publish only YYYY.N and RE-PUSH it - `2026.2` carried build
+    # 262.9608 and then 262.10073 within the same week - so two machines on the same tag can be running
+    # different images, and a re-push can change the gate's result with no commit here. There is no patch
+    # tag to move to (the CLI's own "2026.2.1" is a product version, not something Docker Hub serves), so
+    # the pin is tag@sha256:... - readable and immutable at once. The digest is taken from the same tag
+    # listing, so it always describes the tag directly above it.
+    local qodana_tag qodana_digest qodana_image
+    qodana_tag=$(curl -s --connect-timeout 10 --max-time 30 \
+        "https://hub.docker.com/v2/repositories/jetbrains/qodana-jvm-community/tags?page_size=100" \
+        | jq -r '.results[].name // empty' \
+        | grep -E '^[0-9]{4}\.[0-9]+$' \
+        | sort -V | tail -1)
+    qodana_digest=$(curl -s --connect-timeout 10 --max-time 30 \
+        "https://hub.docker.com/v2/repositories/jetbrains/qodana-jvm-community/tags?page_size=100" \
+        | jq -r --arg tag "${qodana_tag}" '.results[] | select(.name == $tag) | .digest // empty')
+    if [[ -z "${qodana_tag}" ]]; then
+        warn "Could not fetch a stable qodana version, skipping"
+    elif ! hub_tag_exists "jetbrains/qodana-jvm-community" "${qodana_tag}"; then
+        warn "jetbrains/qodana-jvm-community:${qodana_tag} not on Docker Hub, skipping"
+    elif [[ -z "${qodana_digest}" ]]; then
+        # Deliberately skipped rather than falling back to the bare tag: a silent downgrade to a mutable
+        # reference is the exact drift this pin exists to stop.
+        warn "Could not resolve a digest for jetbrains/qodana-jvm-community:${qodana_tag}, skipping"
+    else
+        qodana_image="jetbrains/qodana-jvm-community:${qodana_tag}@${qodana_digest}"
+        sed -i "s|QODANA_DOCKER_IMAGE=\"jetbrains/qodana-jvm-community:[^\"]*\"|QODANA_DOCKER_IMAGE=\"${qodana_image}\"|" "${LINT_SCRIPT}"
+        if [[ -f "${QODANA_CONFIG}" ]]; then
+            sed -i "s|^linter: jetbrains/qodana-jvm-community:.*|linter: ${qodana_image}|" "${QODANA_CONFIG}"
+        else
+            warn "No ${QODANA_CONFIG}, only the ${LINT_SCRIPT} pin was bumped"
+        fi
+        ok "qodana image → ${qodana_image}"
     fi
 
     # ── the eslint toolchain baked into ESLINT_BUILD_IMAGE (best-effort) ──────

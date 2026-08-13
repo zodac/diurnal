@@ -19,40 +19,38 @@ package net.zodac.diurnal.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.Optional;
-import net.zodac.diurnal.auth.OpenApiDocsAccess.Outcome;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link OpenApiDocsAccess#decide(Optional)}: the documentation surface is served only to an administrator, redirected to /login when
+ * Unit tests for {@link OpenApiDocsAccess#decide(User)}: the documentation surface is served only to an administrator, redirected to /login when
  * anonymous, and forbidden for a non-administrator.
  */
 class OpenApiDocsAccessTest {
 
     @Test
     void decide_anonymous_redirectsToLogin() {
-        final Outcome outcome = OpenApiDocsAccess.decide(Optional.empty());
+        final OpenApiDocsAccess.Outcome outcome = OpenApiDocsAccess.decide(null);
         assertThat(outcome)
                 .as("An anonymous request must be redirected to login")
-                .isEqualTo(Outcome.REDIRECT_TO_LOGIN);
+                .isEqualTo(OpenApiDocsAccess.Outcome.REDIRECT_TO_LOGIN);
     }
 
     @Test
     void decide_administrator_isAllowed() {
-        final Outcome outcome = OpenApiDocsAccess.decide(Optional.of(userWithRole(Role.ADMIN.storageValue())));
+        final OpenApiDocsAccess.Outcome outcome = OpenApiDocsAccess.decide(userWithRole(Role.ADMIN.storageValue()));
         assertThat(outcome)
                 .as("An authenticated administrator must be allowed to see the documentation")
-                .isEqualTo(Outcome.ALLOW);
+                .isEqualTo(OpenApiDocsAccess.Outcome.ALLOW);
     }
 
     @Test
     void decide_nonAdministrator_isForbidden() {
-        final Outcome outcome = OpenApiDocsAccess.decide(Optional.of(userWithRole(Role.USER.storageValue())));
+        final OpenApiDocsAccess.Outcome outcome = OpenApiDocsAccess.decide(userWithRole(Role.USER.storageValue()));
         assertThat(outcome)
                 .as("An authenticated non-administrator must be forbidden")
-                .isEqualTo(Outcome.FORBIDDEN);
+                .isEqualTo(OpenApiDocsAccess.Outcome.FORBIDDEN);
     }
 
     private static User userWithRole(final String role) {

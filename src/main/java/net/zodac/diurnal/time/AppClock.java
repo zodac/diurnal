@@ -64,7 +64,7 @@ public class AppClock {
     @Inject
     public AppClock(final AppConfig appConfig) {
         this.appConfig = appConfig;
-        this.clock = Clock.system(ZoneId.of(appConfig.timezone()));
+        clock = Clock.system(ZoneId.of(appConfig.timezone()));
     }
 
     /**
@@ -96,6 +96,7 @@ public class AppClock {
         if (timezoneId == null || timezoneId.isBlank()) {
             return clock.getZone();
         }
+
         try {
             return ZoneId.of(timezoneId);
         } catch (final DateTimeException e) {
@@ -113,13 +114,13 @@ public class AppClock {
      * Freeze time to a fixed clock (test-only).
      */
     public void useFixedClock(final Clock fixed) {
-        this.clock = fixed;
+        clock = fixed;
     }
 
     /**
      * Restore the real system clock in the configured zone (test-only).
      */
     public void useSystemClock() {
-        this.clock = Clock.system(ZoneId.of(appConfig.timezone()));
+        clock = Clock.system(ZoneId.of(appConfig.timezone()));
     }
 }

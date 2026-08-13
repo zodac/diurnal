@@ -47,23 +47,22 @@ import org.junit.jupiter.params.provider.MethodSource;
  * mode this suite exists to catch.
  */
 @QuarkusTest
-@TestSecurity(user = "hostile-it@lt.test", roles = Role.Values.USER)
+@TestSecurity(user = "hostile-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class HostileInputIT extends IntegrationTestBase {
 
-    static final String PRIMARY = "hostile-it@lt.test";
+    private static final String PRIMARY = "hostile-it@lt.test";
 
-    static final int SERVER_ERROR = 500;
+    private static final int SERVER_ERROR = 500;
 
-    static final int FIRST_PRINTABLE = 0x20;
+    private static final int FIRST_PRINTABLE = 0x20;
 
-    UUID primaryId;
-    Action action;
+    private Action action;
 
     @Override
     protected void createDbState() {
-        primaryId = newUser(PRIMARY, "Hostile User").id;
-        action    = newAction(primaryId, "Running");
+        final UUID primaryId = newUser(PRIMARY, "Hostile User").id;
+        action = newAction(primaryId, "Running");
     }
 
     private static Stream<String> hostileValues() {

@@ -51,6 +51,7 @@ public record SubjectStats(
     DaySpan   longestStreak,
     DaySpan   longestGap,
     // Comparative
+    // TODO: Should these be longs or ints?
     long      thisMonthCount,
     long      lastMonthCount,
     long      thisYearCount,

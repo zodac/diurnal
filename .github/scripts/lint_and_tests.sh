@@ -24,6 +24,8 @@
 #                  -f, --force
 #                    Run ALL steps, skipping the git-diff auto-detection (equivalent to passing
 #                    the full step list). Cannot be combined with an explicit [steps] argument.
+#                    Lists every step except `qodana`, which is not skipped but reached through `java`
+#                    (which runs it as a tier); listing it too would run the same scan twice. See AUTO_STEPS.
 #
 #                  -e, --exit-on-failure
 #                    Stop at the first failing step instead of running the remaining steps. Off by
@@ -38,18 +40,29 @@
 #                    then run serially afterwards: grype builds the production runtime image that the
 #                    java step's smoke tier also builds (serial = a cache hit, concurrent = built twice),
 #                    and perf MEASURES the application, so anything else running invalidates its numbers.
+#                    The Qodana scan is a TIER of `java`, not a step beside it, so it rides that step's own
+#                    parallelism rather than the lane machinery.
 #                    Selecting a single lane-eligible step skips the machinery and runs it inline.
 #
 #                  Valid steps:
 #                    - docker      Lint the Dockerfiles with hadolint
 #                    - grype       Build the runtime image and scan it for CVEs with grype
 #                    - java        The full JVM gate: mvn clean install -Dall (unit + *IT + linters),
-#                                  then the Playwright E2E/UI suite, then the deployment-smoke suite
+#                                  the Playwright E2E/UI suite, the deployment-smoke suite, and the Qodana
+#                                  whole-program analysis — the smoke and Qodana tiers run in parallel with
+#                                  the rest, and Qodana dominates the wall clock (tens of minutes)
 #                    - javascript  Lint JavaScript files with eslint
 #                    - markdown    Lint Markdown files with markdownlint-cli2
 #                    - perf        k6 load/performance suite against the real prod image
 #                                  (tests/run-perf.sh). Auto-detected on the SAME file set as `java`
 #                                  (app/runtime/deps changes) plus the perf suite's own files.
+#                    - qodana      Whole-program analysis with the IntelliJ inspection engine — the only
+#                                  check that can see an unused PUBLIC declaration (PMD/ErrorProne/SpotBugs
+#                                  all stop at private). Configured by qodana.yaml, whose inspection profile
+#                                  and IDE entry-point overrides live in the code-quality-config submodule
+#                                  (code-quality-config/java/qodana/). Normally reached as a
+#                                  tier of `java`; name it directly to run ONLY the scan, which is what you
+#                                  want when iterating on qodana.yaml or the inspection profile.
 #                    - shellcheck  Lint shell scripts (*.sh) with shellcheck
 #                    - typescript  Lint TypeScript files with eslint
 #
@@ -93,7 +106,12 @@ LANE_NAMES=()
 LANE_LOGS=()
 LANE_RCS=()
 
-trap 'echo; echo "❌ Interrupted"; lane_abort_all; exit 130' INT
+# Name of the in-flight Qodana container, set by qodana_prepare. Declared here so `set -u` is satisfied
+# on the interrupt path, which removes it: the daemon owns that container, so aborting the script would
+# otherwise leave a whole-project analysis running with nothing attached to it.
+QODANA_CONTAINER=""
+
+trap 'echo; echo "❌ Interrupted"; lane_abort_all; qodana_stop_container; exit 130' INT
 
 # Absolute path to this script (basedir + filename), so the "re-run ..." hints printed on failure are
 # copy/paste-ready from any working directory rather than a bare filename. Each command substitution is
@@ -122,6 +140,10 @@ GRYPE_DOCKER_IMAGE="anchore/grype:v0.116.1"
 HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.15.1-alpine"
 MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.2"
 SHELLCHECK_DOCKER_IMAGE="koalaman/shellcheck:v0.11.0"
+# The IntelliJ inspection engine, packaged for CI. Tags are IntelliJ release trains (YYYY.N); the
+# `-eap` ones are pre-releases and are never pinned. KEEP IN SYNC with `linter:` in qodana.yaml —
+# update_dependency_versions.sh bumps both together, so neither is edited by hand.
+QODANA_DOCKER_IMAGE="jetbrains/qodana-jvm-community:2026.2@sha256:8ff36b5cebc0a6d720f77dcf3e0a94a03c39b4c42c3724a99ce5f7e462e42f99"
 
 # The runtime image the grype step builds and scans (the same final stage the published image uses).
 DIURNAL_RUNTIME_IMAGE="zodac/diurnal:latest"
@@ -134,7 +156,36 @@ DIURNAL_RUNTIME_IMAGE="zodac/diurnal:latest"
 # remove it with `docker volume rm ${GRYPE_DB_CACHE_VOLUME}`.
 GRYPE_DB_CACHE_VOLUME="${GRYPE_DB_CACHE_VOLUME:-diurnal-grype-db}"
 
-VALID_STEPS=("docker" "grype" "java" "javascript" "markdown" "perf" "shellcheck" "typescript")
+# Qodana's working directories, all under one gitignored top-level dir rather than in target/ (which
+# `mvn clean` wipes, taking the index cache with it and making every run a cold one). The container runs
+# as the invoking user, so nothing it writes here is root-owned and `rm -rf .qodana` always works.
+# There is deliberately NO baseline: every run is judged fresh, and any finding at all breaks the build.
+# NOTHING TRACKED lives here - the whole directory is gitignored, and the scan's configuration comes from
+# the submodule paths below.
+QODANA_WORK_DIR="${PWD}/.qodana"
+
+# The IDE configuration the scan runs with, laid out exactly as `.idea/` (see qodana_prepare). It lives in
+# the code-quality-config submodule beside every other linter's shared config, so the gate depends on no
+# one's local IDE setup - and is copied into QODANA_IDEA_DIR, which is mounted over the project's `.idea`
+# inside the container so the real one is never touched. The inspection PROFILE is a sibling of it and is
+# reached by `imports:` in qodana.yaml rather than by this script.
+QODANA_CONFIG_DIR="${PWD}/code-quality-config/java/qodana"
+QODANA_OVERRIDES_DIR="${QODANA_CONFIG_DIR}/overrides"
+QODANA_PROFILE_FILE="${QODANA_CONFIG_DIR}/profiles/java.yaml"
+QODANA_IDEA_DIR="${QODANA_WORK_DIR}/idea-config"
+
+VALID_STEPS=("docker" "grype" "java" "javascript" "markdown" "perf" "qodana" "shellcheck" "typescript")
+
+# The steps -f/--force runs, and the only ones auto-detection can select: every step EXCEPT `qodana`.
+# NOT because the scan is skipped - the `java` gate runs it as a tier, so -f and auto-detection both
+# cover it - but precisely because they do: listing it here as well would run the same multi-minute scan
+# a second time. `lint_and_tests.sh qodana` still runs it alone, which is what you want when iterating on
+# qodana.yaml or the profile rather than on the code.
+AUTO_STEPS=()
+for _step in "${VALID_STEPS[@]}"; do
+    [[ "${_step}" == "qodana" ]] || AUTO_STEPS+=("${_step}")
+done
+unset _step
 
 # HTTP ports for the E2E and deployment-smoke tiers the `java` step chains after the Maven gate
 # (formerly Maven properties in the pom's `all` profile). The E2E jar reuses 8081 (the @QuarkusTest
@@ -634,10 +685,16 @@ assert_test_port_free() {
 
 run_java() {
     echo
-    echo "Running the full JVM gate [java]: Maven build + E2E + deployment-smoke"
+    echo "Running the full JVM gate [java]: Maven build + E2E + deployment-smoke + Qodana"
 
     # Fail before the (multi-minute) Maven build rather than after every *IT has failed to boot.
     if ! assert_test_port_free; then
+        overall_exit_code=1
+        return
+    fi
+    # Likewise for the Qodana tier's config: check it here, before the first tier is launched in the
+    # background, so the answer is a one-line message rather than an orphaned smoke stack.
+    if ! qodana_config_guard; then
         overall_exit_code=1
         return
     fi
@@ -649,12 +706,23 @@ run_java() {
     #      rebuild needed: it reuses ${PWD}/target/quarkus-app from the install above.
     #   3. tests/run-smoke.sh — deployment-smoke suite against the REAL production image (port 8082),
     #      fully self-contained (builds the image, isolated app+DB stack, readiness-gating check).
+    #   4. Qodana — whole-program static analysis (see qodana_prepare). A Java lint like the ones inside
+    #      the Maven build, so it belongs to this gate rather than sitting beside it; it is simply the one
+    #      that cannot run inside Maven, needing the IntelliJ engine and an index of the whole project.
     #
-    # Tiers 1 and 2 are strictly ordered - E2E boots the jar the Maven build just packaged. Tier 3 is
-    # NOT: it shares nothing with them (its own Docker build context - .dockerignore excludes target/ -
+    # Tiers 1 and 2 are strictly ordered - E2E boots the jar the Maven build just packaged. Tiers 3 and 4
+    # are NOT: neither shares anything with them (its own Docker build context - .dockerignore excludes target/ -
     # its own compose project, its own tmpfs DB, its own port), so it is STARTED FIRST, in the
     # background, and joined at the end. That takes the whole smoke tier (including a multi-stage image
-    # build) off the critical path: the step now costs max(mvn + e2e, smoke) rather than their sum.
+    # build) off the critical path: the step now costs max(mvn + e2e, smoke, qodana) rather than their sum.
+    # Tier 4 rides the same trick and dominates that max by a wide margin - the scan runs for tens of
+    # minutes against a handful for everything else - so in practice it overlaps the other three entirely
+    # and the gate costs about what the scan alone costs. The first few minutes are genuinely contended
+    # (PITest, a multi-stage image build, Chromium and the indexer at once); if that ever destabilises a
+    # tier, moving tier 4 after the join is a one-line change.
+    #
+    # Tier 4 is supervised in ONE direction only: an earlier failure stops the scan (worth many minutes),
+    # but a scan failure does not stop the others, because it cannot happen first - the scan outlives them.
     #
     # The old short-circuit (a failing tier skipped the slower ones that followed) becomes symmetric: the
     # FIRST tier to fail stops the others and the step gives up, in either direction. An earlier tier
@@ -691,6 +759,17 @@ run_java() {
     substep "tests/run-smoke.sh  (deployment-smoke against the real prod image on :${SMOKE_HTTP_PORT}; running in parallel)"
     "${PWD}/tests/run-smoke.sh" "${SMOKE_HTTP_PORT}" "${PWD}" > "${SMOKE_LOG}" 2>&1 &
     SMOKE_PID=$!
+
+    # Tier 4, launched alongside tier 3 and joined last (it is the longest by far).
+    QODANA_RC=""
+    QODANA_LOG="$(mktemp)"
+    QODANA_START_NS="$(date +%s%N)"
+    qodana_prepare
+    substep "qodana  (whole-program analysis with ${QODANA_DOCKER_IMAGE}; running in parallel)"
+    # The pull happens INSIDE the background tier: a cold one is several GB, and pulling before the launch
+    # would hold the Maven tier behind a download that has nothing to do with it.
+    { docker pull "${QODANA_DOCKER_IMAGE}" >/dev/null && "${QODANA_CMD[@]}"; } > "${QODANA_LOG}" 2>&1 &
+    QODANA_PID=$!
 
     run_supervised_tier "mvn" "${mvn_label}  (unit + *IT + linters; packages the fast-jar)" \
         mvn "${mvn_args[@]}" || failed_at="${mvn_label}"
@@ -732,11 +811,37 @@ run_java() {
     fi
     rm -f "${SMOKE_LOG}"
 
+    # Join tier 4. An earlier failure means the scan's answer is moot and its remaining minutes are pure
+    # waste, so stop it - removing the container, not just signalling the client that started it.
+    if [[ -n "${failed_at}" ]]; then
+        stop_tier "${QODANA_PID}"
+        qodana_stop_container
+        substep "qodana stopped early (${failed_at} already failed)"
+    else
+        QODANA_RC=0
+        wait "${QODANA_PID}" || QODANA_RC=$?
+        substep "qodana finished (parallel tier)"
+        record_substep_time "qodana" "${QODANA_START_NS}" "${QODANA_RC}"
+        if [[ "${QODANA_RC}" != "0" ]]; then
+            failed_at="qodana"
+            [[ -s "${QODANA_LOG}" ]] && cat "${QODANA_LOG}"
+            if qodana_dependency_guard; then
+                qodana_failure_hint
+            fi
+        elif ! qodana_dependency_guard; then
+            # A pass the scan could have produced with no source on the classpath at all is not a pass.
+            failed_at="qodana"
+        elif [[ "${VERBOSE}" == true && -s "${QODANA_LOG}" ]]; then
+            cat "${QODANA_LOG}"
+        fi
+    fi
+    rm -f "${QODANA_LOG}"
+
     local done_in breakdown
     done_in="$(step_time)"
     breakdown="$(substep_breakdown)"
     if [[ -z "${failed_at}" ]]; then
-        echo "✅ Java gate passed (build + tests + E2E + smoke), finished in ${GREEN}${done_in}${RESET}${breakdown}"
+        echo "✅ Java gate passed (build + tests + E2E + smoke + qodana), finished in ${GREEN}${done_in}${RESET}${breakdown}"
     else
         echo "❌ Java gate failed at [${failed_at}] after ${RED}${done_in}${RESET}${breakdown}: re-run ${YELLOW}'${SCRIPT_PATH} -v java'${RESET} for the full output"
         overall_exit_code=1
@@ -890,6 +995,9 @@ run_typescript() {
 
 run_markdown() {
     echo
+    # .qodana is excluded like target/ and node_modules: the scan's cache holds a downloaded JBR SDK whose
+    # legal/ dir ships hundreds of third-party .md files. markdownlint globs the tree itself and does not
+    # read .gitignore, so ignoring them in git is not enough - without this the step fails after any scan.
     echo "Running Markdown lint using [${MARKDOWNLINT_DOCKER_IMAGE}]"
     docker pull "${MARKDOWNLINT_DOCKER_IMAGE}" >/dev/null
     if output=$(docker run --rm \
@@ -898,7 +1006,8 @@ run_markdown() {
         "${MARKDOWNLINT_DOCKER_IMAGE}" \
         --config code-quality-config/markdown/.markdownlint.json \
         "**/*.md" "!code-quality-config/**" "!**/node_modules/**" "!**/target/**" \
-        "!.claude/**" "!RELEASE_NOTES.md" "!tests/playwright-report/**" "!tests/test-results/**" 2>&1); then
+        "!.claude/**" "!RELEASE_NOTES.md" "!tests/playwright-report/**" "!tests/test-results/**" \
+        "!.qodana/**" 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
         local done_in
         done_in="$(step_time)"
@@ -908,6 +1017,248 @@ run_markdown() {
         local done_in
         done_in="$(step_time)"
         echo "❌ Markdown lint failed after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v markdown'${RESET} for the full output"
+        overall_exit_code=1
+    fi
+}
+
+# Answers "is the scan actually configured?" before a container is started. Both of the scan's inputs -
+# the inspection profile qodana.yaml imports, and the entry-point overrides mounted over `.idea` - live in
+# the code-quality-config submodule, so an uninitialised submodule leaves neither on disk.
+#
+# Neither absence is loud on its own, which is why this exists. A missing profile is the silent fall-back
+# to the IDE Default profile documented in qodana.yaml - that profile omits UnusedDeclaration, so the run
+# goes GREEN having skipped the one inspection this step was added for. A missing overrides directory is
+# the opposite and just as misleading: nothing teaches the community image what CDI or JAX-RS instantiate,
+# and 238 framework-managed declarations report as unused, none of them real.
+qodana_config_guard() {
+    [[ -f "${QODANA_PROFILE_FILE}" && -f "${QODANA_OVERRIDES_DIR}/misc.xml" ]] && return 0
+    echo "❌ Qodana's configuration is missing - the code-quality-config submodule is not checked out."
+    echo "   Expected ${YELLOW}${QODANA_PROFILE_FILE#"${PWD}/"}${RESET} and ${YELLOW}${QODANA_OVERRIDES_DIR#"${PWD}/"}/misc.xml${RESET}"
+    echo "   Run ${YELLOW}'git submodule update --init'${RESET} and try again."
+    return 1
+}
+
+# Prepares Qodana's working dirs, pulls the pinned image, and assembles the `docker run` argv into the
+# QODANA_CMD global. Shared so the `java` gate's tier and the standalone `qodana` step invoke EXACTLY the
+# same scan - the two must never drift into analysing the project differently.
+#
+# This is the one analysis that sees the WHOLE project at once. PMD, ErrorProne and SpotBugs all report
+# unused code, but only for private members: each reads one compilation unit, so a public method could be
+# called from anywhere they cannot see. Dead public/package-private methods have reached master through
+# that gap. Configuration (profile, exclusions, the no-baseline policy) lives in qodana.yaml.
+qodana_prepare() {
+    local uid gid
+    uid="$(id -u)"
+    gid="$(id -g)"
+    mkdir -p "${QODANA_WORK_DIR}/results" "${QODANA_WORK_DIR}/cache"
+
+    # Named so the container can be removed outright when the tier is stopped early. Signalling the
+    # `docker run` CLI is not enough - the daemon owns the container, so killing the client can leave a
+    # multi-GB analysis running with nothing attached to it. PID-scoped so two runs never collide.
+    QODANA_CONTAINER="diurnal-qodana-$$"
+
+    # The scan's own IDE configuration, built fresh from the submodule's overrides/ (QODANA_OVERRIDES_DIR)
+    # and mounted OVER /data/project/
+    # .idea inside the container (see the mount below). The developer's own .idea/ is therefore invisible to
+    # the scan and is never read, written or restored - which is the point. An earlier version swapped the
+    # tracked file into .idea/misc.xml for the duration of a run and put the original back afterwards; that
+    # works, but for those minutes the config an open IDE is watching has no ProjectRootManager in it, so
+    # IntelliJ drops the project JDK and writes back a stripped file. Shadowing the whole directory keeps
+    # the scan hermetic and leaves the working tree alone even if the run is killed.
+    #
+    # The cache's copy has to go too: the scan keeps its own `.idea` under /data/cache and restores it at
+    # the start of every run, so a warm cache would analyse the PREVIOUS overrides and an edit to them would
+    # appear to do nothing at all - a silent failure that costs an afternoon. Dropping just that directory
+    # is cheap; the index and the downloaded JBR are what make the cache worth keeping, and neither moves.
+    # Built FRESH every run, from the tracked overrides alone. Keeping the project model the scan writes
+    # here between runs was tried as an optimisation and reverted: the second run then fails outright with
+    # "Cannot configure project to run inspections", because what is left behind is a partial model that no
+    # longer agrees with the overrides copied over it. It also bought nothing measurable - a warm scan costs
+    # the same either way, since the index (the expensive part) lives in the cache below, not here.
+    #
+    # The cache's own copy of `.idea` goes too: the scan restores that over the project's at start-up, so a
+    # stale one would silently reinstate the PREVIOUS overrides. That directory is the project model only -
+    # the index and the downloaded JBR are siblings of it and are untouched, so this costs nothing.
+    rm -rf "${QODANA_WORK_DIR:?}/cache/.idea" "${QODANA_IDEA_DIR:?}"
+
+    # The IDE's own module model under cache/idea/*/projects/ is deliberately NOT touched here, though it is
+    # what goes stale in a cache written before ExternalStorageConfigurationManager was removed from the
+    # overrides (symptom: "This project contains no modules", on every run, forever). Deleting it per-run
+    # was tried and is worse than the problem: the run doing the deleting fails outright, and the next one
+    # re-indexes from scratch - measured at 9m57s against 2m30s warm, on every single run.
+    #
+    # The IDE's imported module model lives in cache/idea/*/projects/, NOT in `.idea` - a Maven project is
+    # imported by the external-system integration, which always writes there (see the header of
+    # code-quality-config/java/qodana/overrides/misc.xml for the two attempts to change that, and why
+    # neither could). So the model
+    # outlives the `.idea` rebuilt above, and when the two disagree every run fails with "This project
+    # contains no modules". Because the bad state is in the CACHE, it survives a git pull and looks
+    # machine-specific: whoever ran an older set of overrides keeps failing, and whoever did not, cannot
+    # reproduce it.
+    #
+    # So it is dropped on EVERY run, unconditionally. `.idea` is rebuilt from the overrides each time, so a
+    # model that outlives it is a model describing a project that no longer exists - and the second run is
+    # where that bites, which is why a clean cache passes and the run straight after it fails.
+    #
+    # This costs nothing. Measured: the run that drops the model takes 2m34s against 2m36-2m38s for one
+    # that keeps it, because the expensive artefact is the INDEX, and that is a sibling of this directory
+    # (caches/ and index/, hundreds of MB, against ~280KB here) which is never touched. Re-importing a
+    # single-module Maven project against a warm index is seconds.
+    #
+    # Two narrower forms were tried and are worse. Deleting only the external_build_system and
+    # project-model-cache children fails the very run that does it - the state left behind is half a model.
+    # Stamping the cache with a hash of the overrides and dropping it only on change looks tidier, but the
+    # model goes stale WITHOUT the overrides changing, so the stamp simply never fires when it matters.
+    if compgen -G "${QODANA_WORK_DIR}/cache/idea/*/projects" > /dev/null; then
+        rm -rf "${QODANA_WORK_DIR:?}"/cache/idea/*/projects
+    fi
+
+    # A half-extracted JBR, on the other hand, IS worth healing here: the scan downloads its own JDK into
+    # the cache, and an interrupted or truncated download leaves the directory in place with the runtime
+    # missing from it. Nothing retries, so every later run dies before it reads a line of Java with
+    #     Error: missing `server' JVM at .../qodana-jbr/.../lib/server/libjvm.so
+    # which reads like a broken local toolchain rather than a bad download. The marker file below is the
+    # one the scan itself looks for, so this fires ONLY when the runtime really is absent; a complete JBR
+    # and a cold cache both leave it alone, and the ~72MB re-download costs nothing next to the index,
+    # which lives elsewhere and is untouched.
+    if [[ -d "${QODANA_WORK_DIR}/cache/qodana-jbr" ]] \
+        && [[ -z "$(find "${QODANA_WORK_DIR}/cache/qodana-jbr" -name libjvm.so -print -quit 2>/dev/null || true)" ]]; then
+        echo "   Cached Qodana JDK is incomplete (no libjvm.so) - removing it so the scan re-downloads"
+        rm -rf "${QODANA_WORK_DIR:?}/cache/qodana-jbr"
+    fi
+
+    # The scan resolves the project's dependencies itself, into its OWN Maven repository at cache/.m2
+    # (MAVEN_REPOSITORY=/data/cache/.m2 inside the container) and through JetBrains' cache-redirector
+    # mirror rather than Maven Central. When that mirror answers 5xx for one artifact, Maven writes a
+    # `.lastUpdated` marker recording the failure and then does NOT retry it - not on the next run, not
+    # for the whole update interval - so a blip of a few seconds is inherited by every later scan from
+    # the cache, and by CI from the cache it restores.
+    #
+    # The damage is out of all proportion to the one file. A single 502 on
+    # org.hibernate.orm:hibernate-platform:pom - the BOM hibernate-core imports, so its descriptor
+    # cannot be read without it - dropped the module from 813 resolved jars to 192, and with the
+    # libraries went every third-party symbol: 36 JavadocReference "Cannot resolve symbol" on ordinary
+    # imported types, 2,038 `unused` (nothing looks reachable once the JUnit and CDI annotations are
+    # unresolved) and 475 sanity errors. NONE of it is real, and none of it looks unreal in the report -
+    # the findings name our own files, and open as already-fixed in an IDE that resolves against a
+    # complete ~/.m2. Only the run's own log says why, in `... were not resolved` lines nobody reads
+    # unless they already suspect the classpath.
+    #
+    # So the markers go before every run: a failed resolution is re-attempted rather than inherited,
+    # which is the behaviour `mvn -U` gives the Maven tier. This costs nothing when there are none (the
+    # normal case) and re-downloads only the artifacts that actually failed when there are - the jars
+    # that resolved are keyed by path and stay put. It deliberately does not touch anything else in
+    # cache/.m2: the repository is the second-most expensive thing in the cache after the index.
+    local stale_markers
+    stale_markers="$(find "${QODANA_WORK_DIR}/cache/.m2" -name "*.lastUpdated" -print -delete 2>/dev/null | wc -l)"
+    if [[ "${stale_markers}" -gt 0 ]]; then
+        echo "   Cleared ${stale_markers} cached Maven resolution failure(s) so the scan re-attempts them"
+    fi
+
+    mkdir -p "${QODANA_IDEA_DIR}"
+    cp -R "${QODANA_OVERRIDES_DIR}/." "${QODANA_IDEA_DIR}/"
+
+    # Run as the invoking user so the report and index cache are not root-owned; --fail-threshold 0 turns
+    # any finding at all into a non-zero exit, which is what makes this a gate rather than a report. No
+    # --baseline is ever passed: the scan is judged fresh on every run, so a finding cannot be inherited
+    # into an accepted set - it has to be fixed or switched off in the profile. The image resolves the
+    # project's Maven dependencies itself - mount the host's ~/.m2 into the container's home if that
+    # resolution ever becomes the slow part of a run.
+    QODANA_CMD=(docker run --rm
+        --name "${QODANA_CONTAINER}"
+        -u "${uid}:${gid}"
+        -v "${PWD}":/data/project
+        -v "${QODANA_IDEA_DIR}":/data/project/.idea
+        -v "${QODANA_WORK_DIR}/results":/data/results
+        -v "${QODANA_WORK_DIR}/cache":/data/cache
+        "${QODANA_DOCKER_IMAGE}"
+        --fail-threshold 0)
+}
+
+# Remove the scan container outright. Used when the tier is stopped early: `stop_tier` signals the docker
+# CLI, but the daemon keeps the container (and its CPU) unless it is explicitly removed.
+qodana_stop_container() {
+    [[ -n "${QODANA_CONTAINER}" ]] && docker rm -f "${QODANA_CONTAINER}" >/dev/null 2>&1 || true
+}
+
+# Answers the question every other message here assumes: were the project's dependencies actually on the
+# classpath the scan analysed? Returns 0 when they were, and when they were not, explains it and returns 1.
+#
+# It matters because the failure is SILENT and the findings it produces are indistinguishable from real
+# ones. The scan resolves dependencies itself (see the marker sweep in qodana_prepare), and when one
+# artifact does not resolve, the module quietly loses the libraries below it - measured here, 813 jars
+# down to 192 from a single 502 on a BOM pom. Nothing fails; the analysis simply proceeds against a
+# project where `Response`, `SecurityIdentity` and `QuarkusTest` are unknown words. What lands in the
+# report is 36 "Cannot resolve symbol" Javadoc findings on ordinary imported types and 2,038 `unused`
+# declarations (nothing is reachable once the JUnit and CDI annotations are meaningless) - every one of
+# them naming OUR file and OUR line, and every one of them opening as already-fixed in an IDE that
+# resolves against a complete ~/.m2. Chasing them is a wasted afternoon that ends in a fix for nothing.
+#
+# So the run's own log is the thing to read, and this reads it: the IDE prints one `... were not resolved`
+# line per library it could not attach. idea.log is APPENDED to across runs, so only the last run counts -
+# hence the offset to its final start-up banner rather than a grep over the whole file.
+qodana_dependency_guard() {
+    local log="${QODANA_WORK_DIR}/results/log/idea.log"
+    [[ -f "${log}" ]] || return 0
+
+    local run_start unresolved
+    run_start="$(grep -n "AppStarter - JVM:" "${log}" 2>/dev/null | tail -1 | cut -d: -f1 || true)"
+    [[ -n "${run_start}" ]] || run_start=1
+    unresolved="$(tail -n "+${run_start}" "${log}" 2>/dev/null | grep -c "were not resolved" || true)"
+    [[ "${unresolved}" -gt 0 ]] || return 0
+
+    echo "   ${RED}The scan ran against an INCOMPLETE classpath - ${unresolved} project libraries were not resolved.${RESET}"
+    echo "   Its findings are NOT trustworthy and must not be fixed or suppressed: unresolved imports are"
+    echo "   reported as 'Cannot resolve symbol' Javadoc findings, and code that uses them stops looking"
+    echo "   reachable and is reported as 'unused'. The artifacts that failed to resolve:"
+    tail -n "+${run_start}" "${log}" 2>/dev/null \
+        | grep -oE "Failed to read artifact descriptor for [^[:space:]]+" \
+        | sort -u | head -5 | sed 's/^/     /' || true
+    echo "   Cached resolution failures are cleared before every run, so re-running is usually the whole fix"
+    echo "   (the mirror is JetBrains' cache-redirector, not Maven Central, and answers 5xx of its own)."
+    return 1
+}
+
+# Printed wherever a Qodana run fails, since the count alone is not actionable until the reader knows
+# where to read the findings. Every finding counts - there is no baseline to absorb any of them - so the
+# only two answers are to fix it or to switch the inspection off in the submodule's inspection profile.
+qodana_failure_hint() {
+    echo "   Full report in ${YELLOW}.qodana/results${RESET} (open report/index.html to browse it)."
+    echo "   No baseline exists by design: fix the finding, or disable its inspection in ${YELLOW}${QODANA_PROFILE_FILE#"${PWD}/"}${RESET}."
+}
+
+run_qodana() {
+    echo
+    echo "Running whole-program analysis using [${QODANA_DOCKER_IMAGE}]"
+    if ! qodana_config_guard; then
+        overall_exit_code=1
+        return
+    fi
+    qodana_prepare
+    docker pull "${QODANA_DOCKER_IMAGE}" >/dev/null
+    if output=$("${QODANA_CMD[@]}" 2>&1); then
+        [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
+        local done_in
+        done_in="$(step_time)"
+        # A clean run is not evidence of a clean project until the scan is known to have seen the project:
+        # an analysis with no libraries attached reports few findings too, and this is the greener of the
+        # two ways a broken classpath shows up.
+        if qodana_dependency_guard; then
+            echo "✅ Whole-program analysis passed, finished in ${GREEN}${done_in}${RESET}"
+        else
+            echo "❌ Whole-program analysis cannot be trusted after ${RED}${done_in}${RESET}"
+            overall_exit_code=1
+        fi
+    else
+        echo "${output}"
+        local done_in
+        done_in="$(step_time)"
+        echo "❌ Whole-program analysis failed after ${RED}${done_in}${RESET}"
+        # "Fix it or switch the inspection off" is exactly the wrong advice when the classpath is what
+        # broke, so the guard speaks instead of the hint whenever it has something to say.
+        if qodana_dependency_guard; then
+            qodana_failure_hint
+        fi
         overall_exit_code=1
     fi
 }
@@ -962,6 +1313,8 @@ run_shellcheck() {
 #   - perf MEASURES the application - cold-boot latency, post-boot RSS, k6 latency thresholds. Its ports are
 #     disjoint from everything else, so the problem is not a clash but CONTENTION: a machine also running
 #     PITest, Chromium and a multi-stage Docker build makes every threshold a coin flip. It runs alone.
+#   - qodana is not listed because it is not a step of its own here: the `java` gate runs it as a parallel
+#     tier (see run_java). Naming it explicitly still works, and then it runs inline like any other step.
 LANE_STEPS=("docker" "java" "javascript" "markdown" "shellcheck" "typescript")
 
 # True when ${1} appears in the remaining arguments.
@@ -1161,7 +1514,9 @@ detect_changed_steps() {
         [[ "${file}" == "Dockerfile" || "${file}" == ".dockerignore" || "${file}" == ".grype.yaml" ]] && run_grype=true
         # The `java` step is the whole JVM gate (Maven build + ITs + the E2E and deployment-smoke
         # suites), so anything feeding ANY of those three tiers triggers it:
-        #   - src/, frontend/ (Tailwind source feeding the compiled stylesheet), pom.xml, the java lint config;
+        #   - src/, frontend/ (Tailwind source feeding the compiled stylesheet), pom.xml, the java lint config
+        #     (which since the move now covers Qodana's profile and overrides too, so an edit to either
+        #     re-triggers the tier that reads them - it never did while they sat in .qodana/);
         #   - the E2E suite's own files — the ui specs, shared helpers/global-setup, its Playwright config,
         #     the runner, and the tests/ npm/ts deps;
         #   - the deployment-smoke inputs — the runtime Dockerfile/.dockerignore, the smoke stack/suite,
@@ -1282,6 +1637,8 @@ detect_changed_steps() {
         grep -qE '^[+-][[:space:]]*(ESLINT_BUILD_IMAGE|ESLINT_NODE_IMAGE)='       <<<"${script_diff}" && run_typescript=true
         grep -qE '^[+-][[:space:]]*MARKDOWNLINT_DOCKER_IMAGE='                    <<<"${script_diff}" && run_markdown=true
         grep -qE '^[+-][[:space:]]*SHELLCHECK_DOCKER_IMAGE='                      <<<"${script_diff}" && run_shellcheck=true
+        # The scan is a tier of `java`, so its image pin re-triggers that step rather than one of its own.
+        grep -qE '^[+-][[:space:]]*QODANA_DOCKER_IMAGE='                          <<<"${script_diff}" && run_java=true
     fi
 
     [[ "${run_docker}"     == true ]] && echo "docker"
@@ -1325,7 +1682,7 @@ fi
 
 # Parse and validate steps
 if [[ "${FORCE}" == true ]]; then
-    steps=("${VALID_STEPS[@]}")
+    steps=("${AUTO_STEPS[@]}")
     echo "Running ALL steps (forced): $(IFS=', '; echo "${steps[*]}")"
 elif [[ $# -eq 0 ]]; then
     mapfile -t steps < <(detect_changed_steps || true)
@@ -1402,6 +1759,7 @@ for idx in "${!serial_selected[@]}"; do
     javascript) run_javascript ;;
     markdown) run_markdown ;;
     perf) run_perf ;;
+    qodana) run_qodana ;;
     shellcheck) run_shellcheck ;;
     typescript) run_typescript ;;
     *) ;; # unreachable: steps are validated against VALID_STEPS above

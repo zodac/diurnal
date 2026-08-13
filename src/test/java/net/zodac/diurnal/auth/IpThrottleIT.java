@@ -177,7 +177,7 @@ class IpThrottleIT extends IntegrationTestBase {
     // (this profile) at a low limit: failed current-password checks are never gated by the lockout (never
     // 429) and never feed its shared counter, so they can neither lock the IP nor be locked by it.
     @Test
-    @TestSecurity(user = SEED_EMAIL, roles = Role.Values.USER)
+    @TestSecurity(user = SEED_EMAIL, roles = Role.Values.USER_INTERNAL_VALUE)
     void passwordChangeVerifyFailures_areNeitherGatedByNorFeedTheIpLockout() {
         registerSeedUser();
 

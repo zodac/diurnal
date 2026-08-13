@@ -45,24 +45,36 @@ import org.jspecify.annotations.Nullable;
  * attempts for the same key are consistent. A counter <em>decays</em>: a fresh failure that arrives more than one window after the previous one
  * starts over, so a shared key (e.g. a NAT'd IP) never accumulates unrelated failures indefinitely. A restart also drops the entry.
  */
+// AccessingNonPublicFieldOfAnotherObject: Attempt is a private nested mutable holder, read and written directly by the methods below - the
+// inspection's ignoreInnerClasses option only covers the opposite direction (an inner class reading its enclosing class's fields).
+@SuppressWarnings("AccessingNonPublicFieldOfAnotherObject")
 public final class AttemptThrottle {
 
+    // Read only as `!enabled`, which BooleanVariableAlwaysNegated objects to - but the inverse name it implies,
+    // `disabled`, is what NegativelyNamedBooleanVariable objects to. Every read is a guard clause returning the
+    // no-op answer, so satisfying the first would mean wrapping four method bodies in `if (enabled) { ... }`.
+    @SuppressWarnings("BooleanVariableAlwaysNegated")
     private final boolean enabled;
     private final int maxAttempts;
     private final Duration lockoutDuration;
     private final Map<String, Attempt> attempts = new ConcurrentHashMap<>();
 
-    /**
-     * Builds a throttle from a config snapshot.
-     *
-     * @param enabled whether throttling is active at all
-     * @param maxAttempts failures tolerated within the window before lockout
-     * @param lockoutDuration both the lockout length and the decay window
-     */
-    public AttemptThrottle(final boolean enabled, final int maxAttempts, final Duration lockoutDuration) {
+    private AttemptThrottle(final boolean enabled, final int maxAttempts, final Duration lockoutDuration) {
         this.enabled = enabled;
         this.maxAttempts = maxAttempts;
         this.lockoutDuration = lockoutDuration;
+    }
+
+    /**
+     * Builds a throttle from a config snapshot.
+     *
+     * @param enabled         whether throttling is enabled
+     * @param maxAttempts     failures tolerated within the window before lockout
+     * @param lockoutDuration both the lockout length and the decay window
+     * @return the throttle
+     */
+    public static AttemptThrottle create(final boolean enabled, final int maxAttempts, final Duration lockoutDuration) {
+        return new AttemptThrottle(enabled, maxAttempts, lockoutDuration);
     }
 
     /**
@@ -77,6 +89,7 @@ public final class AttemptThrottle {
         if (!enabled) {
             return false;
         }
+
         final Attempt attempt = attempts.get(key);
         return attempt != null && attempt.isLockedAt(now);
     }
@@ -93,18 +106,21 @@ public final class AttemptThrottle {
         if (!enabled) {
             return new FailureOutcome(0, maxAttempts, false, lockoutDuration);
         }
-        final Attempt updated = Objects.requireNonNull(attempts.compute(key, (_, existing) -> {
-            // Start fresh if there is no prior record, or the previous activity is older than one window
-            // (a lapsed lockout, or a quiet spell for a still-counting key).
-            final Attempt attempt = existing == null || existing.isStaleAt(now, lockoutDuration) ? new Attempt() : existing;
-            attempt.failureCount++;
-            attempt.lastFailureAt = now;
-            if (attempt.failureCount >= maxAttempts) {
-                attempt.lockedUntil = now.plus(lockoutDuration);
-            }
-            return attempt;
-        }));
+
+        final Attempt updated = Objects.requireNonNull(attempts.compute(key, (_, existing) -> countFailure(existing, now)));
         return new FailureOutcome(updated.failureCount, maxAttempts, updated.isLockedAt(now), lockoutDuration);
+    }
+
+    private Attempt countFailure(final @Nullable Attempt existing, final Instant now) {
+        // Start fresh if there is no prior record, or the previous activity is older than one window
+        // (a lapsed lockout, or a quiet spell for a still-counting key).
+        final Attempt attempt = existing == null || existing.isStaleAt(now, lockoutDuration) ? new Attempt() : existing;
+        attempt.failureCount++;
+        attempt.lastFailureAt = now;
+        if (attempt.failureCount >= maxAttempts) {
+            attempt.lockedUntil = now.plus(lockoutDuration);
+        }
+        return attempt;
     }
 
     /**
@@ -133,6 +149,7 @@ public final class AttemptThrottle {
         if (!enabled) {
             return List.of();
         }
+
         final List<ActiveLockout> locked = new ArrayList<>();
         attempts.forEach((key, attempt) -> {
             if (attempt.isLockedAt(now)) {
@@ -153,6 +170,7 @@ public final class AttemptThrottle {
         if (!enabled) {
             return false;
         }
+
         final Attempt removed = attempts.remove(key);
         return removed != null && removed.isLockedAt(now);
     }
@@ -168,12 +186,13 @@ public final class AttemptThrottle {
      * The result of recording a failed attempt: how many failures the key now has in the window, the configured limit, whether this failure tripped
      * the lockout, and how long that lockout lasts. Consumed only for logging.
      *
-     * @param failureCount the failure count after this failure ({@code 0} when throttling is disabled)
-     * @param maxAttempts the configured number of failures tolerated before lockout
-     * @param lockedOut {@code true} if this failure is the one that locked the key
+     * @param failureCount    the failure count after this failure ({@code 0} when throttling is disabled)
+     * @param maxAttempts     the configured number of failures tolerated before lockout
+     * @param lockedOut       {@code true} if this failure is the one that locked the key
      * @param lockoutDuration the configured lockout length
      */
     public record FailureOutcome(int failureCount, int maxAttempts, boolean lockedOut, Duration lockoutDuration) {
+
     }
 
     /**
@@ -185,14 +204,14 @@ public final class AttemptThrottle {
      * @param failureCount the failure count recorded for the key
      */
     public record ActiveLockout(String key, Instant lockedUntil, int failureCount) {
+
     }
 
     private static final class Attempt {
 
         private int failureCount;
 
-        // Non-null default so isStaleAt needs no null guard; overwritten by the first recordFailure, and
-        // only ever read on an entry that has already had one.
+        // Non-null default so isStaleAt needs no null guard; overwritten by the first recordFailure
         private Instant lastFailureAt = Instant.EPOCH;
 
         @Nullable

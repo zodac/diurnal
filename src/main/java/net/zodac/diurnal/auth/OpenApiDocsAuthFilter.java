@@ -24,10 +24,10 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
 import java.net.HttpURLConnection;
-import java.util.Optional;
 import net.zodac.diurnal.config.SessionConfig;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Gates the OpenAPI documentation surface behind the {@code admin} role. Both the Swagger UI shell ({@code /api}) and the generated OpenAPI document
@@ -80,8 +80,7 @@ public class OpenApiDocsAuthFilter {
     }
 
     private void guard(final RoutingContext context) {
-        final Optional<User> resolvedUser = resolveUser(context);
-        final OpenApiDocsAccess.Outcome outcome = OpenApiDocsAccess.decide(resolvedUser);
+        final OpenApiDocsAccess.Outcome outcome = OpenApiDocsAccess.decide(resolveUser(context));
         switch (outcome) {
             case ALLOW -> context.next();
             case FORBIDDEN -> context.response().setStatusCode(HttpURLConnection.HTTP_FORBIDDEN).end();
@@ -92,11 +91,11 @@ public class OpenApiDocsAuthFilter {
         }
     }
 
-    private Optional<User> resolveUser(final RoutingContext context) {
+    private @Nullable User resolveUser(final RoutingContext context) {
         final String token = SessionTokenExtractor.fromRequest(context, sessionConfig.cookieName());
         if (token == null) {
-            return Optional.empty();
+            return null;
         }
-        return sessionStore.resolve(token, clock.now());
+        return sessionStore.resolve(token, clock.now()).orElse(null);
     }
 }

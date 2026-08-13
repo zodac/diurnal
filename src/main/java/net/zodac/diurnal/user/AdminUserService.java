@@ -70,7 +70,8 @@ public class AdminUserService {
      * @param id the user's id
      * @return the user, or {@code null} when no such account exists
      */
-    public @Nullable User find(final UUID id) {
+    @Nullable
+    public User find(final UUID id) {
         return User.findById(id);
     }
 
@@ -130,7 +131,7 @@ public class AdminUserService {
     }
 
     private static boolean isLastAdmin(final User target) {
-        return Role.ADMIN.storageValue().equals(target.role) && User.count("role", Role.ADMIN.storageValue()) <= 1;
+        return Role.ADMIN.storageValue().equals(target.role) && User.count("role", Role.ADMIN.storageValue()) <= 1L;
     }
 
     /**

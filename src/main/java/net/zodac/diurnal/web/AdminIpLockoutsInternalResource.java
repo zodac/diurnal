@@ -36,6 +36,7 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import net.zodac.diurnal.auth.IpLockout;
 import net.zodac.diurnal.auth.IpLockoutService;
@@ -57,7 +58,7 @@ import net.zodac.diurnal.user.User;
  * endpoints answer {@code 404}.
  */
 @Path("/internal/admin/ip-lockouts")
-@RolesAllowed(Role.Values.ADMIN)
+@RolesAllowed(Role.Values.ADMIN_INTERNAL_VALUE)
 @RollbackOnErrorStatus
 public class AdminIpLockoutsInternalResource {
 
@@ -221,7 +222,7 @@ public class AdminIpLockoutsInternalResource {
     }
 
     private static DateTimeFormatter formatter(final ZoneId zone) {
-        return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(zone);
+        return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ROOT).withZone(zone);
     }
 
     /**

@@ -81,7 +81,7 @@ import org.jspecify.annotations.Nullable;
  */
 @Tag(name = "Notes", description = "Read and write a user's per-day free-text notes.")
 @Path("/api/v1/notes")
-@RolesAllowed(Role.Values.USER)
+@RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 @Produces(MediaType.APPLICATION_JSON)
 @RollbackOnErrorStatus
 public class NotesApiResource {
@@ -238,7 +238,7 @@ public class NotesApiResource {
      * @param currentPage the returned 1-based page (always the requested page - an out-of-range page is rejected, not clamped)
      */
     @Schema(description = "One page of a note range.")
-    public record NotesPageDto(
+    record NotesPageDto(
         @Schema(description = "The page's notes, earliest first.") List<NoteDto> items,
         @Schema(examples = "45", description = "The total number of notes in the requested range, across all pages.") int totalCount,
         @Schema(examples = "2", description = "The total number of pages.") int totalPages,
@@ -376,8 +376,10 @@ public class NotesApiResource {
      *
      * @param content the note content; blank removes the note
      */
+    // Public is forced: Quarkus's generated (de)serializer is not a nestmate so private throws IllegalAccessError, and the endpoint
+    // taking it must be public for JAX-RS, so package-private would trip ClassEscapesItsScope instead.
     @Schema(description = "The content to write for the day.")
-    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
+    @SuppressWarnings({"unused", "WeakerAccess"}) // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record NoteRequest(
         @Schema(examples = "Ran 5k before work.", description = "The note content; blank or omitted removes the day's note.")
         @Nullable String content) {
@@ -390,17 +392,11 @@ public class NotesApiResource {
      * @param content the note content, in its stored (normalised) form
      */
     @Schema(description = "One day's free-text note.")
-    public record NoteDto(
+    record NoteDto(
         @Schema(examples = "2026-06-15", description = "The day, as an ISO-8601 date string.") String date,
         @Schema(examples = "Ran 5k before work.", description = "The note content, in its stored form.") String content) {
 
-        /**
-         * Maps a stored note to its API representation.
-         *
-         * @param note the stored note
-         * @return the DTO
-         */
-        static NoteDto of(final Note note, final String content) {
+        private static NoteDto of(final Note note, final String content) {
             return new NoteDto(note.noteDate.toString(), content);
         }
     }

@@ -19,7 +19,11 @@ src/main/resources/META-INF/resources/js/htmx.min.js
 # simply has none. (The committed README shots live under docs/screenshots/.)
 src/main/resources/META-INF/resources/img/settings/*.webp
 
-# IDE
+# IDE. `.idea/` stays fully ignored: the one piece of IDE configuration the `qodana` gate needs (the
+# dead-code inspection's entry points) is tracked in the code-quality-config submodule instead, at
+# code-quality-config/java/qodana/overrides/, and is copied into .qodana/idea-config and mounted OVER
+# /data/project/.idea inside the scan container - so nothing here is shared, and a run neither reads nor
+# writes it. Nothing in the gate may depend on a file under this directory.
 .idea/
 *.iml
 .vscode/
@@ -43,12 +47,16 @@ tests/.perf-state.*
 # only so a later run can reap the JVM of a run that was killed outright, before that trap could fire.
 tests/.e2e-app.pid
 
-# Qodana's report and index cache (.github/scripts/lint_and_tests.sh qodana). Kept out of target/ so
-# `mvn clean` does not wipe the index and make every run a cold one. Note these are the only ignored
-# parts of .qodana/ - the inspection PROFILE beside them (.qodana/profiles/, Qodana's own documented
-# location) is committed, as is the BASELINE the run produces (qodana.sarif.json, at the repo root).
-.qodana/results/
-.qodana/cache/
+# Qodana's working directory (.github/scripts/lint_and_tests.sh qodana): the SARIF report, the IntelliJ
+# index cache, and the idea-config assembled per run from the submodule's overrides. Kept out of target/
+# so `mvn clean` does not wipe the index and make every run a cold one.
+#
+# The WHOLE directory is ignored, not selected parts of it: the inspection profile and the IDE overrides
+# used to sit beside these and now live in the code-quality-config submodule
+# (code-quality-config/java/qodana/), beside every other linter's shared config, so nothing tracked is
+# left here and `rm -rf .qodana` costs only a cold run. No baseline is kept at all: every run is judged
+# fresh (see qodana.yaml).
+.qodana/
 
 # Per-user Claude Code state (the checked-in .claude docs are CLAUDE.md, APIS.md, CODE_STYLE.md, UI_PATTERNS.md)
 .claude/settings.local.json

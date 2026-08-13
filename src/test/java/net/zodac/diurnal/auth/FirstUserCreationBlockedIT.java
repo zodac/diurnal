@@ -32,9 +32,9 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Optional;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -52,14 +52,10 @@ class FirstUserCreationBlockedIT extends IntegrationTestBase {
 
     private static final String OIDC_ISSUER = "https://diurnal.example.com/idp";
 
-    // OIDC group→role mapping is only active when a group is configured, and the group names are
-    // environment-dependent (a deployment may or may not set them). Read the same config the bean
-    // reads so the positive test presents a group that authorises the login in any environment.
-    @ConfigProperty(name = "oidc.admin.group")
-    Optional<String> oidcAdminGroup = Optional.empty();
-
-    @ConfigProperty(name = "oidc.user.group")
-    Optional<String> oidcUserGroup = Optional.empty();
+    // Injects the very config the bean under test reads, so these tests stay environment-agnostic: SmallRye resolves .env at a higher priority
+    // than the %test profile, so a specific value cannot be forced here - each expectation is instead derived from the same source the bean uses.
+    @Inject
+    OidcConfig oidcConfig;
 
     @Inject
     OidcUserProvisioner oidcUserProvisioner;
@@ -138,19 +134,19 @@ class FirstUserCreationBlockedIT extends IntegrationTestBase {
     // The group presented in the positive test's claims: prefer the user group, fall back to the admin
     // group, or none when neither is configured. This keeps the login authorised in every environment.
     private Optional<String> authorisingGroup() {
-        if (oidcUserGroup.filter(g -> !g.isBlank()).isPresent()) {
-            return oidcUserGroup;
+        if (oidcConfig.userGroup().filter(g -> !g.isBlank()).isPresent()) {
+            return oidcConfig.userGroup();
         }
-        return oidcAdminGroup.filter(g -> !g.isBlank());
+        return oidcConfig.adminGroup().filter(g -> !g.isBlank());
     }
 
     // The role the presented group maps to: the user group → user, the admin group → admin, and with no
     // group configured a subsequent account defaults to the plain user role.
     private String expectedRole() {
-        if (oidcUserGroup.filter(g -> !g.isBlank()).isPresent()) {
+        if (oidcConfig.userGroup().filter(g -> !g.isBlank()).isPresent()) {
             return Role.USER.storageValue();
         }
-        if (oidcAdminGroup.filter(g -> !g.isBlank()).isPresent()) {
+        if (oidcConfig.adminGroup().filter(g -> !g.isBlank()).isPresent()) {
             return Role.ADMIN.storageValue();
         }
         return Role.USER.storageValue();

@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
  * save and clear the note box posts to.
  */
 @QuarkusTest
-@TestSecurity(user = NotesInternalResourceIT.PRIMARY, roles = Role.Values.USER)
+@TestSecurity(user = NotesInternalResourceIT.PRIMARY, roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class NotesInternalResourceIT extends IntegrationTestBase {
 

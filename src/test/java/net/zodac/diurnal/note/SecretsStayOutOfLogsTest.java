@@ -104,7 +104,7 @@ class SecretsStayOutOfLogsTest {
     }
 
     private static Stream<Path> javaFilesIn(final Path directory) {
-        try (Stream<Path> paths = Files.walk(directory)) {
+        try (final Stream<Path> paths = Files.walk(directory)) {
             return paths.filter(path -> path.toString().endsWith(".java")).sorted().toList().stream();
         } catch (final IOException e) {
             throw new UncheckedIOException("Cannot walk " + directory.toAbsolutePath(), e);

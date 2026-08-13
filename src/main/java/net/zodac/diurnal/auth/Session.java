@@ -92,25 +92,25 @@ public class Session extends PanacheEntityBase {
      * Finds the session whose stored hash matches the given token hash.
      */
     public static Optional<Session> findByTokenHash(final byte[] tokenHash) {
-        return find("tokenHash", tokenHash).firstResultOptional();
+        return find("tokenHash", (Object) tokenHash).firstResultOptional();
     }
 
     /**
-     * Deletes the session identified by the given token hash, returning the number of rows removed.
+     * Deletes the session identified by the given token hash.
      */
     public static void deleteByTokenHash(final byte[] tokenHash) {
-        delete("tokenHash", tokenHash);
+        delete("tokenHash", (Object) tokenHash);
     }
 
     /**
-     * Deletes every session belonging to the given user, returning the number of rows removed.
+     * Deletes every session belonging to the given user.
      */
     public static void deleteByUser(final UUID userId) {
         delete("user.id", userId);
     }
 
     /**
-     * Deletes every session belonging to the given user except the one identified by {@code keepTokenHash}, returning the number of rows removed.
+     * Deletes every session belonging to the given user except the one identified by {@code keepTokenHash}.
      */
     public static void deleteByUserExcept(final UUID userId, final byte[] keepTokenHash) {
         delete("user.id = ?1 and tokenHash <> ?2", userId, keepTokenHash);

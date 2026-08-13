@@ -54,6 +54,7 @@ public sealed interface TextOutcome permits TextOutcome.Valid, TextOutcome.Failu
          *
          * @return the field specification
          */
+        @SuppressWarnings("unused") // a contract every variant must carry, not a call site; callers switch to the concrete record first
         TextField field();
     }
 

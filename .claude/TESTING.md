@@ -13,7 +13,8 @@ seeded users (`newUser()`) get a cheap Argon2id hash whose parameters mirror the
 login does not trigger a re-hash).
 
 **Deterministic time:** `IntegrationTestBase` freezes `AppClock` in `@BeforeEach` to `FIXED_TODAY = 2026-06-15`, restoring in `@AfterEach`. Use
-`freezeDate(LocalDate)` or `freezeInstant(Instant, ZoneId)` for boundary cases. Unit tests pass a fixed `today` directly. Surefire/failsafe pin
+`freezeInstant(Instant, ZoneId)` for boundary cases (`freezeDate` is the base class's own, and is private — nothing outside it calls it, and the
+Qodana gate reports any member that could be narrower). Unit tests pass a fixed `today` directly. Surefire/failsafe pin
 `-Duser.timezone=UTC`. E2E specs use UTC date APIs (`setUTCDate`/`getUTCDate`/`toISOString`) and `timezoneId: 'UTC'` in Playwright.
 
 **Tier hygiene (`run-e2e.sh` / `run-smoke.sh` / `run-perf.sh`):** each runner owns its own resources and cleans up in BOTH directions. On the way out,

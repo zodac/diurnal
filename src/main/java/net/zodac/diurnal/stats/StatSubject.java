@@ -45,10 +45,7 @@ public record StatSubject(UUID id, String name, String colour, StatSubjectKind k
      */
     public static final UUID NOTES_ID = new UUID(0L, 0L);
 
-    /**
-     * The name the notes subject is titled with on the Stats page.
-     */
-    public static final String NOTES_NAME = "Notes";
+    private static final String NOTES_NAME = "Notes";
 
     /**
      * The subject describing one of the user's actions.

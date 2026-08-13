@@ -86,19 +86,21 @@ class LogService {
      * @return the outcome
      */
     LogResult updateCount(final User user, final LocalDate day, final UUID actionId, final int count) {
-        return guarded(user, day, actionId, action -> {
-            final int newCount = Math.clamp(count, 0, ActionLog.MAX_DAILY_COUNT);
-            if (newCount == 0) {
-                deleteEntryIfPresent(user, actionId, day);
-                LOGGER.debug("Log set to zero (entry removed): action {} on {} for user {}", actionId, day, user.email);
-                return new LogResult.Updated(action, 0);
-            }
-            // Atomic upsert: a find-then-insert race on a not-yet-logged action would trip the unique
-            // constraint as a 500.
-            ActionLog.setCount(user.id, actionId, day, newCount);
-            LOGGER.debug("Log count set: action {} on {} -> {} for user {}", actionId, day, newCount, user.email);
-            return new LogResult.Updated(action, newCount);
-        });
+        return guarded(user, day, actionId, action -> applyCount(user, day, actionId, count, action));
+    }
+
+    private static LogResult applyCount(final User user, final LocalDate day, final UUID actionId, final int count, final Action action) {
+        final int newCount = Math.clamp(count, 0, ActionLog.MAX_DAILY_COUNT);
+        if (newCount == 0) {
+            deleteEntryIfPresent(user, actionId, day);
+            LOGGER.debug("Log set to zero (entry removed): action {} on {} for user {}", actionId, day, user.email);
+            return new LogResult.Updated(action, 0);
+        }
+        // Atomic upsert: a find-then-insert race on a not-yet-logged action would trip the unique
+        // constraint as a 500.
+        ActionLog.setCount(user.id, actionId, day, newCount);
+        LOGGER.debug("Log count set: action {} on {} -> {} for user {}", actionId, day, newCount, user.email);
+        return new LogResult.Updated(action, newCount);
     }
 
     /**

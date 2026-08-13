@@ -50,7 +50,7 @@ public class IpLockout extends PanacheEntityBase {
      * How long a lockout row is retained and shown in the admin history view: one week. Rows older than this are pruned when the next lockout is
      * persisted and are never displayed.
      */
-    public static final Duration HISTORY_RETENTION = Duration.ofDays(7);
+    public static final Duration HISTORY_RETENTION = Duration.ofDays(7L);
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -129,12 +129,11 @@ public class IpLockout extends PanacheEntityBase {
     }
 
     /**
-     * Deletes every lockout row older than the given cutoff, returning the number of rows removed.
+     * Deletes every lockout row older than the given cutoff.
      *
      * @param cutoff the oldest {@code lockedAt} to keep
-     * @return the number of rows deleted
      */
-    public static long deleteOlderThan(final Instant cutoff) {
-        return delete("lockedAt < ?1", cutoff);
+    public static void deleteOlderThan(final Instant cutoff) {
+        delete("lockedAt < ?1", cutoff);
     }
 }

@@ -31,7 +31,7 @@ import org.junit.jupiter.api.Test;
  * The {@code /notes} page itself: the full render, whose search box is only offered when the account has something to search.
  */
 @QuarkusTest
-@TestSecurity(user = NotesWebResourceIT.PRIMARY, roles = Role.Values.USER)
+@TestSecurity(user = NotesWebResourceIT.PRIMARY, roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class NotesWebResourceIT extends IntegrationTestBase {
 

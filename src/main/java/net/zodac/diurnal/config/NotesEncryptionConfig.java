@@ -72,6 +72,14 @@ public interface NotesEncryptionConfig {
      * at startup on the same terms as the current key, because a typo here would otherwise look exactly like "no previous key" and fail the boot with
      * a misleading reason.
      *
+     * <p>
+     * <strong>The {@link Optional} wrapper is load-bearing and must not be flattened to a bare {@link List}</strong>, however much a
+     * "no Optional around a collection" rule wants it to be. This property is always <em>defined</em> — {@code application.properties} binds it to
+     * {@code ${NOTE_ENCRYPTION_PREVIOUS_KEYS:}}, so it arrives as the empty string on every deployment not mid-rotation — and SmallRye's
+     * {@code CollectionConverter} reads an empty string as {@code null}. A non-optional {@code List} therefore fails config binding with
+     * {@code SRCFG00040} before any application code runs, exactly as the {@code ""}-default trap described on {@link #key()}: the application
+     * cannot start at all unless the operator sets a variable that is meant to be optional.
+     *
      * @return the retired keys, newest first, or empty when no rotation is in progress
      */
     @WithName("previous-keys")

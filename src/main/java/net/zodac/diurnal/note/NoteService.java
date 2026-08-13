@@ -224,13 +224,12 @@ public class NoteService {
      *
      * @param user  the acting user
      * @param notes the content to write, keyed by day
-     * @return how many notes were written
      */
-    public int replaceAll(final User user, final Map<LocalDate, String> notes) {
+    public void replaceAll(final User user, final Map<LocalDate, String> notes) {
         Note.deleteByUser(user.id);
         if (notes.isEmpty()) {
             LOGGER.info("Notes replaced with an empty journal for user {}", user.email);
-            return 0;
+            return;
         }
 
         final byte[] dataKey = noteKeys.forUserCreatingIfAbsent(user.id)
@@ -247,7 +246,6 @@ public class NoteService {
 
         // The COUNT and the user only - never a date's content. See the class Javadoc.
         LOGGER.info("Notes replaced: {} written for user {}", written, user.email);
-        return written;
     }
 
     /**

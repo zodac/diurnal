@@ -49,7 +49,7 @@ public class SessionActivityService {
     // How recently a user must have made an authenticated request to count as "recently active". The
     // matching client-side value (which flips a dot green -> grey once the live counter crosses it) is
     // ACTIVE_WINDOW_MS in app.js - keep the two in step.
-    static final Duration ACTIVE_WINDOW = Duration.ofMinutes(5L);
+    private static final Duration ACTIVE_WINDOW = Duration.ofMinutes(5L);
 
     /**
      * Resolves the recent-activity presence for each of the given users at {@code now}. Users with no sessions (never logged in, or fully logged out)

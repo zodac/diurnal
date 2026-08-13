@@ -171,7 +171,7 @@ class TransferArchiveTest {
 
     private static byte[] zipOf(final Map<String, String> entries) {
         final ByteArrayOutputStream packed = new ByteArrayOutputStream();
-        try (ZipOutputStream archive = new ZipOutputStream(packed, StandardCharsets.UTF_8)) {
+        try (final ZipOutputStream archive = new ZipOutputStream(packed, StandardCharsets.UTF_8)) {
             for (final Map.Entry<String, String> entry : entries.entrySet()) {
                 archive.putNextEntry(new ZipEntry(entry.getKey()));
                 archive.write(entry.getValue().getBytes(StandardCharsets.UTF_8));

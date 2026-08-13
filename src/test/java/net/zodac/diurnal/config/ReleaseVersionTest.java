@@ -51,7 +51,7 @@ class ReleaseVersionTest {
     @Test
     void openResource_findsPackagedFile() {
         // The POM packages the repo-root VERSION file onto the classpath, so it is resolvable at runtime.
-        try (InputStream stream = ReleaseVersion.openResource()) {
+        try (final InputStream stream = ReleaseVersion.openResource()) {
             assertThat(stream)
                 .as("the packaged VERSION resource should be on the classpath")
                 .isNotNull();
@@ -83,7 +83,7 @@ class ReleaseVersionTest {
 
     @Test
     void resolve_readFailure_returnsFallback() throws IOException {
-        try (InputStream failing = new InputStream() {
+        try (final InputStream failing = new InputStream() {
             @Override
             public int read() throws IOException {
                 throw new IOException("boom");

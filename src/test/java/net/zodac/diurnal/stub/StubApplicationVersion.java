@@ -30,14 +30,19 @@ public final class StubApplicationVersion extends ApplicationVersion {
 
     private final String version;
 
+    private StubApplicationVersion(final String version) {
+        super(() -> "dev");
+        this.version = version;
+    }
+
     /**
      * Creates the stub with the fixed release version to return.
      *
      * @param version the release version {@link #release()} should return
+     * @return the stub
      */
-    public StubApplicationVersion(final String version) {
-        super(() -> "dev");
-        this.version = version;
+    public static StubApplicationVersion of(final String version) {
+        return new StubApplicationVersion(version);
     }
 
     @Override

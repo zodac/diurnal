@@ -65,7 +65,7 @@ import org.jspecify.annotations.Nullable;
  */
 @Tag(name = "Actions", description = "Manage a user's personal actions.")
 @Path("/api/v1/actions")
-@RolesAllowed(Role.Values.USER)
+@RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 @Produces(MediaType.APPLICATION_JSON)
 @Consumes(MediaType.APPLICATION_JSON)
 @RollbackOnErrorStatus
@@ -81,7 +81,7 @@ public class ActionsApiResource {
      * @param actionService the shared action-mutation service
      */
     @Inject
-    public ActionsApiResource(final CurrentUser currentUser, final ActionService actionService) {
+    ActionsApiResource(final CurrentUser currentUser, final ActionService actionService) {
         this.currentUser = currentUser;
         this.actionService = actionService;
     }
@@ -308,8 +308,10 @@ public class ActionsApiResource {
      * @param name   the action's name (required on create; optional on update)
      * @param colour the action's colour as {@code #rrggbb} (optional; a malformed value is rejected, an absent one is suggested on create)
      */
+    // Public is forced: Quarkus's generated (de)serializer is not a nestmate so private throws IllegalAccessError, and the endpoint
+    // taking it must be public for JAX-RS, so package-private would trip ClassEscapesItsScope instead.
     @Schema(description = "Fields for creating or updating an action.")
-    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
+    @SuppressWarnings({"unused", "WeakerAccess"}) // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record ActionRequest(
         @Schema(examples = "Morning run", description = "The action's name; unique per user, at most 100 characters.") @Nullable String name,
         @Schema(examples = "#6366f1",
@@ -323,7 +325,7 @@ public class ActionsApiResource {
      * @param colour the suggested colour as {@code #rrggbb}
      */
     @Schema(description = "A suggested colour for a new action.")
-    public record ActionColourDto(
+    record ActionColourDto(
         @Schema(examples = "#22d3ee", description = "The suggested colour as a CSS hex value.") String colour) {
 
     }
@@ -335,6 +337,9 @@ public class ActionsApiResource {
      * @param name   the action's name
      * @param colour the action's display colour as {@code #rrggbb}
      */
+    // Public is forced: Quarkus's generated (de)serializer is not a nestmate so private throws IllegalAccessError, and the endpoint
+    // taking it must be public for JAX-RS, so package-private would trip ClassEscapesItsScope instead.
+    @SuppressWarnings("WeakerAccess")
     @Schema(description = "A single trackable action (habit).")
     public record ActionDto(
         @Schema(description = "The action's ID.") UUID id,
@@ -347,7 +352,7 @@ public class ActionsApiResource {
          * @param action the entity
          * @return the DTO
          */
-        public static ActionDto from(final Action action) {
+        static ActionDto from(final Action action) {
             return new ActionDto(action.id, action.name, action.colour);
         }
     }
@@ -361,19 +366,13 @@ public class ActionsApiResource {
      * @param currentPage the returned 1-based page (always the requested page — an out-of-range page is rejected, not clamped)
      */
     @Schema(description = "One page of the user's actions, ordered by name.")
-    public record ActionPageDto(
+    record ActionPageDto(
         @Schema(description = "The page's actions, ordered by name.") List<ActionDto> items,
         @Schema(examples = "12", description = "The total number of (filtered) actions across all pages.") int totalCount,
         @Schema(examples = "3", description = "The total number of pages.") int totalPages,
         @Schema(examples = "1", description = "The returned 1-based page (always the requested page; out-of-range is rejected).") int currentPage) {
 
-        /**
-         * Maps the shared pagination result to its API representation.
-         *
-         * @param page the fetched page
-         * @return the DTO
-         */
-        static ActionPageDto from(final ActionsInternalResource.PaginatedActions page) {
+        private static ActionPageDto from(final ActionsInternalResource.PaginatedActions page) {
             return new ActionPageDto(
                 page.items().stream().map(ActionDto::from).toList(),
                 page.totalCount(),

@@ -37,15 +37,15 @@ import org.junit.jupiter.api.Test;
  * cascade-delete of an action's logs.
  */
 @QuarkusTest
-@TestSecurity(user = "actions-api-it@lt.test", roles = Role.Values.USER)
+@TestSecurity(user = "actions-api-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class ActionsApiResourceIT extends IntegrationTestBase {
 
-    static final String PRIMARY = "actions-api-it@lt.test";
-    static final String OTHER   = "actions-api-other@lt.test";
+    private static final String PRIMARY = "actions-api-it@lt.test";
+    private static final String OTHER   = "actions-api-other@lt.test";
 
-    UUID primaryId;
-    UUID otherId;
+    private UUID primaryId;
+    private UUID otherId;
 
     @Override
     protected void createDbState() {
@@ -148,7 +148,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
 
         runInTx(() -> assertThat(Action.count("userId = ?1 and name = ?2", primaryId, "Morning run"))
             .as("the created action should be persisted for the caller")
-            .isEqualTo(1));
+            .isEqualTo(1L));
     }
 
     @Test

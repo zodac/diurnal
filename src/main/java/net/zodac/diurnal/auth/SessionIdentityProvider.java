@@ -65,6 +65,6 @@ public class SessionIdentityProvider implements IdentityProvider<SessionTokenAut
     private SecurityIdentity resolve(final String token) {
         return sessionStore.resolve(token, clock.now())
             .map(UserIdentities::of)
-            .orElseThrow(AuthenticationFailedException::new);
+            .orElseThrow(() -> new AuthenticationFailedException("Session token did not resolve to an active session"));
     }
 }

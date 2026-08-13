@@ -106,7 +106,7 @@ class EntityTagsTest {
     void withValidator_attachesTagAndVaryButNoCacheControl() {
         final EntityTag tag = EntityTags.weak("user", 1);
 
-        try (Response response = EntityTags.withValidator(Response.ok(), tag).build()) {
+        try (final Response response = EntityTags.withValidator(Response.ok(), tag).build()) {
             assertThat(response.getEntityTag())
                 .as("the validator tag must be attached")
                 .isEqualTo(tag);
@@ -123,7 +123,7 @@ class EntityTagsTest {
     void withPrivateValidator_attachesTagVaryAndPrivateNoCache() {
         final EntityTag tag = EntityTags.weak("user", 1);
 
-        try (Response response = EntityTags.withPrivateValidator(Response.ok(), tag).build()) {
+        try (final Response response = EntityTags.withPrivateValidator(Response.ok(), tag).build()) {
             assertThat(response.getEntityTag())
                 .as("the validator tag must be attached")
                 .isEqualTo(tag);

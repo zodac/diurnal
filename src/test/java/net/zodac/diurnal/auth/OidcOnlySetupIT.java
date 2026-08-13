@@ -83,7 +83,7 @@ class OidcOnlySetupIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "sysops@example.com", roles = Role.Values.USER)
+    @TestSecurity(user = "sysops@example.com", roles = Role.Values.USER_INTERNAL_VALUE)
     void settingsPage_unlinkedAccount_offersConnectEvenWithPasswordAuthDisabled() {
         // The Connect button is deliberately NOT gated on canChangePassword (false whenever password auth is off) — the unlinked local admin
         // migrating to OIDC must still see it.
@@ -95,7 +95,7 @@ class OidcOnlySetupIT extends IntegrationTestBase {
     }
 
     @Test
-    @TestSecurity(user = "sysops@example.com", roles = Role.Values.USER)
+    @TestSecurity(user = "sysops@example.com", roles = Role.Values.USER_INTERNAL_VALUE)
     void breakGlassAdministrator_canChangeItsPasswordDespitePasswordAuthDisabled() {
         // Password MANAGEMENT keys on holding a password, not on password LOGIN being enabled: the break-glass administrator must be able to
         // maintain its credential while password sign-in is off.

@@ -56,7 +56,7 @@ import org.jspecify.annotations.Nullable;
  * is the same rendered panel in every case, so the card simply replaces its contents with whatever comes back.
  */
 @Path("/internal/data")
-@RolesAllowed(Role.Values.USER)
+@RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 @Produces(MediaType.TEXT_HTML)
 @RollbackOnErrorStatus
 @Schema(hidden = true)

@@ -199,21 +199,11 @@ public enum StatField {
         return label;
     }
 
-    /**
-     * Whether this field is always shown (cannot be deselected), only reordered.
-     *
-     * @return {@code true} if the field is mandatory
-     */
-    public boolean mandatory() {
+    private boolean mandatory() {
         return mandatory;
     }
 
-    /**
-     * A short, user-facing explanation of what the stat means, shown as the settings-picker tooltip.
-     *
-     * @return the field description
-     */
-    public String description() {
+    private String description() {
         return description;
     }
 

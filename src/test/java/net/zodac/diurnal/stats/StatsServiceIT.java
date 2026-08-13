@@ -48,18 +48,18 @@ class StatsServiceIT extends IntegrationTestBase {
     private static final LocalDate LAST_MONTH = TODAY.minusMonths(1);
 
     @Inject
-    StatsService statsService;
+    private StatsService statsService;
 
-    UUID userId;
+    private UUID userId;
 
     @Override
     protected void createDbState() {
         userId = newUser("stats-svc@lt.test", "Stats Service User").id;
     }
 
-    private List<String> topNames(final LocalDate date, final int limit) {
-        return statsService.forDate(userId, date, limit).stream()
-                .map(s -> s.subject().name())
+    private List<String> topNames(final int limit) {
+        return statsService.forDate(userId, TODAY, limit).stream()
+                .map(subjectStats -> subjectStats.subject().name())
                 .toList();
     }
 
@@ -69,10 +69,10 @@ class StatsServiceIT extends IntegrationTestBase {
             final Action onTheDay = newAction(userId, "OnTheDay");
             newLog(userId, onTheDay.id, TODAY, 1);
             final Action anotherDay = newAction(userId, "AnotherDay");
-            newLog(userId, anotherDay.id, TODAY.minusDays(1), 1);
+            newLog(userId, anotherDay.id, TODAY.minusDays(1L), 1);
         });
 
-        assertThat(topNames(TODAY, 10))
+        assertThat(topNames(10))
                 .as("only actions logged on the selected day should appear")
                 .containsExactly("OnTheDay");
     }
@@ -90,7 +90,7 @@ class StatsServiceIT extends IntegrationTestBase {
             newLog(userId, charlie.id, TODAY, 5);
         });
 
-        assertThat(topNames(TODAY, 10))
+        assertThat(topNames(10))
                 .as("actions should be ordered by the selected day's count, highest first")
                 .containsExactly("Bravo", "Charlie", "Alpha");
     }
@@ -104,7 +104,7 @@ class StatsServiceIT extends IntegrationTestBase {
             newLog(userId, apple.id, TODAY, 3);
         });
 
-        assertThat(topNames(TODAY, 10))
+        assertThat(topNames(10))
                 .as("actions logged the same number of times should be ordered by name")
                 .containsExactly("Apple", "Zebra");
     }
@@ -119,7 +119,7 @@ class StatsServiceIT extends IntegrationTestBase {
         });
 
         // Counts 4 and 3 are the two highest — Action4 then Action3.
-        assertThat(topNames(TODAY, 2))
+        assertThat(topNames(2))
                 .as("only the day's top `limit` actions should be returned")
                 .containsExactly("Action4", "Action3");
     }
@@ -173,10 +173,10 @@ class StatsServiceIT extends IntegrationTestBase {
                 .containsExactlyInAnyOrder(MONTH_START, second);
         final List<SubjectStats> first = byDate.getOrDefault(MONTH_START, List.of());
         final List<SubjectStats> secondDay = byDate.getOrDefault(second, List.of());
-        assertThat(first.stream().map(s -> s.subject().name()).toList())
+        assertThat(first.stream().map(subjectStats -> subjectStats.subject().name()).toList())
                 .as("the 1st only has Reading logged")
                 .containsExactly("Reading");
-        assertThat(secondDay.stream().map(s -> s.subject().name()).toList())
+        assertThat(secondDay.stream().map(subjectStats -> subjectStats.subject().name()).toList())
                 .as("the 2nd orders by that day's count, so Running (7) precedes Reading (1)")
                 .containsExactly("Running", "Reading");
         assertThat(first.getFirst().totalCount())
@@ -205,7 +205,7 @@ class StatsServiceIT extends IntegrationTestBase {
             newAction(userId, "Alpha");                                  // no logs — excluded
         });
 
-        assertThat(statsService.forAllSubjects(userId).stream().map(s -> s.subject().name()).toList())
+        assertThat(statsService.forAllSubjects(userId).stream().map(subjectStats -> subjectStats.subject().name()).toList())
                 .as("only actions with logged data should appear")
                 .containsExactly("Beta");
     }

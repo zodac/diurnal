@@ -42,7 +42,7 @@ class AdminIpLockoutsDisabledApiIT extends IntegrationTestBase {
     @Inject
     SessionStore sessionStore;
 
-    User admin;
+    private User admin;
 
     @Override
     protected void createDbState() {

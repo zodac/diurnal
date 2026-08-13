@@ -78,7 +78,7 @@ public class Note extends PanacheEntityBase {
      */
     @PreUpdate
     void onUpdate() {
-        this.updatedAt = Instant.now();
+        updatedAt = Instant.now();
     }
 
     // ── Queries ───────────────────────────────────────────────────────────
@@ -231,7 +231,7 @@ public class Note extends PanacheEntityBase {
      * @return {@code true} if a note was removed, {@code false} if the day had none
      */
     public static boolean deleteEntry(final UUID userId, final LocalDate date) {
-        return delete("userId = ?1 and noteDate = ?2", userId, date) > 0;
+        return delete("userId = ?1 and noteDate = ?2", userId, date) > 0L;
     }
 
     /**

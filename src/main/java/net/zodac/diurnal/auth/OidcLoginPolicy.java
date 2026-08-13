@@ -81,7 +81,7 @@ public final class OidcLoginPolicy {
         if (facts.emailCollision() && facts.passwordAuthEnabled()) {
             return new OidcLoginDecision.Deny(OidcDenialReason.ACCOUNT_EXISTS);
         }
-        if (Boolean.FALSE.equals(facts.emailVerified())) {
+        if (!facts.emailVerified()) {
             return new OidcLoginDecision.Deny(OidcDenialReason.EMAIL_UNVERIFIED);
         }
         if (facts.emailCollision()) {

@@ -35,7 +35,7 @@ import org.junit.jupiter.api.Test;
  * {@link NoteService} and are shared with the web surface (see {@code SurfaceParityIT}); this pins the JSON translation and the status codes.
  */
 @QuarkusTest
-@TestSecurity(user = NotesApiResourceIT.PRIMARY, roles = Role.Values.USER)
+@TestSecurity(user = NotesApiResourceIT.PRIMARY, roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class NotesApiResourceIT extends IntegrationTestBase {
 

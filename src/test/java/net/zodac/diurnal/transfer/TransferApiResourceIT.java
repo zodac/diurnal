@@ -45,7 +45,7 @@ import org.junit.jupiter.api.Test;
  * the JSON translation.
  */
 @QuarkusTest
-@TestSecurity(user = TransferApiResourceIT.PRIMARY, roles = Role.Values.USER)
+@TestSecurity(user = TransferApiResourceIT.PRIMARY, roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class TransferApiResourceIT extends IntegrationTestBase {
 
@@ -287,6 +287,6 @@ class TransferApiResourceIT extends IntegrationTestBase {
         assertThat(outcome)
             .as("the exported archive must be readable")
             .isInstanceOf(ArchiveOutcome.Unpacked.class);
-        return outcome instanceof final ArchiveOutcome.Unpacked unpacked ? unpacked.members() : Map.of();
+        return outcome instanceof ArchiveOutcome.Unpacked(final Map<String, String> members) ? members : Map.of();
     }
 }

@@ -36,6 +36,7 @@ import org.jspecify.annotations.Nullable;
  */
 final class FrequencyKeys {
 
+    private static final int MONTHS_PER_YEAR = 12;
     private static final Pattern MONTH_KEY = Pattern.compile("^\\d{4}-\\d{2}$");
     private static final Pattern YEAR_KEY = Pattern.compile("^\\d{4}$");
     private static final DateTimeFormatter MONTH_KEY_FMT = DateTimeFormatter.ofPattern("yyyy-MM", Locale.ENGLISH);
@@ -130,7 +131,7 @@ final class FrequencyKeys {
      * @return the last day of the window
      */
     static LocalDate end(final FrequencyPeriod period, final LocalDate anchor) {
-        return shift(period, anchor, 1).minusDays(1);
+        return shift(period, anchor, 1).minusDays(1L);
     }
 
     /**
@@ -151,7 +152,7 @@ final class FrequencyKeys {
 
     private static boolean isRealMonth(final String key) {
         final int month = month(key);
-        return month >= 1 && month <= 12;
+        return month >= 1 && month <= MONTHS_PER_YEAR;
     }
 
     private static int year(final String key) {

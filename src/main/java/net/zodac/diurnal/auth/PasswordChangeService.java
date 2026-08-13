@@ -57,24 +57,11 @@ public class PasswordChangeService {
      */
     public static final String CURRENT_PASSWORD_ERROR = "Current password is incorrect";
 
-    /**
-     * User-facing rejection message when the new password is empty or the re-entered copy does not match.
-     */
-    public static final String NEW_PASSWORD_ERROR = "Passwords do not match";
+    private static final String NEW_PASSWORD_ERROR = "Passwords do not match";
 
-    /**
-     * User-facing rejection message when the new password exceeds the {@link TextFields#PASSWORD} maximum length.
-     */
-    public static final String NEW_PASSWORD_TOO_LONG_ERROR = TextFieldExtensions.lengthMessage(TextFields.PASSWORD);
+    private static final String NEW_PASSWORD_TOO_LONG_ERROR = TextFieldExtensions.lengthMessage(TextFields.PASSWORD);
 
-    /**
-     * User-facing rejection message when the new password is the one already stored.
-     *
-     * <p>
-     * Deliberately worded without the phrase "current password": the Settings client sends the user back to step 1 on any rejection naming it, and
-     * this rejection belongs to the NEW-password step.
-     */
-    public static final String NEW_PASSWORD_UNCHANGED_ERROR = "New password must be different from the existing password";
+    private static final String NEW_PASSWORD_UNCHANGED_ERROR = "New password must be different from the existing password";
 
     private static final Logger LOGGER = LogManager.getLogger(PasswordChangeService.class);
 
@@ -150,7 +137,7 @@ public class PasswordChangeService {
         // the hashing cost bounded - an over-long input is a cheap CPU-exhaustion lever). An absent password is a rejection of the same step as a
         // mismatch, so it carries that wording rather than the pipeline's.
         final TextOutcome outcome = TextValidation.check(TextFields.PASSWORD, newPassword);
-        if (!(outcome instanceof final TextOutcome.Valid accepted)) {
+        if (!(outcome instanceof TextOutcome.Valid(final String value))) {
             return new PasswordChangeResult.InvalidNewPassword(
                 outcome instanceof TextOutcome.Blank ? NEW_PASSWORD_ERROR : NEW_PASSWORD_TOO_LONG_ERROR);
         }
@@ -158,13 +145,13 @@ public class PasswordChangeService {
         // A password change must actually change something: re-submitting the existing password would re-hash it and revoke every other session for
         // no gain, and silently accepting it tells the user their password changed when it did not. The current password has already been proven
         // above, so this is a plain comparison of two values known to be the account's - no second Argon2id verification.
-        if (accepted.value().equals(currentPassword)) {
+        if (value.equals(currentPassword)) {
             return new PasswordChangeResult.InvalidNewPassword(NEW_PASSWORD_UNCHANGED_ERROR);
         }
 
         // The new hash is computed here, outside any transaction (see the class Javadoc). It hashes the value the check above accepted - for a
         // secret that is the submission verbatim, but taking it from the outcome is what guarantees no second pass over the input.
-        final String newHash = passwords.hash(accepted.value());
+        final String newHash = passwords.hash(value);
         return self.get().applyChange(user.id, newHash, currentRawToken);
     }
 

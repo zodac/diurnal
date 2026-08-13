@@ -21,8 +21,8 @@ import io.quarkus.hibernate.orm.panache.Panache;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.SplittableRandom;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
@@ -64,11 +64,10 @@ class ActionService {
      */
     ActionResult create(final User user, final @Nullable String name, final @Nullable String colour) {
         final TextOutcome nameOutcome = TextValidation.check(TextFields.ACTION_NAME, name);
-        if (!(nameOutcome instanceof final TextOutcome.Valid validName)) {
+        if (!(nameOutcome instanceof TextOutcome.Valid(final String normName))) {
             return nameRejection((TextOutcome.Failure) nameOutcome);
         }
-        final String normName = validName.value();
-        if (Action.count("userId = ?1 and name = ?2", user.id, normName) > 0) {
+        if (Action.count("userId = ?1 and name = ?2", user.id, normName) > 0L) {
             return new ActionResult.DuplicateName(normName);
         }
         if (colour != null && ActionValidation.isColourInvalid(colour)) {
@@ -122,12 +121,12 @@ class ActionService {
         String normName = null;
         if (name != null) {
             final TextOutcome nameOutcome = TextValidation.check(TextFields.ACTION_NAME, name);
-            if (!(nameOutcome instanceof final TextOutcome.Valid validName)) {
+            if (!(nameOutcome instanceof TextOutcome.Valid(final String value))) {
                 return nameRejection((TextOutcome.Failure) nameOutcome);
             }
-            normName = validName.value();
+            normName = value;
 
-            if (Action.count("userId = ?1 and name = ?2 and id != ?3", action.userId, normName, id) > 0) {
+            if (Action.count("userId = ?1 and name = ?2 and id != ?3", action.userId, normName, id) > 0L) {
                 return new ActionResult.DuplicateName(normName);
             }
         }
@@ -178,7 +177,10 @@ class ActionService {
     String suggestColour(final User user) {
         final Collection<String> inUse = new ArrayList<>(Action.distinctColours(user.id));
         inUse.add(user.noteColour);
-        return ActionColours.suggest(inUse, ThreadLocalRandom.current());
+        // A generator of its own rather than ThreadLocalRandom.current(): that instance belongs to the calling thread and stays correct only while
+        // it never leaves it, which is a contract this method cannot enforce once it hands the instance to another class. One suggestion allocates
+        // one short-lived generator - nothing next to the query above it - and there is then no thread-confined object being passed anywhere.
+        return ActionColours.suggest(inUse, new SplittableRandom());
     }
 
     // The blank and over-long cases keep their own banners because both surfaces already word them; every content-rule rejection is carried as the
@@ -199,7 +201,8 @@ class ActionService {
      * @param id   the action's id
      * @return the owned action, or {@code null} when it does not exist or belongs to someone else
      */
-    @Nullable Action findOwned(final User user, final UUID id) {
+    @Nullable
+    Action findOwned(final User user, final UUID id) {
         return Action.<Action>find("id = ?1 and userId = ?2", id, user.id)
                 .firstResult();
     }

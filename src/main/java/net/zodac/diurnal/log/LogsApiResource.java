@@ -80,7 +80,7 @@ import org.jspecify.annotations.Nullable;
  */
 @Tag(name = "Logs", description = "Read and write a user's logged actions.")
 @Path("/api/v1/logs")
-@RolesAllowed(Role.Values.USER)
+@RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 @Produces(MediaType.APPLICATION_JSON)
 @RollbackOnErrorStatus
 public class LogsApiResource {
@@ -97,7 +97,7 @@ public class LogsApiResource {
      * @param logService the shared log-mutation service
      */
     @Inject
-    public LogsApiResource(final CurrentUser currentUser, final LogService logService) {
+    LogsApiResource(final CurrentUser currentUser, final LogService logService) {
         this.currentUser = currentUser;
         this.logService = logService;
     }
@@ -398,7 +398,7 @@ public class LogsApiResource {
             if (!(current instanceof final LogResult.Updated existing)) {
                 return translate(current, actionId, day);
             }
-            if ((long) existing.count() + amount > ActionLog.MAX_DAILY_COUNT) {
+            if (existing.count() + amount > ActionLog.MAX_DAILY_COUNT) {
                 return badRequest("Count cannot exceed " + ActionLog.MAX_DAILY_COUNT);
             }
         }
@@ -424,8 +424,10 @@ public class LogsApiResource {
      *
      * @param count the count to set; {@code 0} removes the entry
      */
+    // Public is forced: Quarkus's generated (de)serializer is not a nestmate so private throws IllegalAccessError, and the endpoint
+    // taking it must be public for JAX-RS, so package-private would trip ClassEscapesItsScope instead.
     @Schema(description = "The count to set for the day.")
-    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
+    @SuppressWarnings({"unused", "WeakerAccess"}) // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record SetCountRequest(
         @Schema(examples = "3", description = "The count to set; 0 removes the day's entry, a value above 999 is rejected.")
         @Nullable Integer count) {
@@ -436,8 +438,10 @@ public class LogsApiResource {
      *
      * @param amount the amount to adjust by (default 1)
      */
+    // Public is forced: Quarkus's generated (de)serializer is not a nestmate so private throws IllegalAccessError, and the endpoint
+    // taking it must be public for JAX-RS, so package-private would trip ClassEscapesItsScope instead.
     @Schema(description = "The amount to adjust the day's count by.")
-    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
+    @SuppressWarnings({"unused", "WeakerAccess"}) // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record AmountRequest(
         @Schema(examples = "1", description = "The amount to adjust by; must be at least 1. Defaults to 1 when omitted.")
         @Nullable Integer amount) {
@@ -451,7 +455,7 @@ public class LogsApiResource {
      * @param count    the resulting count (0 means no entry remains)
      */
     @Schema(description = "One action's resulting count for a day.")
-    public record LogEntryDto(
+    record LogEntryDto(
         @Schema(description = "The action's ID.") UUID actionId,
         @Schema(examples = "2026-06-15", description = "The day, as an ISO-8601 date string.") String date,
         @Schema(examples = "3", description = "The resulting count for the day; 0 means no entry remains.") int count) {
@@ -466,7 +470,7 @@ public class LogsApiResource {
      * @param count    the logged count for the day
      */
     @Schema(description = "One action's logged count on a given day.")
-    public record DayLogEntryDto(
+    record DayLogEntryDto(
         @Schema(description = "The action's ID.") UUID actionId,
         @Schema(examples = "Morning run", description = "The action's name.") String name,
         @Schema(examples = "#6366f1", description = "The action's display colour as a CSS hex value.") String colour,
@@ -478,7 +482,7 @@ public class LogsApiResource {
      * common calendar-event convention and are kept as the public API contract.
      */
     @Schema(description = "A single logged-action calendar event: title, date and the action's display colour.")
-    public record CalendarEventDto(
+    record CalendarEventDto(
         @Schema(examples = "Morning run", description = "Action name; includes a ×N suffix when the day's count exceeds 1.") String title,
         @Schema(examples = "2026-06-15", description = "Date of the logged entry as an ISO-8601 date string.") String start,
         @Schema(examples = "#6366f1", description = "Action colour as a CSS hex value, used as the event background colour.")

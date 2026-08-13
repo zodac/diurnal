@@ -63,7 +63,7 @@ import org.eclipse.microprofile.openapi.annotations.tags.Tag;
  */
 @Tag(name = "Data", description = "Export a user's whole history as an editable archive, and import one back.")
 @Path("/api/v1/data")
-@RolesAllowed(Role.Values.USER)
+@RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 @Produces(MediaType.APPLICATION_JSON)
 @RollbackOnErrorStatus
 public class TransferApiResource {
@@ -141,7 +141,7 @@ public class TransferApiResource {
         @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     })
     public Response preview(
-        @RequestBody(required = true, description = "The export archive to validate.",
+        @RequestBody(description = "The export archive to validate.",
         content = @Content(mediaType = APPLICATION_ZIP, schema = @Schema(type = SchemaType.STRING, format = "binary")))
         final byte[] archive) {
 
@@ -175,7 +175,7 @@ public class TransferApiResource {
         @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     })
     public Response importData(
-        @RequestBody(required = true, description = "The export archive to import.",
+        @RequestBody(description = "The export archive to import.",
         content = @Content(mediaType = APPLICATION_ZIP, schema = @Schema(type = SchemaType.STRING, format = "binary")))
         final byte[] archive) {
 
@@ -208,7 +208,7 @@ public class TransferApiResource {
      * @param replacedNotes   the day notes the account held before the import
      */
     @Schema(description = "What an import did, or would do.")
-    public record ImportSummaryDto(
+    record ImportSummaryDto(
         @Schema(examples = "12", description = "The actions the archive brings.") int actions,
         @Schema(examples = "340", description = "The day counts the archive brings.") int logs,
         @Schema(examples = "88", description = "The day notes the archive brings.") int notes,
@@ -230,7 +230,7 @@ public class TransferApiResource {
      * @param totalProblems how many problems there were in total, which may exceed the number listed
      */
     @Schema(description = "Why an archive was refused. Nothing was written.")
-    public record ImportRejectionDto(
+    record ImportRejectionDto(
         @Schema(examples = "The archive was refused", description = "A human-readable summary of the refusal.") String message,
         @Schema(description = "The individual problems, capped at 50.") List<ImportProblemDto> problems,
         @Schema(examples = "3", description = "How many problems there were in total, which may exceed the number listed.") int totalProblems) {
@@ -252,7 +252,7 @@ public class TransferApiResource {
      * @param reason the human-readable cause
      */
     @Schema(description = "One reason a row was refused.")
-    public record ImportProblemDto(
+    record ImportProblemDto(
         @Schema(examples = "logs.csv", description = "The archive member the problem is in.") String file,
         @Schema(examples = "42", description = "The 1-based line, or 0 when the problem is with the member as a whole.") int line,
         @Schema(examples = "The count must be between 1 and 999.", description = "The human-readable cause.") String reason) {

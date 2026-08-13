@@ -126,6 +126,34 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-grype-db-
 
+      # Cache Qodana's IntelliJ index, its downloaded JBR and the Maven repository it resolves into. A cold
+      # scan builds the whole index from scratch and pulls the JBR before it inspects a single file, which
+      # is the bulk of the step's wall clock on a 2-vCPU runner.
+      #
+      # ONLY .qodana/cache is cached - NEVER .qodana/results, which is where the SARIF lands. That is not an
+      # oversight: the gate is judged fresh on every run and deliberately keeps no baseline (see the "NO
+      # BASELINE" note in qodana.yaml), so restoring a previous run's findings would let a finding be
+      # inherited into a silently-accepted set - exactly what the no-baseline policy exists to prevent.
+      #
+      # Keyed on everything that decides what a cached index means: the pinned linter image (in
+      # qodana.yaml), the inspection profile, the IDE overrides, and the POM. The profile and the overrides
+      # live in the code-quality-config submodule, which the checkout step above pulls with
+      # `submodules: true` - without that they would hash to nothing and every submodule bump would silently
+      # reuse a stale index. A run whose key already exists
+      # restores and does NOT re-upload, so one entry is reused rather than a new one written every run.
+      #
+      # There is deliberately NO `restore-keys` fallback, unlike the Grype step above. A cache written
+      # before ExternalStorageConfigurationManager was dropped from the overrides carries a module model
+      # that lives outside `.idea`, and restoring it makes every run fail with "This project contains no
+      # modules" - a green pipeline turning red with no code change. A prefix fallback would reach exactly
+      # those entries. Without one, a change to any keyed file simply starts cold once (~10m instead of
+      # ~2m30s) and is warm from then on, which is the right way round for a gate.
+      - name: Cache Qodana index
+        uses: actions/cache@v6.1.0
+        with:
+          path: .qodana/cache
+          key: ${{ runner.os }}-qodana-${{ hashFiles('qodana.yaml', 'code-quality-config/java/qodana/profiles/java.yaml', 'code-quality-config/java/qodana/overrides/**', 'pom.xml') }}
+
       # Executes the full gate one place.
       # Needs the host toolchain set up above: JDK+Maven, Node deps, Playwright, and Docker.
       - name: Run full test and lint gate

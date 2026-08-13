@@ -45,6 +45,7 @@ final class FrequencyCharts {
 
     private static final int MONTHS_PER_YEAR = 12;
     private static final int MIN_VISIBLE_PERCENT = 3;
+    private static final double PERCENT_SCALE = 100.0;
     private static final int EDGE_SLOTS = 4;
     private static final DateTimeFormatter DAY_FULL = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter MONTH_FULL = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
@@ -128,7 +129,7 @@ final class FrequencyCharts {
         if (count <= 0L || peak <= 0L) {
             return 0;
         }
-        return Math.max(MIN_VISIBLE_PERCENT, (int) Math.round(count * 100.0 / peak));
+        return Math.max(MIN_VISIBLE_PERCENT, (int) Math.round(count * PERCENT_SCALE / peak));
     }
 
     /**

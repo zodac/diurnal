@@ -38,6 +38,7 @@ import jakarta.ws.rs.core.Response;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import net.zodac.diurnal.auth.RecentActivity;
@@ -59,7 +60,7 @@ import net.zodac.diurnal.user.User;
  * {@link AdminUserResult} outcomes into partials/banners.
  */
 @Path("/internal/admin/users")
-@RolesAllowed(Role.Values.ADMIN)
+@RolesAllowed(Role.Values.ADMIN_INTERNAL_VALUE)
 @RollbackOnErrorStatus
 public class AdminUsersInternalResource {
 
@@ -244,7 +245,7 @@ public class AdminUsersInternalResource {
     }
 
     private static DateTimeFormatter formatter(final ZoneId zone) {
-        return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").withZone(zone);
+        return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ROOT).withZone(zone);
     }
 
     // The timestamps are rendered in the viewing administrator's configured timezone (falling back to

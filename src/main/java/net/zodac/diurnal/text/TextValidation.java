@@ -61,8 +61,8 @@ public final class TextValidation {
         // Normalised ONCE here, then checked as-is: normalisation is idempotent, but running it twice over one value is the kind of duplicated pass
         // this pipeline exists to remove.
         final String truncated = TextFieldExtensions.truncate(TextFieldExtensions.normalise(field, raw), field.maxLength());
-        return checkNormalised(field, truncated) instanceof final TextOutcome.Valid valid && !valid.value().isEmpty()
-            ? Optional.of(valid.value())
+        return checkNormalised(field, truncated) instanceof TextOutcome.Valid(final String value) && !value.isEmpty()
+            ? Optional.of(value)
             : Optional.empty();
     }
 

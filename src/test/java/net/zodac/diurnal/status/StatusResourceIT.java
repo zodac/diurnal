@@ -44,6 +44,6 @@ class StatusResourceIT extends IntegrationTestBase {
             // The version is served from the packaged VERSION resource (same source as the footer / OpenAPI info block).
             .body("version", equalTo(ReleaseVersion.resolve("fallback-unused")))
             // HH:mm:ss.SSS with leading zero-value groups omitted: 1-3 dot-free groups, always ending in .SSS.
-            .body("uptime", matchesRegex("\\d+(:\\d{2}){0,2}\\.\\d{3}"));
+            .body("uptime", matchesRegex("\\d+(?::\\d{2}){0,2}\\.\\d{3}"));
     }
 }

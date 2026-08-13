@@ -65,14 +65,14 @@ class AppInfoTest {
     }
 
     private static AppInfo appInfo(final AppConfig appConfig) {
-        return new AppInfo(new StubApplicationVersion("dev"), appConfig, new StubUpdateCheckService(NO_UPDATE));
+        return new AppInfo(StubApplicationVersion.of("dev"), appConfig, StubUpdateCheckService.of(NO_UPDATE));
     }
 
     @Test
     void version_delegatesToApplicationVersion() {
         // getVersion() is a thin delegate over ApplicationVersion.release() (the packaged-VERSION
         // resolution itself is tested in ApplicationVersionTest); assert the value passes straight through.
-        final AppInfo appInfo = new AppInfo(new StubApplicationVersion("1.2.3"), EMPTY_APP_CONFIG, new StubUpdateCheckService(NO_UPDATE));
+        final AppInfo appInfo = new AppInfo(StubApplicationVersion.of("1.2.3"), EMPTY_APP_CONFIG, StubUpdateCheckService.of(NO_UPDATE));
         assertThat(appInfo.getVersion())
             .as("getVersion() should return exactly what ApplicationVersion resolves")
             .isEqualTo("1.2.3");
@@ -314,6 +314,6 @@ class AppInfoTest {
     }
 
     private static AppInfo appInfoWithUpdate(final UpdateStatus status) {
-        return new AppInfo(new StubApplicationVersion("dev"), EMPTY_APP_CONFIG, new StubUpdateCheckService(status));
+        return new AppInfo(StubApplicationVersion.of("dev"), EMPTY_APP_CONFIG, StubUpdateCheckService.of(status));
     }
 }

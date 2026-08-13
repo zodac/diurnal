@@ -138,7 +138,7 @@ public class NoteKeys {
         return rotateOnto(masterKey(), retired);
     }
 
-    private KeyReconciliation rotateOnto(final byte[] current, final List<byte[]> retired) {
+    private static KeyReconciliation rotateOnto(final byte[] current, final List<byte[]> retired) {
         int rotated = 0;
         int unopenable = 0;
 

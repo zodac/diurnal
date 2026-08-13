@@ -72,7 +72,7 @@ import org.jspecify.annotations.Nullable;
  * per-surface split every other text input in the app uses.
  */
 @Path("/internal/notes")
-@RolesAllowed(Role.Values.USER)
+@RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 @Produces(MediaType.APPLICATION_JSON)
 @RollbackOnErrorStatus
 public class NotesInternalResource {
@@ -215,7 +215,9 @@ public class NotesInternalResource {
      *
      * @param content the submitted content; blank or {@code null} removes the day's note
      */
-    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
+    // Public is forced: Quarkus's generated (de)serializer is not a nestmate so private throws IllegalAccessError, and the endpoint
+    // taking it must be public for JAX-RS, so package-private would trip ClassEscapesItsScope instead.
+    @SuppressWarnings({"unused", "WeakerAccess"}) // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record NoteSubmission(@Nullable String content) {
 
     }
@@ -227,7 +229,7 @@ public class NotesInternalResource {
      * @param date    the day, as an ISO-8601 date string
      * @param content the stored content, empty when the day's note was removed
      */
-    public record SavedNote(String date, String content) {
+    record SavedNote(String date, String content) {
 
     }
 }

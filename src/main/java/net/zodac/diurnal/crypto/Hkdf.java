@@ -18,7 +18,8 @@
 package net.zodac.diurnal.crypto;
 
 import java.nio.charset.StandardCharsets;
-import java.security.GeneralSecurityException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -55,7 +56,7 @@ public final class Hkdf {
      * for each distinct purpose.
      *
      * @param inputKeyMaterial the high-entropy input (never a password or passphrase)
-     * @param info the purpose label providing domain separation
+     * @param info             the purpose label providing domain separation
      * @return the derived key
      */
     public static byte[] deriveKey(final byte[] inputKeyMaterial, final String info) {
@@ -76,8 +77,8 @@ public final class Hkdf {
             final Mac mac = Mac.getInstance(MAC_ALGORITHM);
             mac.init(new SecretKeySpec(key, MAC_ALGORITHM));
             return mac.doFinal(message);
-        } catch (final GeneralSecurityException e) {
-            // HMAC-SHA-256 is a mandated JDK algorithm, so this is unreachable in practice.
+        } catch (final InvalidKeyException | NoSuchAlgorithmException e) {
+            // HMAC-SHA-256 is a mandated JDK algorithm, so this is unreachable in practice
             throw new IllegalStateException("HmacSHA256 is not available", e);
         }
     }

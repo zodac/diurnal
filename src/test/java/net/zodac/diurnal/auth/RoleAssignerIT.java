@@ -25,8 +25,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.user.Role;
-import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
@@ -35,15 +35,10 @@ class RoleAssignerIT extends IntegrationTestBase {
     @Inject
     RoleAssigner roleAssigner;
 
-    // Mirror the same config the bean reads so tests stay environment-agnostic.
-    // SmallRye Config reads .env at higher priority than %test profile overrides, so
-    // we can't force a specific value here — instead we derive the expected result from
-    // the same config source the bean uses and verify the two are consistent.
-    @ConfigProperty(name = "oidc.admin.group")
-    Optional<String> oidcAdminGroup = Optional.empty();
-
-    @ConfigProperty(name = "oidc.user.group")
-    Optional<String> oidcUserGroup = Optional.empty();
+    // Injects the very config the bean under test reads, so these tests stay environment-agnostic: SmallRye resolves .env at a higher priority
+    // than the %test profile, so a specific value cannot be forced here - each expectation is instead derived from the same source the bean uses.
+    @Inject
+    OidcConfig oidcConfig;
 
     // createDbState() not overridden — users table is empty after setUp()
 
@@ -92,8 +87,9 @@ class RoleAssignerIT extends IntegrationTestBase {
 
     @Test
     void roleFromOidcGroups_configuredAdminGroup_returnsAdmin() {
-        if (oidcAdminGroup.isPresent() && !oidcAdminGroup.get().isBlank()) {
-            assertThat(roleAssigner.roleFromOidcGroups(List.of(oidcAdminGroup.get())))
+        final Optional<String> adminGroup = oidcConfig.adminGroup().filter(group -> !group.isBlank());
+        if (adminGroup.isPresent()) {
+            assertThat(roleAssigner.roleFromOidcGroups(List.of(adminGroup.get())))
                 .as("unexpected value")
                 .isEqualTo(Optional.of(Role.ADMIN.storageValue()));
         } else {
@@ -106,8 +102,9 @@ class RoleAssignerIT extends IntegrationTestBase {
 
     @Test
     void roleFromOidcGroups_configuredUserGroup_returnsUser() {
-        if (oidcUserGroup.isPresent() && !oidcUserGroup.get().isBlank()) {
-            assertThat(roleAssigner.roleFromOidcGroups(List.of(oidcUserGroup.get())))
+        final Optional<String> userGroup = oidcConfig.userGroup().filter(group -> !group.isBlank());
+        if (userGroup.isPresent()) {
+            assertThat(roleAssigner.roleFromOidcGroups(List.of(userGroup.get())))
                 .as("unexpected value")
                 .isEqualTo(Optional.of(Role.USER.storageValue()));
         } else {
@@ -123,8 +120,8 @@ class RoleAssignerIT extends IntegrationTestBase {
     void isGroupCheckEnabled_matchesInjectedGroupConfig() {
         // Derives the expected value from the same config source the bean reads, so the
         // test passes in any environment (groups configured or not).
-        final boolean expected = (oidcAdminGroup.isPresent() && !oidcAdminGroup.get().isBlank())
-            || (oidcUserGroup.isPresent() && !oidcUserGroup.get().isBlank());
+        final boolean expected = oidcConfig.adminGroup().filter(group -> !group.isBlank()).isPresent()
+            || oidcConfig.userGroup().filter(group -> !group.isBlank()).isPresent();
         assertThat(roleAssigner.isGroupCheckEnabled())
             .as("unexpected value")
             .isEqualTo(expected);

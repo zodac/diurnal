@@ -113,17 +113,19 @@ public class UserResource {
         // fallback. The Bearer credential is an opaque session token, not a JWT — there is no token
         // subject to read.
         return currentUser.find()
-                .map(u -> {
-                    // The user row is already loaded, so its updatedAt (bumped on every profile/preference/role change) is a
-                    // free, exact validator — the conditional just skips building and serialising the DTO.
-                    final EntityTag tag = EntityTags.weak(u.id, u.updatedAt.toEpochMilli());
-                    final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
-                    if (notModified != null) {
-                        return EntityTags.withPrivateValidator(notModified, tag).build();
-                    }
-                    return EntityTags.withPrivateValidator(Response.ok(UserDto.from(u)), tag).build();
-                })
+                .map(u -> conditionalUser(u, request))
                 .orElse(Response.status(Response.Status.NOT_FOUND).build());
+    }
+
+    private static Response conditionalUser(final User user, final Request request) {
+        // The user row is already loaded, so its updatedAt (bumped on every profile/preference/role change) is a
+        // free, exact validator — the conditional just skips building and serialising the DTO.
+        final EntityTag tag = EntityTags.weak(user.id, user.updatedAt.toEpochMilli());
+        final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
+        if (notModified != null) {
+            return EntityTags.withPrivateValidator(notModified, tag).build();
+        }
+        return EntityTags.withPrivateValidator(Response.ok(UserDto.from(user)), tag).build();
     }
 
     /**
@@ -224,6 +226,20 @@ public class UserResource {
         if (preferences == null || result instanceof ProfileResult.Invalid) {
             return result;
         }
+        result = applyAppearance(user, preferences);
+        if (result instanceof ProfileResult.Invalid) {
+            return result;
+        }
+        result = applyPaging(user, preferences);
+        if (result instanceof ProfileResult.Invalid) {
+            return result;
+        }
+        return applyStatsPreferences(user, preferences, result);
+    }
+
+    // Each group stops at its first rejection, so the message reported is always the first field the request got wrong.
+    private ProfileResult applyAppearance(final User user, final PreferencesUpdate preferences) {
+        ProfileResult result = new ProfileResult.Updated();
         if (preferences.theme() != null) {
             result = profileService.updateTheme(user, preferences.theme());
             if (result instanceof ProfileResult.Invalid) {
@@ -250,10 +266,12 @@ public class UserResource {
         }
         if (preferences.timezone() != null) {
             result = profileService.updateTimezone(user, preferences.timezone());
-            if (result instanceof ProfileResult.Invalid) {
-                return result;
-            }
         }
+        return result;
+    }
+
+    private ProfileResult applyPaging(final User user, final PreferencesUpdate preferences) {
+        ProfileResult result = new ProfileResult.Updated();
         if (preferences.pageSize() != null) {
             result = profileService.updatePageSize(user, Integer.toString(preferences.pageSize()));
             if (result instanceof ProfileResult.Invalid) {
@@ -273,10 +291,12 @@ public class UserResource {
         }
         if (preferences.decimalPlaces() != null) {
             result = profileService.updateDecimalPlaces(user, Integer.toString(preferences.decimalPlaces()));
-            if (result instanceof ProfileResult.Invalid) {
-                return result;
-            }
         }
+        return result;
+    }
+
+    private ProfileResult applyStatsPreferences(final User user, final PreferencesUpdate preferences, final ProfileResult current) {
+        ProfileResult result = current;
         if (preferences.showStatsSummary() != null) {
             result = profileService.updateShowStatsSummary(user, preferences.showStatsSummary());
         }
@@ -303,8 +323,10 @@ public class UserResource {
      * @param displayName the new display name, or {@code null} to keep the current one
      * @param preferences the preference fields to change, or {@code null} to change none
      */
+    // Public is forced: Quarkus's generated (de)serializer is not a nestmate so private throws IllegalAccessError, and the endpoint
+    // taking it must be public for JAX-RS, so package-private would trip ClassEscapesItsScope instead.
     @Schema(description = "Fields for partially updating the current user; absent fields keep their current value.")
-    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
+    @SuppressWarnings({"unused", "WeakerAccess"}) // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record UpdateMeRequest(
         @Schema(examples = "Ada Lovelace", description = "The new display name; 2-100 characters.") @Nullable String displayName,
         @Schema(description = "The preference fields to change; absent fields keep their current value.")
@@ -362,8 +384,10 @@ public class UserResource {
      * @param currentPassword the existing password, as proof of ownership
      * @param newPassword     the new password
      */
+    // Public is forced: Quarkus's generated (de)serializer is not a nestmate so private throws IllegalAccessError, and the endpoint
+    // taking it must be public for JAX-RS, so package-private would trip ClassEscapesItsScope instead.
     @Schema(description = "The current password (as proof of ownership) and the new password to set.")
-    @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
+    @SuppressWarnings({"unused", "WeakerAccess"}) // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
     public record ChangePasswordRequest(
         @Schema(examples = "correct horse battery staple", description = "The existing password, as proof of account ownership.")
         @Nullable String currentPassword,

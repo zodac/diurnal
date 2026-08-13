@@ -55,11 +55,11 @@ import net.zodac.diurnal.user.Role;
  * appears in a body), and the only request-controlled inputs, {@code start}/{@code end}, must parse as ISO-8601 dates before anything is returned.
  */
 @Path("/internal/logs")
-@RolesAllowed(Role.Values.USER)
+@RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 @Produces(MediaType.APPLICATION_JSON)
 public class CalendarResource {
 
-    private static final int MAX_DOTS_PER_DAY = 4;
+    private static final long MAX_DOTS_PER_DAY = 4L;
 
     private final CurrentUser currentUser;
 
@@ -130,12 +130,12 @@ public class CalendarResource {
     /**
      * One day's worth of action dots for the minimal calendar view.
      */
-    public record MinimalCalendarDayDto(String date, List<ActionDotDto> actions) {
+    record MinimalCalendarDayDto(String date, List<ActionDotDto> actions) {
     }
 
     /**
      * A single coloured dot: the action's colour, name and that day's count.
      */
-    public record ActionDotDto(String colour, String name, int count) {
+    record ActionDotDto(String colour, String name, int count) {
     }
 }

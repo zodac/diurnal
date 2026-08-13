@@ -50,7 +50,7 @@ public class RoleAssigner {
      * @return the new {@link User}'s role
      */
     public String roleForNewUser() {
-        return User.count() == 0 ? Role.ADMIN.storageValue() : Role.USER.storageValue();
+        return User.count() == 0L ? Role.ADMIN.storageValue() : Role.USER.storageValue();
     }
 
     /**
@@ -69,7 +69,7 @@ public class RoleAssigner {
      *
      * @return {@link Optional#empty()} when neither group env var is configured nor the user is not in either group
      */
-    public final Optional<String> roleFromOidcGroups(@Nullable final List<String> groups) {
+    public Optional<String> roleFromOidcGroups(@Nullable final List<String> groups) {
         if (groups == null || groups.isEmpty()) {
             return Optional.empty();
         }

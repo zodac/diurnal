@@ -40,8 +40,8 @@ class AuthRevokeIT extends IntegrationTestBase {
     @Inject
     SessionStore sessionStore;
 
-    User user;
-    User otherUser;
+    private User user;
+    private User otherUser;
 
     @Override
     protected void createDbState() {

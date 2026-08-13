@@ -41,7 +41,7 @@ import org.junit.jupiter.api.Test;
  * fresh body. Renaming an action (with no log row moving) exercises the action-signature fold-in on the calendar feed's tag.
  */
 @QuarkusTest
-@TestSecurity(user = "etag-it@lt.test", roles = Role.Values.USER)
+@TestSecurity(user = "etag-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class ConditionalGetIT extends IntegrationTestBase {
 
@@ -233,14 +233,14 @@ class ConditionalGetIT extends IntegrationTestBase {
                 .then().statusCode(200);
     }
 
-    private String eventsEtag() {
+    private static String eventsEtag() {
         return given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
                 .get("/api/v1/logs/events")
                 .then().statusCode(200)
                 .extract().header("ETag");
     }
 
-    private String dayEtag() {
+    private static String dayEtag() {
         return given().get("/api/v1/logs/" + TODAY)
                 .then().statusCode(200)
                 .extract().header("ETag");

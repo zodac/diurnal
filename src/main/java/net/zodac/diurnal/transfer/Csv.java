@@ -128,6 +128,9 @@ public final class Csv {
         private final String content;
         private final List<CsvRow> rows = new ArrayList<>();
         private final List<String> fields = new ArrayList<>();
+        // Qodana's twin of the PMD suppression below. Deliberately does not spell out the P-M-D marker: PMD scans comment text for that token, reads
+        // this line as a suppression of its own, finds nothing on it to suppress, and fails the build with UnnecessaryWarningSuppression.
+        @SuppressWarnings("StringBufferField")
         private final StringBuilder field = new StringBuilder(); // NOPMD: AvoidStringBufferField - a Parser lives for one parse() call
 
         private boolean inQuotes;

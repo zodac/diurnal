@@ -32,6 +32,7 @@ import org.junit.jupiter.api.Test;
 class ActionColoursTest {
 
     private static final String BRAND_INDIGO = "#6366f1";
+    private static final int GENERATION_ATTEMPTS = 32;
 
     @Test
     void suggest_noExistingColours_drawsFromTheWholePalette() {
@@ -126,7 +127,7 @@ class ActionColoursTest {
         // Every draw but the last lands 10 away from the colour in use (far too close); the last lands within the limit but further out, so it is
         // the one settled for once the attempts run out.
         final ScriptedRandom random = new ScriptedRandom(210, 0, 0);
-        random.finalDraw(167, 0, 0);
+        random.finalDraw();
 
         final String suggested = ActionColours.suggest(withPaletteInUse("#347db2"), random);
 
@@ -135,7 +136,7 @@ class ActionColoursTest {
             .isEqualTo("#34b297");
         assertThat(random.draws)
             .as("every generation attempt should have been used before settling")
-            .isEqualTo(3 * ActionColours.GENERATION_ATTEMPTS);
+            .isEqualTo(3 * GENERATION_ATTEMPTS);
     }
 
     @Test
@@ -208,24 +209,24 @@ class ActionColoursTest {
 
         private ScriptedRandom(final int... values) {
             this.values = values.clone();
-            this.finalValues = values.clone();
+            finalValues = values.clone();
         }
 
-        private void finalDraw(final int... values) {
-            finalValues = values.clone();
+        private void finalDraw() {
+            finalValues = new int[] {167, 0, 0}.clone();
         }
 
         @Override
         public int nextInt(final int bound) {
             final int index = draws % values.length;
-            final boolean isFinalDraw = draws >= (3 * ActionColours.GENERATION_ATTEMPTS) - values.length;
+            final boolean isFinalDraw = draws >= (3 * GENERATION_ATTEMPTS) - values.length;
             draws++;
             return Math.min(isFinalDraw ? finalValues[index] : values[index], bound - 1);
         }
 
         @Override
         public long nextLong() {
-            return 0;
+            return 0L;
         }
     }
 

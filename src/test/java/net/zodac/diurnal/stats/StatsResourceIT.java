@@ -37,14 +37,14 @@ import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest
-@TestSecurity(user = "stats-it@lt.test", roles = Role.Values.USER)
+@TestSecurity(user = "stats-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class StatsResourceIT extends IntegrationTestBase {
 
-    static final String PRIMARY = "stats-it@lt.test";
-    static final LocalDate TODAY = FIXED_TODAY;
+    private static final String PRIMARY = "stats-it@lt.test";
+    private static final LocalDate TODAY = FIXED_TODAY;
 
-    UUID primaryId;
+    private UUID primaryId;
 
     @Override
     protected void createDbState() {

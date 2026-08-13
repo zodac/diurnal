@@ -94,7 +94,9 @@ public class WebResource {
 
     private static final Logger LOGGER = LogManager.getLogger(WebResource.class);
 
-    // Password-change error bodies. Returned to (and matched by) the settings client so it can route the
+    // 422 has no jakarta.ws.rs Response.Status constant; NotesInternalResource declares the same value for the same reason.
+    private static final int UNPROCESSABLE_ENTITY = 422;
+
     // Carries the exact seconds left on a lockout to the AJAX form handlers (app.js), which post via fetch
     // and so never render the server-side banner — they run a live mm:ss countdown from this value instead.
     // Shared by both the login (GET /login render) and registration (POST /register 429) surfaces.
@@ -160,6 +162,10 @@ public class WebResource {
      * @param registrationConfig the registration settings
      * @param ipThrottleConfig the per-IP throttle settings
      */
+    // Constructor injection is what CODE_STYLE.md mandates, and it explicitly keeps the parameter-count limits off, so the collaborator count here
+    // is the convention rather than a smell. Suppressed at the one site instead of raising the inspection's limit: the limit is 10, and the only
+    // other method it ever flagged (StatsService.frequency, at 12) was worth the refactor it prompted.
+    @SuppressWarnings("OverlyCoupledMethod")
     @Inject
     public WebResource(@Location("login") final Template loginTemplate, @Location("register") final Template registerTemplate,
         @Location("dashboard") final Template dashboardTemplate, @Location("settings") final Template settingsTemplate,
@@ -205,11 +211,11 @@ public class WebResource {
         @QueryParam("registered") @DefaultValue("false") final boolean registered,
         @CookieParam(LOCKOUT_COOKIE) final String lockoutCookie,
         @CookieParam(OidcUserProvisioner.ERROR_COOKIE) final String oidcErrorCookie) {
-        // First run: no users exist yet. Send the deployer to the setup landing page to create the
+        // First run: no users exist yet. Send the deployer to the initial user landing page to create the
         // initial local account, and short-circuit any OIDC auto-redirect below — the first account
         // must ALWAYS be local, even in a pure-OIDC deployment (PASSWORD_AUTH_ENABLED=false): that
         // initial administrator is the sysops break-glass credential should the IdP be unavailable.
-        // During setup the local registration is always usable (both ENABLE_REGISTRATION and
+        // During initial config the local registration is always usable (both ENABLE_REGISTRATION and
         // PASSWORD_AUTH_ENABLED are ignored until a user exists).
         if (setupRequired()) {
             return Response.seeOther(URI.create("/welcome")).build();
@@ -236,7 +242,7 @@ public class WebResource {
         final boolean showLocked = lockoutCookie != null;
         final Duration lockoutRemaining = lockoutRemaining(lockoutCookie);
         final boolean showError = error != null && !"false".equals(error) && !showOidcError && !showLocked;
-        // A refused OIDC login carries its reason code in the short-lived cookie set by OidcUserProvisioner (the code-flow failure redirect
+        // A refused OIDC login carries its 'reason' code in the short-lived cookie set by OidcUserProvisioner (the code-flow failure redirect
         // cannot carry it); an unknown/absent code falls back to the generic banner text.
         final String oidcErrorMessage = OidcDenialReason.fromCode(oidcErrorCookie)
             .map(reason -> reason.message(oidcConfig.providerName()))
@@ -332,7 +338,7 @@ public class WebResource {
                 .build();
     }
 
-    private NewCookie lockoutCookie(final Duration remaining) {
+    private static NewCookie lockoutCookie(final Duration remaining) {
         final long seconds = Math.max(1L, remaining.toSeconds());
         return new NewCookie.Builder(LOCKOUT_COOKIE)
                 .value(Long.toString(seconds))
@@ -355,7 +361,7 @@ public class WebResource {
      */
     @GET
     @Path("oidc-login")
-    @RolesAllowed(Role.Values.USER)
+    @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
     public Response oidcLogin() {
         // Unauthenticated requests never reach here — the oidc-trigger permission policy
         // intercepts them first and issues the OIDC Authorization Code challenge.
@@ -435,7 +441,7 @@ public class WebResource {
     @Path("register")
     @Produces(MediaType.TEXT_HTML)
     public Response registerPage() {
-        // During setup the page must render even with password auth disabled — the initial (break-glass) account is always created locally.
+        // During the initial run the page must render even with password auth disabled — the initial (break-glass) account is always created locally.
         if (!passwordAuthConfig.enabled() && !setupRequired()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
@@ -526,8 +532,8 @@ public class WebResource {
                 .data("font", Font.DEFAULT.value());
     }
 
-    private boolean setupRequired() {
-        return User.count() == 0;
+    private static boolean setupRequired() {
+        return User.count() == 0L;
     }
 
     private boolean registrationNotAllowed() {
@@ -580,7 +586,7 @@ public class WebResource {
      */
     @GET
     @Path("settings")
-    @RolesAllowed(Role.Values.USER)
+    @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance settingsPage(@QueryParam("msg") @Nullable final String msg) {
         final User user = currentUser.get();
@@ -593,8 +599,8 @@ public class WebResource {
      * Starts the Settings "Connect {provider}" flow: sets the short-lived link-intent cookie and forwards into the OIDC code flow. The actual link
      * is applied during the callback's authentication ({@code OidcUserProvisioner} + {@code OidcLinkPolicy}), keyed on this cookie plus the
      * signed-in session — an email match alone can never link while password auth is enabled. Connecting is a one-way conversion: the account's
-     * password is removed in the same step ({@code net.zodac.diurnal.auth.AccountLinkService#link}), so the confirm step in the Settings UI warns
-     * about exactly that.
+     * password is removed in the same step ({@code net.zodac.diurnal.auth.AccountLinkService#link}), so the confirmation step in the Settings UI
+     * warns about exactly that.
      *
      * <p>
      * Surface policy: the flow is a browser redirect dance with the identity provider, so it deliberately has no {@code /api/v1} twin — an API
@@ -602,7 +608,7 @@ public class WebResource {
      */
     @POST
     @Path("internal/settings/oidc/connect")
-    @RolesAllowed(Role.Values.USER)
+    @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
     public Response connectOidc() {
         if (!quarkusOidcConfig.tenantEnabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();
@@ -645,7 +651,7 @@ public class WebResource {
      */
     @PATCH
     @Path("internal/settings")
-    @RolesAllowed(Role.Values.USER)
+    @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     @Transactional
     public Response updateSettings(
@@ -669,41 +675,41 @@ public class WebResource {
         if (displayName != null) {
             result = profileService.updateDisplayName(user, displayName);
         }
-        if (theme != null && !(result instanceof ProfileResult.Invalid)) {
+        if (theme != null && stillValid(result)) {
             result = profileService.updateTheme(user, theme);
         }
-        if (font != null && !(result instanceof ProfileResult.Invalid)) {
+        if (font != null && stillValid(result)) {
             result = profileService.updateFont(user, font);
         }
-        if (calendarView != null && !(result instanceof ProfileResult.Invalid)) {
+        if (calendarView != null && stillValid(result)) {
             result = profileService.updateCalendarView(user, calendarView);
         }
-        if (noteColour != null && !(result instanceof ProfileResult.Invalid)) {
+        if (noteColour != null && stillValid(result)) {
             result = profileService.updateNoteColour(user, noteColour);
         }
-        if (timezone != null && !(result instanceof ProfileResult.Invalid)) {
+        if (timezone != null && stillValid(result)) {
             result = profileService.updateTimezone(user, timezone);
         }
-        if (pageSize != null && !(result instanceof ProfileResult.Invalid)) {
+        if (pageSize != null && stillValid(result)) {
             result = profileService.updatePageSize(user, pageSize);
         }
         // The overrides panel posts EVERY section row (its key as pageSizeSection, its value as pageSizeValue), so the two lists pair up by index
         // and a save carries the user's whole set - a row cleared back to "Default" arrives as a blank value.
-        if (pageSizeSection != null && !pageSizeSection.isEmpty() && !(result instanceof ProfileResult.Invalid)) {
+        if (pageSizeSection != null && !pageSizeSection.isEmpty() && stillValid(result)) {
             result = profileService.updatePageSizes(user, pageSizeSection, pageSizeValue);
         }
-        if (decimalPlaces != null && !(result instanceof ProfileResult.Invalid)) {
+        if (decimalPlaces != null && stillValid(result)) {
             result = profileService.updateDecimalPlaces(user, decimalPlaces);
         }
         // The checkbox posts a hidden "false" plus (when ticked) "true", so presence = any value and
         // the setting is on iff the values contain "true".
-        if (showStatsSummary != null && !showStatsSummary.isEmpty() && !(result instanceof ProfileResult.Invalid)) {
+        if (showStatsSummary != null && !showStatsSummary.isEmpty() && stillValid(result)) {
             result = profileService.updateShowStatsSummary(user, showStatsSummary.contains("true"));
         }
         // The stats picker posts EVERY row's key in its (drag-arranged) DOM order as statsOrder, plus
         // the ticked subset as statsEnabled and each row's custom name as statsLabel. Every row posts one
         // key and one name, so the two lists pair up by index (StatField.labelsByKey).
-        if (statsOrder != null && !statsOrder.isEmpty() && !(result instanceof ProfileResult.Invalid)) {
+        if (statsOrder != null && !statsOrder.isEmpty() && stillValid(result)) {
             result = profileService.updateStatsFields(user, statsOrder, statsEnabled == null ? List.of() : statsEnabled,
                     StatField.labelsByKey(statsOrder, statsLabel));
         }
@@ -712,8 +718,13 @@ public class WebResource {
             case final ProfileResult.Updated ignored -> Response.noContent().build();
             // A rejected field leaves any field applied before it mutated on the managed entity; the class-level @RollbackOnErrorStatus rolls the
             // whole transaction back on this 422, so a rejected request never silently persists part of a mutation.
-            case final ProfileResult.Invalid invalid -> Response.status(422).entity(invalid.message()).build();
+            case final ProfileResult.Invalid invalid -> Response.status(UNPROCESSABLE_ENTITY).entity(invalid.message()).build();
         };
+    }
+
+    // Each field is applied only while every field before it was accepted, so the first rejection is the one reported and nothing after it runs.
+    private static boolean stillValid(final ProfileResult result) {
+        return !(result instanceof ProfileResult.Invalid);
     }
 
     /**
@@ -721,13 +732,13 @@ public class WebResource {
      * knowledge of the existing password: the flow first asks for the {@code currentPassword}, then the new password entered and re-entered to
      * confirm ({@code newPassword} + {@code confirmPassword}). All three values arrive here. Returns {@code 422} when the current password does not
      * match (body {@link PasswordChangeService#CURRENT_PASSWORD_ERROR}), when the new password is empty or the two copies do not match (body
-     * {@link PasswordChangeService#NEW_PASSWORD_ERROR}), or when it is the password already stored (body
-     * {@link PasswordChangeService#NEW_PASSWORD_UNCHANGED_ERROR}). {@code 403} for an account holding no password (OIDC-only), and
+     * {@code PasswordChangeService.NEW_PASSWORD_ERROR}), or when it is the password already stored (body
+     * {@code PasswordChangeService.NEW_PASSWORD_UNCHANGED_ERROR}). {@code 403} for an account holding no password (OIDC-only), and
      * {@code 200} once the new hash is persisted. The response body drives which step the client returns the user to.
      */
     @POST
     @Path("internal/settings/password")
-    @RolesAllowed(Role.Values.USER)
+    @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response updatePassword(
         @FormParam("currentPassword") final String currentPassword,
@@ -744,8 +755,8 @@ public class WebResource {
             case final PasswordChangeResult.Success ignored -> Response.ok().build();
             case final PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
             case final PasswordChangeResult.WrongCurrentPassword ignored ->
-                Response.status(422).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
-            case final PasswordChangeResult.InvalidNewPassword invalid -> Response.status(422).entity(invalid.message()).build();
+                Response.status(UNPROCESSABLE_ENTITY).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
+            case final PasswordChangeResult.InvalidNewPassword invalid -> Response.status(UNPROCESSABLE_ENTITY).entity(invalid.message()).build();
         };
     }
 
@@ -765,7 +776,7 @@ public class WebResource {
      */
     @POST
     @Path("internal/settings/password/verify")
-    @RolesAllowed(Role.Values.USER)
+    @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response verifyCurrentPassword(@FormParam("currentPassword") final String currentPassword,
         @Context @Nullable final RoutingContext routingContext) {
@@ -773,8 +784,8 @@ public class WebResource {
             case final PasswordChangeResult.Success ignored -> Response.noContent().build();
             case final PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
             case final PasswordChangeResult.WrongCurrentPassword ignored ->
-                Response.status(422).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
-            case final PasswordChangeResult.InvalidNewPassword ignored -> Response.status(422).build();
+                Response.status(UNPROCESSABLE_ENTITY).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
+            case final PasswordChangeResult.InvalidNewPassword ignored -> Response.status(UNPROCESSABLE_ENTITY).build();
         };
     }
 
@@ -784,7 +795,7 @@ public class WebResource {
      */
     @POST
     @Path("internal/settings/sessions/revoke-all")
-    @RolesAllowed(Role.Values.USER)
+    @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
     public Response revokeAllSessions() {
         final User user = currentUser.get();
         sessionStore.revokeAllForUser(user.id);
@@ -796,7 +807,7 @@ public class WebResource {
 
     private TemplateInstance settingsView(final User user, @Nullable final String msg) {
         final String providerName = oidcConfig.providerName();
-        // The one-shot status banner for the connect flow's redirect back: the success code, or a refused connect's OidcDenialReason code
+        // The one-shot status banner for the connect flow's redirect back: the success code, or a refused connection's OidcDenialReason code
         // (the provisioner sends link denials back HERE — the session is still valid, and bouncing to the login page read as a logout).
         // An unknown (or absent) code renders no banner.
         final String settingsMessage;
@@ -855,7 +866,7 @@ public class WebResource {
      */
     @GET
     @Path("/")
-    @RolesAllowed(Role.Values.USER)
+    @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance dashboard() {
         final User user = currentUser.get();

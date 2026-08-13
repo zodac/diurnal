@@ -19,7 +19,6 @@ package net.zodac.diurnal.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -31,7 +30,7 @@ class OidcLoginPolicyTest {
 
     @Test
     void decide_firstUserBootstrapBlocked_denies() {
-        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(true, true, false, false, false, false, false, false, null));
+        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(true, true, false, false, false, false, false, false, false));
         assertThat(decision)
             .as("The initial account must not be provisioned via OIDC")
             .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.SETUP_REQUIRED));
@@ -39,7 +38,7 @@ class OidcLoginPolicyTest {
 
     @Test
     void decide_emailMissing_denies() {
-        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, true, false, false, false, false, false, null));
+        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, true, false, false, false, false, false, false));
         assertThat(decision)
             .as("A token without an email claim must be refused")
             .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.EMAIL_MISSING));
@@ -47,7 +46,7 @@ class OidcLoginPolicyTest {
 
     @Test
     void decide_groupCheckEnabledAndNotInGroup_denies() {
-        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, true, false, true, false, false, null));
+        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, true, false, true, false, false, false));
         assertThat(decision)
             .as("With group mapping configured, a user in no configured group must be refused — even one already linked")
             .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.NOT_IN_GROUP));
@@ -55,7 +54,7 @@ class OidcLoginPolicyTest {
 
     @Test
     void decide_groupCheckDisabled_doesNotRequireGroup() {
-        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, false, false, false, false, false, null));
+        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, false, false, false, false, false, true));
         assertThat(decision)
             .as("Without group mapping configured, no group membership is required")
             .isEqualTo(new OidcLoginDecision.ProvisionNew());
@@ -63,7 +62,7 @@ class OidcLoginPolicyTest {
 
     @Test
     void decide_linkedAccount_usesExisting() {
-        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, true, true, true, false, false, null));
+        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, true, true, true, false, false, false));
         assertThat(decision)
             .as("A linked account (issuer + subject match) authenticates as that account")
             .isEqualTo(new OidcLoginDecision.UseExisting());
@@ -71,7 +70,7 @@ class OidcLoginPolicyTest {
 
     @Test
     void decide_linkedAccountDemotingLastAdministrator_denies() {
-        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, true, true, true, true, false, null));
+        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, true, true, true, true, false, false));
         assertThat(decision)
             .as("A group-synchronised demotion of the last administrator must refuse the login")
             .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.ROLE_SYNC_REFUSED));
@@ -87,7 +86,7 @@ class OidcLoginPolicyTest {
 
     @Test
     void decide_linkedAccountWins_overEmailCollision() {
-        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, false, false, true, false, true, null));
+        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, false, false, true, false, true, false));
         assertThat(decision)
             .as("A linked account authenticates regardless of any email-collision flag")
             .isEqualTo(new OidcLoginDecision.UseExisting());
@@ -111,9 +110,9 @@ class OidcLoginPolicyTest {
 
     @Test
     void decide_emailVerifiedAbsent_provisions() {
-        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, false, false, false, false, false, null));
+        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, false, false, false, false, false, true));
         assertThat(decision)
-            .as("A provider that does not emit email_verified may still provision")
+            .as("A provider that does not emit email_verified may still provision - absent arrives here as true")
             .isEqualTo(new OidcLoginDecision.ProvisionNew());
     }
 
@@ -127,9 +126,9 @@ class OidcLoginPolicyTest {
 
     @Test
     void decide_emailCollisionWithPasswordAuthDisabled_absentVerifiedClaim_adopts() {
-        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, false, false, false, false, false, false, true, null));
+        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, false, false, false, false, false, false, true, true));
         assertThat(decision)
-            .as("A provider that does not emit email_verified may still adopt")
+            .as("A provider that does not emit email_verified may still adopt - absent arrives here as true")
             .isEqualTo(new OidcLoginDecision.AdoptByEmail());
     }
 
@@ -159,7 +158,7 @@ class OidcLoginPolicyTest {
 
     private static OidcLoginFacts facts(final boolean firstUserBootstrapBlocked, final boolean passwordAuthEnabled, final boolean emailMissing,
         final boolean groupCheckEnabled, final boolean inConfiguredGroup, final boolean linkedAccountFound, final boolean demotesLastAdministrator,
-        final boolean emailCollision, final @Nullable Boolean emailVerified) {
+        final boolean emailCollision, final boolean emailVerified) {
         return new OidcLoginFacts(firstUserBootstrapBlocked, passwordAuthEnabled, emailMissing, groupCheckEnabled, inConfiguredGroup,
             linkedAccountFound, demotesLastAdministrator, emailCollision, emailVerified);
     }

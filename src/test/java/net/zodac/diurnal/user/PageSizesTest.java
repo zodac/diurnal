@@ -125,11 +125,11 @@ class PageSizesTest {
     @ParameterizedTest
     @ValueSource(strings = {"", "  "})
     void parse_everyValueBlank_storesNothingAtAll(final String blank) {
-        final PageSizes.Outcome outcome = PageSizes.parse(List.of("dashboard", "actions"), List.of(blank, blank));
+        final PageSizeOutcome outcome = PageSizes.parse(List.of("dashboard", "actions"), List.of(blank, blank));
 
         assertThat(outcome)
             .as("no overrides has ONE representation: the null column")
-            .isEqualTo(new PageSizes.Outcome.Valid(null));
+            .isEqualTo(new PageSizeOutcome.Valid(null));
     }
 
     @Test
@@ -162,11 +162,11 @@ class PageSizesTest {
     @ParameterizedTest
     @ValueSource(strings = {"0", "-1", "101", "999", "1.5", "abc", "5px"})
     void parse_valueOutsideTheAcceptedRange_isRejected(final String raw) {
-        final PageSizes.Outcome outcome = PageSizes.parse(List.of("actions"), List.of(raw));
+        final PageSizeOutcome outcome = PageSizes.parse(List.of("actions"), List.of(raw));
 
         assertThat(outcome)
             .as("an override is rejected, never coerced - exactly like the general page size")
-            .isEqualTo(new PageSizes.Outcome.Failure(UserSettings.PAGE_SIZE_RANGE_MESSAGE));
+            .isEqualTo(new PageSizeOutcome.Failure(UserSettings.PAGE_SIZE_RANGE_MESSAGE));
     }
 
     @Test
@@ -176,7 +176,7 @@ class PageSizesTest {
 
         assertThat(PageSizes.parse(sections, values))
             .as("a save carries the whole set, so a rejected row must not commit the rest of it")
-            .isEqualTo(new PageSizes.Outcome.Failure(UserSettings.PAGE_SIZE_RANGE_MESSAGE));
+            .isEqualTo(new PageSizeOutcome.Failure(UserSettings.PAGE_SIZE_RANGE_MESSAGE));
     }
 
     @Test
@@ -199,14 +199,14 @@ class PageSizesTest {
     void parse_noValuesAtAll_storesNothing() {
         assertThat(PageSizes.parse(List.of("dashboard"), null))
             .as("unexpected value")
-            .isEqualTo(new PageSizes.Outcome.Valid(null));
+            .isEqualTo(new PageSizeOutcome.Valid(null));
     }
 
     @Test
     void parse_noSectionsAtAll_storesNothing() {
         assertThat(PageSizes.parse(List.of(), List.of()))
             .as("unexpected value")
-            .isEqualTo(new PageSizes.Outcome.Valid(null));
+            .isEqualTo(new PageSizeOutcome.Valid(null));
     }
 
     // ── rows: what the Settings panel renders ──────────────────────────────────────────────────
@@ -261,12 +261,12 @@ class PageSizesTest {
             .isEqualTo("actions=25, notes=10");
     }
 
-    private static List<PageSizePref> accepted(final PageSizes.Outcome outcome) {
+    private static List<PageSizePref> accepted(final PageSizeOutcome outcome) {
         assertThat(outcome)
             .as("expected the submission to be accepted")
-            .isInstanceOf(PageSizes.Outcome.Valid.class);
-        if (outcome instanceof final PageSizes.Outcome.Valid valid) {
-            return Objects.requireNonNull(valid.overrides(), "expected at least one accepted override");
+            .isInstanceOf(PageSizeOutcome.Valid.class);
+        if (outcome instanceof PageSizeOutcome.Valid(final List<PageSizePref> overrides)) {
+            return Objects.requireNonNull(overrides, "expected at least one accepted override");
         }
         throw new AssertionError("expected the submission to be accepted, but was: " + outcome);
     }

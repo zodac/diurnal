@@ -185,7 +185,7 @@ public final class ImportParser {
 
         for (final CsvRow row : rows) {
             final TextOutcome nameOutcome = TextValidation.check(TextFields.ACTION_NAME, row.fields().getFirst());
-            if (!(nameOutcome instanceof final TextOutcome.Valid validName)) {
+            if (!(nameOutcome instanceof TextOutcome.Valid(final String value))) {
                 problems.add(TransferFiles.ACTIONS_FILE, row.line(), TextOutcomeExtensions.message((TextOutcome.Failure) nameOutcome));
                 continue;
             }
@@ -195,11 +195,11 @@ public final class ImportParser {
                 problems.add(TransferFiles.ACTIONS_FILE, row.line(), "The colour must be a hex value such as #6366f1.");
                 continue;
             }
-            if (!seen.add(validName.value())) {
-                problems.add(TransferFiles.ACTIONS_FILE, row.line(), "The action '" + validName.value() + "' appears more than once.");
+            if (!seen.add(value)) {
+                problems.add(TransferFiles.ACTIONS_FILE, row.line(), "The action '" + value + "' appears more than once.");
                 continue;
             }
-            actions.add(new ActionDraft(validName.value(), colour));
+            actions.add(new ActionDraft(value, colour));
         }
         return actions;
     }
@@ -264,12 +264,12 @@ public final class ImportParser {
 
             // A note is deliberately NOT future-checked - unlike a log, writing down a day in advance is a legitimate thing to do.
             final TextOutcome contentOutcome = TextValidation.check(TextFields.NOTE, row.fields().get(1));
-            if (!(contentOutcome instanceof final TextOutcome.Valid validContent)) {
+            if (!(contentOutcome instanceof TextOutcome.Valid(final String value))) {
                 // The pipeline's own message, which is worded from the field and never quotes the value - so no note content reaches this banner.
                 problems.add(TransferFiles.NOTES_FILE, row.line(), TextOutcomeExtensions.message((TextOutcome.Failure) contentOutcome));
                 continue;
             }
-            if (validContent.value().isEmpty()) {
+            if (value.isEmpty()) {
                 problems.add(TransferFiles.NOTES_FILE, row.line(), "The note for " + date + " is empty - delete the row instead.");
                 continue;
             }
@@ -277,7 +277,7 @@ public final class ImportParser {
                 problems.add(TransferFiles.NOTES_FILE, row.line(), "There is already a note for " + date + ".");
                 continue;
             }
-            notes.add(new NoteDraft(date, validContent.value()));
+            notes.add(new NoteDraft(date, value));
         }
         return notes;
     }

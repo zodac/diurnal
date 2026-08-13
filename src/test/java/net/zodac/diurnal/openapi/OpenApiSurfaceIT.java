@@ -102,7 +102,7 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
     @Inject
     SessionStore sessionStore;
 
-    User adminUser;
+    private User adminUser;
 
     @Override
     protected void createDbState() {
@@ -170,10 +170,10 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
                 if (isBlankValue(operation.get("description"))) {
                     undocumented.add(operationId + " has no description");
                 }
-                if (!(operation.get("responses") instanceof final Map<?, ?> responses) || responses.isEmpty()) {
+                if (isEmptyContainer(operation.get("responses"))) {
                     undocumented.add(operationId + " documents no responses");
                 }
-                if (!(operation.get("tags") instanceof final List<?> tags) || tags.isEmpty()) {
+                if (isEmptyContainer(operation.get("tags"))) {
                     undocumented.add(operationId + " has no tag");
                 }
             }
@@ -223,19 +223,39 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
     // word "id" (lowercase) — the acronym must be written "ID". \bid\b matches only the bare word, so
     // "identifier", "valid", "considered" etc. are untouched.
     private static void collectLowercaseIdText(final @Nullable String key, final @Nullable Object node, final List<String> sink) {
-        if (node instanceof final Map<?, ?> map) {
-            for (final Map.Entry<?, ?> entry : map.entrySet()) {
-                collectLowercaseIdText(String.valueOf(entry.getKey()), entry.getValue(), sink);
+        switch (node) {
+            case final Map<?, ?> map -> {
+                for (final Map.Entry<?, ?> entry : map.entrySet()) {
+                    collectLowercaseIdText(String.valueOf(entry.getKey()), entry.getValue(), sink);
+                }
             }
-        } else if (node instanceof final List<?> list) {
-            for (final Object element : list) {
-                collectLowercaseIdText(key, element, sink);
+            case final List<?> list -> {
+                for (final Object element : list) {
+                    collectLowercaseIdText(key, element, sink);
+                }
             }
-        } else if (node instanceof final String text
-            && ("description".equals(key) || "summary".equals(key))
-            && LOWERCASE_ID.matcher(text).find()) {
-            sink.add("'" + key + "' contains a lowercase 'id': \"" + text + "\"");
+            case final String text when ("description".equals(key) || "summary".equals(key)) && LOWERCASE_ID.matcher(text).find() ->
+                sink.add("'" + key + "' contains a lowercase 'id': \"" + text + "\"");
+            case null, default -> {
+                // A leaf that is neither a described string nor a container to walk into.
+            }
         }
+    }
+
+    private static boolean isEmptyContainer(final @Nullable Object node) {
+        return switch (node) {
+            case final Map<?, ?> map -> map.isEmpty();
+            case final List<?> list -> list.isEmpty();
+            case null, default -> true;
+        };
+    }
+
+    // The operation's declared parameters, or empty when the node is not an operation or declares none - either way there is nothing to check.
+    private static List<?> parametersOf(final @Nullable Object operationNode) {
+        if (operationNode instanceof final Map<?, ?> operation && operation.get("parameters") instanceof final List<?> parameters) {
+            return parameters;
+        }
+        return List.of();
     }
 
     @SuppressWarnings("unchecked")
@@ -244,13 +264,10 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
             (Map<String, Map<String, Object>>) java.util.Objects.requireNonNull(document.get("paths"));
         for (final Map.Entry<String, Map<String, Object>> path : paths.entrySet()) {
             for (final Map.Entry<String, Object> item : path.getValue().entrySet()) {
-                if (!HTTP_METHODS.contains(item.getKey()) || !(item.getValue() instanceof final Map<?, ?> operation)) {
+                if (!HTTP_METHODS.contains(item.getKey())) {
                     continue;
                 }
-                if (!(operation.get("parameters") instanceof final List<?> parameters)) {
-                    continue;
-                }
-                for (final Object parameter : parameters) {
+                for (final Object parameter : parametersOf(item.getValue())) {
                     final Map<String, Object> parameterMap = (Map<String, Object>) parameter;
                     if (isBlankValue(parameterMap.get("description"))) {
                         sink.add("parameter '" + parameterMap.get("name") + "' of " + item.getKey().toUpperCase(Locale.ROOT) + " "

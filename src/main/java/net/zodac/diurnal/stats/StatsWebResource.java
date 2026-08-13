@@ -39,7 +39,7 @@ import net.zodac.diurnal.user.User;
  * Serves the full, paginated stats page. The page's HTMX list partial lives under {@code /internal/stats} ({@link StatsInternalResource}).
  */
 @Path("/stats")
-@RolesAllowed(Role.Values.USER)
+@RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 public class StatsWebResource {
 
     private final Template statsTemplate;

@@ -25,9 +25,9 @@ import io.smallrye.config.WithDefault;
  *
  * <p>
  * The three cost parameters should be tuned so a single hash takes roughly 100–500&nbsp;ms on the target production hardware — slow enough to
- * frustrate offline brute-forcing of a leaked hash, fast enough not to hurt legitimate logins. The defaults ({@value #DEFAULT_MEMORY_KIB}&nbsp;KiB of
- * memory, {@value #DEFAULT_ITERATIONS} iterations, {@value #DEFAULT_PARALLELISM} lanes) exceed the OWASP Argon2id memory guidance and were measured
- * at ~130&nbsp;ms on the reference host (an 8-core AMD Ryzen 7 5700X): 96&nbsp;MiB of memory-hardness held to that latency by spreading the work
+ * frustrate offline brute-forcing of a leaked hash, fast enough not to hurt legitimate logins. The defaults (96 MiB of
+ * memory, 3 iterations, and 4 lanes) exceed the OWASP Argon2id memory guidance and were measured
+ * at ~130 ms on the reference host (an 8-core AMD Ryzen 7 5700X): 96&nbsp;MiB of memory-hardness held to that latency by spreading the work
  * across 4 lanes. Re-measure and adjust on other hardware — raise {@link #memoryKib()} first on a faster or higher-core machine, lower it on a
  * constrained one. Increasing any parameter transparently re-hashes each account on its next successful login (see {@code Passwords.needsRehash}).
  */
@@ -35,46 +35,31 @@ import io.smallrye.config.WithDefault;
 public interface Argon2Config {
 
     /**
-     * Default memory cost in kibibytes (96&nbsp;MiB).
-     */
-    String DEFAULT_MEMORY_KIB = "98304";
-
-    /**
-     * Default number of iterations (passes over memory).
-     */
-    String DEFAULT_ITERATIONS = "3";
-
-    /**
-     * Default degree of parallelism (lanes).
-     */
-    String DEFAULT_PARALLELISM = "4";
-
-    /**
      * Memory cost in kibibytes — the size of the memory block Argon2id fills while hashing. This is the dominant defence against GPU/ASIC cracking
      * and the parameter to raise first when tuning.
      *
-     * @return the memory cost in KiB, defaulting to {@value #DEFAULT_MEMORY_KIB} (96&nbsp;MiB)
+     * @return the memory cost in KiB, defaulting to {@code 96 MiB}
      */
-    @WithDefault(DEFAULT_MEMORY_KIB)
+    @WithDefault("98304")
     int memoryKib();
 
     /**
      * Number of iterations (time cost) — how many passes Argon2id makes over the memory block. Linearly scales the hashing time for a fixed memory
      * cost.
      *
-     * @return the iteration count, defaulting to {@value #DEFAULT_ITERATIONS}
+     * @return the iteration count, defaulting to {@code 3}
      */
-    @WithDefault(DEFAULT_ITERATIONS)
+    @WithDefault("3")
     int iterations();
 
     /**
      * Degree of parallelism — the number of independent lanes Argon2id computes. The total work (and so the security) is fixed by
      * {@link #memoryKib()} and {@link #iterations()}; parallelism only spreads that work, which password4j runs across real threads (one per lane),
-     * reducing wall-clock roughly linearly on a multi-core host. The default of {@value #DEFAULT_PARALLELISM} is what lets the 96&nbsp;MiB memory
-     * cost stay near ~130&nbsp;ms; each concurrent login consumes that many cores, so lower it (and the memory) on core-constrained hardware.
+     * reducing wall-clock roughly linearly on a multi-core host. The default is what lets the 96 MiB memory
+     * cost stay near ~130 ms; each concurrent login consumes that many cores, so lower it (and the memory) on core-constrained hardware.
      *
-     * @return the parallelism, defaulting to {@value #DEFAULT_PARALLELISM}
+     * @return the parallelism, defaulting to 4
      */
-    @WithDefault(DEFAULT_PARALLELISM)
+    @WithDefault("4")
     int parallelism();
 }

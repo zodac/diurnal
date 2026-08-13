@@ -48,7 +48,7 @@ public final class Pages {
      * @return the resolved window
      */
     public static PageWindow window(final long totalCount, final int pageNum, final int pageSize) {
-        final int totalPages = (int) ((totalCount + pageSize - 1) / pageSize);
+        final int totalPages = (int) ((totalCount + pageSize - 1L) / pageSize);
         final int currentPage = Math.clamp(pageNum, 1, totalPages == 0 ? 1 : totalPages);
         return new PageWindow(totalPages, currentPage, pageSize);
     }

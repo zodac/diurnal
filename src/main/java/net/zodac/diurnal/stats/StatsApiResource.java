@@ -56,7 +56,7 @@ import org.jspecify.annotations.Nullable;
  */
 @Tag(name = "Stats", description = "Per-action statistics: totals, streaks, trends, high scores, etc.")
 @Path("/api/v1/stats")
-@RolesAllowed(Role.Values.USER)
+@RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 @Produces(MediaType.APPLICATION_JSON)
 public class StatsApiResource {
 
@@ -203,6 +203,9 @@ public class StatsApiResource {
      * @param bestYearLabel  the label of the highest-count year (e.g. {@code 2026})
      * @param bestYearCount  the highest single-year count
      */
+    // Public is forced: Quarkus's generated (de)serializer is not a nestmate so private throws IllegalAccessError, and the endpoint
+    // taking it must be public for JAX-RS, so package-private would trip ClassEscapesItsScope instead.
+    @SuppressWarnings("WeakerAccess")
     @Schema(description = "Computed statistics for a single subject: one of the user's actions, or their day notes.")
     public record SubjectStatsDto(
         @Schema(examples = "action", enumeration = {"action", "notes"},
@@ -234,7 +237,7 @@ public class StatsApiResource {
          * @param stats the computed statistics
          * @return the DTO
          */
-        public static SubjectStatsDto from(final SubjectStats stats) {
+        static SubjectStatsDto from(final SubjectStats stats) {
             return new SubjectStatsDto(
                 stats.subject().kind() == StatSubjectKind.NOTES ? "notes" : "action",
                 stats.subject().id(),
@@ -266,7 +269,7 @@ public class StatsApiResource {
      * @param count the summed count that action logged in the slot
      */
     @Schema(description = "One charted action's contribution to a single slot.")
-    public record FrequencyBarDto(
+    record FrequencyBarDto(
         @Schema(description = "The charted subject's ID.") UUID subjectId,
         @Schema(examples = "4", description = "The summed count that action logged in the slot.") long count) {
 
@@ -280,7 +283,7 @@ public class StatsApiResource {
      * @param bars one entry per charted action, in the same order as the chart's series
      */
     @Schema(description = "One slot of a frequency window.")
-    public record FrequencySlotDto(
+    record FrequencySlotDto(
         @Schema(examples = "3", description = "The short axis caption: the day of the month, or the abbreviated month name.") String label,
         @Schema(examples = "3 July 2026", description = "The slot spelled out in full.") String fullLabel,
         @Schema(description = "One entry per charted action, in the same order as the chart's series.") List<FrequencyBarDto> bars) {
@@ -296,7 +299,7 @@ public class StatsApiResource {
      * @param total the action's summed count across the whole window
      */
     @Schema(description = "One charted action and its whole-window total.")
-    public record FrequencySeriesDto(
+    record FrequencySeriesDto(
         @Schema(description = "The charted subject's ID.") UUID subjectId,
         @Schema(examples = "Morning run", description = "The charted action's name.") String name,
         @Schema(examples = "#6366f1", description = "The charted action's display colour as a CSS hex value.") String colour,
@@ -316,7 +319,7 @@ public class StatsApiResource {
      * @param peak the tallest bar's count
      */
     @Schema(description = "One to three actions' logged frequency over a single calendar window.")
-    public record FrequencyChartDto(
+    record FrequencyChartDto(
         @Schema(examples = "month", description = "The charted window's period.") String period,
         @Schema(examples = "2026-07", description = "The charted window's key.") String periodKey,
         @Schema(examples = "July 2026", description = "The charted window spelled out.") String periodLabel,
@@ -325,13 +328,7 @@ public class StatsApiResource {
         @Schema(examples = "57", description = "The summed count across every charted action and every slot.") long total,
         @Schema(examples = "9", description = "The tallest bar's count.") long peak) {
 
-        /**
-         * Maps an assembled {@link FrequencyChart} to its API representation.
-         *
-         * @param chart the assembled chart
-         * @return the DTO
-         */
-        static FrequencyChartDto from(final FrequencyChart chart) {
+        private static FrequencyChartDto from(final FrequencyChart chart) {
             final List<UUID> actionIds = chart.series().stream()
                 .map(FrequencySeries::subjectId)
                 .toList();
@@ -365,19 +362,13 @@ public class StatsApiResource {
      * @param currentPage the returned 1-based page (always the requested page — an out-of-range page is rejected, not clamped)
      */
     @Schema(description = "One page of per-subject statistics.")
-    public record StatsPageDto(
+    record StatsPageDto(
         @Schema(description = "The page's per-subject statistics.") List<SubjectStatsDto> items,
         @Schema(examples = "12", description = "The total number of subjects across all pages.") int totalCount,
         @Schema(examples = "3", description = "The total number of pages.") int totalPages,
         @Schema(examples = "1", description = "The returned 1-based page (always the requested page; out-of-range is rejected).") int currentPage) {
 
-        /**
-         * Maps the shared pagination result to its API representation.
-         *
-         * @param page the fetched page
-         * @return the DTO
-         */
-        static StatsPageDto from(final StatsInternalResource.PaginatedStats page) {
+        private static StatsPageDto from(final StatsInternalResource.PaginatedStats page) {
             return new StatsPageDto(
                 page.items().stream().map(SubjectStatsDto::from).toList(),
                 page.totalCount(),
