@@ -47,6 +47,19 @@ public interface AppConfig {
     String timezone();
 
     /**
+     * Whether the deployment sits behind a trusted reverse proxy, so a request's {@code X-Forwarded-*} headers may be believed. Driven by the same
+     * {@code TRUST_X_FORWARDED_HEADERS} variable as {@code quarkus.http.proxy.proxy-address-forwarding}, so the app's own forwarded-header trust
+     * boundary is always the one the deployer configured for the HTTP layer; it exists as a separate key only because a Quarkus config root cannot
+     * carry a second {@code @ConfigMapping}. Read by {@code net.zodac.diurnal.web.CsrfProtectionFilter} when resolving the host a request's
+     * {@code Origin} is validated against.
+     *
+     * @return {@code true} when forwarded headers are trusted, defaulting to {@code false}
+     */
+    @WithName("proxy.trust-forwarded-headers")
+    @WithDefault("false")
+    boolean trustForwardedHeaders();
+
+    /**
      * Maven's build timestamp (ISO-8601, UTC), filtered in at package time. Empty for an un-packaged dev run.
      *
      * @return the build timestamp, or empty when not packaged

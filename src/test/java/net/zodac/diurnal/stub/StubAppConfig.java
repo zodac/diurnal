@@ -57,4 +57,9 @@ public record StubAppConfig(String repositoryUrl, String buildTimestamp, String 
     public String timezone() {
         return "UTC";
     }
+
+    @Override
+    public boolean trustForwardedHeaders() {
+        return false;
+    }
 }

@@ -158,62 +158,111 @@ class CsrfProtectionFilterTest {
             .isFalse();
     }
 
-    // ── expectedAuthority resolution ──────────────────────────────────────────
+    // ── expectedAuthority resolution (trusted proxy) ──────────────────────────
 
     @Test
     void expectedAuthority_usesHostWhenNoForwardedHost() {
-        assertThat(CsrfProtectionFilter.expectedAuthority(null, HOST))
+        assertThat(CsrfProtectionFilter.expectedAuthority(null, HOST, true))
             .as("unexpected value")
             .isEqualTo(HOST);
     }
 
     @Test
     void expectedAuthority_prefersForwardedHostOverHost() {
-        assertThat(CsrfProtectionFilter.expectedAuthority("public.example.com", "internal:8080"))
+        assertThat(CsrfProtectionFilter.expectedAuthority("public.example.com", "internal:8080", true))
             .as("X-Forwarded-Host must take precedence over Host")
             .isEqualTo("public.example.com");
     }
 
     @Test
     void expectedAuthority_blankForwardedHostFallsBackToHost() {
-        assertThat(CsrfProtectionFilter.expectedAuthority("   ", HOST))
+        assertThat(CsrfProtectionFilter.expectedAuthority("   ", HOST, true))
             .as("a blank X-Forwarded-Host must fall back to Host")
             .isEqualTo(HOST);
     }
 
     @Test
     void expectedAuthority_multiProxyList_usesFirstEntry() {
-        assertThat(CsrfProtectionFilter.expectedAuthority("public.example.com, internal.example.com", "internal:8080"))
+        assertThat(CsrfProtectionFilter.expectedAuthority("public.example.com, internal.example.com", "internal:8080", true))
             .as("the first entry of a comma-separated forwarded-host list is the client-facing host")
             .isEqualTo("public.example.com");
     }
 
     @Test
     void expectedAuthority_multiProxyListWithSpacing_trimmed() {
-        assertThat(CsrfProtectionFilter.expectedAuthority("  public.example.com  , internal.example.com", null))
+        assertThat(CsrfProtectionFilter.expectedAuthority("  public.example.com  , internal.example.com", null, true))
             .as("the resolved authority must be trimmed of surrounding whitespace")
             .isEqualTo("public.example.com");
     }
 
     @Test
     void expectedAuthority_bothNull_returnsNull() {
-        assertThat(CsrfProtectionFilter.expectedAuthority(null, null))
+        assertThat(CsrfProtectionFilter.expectedAuthority(null, null, true))
             .as("with neither header present there is no addressable host")
             .isNull();
     }
 
     @Test
     void expectedAuthority_bothBlank_returnsNull() {
-        assertThat(CsrfProtectionFilter.expectedAuthority("", "   "))
+        assertThat(CsrfProtectionFilter.expectedAuthority("", "   ", true))
             .as("blank headers must resolve to no addressable host")
             .isNull();
     }
 
     @Test
     void expectedAuthority_forwardedHostLeadingCommaEmptyFirstEntry_returnsNull() {
-        assertThat(CsrfProtectionFilter.expectedAuthority(",public.example.com", null))
+        assertThat(CsrfProtectionFilter.expectedAuthority(",public.example.com", null, true))
             .as("an empty first list entry must resolve to no addressable host")
             .isNull();
+    }
+
+    // ── expectedAuthority resolution (untrusted proxy) ────────────────────────
+
+    @Test
+    void expectedAuthority_forwardedHostIgnoredWhenProxyNotTrusted() {
+        // Exposed directly, any client can send X-Forwarded-Host. Believing it would let a request name the
+        // authority it is then compared against, so only the Host the browser actually addressed counts.
+        assertThat(CsrfProtectionFilter.expectedAuthority("evil.example", HOST, false))
+            .as("an untrusted X-Forwarded-Host must not override Host")
+            .isEqualTo(HOST);
+    }
+
+    @Test
+    void expectedAuthority_forwardedHostIgnoredWhenProxyNotTrusted_noHost_returnsNull() {
+        // With the only credible source absent, there is no authority - the cookie POST is then rejected
+        // rather than validated against a client-supplied value.
+        assertThat(CsrfProtectionFilter.expectedAuthority("evil.example", null, false))
+            .as("an untrusted X-Forwarded-Host must not stand in for a missing Host")
+            .isNull();
+    }
+
+    @Test
+    void expectedAuthority_untrustedProxy_stillTrimsAndSplitsHost() {
+        assertThat(CsrfProtectionFilter.expectedAuthority(null, "  public.example.com , internal:8080 ", false))
+            .as("the Host header is still normalised when forwarded headers are untrusted")
+            .isEqualTo("public.example.com");
+    }
+
+    // ── The forged-authority bypass this closes ──────────────────────────────
+
+    @Test
+    void isCsrfViolation_forgedForwardedHostMatchingAttackerOrigin_rejectedWhenProxyNotTrusted() {
+        // The attack the trust gate closes: a request carrying Origin: https://evil.example AND
+        // X-Forwarded-Host: evil.example would previously compare the forged value against itself and pass.
+        final String expectedAuthority = CsrfProtectionFilter.expectedAuthority("evil.example", HOST, false);
+        assertThat(CsrfProtectionFilter.isCsrfViolation("POST", true, "https://evil.example", null, expectedAuthority))
+            .as("a forged X-Forwarded-Host must not validate a cross-site Origin against itself")
+            .isTrue();
+    }
+
+    @Test
+    void isCsrfViolation_forwardedHostHonouredWhenProxyTrusted() {
+        // The legitimate deployment: the proxy sets X-Forwarded-Host to the public name the browser used,
+        // while Host carries the internal container address the Origin will never match.
+        final String expectedAuthority = CsrfProtectionFilter.expectedAuthority(HOST, "internal:8080", true);
+        assertThat(CsrfProtectionFilter.isCsrfViolation("POST", true, ORIGIN, null, expectedAuthority))
+            .as("behind a trusted proxy the public forwarded host must be what the Origin is matched against")
+            .isFalse();
     }
 
     // ── authorityOf parsing ───────────────────────────────────────────────────
