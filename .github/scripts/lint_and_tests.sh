@@ -11,6 +11,11 @@
 #                  the most recent semver git tag are run. If no tag exists, all
 #                  steps are run. Pass explicit steps to override auto-detection.
 #
+#                  Any entry may be narrowed to one of its step's SUBSTEPS with
+#                  `step:substep` (see "Substeps" below); a bare step name runs all of
+#                  them. Entries combine, so `java:mvn,java:qodana` runs those two tiers
+#                  and nothing else, and `java,markdown` is the whole gate plus markdown.
+#
 #                  -v, --verbose
 #                    Show each step's full output. Off by default: steps print only a
 #                    per-substep progress line, that substep's elapsed time, and a pass/fail
@@ -23,9 +28,8 @@
 #
 #                  -f, --force
 #                    Run ALL steps, skipping the git-diff auto-detection (equivalent to passing
-#                    the full step list). Cannot be combined with an explicit [steps] argument.
-#                    Lists every step except `qodana`, which is not skipped but reached through `java`
-#                    (which runs it as a tier); listing it too would run the same scan twice. See AUTO_STEPS.
+#                    the full step list, every one of them whole). Cannot be combined with an
+#                    explicit [steps] argument.
 #
 #                  -e, --exit-on-failure
 #                    Stop at the first failing step instead of running the remaining steps. Off by
@@ -56,15 +60,24 @@
 #                    - perf        k6 load/performance suite against the real prod image
 #                                  (tests/run-perf.sh). Auto-detected on the SAME file set as `java`
 #                                  (app/runtime/deps changes) plus the perf suite's own files.
-#                    - qodana      Whole-program analysis with the IntelliJ inspection engine — the only
-#                                  check that can see an unused PUBLIC declaration (PMD/ErrorProne/SpotBugs
-#                                  all stop at private). Configured by qodana.yaml, whose inspection profile
-#                                  and IDE entry-point overrides live in the code-quality-config submodule
-#                                  (code-quality-config/java/qodana/). Normally reached as a
-#                                  tier of `java`; name it directly to run ONLY the scan, which is what you
-#                                  want when iterating on qodana.yaml or the inspection profile.
 #                    - shellcheck  Lint shell scripts (*.sh) with shellcheck
 #                    - typescript  Lint TypeScript files with eslint
+#
+#                  Substeps (see STEP_SUBSTEPS):
+#                    Only `java` has any, because it is the only step made of separable tiers. Naming
+#                    one runs THAT TIER ALONE, which is what you want when iterating on the thing it
+#                    checks rather than re-paying for the whole gate:
+#                    - java:mvn     mvn clean install -Dall (unit + *IT + linters); packages the fast-jar
+#                    - java:e2e     the Playwright E2E/UI suite (tests/run-e2e.sh). REUSES the fast-jar,
+#                                   so target/quarkus-app must already exist - run `java:mvn` first, or
+#                                   `java:mvn,java:e2e` to do both
+#                    - java:smoke   the deployment-smoke suite (tests/run-smoke.sh); self-contained
+#                    - java:qodana  the whole-program analysis - the only check that can see an unused
+#                                   PUBLIC declaration (PMD/ErrorProne/SpotBugs all stop at private).
+#                                   Configured by qodana.yaml, whose inspection profile and IDE
+#                                   entry-point overrides live in the code-quality-config submodule
+#                                   (code-quality-config/java/qodana/). Name it alone when iterating on
+#                                   either of those rather than on the code.
 #
 #                  Examples:
 #                    ./lint_and_tests.sh
@@ -72,6 +85,8 @@
 #                    ./lint_and_tests.sh docker
 #                    ./lint_and_tests.sh docker,javascript
 #                    ./lint_and_tests.sh -v java
+#                    ./lint_and_tests.sh java:qodana
+#                    ./lint_and_tests.sh java:mvn,java:e2e
 #                    ./lint_and_tests.sh grype
 #
 # Requirements:
@@ -174,18 +189,55 @@ QODANA_OVERRIDES_DIR="${QODANA_CONFIG_DIR}/overrides"
 QODANA_PROFILE_FILE="${QODANA_CONFIG_DIR}/profiles/java.yaml"
 QODANA_IDEA_DIR="${QODANA_WORK_DIR}/idea-config"
 
-VALID_STEPS=("docker" "grype" "java" "javascript" "markdown" "perf" "qodana" "shellcheck" "typescript")
+VALID_STEPS=("docker" "grype" "java" "javascript" "markdown" "perf" "shellcheck" "typescript")
 
-# The steps -f/--force runs, and the only ones auto-detection can select: every step EXCEPT `qodana`.
-# NOT because the scan is skipped - the `java` gate runs it as a tier, so -f and auto-detection both
-# cover it - but precisely because they do: listing it here as well would run the same multi-minute scan
-# a second time. `lint_and_tests.sh qodana` still runs it alone, which is what you want when iterating on
-# qodana.yaml or the profile rather than on the code.
-AUTO_STEPS=()
-for _step in "${VALID_STEPS[@]}"; do
-    [[ "${_step}" == "qodana" ]] || AUTO_STEPS+=("${_step}")
-done
-unset _step
+# The substeps each step can be narrowed to with `step:substep`, in the order they are reported. Only
+# `java` has any: it is the one step made of tiers that are separately meaningful (and separately
+# expensive), so it is the one place scoping saves real minutes. The Qodana scan is one of them rather
+# than a step of its own - it is a Java lint over the same sources as the rest of the gate, so a bare
+# `java` must include it, and `java:qodana` is how you run only the scan.
+#
+# A step absent from here has no substeps, and `step:anything` is rejected for it. Adding some is this
+# entry plus the branching inside that step's run_* function; everything else (parsing, validation, the
+# re-run hints, the lane machinery) is driven from this table.
+declare -A STEP_SUBSTEPS=(
+    [java]="mvn e2e smoke qodana"
+)
+
+# The substeps actually selected for a step, space-separated. An ABSENT entry means "all of them", which
+# is what every path that does not name a substep leaves behind: auto-detection, -f/--force, and a bare
+# step name. So nothing but the explicit `step:substep` parsing ever writes to it.
+declare -A SELECTED_SUBSTEPS=()
+
+# True when ${2} is a selected substep of step ${1}. An unset selection means the whole step, so every
+# substep answers yes - which is what keeps the branching inside a run_* function invisible on the
+# ordinary paths.
+runs_substep() {
+    local selected="${SELECTED_SUBSTEPS[${1}]:-}"
+    [[ -z "${selected}" ]] && return 0
+    [[ " ${selected} " == *" ${2} "* ]]
+}
+
+# How the step currently selected would be typed back in, so the "re-run ..." hints and the failed-step
+# summary name exactly what ran rather than the whole step. A fully-selected step is its bare name; a
+# scoped one expands to one entry per selected substep ("java:mvn,java:e2e") - the same comma-separated
+# form the [steps] argument accepts, so the suggestion is copy/paste-ready either way.
+step_invocation() {
+    local step="${1}"
+    local selected="${SELECTED_SUBSTEPS[${step}]:-}"
+    if [[ -z "${selected}" ]]; then
+        printf '%s' "${step}"
+        return
+    fi
+
+    local -a substeps=()
+    read -ra substeps <<<"${selected}"
+    local substep invocation=""
+    for substep in "${substeps[@]}"; do
+        invocation+=",${step}:${substep}"
+    done
+    printf '%s' "${invocation#,}"
+}
 
 # HTTP ports for the E2E and deployment-smoke tiers the `java` step chains after the Maven gate
 # (formerly Maven properties in the pom's `all` profile). The E2E jar reuses 8081 (the @QuarkusTest
@@ -625,7 +677,9 @@ run_supervised_tier() {
         fi
         # Smoke may finish (either way) while this tier is still going. A pass is just recorded; a failure
         # stops this tier here and now, which is the whole point of supervising rather than joining later.
-        if [[ -z "${SMOKE_RC}" ]] && tier_reap "${SMOKE_PID}"; then
+        # SMOKE_PID is empty when the smoke tier was not selected at all (`java:mvn`, say), and there is
+        # then nothing to supervise against - reaping an empty pid would report a phantom exit.
+        if [[ -n "${SMOKE_PID}" && -z "${SMOKE_RC}" ]] && tier_reap "${SMOKE_PID}"; then
             SMOKE_RC="${TIER_RC}"
             report_smoke_completion
             if [[ "${SMOKE_RC}" != "0" ]]; then
@@ -683,22 +737,61 @@ assert_test_port_free() {
     return 1
 }
 
-run_java() {
-    echo
-    echo "Running the full JVM gate [java]: Maven build + E2E + deployment-smoke + Qodana"
+# ── Preflight: is there a fast-jar for the E2E tier to boot? ──────────────────
+# Only reachable when `java:e2e` was selected WITHOUT `java:mvn`: the E2E tier deliberately does not
+# build anything, it boots the jar the Maven tier packaged. Run on its own after a `mvn clean` (or on a
+# fresh clone) there is nothing to boot, and run-e2e.sh discovers that only after standing its database
+# up. Say so here instead, and name the two ways out.
+assert_fast_jar_present() {
+    [[ -f "${PWD}/target/quarkus-app/quarkus-run.jar" ]] && return 0
 
-    # Fail before the (multi-minute) Maven build rather than after every *IT has failed to boot.
-    if ! assert_test_port_free; then
+    echo "❌ No packaged application at ${YELLOW}target/quarkus-app${RESET}, and the E2E tier boots it rather than building it."
+    echo "   Run ${YELLOW}'${SCRIPT_PATH} java:mvn,java:e2e'${RESET} to package it first, or ${YELLOW}'mvn package'${RESET} by hand."
+    return 1
+}
+
+run_java() {
+    # Which of the four tiers this invocation covers. All of them unless it was narrowed to a substep
+    # (`java:qodana`, `java:mvn,java:e2e`, ...); every guard, launch and join below is gated on these, so
+    # a scoped run pays for nothing it did not ask for and the full gate behaves exactly as it always has.
+    local run_mvn=false run_e2e=false run_smoke=false run_qodana=false
+    runs_substep java mvn && run_mvn=true
+    runs_substep java e2e && run_e2e=true
+    runs_substep java smoke && run_smoke=true
+    runs_substep java qodana && run_qodana=true
+
+    # Named in tier order for the opening and summary lines, so a scoped run says which tiers it is.
+    local invocation tier_list=""
+    invocation="$(step_invocation java)"
+    [[ "${run_mvn}" == true ]] && tier_list+=" + Maven build"
+    [[ "${run_e2e}" == true ]] && tier_list+=" + E2E"
+    [[ "${run_smoke}" == true ]] && tier_list+=" + deployment-smoke"
+    [[ "${run_qodana}" == true ]] && tier_list+=" + Qodana"
+    tier_list="${tier_list# + }"
+
+    echo
+    echo "Running the JVM gate [${invocation}]: ${tier_list}"
+
+    # Fail before the (multi-minute) Maven build rather than after every *IT has failed to boot. Both the
+    # Maven and E2E tiers bind that port, so either one selected is reason enough to check.
+    if [[ "${run_mvn}" == true || "${run_e2e}" == true ]] && ! assert_test_port_free; then
+        overall_exit_code=1
+        return
+    fi
+    # `java:e2e` without `java:mvn` boots a jar nothing in this run builds - check it exists before the
+    # tier stands a database up to discover it.
+    if [[ "${run_e2e}" == true && "${run_mvn}" == false ]] && ! assert_fast_jar_present; then
         overall_exit_code=1
         return
     fi
     # Likewise for the Qodana tier's config: check it here, before the first tier is launched in the
     # background, so the answer is a one-line message rather than an orphaned smoke stack.
-    if ! qodana_config_guard; then
+    if [[ "${run_qodana}" == true ]] && ! qodana_config_guard; then
         overall_exit_code=1
         return
     fi
-    # The java step is the whole JVM-side gate, in three tiers:
+    # The java step is the whole JVM-side gate, in four tiers - each of them also a SUBSTEP, so any subset
+    # of them can be selected on its own (`java:qodana`, `java:mvn,java:e2e`):
     #   1. mvn clean install -Dall — unit tests + *IT + the full inherited lint suite. Drives the CSS
     #      build (Node) and a managed IT test DB (Docker), and packages the fast-jar the E2E run reuses;
     #      so it runs against the host toolchain (JDK + Maven + Node + Docker), not a Maven Docker image.
@@ -732,6 +825,10 @@ run_java() {
     # script's current foreground command returns, so a tier sitting in `docker compose up --wait` finishes
     # that one command first. The wait is deliberate: abandoning a child would leak its containers.
     #
+    # A scoped run keeps every one of those rules and simply has fewer tiers to apply them to: the ordering,
+    # the supervision and the early stops are all written against whichever tiers were selected, so
+    # `java:mvn,java:smoke` still stops the build when smoke fails, and `java:qodana` is the scan alone.
+    #
     # Each tier is timed individually and the durations - green when the tier passed, red when it failed -
     # are folded into the summary line below, because "the java step took 31 minutes" is not actionable on
     # its own; which tier owns those minutes, and which one died, is.
@@ -742,7 +839,7 @@ run_java() {
     # label mirrors the exact args so the progress + "re-run …" hints stay copy/paste-accurate.
     local -a mvn_args=(clean install -Dall)
     local mvn_label="mvn clean install -Dall"
-    if [[ "${SONARQUBE_ANALYSIS}" == "true" ]]; then
+    if [[ "${run_mvn}" == true && "${SONARQUBE_ANALYSIS}" == "true" ]]; then
         substep "checking SonarQube server reachability (${SONARQUBE_HOST_URL})"
         if sonarqube_reachable; then
             mvn_args+=(-Dsonarqube)
@@ -752,36 +849,47 @@ run_java() {
         fi
     fi
 
-    # Tier 3, launched first and supervised by every later tier (see run_supervised_tier).
+    # Tier 3, launched first and supervised by every later tier (see run_supervised_tier). SMOKE_PID is
+    # left EMPTY when the tier was not selected, which is what tells run_supervised_tier there is nothing
+    # to supervise against.
+    SMOKE_PID=""
     SMOKE_RC=""
-    SMOKE_LOG="$(mktemp)"
-    SMOKE_START_NS="$(date +%s%N)"
-    substep "tests/run-smoke.sh  (deployment-smoke against the real prod image on :${SMOKE_HTTP_PORT}; running in parallel)"
-    "${PWD}/tests/run-smoke.sh" "${SMOKE_HTTP_PORT}" "${PWD}" > "${SMOKE_LOG}" 2>&1 &
-    SMOKE_PID=$!
+    SMOKE_LOG=""
+    if [[ "${run_smoke}" == true ]]; then
+        SMOKE_LOG="$(mktemp)"
+        SMOKE_START_NS="$(date +%s%N)"
+        substep "tests/run-smoke.sh  (on :${SMOKE_HTTP_PORT})"
+        "${PWD}/tests/run-smoke.sh" "${SMOKE_HTTP_PORT}" "${PWD}" > "${SMOKE_LOG}" 2>&1 &
+        SMOKE_PID=$!
+    fi
 
     # Tier 4, launched alongside tier 3 and joined last (it is the longest by far).
     QODANA_RC=""
-    QODANA_LOG="$(mktemp)"
-    QODANA_START_NS="$(date +%s%N)"
-    qodana_prepare
-    substep "qodana  (whole-program analysis with ${QODANA_DOCKER_IMAGE}; running in parallel)"
-    # The pull happens INSIDE the background tier: a cold one is several GB, and pulling before the launch
-    # would hold the Maven tier behind a download that has nothing to do with it.
-    { docker pull "${QODANA_DOCKER_IMAGE}" >/dev/null && "${QODANA_CMD[@]}"; } > "${QODANA_LOG}" 2>&1 &
-    QODANA_PID=$!
-
-    run_supervised_tier "mvn" "${mvn_label}  (unit + *IT + linters; packages the fast-jar)" \
-        mvn "${mvn_args[@]}" || failed_at="${mvn_label}"
-    if [[ "${TIER_STOPPED_EARLY}" == true ]]; then
-        failed_at="tests/run-smoke.sh"
-        # Maven was signalled mid-flight, so its post-integration-test teardown never ran (see
-        # sweep_test_db); remove the IT database it may have left standing.
-        sweep_test_db
+    QODANA_LOG=""
+    if [[ "${run_qodana}" == true ]]; then
+        QODANA_LOG="$(mktemp)"
+        QODANA_START_NS="$(date +%s%N)"
+        qodana_prepare
+        substep "qodana"
+        # The pull happens INSIDE the background tier: a cold one is several GB, and pulling before the
+        # launch would hold the Maven tier behind a download that has nothing to do with it.
+        { docker pull "${QODANA_DOCKER_IMAGE}" >/dev/null && "${QODANA_CMD[@]}"; } > "${QODANA_LOG}" 2>&1 &
+        QODANA_PID=$!
     fi
 
-    if [[ -z "${failed_at}" ]]; then
-        run_supervised_tier "e2e" "tests/run-e2e.sh  (Playwright E2E/UI suite on :${E2E_HTTP_PORT}, reusing the built jar)" \
+    if [[ "${run_mvn}" == true ]]; then
+        run_supervised_tier "mvn" "${mvn_label}" \
+            mvn "${mvn_args[@]}" || failed_at="${mvn_label}"
+        if [[ "${TIER_STOPPED_EARLY}" == true ]]; then
+            failed_at="tests/run-smoke.sh"
+            # Maven was signalled mid-flight, so its post-integration-test teardown never ran (see
+            # sweep_test_db); remove the IT database it may have left standing.
+            sweep_test_db
+        fi
+    fi
+
+    if [[ "${run_e2e}" == true && -z "${failed_at}" ]]; then
+        run_supervised_tier "e2e" "tests/run-e2e.sh  (on :${E2E_HTTP_PORT}, reusing the mvn jar)" \
             "${PWD}/tests/run-e2e.sh" "${E2E_HTTP_PORT}" "${PWD}/target" "${PWD}" \
             || failed_at="tests/run-e2e.sh"
         if [[ "${TIER_STOPPED_EARLY}" == true ]]; then
@@ -791,59 +899,63 @@ run_java() {
 
     # Join tier 3, unless a supervised tier already saw it finish. If an earlier tier failed, signal it and
     # wait for its teardown rather than letting it run on; that earlier failure is the one reported.
-    if [[ -z "${SMOKE_RC}" ]]; then
-        if [[ -n "${failed_at}" ]]; then
-            stop_tier "${SMOKE_PID}"
-            substep "tests/run-smoke.sh stopped early (${failed_at} already failed)"
-        else
-            SMOKE_RC=0
-            wait "${SMOKE_PID}" || SMOKE_RC=$?
-            report_smoke_completion
+    if [[ -n "${SMOKE_PID}" ]]; then
+        if [[ -z "${SMOKE_RC}" ]]; then
+            if [[ -n "${failed_at}" ]]; then
+                stop_tier "${SMOKE_PID}"
+                substep "tests/run-smoke.sh stopped early (${failed_at} already failed)"
+            else
+                SMOKE_RC=0
+                wait "${SMOKE_PID}" || SMOKE_RC=$?
+                report_smoke_completion
+            fi
         fi
-    fi
-    if [[ -n "${SMOKE_RC}" && "${SMOKE_RC}" != "0" ]]; then
-        failed_at="tests/run-smoke.sh"
-        if [[ -s "${SMOKE_LOG}" ]]; then
+        if [[ -n "${SMOKE_RC}" && "${SMOKE_RC}" != "0" ]]; then
+            failed_at="tests/run-smoke.sh"
+            if [[ -s "${SMOKE_LOG}" ]]; then
+                cat "${SMOKE_LOG}"
+            fi
+        elif [[ "${VERBOSE}" == true && -s "${SMOKE_LOG}" ]]; then
             cat "${SMOKE_LOG}"
         fi
-    elif [[ "${VERBOSE}" == true && -s "${SMOKE_LOG}" ]]; then
-        cat "${SMOKE_LOG}"
+        rm -f "${SMOKE_LOG}"
     fi
-    rm -f "${SMOKE_LOG}"
 
     # Join tier 4. An earlier failure means the scan's answer is moot and its remaining minutes are pure
     # waste, so stop it - removing the container, not just signalling the client that started it.
-    if [[ -n "${failed_at}" ]]; then
-        stop_tier "${QODANA_PID}"
-        qodana_stop_container
-        substep "qodana stopped early (${failed_at} already failed)"
-    else
-        QODANA_RC=0
-        wait "${QODANA_PID}" || QODANA_RC=$?
-        substep "qodana finished (parallel tier)"
-        record_substep_time "qodana" "${QODANA_START_NS}" "${QODANA_RC}"
-        if [[ "${QODANA_RC}" != "0" ]]; then
-            failed_at="qodana"
-            [[ -s "${QODANA_LOG}" ]] && cat "${QODANA_LOG}"
-            if qodana_dependency_guard; then
-                qodana_failure_hint
+    if [[ "${run_qodana}" == true ]]; then
+        if [[ -n "${failed_at}" ]]; then
+            stop_tier "${QODANA_PID}"
+            qodana_stop_container
+            substep "qodana stopped early (${failed_at} already failed)"
+        else
+            QODANA_RC=0
+            wait "${QODANA_PID}" || QODANA_RC=$?
+            substep "qodana finished (parallel tier)"
+            record_substep_time "qodana" "${QODANA_START_NS}" "${QODANA_RC}"
+            if [[ "${QODANA_RC}" != "0" ]]; then
+                failed_at="qodana"
+                [[ -s "${QODANA_LOG}" ]] && cat "${QODANA_LOG}"
+                if qodana_dependency_guard; then
+                    qodana_failure_hint
+                fi
+            elif ! qodana_dependency_guard; then
+                # A pass the scan could have produced with no source on the classpath at all is not a pass.
+                failed_at="qodana"
+            elif [[ "${VERBOSE}" == true && -s "${QODANA_LOG}" ]]; then
+                cat "${QODANA_LOG}"
             fi
-        elif ! qodana_dependency_guard; then
-            # A pass the scan could have produced with no source on the classpath at all is not a pass.
-            failed_at="qodana"
-        elif [[ "${VERBOSE}" == true && -s "${QODANA_LOG}" ]]; then
-            cat "${QODANA_LOG}"
         fi
+        rm -f "${QODANA_LOG}"
     fi
-    rm -f "${QODANA_LOG}"
 
     local done_in breakdown
     done_in="$(step_time)"
     breakdown="$(substep_breakdown)"
     if [[ -z "${failed_at}" ]]; then
-        echo "✅ Java gate passed (build + tests + E2E + smoke + qodana), finished in ${GREEN}${done_in}${RESET}${breakdown}"
+        echo "✅ Java gate [${invocation}] passed (${tier_list}), finished in ${GREEN}${done_in}${RESET}${breakdown}"
     else
-        echo "❌ Java gate failed at [${failed_at}] after ${RED}${done_in}${RESET}${breakdown}: re-run ${YELLOW}'${SCRIPT_PATH} -v java'${RESET} for the full output"
+        echo "❌ Java gate [${invocation}] failed at [${failed_at}] after ${RED}${done_in}${RESET}${breakdown}: re-run ${YELLOW}'${SCRIPT_PATH} -v ${invocation}'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -1039,8 +1151,9 @@ qodana_config_guard() {
 }
 
 # Prepares Qodana's working dirs, pulls the pinned image, and assembles the `docker run` argv into the
-# QODANA_CMD global. Shared so the `java` gate's tier and the standalone `qodana` step invoke EXACTLY the
-# same scan - the two must never drift into analysing the project differently.
+# QODANA_CMD global. There is one caller (the java gate's tier), which is the point: `java:qodana` scopes
+# the gate down to that same tier rather than running a scan of its own, so a standalone run and a full
+# gate cannot drift into analysing the project differently.
 #
 # This is the one analysis that sees the WHOLE project at once. PMD, ErrorProne and SpotBugs all report
 # unused code, but only for private members: each reads one compilation unit, so a public method could be
@@ -1227,42 +1340,6 @@ qodana_failure_hint() {
     echo "   No baseline exists by design: fix the finding, or disable its inspection in ${YELLOW}${QODANA_PROFILE_FILE#"${PWD}/"}${RESET}."
 }
 
-run_qodana() {
-    echo
-    echo "Running whole-program analysis using [${QODANA_DOCKER_IMAGE}]"
-    if ! qodana_config_guard; then
-        overall_exit_code=1
-        return
-    fi
-    qodana_prepare
-    docker pull "${QODANA_DOCKER_IMAGE}" >/dev/null
-    if output=$("${QODANA_CMD[@]}" 2>&1); then
-        [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
-        local done_in
-        done_in="$(step_time)"
-        # A clean run is not evidence of a clean project until the scan is known to have seen the project:
-        # an analysis with no libraries attached reports few findings too, and this is the greener of the
-        # two ways a broken classpath shows up.
-        if qodana_dependency_guard; then
-            echo "✅ Whole-program analysis passed, finished in ${GREEN}${done_in}${RESET}"
-        else
-            echo "❌ Whole-program analysis cannot be trusted after ${RED}${done_in}${RESET}"
-            overall_exit_code=1
-        fi
-    else
-        echo "${output}"
-        local done_in
-        done_in="$(step_time)"
-        echo "❌ Whole-program analysis failed after ${RED}${done_in}${RESET}"
-        # "Fix it or switch the inspection off" is exactly the wrong advice when the classpath is what
-        # broke, so the guard speaks instead of the hint whenever it has something to say.
-        if qodana_dependency_guard; then
-            qodana_failure_hint
-        fi
-        overall_exit_code=1
-    fi
-}
-
 run_shellcheck() {
     echo
     echo "Running shell script lint using [${SHELLCHECK_DOCKER_IMAGE}]"
@@ -1313,8 +1390,9 @@ run_shellcheck() {
 #   - perf MEASURES the application - cold-boot latency, post-boot RSS, k6 latency thresholds. Its ports are
 #     disjoint from everything else, so the problem is not a clash but CONTENTION: a machine also running
 #     PITest, Chromium and a multi-stage Docker build makes every threshold a coin flip. It runs alone.
-#   - qodana is not listed because it is not a step of its own here: the `java` gate runs it as a parallel
-#     tier (see run_java). Naming it explicitly still works, and then it runs inline like any other step.
+#   - qodana is not listed because it is not a step at all: the `java` gate runs it as a parallel tier (see
+#     run_java), and `java:qodana` scopes that gate down to it. Lane eligibility is a property of the STEP,
+#     so a substep-scoped `java` is lane-eligible exactly as the whole gate is.
 LANE_STEPS=("docker" "java" "javascript" "markdown" "shellcheck" "typescript")
 
 # True when ${1} appears in the remaining arguments.
@@ -1462,7 +1540,9 @@ run_lanes() {
             cancelled_steps+=("${name}")
             ;;
         *)
-            failed_steps+=("${name}")
+            # The invocation rather than the bare name, so a scoped lane's failure re-runs scoped (see the
+            # serial loop's copy of this).
+            failed_steps+=("$(step_invocation "${name}")")
             final_exit_code=1
             ;;
         esac
@@ -1680,9 +1760,91 @@ if [[ "${FORCE}" == true && $# -gt 0 ]]; then
     exit 1
 fi
 
+# Parse the comma-separated [steps] argument into the global `steps` array, recording any `step:substep`
+# narrowing in SELECTED_SUBSTEPS. Every rejection names what WOULD have been accepted, since the whole
+# value of the syntax is that a typo is recoverable without opening this file.
+#
+# Entries ACCUMULATE rather than replace, so `java:mvn,java:e2e` selects both tiers - and a bare step name
+# anywhere in the list widens it back to everything, because the wider selection is the safer one to
+# resolve a contradictory list to (`java,java:qodana` is the whole gate). Step order follows first
+# mention; each step's substeps are normalised into STEP_SUBSTEPS order, so the re-run hints read the same
+# however the list was typed.
+parse_step_selection() {
+    local -a tokens=()
+    IFS=',' read -ra tokens <<<"${1}"
+
+    local -A whole=() scoped=()
+    steps=()
+
+    local token step substep scoping pattern valid_substeps
+    for token in "${tokens[@]}"; do
+        step="${token%%:*}"
+        substep=""
+        scoping=false
+        # Tracked separately from a non-empty substep so a bare trailing colon can be rejected below as the
+        # half-typed narrowing it is, rather than silently running the whole multi-minute step.
+        [[ "${token}" == *:* ]] && scoping=true && substep="${token#*:}"
+
+        pattern=" ${step} "
+        if [[ ! " ${VALID_STEPS[*]} " =~ ${pattern} ]]; then
+            echo "❌ Unknown step: '${step}'. Valid steps: $(
+                IFS=', '
+                echo "${VALID_STEPS[*]}"
+            )"
+            return 1
+        fi
+        if [[ -z "${whole[${step}]:-}" && -z "${scoped[${step}]:-}" ]]; then
+            steps+=("${step}")
+        fi
+
+        if [[ "${scoping}" == false ]]; then
+            whole["${step}"]=1
+            continue
+        fi
+
+        valid_substeps="${STEP_SUBSTEPS[${step}]:-}"
+        if [[ -z "${valid_substeps}" ]]; then
+            echo "❌ Step '${step}' has no substeps, so '${token}' cannot be run. Run it as '${step}'."
+            return 1
+        fi
+        if [[ -z "${substep}" ]]; then
+            echo "❌ Missing substep after the ':' in '${token}'. Valid substeps of '${step}': ${valid_substeps// /, }"
+            return 1
+        fi
+        if [[ " ${valid_substeps} " != *" ${substep} "* ]]; then
+            echo "❌ Unknown substep: '${token}'. Valid substeps of '${step}': ${valid_substeps// /, }"
+            return 1
+        fi
+        scoped["${step}"]+=" ${substep}"
+    done
+
+    local -a ordered=() all=()
+    for step in "${steps[@]}"; do
+        [[ -n "${whole[${step}]:-}" ]] && continue
+        ordered=()
+        read -ra all <<<"${STEP_SUBSTEPS[${step}]}"
+        for substep in "${all[@]}"; do
+            [[ " ${scoped[${step}]} " == *" ${substep} "* ]] && ordered+=("${substep}")
+        done
+        SELECTED_SUBSTEPS["${step}"]="${ordered[*]}"
+    done
+}
+
+# The whole selection written as it would be typed back in ("java:qodana,markdown"), for the line that
+# announces the run. A step selected whole is its bare name; see step_invocation.
+selection_invocation() {
+    local -a invocations=()
+    local step invocation
+    for step in "${steps[@]}"; do
+        invocation="$(step_invocation "${step}")"
+        invocations+=("${invocation}")
+    done
+    (IFS=', '; printf '%s' "${invocations[*]}")
+}
+
 # Parse and validate steps
 if [[ "${FORCE}" == true ]]; then
-    steps=("${AUTO_STEPS[@]}")
+    steps=("${VALID_STEPS[@]}")
     echo "Running ALL steps (forced): $(IFS=', '; echo "${steps[*]}")"
 elif [[ $# -eq 0 ]]; then
     mapfile -t steps < <(detect_changed_steps || true)
@@ -1692,17 +1854,11 @@ elif [[ $# -eq 0 ]]; then
     fi
     echo "Running steps: $(IFS=', '; echo "${steps[*]}")"
 else
-    IFS=',' read -ra steps <<<"${1}"
-    for step in "${steps[@]}"; do
-        pattern=" ${step} "
-        if [[ ! " ${VALID_STEPS[*]} " =~ ${pattern} ]]; then
-            echo "❌ Unknown step: '${step}'. Valid steps: $(
-                IFS=', '
-                echo "${VALID_STEPS[*]}"
-            )"
-            exit 1
-        fi
-    done
+    parse_step_selection "${1}" || exit 1
+    # Assigned on its own line so the command substitution's exit status isn't masked (SC2312).
+    selected_list=""
+    selected_list="$(selection_invocation)"
+    echo "Running steps: ${selected_list}"
 fi
 
 # Execute steps, timing each one. `date +%s%N` (nanoseconds since epoch) fits a 64-bit shell integer,
@@ -1759,13 +1915,15 @@ for idx in "${!serial_selected[@]}"; do
     javascript) run_javascript ;;
     markdown) run_markdown ;;
     perf) run_perf ;;
-    qodana) run_qodana ;;
     shellcheck) run_shellcheck ;;
     typescript) run_typescript ;;
     *) ;; # unreachable: steps are validated against VALID_STEPS above
     esac
     if [[ "${overall_exit_code}" -ne 0 ]]; then
-        failed_steps+=("${step}")
+        # Recorded as the INVOCATION, not the bare step name, so the re-run command at the end repeats the
+        # scoping too - re-running the whole java gate to chase a `java:qodana` failure is minutes wasted.
+        step_failure="$(step_invocation "${step}")"
+        failed_steps+=("${step_failure}")
         final_exit_code=1
     fi
     # -e/--exit-on-failure: stop as soon as a step fails, skipping the remaining steps.

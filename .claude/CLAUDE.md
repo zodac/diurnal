@@ -67,7 +67,10 @@ mvn package
 .github/scripts/lint_and_tests.sh java            # the full Java gate (== mvn clean install -Dall)
 .github/scripts/lint_and_tests.sh java,shellcheck # multiple steps, comma-separated
 .github/scripts/lint_and_tests.sh -v java         # stream full output (default hides it, prints on fail)
-# Valid steps: docker, grype, java, javascript, markdown, perf, qodana, shellcheck, typescript
+.github/scripts/lint_and_tests.sh java:qodana     # ONE tier of a step: step:substep (see below)
+# Valid steps: docker, grype, java, javascript, markdown, perf, shellcheck, typescript
+# Substeps (only `java` has any): java:mvn, java:e2e, java:smoke, java:qodana — a bare `java` runs all
+# four; `java:e2e` alone reuses the fast-jar, so package it first (`java:mvn,java:e2e`).
 # Prerequisite for the java step: cd tests && npx playwright install
 
 # The Qodana whole-program analysis is a TIER of the `java` gate above (in parallel with the Maven/E2E/
@@ -93,8 +96,9 @@ mvn package
 # it (shellcheck, markdown, typescript, hadolint). The profile MUST be reached by `imports:` in
 # qodana.yaml: `profile: path:` / `base: path:` / `--profile-path` are accepted and then silently
 # ignored, falling back to the IDE Default profile (which omits UnusedDeclaration - the whole point of
-# the step). Name it alone to run ONLY the scan, when iterating on its config:
-.github/scripts/lint_and_tests.sh qodana
+# the step). It is a SUBSTEP of `java`, not a step of its own - scope the gate down to it when iterating
+# on its config:
+.github/scripts/lint_and_tests.sh java:qodana
 
 # Run unit tests only (no DB needed) — the one gate the wrapper has no scoped step for
 mvn test -Dtests
@@ -118,8 +122,8 @@ docker compose logs -f app
 > **Always run the quality gate through `.github/scripts/lint_and_tests.sh`, never `mvn clean install -Dall`
 > directly**, and **scope it to the step you touched**: `… java` after ANY Java/template/CSS/UI-spec/Dockerfile
 > change, `… shellcheck` after a `*.sh` edit, `… markdown` after docs, etc. (comma-separate to combine; bare =
-> auto-detect changed steps; `-v` streams output; `-f`/`--force` runs everything — `qodana` is absent from that
-> list only because the `java` gate already runs it as a tier, so naming it too would scan twice). The `java` step **is** the
+> auto-detect changed steps; `-v` streams output; `-f`/`--force` runs everything; `step:substep` narrows a step to
+> one of its tiers, which today means `java:mvn`/`java:e2e`/`java:smoke`/`java:qodana`). The `java` step **is** the
 > whole JVM gate — `mvn clean install -Dall` (unit + `*IT` + linters) then, only if green, the E2E tier,
 > with the deployment-smoke and Qodana tiers running in parallel alongside them. **The Maven build is unit + `*IT` (+ linters) ONLY; E2E/smoke/perf are chained onto
 > the wrapper's steps, never in any `mvn` command — do not re-add them to the pom.** Full tier detail:

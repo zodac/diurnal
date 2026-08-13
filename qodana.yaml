@@ -1,5 +1,5 @@
 # Whole-program static analysis (the IntelliJ inspection engine in CI) - the only check in the gate that sees an unused PUBLIC declaration.
-# The inspection profile and the IDE entry-point overrides live in the code-quality-config submodule; run it with `lint_and_tests.sh qodana`.
+# The inspection profile and the IDE entry-point overrides live in the code-quality-config submodule; run it with `lint_and_tests.sh java:qodana`.
 version: "1.0"
 
 # Using a hash since the 'year.month' tag is re-published and mutable
