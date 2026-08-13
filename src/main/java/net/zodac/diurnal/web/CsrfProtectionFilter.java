@@ -18,6 +18,8 @@
 package net.zodac.diurnal.web;
 
 import jakarta.annotation.Priority;
+import jakarta.enterprise.inject.Instance;
+import jakarta.inject.Inject;
 import jakarta.ws.rs.Priorities;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerRequestFilter;
@@ -25,6 +27,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;
 import java.util.Set;
+import net.zodac.diurnal.config.AppConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -36,8 +39,8 @@ import org.jspecify.annotations.Nullable;
  * The web UI is authenticated by the {@code diurnal_session} (form) or {@code q_session} (OIDC) cookie, which the browser attaches automatically to
  * <em>any</em> request to this origin — including one triggered by an attacker's page. This filter closes that gap by validating, on every unsafe
  * HTTP method (POST/PUT/PATCH/DELETE), that the request's {@code Origin} (or, absent that, {@code Referer}) matches the host the browser actually
- * addressed ({@code X-Forwarded-Host}, falling back to {@code Host}). An attacker's page cannot forge either header, so a cross-site forgery is
- * detected and rejected with {@code 403}.
+ * addressed ({@code X-Forwarded-Host} when forwarded headers are trusted, otherwise {@code Host}). An attacker's page cannot forge either header, so
+ * a cross-site forgery is detected and rejected with {@code 403}.
  *
  * <p>
  * Scope decisions, and why they are safe:
@@ -71,13 +74,33 @@ public class CsrfProtectionFilter implements ContainerRequestFilter {
     private static final String ORIGIN_HEADER = "Origin";
     private static final String REFERER_HEADER = "Referer";
 
+    private final Instance<AppConfig> appConfig;
+
+    /**
+     * Injects the application configuration carrying the proxy-trust flag that decides whether {@code X-Forwarded-Host} may be believed.
+     *
+     * <p>
+     * Taken as a lazy {@link Instance} rather than the bean itself, and this is load-bearing: a JAX-RS {@code @Provider} is instantiated while the
+     * REST layer builds its interceptor deployment, which happens BEFORE the {@code @ConfigMapping} beans are registered with the runtime config.
+     * Injecting {@link AppConfig} directly therefore fails the packaged application at boot with {@code SRCFG00027: Could not find a mapping} - and
+     * fails it ONLY there, since {@code @QuarkusTest} has its config in place before the deployment is built, so every unit test, IT and E2E run
+     * stays green. Resolving the bean at request time instead sidesteps the ordering entirely. Do not "simplify" this to a direct injection.
+     *
+     * @param appConfig the deferred handle to the typed view over {@code app.*}
+     */
+    @Inject
+    public CsrfProtectionFilter(final Instance<AppConfig> appConfig) {
+        this.appConfig = appConfig;
+    }
+
     @Override
     public void filter(final ContainerRequestContext requestContext) {
         final boolean cookieAuthenticated = requestContext.getCookies().containsKey(SESSION_COOKIE)
             || requestContext.getCookies().containsKey(OIDC_COOKIE);
         final String expectedAuthority = expectedAuthority(
             requestContext.getHeaderString(FORWARDED_HOST_HEADER),
-            requestContext.getHeaderString(HOST_HEADER));
+            requestContext.getHeaderString(HOST_HEADER),
+            appConfig.get().trustForwardedHeaders());
 
         if (isCsrfViolation(
             requestContext.getMethod(),
@@ -163,12 +186,22 @@ public class CsrfProtectionFilter implements ContainerRequestFilter {
      * Behind a reverse proxy the browser-facing host arrives as {@code X-Forwarded-Host}; a multi-proxy chain sends a comma-separated list, of which
      * the first entry is the original client-facing host. Falls back to the {@code Host} header when not proxied.
      *
-     * @param forwardedHost the {@code X-Forwarded-Host} header value, or {@code null} if absent
-     * @param host          the {@code Host} header value, or {@code null} if absent
+     * <p>
+     * {@code X-Forwarded-Host} is only consulted when the deployment declares its proxy trusted ({@code TRUST_X_FORWARDED_HEADERS}, the same flag
+     * that lets the HTTP layer derive the request scheme/host from the forwarded headers). When the app is exposed directly, any client can send
+     * that header, so believing it here would let a request nominate the authority it is then checked against - the check would compare the
+     * attacker's value with itself. Trusting it only where the rest of the app already does keeps this filter on the one configured trust boundary.
+     *
+     * @param forwardedHost         the {@code X-Forwarded-Host} header value, or {@code null} if absent
+     * @param host                  the {@code Host} header value, or {@code null} if absent
+     * @param trustForwardedHeaders whether the deployment sits behind a trusted reverse proxy
      * @return the client-facing {@code host[:port]} authority, or {@code null} if neither is present
      */
-    static @Nullable String expectedAuthority(final @Nullable String forwardedHost, final @Nullable String host) {
-        final String source = forwardedHost != null && !forwardedHost.isBlank() ? forwardedHost : host;
+    static @Nullable String expectedAuthority(final @Nullable String forwardedHost,
+        final @Nullable String host,
+        final boolean trustForwardedHeaders) {
+        final boolean useForwardedHost = trustForwardedHeaders && forwardedHost != null && !forwardedHost.isBlank();
+        final String source = useForwardedHost ? forwardedHost : host;
         if (source == null || source.isBlank()) {
             return null;
         }
