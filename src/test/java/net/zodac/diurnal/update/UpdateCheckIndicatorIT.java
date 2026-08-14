@@ -18,6 +18,7 @@
 package net.zodac.diurnal.update;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
@@ -84,7 +85,7 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
         primeLatestVersion("999.0.0");
 
         given().get("/admin/users")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 // The version must be interpolated into the tooltip text, not rendered as a literal `{latestVersion}` placeholder.
                 .body(containsString(INDICATOR_TOOLTIP))
                 // The up-arrow links to the LATEST release page, not the running version's notes.
@@ -97,7 +98,7 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
         primeLatestVersion("999.0.0");
 
         given().get("/admin/api-docs")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString(INDICATOR_TOOLTIP));
     }
 
@@ -108,7 +109,7 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
         primeLatestVersion("999.0.0");
 
         given().get("/")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString(INDICATOR_TOOLTIP));
     }
 
@@ -119,7 +120,7 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
         primeLatestVersion("0.0.1");
 
         given().get("/admin/users")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(not(containsString(INDICATOR_TEXT)));
     }
 
@@ -130,7 +131,7 @@ class UpdateCheckIndicatorIT extends IntegrationTestBase {
         primeLatestVersion("999.0.0");
 
         given().get("/")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(not(containsString(INDICATOR_TEXT)));
     }
 

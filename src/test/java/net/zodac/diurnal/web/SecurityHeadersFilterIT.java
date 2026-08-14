@@ -18,6 +18,7 @@
 package net.zodac.diurnal.web;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 
@@ -51,7 +52,7 @@ class SecurityHeadersFilterIT extends IntegrationTestBase {
 
     @Test
     void login_inlineFoucScript_hashMatchesPinnedCspHash() {
-        final Response response = given().get("/login").then().statusCode(200).extract().response();
+        final Response response = given().get("/login").then().statusCode(OK).extract().response();
 
         final Matcher matcher = INLINE_SCRIPT.matcher(response.asString());
         assertThat(matcher.find())
@@ -68,14 +69,14 @@ class SecurityHeadersFilterIT extends IntegrationTestBase {
     @Test
     void login_stringSrcAttr_isNone() {
         given().get("/login")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .header("Content-Security-Policy", containsString("script-src-attr 'none'"));
     }
 
     @Test
     void login_fetchDestinationDirectives_areLockedToSelf() {
         given().get("/login")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .header("Content-Security-Policy", containsString("default-src 'self'"))
                 .header("Content-Security-Policy", containsString("img-src 'self'"))
                 .header("Content-Security-Policy", containsString("font-src 'self'"))

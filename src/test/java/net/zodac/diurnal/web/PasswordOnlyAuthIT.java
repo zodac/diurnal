@@ -18,6 +18,7 @@
 package net.zodac.diurnal.web;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -45,7 +46,7 @@ class PasswordOnlyAuthIT extends IntegrationTestBase {
     @Test
     void loginPage_passwordOnly_showsFormAndNoOidcButton() {
         given().get("/login")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body(allOf(
             containsString("name=\"email\""),
             containsString("name=\"password\""),

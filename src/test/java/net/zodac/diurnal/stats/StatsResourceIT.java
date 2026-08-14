@@ -18,6 +18,8 @@
 package net.zodac.diurnal.stats;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.blankOrNullString;
 import static org.hamcrest.Matchers.containsString;
@@ -60,7 +62,7 @@ class StatsResourceIT extends IntegrationTestBase {
         runInTx(() -> newAction(primaryId, "Unlogged"));
 
         given().get("/stats")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("No logs for any actions yet."));
     }
 
@@ -72,7 +74,7 @@ class StatsResourceIT extends IntegrationTestBase {
         });
 
         given().get("/stats")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Jogging"));
     }
 
@@ -86,7 +88,7 @@ class StatsResourceIT extends IntegrationTestBase {
         });
 
         given().get("/stats")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString(">3<")); // current streak = 3
     }
 
@@ -99,7 +101,7 @@ class StatsResourceIT extends IntegrationTestBase {
         });
 
         given().get("/stats")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString(">8<")); // total count = 5+3
     }
 
@@ -115,7 +117,7 @@ class StatsResourceIT extends IntegrationTestBase {
         });
 
         given().get("/stats")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Days in row"))
                 .body(not(containsString("Current streak")));
     }
@@ -130,7 +132,7 @@ class StatsResourceIT extends IntegrationTestBase {
         });
 
         given().queryParam("page", 1).get("/internal/stats/list")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Next"));
     }
 
@@ -144,7 +146,7 @@ class StatsResourceIT extends IntegrationTestBase {
         });
 
         given().queryParam("page", 2).get("/internal/stats/list")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Previous"));
     }
 
@@ -157,7 +159,7 @@ class StatsResourceIT extends IntegrationTestBase {
         });
 
         given().get("/stats")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Logged"))
                 .body(not(containsString("NeverLogged")));
     }
@@ -175,7 +177,7 @@ class StatsResourceIT extends IntegrationTestBase {
         });
 
         final String card = given().get("/internal/stats/summary/" + TODAY)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .contentType(containsString("text/html"))
             .body(not(containsString("OtherDayOnly")))
             .extract().asString();
@@ -195,7 +197,7 @@ class StatsResourceIT extends IntegrationTestBase {
         });
 
         given().get("/internal/stats/summary/" + TODAY)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Capped4"))
                 .body(containsString("Capped3"))
                 .body(containsString("Capped2"))
@@ -210,7 +212,7 @@ class StatsResourceIT extends IntegrationTestBase {
         });
 
         given().get("/internal/stats/summary/" + TODAY)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(blankOrNullString());   // the partial renders nothing at all on a blank day
     }
 
@@ -222,7 +224,7 @@ class StatsResourceIT extends IntegrationTestBase {
         });
 
         given().get("/internal/stats/summary-month/2026-06")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .contentType(containsString("application/json"))
                 .body("size()", equalTo(30))                      // June has 30 days, every one keyed
                 .body("'2026-06-15'", containsString("MonthlyHabit"))
@@ -232,6 +234,6 @@ class StatsResourceIT extends IntegrationTestBase {
     @Test
     void summaryMonth_invalidMonth_returns400() {
         given().get("/internal/stats/summary-month/not-a-month")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 }

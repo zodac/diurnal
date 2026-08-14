@@ -18,6 +18,7 @@
 package net.zodac.diurnal.openapi;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -114,7 +115,7 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
         final Map<String, Map<String, Object>> paths = given().accept(ContentType.JSON)
             .header("Authorization", "Bearer " + adminToken())
             .get("/q/openapi")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().jsonPath().getMap("paths");
 
         final Set<String> documented = new TreeSet<>();
@@ -137,7 +138,7 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
         final Map<String, Object> paths = given().accept(ContentType.JSON)
             .header("Authorization", "Bearer " + adminToken())
             .get("/q/openapi")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().jsonPath().getMap("paths");
 
         assertThat(paths.keySet())
@@ -152,7 +153,7 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
         final Map<String, Map<String, Object>> paths = given().accept(ContentType.JSON)
             .header("Authorization", "Bearer " + adminToken())
             .get("/q/openapi")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().jsonPath().getMap("paths");
 
         final List<String> undocumented = new ArrayList<>();
@@ -190,7 +191,7 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
         final Map<String, Object> document = given().accept(ContentType.JSON)
             .header("Authorization", "Bearer " + adminToken())
             .get("/q/openapi")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().jsonPath().getMap("$");
 
         final List<String> undescribed = new ArrayList<>();
@@ -208,7 +209,7 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
         final Map<String, Object> document = given().accept(ContentType.JSON)
             .header("Authorization", "Bearer " + adminToken())
             .get("/q/openapi")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().jsonPath().getMap("$");
 
         final List<String> offenders = new ArrayList<>();

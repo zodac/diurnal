@@ -18,6 +18,8 @@
 package net.zodac.diurnal.transfer;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -93,7 +95,7 @@ class TransferApiResourceIT extends IntegrationTestBase {
 
         given().contentType(APPLICATION_ZIP).body(archive)
             .post(IMPORT_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("actions", Matchers.is(2))
             .body("logs", Matchers.is(3))
             .body("notes", Matchers.is(2));
@@ -113,7 +115,7 @@ class TransferApiResourceIT extends IntegrationTestBase {
                 "date,action,count\r\n2026-06-10,Swimming,3\r\n",
                 "date,content\r\n2026-06-10,\"a fresh start\"\r\n"))
             .post(IMPORT_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("actions", Matchers.is(1))
             .body("replacedActions", Matchers.is(2))
             .body("replacedLogs", Matchers.is(3))
@@ -145,7 +147,7 @@ class TransferApiResourceIT extends IntegrationTestBase {
                 "date,action,count\r\n2026-06-10,Swimming,3\r\n2026-06-11,Swimming,9999\r\n",
                 "date,content\r\n"))
             .post(IMPORT_PATH)
-            .then().statusCode(400)
+            .then().statusCode(BAD_REQUEST)
             .body("problems.size()", Matchers.is(1))
             .body("problems[0].file", Matchers.equalTo(TransferFiles.LOGS_FILE))
             .body("problems[0].line", Matchers.is(3));
@@ -167,7 +169,7 @@ class TransferApiResourceIT extends IntegrationTestBase {
                 "date,action,count\r\n",
                 "date,content\r\n"))
             .post(PREVIEW_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("actions", Matchers.is(1))
             .body("logs", Matchers.is(0))
             .body("replacedActions", Matchers.is(2))
@@ -183,7 +185,7 @@ class TransferApiResourceIT extends IntegrationTestBase {
     void importData_refusesSomethingThatIsNotAnArchive() {
         given().contentType(APPLICATION_ZIP).body("not a zip".getBytes(java.nio.charset.StandardCharsets.UTF_8))
             .post(IMPORT_PATH)
-            .then().statusCode(400)
+            .then().statusCode(BAD_REQUEST)
             .body("message", Matchers.equalTo("The uploaded file is not a ZIP archive."))
             .body("problems.size()", Matchers.is(0));
     }
@@ -193,7 +195,7 @@ class TransferApiResourceIT extends IntegrationTestBase {
         given().contentType(APPLICATION_ZIP)
             .body(TransferArchive.pack(Map.of(TransferFiles.ACTIONS_FILE, "name,colour\r\n"), Instant.now()))
             .post(IMPORT_PATH)
-            .then().statusCode(400)
+            .then().statusCode(BAD_REQUEST)
             .body("totalProblems", Matchers.is(2))
             .body("problems.file", Matchers.everyItem(Matchers.equalTo("archive")));
     }
@@ -209,7 +211,7 @@ class TransferApiResourceIT extends IntegrationTestBase {
         given().contentType(APPLICATION_ZIP)
             .body(archiveOf("name,colour\r\nMine,#22c55e\r\n", "date,action,count\r\n", "date,content\r\n"))
             .post(IMPORT_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("replacedActions", Matchers.is(0));
 
         runInTx(() -> {
@@ -246,7 +248,7 @@ class TransferApiResourceIT extends IntegrationTestBase {
         runInTx(() -> User.<User>findById(userId).timezone = "Australia/Sydney");
 
         given().get(EXPORT_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .header("Content-Disposition", Matchers.equalTo("attachment; filename=\"diurnal-export-2026-06-15T09-30-15.zip\""));
     }
 
@@ -264,14 +266,14 @@ class TransferApiResourceIT extends IntegrationTestBase {
 
     private static String exportFileName() {
         final String disposition = given().get(EXPORT_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().header("Content-Disposition");
         return disposition.replace("attachment; filename=\"", "").replace("\"", "");
     }
 
     private static byte[] exportArchive() {
         return given().get(EXPORT_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().asByteArray();
     }
 

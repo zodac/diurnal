@@ -18,6 +18,11 @@
 package net.zodac.diurnal.user;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
+import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
+import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
+import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -61,7 +66,7 @@ class AdminUsersApiIT extends IntegrationTestBase {
     void list_returnsAccountsOrderedByCreation_pagedByCallersPreference() {
         given().header("Authorization", "Bearer " + adminToken())
                 .get("/api/v1/admin/users")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(2))
                 .body("items[0].email", equalTo("admin-api-it@lt.test"))
                 .body("items[0].role", equalTo(Role.ADMIN.storageValue()))
@@ -75,14 +80,14 @@ class AdminUsersApiIT extends IntegrationTestBase {
         final String userToken = sessionStore.create(regularUser, Session.AUTH_SOURCE_PASSWORD, null, null, SESSION_INSTANT);
         given().header("Authorization", "Bearer " + userToken)
                 .get("/api/v1/admin/users")
-                .then().statusCode(403);
+                .then().statusCode(FORBIDDEN);
     }
 
     @Test
     void fetchUser_returnsAccount() {
         given().header("Authorization", "Bearer " + adminToken())
                 .get("/api/v1/admin/users/" + regularUser.id)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("email", equalTo("admin-api-target@lt.test"))
                 .body("displayName", equalTo("Target User"))
                 .body("role", equalTo(Role.USER.storageValue()));
@@ -96,7 +101,7 @@ class AdminUsersApiIT extends IntegrationTestBase {
                         {"role":"admin"}
                         """)
                 .patch("/api/v1/admin/users/" + regularUser.id)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("role", equalTo(Role.ADMIN.storageValue()));
 
         runInTx(() -> assertThat(User.findByEmail("admin-api-target@lt.test").orElseThrow().role)
@@ -112,7 +117,7 @@ class AdminUsersApiIT extends IntegrationTestBase {
                         {"role":"superuser"}
                         """)
                 .patch("/api/v1/admin/users/" + regularUser.id)
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("Invalid role"));
     }
 
@@ -124,7 +129,7 @@ class AdminUsersApiIT extends IntegrationTestBase {
                         {"role":"user"}
                         """)
                 .patch("/api/v1/admin/users/" + admin.id)
-                .then().statusCode(409)
+                .then().statusCode(CONFLICT)
                 .body("message", containsString("last administrator"));
 
         runInTx(() -> assertThat(User.findByEmail("admin-api-it@lt.test").orElseThrow().role)
@@ -142,7 +147,7 @@ class AdminUsersApiIT extends IntegrationTestBase {
 
         given().header("Authorization", "Bearer " + adminToken())
                 .delete("/api/v1/admin/users/" + regularUser.id)
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> {
             assertThat(User.findByEmail("admin-api-target@lt.test"))
@@ -161,7 +166,7 @@ class AdminUsersApiIT extends IntegrationTestBase {
     void deleteUser_lastAdmin_returns409() {
         given().header("Authorization", "Bearer " + adminToken())
                 .delete("/api/v1/admin/users/" + admin.id)
-                .then().statusCode(409)
+                .then().statusCode(CONFLICT)
                 .body("message", containsString("last administrator"));
     }
 

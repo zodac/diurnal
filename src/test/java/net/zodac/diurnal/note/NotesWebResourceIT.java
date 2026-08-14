@@ -18,6 +18,7 @@
 package net.zodac.diurnal.note;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -50,7 +51,7 @@ class NotesWebResourceIT extends IntegrationTestBase {
     @Test
     void notesPage_withNoNotesAtAll_disablesTheSearchBox() {
         // The box keeps its place in the layout rather than disappearing - it is the empty ROW below that explains where a note is written.
-        assertThat(given().get("/notes").then().statusCode(200).extract().asString())
+        assertThat(given().get("/notes").then().statusCode(OK).extract().asString())
             .as("an account with nothing to search must be given an inert search box")
             .contains(SEARCH_BOX_ID)
             .contains(DISABLED_SEARCH_BOX);
@@ -60,7 +61,7 @@ class NotesWebResourceIT extends IntegrationTestBase {
     void notesPage_withANote_leavesTheSearchBoxEnabled() {
         runInTx(() -> newNote(userId, FIXED_TODAY, "Ran a 5k before work"));
 
-        assertThat(given().get("/notes").then().statusCode(200).extract().asString())
+        assertThat(given().get("/notes").then().statusCode(OK).extract().asString())
             .as("a journal with something in it must stay searchable")
             .contains(SEARCH_BOX_ID)
             .doesNotContain(DISABLED_SEARCH_BOX);
@@ -72,7 +73,7 @@ class NotesWebResourceIT extends IntegrationTestBase {
         // there would be no way to correct it.
         runInTx(() -> newNote(userId, FIXED_TODAY, "Ran a 5k before work"));
 
-        assertThat(given().queryParam("q", "cycling").get("/notes").then().statusCode(200).extract().asString())
+        assertThat(given().queryParam("q", "cycling").get("/notes").then().statusCode(OK).extract().asString())
             .as("a search matching nothing must leave the box usable")
             .contains(SEARCH_BOX_ID)
             .doesNotContain(DISABLED_SEARCH_BOX);

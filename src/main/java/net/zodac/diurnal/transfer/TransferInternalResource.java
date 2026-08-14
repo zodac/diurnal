@@ -29,6 +29,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
+import net.zodac.diurnal.http.HttpStatus;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.web.RollbackOnErrorStatus;
@@ -63,7 +64,6 @@ import org.jspecify.annotations.Nullable;
 public class TransferInternalResource {
 
     private static final String APPLICATION_ZIP = "application/zip";
-    private static final int UNPROCESSABLE_ENTITY = 422;
 
     private final CurrentUser currentUser;
     private final ImportService importService;
@@ -117,9 +117,9 @@ public class TransferInternalResource {
             case final ImportResult.Applied applied -> panel("applied", applied.summary(), List.of(), 0, applied(applied.summary())).build();
             // 422 on the web where the API answers 400 - the same per-surface split every other rejected input uses.
             case final ImportResult.Rejected rejected -> panel("rejected", null, rejected.problems(), rejected.totalFound(),
-                "The archive was refused, so nothing was changed.").status(UNPROCESSABLE_ENTITY).build();
+                "The archive was refused, so nothing was changed.").status(HttpStatus.UNPROCESSABLE_ENTITY).build();
             case final ImportResult.Malformed malformed -> panel("rejected", null, List.of(), 0, malformed.reason())
-                .status(UNPROCESSABLE_ENTITY).build();
+                .status(HttpStatus.UNPROCESSABLE_ENTITY).build();
         };
     }
 

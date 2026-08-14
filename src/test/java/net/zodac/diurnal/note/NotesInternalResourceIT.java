@@ -18,6 +18,10 @@
 package net.zodac.diurnal.note;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
+import static net.zodac.diurnal.http.HttpStatusCodes.NOT_MODIFIED;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.UNPROCESSABLE_ENTITY;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -63,7 +67,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
         given().queryParam("start", DAY.minusDays(2).toString())
             .queryParam("end", DAY.plusDays(2).toString())
             .get("/internal/notes")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("size()", org.hamcrest.Matchers.is(2))
             .body("'" + DAY.minusDays(1) + "'", org.hamcrest.Matchers.equalTo("Yesterday"))
             .body("'" + DAY + "'", org.hamcrest.Matchers.equalTo("Today"));
@@ -75,14 +79,14 @@ class NotesInternalResourceIT extends IntegrationTestBase {
         given().queryParam("start", DAY.toString())
             .queryParam("end", DAY.plusDays(5).toString())
             .get("/internal/notes")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("size()", org.hamcrest.Matchers.is(0));
     }
 
     @Test
     void feed_withoutARange_isBadRequest() {
         given().get("/internal/notes")
-            .then().statusCode(400);
+            .then().statusCode(BAD_REQUEST);
     }
 
     @Test
@@ -92,14 +96,14 @@ class NotesInternalResourceIT extends IntegrationTestBase {
         final String tag = given().queryParam("start", DAY.toString())
             .queryParam("end", DAY.toString())
             .get("/internal/notes")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().header("ETag");
 
         given().header("If-None-Match", tag)
             .queryParam("start", DAY.toString())
             .queryParam("end", DAY.toString())
             .get("/internal/notes")
-            .then().statusCode(304);
+            .then().statusCode(NOT_MODIFIED);
     }
 
     // ── save ──────────────────────────────────────────────────────────────────
@@ -109,7 +113,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"  Ran 5k   before work  \"}")
             .post(DAY_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("content", org.hamcrest.Matchers.equalTo("Ran 5k before work"));
 
         runInTx(() -> assertThat(storedNoteContent(userId, DAY))
@@ -122,7 +126,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"Line one\\nLine two\"}")
             .post(DAY_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("content", org.hamcrest.Matchers.equalTo("Line one\nLine two"));
     }
 
@@ -133,7 +137,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"Written ahead of time\"}")
             .post("/internal/notes/" + future)
-            .then().statusCode(200);
+            .then().statusCode(OK);
 
         runInTx(() -> assertThat(Note.findEntry(userId, future))
             .as("the note box stays live on a day the action logger refuses")
@@ -147,7 +151,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"   \"}")
             .post(DAY_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("content", org.hamcrest.Matchers.equalTo(""));
 
         runInTx(() -> assertThat(Note.findEntry(userId, DAY))
@@ -160,7 +164,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"" + "x".repeat(TextFields.NOTE_MAX_LENGTH + 1) + "\"}")
             .post(DAY_PATH)
-            .then().statusCode(422);
+            .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(Note.findEntry(userId, DAY))
             .as("a rejected save must persist nothing")
@@ -172,7 +176,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"Ran 5k\\u200bbefore work\"}")
             .post(DAY_PATH)
-            .then().statusCode(422);
+            .then().statusCode(UNPROCESSABLE_ENTITY);
     }
 
     // ── clear ─────────────────────────────────────────────────────────────────
@@ -182,7 +186,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
         runInTx(() -> newNote(userId, DAY, "To be removed"));
 
         given().post(DAY_PATH + "/delete")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("content", org.hamcrest.Matchers.equalTo(""));
 
         runInTx(() -> assertThat(Note.findEntry(userId, DAY))
@@ -193,7 +197,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
     @Test
     void clear_onADayWithNoNote_isStillSuccess() {
         given().post(DAY_PATH + "/delete")
-            .then().statusCode(200);
+            .then().statusCode(OK);
     }
 
     // ── the notes-page list ───────────────────────────────────────────────────
@@ -206,7 +210,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
         });
 
         final String html = given().get("/internal/notes/list")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().asString();
 
         assertThat(html.indexOf("Today")).as("both notes must be listed").isNotNegative();
@@ -224,7 +228,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
 
         final String html = given().queryParam("q", "5k")
             .get("/internal/notes/list")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().asString();
 
         assertThat(html)
@@ -240,14 +244,14 @@ class NotesInternalResourceIT extends IntegrationTestBase {
     void list_withNoMatches_rendersTheSearchEmptyState() {
         runInTx(() -> newNote(userId, DAY, "Ran a 5k"));
 
-        assertThat(given().queryParam("q", "cycling").get("/internal/notes/list").then().statusCode(200).extract().asString())
+        assertThat(given().queryParam("q", "cycling").get("/internal/notes/list").then().statusCode(OK).extract().asString())
             .as("a search matching nothing must say so, rather than showing the 'no notes yet' copy")
             .contains("No notes match your search.");
     }
 
     @Test
     void list_withNoNotesAtAll_rendersTheEmptyState() {
-        assertThat(given().get("/internal/notes/list").then().statusCode(200).extract().asString())
+        assertThat(given().get("/internal/notes/list").then().statusCode(OK).extract().asString())
             .as("an account with no notes must be pointed at where a note is written")
             .contains("No notes yet");
     }
@@ -258,7 +262,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
         // this escaping still applies to every character of it.
         runInTx(() -> newNote(userId, DAY, "<script>alert(1)</script>"));
 
-        assertThat(given().get("/internal/notes/list").then().statusCode(200).extract().asString())
+        assertThat(given().get("/internal/notes/list").then().statusCode(OK).extract().asString())
             .as("note content must be escaped in the list, never rendered as markup")
             .doesNotContain("<script>alert(1)</script>")
             .contains("&lt;script&gt;");
@@ -270,7 +274,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
         runInTx(() -> otherId[0] = newUser("notes-internal-other@lt.test", "Other").id);
         runInTx(() -> newNote(otherId[0], DAY, "Someone else's private entry"));
 
-        assertThat(given().get("/internal/notes/list").then().statusCode(200).extract().asString())
+        assertThat(given().get("/internal/notes/list").then().statusCode(OK).extract().asString())
             .as("the list is scoped to the acting user")
             .doesNotContain("Someone else's private entry")
             .contains("No notes yet");

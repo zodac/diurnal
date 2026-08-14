@@ -18,6 +18,10 @@
 package net.zodac.diurnal.web;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.MOVED_PERMANENTLY;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.SEE_OTHER;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -48,7 +52,7 @@ class OidcAutoRedirectIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .get("/login")
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
                 .header("Location", containsString("/oidc-login"));
     }
 
@@ -59,7 +63,7 @@ class OidcAutoRedirectIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .get("/login?error=oidc")
                 .then()
-                .statusCode(200)
+                .statusCode(OK)
                 .body(containsString("not authorized"));
     }
 
@@ -71,7 +75,7 @@ class OidcAutoRedirectIT extends IntegrationTestBase {
                 .queryParam("registered", "true")
                 .get("/login")
                 .then()
-                .statusCode(200)
+                .statusCode(OK)
                 .body(containsString("Account created"));
     }
 }

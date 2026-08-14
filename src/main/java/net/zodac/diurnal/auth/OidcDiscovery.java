@@ -17,7 +17,7 @@
 
 package net.zodac.diurnal.auth;
 
-import java.net.HttpURLConnection;
+import jakarta.ws.rs.core.Response;
 import java.util.Optional;
 
 /**
@@ -83,7 +83,7 @@ public final class OidcDiscovery {
                 + " could not be reached. Check OIDC_ISSUER_URL and that the provider is running, or set OIDC_VERIFY_ON_STARTUP=false to skip this"
                 + " check.");
         }
-        if (statusCode != HttpURLConnection.HTTP_OK) {
+        if (statusCode != Response.Status.OK.getStatusCode()) {
             return Optional.of("OIDC_ENABLED=true but the identity provider discovery endpoint " + discoveryUrl
                 + " returned HTTP " + statusCode + ". Check OIDC_ISSUER_URL, or set OIDC_VERIFY_ON_STARTUP=false to skip this check.");
         }

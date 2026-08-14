@@ -18,6 +18,8 @@
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.CREATED;
+import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
@@ -70,7 +72,7 @@ class FirstUserCreationBlockedIT extends IntegrationTestBase {
                         """)
                 .post("/api/v1/auth/register")
                 .then()
-                .statusCode(403)
+                .statusCode(FORBIDDEN)
                 .body("message", containsStringIgnoringCase("must be created via the setup page"));
 
         runInTx(() -> assertThat(User.count())
@@ -89,7 +91,7 @@ class FirstUserCreationBlockedIT extends IntegrationTestBase {
                         """)
                 .post("/api/v1/auth/register")
                 .then()
-                .statusCode(201);
+                .statusCode(CREATED);
 
         runInTx(() -> assertThat(User.findByEmail("api-user@example.com"))
             .as("The API may create subsequent users once the initial account exists")

@@ -18,6 +18,13 @@
 package net.zodac.diurnal;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
+import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
+import static net.zodac.diurnal.http.HttpStatusCodes.CREATED;
+import static net.zodac.diurnal.http.HttpStatusCodes.NOT_FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.UNPROCESSABLE_ENTITY;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -72,11 +79,11 @@ class SurfaceParityIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body("{\"name\":\"" + longName + "\"}")
                 .post("/api/v1/actions")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
 
         given().formParam("name", longName)
                 .post("/internal/actions")
-                .then().statusCode(409); // the HTMX surface reports every validation failure as a conflict banner
+                .then().statusCode(CONFLICT); // the HTMX surface reports every validation failure as a conflict banner
 
         runInTx(() -> assertThat(Action.count("userId = ?1 and name = ?2", primaryId, longName))
             .as("an over-long name must be rejected by BOTH surfaces without persisting")
@@ -91,13 +98,13 @@ class SurfaceParityIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body("{\"name\":\"" + invisibleName + "\"}")
                 .post("/api/v1/actions")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
 
         // The charset is explicit because RestAssured encodes a form body as ISO-8859-1 by default, which would drop the very character under test.
         given().contentType("application/x-www-form-urlencoded; charset=UTF-8")
                 .formParam("name", invisibleName)
                 .post("/internal/actions")
-                .then().statusCode(409); // the HTMX surface reports every validation failure as a conflict banner
+                .then().statusCode(CONFLICT); // the HTMX surface reports every validation failure as a conflict banner
 
         runInTx(() -> assertThat(Action.count("userId = ?1 and name = ?2", primaryId, invisibleName))
             .as("a name holding an invisible character must be rejected by BOTH surfaces without persisting")
@@ -109,12 +116,12 @@ class SurfaceParityIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body("{\"name\":\"Gym 💪\"}")
                 .post("/api/v1/actions")
-                .then().statusCode(201);
+                .then().statusCode(CREATED);
 
         given().contentType("application/x-www-form-urlencoded; charset=UTF-8")
                 .formParam("name", "Yoga 🧘")
                 .post("/internal/actions")
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         runInTx(() -> assertThat(Action.count("userId = ?1 and (name = ?2 or name = ?3)", primaryId, "Gym 💪", "Yoga 🧘"))
             .as("an emoji name must round-trip through BOTH surfaces and the column unchanged")
@@ -128,11 +135,11 @@ class SurfaceParityIT extends IntegrationTestBase {
                         {"name":"Running"}
                         """)
                 .post("/api/v1/actions")
-                .then().statusCode(409);
+                .then().statusCode(CONFLICT);
 
         given().formParam("name", "Running")
                 .post("/internal/actions")
-                .then().statusCode(409);
+                .then().statusCode(CONFLICT);
 
         runInTx(() -> assertThat(Action.count("userId = ?1 and name = ?2", primaryId, "Running"))
             .as("a duplicate name must be rejected by BOTH surfaces, leaving the single original")
@@ -145,15 +152,15 @@ class SurfaceParityIT extends IntegrationTestBase {
         // write anything at all. The seeded action's colour is itself taken from a suggestion, so it is guaranteed to be one of the
         // candidates the next call would otherwise draw.
         final String taken = given().get("/api/v1/actions/random-colour")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().path("colour");
         runInTx(() -> Action.<Action>findById(action.id).colour = taken);
 
         for (int i = 0; i < SUGGESTION_DRAWS; i++) {
-            assertThat(given().get("/api/v1/actions/random-colour").then().statusCode(200).extract().path("colour").toString())
+            assertThat(given().get("/api/v1/actions/random-colour").then().statusCode(OK).extract().path("colour").toString())
                 .as("the API must not suggest a colour already in use")
                 .isNotEqualTo(taken);
-            assertThat(given().get("/internal/actions/random-colour").then().statusCode(200).extract().path("colour").toString())
+            assertThat(given().get("/internal/actions/random-colour").then().statusCode(OK).extract().path("colour").toString())
                 .as("the web surface must not suggest a colour already in use")
                 .isNotEqualTo(taken);
         }
@@ -170,11 +177,11 @@ class SurfaceParityIT extends IntegrationTestBase {
                         {"name":"Colourless API"}
                         """)
                 .post("/api/v1/actions")
-                .then().statusCode(201);
+                .then().statusCode(CREATED);
 
         given().formParam("name", "Colourless Web")
                 .post("/internal/actions")
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         runInTx(() -> {
             assertThat(Action.count("userId = ?1 and colour = ?2", primaryId, NEUTRAL_COLOUR))
@@ -193,11 +200,11 @@ class SurfaceParityIT extends IntegrationTestBase {
                         {"count":1}
                         """)
                 .put("/api/v1/logs/" + TOMORROW + "/" + action.id)
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
 
         given().formParam("amount", "1")
                 .post("/internal/logs/" + TOMORROW + "/" + action.id + "/increment")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
 
         runInTx(() -> assertThat(ActionLog.findEntry(primaryId, action.id, TOMORROW))
             .as("a future-date write must be rejected by BOTH surfaces without creating an entry")
@@ -213,7 +220,7 @@ class SurfaceParityIT extends IntegrationTestBase {
 
         given().formParam("amount", "10")
                 .post("/internal/logs/" + TODAY + "/" + action.id + "/increment")
-                .then().statusCode(200);
+                .then().statusCode(OK);
         runInTx(() -> assertThat(ActionLog.findEntry(primaryId, action.id, TODAY).count)
             .as("the HTMX increment must saturate the count at 999")
             .isEqualTo(999));
@@ -224,7 +231,7 @@ class SurfaceParityIT extends IntegrationTestBase {
                         {"amount":10}
                         """)
                 .post("/api/v1/logs/" + TODAY + "/" + action.id + "/increment")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
         runInTx(() -> assertThat(ActionLog.findEntry(primaryId, action.id, TODAY).count)
             .as("the API increment must reject the over-cap write, leaving the count unchanged")
             .isEqualTo(998));
@@ -237,11 +244,11 @@ class SurfaceParityIT extends IntegrationTestBase {
                         {"preferences":{"pageSize":9999}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
 
         given().formParam("pageSize", "9999")
                 .patch("/internal/settings")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().pageSize)
             .as("an out-of-range page size must be rejected by BOTH surfaces, keeping the previous value")
@@ -254,7 +261,7 @@ class SurfaceParityIT extends IntegrationTestBase {
         // #rrggbb hex rather than falling back to the default.
         given().formParam("noteColour", "#0284c7")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
         runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().noteColour)
             .as("the web form stores the picked colour")
             .isEqualTo("#0284c7"));
@@ -264,7 +271,7 @@ class SurfaceParityIT extends IntegrationTestBase {
                         {"preferences":{"noteColour":"#d946ef"}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(200);
+                .then().statusCode(OK);
         runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().noteColour)
             .as("the API stores the picked colour the very same way")
             .isEqualTo("#d946ef"));
@@ -274,11 +281,11 @@ class SurfaceParityIT extends IntegrationTestBase {
                         {"preferences":{"noteColour":"lime"}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
 
         given().formParam("noteColour", "lime")
                 .patch("/internal/settings")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().noteColour)
             .as("a malformed colour must be rejected by BOTH surfaces, keeping the previous value")
@@ -293,7 +300,7 @@ class SurfaceParityIT extends IntegrationTestBase {
                 .formParam("statsEnabled", "current-streak")
                 .formParam("statsLabel", "  Days in row  ", "")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
         runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().statsFields)
             .as("the web form stores the sanitised name")
             .contains(new net.zodac.diurnal.user.StatFieldPref("current-streak", true, "Days in row")));
@@ -306,7 +313,7 @@ class SurfaceParityIT extends IntegrationTestBase {
                         ]}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(200);
+                .then().statusCode(OK);
         runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().statsFields)
             .as("the API stores the very same name for the very same input")
             .contains(new net.zodac.diurnal.user.StatFieldPref("current-streak", true, "Days in row")));
@@ -317,13 +324,13 @@ class SurfaceParityIT extends IntegrationTestBase {
                         {"preferences":{"statsFields":[{"key":"current-streak","enabled":true,"label":"%s"}]}}
                         """.formatted(tooLong))
                 .patch("/api/v1/users/me")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
 
         given().formParam("statsOrder", "current-streak", "last-performed")
                 .formParam("statsEnabled", "current-streak")
                 .formParam("statsLabel", tooLong, "")
                 .patch("/internal/settings")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().statsFields)
             .as("an over-long name must be rejected by BOTH surfaces, keeping the previous rename")
@@ -339,12 +346,12 @@ class SurfaceParityIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body("{\"content\":\"" + tooLong + "\"}")
                 .put("/api/v1/notes/" + TODAY)
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
 
         given().contentType(ContentType.JSON)
                 .body("{\"content\":\"" + tooLong + "\"}")
                 .post("/internal/notes/" + TODAY)
-                .then().statusCode(422); // the web surface answers 422 where the API answers 400
+                .then().statusCode(UNPROCESSABLE_ENTITY); // the web surface answers 422 where the API answers 400
 
         runInTx(() -> assertThat(Note.findEntry(primaryId, TODAY))
             .as("an over-long note must be rejected by BOTH surfaces without persisting")
@@ -356,12 +363,12 @@ class SurfaceParityIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body("{\"content\":\"Ran 5k\\u200bbefore work\"}")
                 .put("/api/v1/notes/" + TODAY)
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
 
         given().contentType(ContentType.JSON)
                 .body("{\"content\":\"Ran 5k\\u200bbefore work\"}")
                 .post("/internal/notes/" + TODAY)
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(Note.findEntry(primaryId, TODAY))
             .as("the shared content policy must reject a note on BOTH surfaces without persisting")
@@ -376,7 +383,7 @@ class SurfaceParityIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body("{\"content\":\"First\\r\\n\\r\\n\\r\\n\\r\\nSecond\"}")
                 .put("/api/v1/notes/" + TODAY)
-                .then().statusCode(200);
+                .then().statusCode(OK);
         runInTx(() -> assertThat(storedNoteContent(primaryId, TODAY))
             .as("the API must store the normalised multi-line form")
             .isEqualTo(expected));
@@ -384,7 +391,7 @@ class SurfaceParityIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body("{\"content\":\"First\\r\\n\\r\\n\\r\\n\\r\\nSecond\"}")
                 .post("/internal/notes/" + TOMORROW)
-                .then().statusCode(200);
+                .then().statusCode(OK);
         runInTx(() -> assertThat(storedNoteContent(primaryId, TOMORROW))
             .as("the web surface must store byte-identically to the API")
             .isEqualTo(expected));
@@ -401,14 +408,14 @@ class SurfaceParityIT extends IntegrationTestBase {
                         {"content":"Booked the day off"}
                         """)
                 .put("/api/v1/notes/" + farFuture)
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         given().contentType(ContentType.JSON)
                 .body("""
                         {"content":"Booked the day off"}
                         """)
                 .post("/internal/notes/" + TOMORROW)
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         runInTx(() -> assertThat(Note.count("userId = ?1 and (noteDate = ?2 or noteDate = ?3)", primaryId, farFuture, TOMORROW))
             .as("a future-dated note must be accepted by BOTH surfaces")
@@ -427,14 +434,14 @@ class SurfaceParityIT extends IntegrationTestBase {
                         {"content":"   "}
                         """)
                 .put("/api/v1/notes/" + TODAY)
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         given().contentType(ContentType.JSON)
                 .body("""
                         {"content":"   "}
                         """)
                 .post("/internal/notes/" + TOMORROW)
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         runInTx(() -> assertThat(Note.count("userId = ?1", primaryId))
             .as("a blank note must remove the row on BOTH surfaces, rather than storing an empty one")
@@ -453,13 +460,13 @@ class SurfaceParityIT extends IntegrationTestBase {
 
         given().queryParam("q", "5k")
                 .get("/api/v1/notes")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("totalCount", org.hamcrest.Matchers.is(1))
                 .body("items[0].date", org.hamcrest.Matchers.equalTo(TODAY.toString()));
 
         final String html = given().queryParam("q", "5k")
             .get("/internal/notes/list")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().asString();
 
         assertThat(html)
@@ -477,11 +484,11 @@ class SurfaceParityIT extends IntegrationTestBase {
                         {"count":1}
                         """)
                 .put("/api/v1/logs/" + TODAY + "/" + unknown)
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
 
         given().formParam("count", "1")
                 .post("/internal/logs/" + TODAY + "/" + unknown + "/set")
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     @Test
@@ -494,13 +501,13 @@ class SurfaceParityIT extends IntegrationTestBase {
 
         given().contentType("application/zip").body(archive)
                 .post("/api/v1/data/import")
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         final String afterApi = importedState();
 
         given().contentType("application/zip").body(archive)
                 .post("/internal/data/import")
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         assertThat(importedState())
             .as("the same archive through the HTMX surface must leave the account in exactly the state the API left it in")
@@ -518,12 +525,12 @@ class SurfaceParityIT extends IntegrationTestBase {
 
         given().contentType("application/zip").body(archive)
                 .post("/api/v1/data/import")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
 
         // 422 on the web where the API answers 400 - the same per-surface split every other rejected input uses.
         given().contentType("application/zip").body(archive)
                 .post("/internal/data/import")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(Action.count("userId = ?1 and name = ?2", primaryId, "Swimming"))
             .as("a refused archive must write nothing on EITHER surface - and must not leave the account wiped either")

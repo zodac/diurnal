@@ -18,6 +18,7 @@
 package net.zodac.diurnal.openapi;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -63,7 +64,7 @@ class OpenApiDocumentIT extends IntegrationTestBase {
         given().accept(ContentType.JSON)
                 .header("Authorization", "Bearer " + adminToken())
                 .get("/q/openapi")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("components.securitySchemes.BearerAuth.type", equalTo("http"))
                 .body("components.securitySchemes.BearerAuth.scheme", equalTo("bearer"))
                 .body("components.securitySchemes.BearerAuth.bearerFormat", equalTo("Opaque"))
@@ -76,7 +77,7 @@ class OpenApiDocumentIT extends IntegrationTestBase {
         given().accept(ContentType.JSON)
             .header("Authorization", "Bearer " + adminToken())
             .get("/q/openapi")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             // A single requirement object naming exactly the Bearer scheme.
             .body("paths.'/api/v1/users/me'.get.security.size()", equalTo(1))
             .body("paths.'/api/v1/users/me'.get.security.collect { it.keySet() }.flatten()",
@@ -88,7 +89,7 @@ class OpenApiDocumentIT extends IntegrationTestBase {
         given().accept(ContentType.JSON)
                 .header("Authorization", "Bearer " + adminToken())
                 .get("/q/openapi")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("info.title", equalTo("Diurnal API"))
                 // PublicApiFilter stamps info.version from the authoritative packaged VERSION file (via
                 // ReleaseVersion), NOT the @Info annotation's fallback — so assert against that same source

@@ -18,6 +18,12 @@
 package net.zodac.diurnal.action;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
+import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
+import static net.zodac.diurnal.http.HttpStatusCodes.CREATED;
+import static net.zodac.diurnal.http.HttpStatusCodes.NOT_FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -58,7 +64,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
     @Test
     void list_noActions_returnsEmptyPage() {
         given().get("/api/v1/actions")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(0))
                 .body("totalCount", equalTo(0))
                 .body("currentPage", equalTo(1));
@@ -73,7 +79,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         });
 
         given().get("/api/v1/actions")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(2))
                 .body("items[0].name", equalTo("Aerobics"))
                 .body("items[1].name", equalTo("Zumba"))
@@ -92,7 +98,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         });
 
         given().queryParam("page", 2).get("/api/v1/actions")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(2))
                 .body("totalCount", equalTo(7))
                 .body("totalPages", equalTo(2))
@@ -110,14 +116,14 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         // The web UI clamps an out-of-range page to the last page; the API rejects it rather than silently
         // returning a different page than the one requested.
         given().queryParam("page", 99).get("/api/v1/actions")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("99"));
     }
 
     @Test
     void list_pageBelowOne_isRejected() {
         given().queryParam("page", 0).get("/api/v1/actions")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 
     @Test
@@ -128,7 +134,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         });
 
         given().queryParam("q", "MORNING").get("/api/v1/actions")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(1))
                 .body("items[0].name", equalTo("Morning Run"));
     }
@@ -142,7 +148,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                         {"name":"Morning run","colour":"#ff5500"}
                         """)
                 .post("/api/v1/actions")
-                .then().statusCode(201)
+                .then().statusCode(CREATED)
                 .body("name", equalTo("Morning run"))
                 .body("colour", equalTo("#ff5500"));
 
@@ -158,7 +164,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                         {"name":"  Padded  "}
                         """)
                 .post("/api/v1/actions")
-                .then().statusCode(201)
+                .then().statusCode(CREATED)
                 .body("name", equalTo("Padded"));
     }
 
@@ -167,7 +173,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         final String colour = given().contentType(ContentType.JSON)
             .body("{\"name\":\"No Colour\"}")
             .post("/api/v1/actions")
-            .then().statusCode(201)
+            .then().statusCode(CREATED)
             .extract().path("colour");
 
         assertThat(colour)
@@ -190,7 +196,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                         {"name":"No Colour"}
                         """)
                 .post("/api/v1/actions")
-                .then().statusCode(201)
+                .then().statusCode(CREATED)
                 .body("colour", equalTo(ActionColours.PALETTE.getLast()));
     }
 
@@ -201,7 +207,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                         {"name":"Bad Colour","colour":"not-a-colour"}
                         """)
                 .post("/api/v1/actions")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("colour"));
     }
 
@@ -210,7 +216,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body("{}")
                 .post("/api/v1/actions")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("cannot be empty"));
     }
 
@@ -221,7 +227,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                         {"name":"   "}
                         """)
                 .post("/api/v1/actions")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("cannot be empty"));
     }
 
@@ -231,7 +237,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body("{\"name\":\"" + longName + "\"}")
                 .post("/api/v1/actions")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("at most 100"));
     }
 
@@ -244,7 +250,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                         {"name":"Running"}
                         """)
                 .post("/api/v1/actions")
-                .then().statusCode(409)
+                .then().statusCode(CONFLICT)
                 .body("message", containsString("already exists"));
     }
 
@@ -255,7 +261,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         final Action action = newActionInTx(primaryId, "Running");
 
         given().get("/api/v1/actions/" + action.id)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("id", equalTo(action.id.toString()))
                 .body("name", equalTo("Running"));
     }
@@ -265,13 +271,13 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         final Action action = newActionInTx(otherId, "Cycling");
 
         given().get("/api/v1/actions/" + action.id)
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     @Test
     void get_unknownAction_returns404() {
         given().get("/api/v1/actions/" + UUID.randomUUID())
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     // ── Update ────────────────────────────────────────────────────────────────
@@ -285,7 +291,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                         {"name":"Trail running","colour":"#00aa11"}
                         """)
                 .patch("/api/v1/actions/" + action.id)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("name", equalTo("Trail running"))
                 .body("colour", equalTo("#00aa11"));
     }
@@ -299,7 +305,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                         {"colour":"#00aa11"}
                         """)
                 .patch("/api/v1/actions/" + action.id)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("name", equalTo("Running"))
                 .body("colour", equalTo("#00aa11"));
     }
@@ -313,7 +319,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                         {"name":" "}
                         """)
                 .patch("/api/v1/actions/" + action.id)
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 
     @Test
@@ -326,7 +332,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                         {"name":"Cycling"}
                         """)
                 .patch("/api/v1/actions/" + action.id)
-                .then().statusCode(409);
+                .then().statusCode(CONFLICT);
     }
 
     @Test
@@ -340,7 +346,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                         {"name":"Trail running","colour":"not-a-colour"}
                         """)
                 .patch("/api/v1/actions/" + action.id)
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("colour"));
 
         runInTx(() -> assertThat(java.util.Objects.requireNonNull(Action.<Action>findById(action.id)).name)
@@ -357,7 +363,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                         {"name":"Running"}
                         """)
                 .patch("/api/v1/actions/" + action.id)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("name", equalTo("Running"));
     }
 
@@ -370,7 +376,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                         {"name":"Hijacked"}
                         """)
                 .patch("/api/v1/actions/" + action.id)
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────
@@ -381,7 +387,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, action.id, FIXED_TODAY, 3));
 
         given().delete("/api/v1/actions/" + action.id)
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> {
             assertThat(Action.<Action>findById(action.id))
@@ -398,7 +404,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         final Action action = newActionInTx(otherId, "Cycling");
 
         given().delete("/api/v1/actions/" + action.id)
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
 
         runInTx(() -> assertThat(Action.<Action>findById(action.id))
             .as("the other user's action must be untouched")
@@ -410,7 +416,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
     @Test
     void randomColour_returnsAPaletteColour() {
         final String colour = given().get("/api/v1/actions/random-colour")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().path("colour");
 
         assertThat(colour)
@@ -428,7 +434,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         });
 
         final String colour = given().get("/api/v1/actions/random-colour")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().path("colour");
 
         assertThat(colour)
@@ -445,7 +451,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         });
 
         final String colour = given().get("/api/v1/actions/random-colour")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().path("colour");
 
         assertThat(colour)
@@ -462,7 +468,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
         });
 
         final String colour = given().get("/api/v1/actions/random-colour")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().path("colour");
 
         assertThat(colour)
@@ -474,20 +480,20 @@ class ActionsApiResourceIT extends IntegrationTestBase {
     @Test
     void randomColour_suggestionIsAcceptedByCreate() {
         final String colour = given().get("/api/v1/actions/random-colour")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().path("colour");
 
         given().contentType(ContentType.JSON)
                 .body("{\"name\":\"Running\",\"colour\":\"" + colour + "\"}")
                 .post("/api/v1/actions")
-                .then().statusCode(201)
+                .then().statusCode(CREATED)
                 .body("colour", equalTo(colour));
     }
 
     @Test
     void delete_unknownAction_returns404() {
         given().delete("/api/v1/actions/" + UUID.randomUUID())
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     private Action newActionInTx(final UUID userId, final String name) {

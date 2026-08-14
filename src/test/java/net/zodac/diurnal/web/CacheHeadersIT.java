@@ -18,6 +18,7 @@
 package net.zodac.diurnal.web;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
@@ -47,7 +48,7 @@ class CacheHeadersIT extends IntegrationTestBase {
     @Test
     void stylesheet_isCachedImmutablyForAYear() {
         given().get("/css/app.css")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .header("Cache-Control", containsString("immutable"))
                 .header("Cache-Control", containsString("max-age=31536000"));
     }
@@ -58,7 +59,7 @@ class CacheHeadersIT extends IntegrationTestBase {
         // filename in the image, so its /js/ URL is cached a year as immutable (same filter covers htmx +
         // the dashboard engine). Dev serves the un-hashed app.js, but under the same immutable filter here.
         given().get("/js/app.js")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .header("Cache-Control", containsString("immutable"))
                 .header("Cache-Control", containsString("max-age=31536000"));
     }
@@ -69,7 +70,7 @@ class CacheHeadersIT extends IntegrationTestBase {
         // manifest.json) must NOT be immutable, since a redeployment reuses the URL. They keep a bounded
         // seven-day ceiling (app-static) that caps how long a changed one can be served stale.
         given().get("/img/icon-192.png")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .header("Cache-Control", containsString("max-age=604800"))
                 .header("Cache-Control", not(containsString("immutable")));
     }
@@ -84,7 +85,7 @@ class CacheHeadersIT extends IntegrationTestBase {
         // thumbnails are uncommitted build artifacts (generated into the image), so this asserts against a
         // tiny fixture at src/test/resources/META-INF/resources/img/settings/cal-nova-full-dark.webp.
         given().get("/img/settings/cal-nova-full-dark.webp")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .header("Cache-Control", containsString("immutable"))
                 .header("Cache-Control", containsString("max-age=31536000"));
     }
@@ -94,7 +95,7 @@ class CacheHeadersIT extends IntegrationTestBase {
         // The top-level vector marks (wordmark/favicon SVGs) are content-hashed too (AppInfo.image), so
         // /img/*.svg rides the same app-immutable filter as the CSS/JS/settings thumbnails.
         given().get("/img/wordmark.svg")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .header("Cache-Control", containsString("immutable"))
                 .header("Cache-Control", containsString("max-age=31536000"));
     }
@@ -102,7 +103,7 @@ class CacheHeadersIT extends IntegrationTestBase {
     @Test
     void htmlPage_isMarkedNoCache() {
         given().get("/login")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .header("Cache-Control", containsString("no-cache"));
     }
 }

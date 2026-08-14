@@ -18,6 +18,10 @@
 package net.zodac.diurnal.web;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.MOVED_PERMANENTLY;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.SEE_OTHER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -43,7 +47,7 @@ class FirstRunIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .get("/login")
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
                 .header("Location", containsString("/welcome"));
     }
 
@@ -51,7 +55,7 @@ class FirstRunIT extends IntegrationTestBase {
     void welcomePage_firstRun_returnsSetupLanding() {
         given().get("/welcome")
                 .then()
-                .statusCode(200)
+                .statusCode(OK)
                 .contentType(containsString("text/html"))
                 .body(containsString("Create administrator account"));
     }
@@ -60,7 +64,7 @@ class FirstRunIT extends IntegrationTestBase {
     void registerPage_firstRun_showsAdministratorCopy() {
         given().get("/register")
                 .then()
-                .statusCode(200)
+                .statusCode(OK)
                 .body(containsString("Create the administrator account"));
     }
 
@@ -73,7 +77,7 @@ class FirstRunIT extends IntegrationTestBase {
                 .formParam("confirmPassword", "password123")
                 .post("/register")
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
                 .cookie("diurnal_session", not(emptyOrNullString()))
                 .header("Location", not(containsString("/login")));
 
@@ -92,7 +96,7 @@ class FirstRunIT extends IntegrationTestBase {
         given().header("Accept", "text/html")
                 .get("/this-path-does-not-exist")
                 .then()
-                .statusCode(200)
+                .statusCode(OK)
                 .body(containsString("Create administrator account"));
     }
 
@@ -103,7 +107,7 @@ class FirstRunIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .get("/welcome")
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
                 .header("Location", containsString("/login"));
     }
 
@@ -113,7 +117,7 @@ class FirstRunIT extends IntegrationTestBase {
 
         given().get("/login")
                 .then()
-                .statusCode(200)
+                .statusCode(OK)
                 .contentType(containsString("text/html"))
                 .body(containsString("Sign in"));
     }

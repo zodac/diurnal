@@ -18,6 +18,8 @@
 package net.zodac.diurnal.log;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.equalTo;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -60,7 +62,7 @@ class LogsApiResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
                 .get("/api/v1/logs/events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("$.size()", equalTo(1))
                 .body("[0].title", equalTo("Running"));
     }
@@ -71,7 +73,7 @@ class LogsApiResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
                 .get("/api/v1/logs/events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("[0].title", equalTo("Running ×3"));
     }
 
@@ -80,7 +82,7 @@ class LogsApiResourceIT extends IntegrationTestBase {
         given().queryParam("start", TODAY.minusYears(1).toString())
                 .queryParam("end", TODAY.minusYears(1).toString())
                 .get("/api/v1/logs/events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("$.size()", equalTo(0));
     }
 
@@ -95,7 +97,7 @@ class LogsApiResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
                 .get("/api/v1/logs/events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("$.size()", equalTo(2));
     }
 
@@ -110,7 +112,7 @@ class LogsApiResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
                 .get("/api/v1/logs/events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("$.size()", equalTo(1))
                 .body("[0].title", equalTo("Running"));
     }
@@ -125,7 +127,7 @@ class LogsApiResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", startWithTime).queryParam("end", endWithTime)
                 .get("/api/v1/logs/events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("$.size()", equalTo(1));
     }
 
@@ -136,7 +138,7 @@ class LogsApiResourceIT extends IntegrationTestBase {
         // Create via API to persist the coloured action
         final String html = given().formParam("name", "Coloured2").formParam("colour", "#ff5500")
             .post("/internal/actions")
-            .then().statusCode(200).extract().body().asString();
+            .then().statusCode(OK).extract().body().asString();
 
         final Matcher matcher = Pattern.compile("id=\"action-(?<id>[0-9a-f-]+)\"").matcher(html);
         if (!matcher.find()) {
@@ -148,7 +150,7 @@ class LogsApiResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
                 .get("/api/v1/logs/events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("find { it.title == 'Coloured2' }.backgroundColor", equalTo("#ff5500"));
     }
 
@@ -158,26 +160,26 @@ class LogsApiResourceIT extends IntegrationTestBase {
     void events_missingStart_returns400() {
         given().queryParam("end", TODAY.toString())
                 .get("/api/v1/logs/events")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 
     @Test
     void events_missingEnd_returns400() {
         given().queryParam("start", TODAY.toString())
                 .get("/api/v1/logs/events")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 
     @Test
     void events_missingBothParams_returns400() {
         given().get("/api/v1/logs/events")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 
     @Test
     void events_invalidDate_returns400() {
         given().queryParam("start", "not-a-date").queryParam("end", TODAY.toString())
                 .get("/api/v1/logs/events")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 }

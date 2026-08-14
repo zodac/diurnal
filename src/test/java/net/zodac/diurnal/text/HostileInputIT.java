@@ -18,6 +18,7 @@
 package net.zodac.diurnal.text;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.INTERNAL_SERVER_ERROR;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -52,8 +53,6 @@ import org.junit.jupiter.params.provider.MethodSource;
 class HostileInputIT extends IntegrationTestBase {
 
     private static final String PRIMARY = "hostile-it@lt.test";
-
-    private static final int SERVER_ERROR = 500;
 
     private static final int FIRST_PRINTABLE = 0x20;
 
@@ -108,7 +107,7 @@ class HostileInputIT extends IntegrationTestBase {
 
         assertThat(List.of(api, web))
             .as("a hostile action name must be answered, not blown up, on both surfaces")
-            .allSatisfy(status -> assertThat(status).isLessThan(SERVER_ERROR));
+            .allSatisfy(status -> assertThat(status).isLessThan(INTERNAL_SERVER_ERROR));
     }
 
     @ParameterizedTest
@@ -126,7 +125,7 @@ class HostileInputIT extends IntegrationTestBase {
 
         assertThat(List.of(api, web))
             .as("a hostile display name must be answered, not blown up, on both surfaces")
-            .allSatisfy(status -> assertThat(status).isLessThan(SERVER_ERROR));
+            .allSatisfy(status -> assertThat(status).isLessThan(INTERNAL_SERVER_ERROR));
     }
 
     @ParameterizedTest
@@ -214,7 +213,7 @@ class HostileInputIT extends IntegrationTestBase {
     private static void assertNotAServerError(final int status) {
         assertThat(status)
             .as("a hostile value must be answered with a client error, never a server error")
-            .isLessThan(SERVER_ERROR);
+            .isLessThan(INTERNAL_SERVER_ERROR);
     }
 
     private static String jsonName(final String value) {

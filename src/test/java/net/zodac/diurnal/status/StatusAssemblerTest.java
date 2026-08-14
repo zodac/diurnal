@@ -17,6 +17,8 @@
 
 package net.zodac.diurnal.status;
 
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.SERVICE_UNAVAILABLE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.Duration;
@@ -68,10 +70,10 @@ class StatusAssemblerTest {
 
         assertThat(StatusAssembler.httpStatus(ready))
             .as("a ready app must report HTTP 200")
-            .isEqualTo(200);
+            .isEqualTo(OK);
         assertThat(StatusAssembler.httpStatus(notReady))
             .as("a not-ready app must report HTTP 503 so the container HEALTHCHECK fails")
-            .isEqualTo(503);
+            .isEqualTo(SERVICE_UNAVAILABLE);
     }
 
     @Test

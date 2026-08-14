@@ -18,6 +18,7 @@
 package net.zodac.diurnal.log;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.equalTo;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -57,7 +58,7 @@ class CalendarResourceIT extends IntegrationTestBase {
         given().queryParam("start", TODAY.minusYears(1).toString())
                 .queryParam("end",   TODAY.minusYears(1).toString())
                 .get("/internal/logs/minimal-events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("$.size()", equalTo(0));
     }
 
@@ -67,7 +68,7 @@ class CalendarResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
                 .get("/internal/logs/minimal-events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("$.size()", equalTo(1))
                 .body("[0].date", equalTo(TODAY.toString()))
                 .body("[0].actions.size()", equalTo(1))
@@ -88,7 +89,7 @@ class CalendarResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
                 .get("/internal/logs/minimal-events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("[0].actions.size()", equalTo(3))
                 .body("[0].actions[0].name", equalTo("Bravo"))   // highest count first
                 .body("[0].actions[1].name", equalTo("Running"))
@@ -106,7 +107,7 @@ class CalendarResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
                 .get("/internal/logs/minimal-events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("[0].actions[0].name", equalTo("Aerobics")) // A before R
                 .body("[0].actions[1].name", equalTo("Running"));
     }
@@ -128,7 +129,7 @@ class CalendarResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
                 .get("/internal/logs/minimal-events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("[0].actions.size()", equalTo(4))
                 .body("[0].actions[0].name", equalTo("Running"))   // count 5
                 .body("[0].actions[3].name", equalTo("Action3"));  // count 2 — Action4 (count 1) excluded
@@ -144,7 +145,7 @@ class CalendarResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", yesterday.toString()).queryParam("end", TODAY.toString())
                 .get("/internal/logs/minimal-events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("$.size()", equalTo(2));
     }
 
@@ -158,7 +159,7 @@ class CalendarResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
                 .get("/internal/logs/minimal-events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("$.size()", equalTo(1))
                 .body("[0].actions[0].name", equalTo("Running"));
     }
@@ -172,7 +173,7 @@ class CalendarResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", startWithTime).queryParam("end", endWithTime)
                 .get("/internal/logs/minimal-events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("$.size()", equalTo(1));
     }
 

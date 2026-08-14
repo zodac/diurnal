@@ -18,6 +18,12 @@
 package net.zodac.diurnal.web;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
+import static net.zodac.diurnal.http.HttpStatusCodes.FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.MOVED_PERMANENTLY;
+import static net.zodac.diurnal.http.HttpStatusCodes.NOT_FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.SEE_OTHER;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -51,7 +57,7 @@ class WebResourceIT extends IntegrationTestBase {
     void dashboard_unauthenticated_redirectsToLogin() {
         given().redirects().follow(false)
                 .get("/")
-                .then().statusCode(anyOf(equalTo(301), equalTo(302)))
+                .then().statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND)))
                 .header("Location", containsString("/login"));
     }
 
@@ -59,7 +65,7 @@ class WebResourceIT extends IntegrationTestBase {
     void stats_unauthenticated_redirectsToLogin() {
         given().redirects().follow(false)
                 .get("/stats")
-                .then().statusCode(anyOf(equalTo(301), equalTo(302)))
+                .then().statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND)))
                 .header("Location", containsString("/login"));
     }
 
@@ -67,7 +73,7 @@ class WebResourceIT extends IntegrationTestBase {
     void actions_unauthenticated_redirectsToLogin() {
         given().redirects().follow(false)
                 .get("/actions")
-                .then().statusCode(anyOf(equalTo(301), equalTo(302)))
+                .then().statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND)))
                 .header("Location", containsString("/login"));
     }
 
@@ -76,28 +82,28 @@ class WebResourceIT extends IntegrationTestBase {
     @Test
     void loginPage_returnsHtml() {
         given().get("/login")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .contentType(containsString("text/html"));
     }
 
     @Test
     void loginPage_withErrorParam_showsErrorIndicator() {
         given().queryParam("error", "true").get("/login")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(anyOf(containsString("error"), containsString("invalid"), containsString("Invalid")));
     }
 
     @Test
     void loginPage_withRegisteredParam_showsSuccessIndicator() {
         given().queryParam("registered", "true").get("/login")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Account created"));
     }
 
     @Test
     void loginPage_withOidcErrorParam_showsOidcErrorBanner() {
         given().queryParam("error", "oidc").get("/login")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("not authorized"));
     }
 
@@ -105,7 +111,7 @@ class WebResourceIT extends IntegrationTestBase {
     void loginPage_withLockoutCookie_showsLockoutBannerAndSeedsCountdown() {
         // Cookie value = seconds left on the lockout (900 = 15 minutes).
         given().cookie("diurnal_login_lockout", "900").get("/login")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Too many failed attempts"))
                 // The no-JS banner states the exact remaining seconds.
                 .body(containsString("900 seconds"))
@@ -120,7 +126,7 @@ class WebResourceIT extends IntegrationTestBase {
         given().redirects().follow(false)
             .get("/login?error=oidc%3Ferror%3Daccess_denied%26error_description%3DSomething")
             .then()
-            .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+            .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
             .header("Location", allOf(
             containsString("error=oidc"),
             not(containsString("access_denied"))));
@@ -131,7 +137,7 @@ class WebResourceIT extends IntegrationTestBase {
     @Test
     void registerPage_returnsHtml() {
         given().get("/register")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .contentType(containsString("text/html"));
     }
 
@@ -144,7 +150,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .formParam("confirmPassword", "password123")
                 .post("/register")
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
                 // Registration logs the new account straight in: a session cookie is set and the
                 // browser is sent to the dashboard, not back to the login page.
                 .cookie("diurnal_session", not(emptyOrNullString()))
@@ -160,7 +166,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .formParam("confirmPassword", "password124")
                 .post("/register")
                 .then()
-                .statusCode(400)
+                .statusCode(BAD_REQUEST)
                 .body(containsString("The passwords did not match."));
     }
 
@@ -174,7 +180,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .formParam("confirmPassword", "password123")
                 .post("/register")
                 .then()
-                .statusCode(400)
+                .statusCode(BAD_REQUEST)
                 .body(containsString("That email is already registered."));
     }
 
@@ -189,7 +195,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .formParam("confirmPassword", "password123")
                 .post("/register")
                 .then()
-                .statusCode(400)
+                .statusCode(BAD_REQUEST)
                 .body(containsString("value=\"taken@example.com\""))
                 .body(containsString("value=\"Dup Name\""))
                 .body(not(containsString("value=\"password123\"")));
@@ -204,7 +210,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .formParam("confirmPassword", "")
                 .post("/register")
                 .then()
-                .statusCode(400)
+                .statusCode(BAD_REQUEST)
                 // Multiple missing fields → plural heading + each field on its own list item.
                 .body(containsString("Please fill in the following fields:"))
                 .body(containsString("<li>Email</li>"))
@@ -222,7 +228,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .formParam("confirmPassword", "password123")
                 .post("/register")
                 .then()
-                .statusCode(400)
+                .statusCode(BAD_REQUEST)
                 .body(containsString("Email must contain an @ symbol."));
     }
 
@@ -237,7 +243,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .formParam("confirmPassword", "password123")
                 .post("/register")
                 .then()
-                .statusCode(400)
+                .statusCode(BAD_REQUEST)
                 .body(containsString("Display name must be between 2 and 50 characters."));
     }
 
@@ -250,7 +256,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .formParam("confirmPassword", "password123")
                 .post("/register")
                 .then()
-                .statusCode(400)
+                .statusCode(BAD_REQUEST)
                 .body(containsString("Display name must be between 2 and 50 characters."));
     }
 
@@ -264,7 +270,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .formParam("confirmPassword", tooLong)
                 .post("/register")
                 .then()
-                .statusCode(400)
+                .statusCode(BAD_REQUEST)
                 .body(containsString("Password must be at most 128 characters."));
     }
 
@@ -278,7 +284,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .formParam("confirmPassword", "short")
                 .post("/register")
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
                 .cookie("diurnal_session", not(emptyOrNullString()))
                 .header("Location", not(containsString("/login")));
     }
@@ -292,7 +298,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .formParam("confirmPassword", "password123")
                 .post("/register")
                 .then()
-                .statusCode(400)
+                .statusCode(BAD_REQUEST)
                 // A single missing field → singular heading + one list item.
                 .body(containsString("Please fill in the following field:"))
                 .body(containsString("<li>Display name</li>"));
@@ -307,7 +313,7 @@ class WebResourceIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .post("/logout")
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
                 .header("Location", containsString("/login"))
                 .cookie("diurnal_session", anyOf(emptyOrNullString(), equalTo("")));
     }
@@ -321,7 +327,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .cookie("q_session", "fake-oidc-session-token")
                 .post("/logout")
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
                 .cookie("q_session", anyOf(emptyOrNullString(), equalTo("")));
     }
 
@@ -332,7 +338,7 @@ class WebResourceIT extends IntegrationTestBase {
     void dashboard_authenticated_returns200() {
         // "web-it@lt.test" is pre-created in createDbState()
         given().get("/")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .contentType(containsString("text/html"))
                 .body(containsString("Web User"));
     }
@@ -352,7 +358,7 @@ class WebResourceIT extends IntegrationTestBase {
         });
 
         given().get("/")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body(containsString("Meditate"))
             .body(allOf(
             containsString("Last performed"),
@@ -375,7 +381,7 @@ class WebResourceIT extends IntegrationTestBase {
         });
 
         given().get("/")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("LoggedTodayHabit"))
                 .body(not(containsString("LoggedYesterdayHabit")));
     }
@@ -384,7 +390,7 @@ class WebResourceIT extends IntegrationTestBase {
     @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
     void settingsPage_authenticated_returns200() {
         given().get("/settings")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("web-it@lt.test"))
                 // Timezone picker renders every curated zone alphabetically, each labelled with its
                 // current UTC offset. A new user (no override) defaults to the server zone (UTC in
@@ -398,7 +404,7 @@ class WebResourceIT extends IntegrationTestBase {
     @Test
     void unknownPath_unauthenticated_returns404WithErrorPage() {
         given().get("/this-path-does-not-exist")
-                .then().statusCode(404)
+                .then().statusCode(NOT_FOUND)
                 .contentType(containsString("text/html"))
                 .body(containsString("Page Not Found"));
     }
@@ -407,7 +413,7 @@ class WebResourceIT extends IntegrationTestBase {
     @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
     void unknownPath_authenticated_returns404WithErrorPage() {
         given().get("/this-path-does-not-exist")
-                .then().statusCode(404)
+                .then().statusCode(NOT_FOUND)
                 .contentType(containsString("text/html"))
                 .body(containsString("Page Not Found"));
     }
@@ -420,7 +426,7 @@ class WebResourceIT extends IntegrationTestBase {
                 .header("Accept", "text/html")
                 .get("/this-path-does-not-exist")
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
                 .header("Location", containsString("/login"));
     }
 
@@ -431,6 +437,6 @@ class WebResourceIT extends IntegrationTestBase {
                 .header("Accept", "text/html")
                 .get("/api/this-does-not-exist")
                 .then()
-                .statusCode(404);
+                .statusCode(NOT_FOUND);
     }
 }
