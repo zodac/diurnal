@@ -419,12 +419,21 @@ record_substep_time() {
     local name="${1}"
     local start_ns="${2}"
     local rc="${3}"
+    # OPTIONAL nanosecond END stamp, for a tier that finished before anything looked at it (the Qodana tier
+    # - see run_java). Without one the figure is measured to NOW, which for such a tier is the moment it was
+    # joined rather than the moment it exited, and so can never read shorter than whatever was joined ahead
+    # of it. Every other caller finishes in the foreground or is polled once a second, and omits it.
+    local end_ns="${4:-}"
 
     # String comparison, not -eq: in bash's arithmetic context an EMPTY value compares equal to 0, so a
     # tier whose exit code was somehow never captured would be painted green and pass silently.
     local colour done_in
     if [[ "${rc}" == "0" ]]; then colour="${GREEN}"; else colour="${RED}"; fi
-    done_in="$(elapsed_since "${start_ns}")"
+    if [[ -n "${end_ns}" ]]; then
+        done_in="$(to_natural_time "$((end_ns - start_ns))")"
+    else
+        done_in="$(elapsed_since "${start_ns}")"
+    fi
 
     TIMED_SUBSTEPS+=("${name} ${colour}${done_in}${RESET}")
     echo "     ${name}: ${colour}${done_in}${RESET}"
@@ -808,14 +817,28 @@ run_java() {
     # its own compose project, its own tmpfs DB, its own port), so it is STARTED FIRST, in the
     # background, and joined at the end. That takes the whole smoke tier (including a multi-stage image
     # build) off the critical path: the step now costs max(mvn + e2e, smoke, qodana) rather than their sum.
-    # Tier 4 rides the same trick and dominates that max by a wide margin - the scan runs for tens of
-    # minutes against a handful for everything else - so in practice it overlaps the other three entirely
-    # and the gate costs about what the scan alone costs. The first few minutes are genuinely contended
-    # (PITest, a multi-stage image build, Chromium and the indexer at once); if that ever destabilises a
-    # tier, moving tier 4 after the join is a one-line change.
+    # Tier 4 rides the same trick, but it does NOT dominate that max: warm, the scan is the SHORTER tier.
+    # Measured on a 16-core box - 2m41s idle and ~7m under a load holding ~7 of the 16 cores, against the
+    # Maven tier's 3m51s idle and 5m57s-7m loaded - so tier 1, and behind it tier 2, is what sets the gate's
+    # wall clock. (Only a COLD scan, re-indexing from scratch, runs for tens of minutes; that is the case
+    # the cache exists to avoid.)
     #
-    # Tier 4 is supervised in ONE direction only: an earlier failure stops the scan (worth many minutes),
-    # but a scan failure does not stop the others, because it cannot happen first - the scan outlives them.
+    # Running it alongside the others is still clearly worth it, and more so the busier the machine: under a
+    # load saturating the box, the Maven and Qodana tiers together cost 436s in parallel against 581s run one
+    # after the other (25% less), and parallel won in every load condition measured. The saving is well short
+    # of the ideal max(...) because the two contend - each is stretched (mvn +25%, the scan +70%) until they
+    # converge on near-identical finish times - but capping the scan's CPU only moves that cost around rather
+    # than removing it: pinned to 4 cores the Maven tier gained 19s while the scan lost 65s and became the
+    # critical path, for a net 47s WORSE. (On this Docker-in-Docker setup --cpus and --cpu-shares cannot be
+    # applied at all - "cgroupv2 ... is in threaded mode" - so --cpuset-cpus is the only such knob available,
+    # and it is not worth reaching for.) The first few minutes are genuinely contended (PITest, a multi-stage
+    # image build, Chromium and the indexer at once); if that ever destabilises a tier, moving tier 4 after
+    # the join is a one-line change.
+    #
+    # Tier 4 is supervised in ONE direction only: an earlier failure stops the scan (worth many minutes), but
+    # a scan failure does not stop the others - nothing polls for it, so it is noticed only at the join below.
+    # Being the shorter tier, it usually finishes FIRST, which is exactly why it has to stamp its own finish
+    # time (see its launch) rather than be timed at that join.
     #
     # The old short-circuit (a failing tier skipped the slower ones that followed) becomes symmetric: the
     # FIRST tier to fail stops the others and the step gives up, in either direction. An earlier tier
@@ -866,14 +889,28 @@ run_java() {
     # Tier 4, launched alongside tier 3 and joined last (it is the longest by far).
     QODANA_RC=""
     QODANA_LOG=""
+    QODANA_END_NS_FILE=""
     if [[ "${run_qodana}" == true ]]; then
         QODANA_LOG="$(mktemp)"
+        QODANA_END_NS_FILE="$(mktemp)"
         QODANA_START_NS="$(date +%s%N)"
         qodana_prepare
         substep "qodana"
         # The pull happens INSIDE the background tier: a cold one is several GB, and pulling before the
         # launch would hold the Maven tier behind a download that has nothing to do with it.
-        { docker pull "${QODANA_DOCKER_IMAGE}" >/dev/null && "${QODANA_CMD[@]}"; } > "${QODANA_LOG}" 2>&1 &
+        #
+        # The tier stamps its OWN finish time into QODANA_END_NS_FILE on the way out, because nothing polls
+        # for it the way run_supervised_tier polls for smoke - it is simply joined once the other tiers are
+        # done. Timed at that join it would be credited with every minute they were still running, so its
+        # figure could never read shorter than theirs and the scan would always look like the gate's longest
+        # tier. Measured: a scan that really took 6m58s was reported as 9m10s, the exact length of the Maven
+        # tier it was joined behind.
+        (
+            { docker pull "${QODANA_DOCKER_IMAGE}" >/dev/null && "${QODANA_CMD[@]}"; } > "${QODANA_LOG}" 2>&1
+            qodana_rc=$?
+            date +%s%N > "${QODANA_END_NS_FILE}"
+            exit "${qodana_rc}"
+        ) &
         QODANA_PID=$!
     fi
 
@@ -932,7 +969,12 @@ run_java() {
             QODANA_RC=0
             wait "${QODANA_PID}" || QODANA_RC=$?
             substep "qodana finished (parallel tier)"
-            record_substep_time "qodana" "${QODANA_START_NS}" "${QODANA_RC}"
+            # The tier's own stamp (see the launch above), not this moment. Empty only if it died before it
+            # could write one - a killed container, a full disk - in which case the join time is used, which
+            # is the old behaviour: an upper bound, but a figure rather than a blank.
+            local qodana_end_ns=""
+            [[ -s "${QODANA_END_NS_FILE}" ]] && qodana_end_ns="$(< "${QODANA_END_NS_FILE}")"
+            record_substep_time "qodana" "${QODANA_START_NS}" "${QODANA_RC}" "${qodana_end_ns}"
             if [[ "${QODANA_RC}" != "0" ]]; then
                 failed_at="qodana"
                 [[ -s "${QODANA_LOG}" ]] && cat "${QODANA_LOG}"
@@ -946,7 +988,7 @@ run_java() {
                 cat "${QODANA_LOG}"
             fi
         fi
-        rm -f "${QODANA_LOG}"
+        rm -f "${QODANA_LOG}" "${QODANA_END_NS_FILE}"
     fi
 
     local done_in breakdown
@@ -1290,8 +1332,16 @@ qodana_prepare() {
 
 # Remove the scan container outright. Used when the tier is stopped early: `stop_tier` signals the docker
 # CLI, but the daemon keeps the container (and its CPU) unless it is explicitly removed.
+#
+# Written as an `if` rather than the shorter `[[ … ]] && docker rm … || true`: that form reads as an
+# if-then-else but is not one (the `|| true` also fires when the test passes and the removal fails), which
+# is what SC2015 warns about. ShellCheck itself stays quiet here - it suppresses SC2015 when the `||`
+# branch is a harmless no-op like `true` - but an IDE pattern-matching the shape still flags it.
+# Best-effort either way: a container that is already gone must not fail the cleanup, hence `|| true`.
 qodana_stop_container() {
-    [[ -n "${QODANA_CONTAINER}" ]] && docker rm -f "${QODANA_CONTAINER}" >/dev/null 2>&1 || true
+    if [[ -n "${QODANA_CONTAINER}" ]]; then
+        docker rm -f "${QODANA_CONTAINER}" >/dev/null 2>&1 || true
+    fi
 }
 
 # Answers the question every other message here assumes: were the project's dependencies actually on the
