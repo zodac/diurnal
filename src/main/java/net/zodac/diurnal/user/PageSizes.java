@@ -72,11 +72,14 @@ public final class PageSizes {
         if (stored == null) {
             return null;
         }
-        return stored.stream()
-            .filter(pref -> section.key().equals(pref.section()))
-            .map(PageSizePref::pageSize)
-            .findFirst()
-            .orElse(null);
+        // Scanned rather than streamed: this runs on every paginated render, over at most one entry per PageSection, so the stream/Optional/lambda
+        // the pipeline would allocate each time costs more than the whole lookup.
+        for (final PageSizePref pref : stored) {
+            if (section.key().equals(pref.section())) {
+                return pref.pageSize();
+            }
+        }
+        return null;
     }
 
     /**

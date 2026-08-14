@@ -18,9 +18,7 @@
 package net.zodac.diurnal.update;
 
 import java.net.URI;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -33,7 +31,7 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * The {@code UpdateCheckService} / {@code GitHubLatestReleaseClient} glue owns only the HTTP call and the in-memory cache (the untestable I/O and
- * timing); this class is stateless and side-effect free.
+ * timing); this class is stateless and side effect free.
  */
 public final class UpdateCheck {
 
@@ -43,6 +41,7 @@ public final class UpdateCheck {
     private static final String GITHUB_API_BASE = "https://api.github.com/repos/";
     private static final String RELEASES_PATH = "/releases";
     private static final String RELEASE_TAG_PATH = "/releases/tag/";
+    private static final int[] UNPARSEABLE_VERSION = {};
 
     private UpdateCheck() {
 
@@ -116,9 +115,9 @@ public final class UpdateCheck {
      * @return {@code true} when {@code latestVersion} is strictly newer than {@code currentVersion}
      */
     public static boolean isUpdateAvailable(final String currentVersion, final String latestVersion) {
-        final List<Integer> current = parseVersion(currentVersion);
-        final List<Integer> latest = parseVersion(latestVersion);
-        if (current.isEmpty() || latest.isEmpty()) {
+        final int[] current = parseVersion(currentVersion);
+        final int[] latest = parseVersion(latestVersion);
+        if (current.length == 0 || latest.length == 0) {
             return false;
         }
         return compare(latest, current) > 0;
@@ -166,39 +165,31 @@ public final class UpdateCheck {
         return "Update available - v" + status.latestVersion();
     }
 
-    // An empty list is the "unparseable" answer: a matched version core always yields at least one segment, so an empty
+    // An empty array is the "unparseable" answer: a matched version core always yields at least one segment, so an empty
     // result cannot mean anything else.
-    private static List<Integer> parseVersion(final String version) {
+    private static int[] parseVersion(final String version) {
         final Matcher matcher = VERSION_CORE.matcher(version);
         if (!matcher.find()) {
-            return List.of();
+            return UNPARSEABLE_VERSION;
         }
 
         final String[] segments = matcher.group().split("\\.");
-        final List<Integer> parsed = new ArrayList<>(segments.length);
+        final int[] parsed = new int[segments.length];
         try {
-            for (final String segment : segments) {
-                parsed.add(Integer.parseInt(segment));
+            for (int i = 0; i < segments.length; i++) {
+                parsed[i] = Integer.parseInt(segments[i]);
             }
         } catch (final NumberFormatException e) {
             // A numeric segment too large to fit in an int - treat the whole version as unparseable rather than throwing into the caller.
-            return List.of();
+            return UNPARSEABLE_VERSION;
         }
-        return List.copyOf(parsed);
+        return parsed;
     }
 
-    private static int compare(final List<Integer> left, final List<Integer> right) {
+    private static int compare(final int[] left, final int[] right) {
         // Zero-pad both to the same length and compare lexicographically, so a missing trailing segment counts as zero (1.2 == 1.2.0) with no
         // length tie-break. Padding to equal length keeps Arrays.compare purely element-wise.
-        final int length = Math.max(left.size(), right.size());
-        return Arrays.compare(zeroPad(left, length), zeroPad(right, length));
-    }
-
-    private static int[] zeroPad(final List<Integer> segments, final int length) {
-        final int[] padded = new int[length];
-        for (int i = 0; i < segments.size(); i++) {
-            padded[i] = segments.get(i);
-        }
-        return padded;
+        final int length = Math.max(left.length, right.length);
+        return Arrays.compare(Arrays.copyOf(left, length), Arrays.copyOf(right, length));
     }
 }

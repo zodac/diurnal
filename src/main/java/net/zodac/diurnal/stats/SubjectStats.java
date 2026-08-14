@@ -51,7 +51,9 @@ public record SubjectStats(
     DaySpan   longestStreak,
     DaySpan   longestGap,
     // Comparative
-    // TODO: Should these be longs or ints?
+    // These are longs (where totalDays above is an int) by provenance rather than by scale: each is a MonthlyActionTotal.total(), which JPQL's
+    // SUM/COUNT binds as a Long, whereas totalDays is a list size. An int would hold every reachable value, but narrowing means either casting
+    // inside the query or Math.toIntExact at the projection, and neither buys anything measurable.
     long      thisMonthCount,
     long      lastMonthCount,
     long      thisYearCount,
