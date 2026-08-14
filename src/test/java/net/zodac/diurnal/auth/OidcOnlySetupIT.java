@@ -18,6 +18,9 @@
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.NOT_FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.SEE_OTHER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.endsWith;
@@ -45,7 +48,7 @@ class OidcOnlySetupIT extends IntegrationTestBase {
     void loginPage_firstRun_redirectsToSetup() {
         given().redirects().follow(false)
                 .get("/login")
-                .then().statusCode(303)
+                .then().statusCode(SEE_OTHER)
                 .header("Location", endsWith("/welcome"));
     }
 
@@ -53,7 +56,7 @@ class OidcOnlySetupIT extends IntegrationTestBase {
     void welcomePage_firstRun_renders() {
         // The page content is deliberately identical to a password-auth deployment's — the deployer configured the auth mode and owns that context.
         given().get("/welcome")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Create administrator account"));
     }
 
@@ -65,7 +68,7 @@ class OidcOnlySetupIT extends IntegrationTestBase {
                 .formParam("password", "backup_password_1")
                 .formParam("confirmPassword", "backup_password_1")
                 .post("/register")
-                .then().statusCode(303);
+                .then().statusCode(SEE_OTHER);
 
         runInTx(() -> assertThat(User.findByEmail("sysops@example.com"))
             .as("The setup registration must create a local administrator even with password auth disabled")
@@ -90,7 +93,7 @@ class OidcOnlySetupIT extends IntegrationTestBase {
         runInTx(() -> newUser("sysops@example.com", "Sysops Admin", Role.ADMIN.storageValue()));
 
         given().get("/settings")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("/internal/settings/oidc/connect"));
     }
 
@@ -104,14 +107,14 @@ class OidcOnlySetupIT extends IntegrationTestBase {
         runInTx(() -> originalHash[0] = User.findByEmail("sysops@example.com").orElseThrow().passwordHash);
 
         given().get("/settings")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("id=\"password-view\""));
 
         given().formParam("currentPassword", TEST_PASSWORD)
                 .formParam("newPassword", "new_backup_password_1")
                 .formParam("confirmPassword", "new_backup_password_1")
                 .post("/internal/settings/password")
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         runInTx(() -> assertThat(User.findByEmail("sysops@example.com").orElseThrow().passwordHash)
             .as("the break-glass password must have been re-hashed to the new value")
@@ -124,17 +127,17 @@ class OidcOnlySetupIT extends IntegrationTestBase {
         runInTx(() -> newUser("sysops@example.com", "Sysops Admin", Role.ADMIN.storageValue()));
 
         given().get("/register")
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
         given().redirects().follow(false)
                 .formParam("email", "second@example.com")
                 .formParam("displayName", "Second User")
                 .formParam("password", "irrelevant_1")
                 .formParam("confirmPassword", "irrelevant_1")
                 .post("/register")
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
         given().redirects().follow(false)
                 .get("/welcome")
-                .then().statusCode(303)
+                .then().statusCode(SEE_OTHER)
                 .header("Location", endsWith("/login"));
 
         runInTx(() -> assertThat(User.count())

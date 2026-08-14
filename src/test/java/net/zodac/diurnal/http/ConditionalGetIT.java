@@ -18,6 +18,8 @@
 package net.zodac.diurnal.http;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.NOT_MODIFIED;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
@@ -65,7 +67,7 @@ class ConditionalGetIT extends IntegrationTestBase {
 
         given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
                 .get("/api/v1/logs/events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .header("ETag", startsWith("W/\""))
                 .header("Cache-Control", allOf(containsString("private"), containsString("no-cache")))
                 .header("Vary", equalTo("Authorization, Cookie"));
@@ -79,7 +81,7 @@ class ConditionalGetIT extends IntegrationTestBase {
         final String body = given().header("If-None-Match", etag)
             .queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
             .get("/api/v1/logs/events")
-            .then().statusCode(304)
+            .then().statusCode(NOT_MODIFIED)
             .extract().body().asString();
 
         assertThat(body)
@@ -97,7 +99,7 @@ class ConditionalGetIT extends IntegrationTestBase {
         given().header("If-None-Match", etag)
                 .queryParam("start", TODAY.minusDays(1).toString()).queryParam("end", TODAY.toString())
                 .get("/api/v1/logs/events")
-                .then().statusCode(200);
+                .then().statusCode(OK);
     }
 
     @Test
@@ -114,7 +116,7 @@ class ConditionalGetIT extends IntegrationTestBase {
         given().header("If-None-Match", etag)
                 .queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
                 .get("/api/v1/logs/events")
-                .then().statusCode(200);
+                .then().statusCode(OK);
     }
 
     // ── GET /api/v1/logs/{date} ─────────────────────────────────────────────────
@@ -126,7 +128,7 @@ class ConditionalGetIT extends IntegrationTestBase {
 
         given().header("If-None-Match", etag)
                 .get("/api/v1/logs/" + TODAY)
-                .then().statusCode(304);
+                .then().statusCode(NOT_MODIFIED);
     }
 
     @Test
@@ -139,7 +141,7 @@ class ConditionalGetIT extends IntegrationTestBase {
 
         given().header("If-None-Match", etag)
                 .get("/api/v1/logs/" + TODAY)
-                .then().statusCode(304);
+                .then().statusCode(NOT_MODIFIED);
     }
 
     // ── GET /api/v1/notes ───────────────────────────────────────────────────────
@@ -152,14 +154,14 @@ class ConditionalGetIT extends IntegrationTestBase {
                 .queryParam("start", TODAY.toString())
                 .queryParam("end", TODAY.toString())
                 .get("/api/v1/notes")
-                .then().statusCode(304);
+                .then().statusCode(NOT_MODIFIED);
 
         given().contentType(io.restassured.http.ContentType.JSON)
                 .body("""
                         {"content":"Ran 5k"}
                         """)
                 .put("/api/v1/notes/" + TODAY)
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         assertThat(notesEtag())
             .as("writing a note in the range must bust the range's validator")
@@ -177,7 +179,7 @@ class ConditionalGetIT extends IntegrationTestBase {
                         {"content":"Second draft"}
                         """)
                 .put("/api/v1/notes/" + TODAY)
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         assertThat(notesEtag())
             .as("editing a note without changing the row count must still bust the validator")
@@ -188,7 +190,7 @@ class ConditionalGetIT extends IntegrationTestBase {
         return given().queryParam("start", TODAY.toString())
             .queryParam("end", TODAY.toString())
             .get("/api/v1/notes")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().header("ETag");
     }
 
@@ -197,18 +199,18 @@ class ConditionalGetIT extends IntegrationTestBase {
     @Test
     void listActions_ifNoneMatch_returns304_thenBustedByNewAction() {
         final String etag = given().get("/api/v1/actions")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().header("ETag");
 
         given().header("If-None-Match", etag)
                 .get("/api/v1/actions")
-                .then().statusCode(304);
+                .then().statusCode(NOT_MODIFIED);
 
         runInTx(() -> newAction(userId, "Swimming"));
 
         given().header("If-None-Match", etag)
                 .get("/api/v1/actions")
-                .then().statusCode(200);
+                .then().statusCode(OK);
     }
 
     // ── GET /api/v1/users/me ────────────────────────────────────────────────────
@@ -216,12 +218,12 @@ class ConditionalGetIT extends IntegrationTestBase {
     @Test
     void me_ifNoneMatch_returns304_thenBustedByProfileChange() {
         final String etag = given().get("/api/v1/users/me")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .extract().header("ETag");
 
         given().header("If-None-Match", etag)
                 .get("/api/v1/users/me")
-                .then().statusCode(304);
+                .then().statusCode(NOT_MODIFIED);
 
         runInTx(() -> {
             final User stored = User.findById(userId);
@@ -230,19 +232,19 @@ class ConditionalGetIT extends IntegrationTestBase {
 
         given().header("If-None-Match", etag)
                 .get("/api/v1/users/me")
-                .then().statusCode(200);
+                .then().statusCode(OK);
     }
 
     private static String eventsEtag() {
         return given().queryParam("start", TODAY.toString()).queryParam("end", TODAY.toString())
                 .get("/api/v1/logs/events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .extract().header("ETag");
     }
 
     private static String dayEtag() {
         return given().get("/api/v1/logs/" + TODAY)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .extract().header("ETag");
     }
 }

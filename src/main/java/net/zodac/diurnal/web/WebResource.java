@@ -65,6 +65,7 @@ import net.zodac.diurnal.config.PasswordAuthConfig;
 import net.zodac.diurnal.config.QuarkusOidcConfig;
 import net.zodac.diurnal.config.RegistrationConfig;
 import net.zodac.diurnal.config.SessionConfig;
+import net.zodac.diurnal.http.HttpStatus;
 import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.note.NoteService;
 import net.zodac.diurnal.stats.StatField;
@@ -93,9 +94,6 @@ import org.jspecify.annotations.Nullable;
 public class WebResource {
 
     private static final Logger LOGGER = LogManager.getLogger(WebResource.class);
-
-    // 422 has no jakarta.ws.rs Response.Status constant; NotesInternalResource declares the same value for the same reason.
-    private static final int UNPROCESSABLE_ENTITY = 422;
 
     // Carries the exact seconds left on a lockout to the AJAX form handlers (app.js), which post via fetch
     // and so never render the server-side banner — they run a live mm:ss countdown from this value instead.
@@ -718,7 +716,7 @@ public class WebResource {
             case final ProfileResult.Updated ignored -> Response.noContent().build();
             // A rejected field leaves any field applied before it mutated on the managed entity; the class-level @RollbackOnErrorStatus rolls the
             // whole transaction back on this 422, so a rejected request never silently persists part of a mutation.
-            case final ProfileResult.Invalid invalid -> Response.status(UNPROCESSABLE_ENTITY).entity(invalid.message()).build();
+            case final ProfileResult.Invalid invalid -> Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(invalid.message()).build();
         };
     }
 
@@ -755,8 +753,9 @@ public class WebResource {
             case final PasswordChangeResult.Success ignored -> Response.ok().build();
             case final PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
             case final PasswordChangeResult.WrongCurrentPassword ignored ->
-                Response.status(UNPROCESSABLE_ENTITY).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
-            case final PasswordChangeResult.InvalidNewPassword invalid -> Response.status(UNPROCESSABLE_ENTITY).entity(invalid.message()).build();
+                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
+            case final PasswordChangeResult.InvalidNewPassword invalid ->
+                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(invalid.message()).build();
         };
     }
 
@@ -784,8 +783,8 @@ public class WebResource {
             case final PasswordChangeResult.Success ignored -> Response.noContent().build();
             case final PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
             case final PasswordChangeResult.WrongCurrentPassword ignored ->
-                Response.status(UNPROCESSABLE_ENTITY).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
-            case final PasswordChangeResult.InvalidNewPassword ignored -> Response.status(UNPROCESSABLE_ENTITY).build();
+                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
+            case final PasswordChangeResult.InvalidNewPassword ignored -> Response.status(HttpStatus.UNPROCESSABLE_ENTITY).build();
         };
     }
 

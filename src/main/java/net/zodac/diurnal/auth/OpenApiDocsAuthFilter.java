@@ -23,7 +23,7 @@ import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.inject.Inject;
-import java.net.HttpURLConnection;
+import jakarta.ws.rs.core.Response;
 import net.zodac.diurnal.config.SessionConfig;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
@@ -83,9 +83,9 @@ public class OpenApiDocsAuthFilter {
         final OpenApiDocsAccess.Outcome outcome = OpenApiDocsAccess.decide(resolveUser(context));
         switch (outcome) {
             case ALLOW -> context.next();
-            case FORBIDDEN -> context.response().setStatusCode(HttpURLConnection.HTTP_FORBIDDEN).end();
+            case FORBIDDEN -> context.response().setStatusCode(Response.Status.FORBIDDEN.getStatusCode()).end();
             default -> context.response()
-                .setStatusCode(HttpURLConnection.HTTP_MOVED_TEMP)
+                .setStatusCode(Response.Status.FOUND.getStatusCode())
                 .putHeader("location", "/login")
                 .end();
         }

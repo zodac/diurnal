@@ -17,6 +17,8 @@
 
 package net.zodac.diurnal.auth;
 
+import static net.zodac.diurnal.http.HttpStatusCodes.FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.UNAUTHORIZED;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.vertx.http.runtime.security.ChallengeData;
@@ -33,7 +35,7 @@ class SessionAuthMechanismTest {
         final ChallengeData challenge = SessionAuthMechanism.challengeFor("/api/v1/users/me");
         assertThat(challenge.status)
                 .as("A REST API path must get a plain 401, not a browser redirect")
-                .isEqualTo(401);
+                .isEqualTo(UNAUTHORIZED);
     }
 
     @Test
@@ -41,7 +43,7 @@ class SessionAuthMechanismTest {
         final ChallengeData challenge = SessionAuthMechanism.challengeFor("/api/v1/auth/logout");
         assertThat(challenge.status)
                 .as("Every /api/ path must get a 401")
-                .isEqualTo(401);
+                .isEqualTo(UNAUTHORIZED);
     }
 
     @Test
@@ -49,7 +51,7 @@ class SessionAuthMechanismTest {
         final ChallengeData challenge = SessionAuthMechanism.challengeFor("/");
         assertThat(challenge.status)
                 .as("A browser path must get a 302 redirect")
-                .isEqualTo(302);
+                .isEqualTo(FOUND);
     }
 
     @Test
@@ -57,6 +59,6 @@ class SessionAuthMechanismTest {
         final ChallengeData challenge = SessionAuthMechanism.challengeFor("/settings");
         assertThat(challenge.status)
                 .as("A non-API browser path must redirect to login")
-                .isEqualTo(302);
+                .isEqualTo(FOUND);
     }
 }

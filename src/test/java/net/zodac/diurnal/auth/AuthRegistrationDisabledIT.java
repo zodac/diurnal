@@ -18,6 +18,7 @@
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 
@@ -49,7 +50,7 @@ class AuthRegistrationDisabledIT extends IntegrationTestBase {
                         """)
                 .post("/api/v1/auth/register")
                 .then()
-                .statusCode(403)
+                .statusCode(FORBIDDEN)
                 .body("message", containsStringIgnoringCase("must be created via the setup page"));
 
         runInTx(() -> assertThat(User.count())
@@ -67,7 +68,7 @@ class AuthRegistrationDisabledIT extends IntegrationTestBase {
                         """)
                 .post("/api/v1/auth/register")
                 .then()
-                .statusCode(403)
+                .statusCode(FORBIDDEN)
                 .body("message", containsStringIgnoringCase("registration is disabled"));
 
         runInTx(() -> assertThat(User.count())

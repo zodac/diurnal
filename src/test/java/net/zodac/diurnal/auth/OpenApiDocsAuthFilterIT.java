@@ -18,6 +18,9 @@
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
+import static net.zodac.diurnal.http.HttpStatusCodes.FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 
@@ -60,7 +63,7 @@ class OpenApiDocsAuthFilterIT extends IntegrationTestBase {
             .redirects().follow(false)
             .get("/q/openapi")
             .then()
-            .statusCode(302)
+            .statusCode(FOUND)
             .header("Location", equalToIgnoringCase("/login"));
     }
 
@@ -70,7 +73,7 @@ class OpenApiDocsAuthFilterIT extends IntegrationTestBase {
             .redirects().follow(false)
             .get("/api")
             .then()
-            .statusCode(302)
+            .statusCode(FOUND)
             .header("Location", equalToIgnoringCase("/login"));
     }
 
@@ -81,7 +84,7 @@ class OpenApiDocsAuthFilterIT extends IntegrationTestBase {
             .redirects().follow(false)
             .get("/q/openapi")
             .then()
-            .statusCode(403);
+            .statusCode(FORBIDDEN);
     }
 
     @Test
@@ -91,7 +94,7 @@ class OpenApiDocsAuthFilterIT extends IntegrationTestBase {
             .redirects().follow(false)
             .get("/api")
             .then()
-            .statusCode(403);
+            .statusCode(FORBIDDEN);
     }
 
     @Test
@@ -101,7 +104,7 @@ class OpenApiDocsAuthFilterIT extends IntegrationTestBase {
             .redirects().follow(false)
             .get("/q/openapi")
             .then()
-            .statusCode(200)
+            .statusCode(OK)
             .body(containsString("openapi"));
     }
 

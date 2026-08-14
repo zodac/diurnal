@@ -18,6 +18,9 @@
 package net.zodac.diurnal.log;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.UNAUTHORIZED;
 import static org.hamcrest.Matchers.equalTo;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -66,7 +69,7 @@ class LogsApiAuthIT extends IntegrationTestBase {
                 .queryParam("start", DAY.toString())
                 .queryParam("end", DAY.toString())
                 .get("/api/v1/logs/events")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("size()", equalTo(1))
                 .body("[0].title", equalTo("Running ×3"));
     }
@@ -75,7 +78,7 @@ class LogsApiAuthIT extends IntegrationTestBase {
     void events_withBearerToken_stillRequiresRangeParams() {
         given().header(bearer())
                 .get("/api/v1/logs/events")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 
     @Test
@@ -85,7 +88,7 @@ class LogsApiAuthIT extends IntegrationTestBase {
                 .queryParam("end", DAY.toString())
                 .get("/api/v1/logs/events")
                 .then()
-                .statusCode(401);
+                .statusCode(UNAUTHORIZED);
     }
 
     private Header bearer() {

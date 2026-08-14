@@ -18,6 +18,9 @@
 package net.zodac.diurnal.stats;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
+import static net.zodac.diurnal.http.HttpStatusCodes.NOT_FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -79,7 +82,7 @@ class FrequencyChartIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, action.id, TODAY, 4));
 
         given().get("/api/v1/stats/" + action.id + "/frequency")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("series.size()", equalTo(1))
                 .body("series[0].subjectId", equalTo(action.id.toString()))
                 .body("series[0].name", equalTo("Running"))
@@ -101,7 +104,7 @@ class FrequencyChartIT extends IntegrationTestBase {
 
         given().queryParam("period", "year")
                 .get("/api/v1/stats/" + action.id + "/frequency")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("period", equalTo("year"))
                 .body("periodKey", equalTo(String.valueOf(TODAY.getYear())))
                 .body("slots.size()", equalTo(12));
@@ -117,7 +120,7 @@ class FrequencyChartIT extends IntegrationTestBase {
 
         given().queryParam("at", YearMonth.from(lastMonth).toString())
                 .get("/api/v1/stats/" + action.id + "/frequency")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("periodKey", equalTo(YearMonth.from(lastMonth).toString()))
                 .body("total", equalTo(7))
                 .body("slots[0].bars[0].count", equalTo(7));
@@ -126,7 +129,7 @@ class FrequencyChartIT extends IntegrationTestBase {
     @Test
     void frequency_neverLoggedAction_returnsAnEmptyWindow() {
         given().get("/api/v1/stats/" + action.id + "/frequency")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("total", equalTo(0))
                 .body("peak", equalTo(0))
                 .body("slots.size()", equalTo(TODAY.lengthOfMonth()));
@@ -136,7 +139,7 @@ class FrequencyChartIT extends IntegrationTestBase {
     void frequency_unknownPeriod_isRejectedNotCoerced() {
         given().queryParam("period", "week")
                 .get("/api/v1/stats/" + action.id + "/frequency")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("week"));
     }
 
@@ -144,7 +147,7 @@ class FrequencyChartIT extends IntegrationTestBase {
     void frequency_malformedWindow_isRejectedNotCoerced() {
         given().queryParam("at", "2026-13")
                 .get("/api/v1/stats/" + action.id + "/frequency")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("2026-13"));
     }
 
@@ -152,19 +155,19 @@ class FrequencyChartIT extends IntegrationTestBase {
     void frequency_windowOfTheWrongShapeForThePeriod_isRejected() {
         given().queryParam("period", "year").queryParam("at", "2026-07")
                 .get("/api/v1/stats/" + action.id + "/frequency")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 
     @Test
     void frequency_actionOfAnotherUser_isNotFound() {
         given().get("/api/v1/stats/" + otherAction.id + "/frequency")
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     @Test
     void frequency_unknownAction_isNotFound() {
         given().get("/api/v1/stats/" + UUID.randomUUID() + "/frequency")
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     // ── Comparing actions ───────────────────────────────────────────────────
@@ -178,7 +181,7 @@ class FrequencyChartIT extends IntegrationTestBase {
 
         given().queryParam("compare", second.id.toString())
                 .get("/api/v1/stats/" + action.id + "/frequency")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("series.size()", equalTo(2))
                 .body("series[0].subjectId", equalTo(action.id.toString()))
                 .body("series[1].subjectId", equalTo(second.id.toString()))
@@ -201,7 +204,7 @@ class FrequencyChartIT extends IntegrationTestBase {
 
         given().queryParam("compare", second.id.toString()).queryParam("compare", third.id.toString())
                 .get("/api/v1/stats/" + action.id + "/frequency")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("series.size()", equalTo(3))
                 .body("total", equalTo(6));
     }
@@ -218,7 +221,7 @@ class FrequencyChartIT extends IntegrationTestBase {
                 .queryParam("compare", third.id.toString())
                 .queryParam("compare", fourth.id.toString())
                 .get("/api/v1/stats/" + action.id + "/frequency")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("maximum is 3"));
     }
 
@@ -228,7 +231,7 @@ class FrequencyChartIT extends IntegrationTestBase {
 
         given().queryParam("compare", second.id.toString()).queryParam("compare", second.id.toString())
                 .get("/api/v1/stats/" + action.id + "/frequency")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("more than once"));
     }
 
@@ -238,7 +241,7 @@ class FrequencyChartIT extends IntegrationTestBase {
 
         given().queryParam("compare", action.id.toString())
                 .get("/api/v1/stats/" + action.id + "/frequency")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("more than once"));
     }
 
@@ -248,7 +251,7 @@ class FrequencyChartIT extends IntegrationTestBase {
         // same set rather than drawing a flat series the UI could not have produced.
         given().queryParam("compare", second.id.toString())
                 .get("/api/v1/stats/" + action.id + "/frequency")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("never been logged"));
     }
 
@@ -256,7 +259,7 @@ class FrequencyChartIT extends IntegrationTestBase {
     void frequency_comparisonOfAnotherUser_isNotFound() {
         given().queryParam("compare", otherAction.id.toString())
                 .get("/api/v1/stats/" + action.id + "/frequency")
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     // ── Internal fragment ───────────────────────────────────────────────────
@@ -266,7 +269,7 @@ class FrequencyChartIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, action.id, TODAY, 4));
 
         given().get("/internal/stats/chart/" + action.id)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("chart-plot"))
                 .body(containsString("data-chart-shown-period=\"month\""))
                 .body(containsString("data-chart-shown-at=\"" + thisMonthKey() + "\""))
@@ -276,7 +279,7 @@ class FrequencyChartIT extends IntegrationTestBase {
     @Test
     void chartFragment_emptyWindow_rendersTheEmptyState() {
         given().get("/internal/stats/chart/" + action.id)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Nothing logged in"));
     }
 
@@ -285,7 +288,7 @@ class FrequencyChartIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, action.id, TODAY, 1));
 
         given().get("/internal/stats/chart/" + action.id)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString(": 1 time<"));
     }
 
@@ -293,20 +296,20 @@ class FrequencyChartIT extends IntegrationTestBase {
     void chartFragment_unknownPeriod_isRejected() {
         given().queryParam("period", "week")
                 .get("/internal/stats/chart/" + action.id)
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 
     @Test
     void chartFragment_malformedWindow_isRejected() {
         given().queryParam("at", "not-a-month")
                 .get("/internal/stats/chart/" + action.id)
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 
     @Test
     void chartFragment_actionOfAnotherUser_isNotFound() {
         given().get("/internal/stats/chart/" + otherAction.id)
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     @Test
@@ -318,7 +321,7 @@ class FrequencyChartIT extends IntegrationTestBase {
 
         given().queryParam("compare", second.id.toString())
                 .get("/internal/stats/chart/" + action.id)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("data-chart-shown-compare=\"" + second.id + "\""))
                 .body(containsString("Stop comparing Yoga"))
                 .body(containsString("Running: 4 times"))
@@ -334,7 +337,7 @@ class FrequencyChartIT extends IntegrationTestBase {
 
         given().queryParam("compare", second.id.toString()).queryParam("compare", third.id.toString())
                 .get("/internal/stats/chart/" + action.id)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(not(containsString("Compare to...")));
     }
 
@@ -343,7 +346,7 @@ class FrequencyChartIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, second.id, TODAY, 1));
 
         given().get("/internal/stats/chart/" + action.id)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Compare to..."))
                 .body(containsString("chart-compare-panel"));
     }
@@ -359,7 +362,7 @@ class FrequencyChartIT extends IntegrationTestBase {
         });
 
         given().get("/internal/stats/chart/" + action.id + "/candidates")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Cycling"))
                 .body(containsString("Yoga"))
                 .body(not(containsString("Swimming")))
@@ -375,7 +378,7 @@ class FrequencyChartIT extends IntegrationTestBase {
 
         given().queryParam("compare", third.id.toString())
                 .get("/internal/stats/chart/" + action.id + "/candidates")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Yoga"))
                 .body(not(containsString("Cycling")));
     }
@@ -389,7 +392,7 @@ class FrequencyChartIT extends IntegrationTestBase {
 
         given().queryParam("q", "yo")
                 .get("/internal/stats/chart/" + action.id + "/candidates")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Yoga"))
                 .body(not(containsString("Cycling")));
     }
@@ -397,7 +400,7 @@ class FrequencyChartIT extends IntegrationTestBase {
     @Test
     void candidates_noneEligible_rendersTheEmptyState() {
         given().get("/internal/stats/chart/" + action.id + "/candidates")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Nothing else to compare."));
     }
 
@@ -406,7 +409,7 @@ class FrequencyChartIT extends IntegrationTestBase {
         runInTx(() -> newLog(otherId, otherAction.id, TODAY, 1));
 
         given().get("/internal/stats/chart/" + action.id + "/candidates")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(not(containsString("Theirs")));
     }
 }

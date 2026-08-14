@@ -41,6 +41,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.zodac.diurnal.http.EntityTags;
+import net.zodac.diurnal.http.HttpStatus;
 import net.zodac.diurnal.log.DateRanges;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.user.CurrentUser;
@@ -78,9 +79,6 @@ import org.jspecify.annotations.Nullable;
 public class NotesInternalResource {
 
     private static final Logger LOGGER = LogManager.getLogger(NotesInternalResource.class);
-
-    // Not on Response.Status in this JAX-RS version, and the same literal the settings endpoints already answer text rejections with.
-    private static final int UNPROCESSABLE_ENTITY = 422;
 
     private final Template notesListTemplate;
     private final CurrentUser currentUser;
@@ -203,7 +201,7 @@ public class NotesInternalResource {
             case final NoteResult.Saved saved -> Response.ok(new SavedNote(saved.date().toString(), saved.content())).build();
             case final NoteResult.Cleared cleared -> Response.ok(new SavedNote(cleared.date().toString(), "")).build();
             // 422 on the web where the API answers 400 - the same per-surface split every other text input uses.
-            case final NoteResult.Invalid invalid -> Response.status(UNPROCESSABLE_ENTITY)
+            case final NoteResult.Invalid invalid -> Response.status(HttpStatus.UNPROCESSABLE_ENTITY)
                 .entity(new ApiErrorResponse(invalid.message()))
                 .build();
         };

@@ -18,6 +18,7 @@
 package net.zodac.diurnal.stats;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.equalTo;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -57,7 +58,7 @@ class StatsApiResourceIT extends IntegrationTestBase {
     @Test
     void stats_noLoggedActions_returnsEmptyArray() {
         given().get("/api/v1/stats")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(0))
                 .body("totalCount", equalTo(0));
     }
@@ -70,7 +71,7 @@ class StatsApiResourceIT extends IntegrationTestBase {
         });
 
         given().get("/api/v1/stats")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(1))
                 .body("items[0].subjectId", equalTo(action.id.toString()))
                 .body("items[0].name", equalTo("Running"))
@@ -88,7 +89,7 @@ class StatsApiResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, action.id, TODAY, 1));
 
         given().get("/api/v1/stats")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items[0].kind", equalTo("action"));
     }
 
@@ -103,7 +104,7 @@ class StatsApiResourceIT extends IntegrationTestBase {
         });
 
         given().get("/api/v1/stats")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(2))
                 .body("totalCount", equalTo(2))
                 .body("items[0].kind", equalTo("notes"))
@@ -121,7 +122,7 @@ class StatsApiResourceIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, action.id, TODAY, 1));
 
         given().get("/api/v1/stats")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(1))
                 .body("items[0].kind", equalTo("action"));
     }
@@ -134,7 +135,7 @@ class StatsApiResourceIT extends IntegrationTestBase {
         });
 
         given().get("/api/v1/stats")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(1))
                 .body("items[0].name", equalTo("Running"));
     }
@@ -148,7 +149,7 @@ class StatsApiResourceIT extends IntegrationTestBase {
         });
 
         given().get("/api/v1/stats")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(1))
                 .body("items[0].name", equalTo("Running"));
     }

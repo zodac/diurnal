@@ -18,6 +18,11 @@
 package net.zodac.diurnal.web;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
+import static net.zodac.diurnal.http.HttpStatusCodes.FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.MOVED_PERMANENTLY;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.SEE_OTHER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -44,7 +49,7 @@ class FirstRunRegistrationDisabledIT extends IntegrationTestBase {
     void registerPage_firstRun_availableDespiteRegistrationDisabled() {
         given().get("/register")
                 .then()
-                .statusCode(200)
+                .statusCode(OK)
                 .body(containsString("Create the administrator account"));
     }
 
@@ -53,7 +58,7 @@ class FirstRunRegistrationDisabledIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .get("/login")
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
                 .header("Location", containsString("/welcome"));
     }
 
@@ -66,7 +71,7 @@ class FirstRunRegistrationDisabledIT extends IntegrationTestBase {
                 .formParam("confirmPassword", "password123")
                 .post("/register")
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
                 .cookie("diurnal_session", not(emptyOrNullString()))
                 .header("Location", not(containsString("/login")));
     }
@@ -77,7 +82,7 @@ class FirstRunRegistrationDisabledIT extends IntegrationTestBase {
 
         given().get("/register")
                 .then()
-                .statusCode(200)
+                .statusCode(OK)
                 .contentType(containsString("text/html"))
                 .body(containsString("Registration is currently disabled. Please contact your system administrator."))
                 // The form is replaced by the banner: no password field, but a route back to sign in.
@@ -96,7 +101,7 @@ class FirstRunRegistrationDisabledIT extends IntegrationTestBase {
                 .formParam("confirmPassword", "password123")
                 .post("/register")
                 .then()
-                .statusCode(403)
+                .statusCode(FORBIDDEN)
                 .body(containsString("Registration is currently disabled. Please contact your system administrator."));
 
         runInTx(() -> assertThat(User.count())

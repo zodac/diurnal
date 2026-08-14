@@ -18,6 +18,15 @@
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
+import static net.zodac.diurnal.http.HttpStatusCodes.FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.MOVED_PERMANENTLY;
+import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.SEE_OTHER;
+import static net.zodac.diurnal.http.HttpStatusCodes.TOO_MANY_REQUESTS;
+import static net.zodac.diurnal.http.HttpStatusCodes.UNAUTHORIZED;
+import static net.zodac.diurnal.http.HttpStatusCodes.UNPROCESSABLE_ENTITY;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsStringIgnoringCase;
 import static org.hamcrest.Matchers.emptyOrNullString;
@@ -69,20 +78,20 @@ class IpThrottleIT extends IntegrationTestBase {
 
         // Five failed logins from this IP trip the lock (each an ordinary 401; the lock is revealed next).
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            postLogin("wrong_password").then().statusCode(401);
+            postLogin("wrong_password").then().statusCode(UNAUTHORIZED);
         }
 
         // The IP is now locked: even the correct password is refused, with the neutral lockout message.
         postLogin(SEED_PASSWORD)
                 .then()
-                .statusCode(429)
+                .statusCode(TOO_MANY_REQUESTS)
                 .header("Retry-After", notNullValue())
                 .body("message", containsStringIgnoringCase("too many failed attempts"));
 
         // ...and the SAME lock blocks registration, with the SAME neutral message (not "registration").
         postApiRegister("brand-new@example.com")
                 .then()
-                .statusCode(429)
+                .statusCode(TOO_MANY_REQUESTS)
                 .body("message", containsStringIgnoringCase("too many failed attempts"));
     }
 
@@ -93,15 +102,15 @@ class IpThrottleIT extends IntegrationTestBase {
         // Three failed logins plus two rejected (duplicate-email) registrations = five failures on the
         // ONE shared IP counter — no single surface reaches five on its own.
         for (int i = 0; i < 3; i++) {
-            postLogin("wrong_password").then().statusCode(401);
+            postLogin("wrong_password").then().statusCode(UNAUTHORIZED);
         }
         for (int i = 0; i < 2; i++) {
-            postApiRegister(SEED_EMAIL).then().statusCode(409);
+            postApiRegister(SEED_EMAIL).then().statusCode(CONFLICT);
         }
 
         // The combined tally has tripped the lock: the next attempt on either surface is blocked.
-        postLogin(SEED_PASSWORD).then().statusCode(429);
-        postApiRegister("another-new@example.com").then().statusCode(429);
+        postLogin(SEED_PASSWORD).then().statusCode(TOO_MANY_REQUESTS);
+        postApiRegister("another-new@example.com").then().statusCode(TOO_MANY_REQUESTS);
     }
 
     @Test
@@ -111,13 +120,13 @@ class IpThrottleIT extends IntegrationTestBase {
         // Four failures (one below the limit), then a SUCCESSFUL login — which must not launder the IP's
         // budget — then one more failure tips it over to a lockout.
         for (int i = 0; i < MAX_ATTEMPTS - 1; i++) {
-            postLogin("wrong_password").then().statusCode(401);
+            postLogin("wrong_password").then().statusCode(UNAUTHORIZED);
         }
-        postLogin(SEED_PASSWORD).then().statusCode(200);
-        postLogin("wrong_password").then().statusCode(401);
+        postLogin(SEED_PASSWORD).then().statusCode(OK);
+        postLogin("wrong_password").then().statusCode(UNAUTHORIZED);
 
         // The success did not reset the counter, so that fifth failure locked the IP.
-        postLogin(SEED_PASSWORD).then().statusCode(429);
+        postLogin(SEED_PASSWORD).then().statusCode(TOO_MANY_REQUESTS);
     }
 
     @Test
@@ -127,14 +136,14 @@ class IpThrottleIT extends IntegrationTestBase {
         // Failed web-form logins feed the same shared IP counter (via WebResource.doLogin), so five of
         // them lock the IP; each is a plain error redirect with no lockout cookie yet.
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            postFormLoginWrongPassword().then().statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)));
+            postFormLoginWrongPassword().then().statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)));
         }
 
         // The next form attempt is blocked: doLogin drops the short-lived lockout cookie the login page
         // reads to show its countdown banner.
         postFormLoginWrongPassword()
                 .then()
-                .statusCode(anyOf(equalTo(301), equalTo(302), equalTo(303)))
+                .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
                 .cookie("diurnal_login_lockout", not(emptyOrNullString()));
     }
 
@@ -144,14 +153,14 @@ class IpThrottleIT extends IntegrationTestBase {
 
         // Lock the IP via failed logins, then hit the web registration form.
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            postLogin("wrong_password").then().statusCode(401);
+            postLogin("wrong_password").then().statusCode(UNAUTHORIZED);
         }
 
         // The form register 429 carries the exact seconds left in the shared X-Lockout-Retry-After header
         // (app.js runs a live countdown from it) and renders the no-JS banner stating the exact seconds.
         postFormRegister()
                 .then()
-                .statusCode(429)
+                .statusCode(TOO_MANY_REQUESTS)
                 .header("X-Lockout-Retry-After", notNullValue())
                 .body(containsStringIgnoringCase("too many failed attempts"))
                 .body(containsStringIgnoringCase("seconds"));
@@ -162,14 +171,14 @@ class IpThrottleIT extends IntegrationTestBase {
         registerSeedUser();
 
         for (int i = 0; i < MAX_ATTEMPTS; i++) {
-            postLogin("wrong_password").then().statusCode(401);
+            postLogin("wrong_password").then().statusCode(UNAUTHORIZED);
         }
-        postLogin(SEED_PASSWORD).then().statusCode(429);
+        postLogin(SEED_PASSWORD).then().statusCode(TOO_MANY_REQUESTS);
 
         // The profile's lockout window is 15 minutes; advance past it and the IP works again.
         freezeInstant(FROZEN_NOW.plus(Duration.ofMinutes(16)), ZoneId.of("UTC"));
 
-        postLogin(SEED_PASSWORD).then().statusCode(200);
+        postLogin(SEED_PASSWORD).then().statusCode(OK);
     }
 
     // A logged-in user changing their OWN password gets UNLIMITED tries: the settings password-change flow
@@ -186,17 +195,17 @@ class IpThrottleIT extends IntegrationTestBase {
         for (int i = 0; i < MAX_ATTEMPTS * 2; i++) {
             given().formParam("currentPassword", "wrong_password")
                     .post("/internal/settings/password/verify")
-                    .then().statusCode(422);
+                    .then().statusCode(UNPROCESSABLE_ENTITY);
         }
 
         // The correct current password still verifies (204): those failures caused no self-inflicted lock.
         given().formParam("currentPassword", SEED_PASSWORD)
                 .post("/internal/settings/password/verify")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         // ...and none of them touched the shared IP counter: a fresh wrong login is an ordinary 401. It
         // would be an immediate 429 if the (well past MAX_ATTEMPTS) verify failures had fed the lockout.
-        postLogin("wrong_password").then().statusCode(401);
+        postLogin("wrong_password").then().statusCode(UNAUTHORIZED);
     }
 
     // Seed the initial account locally: the API register endpoint now refuses to create the first

@@ -18,6 +18,10 @@
 package net.zodac.diurnal.web;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
+import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.UNPROCESSABLE_ENTITY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -66,7 +70,7 @@ class SettingsIT extends IntegrationTestBase {
     void updateDisplayName_validName_persists() {
         given().formParam("displayName", "New Name")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().displayName)
             .as("unexpected value")
@@ -77,7 +81,7 @@ class SettingsIT extends IntegrationTestBase {
     void updateDisplayName_blankName_returns422() {
         given().formParam("displayName", "   ")
                 .patch("/internal/settings")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().displayName)
             .as("unexpected value")
@@ -92,7 +96,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("displayName", "Should Not Persist")
                 .formParam("theme", "midnight")
                 .patch("/internal/settings")
-                .then().statusCode(422)
+                .then().statusCode(UNPROCESSABLE_ENTITY)
                 .body(containsString("Theme must be one of"));
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().displayName)
@@ -105,7 +109,7 @@ class SettingsIT extends IntegrationTestBase {
         // PATCH semantics on the consolidated endpoint: absent fields keep their values, so an empty
         // submission changes nothing and succeeds.
         given().patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().displayName)
             .as("unexpected value")
@@ -120,7 +124,7 @@ class SettingsIT extends IntegrationTestBase {
                 .formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "new_secret_123")
                 .post("/internal/settings/password")
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         runInTx(() -> {
             final String hash = User.findByEmail(PRIMARY).orElseThrow().passwordHash;
@@ -143,7 +147,7 @@ class SettingsIT extends IntegrationTestBase {
                 .formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "new_secret_123")
                 .post("/internal/settings/password")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
             .as("old password must be unchanged when the current password is wrong")
@@ -155,7 +159,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "new_secret_123")
                 .post("/internal/settings/password")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
             .as("old password must be unchanged when the current password is missing")
@@ -168,7 +172,7 @@ class SettingsIT extends IntegrationTestBase {
                 .formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "different_456")
                 .post("/internal/settings/password")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
             .as("old password must be unchanged after a mismatch")
@@ -181,7 +185,7 @@ class SettingsIT extends IntegrationTestBase {
                 .formParam("newPassword", "")
                 .formParam("confirmPassword", "")
                 .post("/internal/settings/password")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
             .as("old password must be unchanged when the new password is empty")
@@ -194,7 +198,7 @@ class SettingsIT extends IntegrationTestBase {
                 .formParam("newPassword", TEST_PASSWORD)
                 .formParam("confirmPassword", TEST_PASSWORD)
                 .post("/internal/settings/password")
-                .then().statusCode(422)
+                .then().statusCode(UNPROCESSABLE_ENTITY)
                 .body(containsString("different from the existing password"));
 
         runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
@@ -205,7 +209,7 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updatePassword_missingParams_returns422() {
         given().post("/internal/settings/password")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
     }
 
     // ── POST /settings/password/verify (step-1 current-password check) ────────
@@ -214,27 +218,27 @@ class SettingsIT extends IntegrationTestBase {
     void verifyCurrentPassword_correct_returns204() {
         given().formParam("currentPassword", TEST_PASSWORD)
                 .post("/internal/settings/password/verify")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
     }
 
     @Test
     void verifyCurrentPassword_wrong_returns422() {
         given().formParam("currentPassword", "not_the_current_password")
                 .post("/internal/settings/password/verify")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
     }
 
     @Test
     void verifyCurrentPassword_empty_returns422() {
         given().formParam("currentPassword", "")
                 .post("/internal/settings/password/verify")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
     }
 
     @Test
     void verifyCurrentPassword_missingParam_returns422() {
         given().post("/internal/settings/password/verify")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
     }
 
     @Test
@@ -242,7 +246,7 @@ class SettingsIT extends IntegrationTestBase {
     void verifyCurrentPassword_oidcAccount_returns403() {
         given().formParam("currentPassword", "anything")
                 .post("/internal/settings/password/verify")
-                .then().statusCode(403);
+                .then().statusCode(FORBIDDEN);
     }
 
     @Test
@@ -251,7 +255,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "new_secret_123")
                 .post("/internal/settings/password")
-                .then().statusCode(403);
+                .then().statusCode(FORBIDDEN);
 
         runInTx(() -> assertThat(User.findByEmail(OIDC_USER).orElseThrow().passwordHash)
             .as("an OIDC account must never gain a password")
@@ -263,7 +267,7 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void settingsPage_localAccount_showsPasswordField() {
         given().get("/settings")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("id=\"password-view\""));
     }
 
@@ -271,7 +275,7 @@ class SettingsIT extends IntegrationTestBase {
     void settingsPage_showsSubjectStatsPicker() {
         // The drag-orderable "Action stats" list and its mandatory last-performed row render.
         given().get("/settings")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("id=\"stats-fields-list\""))
                 .body(containsString("id=\"stats-field-last-performed\""))
                 .body(containsString("Always shown"));
@@ -283,7 +287,7 @@ class SettingsIT extends IntegrationTestBase {
         // An OIDC account gets no Password section at all — no change form and no provider note
         // (the Identity Provider section states the connection when OIDC is enabled).
         given().get("/settings")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(not(containsString("User authentication is managed by")))
                 .body(not(containsString("id=\"password-view\"")));
     }
@@ -294,7 +298,7 @@ class SettingsIT extends IntegrationTestBase {
     void updateTheme_returns204AndPersists() {
         given().formParam("theme", "dark")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
             .as("unexpected value")
@@ -305,7 +309,7 @@ class SettingsIT extends IntegrationTestBase {
     void updateTheme_light_persists() {
         given().formParam("theme", "light")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
             .as("unexpected value")
@@ -318,7 +322,7 @@ class SettingsIT extends IntegrationTestBase {
 
         given().formParam("theme", "system")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
             .as("unexpected value")
@@ -331,7 +335,7 @@ class SettingsIT extends IntegrationTestBase {
 
         given().formParam("theme", "midnight")
                 .patch("/internal/settings")
-                .then().statusCode(422)
+                .then().statusCode(UNPROCESSABLE_ENTITY)
                 .body(containsString("Theme must be one of"));
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
@@ -346,7 +350,7 @@ class SettingsIT extends IntegrationTestBase {
         // PATCH semantics on the consolidated endpoint: a request without the field leaves it alone
         // (a PRESENT-but-unknown value still coerces to the default — covered above).
         given().patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().theme)
             .as("unexpected value")
@@ -356,9 +360,9 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updateTheme_leavesOtherSettingsUntouched() {
         // The whole point of per-setting endpoints: changing theme must not touch page size.
-        given().formParam("pageSize", "25").patch("/internal/settings").then().statusCode(204);
+        given().formParam("pageSize", "25").patch("/internal/settings").then().statusCode(NO_CONTENT);
 
-        given().formParam("theme", "dark").patch("/internal/settings").then().statusCode(204);
+        given().formParam("theme", "dark").patch("/internal/settings").then().statusCode(NO_CONTENT);
 
         runInTx(() -> {
             final User user = User.findByEmail(PRIMARY).orElseThrow();
@@ -377,7 +381,7 @@ class SettingsIT extends IntegrationTestBase {
     void updateFont_standard_persists() {
         given().formParam("font", "standard")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().font)
             .as("unexpected value")
@@ -390,7 +394,7 @@ class SettingsIT extends IntegrationTestBase {
 
         given().formParam("font", "nova")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().font)
             .as("unexpected value")
@@ -403,7 +407,7 @@ class SettingsIT extends IntegrationTestBase {
 
         given().formParam("font", "comic")
                 .patch("/internal/settings")
-                .then().statusCode(422)
+                .then().statusCode(UNPROCESSABLE_ENTITY)
                 .body(containsString("Font must be one of"));
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().font)
@@ -417,7 +421,7 @@ class SettingsIT extends IntegrationTestBase {
     void updatePageSize_valid_persists() {
         given().formParam("pageSize", "25")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         final User user = User.findByEmail(PRIMARY).orElseThrow();
         assertThat(user.pageSize)
@@ -432,7 +436,7 @@ class SettingsIT extends IntegrationTestBase {
 
         given().formParam("pageSize", "5")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         final User user = User.findByEmail(PRIMARY).orElseThrow();
         assertThat(user.pageSize)
@@ -445,7 +449,7 @@ class SettingsIT extends IntegrationTestBase {
         // 7 is not a preset, but any value in [1, 100] is now accepted as a custom page size.
         given().formParam("pageSize", "7")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         final User user = User.findByEmail(PRIMARY).orElseThrow();
         assertThat(user.pageSize)
@@ -459,7 +463,7 @@ class SettingsIT extends IntegrationTestBase {
 
         given().formParam("pageSize", "999")
                 .patch("/internal/settings")
-                .then().statusCode(422)
+                .then().statusCode(UNPROCESSABLE_ENTITY)
                 .body(containsString("100"));
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
@@ -473,7 +477,7 @@ class SettingsIT extends IntegrationTestBase {
 
         given().formParam("pageSize", "0")
                 .patch("/internal/settings")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
             .as("a rejected value must not change the stored page size")
@@ -486,7 +490,7 @@ class SettingsIT extends IntegrationTestBase {
 
         given().formParam("pageSize", "-1")
                 .patch("/internal/settings")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
             .as("a negative value must not change the stored page size")
@@ -499,7 +503,7 @@ class SettingsIT extends IntegrationTestBase {
 
         given().formParam("pageSize", "lots")
                 .patch("/internal/settings")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
             .as("a non-numeric value must not change the stored page size")
@@ -515,7 +519,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("pageSizeSection", "dashboard", "actions", "notes", "stats", "users")
                 .formParam("pageSizeValue", "", "25", "", "50", "")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         final List<PageSizePref> expected = List.of(
             new PageSizePref("actions", 25),
@@ -541,7 +545,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("pageSizeSection", "dashboard", "actions", "notes", "stats", "users")
                 .formParam("pageSizeValue", "", "", "", "", "")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSizes)
             .as("no overrides is stored as nothing at all, the state a user who never opened the panel is in")
@@ -555,7 +559,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("pageSizeSection", "dashboard", "actions")
                 .formParam("pageSizeValue", "5", "999")
                 .patch("/internal/settings")
-                .then().statusCode(422)
+                .then().statusCode(UNPROCESSABLE_ENTITY)
                 .body(containsString("100"));
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSizes)
@@ -568,7 +572,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("pageSizeSection", "retired-section", "actions")
                 .formParam("pageSizeValue", "10", "25")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSizes)
             .as("an unrecognised section is dropped, exactly as an unknown stats-field key is")
@@ -580,7 +584,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("pageSize", "10").patch("/internal/settings");
 
         given().formParam("pageSizeSection", "actions").formParam("pageSizeValue", "25").patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> {
             final User user = User.findByEmail(PRIMARY).orElseThrow();
@@ -599,7 +603,7 @@ class SettingsIT extends IntegrationTestBase {
     void updateDecimalPlaces_valid_persists() {
         given().formParam("decimalPlaces", "2")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().decimalPlaces)
             .as("unexpected value")
@@ -613,11 +617,11 @@ class SettingsIT extends IntegrationTestBase {
         // 3 is one past the maximum: the accepted set is exactly the 0/1/2 offered by the Settings pills.
         given().formParam("decimalPlaces", "3")
                 .patch("/internal/settings")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         given().formParam("decimalPlaces", "9")
                 .patch("/internal/settings")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().decimalPlaces)
             .as("a rejected value must not change the stored decimal-place count")
@@ -630,7 +634,7 @@ class SettingsIT extends IntegrationTestBase {
 
         given().formParam("decimalPlaces", "lots")
                 .patch("/internal/settings")
-                .then().statusCode(422);
+                .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().decimalPlaces)
             .as("a non-numeric value must not change the stored decimal-place count")
@@ -644,7 +648,7 @@ class SettingsIT extends IntegrationTestBase {
         // An unticked checkbox posts only the hidden "false"; the setting turns off.
         given().formParam("showStatsSummary", "false")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().showStatsSummary)
             .as("stats summary should be disabled")
@@ -659,7 +663,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("showStatsSummary", "false")
                 .formParam("showStatsSummary", "true")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().showStatsSummary)
             .as("stats summary should be enabled")
@@ -669,13 +673,13 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updatePageSize_options_include50And100() {
         given().formParam("pageSize", "50")
-                .patch("/internal/settings").then().statusCode(204);
+                .patch("/internal/settings").then().statusCode(NO_CONTENT);
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
             .as("unexpected value")
             .isEqualTo(50));
 
         given().formParam("pageSize", "100")
-                .patch("/internal/settings").then().statusCode(204);
+                .patch("/internal/settings").then().statusCode(NO_CONTENT);
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
             .as("unexpected value")
             .isEqualTo(100));
@@ -687,7 +691,7 @@ class SettingsIT extends IntegrationTestBase {
     void updateCalendarView_minimal_persists() {
         given().formParam("calendarView", "minimal")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
             .as("unexpected value")
@@ -700,7 +704,7 @@ class SettingsIT extends IntegrationTestBase {
 
         given().formParam("calendarView", "full")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
             .as("unexpected value")
@@ -711,7 +715,7 @@ class SettingsIT extends IntegrationTestBase {
     void updateCalendarView_stacked_persists() {
         given().formParam("calendarView", "stacked")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
             .as("unexpected value")
@@ -724,7 +728,7 @@ class SettingsIT extends IntegrationTestBase {
 
         given().formParam("calendarView", "grid")
                 .patch("/internal/settings")
-                .then().statusCode(422)
+                .then().statusCode(UNPROCESSABLE_ENTITY)
                 .body(containsString("Calendar style must be one of"));
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().calendarView)
@@ -738,7 +742,7 @@ class SettingsIT extends IntegrationTestBase {
     void updateTimezone_offered_persists() {
         given().formParam("timezone", "Pacific/Auckland")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().timezone)
             .as("unexpected value")
@@ -748,11 +752,11 @@ class SettingsIT extends IntegrationTestBase {
     @Test
     void updateTimezone_blank_clearsToServerDefault() {
         // First set a zone, then submit blank ("Server default") to confirm it clears to null.
-        given().formParam("timezone", "UTC").patch("/internal/settings").then().statusCode(204);
+        given().formParam("timezone", "UTC").patch("/internal/settings").then().statusCode(NO_CONTENT);
 
         given().formParam("timezone", "")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().timezone)
             .as("expected null")
@@ -765,7 +769,7 @@ class SettingsIT extends IntegrationTestBase {
 
         given().formParam("timezone", "Mars/Phobos")
                 .patch("/internal/settings")
-                .then().statusCode(422)
+                .then().statusCode(UNPROCESSABLE_ENTITY)
                 .body(containsString("Timezone must be one of"));
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().timezone)
@@ -782,7 +786,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("statsOrder", "best-year", "total-days", "current-streak", "last-performed")
                 .formParam("statsEnabled", "best-year", "current-streak")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> {
             assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
@@ -804,7 +808,7 @@ class SettingsIT extends IntegrationTestBase {
         given().formParam("statsOrder", "last-performed", "current-streak")
                 .formParam("statsEnabled", "current-streak")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
             .as("mandatory last-performed stored enabled")
@@ -816,7 +820,7 @@ class SettingsIT extends IntegrationTestBase {
         // PATCH semantics on the consolidated endpoint: a request without statsOrder leaves the
         // arrangement alone (null here = never customised, so the default order still applies).
         given().patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
             .as("an absent statsOrder must leave the stored arrangement untouched")
@@ -825,11 +829,11 @@ class SettingsIT extends IntegrationTestBase {
 
     @Test
     void updateStatsFields_leavesOtherSettingsUntouched() {
-        given().formParam("theme", "dark").patch("/internal/settings").then().statusCode(204);
+        given().formParam("theme", "dark").patch("/internal/settings").then().statusCode(NO_CONTENT);
 
         given().formParam("statsOrder", "current-streak", "last-performed")
                 .formParam("statsEnabled", "current-streak")
-                .patch("/internal/settings").then().statusCode(204);
+                .patch("/internal/settings").then().statusCode(NO_CONTENT);
 
         runInTx(() -> {
             final User user = User.findByEmail(PRIMARY).orElseThrow();
@@ -852,7 +856,7 @@ class SettingsIT extends IntegrationTestBase {
                 .formParam("statsEnabled", "best-year", "current-streak")
                 .formParam("statsLabel", "", "  Days in row  ", "")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> {
             final List<StatFieldPref> stored = User.findByEmail(PRIMARY).orElseThrow().statsFields;
@@ -872,13 +876,13 @@ class SettingsIT extends IntegrationTestBase {
                 .formParam("statsEnabled", "current-streak")
                 .formParam("statsLabel", "Days in row", "")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         given().formParam("statsOrder", "current-streak", "last-performed")
                 .formParam("statsEnabled", "current-streak")
                 .formParam("statsLabel", "", "")
                 .patch("/internal/settings")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)
             .as("re-submitting the row with a blank name restores the built-in label")
@@ -891,7 +895,7 @@ class SettingsIT extends IntegrationTestBase {
                 .formParam("statsEnabled", "current-streak")
                 .formParam("statsLabel", "a".repeat(StatField.MAX_LABEL_LENGTH + 1), "")
                 .patch("/internal/settings")
-                .then().statusCode(422)
+                .then().statusCode(UNPROCESSABLE_ENTITY)
                 .body(containsString("Stat name must be at most"));
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().statsFields)

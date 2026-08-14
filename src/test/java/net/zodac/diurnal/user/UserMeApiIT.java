@@ -18,6 +18,11 @@
 package net.zodac.diurnal.user;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
+import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
+import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.UNAUTHORIZED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,7 +70,7 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"displayName":"Renamed User","preferences":{"theme":"dark","pageSize":25,"timezone":"Europe/London"}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("displayName", equalTo("Renamed User"))
                 .body("preferences.theme", equalTo("dark"))
                 .body("preferences.pageSize", equalTo(25))
@@ -90,7 +95,7 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"preferences":{"font":"dyslexic"}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("displayName", equalTo("Me API User"))
                 .body("preferences.font", equalTo("dyslexic"))
                 .body("preferences.theme", equalTo("system"));
@@ -104,12 +109,12 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"preferences":{"theme":"neon"}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("Theme must be one of: system, light, dark"));
 
         given().header("Authorization", "Bearer " + token())
                 .get("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("preferences.theme", equalTo("system"));
     }
 
@@ -124,12 +129,12 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"displayName":"Should Not Persist","preferences":{"theme":"neon"}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("Theme must be one of"));
 
         given().header("Authorization", "Bearer " + token())
                 .get("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("displayName", equalTo("Me API User"))
                 .body("preferences.theme", equalTo("system"));
 
@@ -146,7 +151,7 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"preferences":{"timezone":"Mars/Phobos"}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("Timezone must be one of"));
     }
 
@@ -158,7 +163,7 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"preferences":{"timezone":"Europe/London"}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("preferences.timezone", equalTo("Europe/London"));
 
         given().header("Authorization", "Bearer " + token())
@@ -167,7 +172,7 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"preferences":{"timezone":""}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("preferences.timezone", nullValue());
     }
 
@@ -179,7 +184,7 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"preferences":{"pageSize":9999}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("Items per page"));
     }
 
@@ -189,7 +194,7 @@ class UserMeApiIT extends IntegrationTestBase {
                 .contentType(ContentType.JSON)
                 .body("{\"displayName\":\"" + "x".repeat(101) + "\"}")
                 .patch("/api/v1/users/me")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("between 2 and 50"));
     }
 
@@ -205,7 +210,7 @@ class UserMeApiIT extends IntegrationTestBase {
                         ]}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("preferences.statsFields[0].key", equalTo("total-count"))
                 .body("preferences.statsFields[0].enabled", equalTo(true))
                 .body("preferences.statsFields[1].key", equalTo("current-streak"))
@@ -224,13 +229,13 @@ class UserMeApiIT extends IntegrationTestBase {
                         ]}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("preferences.statsFields[0].label", equalTo("Days in row"))
                 .body("preferences.statsFields[1].label", nullValue());
 
         given().header("Authorization", "Bearer " + token())
                 .get("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("preferences.statsFields[0].label", equalTo("Days in row"));
     }
 
@@ -242,7 +247,7 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"preferences":{"statsFields":[{"key":"current-streak","enabled":true,"label":"Days in row"}]}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         given().header("Authorization", "Bearer " + token())
                 .contentType(ContentType.JSON)
@@ -250,7 +255,7 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"preferences":{"statsFields":[{"key":"current-streak","enabled":true,"label":"   "}]}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("preferences.statsFields[0].label", nullValue());
     }
 
@@ -263,12 +268,12 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"preferences":{"statsFields":[{"key":"current-streak","enabled":true,"label":"%s"}]}}
                         """.formatted("a".repeat(StatField.MAX_LABEL_LENGTH + 1)))
                 .patch("/api/v1/users/me")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("Stat name must be at most"));
 
         given().header("Authorization", "Bearer " + token())
                 .get("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("preferences.statsFields", nullValue());
     }
 
@@ -283,7 +288,7 @@ class UserMeApiIT extends IntegrationTestBase {
                         ]}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 // Stored in the catalogue's own order, not the order they were sent in.
                 .body("preferences.pageSizes[0].section", equalTo("actions"))
                 .body("preferences.pageSizes[0].pageSize", equalTo(25))
@@ -292,7 +297,7 @@ class UserMeApiIT extends IntegrationTestBase {
 
         given().header("Authorization", "Bearer " + token())
                 .get("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("preferences.pageSize", equalTo(10))
                 .body("preferences.pageSizes.size()", equalTo(2));
     }
@@ -305,13 +310,13 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"preferences":{"pageSizes":[{"section":"actions","pageSize":25}]}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         given().header("Authorization", "Bearer " + token())
                 .contentType(ContentType.JSON)
                 .body("{\"preferences\":{\"pageSizes\":[]}}")
                 .patch("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("preferences.pageSizes", nullValue());
     }
 
@@ -324,12 +329,12 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"preferences":{"pageSizes":[{"section":"actions","pageSize":999}]}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("100"));
 
         given().header("Authorization", "Bearer " + token())
                 .get("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("preferences.pageSizes", nullValue());
     }
 
@@ -344,7 +349,7 @@ class UserMeApiIT extends IntegrationTestBase {
                         ]}}
                         """)
                 .patch("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("preferences.pageSizes.size()", equalTo(1))
                 .body("preferences.pageSizes[0].section", equalTo("notes"));
     }
@@ -355,7 +360,7 @@ class UserMeApiIT extends IntegrationTestBase {
                 .contentType(ContentType.JSON)
                 .body("{}")
                 .patch("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("displayName", equalTo("Me API User"));
     }
 
@@ -372,14 +377,14 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"currentPassword":"%s","newPassword":"a brand new passphrase"}
                         """.formatted(TEST_PASSWORD))
                 .put("/api/v1/users/me/password")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         given().header("Authorization", "Bearer " + callerToken)
                 .get("/api/v1/users/me")
-                .then().statusCode(200);
+                .then().statusCode(OK);
         given().header("Authorization", "Bearer " + otherDeviceToken)
                 .get("/api/v1/users/me")
-                .then().statusCode(401);
+                .then().statusCode(UNAUTHORIZED);
     }
 
     @Test
@@ -390,7 +395,7 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"currentPassword":"not-the-password","newPassword":"a brand new passphrase"}
                         """)
                 .put("/api/v1/users/me/password")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("Current password is incorrect"));
     }
 
@@ -400,7 +405,7 @@ class UserMeApiIT extends IntegrationTestBase {
                 .contentType(ContentType.JSON)
                 .body("{\"currentPassword\":\"" + TEST_PASSWORD + "\",\"newPassword\":\"" + "a".repeat(129) + "\"}")
                 .put("/api/v1/users/me/password")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("128"));
     }
 
@@ -415,20 +420,20 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"currentPassword":"%s","newPassword":"%s"}
                         """.formatted(TEST_PASSWORD, TEST_PASSWORD))
                 .put("/api/v1/users/me/password")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("different from the existing password"));
 
         // A rejected change must be a complete no-op: no re-hash, and crucially no session revocation.
         given().header("Authorization", "Bearer " + otherDeviceToken)
                 .get("/api/v1/users/me")
-                .then().statusCode(200);
+                .then().statusCode(OK);
         given().header("Authorization", "Bearer " + callerToken)
                 .contentType(ContentType.JSON)
                 .body("""
                         {"currentPassword":"%s","newPassword":"a brand new passphrase"}
                         """.formatted(TEST_PASSWORD))
                 .put("/api/v1/users/me/password")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
     }
 
     @Test
@@ -443,7 +448,7 @@ class UserMeApiIT extends IntegrationTestBase {
                         {"currentPassword":"irrelevant","newPassword":"whatever"}
                         """)
                 .put("/api/v1/users/me/password")
-                .then().statusCode(403);
+                .then().statusCode(FORBIDDEN);
     }
 
     private String token() {

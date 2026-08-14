@@ -18,6 +18,10 @@
 package net.zodac.diurnal.log;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
+import static net.zodac.diurnal.http.HttpStatusCodes.NOT_FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -64,7 +68,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
     @Test
     void dayLogs_noEntries_returnsEmptyArray() {
         given().get("/api/v1/logs/" + TODAY)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("$.size()", equalTo(0));
     }
 
@@ -79,7 +83,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
         });
 
         given().get("/api/v1/logs/" + TODAY)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("$.size()", equalTo(2))
                 .body("[0].name", equalTo("Running"))
                 .body("[0].count", equalTo(2))
@@ -90,7 +94,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
     @Test
     void dayLogs_invalidDate_returns400() {
         given().get("/api/v1/logs/not-a-date")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 
     // ── Set ───────────────────────────────────────────────────────────────────
@@ -102,7 +106,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
                         {"count":3}
                         """)
                 .put("/api/v1/logs/" + TODAY + "/" + action.id)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("count", equalTo(3))
                 .body("date", equalTo(TODAY.toString()));
 
@@ -120,7 +124,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
                         {"count":0}
                         """)
                 .put("/api/v1/logs/" + TODAY + "/" + action.id)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("count", equalTo(0));
 
         runInTx(() -> assertThat(ActionLog.findEntry(primaryId, action.id, TODAY))
@@ -135,7 +139,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
                         {"count":1500}
                         """)
                 .put("/api/v1/logs/" + TODAY + "/" + action.id)
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("999"));
 
         runInTx(() -> assertThat(ActionLog.findEntry(primaryId, action.id, TODAY))
@@ -148,7 +152,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body("{}")
                 .put("/api/v1/logs/" + TODAY + "/" + action.id)
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("count"));
     }
 
@@ -159,7 +163,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
                         {"count":-1}
                         """)
                 .put("/api/v1/logs/" + TODAY + "/" + action.id)
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 
     @Test
@@ -169,7 +173,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
                         {"count":1}
                         """)
                 .put("/api/v1/logs/" + TOMORROW + "/" + action.id)
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("future"));
     }
 
@@ -182,7 +186,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
                         {"count":1}
                         """)
                 .put("/api/v1/logs/" + TODAY + "/" + otherAction.id)
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     // ── Increment / decrement ─────────────────────────────────────────────────
@@ -192,7 +196,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body("{}")
                 .post("/api/v1/logs/" + TODAY + "/" + action.id + "/increment")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("count", equalTo(1));
     }
 
@@ -205,7 +209,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
                         {"amount":5}
                         """)
                 .post("/api/v1/logs/" + TODAY + "/" + action.id + "/increment")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("count", equalTo(7));
     }
 
@@ -218,7 +222,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
                         {"amount":10}
                         """)
                 .post("/api/v1/logs/" + TODAY + "/" + action.id + "/increment")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("999"));
 
         runInTx(() -> assertThat(ActionLog.findEntry(primaryId, action.id, TODAY).count)
@@ -235,7 +239,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
                         {"amount":1}
                         """)
                 .post("/api/v1/logs/" + TODAY + "/" + action.id + "/increment")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("count", equalTo(999));
     }
 
@@ -246,7 +250,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
                         {"amount":0}
                         """)
                 .post("/api/v1/logs/" + TODAY + "/" + action.id + "/increment")
-                .then().statusCode(400)
+                .then().statusCode(BAD_REQUEST)
                 .body("message", containsString("amount"));
     }
 
@@ -255,7 +259,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body("{}")
                 .post("/api/v1/logs/" + TOMORROW + "/" + action.id + "/increment")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 
     @Test
@@ -265,7 +269,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body("{}")
                 .post("/api/v1/logs/" + TODAY + "/" + action.id + "/decrement")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("count", equalTo(0));
 
         runInTx(() -> assertThat(ActionLog.findEntry(primaryId, action.id, TODAY))
@@ -282,7 +286,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
                         {"amount":10}
                         """)
                 .post("/api/v1/logs/" + TODAY + "/" + action.id + "/decrement")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("count", equalTo(0));
     }
 
@@ -293,7 +297,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
                 .body("{}")
                 .post("/api/v1/logs/" + TODAY + "/" + otherAction.id + "/decrement")
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     // ── Delete ────────────────────────────────────────────────────────────────
@@ -303,7 +307,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
         runInTx(() -> newLog(primaryId, action.id, TODAY, 3));
 
         given().delete("/api/v1/logs/" + TODAY + "/" + action.id)
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(ActionLog.findEntry(primaryId, action.id, TODAY))
             .as("the day's entry should be removed")
@@ -313,13 +317,13 @@ class LogsApiWriteIT extends IntegrationTestBase {
     @Test
     void delete_missingEntry_isNoOp204() {
         given().delete("/api/v1/logs/" + TODAY + "/" + action.id)
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
     }
 
     @Test
     void delete_unknownAction_returns404() {
         given().delete("/api/v1/logs/" + TODAY + "/" + UUID.randomUUID())
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     private Action newActionInTx(final UUID userId) {

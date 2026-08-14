@@ -18,6 +18,8 @@
 package net.zodac.diurnal.web;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
@@ -85,7 +87,7 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
         lockIp(LOCKED_IP);
 
         given().get("/admin/users")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("IP Lockouts"))
                 .body(containsString(LOCKED_IP))
                 .body(containsString("Active"));
@@ -96,7 +98,7 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
         lockIp(LOCKED_IP);
 
         given().get("/internal/admin/ip-lockouts/history")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString(LOCKED_IP))
                 .body(containsString("Active"));
     }
@@ -107,7 +109,7 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
         final UUID id = lockoutIdFor(LOCKED_IP);
 
         given().get("/internal/admin/ip-lockouts/" + id + "/confirm-unlock")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString(LOCKED_IP))
                 .body(containsString("Unlock"))
                 .body(containsString("Cancel"));
@@ -119,7 +121,7 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
         final UUID id = lockoutIdFor(LOCKED_IP);
 
         given().get("/internal/admin/ip-lockouts/" + id + "/row")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString(LOCKED_IP))
                 .body(containsString("Active"))
                 .body(containsString("Unlock"));
@@ -130,7 +132,7 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
         lockIp(LOCKED_IP);
 
         given().post("/internal/admin/ip-lockouts/" + LOCKED_IP + "/unlock")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 // the row is still in the table, now stamped with the Unlocked status. The acting admin's
                 // identity is not shown in the row (it lives in the log and the /api/v1 DTO for traceability).
                 .body(containsString("Unlocked"));
@@ -139,14 +141,14 @@ class AdminIpLockoutsInternalIT extends IntegrationTestBase {
     @Test
     void unlock_ipNoLongerLocked_returnsConflictBanner() {
         given().post("/internal/admin/ip-lockouts/" + OTHER_IP + "/unlock")
-                .then().statusCode(409)
+                .then().statusCode(CONFLICT)
                 .body(containsString("no longer locked out"));
     }
 
     @Test
     void adminPage_withNoLockouts_omitsTheSectionEntirely() {
         given().get("/admin/users")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(not(containsString("IP Lockouts")))
                 .body(not(containsString(LOCKED_IP)));
     }

@@ -33,7 +33,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
-import java.net.HttpURLConnection;
+import jakarta.ws.rs.core.Response;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
@@ -208,7 +208,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
             // AuthenticationRedirectException is the one failure type the OIDC layer passes through as a clean redirect (anything else becomes
             // an AuthenticationCompletionException and a bare 401).
             routingContext.response().addCookie(Cookie.cookie("q_session", "").setPath("/").setMaxAge(0L));
-            throw new AuthenticationRedirectException(HttpURLConnection.HTTP_MOVED_TEMP, "/oidc-login");
+            throw new AuthenticationRedirectException(Response.Status.FOUND.getStatusCode(), "/oidc-login");
         }
         return identityFor(user, idTokenCred);
     }
@@ -337,7 +337,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
                 // marker plus the wrong identity's q_session so the next attempt starts a completely fresh code flow.
                 routingContext.response().addCookie(Cookie.cookie(LINK_COOKIE, "").setPath("/").setMaxAge(0L));
                 routingContext.response().addCookie(Cookie.cookie("q_session", "").setPath("/").setMaxAge(0L));
-                return new AuthenticationRedirectException(HttpURLConnection.HTTP_MOVED_TEMP, "/settings?msg=" + reason.code());
+                return new AuthenticationRedirectException(Response.Status.FOUND.getStatusCode(), "/settings?msg=" + reason.code());
             }
             // An ordinary login denial: to the login page, which renders the reason banner from this cookie and clears the stale q_session
             // so a retry starts a fresh flow.
@@ -345,7 +345,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
                 .setPath("/")
                 .setMaxAge(ERROR_COOKIE_MAX_AGE_SECONDS)
                 .setHttpOnly(true));
-            return new AuthenticationRedirectException(HttpURLConnection.HTTP_MOVED_TEMP, LOGIN_ERROR_REDIRECT);
+            return new AuthenticationRedirectException(Response.Status.FOUND.getStatusCode(), LOGIN_ERROR_REDIRECT);
         }
         // No request context (direct service-level calls in tests): fail conventionally with the reason as the message.
         return new AuthenticationFailedException(reason.message(oidcConfig.providerName()));

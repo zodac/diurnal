@@ -18,6 +18,8 @@
 package net.zodac.diurnal.user;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.UNAUTHORIZED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
@@ -57,7 +59,7 @@ class UserResourceIT extends IntegrationTestBase {
     void me_withToken_returnsOwnProfile() {
         given().header(bearer())
                 .get("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("id", not(nullValue()))
                 .body("email", equalTo("me-api@lt.test"))
                 .body("displayName", equalTo("Me User"))
@@ -98,7 +100,7 @@ class UserResourceIT extends IntegrationTestBase {
 
         given().header(bearerFor(admin))
                 .get("/api/v1/users/me")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("role", equalTo("admin"))
                 // Stamped once per sign-in, and surfaced verbatim (the Settings page words the same value as an age).
                 .body("lastLoginAt", startsWith("2026-06-15T09:14:00"))
@@ -118,14 +120,14 @@ class UserResourceIT extends IntegrationTestBase {
         // Argon2id therefore never runs for a Basic header, so this cannot be used to guess passwords.
         given().auth().preemptive().basic("me-api@lt.test", TEST_PASSWORD)
                 .get("/api/v1/users/me")
-                .then().statusCode(401);
+                .then().statusCode(UNAUTHORIZED);
     }
 
     @Test
     void me_withoutToken_returns401() {
         given()
                 .get("/api/v1/users/me")
-                .then().statusCode(401);
+                .then().statusCode(UNAUTHORIZED);
     }
 
     private Header bearer() {

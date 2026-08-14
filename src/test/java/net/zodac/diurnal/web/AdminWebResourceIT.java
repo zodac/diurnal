@@ -18,6 +18,11 @@
 package net.zodac.diurnal.web;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
+import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
+import static net.zodac.diurnal.http.HttpStatusCodes.FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.MOVED_PERMANENTLY;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -47,7 +52,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER_INTERNAL_VALUE, Role.Values.ADMIN_INTERNAL_VALUE})
     void usersPage_admin_returns200() {
         given().get("/admin/users")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .contentType(containsString("text/html"))
                 .body(containsString("User Management"));
     }
@@ -56,14 +61,14 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @TestSecurity(user = "user@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
     void usersPage_nonAdmin_returns403() {
         given().get("/admin/users")
-                .then().statusCode(403);
+                .then().statusCode(FORBIDDEN);
     }
 
     @Test
     @TestSecurity(user = "user@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
     void usersPage_nonAdmin_403PageIsStyledHtml() {
         given().get("/admin/users")
-                .then().statusCode(403)
+                .then().statusCode(FORBIDDEN)
                 .contentType(containsString("text/html"))
                 .body(containsString("Access Denied"));
     }
@@ -73,7 +78,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     void usersPage_nonAdmin_403PageHasNavbar() {
         // The error page should still render the navbar so users can navigate away
         given().get("/admin/users")
-                .then().statusCode(403)
+                .then().statusCode(FORBIDDEN)
                 .body(containsString("Dashboard"))
                 .body(containsString("Log out"));
     }
@@ -82,7 +87,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     void usersPage_unauthenticated_redirectsToLogin() {
         given().redirects().follow(false)
                 .get("/admin/users")
-                .then().statusCode(anyOf(equalTo(301), equalTo(302)))
+                .then().statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND)))
                 .header("Location", containsString("/login"));
     }
 
@@ -93,7 +98,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
 
         given().formParam("role", "admin")
                 .post("/internal/admin/users/" + userId + "/role")
-                .then().statusCode(403);
+                .then().statusCode(FORBIDDEN);
     }
 
     // ── User list content ─────────────────────────────────────────────────
@@ -102,7 +107,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER_INTERNAL_VALUE, Role.Values.ADMIN_INTERNAL_VALUE})
     void usersPage_showsBothUsers() {
         given().get("/admin/users")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("admin@lt.test"))
                 .body(containsString("user@lt.test"));
     }
@@ -117,7 +122,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
         });
 
         given().get("/admin/users")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 // Assert on the tooltip bubble's TEXT content (>...<), not the aria-label attribute
                 // (= "..."), so a literal, un-interpolated {u.zoneLabel} in the bubble would fail here.
                 .body(containsString(">Timezone: America/New_York<"))
@@ -133,7 +138,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
         // The admin seeded by createDbState has no timezone override, so the tooltip names the
         // server-default zone (UTC in the test profile).
         given().get("/admin/users")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString(">Timezone: UTC<"))
                 .body(not(containsString("{u.zoneLabel}")))
                 .body(not(containsString("{u.zoneTooltip}")));
@@ -148,7 +153,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
 
         given().formParam("role", "admin")
                 .post("/internal/admin/users/" + userId + "/role")
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         runInTx(() -> {
             final User u = User.findByEmail("user@lt.test").orElseThrow();
@@ -165,7 +170,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
 
         given().formParam("role", "user")
                 .post("/internal/admin/users/" + adminId + "/role")
-                .then().statusCode(409)
+                .then().statusCode(CONFLICT)
                 .body(containsString("last administrator"));
     }
 
@@ -182,7 +187,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
         final UUID adminId = runInTxReturning(() -> User.findByEmail("admin@lt.test").orElseThrow().id);
         given().formParam("role", "user")
                 .post("/internal/admin/users/" + adminId + "/role")
-                .then().statusCode(200);
+                .then().statusCode(OK);
         runInTx(() -> assertThat(User.findByEmail("admin@lt.test").orElseThrow().role)
             .as("unexpected value")
             .isEqualTo(Role.USER.storageValue()));
@@ -196,7 +201,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
         final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
         given().get("/internal/admin/users/" + userId + "/confirm-delete")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .contentType(containsString("text/html"))
                 .body(containsString("user@lt.test"))
                 .body(containsString("Delete this user, their actions and logs?"))
@@ -207,7 +212,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER_INTERNAL_VALUE, Role.Values.ADMIN_INTERNAL_VALUE})
     void confirmDeleteUser_notFound_returns409() {
         given().get("/internal/admin/users/" + UUID.randomUUID() + "/confirm-delete")
-                .then().statusCode(409);
+                .then().statusCode(CONFLICT);
     }
 
     @Test
@@ -216,7 +221,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
         final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
         given().get("/internal/admin/users/" + userId)
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .contentType(containsString("text/html"))
                 .body(containsString("user@lt.test"))
                 .body(containsString("confirm-delete"));
@@ -230,7 +235,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
         final UUID userId = runInTxReturning(() -> User.findByEmail("user@lt.test").orElseThrow().id);
 
         given().post("/internal/admin/users/" + userId + "/delete")
-                .then().statusCode(200);
+                .then().statusCode(OK);
 
         runInTx(() -> assertThat(User.findByEmail("user@lt.test").isPresent())
             .as("expected condition to be false")
@@ -243,7 +248,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
         final UUID adminId = runInTxReturning(() -> User.findByEmail("admin@lt.test").orElseThrow().id);
 
         given().post("/internal/admin/users/" + adminId + "/delete")
-                .then().statusCode(409)
+                .then().statusCode(CONFLICT)
                 .body(containsString("last administrator"));
     }
 
@@ -251,7 +256,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER_INTERNAL_VALUE, Role.Values.ADMIN_INTERNAL_VALUE})
     void deleteUser_notFound_returns409() {
         given().post("/internal/admin/users/" + UUID.randomUUID() + "/delete")
-                .then().statusCode(409)
+                .then().statusCode(CONFLICT)
                 .body(containsString("not found"));
     }
 

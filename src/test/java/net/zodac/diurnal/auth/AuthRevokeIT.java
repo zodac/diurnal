@@ -18,6 +18,10 @@
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.SEE_OTHER;
+import static net.zodac.diurnal.http.HttpStatusCodes.UNAUTHORIZED;
 
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -57,17 +61,17 @@ class AuthRevokeIT extends IntegrationTestBase {
 
         given().header("Authorization", "Bearer " + callerToken)
                 .post("/api/v1/auth/revoke")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         given().header("Authorization", "Bearer " + callerToken)
                 .get("/api/v1/users/me")
-                .then().statusCode(401);
+                .then().statusCode(UNAUTHORIZED);
         given().header("Authorization", "Bearer " + otherDeviceToken)
                 .get("/api/v1/users/me")
-                .then().statusCode(401);
+                .then().statusCode(UNAUTHORIZED);
         given().header("Authorization", "Bearer " + otherUsersToken)
                 .get("/api/v1/users/me")
-                .then().statusCode(200);
+                .then().statusCode(OK);
     }
 
     @Test
@@ -79,11 +83,11 @@ class AuthRevokeIT extends IntegrationTestBase {
 
         given().header("Authorization", "Bearer " + callerToken)
                 .post("/api/v1/auth/revoke")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         given().cookie("diurnal_session", webSessionToken)
                 .get("/api/v1/users/me")
-                .then().statusCode(401);
+                .then().statusCode(UNAUTHORIZED);
     }
 
     @Test
@@ -96,11 +100,11 @@ class AuthRevokeIT extends IntegrationTestBase {
         given().redirects().follow(false)
                 .cookie("diurnal_session", webSessionToken)
                 .post("/internal/settings/sessions/revoke-all")
-                .then().statusCode(303);
+                .then().statusCode(SEE_OTHER);
 
         given().header("Authorization", "Bearer " + apiToken)
                 .get("/api/v1/users/me")
-                .then().statusCode(401);
+                .then().statusCode(UNAUTHORIZED);
     }
 
     @Test
@@ -110,18 +114,18 @@ class AuthRevokeIT extends IntegrationTestBase {
         given().header("Authorization", "Bearer " + token(user))
                 .contentType("text/plain")
                 .post("/api/v1/auth/logout")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         given().header("Authorization", "Bearer " + token(user))
                 .contentType("text/plain")
                 .post("/api/v1/auth/revoke")
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
     }
 
     @Test
     void revoke_anonymous_isChallengedWith401() {
         given().post("/api/v1/auth/revoke")
-                .then().statusCode(401);
+                .then().statusCode(UNAUTHORIZED);
     }
 
     private String token(final User tokenUser) {

@@ -18,6 +18,10 @@
 package net.zodac.diurnal.note;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
+import static net.zodac.diurnal.http.HttpStatusCodes.NOT_FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -56,7 +60,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
     @Test
     void readNote_withNoNote_isNotFound() {
         given().get(DAY_PATH)
-            .then().statusCode(404);
+            .then().statusCode(NOT_FOUND);
     }
 
     @Test
@@ -64,7 +68,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
         runInTx(() -> newNote(userId, DAY, "Ran 5k"));
 
         given().get(DAY_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("date", org.hamcrest.Matchers.equalTo(DAY.toString()))
             .body("content", org.hamcrest.Matchers.equalTo("Ran 5k"));
     }
@@ -72,7 +76,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
     @Test
     void readNote_withMalformedDate_isBadRequest() {
         given().get("/api/v1/notes/not-a-date")
-            .then().statusCode(400);
+            .then().statusCode(BAD_REQUEST);
     }
 
     // ── read a range ──────────────────────────────────────────────────────────
@@ -88,7 +92,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
         given().queryParam("start", DAY.minusDays(3).toString())
             .queryParam("end", DAY.plusDays(1).toString())
             .get("/api/v1/notes")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("items.size()", org.hamcrest.Matchers.is(2))
             .body("totalCount", org.hamcrest.Matchers.is(2))
             .body("totalPages", org.hamcrest.Matchers.is(1))
@@ -112,7 +116,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", start).queryParam("end", end)
             .get("/api/v1/notes")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("items.size()", org.hamcrest.Matchers.is(31))
             .body("totalCount", org.hamcrest.Matchers.is(40))
             .body("totalPages", org.hamcrest.Matchers.is(2))
@@ -122,7 +126,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", start).queryParam("end", end).queryParam("page", 2)
             .get("/api/v1/notes")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("items.size()", org.hamcrest.Matchers.is(9))
             .body("currentPage", org.hamcrest.Matchers.is(2))
             .body("items[8].date", org.hamcrest.Matchers.equalTo(end));
@@ -135,18 +139,18 @@ class NotesApiResourceIT extends IntegrationTestBase {
 
         given().queryParam("start", DAY.toString()).queryParam("end", DAY.toString()).queryParam("page", 2)
             .get("/api/v1/notes")
-            .then().statusCode(400);
+            .then().statusCode(BAD_REQUEST);
 
         given().queryParam("start", DAY.toString()).queryParam("end", DAY.toString()).queryParam("page", 0)
             .get("/api/v1/notes")
-            .then().statusCode(400);
+            .then().statusCode(BAD_REQUEST);
     }
 
     @Test
     void listNotes_emptyRange_isAnEmptyFirstPage() {
         given().queryParam("start", DAY.toString()).queryParam("end", DAY.toString())
             .get("/api/v1/notes")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("items.size()", org.hamcrest.Matchers.is(0))
             .body("totalCount", org.hamcrest.Matchers.is(0))
             .body("currentPage", org.hamcrest.Matchers.is(1));
@@ -162,7 +166,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
         });
 
         given().get("/api/v1/notes")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("totalCount", org.hamcrest.Matchers.is(2))
             .body("items[0].date", org.hamcrest.Matchers.equalTo(DAY.minusYears(2).toString()))
             .body("items[1].date", org.hamcrest.Matchers.equalTo(DAY.toString()));
@@ -173,11 +177,11 @@ class NotesApiResourceIT extends IntegrationTestBase {
         // Half a range is a request the caller did not mean to make, so it is rejected rather than being quietly completed with an open end.
         given().queryParam("start", DAY.toString())
             .get("/api/v1/notes")
-            .then().statusCode(400);
+            .then().statusCode(BAD_REQUEST);
 
         given().queryParam("end", DAY.toString())
             .get("/api/v1/notes")
-            .then().statusCode(400);
+            .then().statusCode(BAD_REQUEST);
     }
 
     // ── search ────────────────────────────────────────────────────────────────
@@ -192,7 +196,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
 
         given().queryParam("q", "5k")
             .get("/api/v1/notes")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("totalCount", org.hamcrest.Matchers.is(2))
             .body("items[0].date", org.hamcrest.Matchers.equalTo(DAY.minusDays(2).toString()))
             .body("items[1].date", org.hamcrest.Matchers.equalTo(DAY.toString()));
@@ -209,7 +213,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
             .queryParam("end", DAY.toString())
             .queryParam("q", "5k")
             .get("/api/v1/notes")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("totalCount", org.hamcrest.Matchers.is(1))
             .body("items[0].date", org.hamcrest.Matchers.equalTo(DAY.toString()));
     }
@@ -220,7 +224,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
 
         given().queryParam("q", "cycling")
             .get("/api/v1/notes")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("totalCount", org.hamcrest.Matchers.is(0))
             .body("currentPage", org.hamcrest.Matchers.is(1));
     }
@@ -231,7 +235,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
 
         given().queryParam("q", "   ")
             .get("/api/v1/notes")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("totalCount", org.hamcrest.Matchers.is(1));
     }
 
@@ -243,7 +247,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
 
         given().queryParam("q", "5k")
             .get("/api/v1/notes")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("totalCount", org.hamcrest.Matchers.is(0));
     }
 
@@ -254,7 +258,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"Ran 5k before work\"}")
             .put(DAY_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("content", org.hamcrest.Matchers.equalTo("Ran 5k before work"));
 
         runInTx(() -> assertThat(storedNoteContent(userId, DAY))
@@ -269,7 +273,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"Second draft\"}")
             .put(DAY_PATH)
-            .then().statusCode(200);
+            .then().statusCode(OK);
 
         runInTx(() -> assertThat(storedNoteContent(userId, DAY))
             .as("a second write must replace the content, not collide")
@@ -282,7 +286,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"  First\\r\\n\\r\\n\\r\\n\\r\\nSecond  \"}")
             .put(DAY_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("content", org.hamcrest.Matchers.equalTo("First\n\nSecond"));
     }
 
@@ -291,7 +295,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"Line one\\nLine two\"}")
             .put(DAY_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("content", org.hamcrest.Matchers.equalTo("Line one\nLine two"));
     }
 
@@ -303,7 +307,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"Booked the day off\"}")
             .put("/api/v1/notes/" + future)
-            .then().statusCode(200);
+            .then().statusCode(OK);
 
         runInTx(() -> assertThat(Note.findEntry(userId, future))
             .as("a note must be writable against a future date")
@@ -317,7 +321,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"   \"}")
             .put(DAY_PATH)
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("content", org.hamcrest.Matchers.equalTo(""));
 
         runInTx(() -> assertThat(Note.findEntry(userId, DAY))
@@ -331,7 +335,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
 
         given().contentType(ContentType.JSON)
             .put(DAY_PATH)
-            .then().statusCode(200);
+            .then().statusCode(OK);
 
         runInTx(() -> assertThat(Note.findEntry(userId, DAY))
             .as("an omitted body is the same request as blank content")
@@ -345,7 +349,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"" + tooLong + "\"}")
             .put(DAY_PATH)
-            .then().statusCode(400);
+            .then().statusCode(BAD_REQUEST);
 
         runInTx(() -> assertThat(Note.findEntry(userId, DAY))
             .as("a rejected write must persist nothing")
@@ -357,7 +361,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"Ran 5k\\u200bbefore work\"}")
             .put(DAY_PATH)
-            .then().statusCode(400);
+            .then().statusCode(BAD_REQUEST);
 
         runInTx(() -> assertThat(Note.findEntry(userId, DAY))
             .as("the shared content policy applies to a note exactly as it does to a name")
@@ -369,7 +373,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"content\":\"Anything\"}")
             .put("/api/v1/notes/2026-13-45")
-            .then().statusCode(400);
+            .then().statusCode(BAD_REQUEST);
     }
 
     // ── delete ────────────────────────────────────────────────────────────────
@@ -379,7 +383,7 @@ class NotesApiResourceIT extends IntegrationTestBase {
         runInTx(() -> newNote(userId, DAY, "To be removed"));
 
         given().delete(DAY_PATH)
-            .then().statusCode(204);
+            .then().statusCode(NO_CONTENT);
 
         runInTx(() -> assertThat(Note.findEntry(userId, DAY))
             .as("the note must be gone")
@@ -389,6 +393,6 @@ class NotesApiResourceIT extends IntegrationTestBase {
     @Test
     void deleteNote_onADayWithNoNote_isStillNoContent() {
         given().delete(DAY_PATH)
-            .then().statusCode(204);
+            .then().statusCode(NO_CONTENT);
     }
 }

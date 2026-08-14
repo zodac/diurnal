@@ -18,6 +18,8 @@
 package net.zodac.diurnal.action;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
+import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -79,7 +81,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     void createAction_blankName_returns409WithHxRetarget() {
         given().formParam("name", "   ").formParam("colour", "#6366f1")
             .post("/internal/actions")
-            .then().statusCode(409)
+            .then().statusCode(CONFLICT)
             .header("HX-Retarget", "#action-error");
     }
 
@@ -89,7 +91,7 @@ class ActionsResourceIT extends IntegrationTestBase {
             .then().statusCode(Response.Status.OK.getStatusCode());
 
         given().formParam("name", "Cycling").formParam("colour", "#6366f1").post("/internal/actions")
-            .then().statusCode(409)
+            .then().statusCode(CONFLICT)
             .header("HX-Retarget", "#action-error");
     }
 
@@ -114,7 +116,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         // surface too (never silently corrected), not just on the API.
         given().formParam("name", "Swimming").formParam("colour", "not-a-colour")
             .post("/internal/actions")
-            .then().statusCode(409)
+            .then().statusCode(CONFLICT)
             .body(containsString("colour is invalid"));
     }
 
@@ -264,7 +266,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         final UUID id = createActionAndGetId("ToRename");
         given().formParam("name", "").formParam("colour", "#6366f1")
             .post("/internal/actions/" + id)
-            .then().statusCode(409)
+            .then().statusCode(CONFLICT)
             .header("HX-Retarget", "#action-error");
     }
 
@@ -274,7 +276,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         final UUID id = createActionAndGetId("ToRename");
         given().formParam("name", "Existing").formParam("colour", "#6366f1")
             .post("/internal/actions/" + id)
-            .then().statusCode(409);
+            .then().statusCode(CONFLICT);
     }
 
     @Test
@@ -301,7 +303,7 @@ class ActionsResourceIT extends IntegrationTestBase {
     void deleteAction_ownAction_returns204AndHardDeletesIt() {
         final UUID id = createActionAndGetId("ToDelete");
         given().post("/internal/actions/" + id + "/delete")
-            .then().statusCode(204);
+            .then().statusCode(NO_CONTENT);
 
         final Action found = Action.<Action>find("id = ?1", id).firstResult();
         assertThat(found)
@@ -318,7 +320,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         });
 
         given().post("/internal/actions/" + holder[0].id + "/delete")
-            .then().statusCode(204);
+            .then().statusCode(NO_CONTENT);
 
         final long logCount = net.zodac.diurnal.log.ActionLog.count("actionId = ?1", holder[0].id);
         assertThat(logCount)
@@ -340,7 +342,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         // (a soft-delete would leave the row and trip the (user_id, name) unique constraint).
         final UUID firstId = createActionAndGetId("Recreatable");
         given().post("/internal/actions/" + firstId + "/delete")
-            .then().statusCode(204);
+            .then().statusCode(NO_CONTENT);
 
         final UUID secondId = createActionAndGetId("Recreatable");
         assertThat(secondId)

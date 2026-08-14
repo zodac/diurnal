@@ -18,6 +18,7 @@
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.NOT_FOUND;
 
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
@@ -53,21 +54,21 @@ class AdminIpLockoutsDisabledApiIT extends IntegrationTestBase {
     void listCurrent_whenDisabled_isNotFound() {
         given().header("Authorization", "Bearer " + adminToken())
                 .get("/api/v1/admin/ip-lockouts")
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     @Test
     void listHistory_whenDisabled_isNotFound() {
         given().header("Authorization", "Bearer " + adminToken())
                 .get("/api/v1/admin/ip-lockouts/history")
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     @Test
     void unlock_whenDisabled_isNotFound() {
         given().header("Authorization", "Bearer " + adminToken())
                 .delete("/api/v1/admin/ip-lockouts/" + SOME_IP)
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     private String adminToken() {

@@ -18,6 +18,8 @@
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.SEE_OTHER;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.containsString;
@@ -95,7 +97,7 @@ class AccountLinkIT extends IntegrationTestBase {
     void webConnect_localAccount_setsIntentCookieAndEntersCodeFlow() {
         given().redirects().follow(false)
                 .post("/internal/settings/oidc/connect")
-                .then().statusCode(303)
+                .then().statusCode(SEE_OTHER)
                 .header("Location", endsWith("/oidc-login"))
                 .cookie(OidcUserProvisioner.LINK_COOKIE, "1");
     }
@@ -107,7 +109,7 @@ class AccountLinkIT extends IntegrationTestBase {
     void settingsPage_linkedAccount_showsConnectedStateLinkingToTheIdp() {
         // The provider name links to the IdP's base URL (OIDC_ISSUER_URL — the profile's placeholder realm here).
         given().get("/settings")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("Connected to"))
                 .body(containsString("href=\"http://127.0.0.1:8080/realms/diurnal\""));
     }
@@ -117,7 +119,7 @@ class AccountLinkIT extends IntegrationTestBase {
     void settingsPage_refusedConnectCode_rendersTheReasonBannerInPlace() {
         // A refused connection redirects back HERE (?msg=<OidcDenialReason code>) with the session intact — never to the login page.
         given().get("/settings?msg=link-email-mismatch")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("uses a different email address"));
     }
 
@@ -125,7 +127,7 @@ class AccountLinkIT extends IntegrationTestBase {
     @TestSecurity(user = LOCAL, roles = Role.Values.USER_INTERNAL_VALUE)
     void settingsPage_localAccount_offersConnectWithConversionWarning() {
         given().get("/settings")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body(containsString("/internal/settings/oidc/connect"))
                 .body(containsString("Your password will be removed"));
     }

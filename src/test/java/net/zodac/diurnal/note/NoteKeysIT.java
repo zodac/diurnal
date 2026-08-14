@@ -18,6 +18,7 @@
 package net.zodac.diurnal.note;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.CREATED;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -56,7 +57,7 @@ class NoteKeysIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"email\":\"" + NEW_ACCOUNT + "\",\"password\":\"" + TEST_PASSWORD + "\",\"displayName\":\"Note Keys\"}")
             .post("/api/v1/auth/register")
-            .then().statusCode(201);
+            .then().statusCode(CREATED);
 
         runInTx(() -> {
             final User registered = User.findByEmail(NEW_ACCOUNT).orElseThrow();
@@ -76,7 +77,7 @@ class NoteKeysIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"email\":\"" + NEW_ACCOUNT + "\",\"password\":\"" + TEST_PASSWORD + "\",\"displayName\":\"Note Keys\"}")
             .post("/api/v1/auth/register")
-            .then().statusCode(201);
+            .then().statusCode(CREATED);
 
         runInTx(() -> {
             final User registered = User.findByEmail(NEW_ACCOUNT).orElseThrow();
@@ -94,7 +95,7 @@ class NoteKeysIT extends IntegrationTestBase {
         given().contentType(ContentType.JSON)
             .body("{\"email\":\"" + NEW_ACCOUNT + "\",\"password\":\"" + TEST_PASSWORD + "\",\"displayName\":\"Note Keys\"}")
             .post("/api/v1/auth/register")
-            .then().statusCode(201);
+            .then().statusCode(CREATED);
 
         final User[] registered = new User[1];
         runInTx(() -> registered[0] = User.findByEmail(NEW_ACCOUNT).orElseThrow());

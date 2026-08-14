@@ -18,6 +18,7 @@
 package net.zodac.diurnal.status;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.matchesRegex;
 
@@ -38,7 +39,7 @@ class StatusResourceIT extends IntegrationTestBase {
     void status_anonymousRequest_reportsReady() {
         given().accept(ContentType.JSON)
             .get("/api/v1/status")
-            .then().statusCode(200)
+            .then().statusCode(OK)
             .body("liveness", equalTo("UP"))
             .body("readiness", equalTo("UP"))
             // The version is served from the packaged VERSION resource (same source as the footer / OpenAPI info block).

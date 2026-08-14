@@ -18,6 +18,11 @@
 package net.zodac.diurnal.auth;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
+import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
+import static net.zodac.diurnal.http.HttpStatusCodes.NOT_FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.equalTo;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -80,7 +85,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
 
         given().header("Authorization", "Bearer " + adminToken())
                 .get("/api/v1/admin/ip-lockouts")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(1))
                 .body("items[0].ipAddress", equalTo(LOCKED_IP))
                 .body("items[0].failureCount", equalTo(MAX_ATTEMPTS));
@@ -90,7 +95,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
     void listCurrent_emptyWhenNoneLocked() {
         given().header("Authorization", "Bearer " + adminToken())
                 .get("/api/v1/admin/ip-lockouts")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(0));
     }
 
@@ -100,7 +105,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
 
         given().header("Authorization", "Bearer " + adminToken())
                 .get("/api/v1/admin/ip-lockouts/history")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(1))
                 .body("items[0].ipAddress", equalTo(LOCKED_IP))
                 .body("items[0].status", equalTo("ACTIVE"))
@@ -115,7 +120,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
 
         given().header("Authorization", "Bearer " + adminToken())
                 .get("/api/v1/admin/ip-lockouts/history?page=2")
-                .then().statusCode(400);
+                .then().statusCode(BAD_REQUEST);
     }
 
     @Test
@@ -124,16 +129,16 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
 
         given().header("Authorization", "Bearer " + adminToken())
                 .delete("/api/v1/admin/ip-lockouts/" + LOCKED_IP)
-                .then().statusCode(204);
+                .then().statusCode(NO_CONTENT);
 
         given().header("Authorization", "Bearer " + adminToken())
                 .get("/api/v1/admin/ip-lockouts")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items.size()", equalTo(0));
 
         given().header("Authorization", "Bearer " + adminToken())
                 .get("/api/v1/admin/ip-lockouts/history")
-                .then().statusCode(200)
+                .then().statusCode(OK)
                 .body("items[0].status", equalTo("UNLOCKED"))
                 .body("items[0].unlockedBy", equalTo(ADMIN_EMAIL));
     }
@@ -142,7 +147,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
     void unlock_ipThatIsNotLocked_isNotFound() {
         given().header("Authorization", "Bearer " + adminToken())
                 .delete("/api/v1/admin/ip-lockouts/" + OTHER_IP)
-                .then().statusCode(404);
+                .then().statusCode(NOT_FOUND);
     }
 
     @Test
@@ -150,7 +155,7 @@ class AdminIpLockoutsApiIT extends IntegrationTestBase {
         final String userToken = sessionStore.create(regularUser, Session.AUTH_SOURCE_PASSWORD, null, null, SESSION_INSTANT);
         given().header("Authorization", "Bearer " + userToken)
                 .get("/api/v1/admin/ip-lockouts")
-                .then().statusCode(403);
+                .then().statusCode(FORBIDDEN);
     }
 
     private void lockIp() {
