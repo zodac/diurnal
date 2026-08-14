@@ -77,10 +77,12 @@ mvn package
 # smoke tiers), so `… java` and `-f` both run it. It is the only check that sees an unused PUBLIC/
 # package-private declaration - PMD, ErrorProne and SpotBugs all stop at `private` - running the reviewed
 # inspection set in code-quality-config/java/qodana/profiles/java.yaml (every switched-off rule carries its
-# reason beside it). It is
-# the longest single tier: ~2m35s warm (index + module model cached) against ~4m for Maven, ~10m COLD,
-# where it alone sets the java step's wall clock - CI caches .qodana/cache for exactly that reason, and
-# never .qodana/results (the SARIF, which must not be inherited). Its dead-code check needs the entry
+# reason beside it). WARM it is not the longest tier: ~2m35s (index + module model cached) against ~4m for
+# Maven, so the Maven tier - and the E2E run chained behind it - is what sets the java step's wall clock.
+# COLD it is ~10m and dominates everything, and CI caches .qodana/cache for exactly that reason, but
+# never .qodana/results (the SARIF, which must not be inherited). Running it in parallel with the Maven
+# tier stays worth it on a busy machine (measured: 436s together against 581s one after the other), and
+# capping the scan's CPU makes it worse, not better - the two just converge on equal finish times. Its dead-code check needs the entry
 # points in code-quality-config/java/qodana/overrides/, which the wrapper copies into .qodana/idea-config and
 # mounts over .idea/ inside the scan container - without
 # them 238 framework-instantiated declarations report as unused, with them 0.
