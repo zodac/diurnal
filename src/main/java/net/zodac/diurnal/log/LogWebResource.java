@@ -38,6 +38,7 @@ import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -45,7 +46,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
@@ -193,7 +193,7 @@ public class LogWebResource {
 
     // fillerRows: blank rows that keep every paginated page the height of a full page.
     // Only populated when there is more than one page; a single short page keeps its natural height.
-    private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages, int currentPage, List<Integer> fillerRows) {
+    private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, int totalPages, int currentPage, List<String> fillerRows) {
 
     }
 
@@ -219,8 +219,10 @@ public class LogWebResource {
         final PageWindow window = Pages.window(filtered.size(), pageNum, pageSize);
         final List<DayActionStatus> items = Pages.slice(filtered, window);
 
+        // The template only counts these rows, it never reads one, so a constant-space nCopies view says "repeat this many times" without
+        // materialising (and boxing) an index per row - this pages every day of the month on the dashboard's back-fill.
         final int fillers = window.totalPages() > 1 ? Math.max(0, pageSize - items.size()) : 0;
-        final List<Integer> fillerRows = IntStream.range(0, fillers).boxed().toList();
+        final List<String> fillerRows = Collections.nCopies(fillers, "");
 
         return new PaginatedDayActions(items, filtered.size(), window.totalPages(), window.currentPage(), fillerRows);
     }

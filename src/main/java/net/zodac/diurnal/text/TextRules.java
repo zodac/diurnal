@@ -17,8 +17,6 @@
 
 package net.zodac.diurnal.text;
 
-import java.util.Set;
-
 /**
  * The shared catalogue of {@link TextRule}s, so a content check is written once and referenced by every field that wants it.
  *
@@ -40,7 +38,7 @@ public final class TextRules { // NOPMD: DataClass - a catalogue of rule constan
     private static final int ZERO_WIDTH_NON_JOINER = 0x200C;
     private static final int LINE_FEED = 0x000A;
 
-    private static final Set<Integer> BLANK_CHARACTERS = Set.of(
+    private static final int[] BLANK_CHARACTERS = {
         0x115F,     // hangul choseong filler
         0x1160,     // hangul jungseong filler
         0x17B4,     // khmer vowel inherent aq
@@ -48,7 +46,7 @@ public final class TextRules { // NOPMD: DataClass - a catalogue of rule constan
         0x2800,     // braille pattern blank
         0x3164,     // hangul filler
         0xFFA0      // halfwidth hangul filler
-    );
+    };
 
     private static final int NONCHARACTER_PLANE_MASK = 0xFFFE;
     private static final int NONCHARACTER_BLOCK_START = 0xFDD0;
@@ -164,7 +162,7 @@ public final class TextRules { // NOPMD: DataClass - a catalogue of rule constan
     }
 
     private static boolean isInvisible(final int codePoint) {
-        if (BLANK_CHARACTERS.contains(codePoint) || isNoncharacter(codePoint)) {
+        if (isBlankCharacter(codePoint) || isNoncharacter(codePoint)) {
             return true;
         }
 
@@ -172,6 +170,18 @@ public final class TextRules { // NOPMD: DataClass - a catalogue of rule constan
             case Character.FORMAT, Character.SURROGATE, Character.PRIVATE_USE, Character.CONTROL -> true;
             default -> false;
         };
+    }
+
+    // Scanned rather than looked up: the table is seven entries long, and this runs once per code point of every value validated, where a
+    // Set<Integer> would box the argument on each call.
+    private static boolean isBlankCharacter(final int codePoint) {
+        for (final int blank : BLANK_CHARACTERS) {
+            if (blank == codePoint) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static boolean isNoncharacter(final int codePoint) {
