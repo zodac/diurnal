@@ -22,7 +22,7 @@
     - [Required](#required)
     - [Database](#database)
     - [Application](#application)
-    - [Notes](#notes)
+    - [Note Configuration](#note-configuration)
         - [Rotating the Key](#rotating-the-key)
     - [Authentication](#authentication)
         - [Password Sign-in](#password-sign-in)
@@ -37,6 +37,7 @@
     - [Preferences](#preferences)
     - [Statistics](#statistics)
     - [Appearance](#appearance)
+    - [Note Preferences](#note-preferences)
 - [Text Input](#text-input)
     - [Length Limits](#length-limits)
     - [Accepted Characters](#accepted-characters)
@@ -85,9 +86,9 @@ time, set an exact count, or erase the day entirely.
 
 ### Notes
 
-Alongside the daily log, each day can carry a **note**, a free-text entry of up to 10,000 characters. Unlike logging an action, a note can be written
-for any date, including ones in the future. The **Notes** page lists everything you have written, (most recent first) with the ability to search your
-notes.
+Alongside the daily log, each day can carry a **note**, a free-text entry of up to 10,000 characters by default - whoever runs your Diurnal can set a
+different limit with [`NOTE_MAX_LENGTH`](#note-configuration). Unlike logging an action, a note can be written for any date, including ones in the
+future. The **Notes** page lists everything you have written, (most recent first) with the ability to search your notes.
 
 <!-- markdownlint-disable MD013 MD033 -- centered note-box screenshot: intentional inline HTML -->
 <p align="center">
@@ -168,7 +169,7 @@ curl -o docker-compose.yml https://raw.githubusercontent.com/zodac/diurnal/maste
 Edit `docker-compose.yml` and set the two required values:
 
 - `DB_PASSWORD`: a strong PostgreSQL password (set it in **both** the `diurnal` and `diurnal-db` services)
-- `NOTE_ENCRYPTION_KEY`: the key your notes are encrypted with (see [Notes](#notes))
+- `NOTE_ENCRYPTION_KEY`: the key your notes are encrypted with (see [Note Configuration](#note-configuration))
 
 A quick way to generate either:
 
@@ -206,10 +207,10 @@ sensible default.
 
 ### Required
 
-| Variable              | Description                                                             |
-|-----------------------|-------------------------------------------------------------------------|
-| `DB_PASSWORD`         | PostgreSQL password (must match the password on the database container) |
-| `NOTE_ENCRYPTION_KEY` | The key notes are encrypted with (see [Notes](#notes))                  |
+| Variable              | Description                                                                      |
+|-----------------------|----------------------------------------------------------------------------------|
+| `DB_PASSWORD`         | PostgreSQL password (must match the password on the database container)          |
+| `NOTE_ENCRYPTION_KEY` | The key notes are encrypted with (see [Note Configuration](#note-configuration)) |
 
 ### Database
 
@@ -228,7 +229,7 @@ sensible default.
 | `LOG_LEVEL`    | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                    |
 | `DB_LOG_LEVEL` | `WARN`  | Set to `TRACE` to log every SQL statement + bound parameters (verbose; may expose parameter values) |
 
-### Notes
+### Note Configuration
 
 Your [notes](#notes) are **encrypted before they are stored**. Each account gets its own randomly-generated key when it is created, and every note is
 sealed under that key. The account keys are themselves stored only in encrypted form, protected by `NOTE_ENCRYPTION_KEY`.
@@ -458,7 +459,14 @@ order, and each can be disabled and re-ordered. The **Last performed** statistic
 | **Theme**          | System, Light, Dark                                            |
 | **Calendar style** | Full, Minimal, Stacked (see [Calendar views](#calendar-views)) |
 | **Font**           | Nova, Standard, OpenDyslexic                                   |
-| **Note colour**    | Any colour - picked, randomised, or reset to the default       |
+
+### Note Preferences
+
+- **Note colour**: The colour days with a note are marked in on the calendar, and the colour of the Notes statistics. Any colour - picked,
+  randomised, or reset to the default
+- **Character count**: Whether the note box on the dashboard shows a note's length against its limit - `1,234 / 10,000`, for example. Turning it off
+  does not change the limit, and the count still appears if a note goes over it - otherwise there would be nothing explaining why **Save** is
+  unavailable
 
 ## Text Input
 
@@ -474,14 +482,17 @@ reads back exactly as it looked when you wrote it.
 
 Limits are counted in **characters as a reader counts them**, not bytes: an accented letter, a Chinese character and an emoji each count as one.
 
-| Field          | Limit                                                             |
-|----------------|-------------------------------------------------------------------|
-| Action name    | 1-100 characters                                                  |
-| Display name   | 2-50 characters                                                   |
-| Statistic name | Up to 25 characters (leave it blank to restore the built-in name) |
-| Note           | Up to 10,000 characters (leave it blank to remove the note)       |
-| Email          | 3-254 characters, and must contain an `@`                         |
-| Password       | 1-128 characters                                                  |
+| Field          | Limit                                                                   |
+|----------------|-------------------------------------------------------------------------|
+| Action name    | 1-100 characters                                                        |
+| Display name   | 2-50 characters                                                         |
+| Statistic name | Up to 25 characters (leave it blank to restore the built-in name)       |
+| Note           | Up to 10,000 characters by default* (leave it blank to remove the note) |
+| Email          | 3-254 characters, and must contain an `@`                               |
+| Password       | 1-128 characters                                                        |
+
+\* The note limit is the only one here a deployment can change ([`NOTE_MAX_LENGTH`](#note-configuration)); every other limit is fixed.
+Lowering it leaves notes you have already written untouched - see [Note Configuration](#note-configuration).
 
 ### Accepted Characters
 

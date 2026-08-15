@@ -214,6 +214,21 @@ public class ProfileService {
     }
 
     /**
+     * Toggles whether the dashboard note box shows its character counter.
+     *
+     * <p>
+     * Display-only, and deliberately not a way to opt out of the bound: an over-long note is refused exactly as before, and the counter reappears
+     * while one IS over the bound however this is set - it is the only thing explaining why Save has gone inert.
+     *
+     * @param user the acting user
+     * @param show the submitted value
+     * @return the outcome (always {@link ProfileResult.Updated})
+     */
+    public ProfileResult updateShowNoteCounter(final User user, final boolean show) {
+        return applySetting(user, "Show note counter", show, () -> user.showNoteCounter = show);
+    }
+
+    /**
      * Updates which per-action stats show on the Stats page, in what order, and under what name: {@code order} is EVERY field key in the arranged
      * order, {@code enabled} the shown subset, and {@code labels} the custom name of each renamed stat (a key with no entry, or a blank name, keeps
      * the built-in one). Encoded by {@link StatField#encode(List, java.util.Collection, Map)} (disabled fields kept in place, the mandatory

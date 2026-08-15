@@ -63,6 +63,9 @@ window.Diurnal = window.Diurnal || {};
     const noteClearBtn = document.getElementById('note-clear')
     const noteCount    = document.getElementById('note-count')
     const NOTE_MAX     = Number(notePanel.dataset.noteMax)
+    // The "Character count" preference (Settings > Notes). Read once: a preference change is a PATCH from
+    // another page, so this page's copy cannot go stale under it.
+    const SHOW_COUNT   = notePanel.dataset.noteCounter !== 'false'
     const noteSaved   = {} // dateStr -> saved content ('' when the day has no note)
     const noteDrafts  = {} // dateStr -> unsaved edit
     let noteDate = null    // the day the box is currently showing, or null when nothing is selected
@@ -226,9 +229,14 @@ window.Diurnal = window.Diurnal || {};
 
     // The counter is shown only while a day is selected and the box is typeable, and turns red once the note
     // is over its bound — where it doubles as the reason Save has gone inert.
+    //
+    // That second job is why turning the preference off does NOT simply suppress it: over the bound it is the
+    // only thing on screen explaining a dead Save button, so it comes back regardless and goes away again as
+    // soon as the note is back under. Hiding a running count is what the user asked for; hiding the reason
+    // they cannot save is not.
     function refreshNoteCount() {
         if (!noteCount) {return}
-        const live = noteDate !== null && noteInput !== null && !noteInput.disabled
+        const live = noteDate !== null && noteInput !== null && !noteInput.disabled && (SHOW_COUNT || noteIsOverLimit())
         noteCount.hidden = !live
         if (!live) {return}
         const length = noteLength()

@@ -49,6 +49,10 @@ public final class UserSettings {
     // Whether the dashboard renders the per-action stats-summary strip.
     public static final boolean DEFAULT_SHOW_STATS_SUMMARY = true;
 
+    // Whether the dashboard note box shows its character counter. On by default: the bound only matters when a
+    // note approaches it, and a reader who has never seen one is better told the limit exists than surprised by it.
+    public static final boolean DEFAULT_SHOW_NOTE_COUNTER = true;
+
     // The colour a user's day notes are shown in, until they pick their own: green-600, the shade the notes
     // marker and the Stats page's Notes swatch were fixed at before the colour became a preference.
     public static final String DEFAULT_NOTE_COLOUR = "#16a34a";

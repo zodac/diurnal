@@ -670,6 +670,46 @@ class SettingsIT extends IntegrationTestBase {
             .isTrue());
     }
 
+    // ── PATCH /settings/show-note-counter ────────────────────────────────────────
+
+    @Test
+    void updateShowNoteCounter_unticked_disables() {
+        given().formParam("showNoteCounter", "false")
+                .patch("/internal/settings")
+                .then().statusCode(NO_CONTENT);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().showNoteCounter)
+            .as("note counter should be disabled")
+            .isFalse());
+    }
+
+    @Test
+    void updateShowNoteCounter_ticked_enables() {
+        given().formParam("showNoteCounter", "false").patch("/internal/settings");
+
+        given().formParam("showNoteCounter", "false")
+                .formParam("showNoteCounter", "true")
+                .patch("/internal/settings")
+                .then().statusCode(NO_CONTENT);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().showNoteCounter)
+            .as("note counter should be enabled")
+            .isTrue());
+    }
+
+    @Test
+    void updateShowNoteCounter_leavesTheOtherToggleAlone() {
+        // Each row PATCHes on its own (hx-include scopes it), so the note toggle must not carry the
+        // stats-summary one with it - an absent parameter means "unchanged", never "false".
+        given().formParam("showNoteCounter", "false")
+                .patch("/internal/settings")
+                .then().statusCode(NO_CONTENT);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().showStatsSummary)
+            .as("a note-counter save must not reset an unrelated toggle")
+            .isTrue());
+    }
+
     @Test
     void updatePageSize_options_include50And100() {
         given().formParam("pageSize", "50")
