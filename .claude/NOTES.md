@@ -40,7 +40,7 @@ Each of these was a real fork; the rejected option is recorded so it is not sile
 | Public API shape | **Fold notes into `GET /api/v1/stats`** as a `kind="notes"` item pinned first | A separate `GET /api/v1/notes/stats`. Rejected in favour of mirroring the UI exactly, accepting the MAJOR-version cost |
 | Dashboard summary strip | **Stats page only** — the "Top actions on <date>" strip is untouched | Adding a pinned Notes row. Rejected: only the Stats page was in the requirement, and it keeps the note save path from invalidating the summary cache |
 | Count semantics | **One note = a count of 1.** So `totalCount == totalDays` for notes, and the count averages equal the day averages | Word count. Rejected: no need, and it makes the tiles lie about what they measure |
-| Length cap | **10,000 code points**, `VARCHAR(10000)` | `TEXT`. Rejected: `information_schema.character_maximum_length` is `NULL` for `TEXT`, which would silently disable the `TextFieldsSchemaIT` bound-vs-column guard |
+| Length cap | **10,000 code points**, `VARCHAR(10000)` | `TEXT`. Rejected: `information_schema.character_maximum_length` is `NULL` for `TEXT`, which would silently disable the `TextFieldsSchemaIT` bound-vs-column guard. **Superseded twice**: `V28` dropped the plaintext column entirely, and the 10,000 is now only the DEFAULT of a per-deployment `NOTE_MAX_LENGTH` — see [The length bound is per-deployment](#the-length-bound-is-per-deployment-note_max_length) |
 | Newlines | A new `Normalisation.MULTILINE`, identical to `CLEANED` except LF survives | Reusing `CLEANED`. Rejected: it collapses every whitespace run, flattening a journal entry into one paragraph |
 | Calendar cache | Notes ride the **existing** month LRU (shared `lru`/`CACHE_LIMIT`/`PINNED_MONTHS`/`dropMonth`), with their **own** promise map, loaded flag and prefetch radius | A standalone parallel notes cache. Rejected: it would duplicate ~120 lines of subtle LRU/pin/dedupe/evict logic that would then drift |
 | Notes prefetch radius | **±1 month** (events stay at ±2), 12-month shared LRU cap | ±2 for both. Rejected: notes are the heavier payload and the marginal value of a month two clicks away is low |
@@ -120,8 +120,12 @@ right now. There is no precedent to follow, which is why a new mode is needed.
 Catalogue entry, per the "adding a new text input" steps in [`TEXT_INPUT.md`](TEXT_INPUT.md):
 
 ```java
-public static final int NOTE_MAX_LENGTH = 10_000;
-public static final TextField NOTE = TextField.multiline("Note", 0, NOTE_MAX_LENGTH);
+public static final int NOTE_MAX_LENGTH = 10_000;          // now the DEFAULT only - see NOTE_MAX_LENGTH below
+public static final TextField NOTE = note(NOTE_MAX_LENGTH);
+
+public static TextField note(final int maxLength) {
+    return TextField.multiline("Note", 0, maxLength);
+}
 ```
 
 > **The minimum is `0`, i.e. the field is OPTIONAL** (the `STAT_NAME` precedent). Blank content is not invalid input —
@@ -690,6 +694,64 @@ deploy.
   and enforced by none.
 - **There is no locked state and no unlock step.** The application can open any user's data key on any request, so notes
   behave exactly as they did before encryption: no `423`, no session key, no gate on sign-in.
+
+### The length bound is per-deployment (`NOTE_MAX_LENGTH`)
+
+Added 2026-08-14. The note is the **only** entry in the `TextFields` catalogue whose bound a deployment can set for
+itself: `notes.max-length=${NOTE_MAX_LENGTH:10000}`, read through `config/NotesConfig` and turned into the `TextField`
+the application validates against by `note/NoteField` (the `ApplicationVersion` accessor-bean pattern, so the config is
+read and shaped once rather than at each of the three call sites — `NoteService`, `web/TextFieldCatalogue` and
+`transfer/ImportService`). `TextFields.NOTE` survives as the default instance, and `TextFields.note(int)` is the one
+place the specification is written.
+
+**Only the note can do this, and only because it is encrypted.** Every other bound in the catalogue is pinned to a
+`VARCHAR(n)` by `TextFieldsSchemaIT`, so changing one needs a migration in the same commit. A note has no column to
+pin — `notes.content` was dropped in `V28` and the sealed `bytea` has no width — so the bound lives purely in
+`TextValidation` and changing it costs nothing but a restart. The property that made the bound-vs-column guard
+impossible is the property that makes it configurable.
+
+| Decision | Chosen | Rejected alternative |
+|---|---|---|
+| Where the key lives | `notes.max-length`, a sibling mapping to `notes.encryption.*` | `app.notes.max-length` on `AppConfig`. Rejected: `password`/`password.hash.argon2` already prove sibling prefixes bind cleanly, and a note's bound is not app metadata |
+| Ceiling | **100,000**, refusing to boot above it | No ceiling. Rejected: the operator sets this, so the guard's job is to stop a value that quietly breaks the dashboard — see below |
+| Floor | **1** | 0 or negative allowed. Rejected: it leaves the note box on screen while refusing every non-empty note, i.e. a delete-only control with no explanation |
+| Out-of-range value | **Refuse to boot** | Clamp into range. Rejected: the reject-never-coerce rule, and a silently corrected bound is one nobody notices is wrong |
+| Notes already over a lowered bound | **Kept, untouched** | Truncate on read, or a migration. Rejected: see below |
+| An import of such a note | **Refused**, like any other over-long row | Exempt imported notes. Rejected: it would make the importer the one path accepting what no other path would |
+
+**Why the ceiling is 100,000 and not a round million.** Nothing in storage argues for either — a sealed `bytea` runs to
+PostgreSQL's 1 GB varlena limit, and a note has already been TOASTed out of line since well below the current default
+(the ciphertext is incompressible, so the LZ pass gains nothing and every long note is stored as ~2000-byte chunks).
+What sets the ceiling is the three paths that read note **content** in bulk, each scaling linearly with the bound: the
+dashboard warms a three-month window in one response (92 notes), `NotesApiResource` returns 31 per page, and a search
+opens the whole journal. At 100,000 those worst cases are ~9.2M and ~3.1M code points — big, but a response and a heap
+allocation the server can still make. At 1,000,000 the dashboard alone reaches ~92M code points per load, and a *single*
+note could exceed `TransferArchive.MAX_MEMBER_BYTES`, so an account could produce an export it could never import. The
+value is operator-set rather than attacker-controlled, so this is a footgun guard, not a security boundary — it is drawn
+where the feature still works, not merely where it stops crashing.
+
+**Lowering it keeps every note already written.** The bound applies on write only; nothing re-validates stored content
+and there is no column width to breach. So an over-long note stays readable, searchable, exportable and stats-visible,
+and the note box shows it in full — the textarea deliberately carries no `maxlength` (see [`TEXT_INPUT.md`](TEXT_INPUT.md)),
+so it cannot silently truncate one. The counter turns red, Save goes inert, and the note is editable down to the new
+bound whenever its author wants. Two consequences follow and are accepted rather than solved:
+
+- **Re-saving an over-long note unedited is refused**, with the ordinary length message. It does not explain that the
+  note predates a lower bound, because the pipeline words every message from the field alone.
+- **An export containing one cannot be re-imported.** `ImportParser` applies the bound to every row and an import is
+  all-or-nothing, so the whole archive is refused until those rows are shortened. This is the sharp edge of the
+  retention: the note is kept in the database but not accepted back from a file. Exempting it was rejected above — an
+  import must not be a way to get values in that no other path would accept — and the failure is at least loud and
+  precise, naming the member and the line.
+
+A startup check for stored notes over the configured bound was **rejected**: it would mean decrypting every note in
+every account on every boot, which is the whole-journal cost a search pays, multiplied by the user count, to warn about
+a state that is already handled gracefully.
+
+`TransferArchive.MAX_MEMBER_BYTES` was raised from 8 MB to 32 MB (and the archive cap 16 MB → 64 MB) in the same change.
+Its old Javadoc claimed "a decade of daily notes at the 10,000-character cap is a small fraction of it", which was wrong
+by more than 4× (3650 × 10,000 = ~36 MB), so an export could already outgrow the limit that reads it back. It is still a
+bound on plausible data rather than a guarantee — the cap is the zip-bomb defence and cannot simply be removed.
 
 ## Implementation steps
 

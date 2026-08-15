@@ -18,7 +18,9 @@
 package net.zodac.diurnal.web;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import jakarta.inject.Named;
+import net.zodac.diurnal.note.NoteField;
 import net.zodac.diurnal.text.TextField;
 import net.zodac.diurnal.text.TextFields;
 
@@ -38,6 +40,18 @@ import net.zodac.diurnal.text.TextFields;
 @Named("textFields")
 @ApplicationScoped
 public class TextFieldCatalogue {
+
+    private final NoteField noteField;
+
+    /**
+     * Injects the configured day-note field, the one entry here that is not a compile-time catalogue constant.
+     *
+     * @param noteField the configured day-note field
+     */
+    @Inject
+    public TextFieldCatalogue(final NoteField noteField) {
+        this.noteField = noteField;
+    }
 
     /**
      * The action-name field, bounding the new-action input on {@code actions.html} and the rename input on {@code partials/action-row.html}.
@@ -93,10 +107,14 @@ public class TextFieldCatalogue {
     /**
      * The day-note field, bounding the dashboard note box (read as its {@code data-note-max} attribute, which note.js enforces client-side).
      *
+     * <p>
+     * The one entry here that is not a catalogue constant: a note's bound is per-deployment, so it comes from {@link NoteField} and the counter under
+     * the box follows {@code NOTE_MAX_LENGTH} with no template change.
+     *
      * @return the field specification
      */
     @SuppressWarnings("unused") // read by name from dashboard.html; no Java caller
     public TextField note() {
-        return TextFields.NOTE;
+        return noteField.field();
     }
 }

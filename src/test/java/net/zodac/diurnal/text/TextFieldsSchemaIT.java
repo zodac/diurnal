@@ -51,13 +51,18 @@ class TextFieldsSchemaIT extends IntegrationTestBase {
      * the value is encrypted.
      *
      * <p>
-     * What this asserts instead is that the plaintext column has not come back: it was dropped in {@code V29}, and a note reappearing in a readable
+     * That absence is load-bearing twice over. It is why this file cannot pin the note the way it pins every other field — and it is what lets the
+     * note's bound be <strong>per-deployment</strong> ({@code NOTE_MAX_LENGTH}, resolved by {@code note.NoteField}) where every other bound here
+     * would need a migration to move. A plaintext column reappearing would quietly take that away as well as undoing the encryption.
+     *
+     * <p>
+     * What this asserts instead is that the plaintext column has not come back: it was dropped in {@code V28}, and a note reappearing in a readable
      * column is the one regression in this area that would matter.
      */
     @Test
     void note_hasNoPlaintextColumnToBound() {
         assertThat(columnExists("content"))
-            .as("notes.content was dropped in V29 - a note must not be storable in readable form by any path")
+            .as("notes.content was dropped in V28 - a note must not be storable in readable form by any path")
             .isFalse();
         assertThat(columnExists("content_encrypted"))
             .as("the sealed column must be the one a note is stored in")

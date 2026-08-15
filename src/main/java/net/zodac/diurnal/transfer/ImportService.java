@@ -29,6 +29,7 @@ import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
+import net.zodac.diurnal.note.NoteField;
 import net.zodac.diurnal.note.NoteService;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
@@ -67,17 +68,20 @@ public class ImportService {
     private static final Logger LOGGER = LogManager.getLogger(ImportService.class);
 
     private final NoteService noteService;
+    private final NoteField noteField;
     private final AppClock clock;
 
     /**
-     * Injects the shared notes service, which owns every note write, and the application clock.
+     * Injects the shared notes service, which owns every note write, the configured note field, and the application clock.
      *
      * @param noteService the shared notes service
+     * @param noteField   the configured day-note field every imported note row is validated against
      * @param clock       the application clock for date-boundary logic
      */
     @Inject
-    public ImportService(final NoteService noteService, final AppClock clock) {
+    public ImportService(final NoteService noteService, final NoteField noteField, final AppClock clock) {
         this.noteService = noteService;
+        this.noteField = noteField;
         this.clock = clock;
     }
 
@@ -122,7 +126,7 @@ public class ImportService {
         // Resolved once for the whole file, in the user's own timezone - the same day boundary a single log write is judged against.
         final LocalDate today = clock.today(clock.zoneFor(user.timezone));
 
-        return switch (ImportParser.parse(members, today)) {
+        return switch (ImportParser.parse(members, today, noteField.field())) {
             case final ParseOutcome.Rejected rejected -> {
                 LOGGER.debug("Import rejected for user {}: {} problem(s)", user.email, rejected.totalFound());
                 yield new ImportResult.Rejected(rejected.problems(), rejected.totalFound());

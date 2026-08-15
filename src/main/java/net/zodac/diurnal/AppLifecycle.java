@@ -34,6 +34,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 import net.zodac.diurnal.auth.OidcDiscovery;
+import net.zodac.diurnal.config.NotesConfig;
 import net.zodac.diurnal.config.NotesEncryptionConfig;
 import net.zodac.diurnal.config.OidcConfig;
 import net.zodac.diurnal.config.PasswordAuthConfig;
@@ -41,6 +42,7 @@ import net.zodac.diurnal.config.QuarkusOidcConfig;
 import net.zodac.diurnal.crypto.MasterKey;
 import net.zodac.diurnal.note.KeyReconciliation;
 import net.zodac.diurnal.note.NoteKeys;
+import net.zodac.diurnal.text.TextFields;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -63,6 +65,7 @@ public class AppLifecycle {
     private final QuarkusOidcConfig quarkusOidcConfig;
     private final OidcConfig oidcConfig;
     private final NotesEncryptionConfig notesEncryptionConfig;
+    private final NotesConfig notesConfig;
     private final NoteKeys noteKeys;
 
     /**
@@ -72,15 +75,17 @@ public class AppLifecycle {
      * @param quarkusOidcConfig the Quarkus OIDC tenant settings
      * @param oidcConfig the application OIDC policy settings
      * @param notesEncryptionConfig the notes encryption settings, whose key is validated at startup
+     * @param notesConfig the notes settings, whose configured maximum note length is range-checked at startup
      * @param noteKeys the notes key service, used to prove the configured key opens the stored data
      */
     @Inject
     public AppLifecycle(final PasswordAuthConfig passwordAuthConfig, final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig,
-        final NotesEncryptionConfig notesEncryptionConfig, final NoteKeys noteKeys) {
+        final NotesEncryptionConfig notesEncryptionConfig, final NotesConfig notesConfig, final NoteKeys noteKeys) {
         this.passwordAuthConfig = passwordAuthConfig;
         this.quarkusOidcConfig = quarkusOidcConfig;
         this.oidcConfig = oidcConfig;
         this.notesEncryptionConfig = notesEncryptionConfig;
+        this.notesConfig = notesConfig;
         this.noteKeys = noteKeys;
     }
 
@@ -90,6 +95,7 @@ public class AppLifecycle {
     @SuppressWarnings("unused") // CDI startup observer — invoked by Quarkus, not called directly
     void onStart(@Observes final StartupEvent ev) {
         validateAuthConfig();
+        validateNoteMaxLength();
         validateNotesEncryptionKey();
         verifyNotesEncryptionKeyOpensExistingData();
         verifyOidcDiscovery();
@@ -116,6 +122,29 @@ public class AppLifecycle {
             }
         }
         LOGGER.info("=================================================");
+    }
+
+    /**
+     * Fails fast when {@code NOTE_MAX_LENGTH} is outside the range the note feature can actually serve.
+     *
+     * <p>
+     * Nothing in the database constrains this value - a note is stored sealed in an unbounded {@code bytea} - so without this check a nonsensical one
+     * is accepted silently and only shows up as behaviour: at zero or below, every non-empty note is refused while the note box stays on screen,
+     * turning the feature into a delete-only control; far above the ceiling, a single dashboard load warms a three-month window of note content into
+     * one response and one heap allocation, and a single note can outgrow an export member. Both are deployment mistakes rather than runtime cases,
+     * which is what makes refusing to boot the right answer - the same reasoning as the encryption key below.
+     *
+     * @throws IllegalStateException if the configured maximum note length is outside
+     *                               {@code [}{@link TextFields#NOTE_MAX_LENGTH_FLOOR}{@code , }{@link TextFields#NOTE_MAX_LENGTH_CEILING}{@code ]}
+     */
+    void validateNoteMaxLength() {
+        final int configured = notesConfig.maxLength();
+        if (configured < TextFields.NOTE_MAX_LENGTH_FLOOR || configured > TextFields.NOTE_MAX_LENGTH_CEILING) {
+            throw new IllegalStateException("NOTE_MAX_LENGTH must be between " + TextFields.NOTE_MAX_LENGTH_FLOOR + " and "
+                + TextFields.NOTE_MAX_LENGTH_CEILING + " characters, but is " + configured + ". It bounds no database column - a note is stored "
+                + "encrypted in an unbounded column - so it is sized by what the dashboard, the notes API and an export can carry, not by storage. "
+                + "Leave it unset for the default of " + TextFields.NOTE_MAX_LENGTH + ".");
+        }
     }
 
     /**

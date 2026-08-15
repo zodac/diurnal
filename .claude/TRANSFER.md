@@ -135,8 +135,13 @@ the attacker-reachable parser it is:
   simply a name that does not match.
 - **Entries are counted** (`MAX_ENTRIES`), so an archive of a million tiny members cannot spend a request being
   walked.
-- **Decompressed bytes are counted as they are read** (`MAX_MEMBER_BYTES`, `MAX_ARCHIVE_BYTES`), never trusted
-  from the entry's declared size, which the uploader chose. This is the zip-bomb defence.
+- **Decompressed bytes are counted as they are read** (`MAX_MEMBER_BYTES` 32 MB, `MAX_ARCHIVE_BYTES` 64 MB), never
+  trusted from the entry's declared size, which the uploader chose. This is the zip-bomb defence, and it is what
+  bounds one request's memory — so it cannot simply be raised until nothing ever hits it. `notes.csv` is what sizes
+  it, being the only member of free text: at the default `NOTE_MAX_LENGTH` it holds ~3,200 notes written to their
+  absolute limit and vastly more real ones. A deployment that raises `NOTE_MAX_LENGTH` shrinks that headroom
+  proportionally, which is one of the things the bound's own ceiling exists to keep sane (see [`NOTES.md`](NOTES.md)).
+  It is a bound on plausible data, **not** a guarantee that every account can export.
 - `ImportParser` caps the problems it reports (`MAX_REPORTED_PROBLEMS`) while still telling the user the true
   total. It deliberately does **not** cap rows: the decompressed-byte limits above are the real bound, and a
   second row-count limit would only add a branch no test could reach without building 32 MB of fixtures.

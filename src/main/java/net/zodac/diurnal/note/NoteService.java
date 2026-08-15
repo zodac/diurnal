@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.text.TextValidation;
@@ -40,9 +39,10 @@ import org.jspecify.annotations.Nullable;
  * resources only translate the returned {@link NoteResult} into their medium.
  *
  * <p>
- * The content is validated and normalised by the shared {@link TextValidation} pipeline against {@link TextFields#NOTE}, so a note obeys the same
- * length and content rules as every other free-text input in the app, and what is stored is the cleaned value. That field is the app's one
- * {@code MULTILINE} input, so a note's line breaks survive where every other field folds them to a space.
+ * The content is validated and normalised by the shared {@link TextValidation} pipeline against the configured {@link NoteField}, so a note obeys the
+ * same length and content rules as every other free-text input in the app, and what is stored is the cleaned value. That field is the app's one
+ * {@code MULTILINE} input, so a note's line breaks survive where every other field folds them to a space, and the one whose length bound a
+ * deployment may set for itself ({@code NOTE_MAX_LENGTH}).
  *
  * <p>
  * <strong>A note may be written for ANY date, including a future one.</strong> This service deliberately does not apply
@@ -67,15 +67,18 @@ public class NoteService {
     private static final Logger LOGGER = LogManager.getLogger(NoteService.class);
 
     private final NoteKeys noteKeys;
+    private final NoteField noteField;
 
     /**
-     * Injects the notes key service, which opens the acting user's data key.
+     * Injects the notes key service, which opens the acting user's data key, and the configured note field.
      *
-     * @param noteKeys the shared notes key service
+     * @param noteKeys  the shared notes key service
+     * @param noteField the configured day-note field every submission is validated against
      */
     @Inject
-    public NoteService(final NoteKeys noteKeys) {
+    public NoteService(final NoteKeys noteKeys, final NoteField noteField) {
         this.noteKeys = noteKeys;
+        this.noteField = noteField;
     }
 
     /**
@@ -166,7 +169,7 @@ public class NoteService {
      * Writes the day's note, creating it or overwriting whatever was there.
      *
      * <p>
-     * A blank submission is <strong>not</strong> a rejection: {@link TextFields#NOTE} is an optional field, so blank content normalises to the empty
+     * A blank submission is <strong>not</strong> a rejection: the note is an optional field, so blank content normalises to the empty
      * string and is read here as "this day has no note", removing the row. Clearing the box and saving is exactly how a note is deleted, in the same
      * way that setting a count to zero removes a log entry.
      *
@@ -176,7 +179,7 @@ public class NoteService {
      * @return the outcome
      */
     NoteResult save(final User user, final LocalDate day, final @Nullable String content) {
-        final TextOutcome outcome = TextValidation.check(TextFields.NOTE, content);
+        final TextOutcome outcome = TextValidation.check(noteField.field(), content);
         if (!(outcome instanceof TextOutcome.Valid(final String normalised))) {
             final String message = TextOutcomeExtensions.message((TextOutcome.Failure) outcome);
             // The REASON only - it is worded from the field and never quotes the submitted value, so this
@@ -218,7 +221,7 @@ public class NoteService {
      *
      * <p>
      * <strong>The content is expected to have been validated already</strong> - by {@code transfer.ImportParser}, against the same
-     * {@link TextFields#NOTE} field this service's own {@link #save(User, LocalDate, String)} uses. The rule is not re-applied here because it was
+     * {@link NoteField} this service's own {@link #save(User, LocalDate, String)} uses. The rule is not re-applied here because it was
      * applied once, to produce exactly these values (the validate-once rule in {@code CODE_STYLE.md}); an empty entry is skipped rather than stored,
      * since an empty note is no note.
      *

@@ -21,10 +21,12 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import net.zodac.diurnal.note.NoteKeys;
+import net.zodac.diurnal.stub.StubNotesConfig;
 import net.zodac.diurnal.stub.StubNotesEncryptionConfig;
 import net.zodac.diurnal.stub.StubOidcConfig;
 import net.zodac.diurnal.stub.StubPasswordAuthConfig;
 import net.zodac.diurnal.stub.StubQuarkusOidcConfig;
+import net.zodac.diurnal.text.TextFields;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -117,17 +119,62 @@ class AppLifecycleTest {
             .hasMessageContaining("32 bytes");
     }
 
+    // ── maximum note length ───────────────────────────────────────────────────
+
+    @Test
+    void validateNoteMaxLength_withTheDefault_passes() {
+        assertThatCode(() -> lifecycle(TextFields.NOTE_MAX_LENGTH).validateNoteMaxLength())
+            .as("the shipped default must boot")
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    void validateNoteMaxLength_atEitherEndOfTheRange_passes() {
+        assertThatCode(() -> lifecycle(TextFields.NOTE_MAX_LENGTH_FLOOR).validateNoteMaxLength())
+            .as("the floor itself is a legal configuration, however small")
+            .doesNotThrowAnyException();
+        assertThatCode(() -> lifecycle(TextFields.NOTE_MAX_LENGTH_CEILING).validateNoteMaxLength())
+            .as("the ceiling itself is a legal configuration")
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    void validateNoteMaxLength_belowTheFloor_failsFast() {
+        assertThatThrownBy(() -> lifecycle(TextFields.NOTE_MAX_LENGTH_FLOOR - 1).validateNoteMaxLength())
+            .as("a bound of zero would refuse every note while leaving the note box on screen, which must not be discovered at first use")
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("NOTE_MAX_LENGTH must be between");
+    }
+
+    @Test
+    void validateNoteMaxLength_aboveTheCeiling_failsFast() {
+        assertThatThrownBy(() -> lifecycle(TextFields.NOTE_MAX_LENGTH_CEILING + 1).validateNoteMaxLength())
+            .as("past the ceiling the dashboard's three-month warm-up and an export member stop being things the server can carry")
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("NOTE_MAX_LENGTH must be between");
+    }
+
     private static AppLifecycle lifecycle(final boolean passwordEnabled, final boolean oidcEnabled, final String issuerUrl) {
-        return lifecycle(passwordEnabled, oidcEnabled, issuerUrl, VALID_NOTES_KEY);
+        return lifecycle(passwordEnabled, oidcEnabled, issuerUrl, VALID_NOTES_KEY, TextFields.NOTE_MAX_LENGTH);
     }
 
     private static AppLifecycle lifecycle(final boolean passwordEnabled, final boolean oidcEnabled, final String issuerUrl,
         final String notesKey) {
+        return lifecycle(passwordEnabled, oidcEnabled, issuerUrl, notesKey, TextFields.NOTE_MAX_LENGTH);
+    }
+
+    private static AppLifecycle lifecycle(final int noteMaxLength) {
+        return lifecycle(true, false, "", VALID_NOTES_KEY, noteMaxLength);
+    }
+
+    private static AppLifecycle lifecycle(final boolean passwordEnabled, final boolean oidcEnabled, final String issuerUrl,
+        final String notesKey, final int noteMaxLength) {
         // validateAuthConfig() never reads the OidcConfig, but the constructor requires a non-null instance, so an inert stub is supplied.
         // The startup probe needs a database and is exercised by NoteKeysIT; these cases are about the pure
         // configuration checks, which never reach it, so an inert instance is enough to construct the bean.
-        final StubNotesEncryptionConfig notesConfig = StubNotesEncryptionConfig.of(notesKey);
+        final StubNotesEncryptionConfig encryptionConfig = StubNotesEncryptionConfig.of(notesKey);
         return new AppLifecycle(new StubPasswordAuthConfig(passwordEnabled, true),
-            new StubQuarkusOidcConfig(oidcEnabled, issuerUrl, true), StubOidcConfig.inert(), notesConfig, new NoteKeys(notesConfig));
+            new StubQuarkusOidcConfig(oidcEnabled, issuerUrl, true), StubOidcConfig.inert(), encryptionConfig,
+            new StubNotesConfig(noteMaxLength), new NoteKeys(encryptionConfig));
     }
 }

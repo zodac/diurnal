@@ -29,6 +29,7 @@ import java.util.Set;
 import net.zodac.diurnal.colour.Colours;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.log.LogGuards;
+import net.zodac.diurnal.text.TextField;
 import net.zodac.diurnal.text.TextFieldExtensions;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
@@ -41,10 +42,17 @@ import org.jspecify.annotations.Nullable;
  * request state.
  *
  * <p>
- * <strong>Every rule here is a rule that already existed.</strong> A name goes through {@link TextFields#ACTION_NAME}, a note through
- * {@link TextFields#NOTE}, a colour through {@link Colours#isInvalidHex(String)}, a count against {@link ActionLog#MAX_DAILY_COUNT}, and a log's date
- * through {@link LogGuards#isFuture(LocalDate, LocalDate)} - the same validators the forms and the API call. An import is a bulk version of writes
- * the user could have made one at a time, so it must not be a way to get values into the database that no other path would accept.
+ * <strong>Every rule here is a rule that already existed.</strong> A name goes through {@link TextFields#ACTION_NAME}, a note through the configured
+ * {@code note.NoteField} (passed in, because its bound is per-deployment), a colour through {@link Colours#isInvalidHex(String)}, a count against
+ * {@link ActionLog#MAX_DAILY_COUNT}, and a log's date through {@link LogGuards#isFuture(LocalDate, LocalDate)} - the same validators the forms and
+ * the API call. An import is a bulk version of writes the user could have made one at a time, so it must not be a way to get values into the
+ * database that no other path would accept.
+ *
+ * <p>
+ * That last rule is what decides the one awkward case around {@code NOTE_MAX_LENGTH}: when a deployment LOWERS it, notes already stored above the
+ * new bound are kept and stay readable, but the same notes are refused here - so a user cannot re-import an export taken before the change until
+ * they shorten those rows. The alternative, exempting an imported note from the bound the note box enforces, would make this the one path into the
+ * database that accepts what no other does. See {@code NOTES.md}.
  *
  * <p>
  * <strong>Nothing is coerced.</strong> A count of {@code 1500} is refused rather than clamped to 999, a malformed colour is refused rather than
@@ -78,11 +86,12 @@ public final class ImportParser {
     /**
      * Reads and validates a whole archive.
      *
-     * @param members the unpacked archive members, keyed by file name
-     * @param today   the acting user's current date, against which a log's future-date rule is applied
+     * @param members   the unpacked archive members, keyed by file name
+     * @param today     the acting user's current date, against which a log's future-date rule is applied
+     * @param noteField the configured day-note field, whose length bound every note row must satisfy
      * @return the validated plan, or the reasons it was refused
      */
-    public static ParseOutcome parse(final Map<String, String> members, final LocalDate today) {
+    public static ParseOutcome parse(final Map<String, String> members, final LocalDate today, final TextField noteField) {
         final Problems problems = new Problems();
 
         for (final String required : TransferFiles.ALL_FILES) {
@@ -110,7 +119,7 @@ public final class ImportParser {
         }
 
         final List<LogDraft> logs = parseLogs(logRows.get(), actionNames, today, problems);
-        final List<NoteDraft> notes = parseNotes(noteRows.get(), problems);
+        final List<NoteDraft> notes = parseNotes(noteRows.get(), noteField, problems);
 
         if (problems.any()) {
             return problems.rejected();
@@ -252,7 +261,7 @@ public final class ImportParser {
         return logs;
     }
 
-    private static List<NoteDraft> parseNotes(final List<CsvRow> rows, final Problems problems) {
+    private static List<NoteDraft> parseNotes(final List<CsvRow> rows, final TextField noteField, final Problems problems) {
         final List<NoteDraft> notes = new ArrayList<>();
         final Set<LocalDate> seen = new HashSet<>();
 
@@ -263,7 +272,7 @@ public final class ImportParser {
             }
 
             // A note is deliberately NOT future-checked - unlike a log, writing down a day in advance is a legitimate thing to do.
-            final TextOutcome contentOutcome = TextValidation.check(TextFields.NOTE, row.fields().get(1));
+            final TextOutcome contentOutcome = TextValidation.check(noteField, row.fields().get(1));
             if (!(contentOutcome instanceof TextOutcome.Valid(final String value))) {
                 // The pipeline's own message, which is worded from the field and never quotes the value - so no note content reaches this banner.
                 problems.add(TransferFiles.NOTES_FILE, row.line(), TextOutcomeExtensions.message((TextOutcome.Failure) contentOutcome));

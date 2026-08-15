@@ -56,15 +56,43 @@ public final class TextFields {
     public static final int STAT_NAME_MAX_LENGTH = 25;
 
     /**
-     * The longest accepted note, matching the {@code notes.content} column width.
+     * The DEFAULT longest accepted note — roughly four pages of prose, comfortably past any real journal entry.
      *
      * <p>
-     * A hygiene bound rather than a storage limit: roughly four pages of prose, comfortably past any real journal entry, while keeping the calendar's
-     * notes feed bounded (the dashboard prefetches a three-month window of note content in one response). It is also why the column is
-     * {@code VARCHAR} rather than {@code TEXT} — {@code character_maximum_length} is {@code NULL} for {@code TEXT}, which would silently disable the
-     * bound-vs-column guard in {@code TextFieldsSchemaIT}.
+     * Unlike every other bound here, this one is a <strong>default rather than the value in force</strong>: a deployment may set its own through
+     * {@code NOTE_MAX_LENGTH} ({@link net.zodac.diurnal.config.NotesConfig#maxLength()}), and the field the application actually validates against
+     * is resolved from that by {@code note.NoteField}. The constant survives as the default, as the instance {@link #NOTE} and {@link #all()} carry,
+     * and as the compile-time value a test can bound itself by.
+     *
+     * <p>
+     * <strong>It is not pinned to a column, and cannot be.</strong> The plaintext {@code notes.content} column was dropped in {@code V28}; a note is
+     * now stored sealed in an unbounded {@code bytea}, whose length depends on the value rather than on this bound. That is what makes the bound
+     * configurable at all - there is no width for a migration to keep in step. {@code TextFieldsSchemaIT} asserts the absence of that column instead.
      */
     public static final int NOTE_MAX_LENGTH = 10_000;
+
+    /**
+     * The smallest value {@code NOTE_MAX_LENGTH} may be configured to. Zero or negative would make every non-empty note unsaveable while leaving the
+     * note box on screen, turning the feature into a delete-only control with no explanation.
+     */
+    public static final int NOTE_MAX_LENGTH_FLOOR = 1;
+
+    /**
+     * The largest value {@code NOTE_MAX_LENGTH} may be configured to.
+     *
+     * <p>
+     * <strong>Set by what a note is carried in, not by what one can be stored in.</strong> The storage would take far more (a sealed {@code bytea} is
+     * bounded only by PostgreSQL's 1&nbsp;GB varlena limit), but three paths read note CONTENT in bulk and each scales linearly with this value: the
+     * dashboard warms a three-month window in one response (92 notes), {@code NotesApiResource} returns 31 per page, and a search opens the whole
+     * journal. At this ceiling those are ~9.2M and ~3.1M code points respectively - large, but a response and a heap allocation the server can still
+     * make. An order of magnitude higher would not be: a single note could then exceed
+     * {@link net.zodac.diurnal.transfer.TransferArchive#MAX_MEMBER_BYTES} on its own, so an account could produce an export it could never import.
+     *
+     * <p>
+     * This is a footgun guard rather than a security boundary - the value is set by the operator, not by a request - so it is drawn where the feature
+     * still works, not merely where it stops crashing.
+     */
+    public static final int NOTE_MAX_LENGTH_CEILING = 100_000;
 
     private static final int EMAIL_MIN_LENGTH = 3;
 
@@ -112,18 +140,38 @@ public final class TextFields {
     public static final TextField PASSWORD = TextField.secret("Password", PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH);
 
     /**
-     * A single day's free-text note. The one {@link Normalisation#MULTILINE} field: it is a block of prose, so its line breaks are part of what the
-     * user wrote and must survive normalisation - every other field is a label, where a newline is an accident worth folding to a space.
+     * A single day's free-text note, at its {@link #NOTE_MAX_LENGTH default} bound.
+     *
+     * <p>
+     * <strong>Production does not validate against this instance</strong> - it validates against the one {@code note.NoteField} builds from the
+     * configured {@code NOTE_MAX_LENGTH}. This is the default the catalogue publishes, so {@link #all()} and the tests that assert a property across
+     * every field have a note to work with.
+     *
+     * <p>
+     * The one {@link Normalisation#MULTILINE} field: it is a block of prose, so its line breaks are part of what the user wrote and must survive
+     * normalisation - every other field is a label, where a newline is an accident worth folding to a space.
      *
      * <p>
      * Optional, like {@link #STAT_NAME}: a blank submission is accepted and normalises to the empty string, which the service reads as "this day has
      * no note" and removes the row. Clearing the box and saving is how a note is deleted, so a blank value is a legitimate request rather than a
      * rejection - exactly as a count of zero removes a log entry rather than failing.
      */
-    public static final TextField NOTE = TextField.multiline("Note", 0, NOTE_MAX_LENGTH);
+    public static final TextField NOTE = note(NOTE_MAX_LENGTH);
 
     private TextFields() {
 
+    }
+
+    /**
+     * A day-note field bounded at the given maximum - the one place the note's specification is written, so the configured field and the default
+     * {@link #NOTE} cannot differ in anything but their bound.
+     *
+     * @param maxLength the longest accepted note in code points, within
+     *                  {@code [}{@link #NOTE_MAX_LENGTH_FLOOR}{@code , }{@link #NOTE_MAX_LENGTH_CEILING}{@code ]}
+     * @return the field specification
+     */
+    public static TextField note(final int maxLength) {
+        return TextField.multiline("Note", 0, maxLength);
     }
 
     /**
