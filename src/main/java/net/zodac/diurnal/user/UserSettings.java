@@ -111,7 +111,8 @@ public final class UserSettings {
      * @param raw the raw submitted value (may be {@code null}, blank, non-numeric or out of range)
      * @return the valid page size, or {@code null} if the input is not acceptable
      */
-    public static @Nullable Integer parsePageSize(@Nullable final String raw) {
+    @Nullable
+    public static Integer parsePageSize(@Nullable final String raw) {
         if (raw == null) {
             return null;
         }
@@ -138,7 +139,8 @@ public final class UserSettings {
      * @param raw the raw submitted value (may be {@code null}, blank, non-numeric or out of range)
      * @return the valid decimal-place count, or {@code null} if the input is not acceptable
      */
-    public static @Nullable Integer parseDecimalPlaces(@Nullable final String raw) {
+    @Nullable
+    public static Integer parseDecimalPlaces(@Nullable final String raw) {
         if (raw == null) {
             return null;
         }

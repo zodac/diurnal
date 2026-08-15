@@ -346,7 +346,8 @@ public class WebResource {
                 .build();
     }
 
-    private static @Nullable String userAgent(final @Nullable RoutingContext routingContext) {
+    @Nullable
+    private static String userAgent(final @Nullable RoutingContext routingContext) {
         return routingContext == null ? null : routingContext.request().getHeader("User-Agent");
     }
 

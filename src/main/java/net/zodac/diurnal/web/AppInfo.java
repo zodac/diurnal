@@ -114,7 +114,8 @@ public class AppInfo {
      *
      * @return the "update available" tooltip text, or {@code null} when no update is advertised
      */
-    public @Nullable String getUpdateTooltip() {
+    @Nullable
+    public String getUpdateTooltip() {
         return UpdateCheck.footerTooltip(updateCheckService.status());
     }
 

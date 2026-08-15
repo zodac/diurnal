@@ -91,7 +91,8 @@ public class OpenApiDocsAuthFilter {
         }
     }
 
-    private @Nullable User resolveUser(final RoutingContext context) {
+    @Nullable
+    private User resolveUser(final RoutingContext context) {
         final String token = SessionTokenExtractor.fromRequest(context, sessionConfig.cookieName());
         if (token == null) {
             return null;

@@ -314,7 +314,8 @@ public class UserResource {
         return result;
     }
 
-    private static @Nullable String callingToken(final @Nullable String authorization, final @Nullable String sessionCookie) {
+    @Nullable
+    private static String callingToken(final @Nullable String authorization, final @Nullable String sessionCookie) {
         if (authorization != null && authorization.startsWith(BEARER_PREFIX)) {
             return authorization.substring(BEARER_PREFIX.length()).strip();
         }

@@ -158,7 +158,8 @@ public final class UpdateCheck {
      * @param status the resolved update status
      * @return the "update available" tooltip text, or {@code null} when no update is advertised
      */
-    public static @Nullable String footerTooltip(final UpdateStatus status) {
+    @Nullable
+    public static String footerTooltip(final UpdateStatus status) {
         if (!updateAvailable(status)) {
             return null;
         }

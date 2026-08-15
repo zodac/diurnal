@@ -83,10 +83,12 @@ public class Session extends PanacheEntityBase {
     public Instant expiresAt;
 
     @Column(name = "user_agent")
-    public @Nullable String userAgent;
+    @Nullable
+    public String userAgent;
 
     @Column(name = "client_ip")
-    public @Nullable String clientIp;
+    @Nullable
+    public String clientIp;
 
     /**
      * Finds the session whose stored hash matches the given token hash.

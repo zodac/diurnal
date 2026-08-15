@@ -218,7 +218,8 @@ public class NotesApiResource {
 
     // Surface input policy: the range is optional, but it is a RANGE - half of one is a request the caller did not mean to make, so requireDate
     // rejects it with a 400 rather than quietly completing it with "the beginning of time" or "today" (the reject-never-coerce rule for /api/v1).
-    private static @Nullable DateWindow window(final @Nullable String start, final @Nullable String end) {
+    @Nullable
+    private static DateWindow window(final @Nullable String start, final @Nullable String end) {
         if ((start == null || start.isBlank()) && (end == null || end.isBlank())) {
             return null;
         }

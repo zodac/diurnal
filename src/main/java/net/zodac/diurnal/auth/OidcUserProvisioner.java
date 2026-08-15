@@ -261,7 +261,8 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
 
     // The Settings "Connect" flow: the link-intent cookie plus a valid signed-in session identifies the account to link. Anything short of both
     // (no cookie, no session cookie, expired session) falls through to the ordinary login policy.
-    private @Nullable User resolveLinkTarget(@Nullable final RoutingContext routingContext) {
+    @Nullable
+    private User resolveLinkTarget(@Nullable final RoutingContext routingContext) {
         if (routingContext == null || routingContext.request().getCookie(LINK_COOKIE) == null) {
             return null;
         }

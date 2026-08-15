@@ -90,7 +90,8 @@ public class Note extends PanacheEntityBase {
      * @param date the day whose note to read
      * @return the day's note, or {@code null} if the day has no note
      */
-    public static @Nullable Note findEntry(final UUID userId, final LocalDate date) {
+    @Nullable
+    public static Note findEntry(final UUID userId, final LocalDate date) {
         return Note.<Note>find("userId = ?1 and noteDate = ?2", userId, date).firstResult();
     }
 

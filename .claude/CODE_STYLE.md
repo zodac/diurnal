@@ -262,6 +262,39 @@ public String tokenHash;
 public String authSource;
 ```
 
+### Nullability annotations on a field or method sit on their own line
+
+**`@Nullable` (and `@NonNull`/`@NotNull`) on a *field* or a *method* is written alone on the line directly above the declaration** — never inline
+between the modifiers and the type (`public @Nullable String timezone;`). On a field it goes **below** the field's other annotations
+(`@Column`/`@Preference`/…), directly above the declaration line; on a method it goes below the Javadoc, directly above the declaration line. This
+keeps the modifier-plus-type run readable (`public static Integer parsePageSize`, not `public static @Nullable Integer parsePageSize`) and puts every
+nullability marker in the same place on every declaration, so it is greppable at the start of a line.
+
+❌ **Wrong** — inline, buried between the modifiers and the type:
+
+```java
+@Column(name = "timezone")
+public @Nullable String timezone;
+
+public static @Nullable Integer parsePageSize(@Nullable final String raw) {
+```
+
+✅ **Right** — alone on its own line, directly above the declaration:
+
+```java
+@Column(name = "timezone")
+@Nullable
+public String timezone;
+
+@Nullable
+public static Integer parsePageSize(@Nullable final String raw) {
+```
+
+> **Method parameters and record components are exempt** — a parameter's annotation stays inline (`final @Nullable String raw`,
+> `@QueryParam("at") final @Nullable String at`), as does a record component's (`@Nullable LocalDate firstPerformed,`). Only field and method
+> declarations take the own-line form. This is purely a layout rule: JSpecify's `@Nullable` is `TYPE_USE`, so it still applies to the field's/return
+> type from the modifier position.
+
 ### Enum constants are separated by a blank line
 
 Each enum constant must be separated from the next by a **blank line**, including its (mandatory, multi-line) Javadoc. Never pack constants together.

@@ -68,7 +68,8 @@ public final class PageSizes {
      * @param section the section to look up
      * @return the overriding page size, or {@code null} when the section follows the general preference
      */
-    public static @Nullable Integer overrideFor(final @Nullable List<PageSizePref> stored, final PageSection section) {
+    @Nullable
+    public static Integer overrideFor(final @Nullable List<PageSizePref> stored, final PageSection section) {
         if (stored == null) {
             return null;
         }
