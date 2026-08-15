@@ -400,7 +400,7 @@ class AuthResourceIT extends IntegrationTestBase {
 
     /**
      * Persists an OIDC-provisioned account (no password hash; issuer/subject set), mirroring what
-     * {@link net.zodac.diurnal.auth.OidcUserProvisioner} writes on first login. Must be called inside a transaction.
+     * {@link net.zodac.diurnal.auth.oidc.OidcUserProvisioner} writes on first login. Must be called inside a transaction.
      */
     private static void newOidcUser(final String email) {
         final User user = new User();

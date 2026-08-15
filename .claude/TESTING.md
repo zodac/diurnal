@@ -7,6 +7,12 @@
 
 ### Testing conventions
 
+**A helper only tests call belongs in `src/test`, however production-shaped it looks.** `SqlParameters` (the `:name`-placeholder extractor that
+`ActionLogQueriesTest`/`NoteQueriesTest` use to pin each handwritten query's parameter surface) sat in `net.zodac.diurnal.log` and shipped in the
+production jar for exactly that reason — no `src/main` caller, only test ones. It now lives in the root test package, since the query classes it
+guards span more than one feature package. Nothing catches this automatically: Qodana's dead-code check sees the test callers and stays quiet, so it
+is a review habit, not a gate.
+
 Integration tests extend `IntegrationTestBase` (truncates `action_logs → actions → users` before each test). Helpers: `newUser()`, `newAction()`,
 `newLog()`, `runInTx()`. Tests use `@TestSecurity`. The `test` profile forces `app.timezone=UTC`. Password hashing runs at minimal cost in tests:
 seeded users (`newUser()`) get a cheap Argon2id hash whose parameters mirror the `test` profile's pinned `password.hash.argon2.*` values (so a seeded

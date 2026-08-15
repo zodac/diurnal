@@ -50,19 +50,23 @@ public class AppInfo {
 
     private final ApplicationVersion applicationVersion;
     private final AppConfig appConfig;
+    private final AssetsConfig assetsConfig;
     private final UpdateCheckService updateCheckService;
 
     /**
      * Injects the version accessor, the {@code app.*} settings and the one-shot startup update check that drive the footer metadata.
      *
      * @param applicationVersion the single accessor for the running application's release version
-     * @param appConfig the application-specific {@code app.*} settings (repository URL, build timestamp, asset filenames)
+     * @param appConfig the application-wide {@code app.*} settings (repository URL, build timestamp)
+     * @param assetsConfig the served-asset filenames and image manifests
      * @param updateCheckService the one-shot startup update check, read (no I/O) to drive the footer's admin-only "update available" indicator
      */
     @Inject
-    public AppInfo(final ApplicationVersion applicationVersion, final AppConfig appConfig, final UpdateCheckService updateCheckService) {
+    public AppInfo(final ApplicationVersion applicationVersion, final AppConfig appConfig, final AssetsConfig assetsConfig,
+        final UpdateCheckService updateCheckService) {
         this.applicationVersion = applicationVersion;
         this.appConfig = appConfig;
+        this.assetsConfig = assetsConfig;
         this.updateCheckService = updateCheckService;
     }
 
@@ -152,14 +156,14 @@ public class AppInfo {
      * The content-hashed filename of a settings preview thumbnail (e.g. {@code page-nova-full-dark} →
      * {@code page-nova-full-dark.9f3a1c2b4d5e.webp}), referenced by {@code partials/preview-thumb.html} as {@code /img/settings/{...}} so each deploy
      * busts client and reverse-proxy caches only when that image's bytes change — the same per-file cache-busting the {@code /css/} and {@code /js/}
-     * assets get. The map is baked in at image-build time ({@link AppConfig#settingsImages()}); un-hashed dev/{@code mvn package} runs have no entry,
-     * so this falls back to the plain {@code <base>.webp} name (served {@code no-store} in dev).
+     * assets get. The map is baked in at image-build time ({@link AssetsConfig#settingsImages()}); un-hashed dev/{@code mvn package} runs have no
+     * entry, so this falls back to the plain {@code <base>.webp} name (served {@code no-store} in dev).
      *
      * @param base the preview image base name, without extension (e.g. {@code page-nova-full-dark})
      * @return the served thumbnail filename under {@code /img/settings/}
      */
     public String settingsImage(final String base) {
-        return appConfig.settingsImages().getOrDefault(base, base + ".webp");
+        return assetsConfig.settingsImages().getOrDefault(base, base + ".webp");
     }
 
     /**
@@ -167,20 +171,20 @@ public class AppInfo {
      * base name, referenced by {@code partials/preview-thumb.html} as {@code /img/settings/full/{...}} and carried to the lightbox by
      * {@code settings.js}. Held as its own file so the picker's tiles - which paint at roughly a fifth of the lightbox's width - are not made to
      * carry the full-size bytes on every Settings page view; this one is requested only when a preview is opened. The map is baked in at image-build
-     * time ({@link AppConfig#settingsFullImages()}); un-hashed dev/{@code mvn package} runs have no entry, so this falls back to the plain
+     * time ({@link AssetsConfig#settingsFullImages()}); un-hashed dev/{@code mvn package} runs have no entry, so this falls back to the plain
      * {@code <base>.webp} name.
      *
      * @param base the preview image base name, without extension (e.g. {@code page-nova-full-dark})
      * @return the served full-size filename under {@code /img/settings/full/}
      */
     public String settingsFullImage(final String base) {
-        return appConfig.settingsFullImages().getOrDefault(base, base + ".webp");
+        return assetsConfig.settingsFullImages().getOrDefault(base, base + ".webp");
     }
 
     /**
      * The content-hashed filename of a top-level {@code /img/} vector mark (e.g. {@code wordmark.svg} → {@code wordmark.9f3a1c2b4d5e.svg}),
      * referenced by the templates as {@code /img/{...}} so each deploy busts caches only when the mark's bytes change — the same per-file
-     * cache-busting the {@code /css/} and {@code /js/} assets get. The map ({@link AppConfig#hashedImages()}) is keyed by the base name (the part
+     * cache-busting the {@code /css/} and {@code /js/} assets get. The map ({@link AssetsConfig#hashedImages()}) is keyed by the base name (the part
      * before the first dot), so this looks up that base; un-hashed dev/{@code mvn package} runs have no entry and fall back to the passed filename
      * verbatim (served
      * {@code no-store} in dev).
@@ -192,7 +196,7 @@ public class AppInfo {
         // split (limit 2) keeps this branch-free: a dot-less name is its own base, with no indexOf conditional to leave a boundary mutant behind
         // the 100% PIT gate.
         final String base = filename.split("\\.", 2)[0];
-        return appConfig.hashedImages().getOrDefault(base, filename);
+        return assetsConfig.hashedImages().getOrDefault(base, filename);
     }
 
     /**
@@ -202,7 +206,7 @@ public class AppInfo {
      * @return the stylesheet filename served under {@code /css/}
      */
     public String getCssFile() {
-        return appConfig.cssFile();
+        return assetsConfig.cssFile();
     }
 
     /**
@@ -212,7 +216,7 @@ public class AppInfo {
      * @return the script filename served under {@code /js/}
      */
     public String getJsFile() {
-        return appConfig.jsFile();
+        return assetsConfig.jsFile();
     }
 
     /**
@@ -222,7 +226,7 @@ public class AppInfo {
      * @return the shared-script filename served under {@code /js/}
      */
     public String getJsAppFile() {
-        return appConfig.jsAppFile();
+        return assetsConfig.jsAppFile();
     }
 
     /**
@@ -232,7 +236,7 @@ public class AppInfo {
      * @return the dashboard-script filename served under {@code /js/}
      */
     public String getJsDashboardFile() {
-        return appConfig.jsDashboardFile();
+        return assetsConfig.jsDashboardFile();
     }
 
     /**
@@ -243,7 +247,7 @@ public class AppInfo {
      * @return the note-script filename served under {@code /js/}
      */
     public String getJsNoteFile() {
-        return appConfig.jsNoteFile();
+        return assetsConfig.jsNoteFile();
     }
 
     /**
@@ -253,7 +257,7 @@ public class AppInfo {
      * @return the actions-script filename served under {@code /js/}
      */
     public String getJsActionsFile() {
-        return appConfig.jsActionsFile();
+        return assetsConfig.jsActionsFile();
     }
 
     /**
@@ -263,7 +267,7 @@ public class AppInfo {
      * @return the admin users-script filename served under {@code /js/}
      */
     public String getJsAdminFile() {
-        return appConfig.jsAdminFile();
+        return assetsConfig.jsAdminFile();
     }
 
     /**
@@ -273,7 +277,7 @@ public class AppInfo {
      * @return the API-docs-script filename served under {@code /js/}
      */
     public String getJsApiDocsFile() {
-        return appConfig.jsApiDocsFile();
+        return assetsConfig.jsApiDocsFile();
     }
 
     /**
@@ -283,7 +287,7 @@ public class AppInfo {
      * @return the settings-script filename served under {@code /js/}
      */
     public String getJsSettingsFile() {
-        return appConfig.jsSettingsFile();
+        return assetsConfig.jsSettingsFile();
     }
 
     /**
@@ -293,6 +297,6 @@ public class AppInfo {
      * @return the stats-script filename served under {@code /js/}
      */
     public String getJsStatsFile() {
-        return appConfig.jsStatsFile();
+        return assetsConfig.jsStatsFile();
     }
 }

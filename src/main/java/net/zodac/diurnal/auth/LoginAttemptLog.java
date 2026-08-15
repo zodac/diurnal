@@ -17,6 +17,8 @@
 
 package net.zodac.diurnal.auth;
 
+import net.zodac.diurnal.auth.lockout.AttemptThrottle;
+import net.zodac.diurnal.auth.lockout.LockoutMessages;
 import org.apache.logging.log4j.Logger;
 
 /**

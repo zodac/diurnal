@@ -21,7 +21,6 @@ import com.password4j.Argon2Function;
 import com.password4j.types.Argon2;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import net.zodac.diurnal.config.Argon2Config;
 
 /**
  * Single source of truth for password hashing and verification.

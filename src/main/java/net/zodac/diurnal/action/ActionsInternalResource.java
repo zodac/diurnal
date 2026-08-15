@@ -36,6 +36,7 @@ import jakarta.ws.rs.core.Response;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
+import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
 import net.zodac.diurnal.text.TextFieldExtensions;
@@ -46,7 +47,6 @@ import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.web.HtmxResponses;
-import net.zodac.diurnal.web.RollbackOnErrorStatus;
 import org.jspecify.annotations.Nullable;
 
 /**

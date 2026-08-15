@@ -17,7 +17,7 @@
 
 package net.zodac.diurnal.stub;
 
-import net.zodac.diurnal.config.PasswordAuthConfig;
+import net.zodac.diurnal.auth.PasswordAuthConfig;
 
 /**
  * Reusable {@link PasswordAuthConfig} stub built from its record components.

@@ -60,7 +60,7 @@ public final class TextFields {
      *
      * <p>
      * Unlike every other bound here, this one is a <strong>default rather than the value in force</strong>: a deployment may set its own through
-     * {@code NOTE_MAX_LENGTH} ({@link net.zodac.diurnal.config.NotesConfig#maxLength()}), and the field the application actually validates against
+     * {@code NOTE_MAX_LENGTH} ({@link net.zodac.diurnal.note.NotesConfig#maxLength()}), and the field the application actually validates against
      * is resolved from that by {@code note.NoteField}. The constant survives as the default, as the instance {@link #NOTE} and {@link #all()} carry,
      * and as the compile-time value a test can bound itself by.
      *

@@ -26,6 +26,8 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import net.zodac.diurnal.auth.lockout.IpLockoutService;
+import net.zodac.diurnal.auth.lockout.IpThrottle;
 import net.zodac.diurnal.note.NoteKeys;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
@@ -39,10 +41,10 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The single owner of account registration — the shared per-IP lockout check, field validation, duplicate-email check and user creation — used by
- * both the web form ({@code WebResource.register}) and the REST API ({@code AuthResource.register}), so a rule added or changed here applies to both
- * surfaces by construction (the {@link AuthenticationService} pattern). The resources only translate the returned {@link RegistrationResult} into
- * their medium and keep their deliberately different <em>enablement policies</em> (the web setup flow may create the very first — administrator —
- * account; the API never may).
+ * both the web form ({@code AuthWebResource.register}) and the REST API ({@code AuthResource.register}), so a rule added or changed here applies
+ * to both surfaces by construction (the {@link AuthenticationService} pattern). The resources only translate the returned
+ * {@link RegistrationResult} into their medium and keep their deliberately different <em>enablement policies</em> (the web setup flow may create
+ * the very first — administrator — account; the API never may).
  *
  * <p>
  * The unified validation rules: every field is required, and the email, display name and password are each checked against their entry in the

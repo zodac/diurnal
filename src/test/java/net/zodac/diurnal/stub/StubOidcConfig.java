@@ -18,7 +18,7 @@
 package net.zodac.diurnal.stub;
 
 import java.util.Optional;
-import net.zodac.diurnal.config.OidcConfig;
+import net.zodac.diurnal.auth.oidc.OidcConfig;
 
 /**
  * Reusable {@link OidcConfig} stub built from its record components. Use {@link #inert()} for a code path that never reads the OIDC settings.

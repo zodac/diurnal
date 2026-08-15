@@ -527,7 +527,9 @@ line-wrap and method-call-child agree at `+4`). The same swap applies to any oth
 
 ### Configuration is read through typed `@ConfigMapping`, never scattered property lookups
 
-**Every configuration value is read through a typed SmallRye `@ConfigMapping` interface** (see `net.zodac.diurnal.config.*` — `AppConfig`,
+**Every configuration value is read through a typed SmallRye `@ConfigMapping` interface**, and each one lives with the feature that owns its keys
+(`SessionConfig` in `auth.session`, `AssetsConfig` in `web`, `NotesConfig` in `note`, …); only genuinely app-wide settings stay in
+`net.zodac.diurnal.config` (see `AppConfig`,
 `SessionConfig`, `OidcConfig`, …). A `@ConfigMapping` groups related keys under one `prefix`, gives each a `@WithName`/`@WithDefault`, is injected as
 a normal CDI bean, and is trivially stubbed in a unit test (it is an interface). **Never** read config with a raw `@ConfigProperty` field,
 `ConfigProvider.getConfig()`, `config.getValue(...)`, `System.getProperty(...)`, or `System.getenv(...)` in application code.
@@ -574,5 +576,5 @@ public class ApplicationVersion {
 
 > **Scope — this rule governs `src/main` only.** Tests may read config with a raw `@ConfigProperty` (or build a `SmallRyeConfig` directly): a
 `@QuarkusTest` probing the active environment to construct fixtures (e.g. the OIDC group ITs reading `oidc.admin.group`), or a test exercising a
-mapping mechanism itself (`AppConfigTest`), is idiomatic and must stay independent of the production mapping bean. Do not "fix" these to
+mapping mechanism itself (`AssetsConfigTest`), is idiomatic and must stay independent of the production mapping bean. Do not "fix" these to
 `@ConfigMapping`.

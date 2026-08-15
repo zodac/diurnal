@@ -4,10 +4,40 @@
 > Extracted from `CLAUDE.md`; read before touching anything under `auth/`, the `web/` login/OIDC flows, session
 > handling, or `SecurityHeadersFilter`/CSP. The OIDC review/decision log lives in [`OIDC.md`](OIDC.md).
 
+### Package layout (`auth` and its four subpackages)
+
+`auth` holds the **credentials core only** (`AuthResource`, `AuthenticationService`, `RegistrationService`, `PasswordChangeService`, `Passwords`,
+`RoleAssigner` + their request/result types). Three subpackages carry the rest, and the dependency direction is **one-way and enforced by what
+imports what**:
+
+| Package | Role | Depends on |
+|---|---|---|
+| `auth.session` | the session substrate (store, tokens, auth mechanism, identity provider, sweeper, activity) | **nothing else in `auth`** |
+| `auth.lockout` | per-IP throttling + the admin lockout console | **nothing else in `auth`** |
+| `auth.oidc` | the whole OIDC sign-in/link flow, including its browser routes (`OidcWebResource`) | `auth` (`RoleAssigner`) + `auth.session` |
+| `auth.security` | response hardening applied to every request: `SecurityHeadersFilter`, `CspPolicy`, `CsrfProtectionFilter` | nothing else in `auth` |
+
+So `auth.session` and `auth.lockout` are **sinks**: the credentials core reaches into them, never the reverse, which is what makes them safe for the
+rest of the app (`web`, `user`, `log`, `openapi`) to import directly. `auth.oidc` sits above the core; **nothing in `auth` imports `auth.oidc`.**
+Keep it that way — a back-edge from a sink to the core would make the whole thing one package again in all but name.
+
+The web UI's authentication pages live here too — `AuthWebResource` (login, first-run setup, registration, logout) is the browser twin of
+`AuthResource`, and each config mapping now sits with the subdomain that owns it (`SessionConfig` in `auth.session`, `OidcConfig` in `auth.oidc`,
+`IpThrottleConfig` in `auth.lockout`, the password/registration ones here). The cookies both login paths set are built in one place,
+`auth.session.SessionCookies`.
+
+Two former members left `auth` outright, because neither was about authenticating anyone: the Swagger-docs gate
+(`OpenApiDocsAccess`/`OpenApiDocsAuthFilter`/`OpenApiDocsPaths`) now sits in `openapi` beside `PublicApiFilter`, and `ClientAddress` — a plain "read
+the client IP off a `RoutingContext`" helper used by `web` and `user` as much as by the throttles — is in `http`.
+
+**Two declarations are public purely to cross these boundaries**, and both say so in their own Javadoc: `SessionTokenExtractor` (needed by
+`auth.oidc` and `openapi`) and `OidcUserProvisioner.linkOrCreate` (needed by the first-run bootstrap guard, which spans the OIDC and API-registration
+paths and so lives in the parent package). Neither is a supported surface; do not treat them as extension points.
+
 ### Authentication
 
 - **Web UI (`/*`)** — server-side session; opaque token in the `diurnal_session` cookie (`HttpOnly`/`SameSite=strict`/`Secure`), set by
-  `WebResource.doLogin`; unauthenticated → `/login`. `@RolesAllowed("user")` at the method level.
+  `AuthWebResource.doLogin`; unauthenticated → `/login`. `@RolesAllowed("user")` at the method level.
 - **REST API (`/api/v1/*`)** — the **same** opaque session token sent as `Authorization: Bearer` (from `POST /api/v1/auth/login`).
 
 Both surfaces share ONE server-side session store (`SessionStore` → `PostgresSessionStore`, the `sessions` table; migration `V20`). There is **no JWT
@@ -24,7 +54,7 @@ logic is pure in `SessionTokens` (100% PIT). The challenge is path-based (`Sessi
 `resolve`.
 **Revocation = deleting rows:** logout (`revoke`, this device only), password change (`revokeOthersForUser`, all *but* the current), and "Log out from
 everywhere" (`revokeAllForUser`, incl. current — `POST /internal/settings/sessions/revoke-all` from Settings, or its API twin
-`POST /api/v1/auth/revoke`). OIDC folds in: `WebResource.oidcCallback` mints a Diurnal session
+`POST /api/v1/auth/revoke`). OIDC folds in: `OidcWebResource.oidcCallback` mints a Diurnal session
 (`auth_source='oidc'`) and sets our cookie, so OIDC users ride the same revocable model (the `q_session` cookie survives only so logout can trigger
 RP-initiated IdP logout).
 
@@ -51,18 +81,18 @@ decaying (the distributed many-IP brute-force this trades away is mitigated by A
 The client IP comes from `ClientAddress.of(routingContext)` → Vert.x `remoteAddress()` (honours `TRUST_X_FORWARDED_HEADERS`), so
 this is only meaningful behind a trusted proxy. **Login** verifies credentials through the **same** `AuthenticationService` (which
 owns the `IpThrottle` check + Argon2id verification and returns a `LoginResult`) — `AuthResource.login` (JSON API → `429` +
-`Retry-After`) and `WebResource.doLogin` (web form). **Registration** likewise runs through one shared `RegistrationService`
+`Retry-After`) and `AuthWebResource.doLogin` (web form). **Registration** likewise runs through one shared `RegistrationService`
 (which owns the `IpThrottle` entry-check + failure recording, the unified field validation — email `@`, display name 2–100 chars,
 password ≤128 — the duplicate-email check and account creation, returning a sealed `RegistrationResult`) — `AuthResource.register`
-(JSON API → `429` + `Retry-After`; the deliberately-API-only first-user refusal stays in the resource) and `WebResource.register`
+(JSON API → `429` + `Retry-After`; the deliberately-API-only first-user refusal stays in the resource) and `AuthWebResource.register`
 (web form → `429`, carrying the seconds-left `X-Lockout-Retry-After` header + a `[data-form-errors]` banner; the web-only
 confirm-password rule is expressed by passing `confirmPassword` to the service). The locked-out message states the **exact** whole seconds remaining
 with **neutral** wording (`LockoutMessages.retryMessage`, e.g. "Too many failed attempts. Please try again in 240 seconds.") —
 deliberately NOT naming login vs registration (one shared counter feeds both, so "too many failed logins" after failed *registrations*
 would be misleading) and disclosing nothing about account existence (a non-existent email is keyed and locked identically, no
-enumeration). The API returns it as the `429` body, alongside the exact `Retry-After` header. The web login form: `WebResource.doLogin`
+enumeration). The API returns it as the `429` body, alongside the exact `Retry-After` header. The web login form: `AuthWebResource.doLogin`
 owns `POST /login` directly (there is no Quarkus form auth), so on a lockout it simply sets the short-lived `diurnal_login_lockout`
-cookie (value = seconds left) onto its own `303 /login` redirect. `WebResource.loginPage` reads that cookie to show the lockout banner
+cookie (value = seconds left) onto its own `303 /login` redirect. `AuthWebResource.loginPage` reads that cookie to show the lockout banner
 (over the generic error), clears it, AND echoes the **seconds left** in an `X-Lockout-Retry-After` response header — because the login
 form posts via `fetch` (`data-ajax-submit` in `app.js`) and never renders that HTML, so the AJAX handler reads the header and runs a
 **live mm:ss countdown** via the shared `window.Diurnal.startLockoutCountdown` helper (greying/disabling the submit button until it

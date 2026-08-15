@@ -727,7 +727,7 @@ Consequences of that choice, both deliberate:
 ### The length bound is per-deployment (`NOTE_MAX_LENGTH`)
 
 Added 2026-08-14. The note is the **only** entry in the `TextFields` catalogue whose bound a deployment can set for
-itself: `notes.max-length=${NOTE_MAX_LENGTH:10000}`, read through `config/NotesConfig` and turned into the `TextField`
+itself: `notes.max-length=${NOTE_MAX_LENGTH:10000}`, read through `note/NotesConfig` and turned into the `TextField`
 the application validates against by `note/NoteField` (the `ApplicationVersion` accessor-bean pattern, so the config is
 read and shaped once rather than at each of the three call sites — `NoteService`, `web/TextFieldCatalogue` and
 `transfer/ImportService`). `TextFields.NOTE` survives as the default instance, and `TextFields.note(int)` is the one

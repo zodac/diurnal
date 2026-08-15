@@ -17,7 +17,7 @@
 
 package net.zodac.diurnal.stub;
 
-import net.zodac.diurnal.config.QuarkusOidcConfig;
+import net.zodac.diurnal.auth.oidc.QuarkusOidcConfig;
 
 /**
  * Reusable {@link QuarkusOidcConfig} stub built from its record components - the framework-owned {@code quarkus.oidc.*} keys the application reads.

@@ -22,7 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.UUID;
-import net.zodac.diurnal.crypto.Aes256Gcm;
+import net.zodac.diurnal.note.crypto.Aes256Gcm;
 import org.junit.jupiter.api.Test;
 
 /**

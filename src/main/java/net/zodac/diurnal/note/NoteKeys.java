@@ -22,10 +22,9 @@ import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
-import net.zodac.diurnal.config.NotesEncryptionConfig;
-import net.zodac.diurnal.crypto.Aes256Gcm;
-import net.zodac.diurnal.crypto.DataKeyEnvelope;
-import net.zodac.diurnal.crypto.MasterKey;
+import net.zodac.diurnal.note.crypto.Aes256Gcm;
+import net.zodac.diurnal.note.crypto.DataKeyEnvelope;
+import net.zodac.diurnal.note.crypto.MasterKey;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

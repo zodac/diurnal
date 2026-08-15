@@ -22,6 +22,8 @@ import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
 import java.util.UUID;
+import net.zodac.diurnal.auth.lockout.IpThrottle;
+import net.zodac.diurnal.auth.session.SessionStore;
 import net.zodac.diurnal.text.TextFieldExtensions;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
@@ -33,7 +35,7 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The single owner of a user changing their own password — the local-account guard, the current-password proof, the new-password rules, the Argon2id
- * re-hash and the "sign out every other device" revocation — shared by the Settings page ({@code WebResource}) and the REST API's
+ * re-hash and the "sign out every other device" revocation — shared by the Settings page ({@code SettingsWebResource}) and the REST API's
  * {@code PUT /api/v1/users/me/password} ({@code UserResource}), so a rule added or changed here applies to both surfaces by construction (the
  * {@link AuthenticationService} pattern). The resources only translate the returned {@link PasswordChangeResult} into their medium.
  *

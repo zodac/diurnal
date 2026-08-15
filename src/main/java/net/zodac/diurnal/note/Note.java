@@ -136,8 +136,8 @@ public class Note extends PanacheEntityBase {
     /**
      * Returns a cheap change-signature for the user's notes in the inclusive {@code [start, end]} date range — the row count paired with the latest
      * {@code updatedAt} — used as an HTTP conditional-request (ETag) validator so an unchanged range can be answered with a {@code 304} without
-     * reading the notes. The signature changes on any insert, update or delete in the range (a delete lowers the count even when it does not move the
-     * maximum).
+     * reading the notes. The signature changes on any insert, update or delete in the range (a delete request lowers the count even when it does not
+     * move the maximum).
      *
      * @param userId the owning user
      * @param start the inclusive start of the date window

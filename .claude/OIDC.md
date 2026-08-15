@@ -44,7 +44,7 @@
 
 ## What shipped
 
-### Policy core (`auth` package, pure + 100% PIT)
+### Policy core (`auth.oidc` package, pure + 100% PIT)
 
 - `OidcLoginPolicy.decide(OidcLoginFacts)` → `OidcLoginDecision` (`UseExisting` / `ProvisionNew` / `LinkToSessionUser` / `Deny(reason)`): the whole
   login branching — first-run bootstrap guard, missing/unverified email, group authorisation, linked-account resolution, email-collision refusal,
@@ -53,7 +53,7 @@
   last-admin guard. No email involvement at all.
 - `OidcDenialReason`: every refusal reason with a stable cookie code + neutral user-facing message ( `{provider}` substituted). Carried to the login
   page via the short-lived `diurnal_oidc_error` cookie (the code-flow failure redirect is a fixed `/login?error=oidc`, so the reason rides a cookie,
-  mirroring the lockout-cookie pattern); `WebResource.loginPage` maps it to a specific banner and clears it.
+  mirroring the lockout-cookie pattern); `AuthWebResource.loginPage` maps it to a specific banner and clears it.
 - `OidcUserProvisioner` is now glue: gathers facts (claims + DB + config + the link-intent/session cookies), applies the policy, and per-reason
   `WARN`-logs every denial with `iss`/`sub`/email detail.
 - **Denials on a live request throw `AuthenticationRedirectException` (302 → `/login?error=oidc`), never `AuthenticationFailedException`.** Found
@@ -67,7 +67,7 @@
 
 - `POST /internal/settings/oidc/connect` sets the one-shot `diurnal_oidc_link` intent cookie (5 min, HttpOnly) and forwards into the code flow via
   `/oidc-login`. At the callback, `OidcUserProvisioner` sees intent cookie + valid `diurnal_session`, applies `OidcLinkPolicy`, and
-  `AccountLinkService.link` attaches `iss`+`sub` AND removes the password; `WebResource.oidcCallback` then lands on `/settings?msg=oidc-connected`
+  `AccountLinkService.link` attaches `iss`+`sub` AND removes the password; `OidcWebResource.oidcCallback` then lands on `/settings?msg=oidc-connected`
   (the banner states the password was removed). The Settings UI arms a confirm first ("Your password will be removed"). Surface policy: no API twin
   (browser redirect dance). **The token's email must match the signed-in account's email** (`LINK_EMAIL_MISMATCH`, added 2026-07-19 after a field
   report) — not a security control (the user proved both sides), but the mistaken-account guard: completing the round trip signed in to the wrong

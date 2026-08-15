@@ -18,7 +18,7 @@
 package net.zodac.diurnal.note;
 
 /**
- * The hand-written SQL and JPQL queries backing {@link Note}'s static finder and mutation methods, held here as named constants to keep the entity
+ * The handwritten SQL and JPQL queries backing {@link Note}'s static finder and mutation methods, held here as named constants to keep the entity
  * itself readable — the {@code ActionLogQueries} pattern. Each query binds its parameters by name ({@code :name} placeholders), and
  * {@code NoteQueriesTest} pins every constant's parameter surface (via {@code SqlParameters}) to the exact set the corresponding {@link Note} method
  * binds, so a mistyped or orphaned placeholder fails at unit speed rather than only surfacing when the query is first executed against the database.
@@ -28,8 +28,8 @@ final class NoteQueries {
     /**
      * JPQL producing a cheap change-signature for a user's notes within the inclusive {@code [:from, :to]} date range: the row {@code COUNT} paired
      * with the latest {@code updated_at}, projected into a typed {@link net.zodac.diurnal.http.ChangeSignature} (never a positional
-     * {@code Object[]}). The pair changes on any insert, update or delete in the range — a delete lowers the count even when it does not move the
-     * maximum — so it is a sound weak-ETag validator for the calendar's notes feed that never has to read the notes themselves.
+     * {@code Object[]}). The pair changes on any insert, update or delete in the range — a delete request lowers the count even when it does not move
+     * the maximum — so it is a sound weak-ETag validator for the calendar's notes feed that never has to read the notes themselves.
      */
     static final String RANGE_VERSION_JPQL = """
             SELECT new net.zodac.diurnal.http.ChangeSignature(COUNT(n), MAX(n.updatedAt))

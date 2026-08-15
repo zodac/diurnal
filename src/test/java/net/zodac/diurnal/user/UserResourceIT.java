@@ -31,8 +31,8 @@ import io.restassured.http.Header;
 import jakarta.inject.Inject;
 import java.time.Instant;
 import net.zodac.diurnal.IntegrationTestBase;
-import net.zodac.diurnal.auth.Session;
-import net.zodac.diurnal.auth.SessionStore;
+import net.zodac.diurnal.auth.session.Session;
+import net.zodac.diurnal.auth.session.SessionStore;
 import net.zodac.diurnal.time.AppClock;
 import org.junit.jupiter.api.Test;
 

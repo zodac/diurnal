@@ -18,7 +18,7 @@
 package net.zodac.diurnal.stub;
 
 import java.time.Duration;
-import net.zodac.diurnal.config.UpdateCheckConfig;
+import net.zodac.diurnal.update.UpdateCheckConfig;
 
 /**
  * Reusable {@link UpdateCheckConfig} stub: the update check is reported disabled with a short timeout. Reused wherever an {@link UpdateCheckConfig}
