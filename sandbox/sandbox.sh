@@ -7,6 +7,9 @@
 #   ./sandbox.sh run <cmd...>   # run an arbitrary command in the sandbox
 #   ./sandbox.sh stop           # stop & remove a running sandbox (one-click teardown)
 #
+# A launch REPLACES any sandbox that is already running (they cannot coexist — same name, same port,
+# same ~/.claude volume), stopping it only once the new image has been built.
+#
 # Only the project directory is mounted from the host. No $HOME, no SSH keys,
 # no other projects, and NOT the host Docker socket. The sandbox runs its own
 # nested Docker daemon, so everything the project spins up (dev DB, Testcontainers,
@@ -14,6 +17,7 @@
 set -euo pipefail
 
 IMAGE="diurnal-sandbox"
+CONTAINER="diurnal-sandbox"
 # This script lives in <project>/sandbox/, so the project root is its parent dir.
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${PROJECT_DIR:-$(dirname "${HERE}")}"
@@ -33,6 +37,65 @@ build() {
     "${HERE}"
 }
 
+# Stop and remove whatever container is already holding our name, and wait until the name is actually
+# free again. Reports what it did in REMOVED_EXISTING (1 = removed something, 0 = there was nothing) —
+# a variable rather than an exit status, because a function called as an `if`/`||` condition runs with
+# `set -e` disabled, which the docker calls in here should not.
+#
+# Two sandboxes CANNOT coexist: they share the container name, the published port and — worst of all —
+# the named volumes, including /home/dev/.claude, whose login/session state Claude rewrites in place.
+# Starting a second one while the first is up therefore takes BOTH down. So a launch does not compete
+# with the running sandbox, it replaces it: the old one is killed here, deliberately AFTER build() has
+# finished, so the outgoing session stays usable for the whole rebuild and the gap between the two is
+# only the teardown itself.
+REMOVED_EXISTING=0
+remove_existing() {
+  local existing waited=0
+  REMOVED_EXISTING=0
+  existing="$(docker ps -aq -f "name=^${CONTAINER}$")"
+  if [[ -z "${existing}" ]]; then
+    return 0
+  fi
+  REMOVED_EXISTING=1
+
+  echo "[sandbox] stopping the existing ${CONTAINER} container..." >&2
+  # `stop` first, with the same -t 10 grace as the teardown trap below (so the outgoing Claude still gets
+  # to flush ~/.claude/.claude.json cleanly), then `rm -f` for a container that was NOT started with --rm
+  # and would otherwise linger in `exited` state, still owning the name.
+  docker stop -t 10 "${existing}" >/dev/null 2>&1 || true
+  docker rm -f "${existing}" >/dev/null 2>&1 || true
+
+  # `--rm` removal is asynchronous in the daemon: the name can stay taken for a moment after the client
+  # exits, and `docker run --name` fails outright ("name is already in use") if we race it. Poll until the
+  # name really is free rather than guessing at a sleep.
+  while true; do
+    existing="$(docker ps -aq -f "name=^${CONTAINER}$")"
+    if [[ -z "${existing}" ]]; then
+      return 0
+    fi
+    if (( waited >= 30 )); then
+      echo "Timed out waiting for the existing ${CONTAINER} container to be removed." >&2
+      exit 1
+    fi
+    sleep 1
+    waited=$(( waited + 1 ))
+  done
+}
+
+# Stop the container THIS launcher started, identified by the id docker wrote to the cidfile — never by
+# name. Because remove_existing hands the name from an outgoing sandbox to an incoming one, a name-based
+# teardown would let a departing launcher stop the container that replaced it.
+stop_own() {
+  local cidfile="$1" cid=""
+  if [[ -s "${cidfile}" ]]; then
+    cid="$(<"${cidfile}")"
+  fi
+  if [[ -n "${cid}" ]]; then
+    docker stop -t 10 "${cid}" >/dev/null 2>&1 || true
+  fi
+  rm -f "${cidfile}"
+}
+
 run() {
   if [[ ! -d "${PROJECT_DIR}" ]]; then
     echo "Project directory not found: ${PROJECT_DIR}" >&2
@@ -43,6 +106,10 @@ run() {
   # cache makes this a near-instant no-op when nothing in the build context has changed.
   echo "[sandbox] building ${IMAGE} before launch..." >&2
   build
+
+  # Only now (image ready, downtime minimised) take the name off any sandbox that is already running.
+  remove_existing
+
   # Allocate a TTY only when attached to one (so scripted `run` invocations work too).
   local tty=()
   if [[ -t 0 ]] && [[ -t 1 ]]; then tty=(-it); else tty=(-i); fi
@@ -65,8 +132,13 @@ run() {
   # ~/.claude/.claude.json on SIGTERM before docker SIGKILL it; too short a grace
   # interrupts that rename and loses the login/onboarding state (launch.sh restores
   # it from backup as a safety net, but a clean flush is better than relying on it).
+  #
+  # The container is identified for teardown by the id docker writes to --cidfile (see stop_own), not by
+  # name. `mktemp -u` because docker refuses to start if the cidfile already exists.
+  local cidfile
+  cidfile="$(mktemp -u "${TMPDIR:-/tmp}/${CONTAINER}.cid.XXXXXX")"
   exec 3<&0
-  trap 'docker stop -t 10 diurnal-sandbox >/dev/null 2>&1 || true' EXIT
+  trap 'stop_own "${cidfile}"' EXIT
   trap 'exit' INT TERM HUP
 
   # Publish the in-sandbox dev server (it runs on container :8081, e.g. scripts/dev-up.sh) to host
@@ -80,7 +152,8 @@ run() {
   # across sessions. The image pre-creates /home/dev/.m2 dev-owned so the volume is writable (see the
   # Dockerfile's user-creation block).
   docker run "${tty[@]}" --rm \
-    --name diurnal-sandbox \
+    --name "${CONTAINER}" \
+    --cidfile "${cidfile}" \
     --privileged \
     --hostname diurnal-sandbox \
     -v "${PROJECT_DIR}":/work \
@@ -94,14 +167,13 @@ run() {
 }
 
 stop() {
-  # `docker stop` triggers the running launcher's --rm + trap teardown (nested dockerd and everything it
-  # spun up dies with the container). A no-op if nothing is running.
-  local running
-  running="$(docker ps -q -f name='^diurnal-sandbox$')"
-  if [[ -n "${running}" ]]; then
-    docker stop -t 10 diurnal-sandbox >/dev/null && echo "Stopped diurnal-sandbox."
+  # Stopping the container triggers the running launcher's --rm + trap teardown (nested dockerd and
+  # everything it spun up dies with it). A no-op if nothing is there.
+  remove_existing
+  if (( REMOVED_EXISTING == 1 )); then
+    echo "Stopped ${CONTAINER}."
   else
-    echo "No running diurnal-sandbox container."
+    echo "No ${CONTAINER} container to stop."
   fi
 }
 

@@ -39,6 +39,16 @@ from the project root unless noted.
 ./sandbox/sandbox.sh stop       # stop & remove a running sandbox (one-click teardown)
 ```
 
+**A launch replaces any sandbox that is already running.** Two of them cannot coexist — they share the
+container name, the published port and the named volumes, in particular `/home/dev/.claude`, whose
+login/session state Claude rewrites in place — so starting a second one used to take *both* down. A
+launch therefore stops and removes the running container before starting its own, and waits for the
+name to actually be free (`--rm` removal is asynchronous, so `docker run --name` can otherwise lose the
+race). That happens **after** the image has been rebuilt, so the outgoing session stays usable for the
+whole build and the gap between the two is just the teardown. Each launcher tears down the container it
+started **by id** (`--cidfile`), never by name, so a departing session can never stop the one that
+replaced it.
+
 The in-sandbox dev server (container **:8081**, e.g. `scripts/dev-up.sh`) is published to host
 **:8071** — reachable at <http://localhost:8071>. It is deliberately **not** host :8081, so the host's
 own 8081 (the project's testing port — see the port map in `CLAUDE.md`) stays free for host-native
@@ -89,6 +99,8 @@ launcher's teardown (below). This is the closest thing to a Stop button.
 - running the **`Claude Sandbox (Stop)`** config (or `./sandbox/sandbox.sh stop` in any terminal) — the
   `docker stop` makes the running `docker run --rm` client exit, firing the same teardown.
 - typing `exit` / Ctrl-D in the Claude session.
+- **starting another sandbox** — the new launcher stops the old container once its own build is done
+  (see "Use" above).
 
 It does this with a `trap` that runs `docker stop`, and by launching `docker run` as `… & wait` so the
 trap fires the instant the signal arrives (a foreground command would defer it until it returns — too
