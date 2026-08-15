@@ -22,7 +22,7 @@
     - [Required](#required)
     - [Database](#database)
     - [Application](#application)
-    - [Notes Encryption](#notes-encryption)
+    - [Notes](#notes)
         - [Rotating the Key](#rotating-the-key)
     - [Authentication](#authentication)
         - [Password Sign-in](#password-sign-in)
@@ -168,7 +168,7 @@ curl -o docker-compose.yml https://raw.githubusercontent.com/zodac/diurnal/maste
 Edit `docker-compose.yml` and set the two required values:
 
 - `DB_PASSWORD`: a strong PostgreSQL password (set it in **both** the `diurnal` and `diurnal-db` services)
-- `NOTE_ENCRYPTION_KEY`: the key your notes are encrypted with (see [Notes Encryption](#notes-encryption))
+- `NOTE_ENCRYPTION_KEY`: the key your notes are encrypted with (see [Notes](#notes))
 
 A quick way to generate either:
 
@@ -206,10 +206,10 @@ sensible default.
 
 ### Required
 
-| Variable                | Description                                                                  |
-|-------------------------|------------------------------------------------------------------------------|
-| `DB_PASSWORD`           | PostgreSQL password (must match the password on the database container)      |
-| `NOTE_ENCRYPTION_KEY`   | The key notes are encrypted with (see [Notes Encryption](#notes-encryption)) |
+| Variable              | Description                                                             |
+|-----------------------|-------------------------------------------------------------------------|
+| `DB_PASSWORD`         | PostgreSQL password (must match the password on the database container) |
+| `NOTE_ENCRYPTION_KEY` | The key notes are encrypted with (see [Notes](#notes))                  |
 
 ### Database
 
@@ -228,15 +228,16 @@ sensible default.
 | `LOG_LEVEL`    | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                    |
 | `DB_LOG_LEVEL` | `WARN`  | Set to `TRACE` to log every SQL statement + bound parameters (verbose; may expose parameter values) |
 
-### Notes Encryption
+### Notes
 
 Your [notes](#notes) are **encrypted before they are stored**. Each account gets its own randomly-generated key when it is created, and every note is
 sealed under that key. The account keys are themselves stored only in encrypted form, protected by `NOTE_ENCRYPTION_KEY`.
 
-| Variable                          | Default   | Description                                                                                  |
-|-----------------------------------|-----------|----------------------------------------------------------------------------------------------|
-| `NOTE_ENCRYPTION_KEY`             |           | **Required.** Base64, decoding to 32 bytes. Generate with `openssl rand -base64 32`          |
-| `NOTE_ENCRYPTION_PREVIOUS_KEYS`   |           | Comma-separated retired keys, set only while [rotating](#rotating-the-key)                   |
+| Variable                        | Default | Description                                                                         |
+|---------------------------------|---------|-------------------------------------------------------------------------------------|
+| `NOTE_ENCRYPTION_KEY`           |         | **Required.** Base64, decoding to 32 bytes. Generate with `openssl rand -base64 32` |
+| `NOTE_ENCRYPTION_PREVIOUS_KEYS` |         | Comma-separated retired keys, set only while [rotating](#rotating-the-key)          |
+| `NOTE_MAX_LENGTH`               | `10000` | The longest note a user may save, in characters. Must be between `1` and `100000`   |
 
 #### Rotating the Key
 
@@ -249,8 +250,10 @@ environment:
   NOTE_ENCRYPTION_PREVIOUS_KEYS: <the old key>
 ```
 
-On start, every account key that no longer opens under the new key is re-encrypted with it (no notes are rewritten). Once this has run,
-clear `NOTE_ENCRYPTION_PREVIOUS_KEYS` and restart again.
+On start, every account key that no longer opens under the new key is re-encrypted with it (no notes are rewritten). Once this has run, clear
+`NOTE_ENCRYPTION_PREVIOUS_KEYS` and restart again.
+
+For `NOTE_MAX_LENGTH`, lowering it does not touch notes you have already written. Such a note simply cannot be *saved* again until you shorten it.
 
 ### Authentication
 
@@ -441,13 +444,12 @@ Each user can customise Diurnal from the **Settings** page (top-right menu).
 - **Decimal places**: Precision of the averages and abbreviated totals shown on the Statistics page and dashboard summary (`0`, `1` or `2`, default
   `1`)
 - **Items per page**: Page size for lists, like actions, day panel, stats, etc. (`1`-`100`, default `5`). **Set a different value for each section**
-  expands a row per paginated list (dashboard actions, actions, notes, statistics, and — for an administrator — users), each of which can take its
-  own page size; a section stays on **Default** — following the value above it — until it is given a number of its own
+  expands a row per paginated list (dashboard actions, actions, notes, statistics, and users), each of which can take its own page size
 
 ### Statistics
 
 An orderable list which allows the user to choose which [statistics](#statistics-and-streaks) appear for each action on the Stats page, and in what
-order, and  each can be disabled and re-ordered. The **Last performed** statistic is always shown, but can still be reordered.
+order, and each can be disabled and re-ordered. The **Last performed** statistic is always shown, but can still be reordered.
 
 ### Appearance
 
@@ -488,8 +490,8 @@ including right-to-left text, accents and combining marks. Punctuation, symbols,
 characters that merely resemble others (a Cyrillic `а` in an otherwise Latin word is accepted, not policed).
 
 Decorative and stylised text is accepted too - upside-down text (`˙ɐnbᴉlɐ`), the mathematical alphabets (`𝕿𝖍𝖊`, `𝕋𝕙𝕖`), small capitals (`ᴛʜᴇ`),
-enclosed letters (`🅃🄷🄴`), full-width forms (`ＡＢＣ`), runes and Unicode digits (`١٢٣`). They are all real characters that display correctly; they
-simply count towards the length limits like any other.
+enclosed letters (`🅃🄷🄴`), full-width forms (`ＡＢＣ`), runes and Unicode digits (`١٢٣`). They are all real characters that display correctly; they simply
+count towards the length limits like any other.
 
 Characters that look like code - `<script>`, `'; DROP TABLE`, `{7*7}`, `%s`, `../../` - are treated as **ordinary text**. They are stored exactly as
 typed and displayed exactly as typed; they are never executed, and they are never rewritten on the way in so that what you get back is what you
@@ -502,13 +504,13 @@ A value is rejected, with a message, if it contains:
 - **Invisible characters** - zero-width spaces, the byte-order mark, soft hyphens, word joiners, tag characters, unpaired surrogates and private-use
   characters. These render as nothing, which means two different names could look completely identical on screen (`admin` and `ad<zero-width>min`) -
   so one could be used to impersonate the other, and the duplicate-name check could not catch it. The two zero-width **joiners** are the exception,
-  because they are real spelling rather than a trick - they hold multipart emoji together, and are mandatory in Persian, Urdu and Pashto - so they
-  are accepted between two characters, and rejected anywhere they are joining nothing.
+  because they are real spelling rather than a trick - they hold multipart emoji together, and are mandatory in Persian, Urdu and Pashto - so they are
+  accepted between two characters, and rejected anywhere they are joining nothing.
 - **Characters that are invisible despite being letters** - the Hangul fillers, the Khmer inherent vowels and the blank Braille pattern. These are the
   characters behind the "blank name" trick, and a name made only of them would appear completely empty.
 - **Unicode noncharacters** (U+FDD0-U+FDEF and the last two code points of each plane), which are permanently reserved and display as a fallback box.
-- **Text-direction characters** - the bidirectional overrides, isolates and marks. These reverse the text that follows them, so a name could be made to
-  display as something other than what it actually is.
+- **Text-direction characters** - the bidirectional overrides, isolates and marks. These reverse the text that follows them, so a name could be made
+  to display as something other than what it actually is.
 - **More than four stacked combining marks** on a single character (the "zalgo" effect), which renders as a column of glyphs that overflows the row it
   is shown in. Ordinary accented text, and scripts that legitimately stack marks, are unaffected.
 

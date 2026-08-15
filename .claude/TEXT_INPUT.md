@@ -172,6 +172,15 @@ Each bound is ALSO a `public static final int` constant, because a Bean Validati
 (`@Size(max = ...)` on `RegisterRequest`) needs a compile-time constant. The field is built from the constant, so
 the two cannot disagree.
 
+> **`NOTE` is the one entry whose bound is not fixed at compile time.** A deployment may set its own through
+> `NOTE_MAX_LENGTH` (`config/NotesConfig`), and the field the application validates against is built from that by
+> `note/NoteField` — so `TextFields.NOTE` is the DEFAULT instance rather than the one in force, and
+> `TextFields.note(int)` is the factory both go through. Only the note can do this, and only because it has no column:
+> every other bound is pinned to a `VARCHAR(n)` by `TextFieldsSchemaIT`, whereas a note is stored sealed in an unbounded
+> `bytea` (`notes.content` was dropped in `V28`), so its bound lives purely in `TextValidation`. `AppLifecycle` refuses
+> to boot outside `[NOTE_MAX_LENGTH_FLOOR, NOTE_MAX_LENGTH_CEILING]`. The full reasoning — why the ceiling is where it
+> is, and what happens to notes already stored above a lowered bound — is in [`NOTES.md`](NOTES.md).
+
 ## What is accepted, cleaned and rejected
 
 The full policy, and the reasoning behind each row. `NaughtyStringsTest` pins every one of these to the pipeline, in
@@ -337,7 +346,8 @@ stays authoritative.
 > above actually bites: against a 10,000-character bound the attribute would stop an emoji-heavy note at five thousand,
 > silently and with no explanation. The note box counts code points itself (`Array.from(value).length`), shows the
 > figure, lets the user overrun, and refuses to SAVE while over — which is both accurate and explicable, where a
-> silent cut-off is neither.
+> silent cut-off is neither. This is also what makes a LOWERED `NOTE_MAX_LENGTH` safe for notes already written above
+> it: the box loads such a note in full and reports how far over it is, where a `maxlength` would have cut it on sight.
 
 `TextFieldExtensions.constraints(field)` replaces the deleted `PasswordConstraints.all()` and works for any field,
 driving both the requirements tooltip (`partials/password-constraints.html`) and its live client-side red/green

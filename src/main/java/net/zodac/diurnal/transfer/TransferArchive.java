@@ -58,12 +58,21 @@ public final class TransferArchive {
      * The most bytes any one member may decompress to.
      *
      * <p>
-     * Comfortably past a real export - a decade of daily notes at the {@code NOTE} field's own 10,000-character cap is a small fraction of it -
-     * while keeping a single request's memory bounded.
+     * <strong>{@code notes.csv} is what sizes this</strong>, being the only member whose rows are free text: an account's whole journal is written to
+     * it in the clear, so its size is (notes held) x (their length), and the second term is bounded by {@code NOTE_MAX_LENGTH}. At the default bound
+     * of {@value net.zodac.diurnal.text.TextFields#NOTE_MAX_LENGTH} characters this holds roughly 3,200 notes written to their absolute limit - about
+     * eight years of writing four pages every single day - and vastly more real ones, which run to hundreds of characters rather than thousands.
+     *
+     * <p>
+     * It is a bound on plausible data, NOT a guarantee that every account can export: a journal both long and uniformly enormous can still exceed it,
+     * and an account whose deployment has raised {@code NOTE_MAX_LENGTH} toward
+     * {@link net.zodac.diurnal.text.TextFields#NOTE_MAX_LENGTH_CEILING} reaches that point proportionally sooner. The cap cannot simply be removed to
+     * fix that: it is the zip-bomb defence, and it is what keeps one uploaded archive's decompressed size - and so one request's memory - bounded.
+     * The ceiling on the note bound is set where a SINGLE note cannot approach this figure, so the two can never invert.
      */
-    public static final int MAX_MEMBER_BYTES = 8 * 1024 * 1024;
+    public static final int MAX_MEMBER_BYTES = 32 * 1024 * 1024;
 
-    private static final int MAX_ARCHIVE_BYTES = 16 * 1024 * 1024;
+    private static final int MAX_ARCHIVE_BYTES = 64 * 1024 * 1024;
 
     /**
      * The most entries an archive may hold, counting the ones the format does not recognise.

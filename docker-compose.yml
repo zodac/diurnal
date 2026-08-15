@@ -27,6 +27,10 @@ services:
       NOTE_ENCRYPTION_KEY: ${NOTE_ENCRYPTION_KEY:?NOTE_ENCRYPTION_KEY must be set}
       # Only set while rotating the key above; the next start moves every account onto the new one.
       NOTE_ENCRYPTION_PREVIOUS_KEYS: ${NOTE_ENCRYPTION_PREVIOUS_KEYS:-}
+      # Longest note a user may save, in characters (1-100,000). Bounds no column - notes are stored
+      # encrypted in an unbounded one - so it sizes the responses the app builds, not the storage.
+      # Lowering it keeps notes already written above it; they just cannot be re-saved unedited.
+      NOTE_MAX_LENGTH: ${NOTE_MAX_LENGTH:-10000}
       TZ: ${TZ:-UTC}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # DB query tracing. Independent of LOG_LEVEL (which only covers net.zodac.diurnal): set to TRACE
