@@ -64,7 +64,8 @@ public class UserNotesKey extends PanacheEntityBase {
      * @param userId the owning user
      * @return the stored key, or {@code null} if the account has none
      */
-    public static @Nullable UserNotesKey findForUser(final UUID userId) {
+    @Nullable
+    public static UserNotesKey findForUser(final UUID userId) {
         return findById(userId);
     }
 
@@ -74,7 +75,8 @@ public class UserNotesKey extends PanacheEntityBase {
      *
      * @return an arbitrary stored key, or {@code null} if the table is empty
      */
-    public static @Nullable UserNotesKey findAny() {
+    @Nullable
+    public static UserNotesKey findAny() {
         return UserNotesKey.<UserNotesKey>findAll().firstResult();
     }
 }

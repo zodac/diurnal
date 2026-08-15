@@ -168,7 +168,8 @@ public class CsrfProtectionFilter implements ContainerRequestFilter {
      * @param url the absolute URL to parse
      * @return the {@code host[:port]} authority, or {@code null} for a relative URL, the opaque {@code "null"} origin, or an empty authority
      */
-    static @Nullable String authorityOf(final String url) {
+    @Nullable
+    static String authorityOf(final String url) {
         final int schemeEnd = url.indexOf("://");
         if (schemeEnd < 0) {
             return null;
@@ -197,7 +198,8 @@ public class CsrfProtectionFilter implements ContainerRequestFilter {
      * @param trustForwardedHeaders whether the deployment sits behind a trusted reverse proxy
      * @return the client-facing {@code host[:port]} authority, or {@code null} if neither is present
      */
-    static @Nullable String expectedAuthority(final @Nullable String forwardedHost,
+    @Nullable
+    static String expectedAuthority(final @Nullable String forwardedHost,
         final @Nullable String host,
         final boolean trustForwardedHeaders) {
         final boolean useForwardedHost = trustForwardedHeaders && forwardedHost != null && !forwardedHost.isBlank();

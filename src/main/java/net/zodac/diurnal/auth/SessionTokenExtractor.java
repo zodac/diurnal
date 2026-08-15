@@ -45,7 +45,8 @@ final class SessionTokenExtractor {
      * @param cookieName the configured session cookie name
      * @return the raw token, or {@code null} if absent
      */
-    static @Nullable String fromRequest(final RoutingContext context, final String cookieName) {
+    @Nullable
+    static String fromRequest(final RoutingContext context, final String cookieName) {
         final Cookie cookie = context.request().getCookie(cookieName);
         if (cookie != null && !cookie.getValue().isBlank()) {
             return cookie.getValue();

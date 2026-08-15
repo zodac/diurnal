@@ -55,13 +55,16 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     public String displayName;
 
     @Column(name = "password_hash")
-    public @Nullable String passwordHash;
+    @Nullable
+    public String passwordHash;
 
     @Column(name = "oidc_subject")
-    public @Nullable String oidcSubject;
+    @Nullable
+    public String oidcSubject;
 
     @Column(name = "oidc_issuer")
-    public @Nullable String oidcIssuer;
+    @Nullable
+    public String oidcIssuer;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     public Instant createdAt = Instant.now();
@@ -88,7 +91,8 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     @Preference
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "page_sizes", columnDefinition = "jsonb")
-    public @Nullable List<PageSizePref> pageSizes;
+    @Nullable
+    public List<PageSizePref> pageSizes;
 
     // Whether the dashboard renders the per-action stats-summary strip.
     @Preference
@@ -127,13 +131,15 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     @Preference
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "stats_fields", columnDefinition = "jsonb")
-    public @Nullable List<StatFieldPref> statsFields;
+    @Nullable
+    public List<StatFieldPref> statsFields;
 
     // Per-user timezone override (IANA id). NULL = use the server default (app.timezone),
     // so "today" / streak / future-log boundaries follow the user's own clock.
     @Preference
     @Column(name = "timezone")
-    public @Nullable String timezone;
+    @Nullable
+    public String timezone;
 
     @Column(name = "role", nullable = false)
     public String role = Role.USER.storageValue();

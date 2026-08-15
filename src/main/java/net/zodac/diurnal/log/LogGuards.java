@@ -70,7 +70,8 @@ public final class LogGuards {
      * @param actionId the action's id
      * @return the owned action, or {@code null} when it does not exist or belongs to someone else
      */
-    static @Nullable Action ownedAction(final User user, final UUID actionId) {
+    @Nullable
+    static Action ownedAction(final User user, final UUID actionId) {
         return Action.<Action>find("id = ?1 and userId = ?2", actionId, user.id)
             .firstResult();
     }

@@ -261,7 +261,8 @@ public enum StatField {
     // stat's wording against any future re-labelling. Applied on write and on read, so both surfaces agree.
     // The name arrives already normalised (ProfileService on write, a previously normalised row on read), so this
     // only applies the rule - it never cleans the value a second time.
-    private static @Nullable String customLabelFor(final StatField field, @Nullable final String name) {
+    @Nullable
+    private static String customLabelFor(final StatField field, @Nullable final String name) {
         return name == null || name.isBlank() || field.label.equals(name) ? null : name;
     }
 

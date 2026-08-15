@@ -69,10 +69,12 @@ public class IpLockout extends PanacheEntityBase {
     public int failureCount;
 
     @Column(name = "unlocked_at")
-    public @Nullable Instant unlockedAt;
+    @Nullable
+    public Instant unlockedAt;
 
     @Column(name = "unlocked_by")
-    public @Nullable String unlockedBy;
+    @Nullable
+    public String unlockedBy;
 
     /**
      * Builds a lockout record for the given client IP.

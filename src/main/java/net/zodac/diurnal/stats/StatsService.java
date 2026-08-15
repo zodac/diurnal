@@ -301,7 +301,8 @@ public class StatsService {
         return List.copyOf(candidates);
     }
 
-    private static @Nullable FrequencyResult rejectSelection(final List<UUID> requested) {
+    @Nullable
+    private static FrequencyResult rejectSelection(final List<UUID> requested) {
         if (requested.size() > FrequencyCharts.MAX_SERIES) {
             return new FrequencyResult.TooManySubjects(requested.size(), FrequencyCharts.MAX_SERIES);
         }
@@ -312,7 +313,8 @@ public class StatsService {
     // The compare picker only offers subjects with at least one entry, so the API rejects the same set rather than drawing a flat series the UI could
     // never produce - for notes that means "has written at least one note". The graph's OWN subject is exempt: its card is reachable with no entries,
     // and an empty chart is the honest answer there.
-    private static @Nullable FrequencyResult rejectUnlogged(final UUID userId, final List<UUID> compareIds) {
+    @Nullable
+    private static FrequencyResult rejectUnlogged(final UUID userId, final List<UUID> compareIds) {
         final Set<UUID> logged = ActionLog.loggedActionIds(userId);
         final long noteCount = Note.count("userId = ?1", userId);
         for (final UUID compareId : compareIds) {
@@ -325,7 +327,8 @@ public class StatsService {
     }
 
     // Null means the caller asked for a window this period cannot name - an absent or blank request is the period's own default, not a rejection.
-    private static @Nullable LocalDate resolveAnchor(final FrequencyPeriod period, final @Nullable String rawAt, final LocalDate today) {
+    @Nullable
+    private static LocalDate resolveAnchor(final FrequencyPeriod period, final @Nullable String rawAt, final LocalDate today) {
         if (rawAt == null || rawAt.isBlank()) {
             return FrequencyKeys.anchorOf(period, today);
         }
@@ -355,7 +358,8 @@ public class StatsService {
         return totals;
     }
 
-    private static @Nullable UUID firstRepeated(final List<UUID> ids) {
+    @Nullable
+    private static UUID firstRepeated(final List<UUID> ids) {
         final Set<UUID> seen = new HashSet<>();
         for (final UUID id : ids) {
             if (!seen.add(id)) {
@@ -390,7 +394,8 @@ public class StatsService {
                 Collectors.toMap(MonthlyActionTotal::month, MonthlyActionTotal::total, Long::sum)));
     }
 
-    private static @Nullable LocalDate earliestLoggedMonth(final List<MonthlyActionTotal> monthlyTotals) {
+    @Nullable
+    private static LocalDate earliestLoggedMonth(final List<MonthlyActionTotal> monthlyTotals) {
         // Month precision is enough: every chart window starts on a month boundary, so the earliest LOGGED month is exactly the earliest window
         // worth stepping back to. Reading it off the monthly rollup avoids a second query purely to bound the navigation.
         return monthlyTotals.stream()

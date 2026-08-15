@@ -242,7 +242,8 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
      * @param date the day whose note to read
      * @return the readable content, or {@code null} when the day has no note
      */
-    protected static @Nullable String storedNoteContent(final UUID userId, final LocalDate date) {
+    @Nullable
+    protected static String storedNoteContent(final UUID userId, final LocalDate date) {
         final Note note = Note.findEntry(userId, date);
         if (note == null) {
             return null;
