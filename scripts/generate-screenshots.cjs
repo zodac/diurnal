@@ -24,11 +24,17 @@
  *
  * WHAT IT PRODUCES
  * ----------------
- * `app` — 8 WebP files (web/desktop viewport) in img/settings/:
+ * `app` — 8 previews (web/desktop viewport), each written TWICE, in img/settings/:
  *   page-nova-full-{light,dark,system}.webp       — Theme picker (Nova font, Full calendar)
  *   cal-nova-{full,minimal,stacked}-dark.webp      — Calendar picker (Nova font, dark)
  *   page-{nova,standard,dyslexic}-full-dark.webp   — Font picker (Full calendar, dark)
  *   (page-nova-full-dark is shared between the Theme-dark tile and the Font-nova tile.)
+ *
+ *   img/settings/<name>.webp       — the picker TILE thumbnail, loaded on every Settings page view
+ *   img/settings/full/<name>.webp  — the LIGHTBOX image, fetched only when a preview is opened
+ *
+ *   Same base name in both, so one config key maps to the pair. See writeShot/tilePreviewWidth for the
+ *   sizing, and note the rule that every derived width must divide the capture exactly.
  *
  * `documentation` — 15 WebP files in docs/screenshots/, all captured dark / Full / Nova unless noted:
  *   dashboard-{system,dark,light}.webp             — dashboard banner + theme pair (system = light/dark split)
@@ -490,8 +496,12 @@ async function openDashboard(ctx, calendarView) {
 // Playwright only supports PNG and JPEG screenshot types. We capture as PNG (lossless) then convert
 // each buffer to lossless WebP via cwebp, which is typically 25-34% smaller than optipng PNG.
 // cwebp is installed on demand (Debian/Ubuntu) the first time this function is called.
+//
+// -z 9 is the slowest/strongest LOSSLESS preset (it implies -lossless). It is never a quality trade —
+// only a search-effort one — and it beat both the plain -lossless default and -m 6 on every image
+// measured here (settings-dark 289,940 -> 216,670; page-standard-full-dark 84,582 -> 81,864).
 let _cwebpReady = false
-function pngToLosslessWebp(pngBuf) {
+function pngToLosslessWebp(pngBuf, resizeWidth) {
   if (!_cwebpReady) {
     try { execFileSync('cwebp', ['-version'], { stdio: 'ignore' }) }
     catch {
@@ -503,9 +513,10 @@ function pngToLosslessWebp(pngBuf) {
   }
   const tmp = path.join(os.tmpdir(), `diurnal-preview-${process.pid}-${Date.now()}.png`)
   fs.writeFileSync(tmp, pngBuf)
+  // -resize W 0: scale to W, height derived from the aspect ratio. -o -: write WebP to stdout.
+  const resize = resizeWidth ? ['-resize', String(resizeWidth), '0'] : []
   try {
-    // -lossless: pixel-perfect (no quality loss). -o -: write WebP to stdout.
-    return execFileSync('cwebp', ['-lossless', '-quiet', tmp, '-o', '-'], { maxBuffer: 50 * 1024 * 1024 })
+    return execFileSync('cwebp', ['-z', '9', '-quiet', ...resize, tmp, '-o', '-'], { maxBuffer: 50 * 1024 * 1024 })
   } finally {
     fs.unlinkSync(tmp)
   }
@@ -516,13 +527,64 @@ function pngSize(buf) {
   return { w: buf.readUInt32BE(16), h: buf.readUInt32BE(20) }
 }
 
+// ── in-app preview sizing ────────────────────────────────────────────────────
+// The picker tile and the lightbox are SEPARATE files. One 3456px-wide file served both, but the tile
+// paints it at ~185 CSS px and the lightbox panel is capped at max-w-5xl = 1024 CSS px, so every
+// Settings page load spent ~393 kB to fill a row of thumbnails. Splitting them costs a second file
+// per option, paid ONLY by the reader who opens a preview.
+//
+// EVERY derived width must divide the capture EXACTLY. This is the load-bearing rule: libwebp's
+// lossless coder lives on flat colour runs and exact repeats, and a fractional resize ratio blends
+// neighbouring pixels into gradients that destroy both. Measured on these screenshots, 3456 -> 1920
+// came out 2% BIGGER than the untouched 3456 original, and 3456 -> 2048 saved nothing; 3456 -> 1728
+// (exactly half) saves 38%. Fewer pixels is NOT automatically fewer bytes.
+const PREVIEW_TILE_MIN_WIDTH = 384  // the tile is ~185 CSS px, so this still covers it past DPR 2
+const PREVIEW_FULL_MIN_WIDTH = 1024 // the lightbox panel is max-w-5xl = 1024 CSS px
+
+// Full-size preview: halve a DPR-2 capture (which recovers the native CSS-pixel image exactly), but
+// only while that still fills the lightbox. The calendar crops are captured at 1586 px = 793 CSS px,
+// and the lightbox shows them at their natural 793 CSS px, so halving those would visibly soften a
+// DPR-2 screen for no good reason — they stay as captured.
+function fullPreviewWidth(width) {
+  return width % 2 === 0 && width / 2 >= PREVIEW_FULL_MIN_WIDTH ? width / 2 : width
+}
+
+// Tile thumbnail: the smallest exact divisor of the capture that still clears the tile's needs.
+function tilePreviewWidth(width) {
+  for (let divisor = Math.floor(width / PREVIEW_TILE_MIN_WIDTH); divisor > 1; divisor--) {
+    if (width % divisor === 0) { return width / divisor }
+  }
+  return width
+}
+
+// Sub-directory of OUT holding the lightbox images, so both forms keep the SAME base name (a
+// `-full` suffix would read as `cal-nova-full-dark-full.webp`). Mirrored by hash-static-assets.sh
+// and AppInfo.settingsFullImage.
+const FULL_SUBDIR = 'full'
+
+// Write one screenshot. Documentation shots stay a single file; an in-app preview becomes the tile
+// thumbnail plus its lightbox image (see the sizing rules above).
+function writeShot(dir, file, pngBuf) {
+  if (dir !== OUT) {
+    fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf))
+    console.log('wrote', file)
+    return
+  }
+  const { w } = pngSize(pngBuf)
+  const full = fullPreviewWidth(w)
+  const tile = tilePreviewWidth(w)
+  fs.mkdirSync(path.join(dir, FULL_SUBDIR), { recursive: true })
+  fs.writeFileSync(path.join(dir, FULL_SUBDIR, file), pngToLosslessWebp(pngBuf, full === w ? 0 : full))
+  fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf, tile))
+  console.log('wrote', `${file} (${tile}px tile + ${full}px full, from a ${w}px capture)`)
+}
+
 // Theme preview: the WHOLE dashboard page (navbar, heading, calendar, day panel, stats) — fullPage
 // captures the entire scroll height, not just the viewport. Returns the PNG buffer so the caller can
 // pass it to compositeSystem for compositing.
 async function shotFullPage(page, dir, file) {
   const pngBuf = await page.screenshot({ fullPage: true })
-  fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf))
-  console.log('wrote', file)
+  writeShot(dir, file, pngBuf)
   return pngBuf // PNG for compositing — compositeSystem re-encodes the composite
 }
 
@@ -541,8 +603,7 @@ async function shotCalendar(page, dir, file) {
 // it overflows the viewport, so a tall card is never cut off.
 async function shotElement(locator, dir, file) {
   const pngBuf = await locator.screenshot()
-  fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf))
-  console.log('wrote', file)
+  writeShot(dir, file, pngBuf)
 }
 
 // Full page screenshot at a URL (whole page), written to `dir`. Waits for the page's key content to
@@ -554,8 +615,7 @@ async function shotPage(ctx, url, waitSelector, dir, file) {
   await page.waitForSelector(waitSelector, { timeout: 15000 })
   await page.waitForTimeout(600) // settle fonts/layout
   const pngBuf = await page.screenshot({ fullPage: true })
-  fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf))
-  console.log('wrote', file)
+  writeShot(dir, file, pngBuf)
   await page.close()
 }
 
@@ -591,8 +651,7 @@ async function shotLoginPage(browser, dir, file) {
   }
   await page.waitForTimeout(600) // settle fonts/layout
   const pngBuf = await page.screenshot({ fullPage: true })
-  fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf))
-  console.log('wrote', file)
+  writeShot(dir, file, pngBuf)
   await anonCtx.close()
 }
 
@@ -662,9 +721,8 @@ async function compositeSystem(browser, { lightBuf, darkBuf, dir, out }) {
   await page.evaluate(() => Promise.all([...document.images].map(i => i.decode().catch(() => {}))))
   await page.waitForTimeout(200)
   const compositePng = await (await page.$('#cmp')).screenshot()
-  fs.writeFileSync(path.join(dir, out), pngToLosslessWebp(compositePng))
+  writeShot(dir, out, compositePng)
   await ctx.close()
-  console.log('wrote', out)
 }
 
 // ── Capture: in-app preview thumbnails (`app`) ─────────────────────────────────────────────────────
@@ -784,8 +842,7 @@ async function shotStatsGraph(ctx, dir, file) {
 
   await page.waitForTimeout(600) // settle fonts/layout
   const pngBuf = await page.screenshot() // viewport only - keeps the dimmed backdrop in frame
-  fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf))
-  console.log('wrote', file)
+  writeShot(dir, file, pngBuf)
   await page.close()
 }
 

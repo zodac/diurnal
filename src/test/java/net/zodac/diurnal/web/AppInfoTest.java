@@ -39,6 +39,7 @@ class AppInfoTest {
     private static final UpdateStatus NO_UPDATE = UpdateCheck.evaluate("0.0.0", "0.0.0", "url");
     private static final AppConfig EMPTY_APP_CONFIG = StubAppConfig.empty();
     private static final Map<String, String> SETTINGS_IMAGES = Map.of("page-nova-full-dark", "page-nova-full-dark.9f3a1c2b4d5e.webp");
+    private static final Map<String, String> SETTINGS_FULL_IMAGES = Map.of("page-nova-full-dark", "page-nova-full-dark.0011aabbccdd.webp");
     private static final Map<String, String> HASHED_IMAGES = Map.of("wordmark", "wordmark.9f3a1c2b4d5e.svg");
 
     private static AppInfo appInfoWith(final String repositoryUrl, final String buildTimestamp, final String cssFile) {
@@ -61,7 +62,7 @@ class AppInfoTest {
         final String jsActionsFile, final String jsAdminFile, final String jsApiDocsFile,
         final String jsSettingsFile, final String jsStatsFile) {
         return appInfo(new StubAppConfig(repositoryUrl, buildTimestamp, cssFile, jsFile, jsAppFile, jsDashboardFile,
-            "note.js", jsActionsFile, jsAdminFile, jsApiDocsFile, jsSettingsFile, jsStatsFile, SETTINGS_IMAGES, HASHED_IMAGES));
+            "note.js", jsActionsFile, jsAdminFile, jsApiDocsFile, jsSettingsFile, jsStatsFile, SETTINGS_IMAGES, SETTINGS_FULL_IMAGES, HASHED_IMAGES));
     }
 
     private static AppInfo appInfo(final AppConfig appConfig) {
@@ -132,7 +133,7 @@ class AppInfoTest {
         // hashed script no overload can vary.
         final AppInfo appInfo = appInfo(new StubAppConfig("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
             "note.9f3a1c2b4d5e.js", "actions.js", "admin-users.js", "admin-api-docs.js", "settings.js", "stats.js",
-            SETTINGS_IMAGES, HASHED_IMAGES));
+            SETTINGS_IMAGES, SETTINGS_FULL_IMAGES, HASHED_IMAGES));
         assertThat(appInfo.getJsNoteFile())
             .as("hashed note-script filename should be returned verbatim")
             .isEqualTo("note.9f3a1c2b4d5e.js");
@@ -199,6 +200,26 @@ class AppInfoTest {
         // the un-hashed on-disk filename.
         final AppInfo appInfo = appInfoWith("", "", "app.css");
         assertThat(appInfo.settingsImage("cal-nova-minimal-dark"))
+            .as("an unmapped base name should fall back to the un-hashed <base>.webp filename")
+            .isEqualTo("cal-nova-minimal-dark.webp");
+    }
+
+    @Test
+    void settingsFullImage_knownBase_returnsHashedFilename() {
+        // The lightbox image is a SEPARATE file from the tile thumbnail under the same base name, so the
+        // full-size map is consulted - not the thumbnail one - and resolves to its own hash.
+        final AppInfo appInfo = appInfoWith("", "", "app.css");
+        assertThat(appInfo.settingsFullImage("page-nova-full-dark"))
+            .as("a hashed base name should resolve to the full-size map's content-hashed filename")
+            .isEqualTo("page-nova-full-dark.0011aabbccdd.webp");
+    }
+
+    @Test
+    void settingsFullImage_unknownBase_fallsBackToUnhashedName() {
+        // Un-packaged dev / mvn package runs have an empty map, so any base falls back to <base>.webp,
+        // which under /img/settings/full/ is the un-hashed on-disk filename.
+        final AppInfo appInfo = appInfoWith("", "", "app.css");
+        assertThat(appInfo.settingsFullImage("cal-nova-minimal-dark"))
             .as("an unmapped base name should fall back to the un-hashed <base>.webp filename")
             .isEqualTo("cal-nova-minimal-dark.webp");
     }

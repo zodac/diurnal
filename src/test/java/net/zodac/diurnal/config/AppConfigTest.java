@@ -72,6 +72,33 @@ class AppConfigTest {
     }
 
     @Test
+    void settingsFullImages_bindsSeparatelyFromTheThumbnailMap() {
+        // The tile thumbnail and the lightbox image share a base name but are different files with different
+        // hashes, so the two maps must bind independently — a base name present in both must not collide.
+        final AppConfig config = appConfigWith(Map.of(
+            "app.assets.settings-images.page-nova-full-dark", "page-nova-full-dark.9f3a1c2b4d5e.webp",
+            "app.assets.settings-full-images.page-nova-full-dark", "page-nova-full-dark.0011aabbccdd.webp"));
+
+        assertThat(config.settingsFullImages())
+            .as("the full-size map should bind its own hashed filename for a base name the thumbnail map also holds")
+            .containsEntry("page-nova-full-dark", "page-nova-full-dark.0011aabbccdd.webp");
+        assertThat(config.settingsImages())
+            .as("the thumbnail map should be unaffected by the full-size keys")
+            .containsEntry("page-nova-full-dark", "page-nova-full-dark.9f3a1c2b4d5e.webp");
+    }
+
+    @Test
+    void settingsFullImages_isEmptyWhenUnset() {
+        // As for the thumbnail map: a non-Docker run provides no such keys, so it must bind empty rather than
+        // fail, leaving AppInfo.settingsFullImage to fall back to the un-hashed base name.
+        final AppConfig config = appConfigWith(Map.of());
+
+        assertThat(config.settingsFullImages())
+            .as("the settings-full-images map should be empty, not absent, when no keys are configured")
+            .isEmpty();
+    }
+
+    @Test
     void hashedImages_bindsBaseNameKeys() {
         // The vector-mark map is keyed by the mark base name (also hyphenated, e.g. wordmark-readme); pin
         // that it binds to the hashed filenames verbatim.

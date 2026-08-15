@@ -677,8 +677,10 @@
                      using dynamic-viewport units (100dvh — correct on mobile with browser UI), and
                      object-contain so a tall full-page shot scales DOWN to fit instead of overflowing
                      and pushing the buttons off-screen. mx-auto centres the (now narrower) portrait shots.
-                     One <img> per gallery tile is created here by openPreview; display is toggled between
-                     steps rather than mutating a single img's src, so no image is ever re-fetched. The
+                     One <img> per gallery tile is created here by openPreview and then kept for the life
+                     of the page (settings.js previewImgCache): display is toggled between steps, and
+                     closing hides rather than discards, so no image is ever re-fetched — not when
+                     stepping, and not when a picker is re-opened after another one. The
                      data-img-class attribute carries the shared class string so Tailwind purge includes
                      all classes even though they are applied by JS rather than declared in markup. !}
                 <div class="relative">

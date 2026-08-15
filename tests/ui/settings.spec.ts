@@ -450,12 +450,53 @@ test.describe("Settings page", () => {
         // rather than re-fetched). The System tile is first, so its image leads. Previews are WebP named
         // page-{nova,standard}-{full,minimal,stacked}-{theme}, per font + calendar style + viewport
         // (`-mobile` variant), so allow any font/style and the optional `-mobile` suffix.
+        //
+        // The /img/settings/full/ prefix is the point of the assertion, not incidental: the lightbox must
+        // take the tile's `data-full` image, NOT the small one the tile itself paints. Both files share a
+        // base name, so without pinning the directory this passes even if the lightbox regresses to the
+        // thumbnail and shows a ~185px-wide image blown up to 1024.
         await expect(page.locator("#preview-modal-imgs img").first())
-            .toHaveAttribute("src", /page-(nova|standard)-(full|minimal|stacked)-system(-mobile)?\.webp/)
+            .toHaveAttribute("src", /\/img\/settings\/full\/page-(nova|standard)-(full|minimal|stacked)-system(-mobile)?\.webp/)
 
         // Escape closes it.
         await page.keyboard.press("Escape")
         await expect(page.locator("#preview-modal")).toBeHidden()
+    })
+
+    test("re-opening a picker's preview re-uses its images instead of re-requesting them", async ({ authenticatedPage: page }) => {
+        // Theme -> close -> Font -> close -> Theme must issue NOTHING on that last open. The lightbox
+        // images are content-hashed and served `immutable`, so an HTTP-cache hit would usually spare the
+        // network anyway - this pins the stronger, structural guarantee (settings.js previewImgCache keeps
+        // the <img> elements), which is what holds when the cache has evicted them or is disabled. The
+        // request counter is the assertion because it is the only thing that distinguishes "re-used" from
+        // "re-fetched from cache"; note the previews 404 in this tier (they exist only in a Docker build),
+        // which if anything makes a re-request MORE likely, since a 404 is not cacheable.
+        const requested: string[] = []
+        page.on("request", (r) => { if (r.url().includes("/img/settings/full/")) {requested.push(r.url())} })
+
+        await page.goto("/settings")
+        const openPicker = async (label: string): Promise<void> => {
+            await page.locator(`[role="radiogroup"][aria-label="${label}"] .preview-info`).first().click()
+            await expect(page.locator("#preview-modal")).toBeVisible()
+        }
+        const close = async (): Promise<void> => {
+            await page.keyboard.press("Escape")
+            await expect(page.locator("#preview-modal")).toBeHidden()
+        }
+
+        await openPicker("Theme")
+        expect(requested.length, "opening a picker should request its full-size previews").toBeGreaterThan(0)
+        await close()
+
+        await openPicker("Font")
+        await close()
+        const afterFont = requested.length
+
+        await openPicker("Theme")
+        // Settle briefly so a late request would still be counted before the assertion.
+        await page.waitForTimeout(500)
+        expect(requested.length, "re-opening the Theme picker must not request any image again").toBe(afterFont)
+        await close()
     })
 
     test("renaming a stat persists, and clearing the name restores the built-in one", async ({ authenticatedPage: page }) => {

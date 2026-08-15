@@ -87,10 +87,17 @@ echo "→ Generating the in-app preview thumbnails…"
 cd "${GEN_DIR}"
 PW_CHROMIUM_ARGS="--no-sandbox" BASE_URL="http://127.0.0.1:8080" node scripts/generate-screenshots.cjs app
 
-# Sanity-check the expected outputs exist so a silent capture failure fails the build here.
+# Sanity-check the expected outputs exist so a silent capture failure fails the build here. Each preview
+# is written twice - the picker tile and, under full/, the lightbox image - so BOTH sets are checked:
+# shipping tiles without their full-size counterparts would leave every preview button broken.
 count="$(find "${OUT_DIR}" -maxdepth 1 -name '*.webp' | wc -l)"
 if [[ "${count}" -lt 8 ]]; then
-  echo "✗ expected 8 thumbnails in ${OUT_DIR}, found ${count}." >&2
+  echo "✗ expected 8 preview thumbnails in ${OUT_DIR}, found ${count}." >&2
   exit 1
 fi
-echo "✓ generated ${count} preview thumbnails"
+full_count="$(find "${OUT_DIR}/full" -maxdepth 1 -name '*.webp' 2>/dev/null | wc -l)"
+if [[ "${full_count}" -lt 8 ]]; then
+  echo "✗ expected 8 full-size previews in ${OUT_DIR}/full, found ${full_count}." >&2
+  exit 1
+fi
+echo "✓ generated ${count} preview thumbnails + ${full_count} full-size previews"

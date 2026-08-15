@@ -50,22 +50,31 @@ bake js/admin-api-docs.js app.assets.js-api-docs-file
 bake js/settings.js       app.assets.js-settings-file
 bake js/stats.js          app.assets.js-stats-file
 
-# Settings preview thumbnails — base-name-keyed map (AppConfig.settingsImages / AppInfo.settingsImage).
+# Settings previews — base-name-keyed maps. Each preview exists TWICE under the same base name: the
+# picker tile thumbnail at img/settings/<base>.webp (AppConfig.settingsImages / AppInfo.settingsImage)
+# and the lightbox image at img/settings/full/<base>.webp (AppConfig.settingsFullImages /
+# AppInfo.settingsFullImage). See generate-screenshots.cjs `writeShot` for why they are separate files.
 # These are NOT committed: the image build generates them (the Dockerfile `screenshots` stage) and drops
 # them in via the `previews` stage just before this script runs. Bake them when present; when absent
 # (a GENERATE_PREVIEWS=false build — smoke/perf — copies an empty dir) simply skip them, and AppInfo
 # falls back to the un-hashed `<base>.webp` name at runtime.
 if [[ -f "${RES}/img/settings/page-nova-full-system.webp" ]]; then
-  bake img/settings/cal-nova-full-dark.webp      app.assets.settings-images.cal-nova-full-dark
-  bake img/settings/cal-nova-minimal-dark.webp   app.assets.settings-images.cal-nova-minimal-dark
-  bake img/settings/cal-nova-stacked-dark.webp   app.assets.settings-images.cal-nova-stacked-dark
-  bake img/settings/page-dyslexic-full-dark.webp app.assets.settings-images.page-dyslexic-full-dark
-  bake img/settings/page-nova-full-dark.webp     app.assets.settings-images.page-nova-full-dark
-  bake img/settings/page-nova-full-light.webp    app.assets.settings-images.page-nova-full-light
-  bake img/settings/page-nova-full-system.webp   app.assets.settings-images.page-nova-full-system
-  bake img/settings/page-standard-full-dark.webp app.assets.settings-images.page-standard-full-dark
+  # Both sets or neither. A tiles-only directory would hash and boot cleanly, then 404 on every preview
+  # the reader opens, so say what is wrong here rather than failing later on a bare sha256sum error.
+  if [[ ! -f "${RES}/img/settings/full/page-nova-full-system.webp" ]]; then
+    echo "✗ settings preview tiles are present but ${RES}/img/settings/full/ is missing or incomplete." >&2
+    echo "  Each preview must be written twice (see generate-screenshots.cjs writeShot). A stale local" >&2
+    echo "  img/settings/ from before the tile/full split will do this - delete it and rebuild." >&2
+    exit 1
+  fi
+  for preview in cal-nova-full-dark cal-nova-minimal-dark cal-nova-stacked-dark \
+                 page-dyslexic-full-dark page-nova-full-dark page-nova-full-light \
+                 page-nova-full-system page-standard-full-dark; do
+    bake "img/settings/${preview}.webp"      "app.assets.settings-images.${preview}"
+    bake "img/settings/full/${preview}.webp" "app.assets.settings-full-images.${preview}"
+  done
 else
-  echo "ℹ settings preview thumbnails absent — skipping (a GENERATE_PREVIEWS=false build, e.g. smoke/perf)." >&2
+  echo "ℹ settings previews absent — skipping (a GENERATE_PREVIEWS=false build, e.g. smoke/perf)." >&2
 fi
 
 # Top-level vector marks — base-name-keyed map (AppConfig.hashedImages / AppInfo.image). footer-mark has

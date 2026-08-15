@@ -91,6 +91,20 @@ class CacheHeadersIT extends IntegrationTestBase {
     }
 
     @Test
+    void settingsFullPreviewImage_inASubDirectory_isAlsoCachedImmutablyForAYear() {
+        // The lightbox images live one level deeper, at /img/settings/full/ (AppInfo.settingsFullImage), and
+        // are content-hashed exactly like the thumbnails. The app-immutable pattern is `img/settings/.+`, so
+        // the `.+` has to keep spanning the `/` for the nested set to be cached at all — pinned here because
+        // a tightened character class (e.g. `[^/]+`) would silently drop these to the seven-day app-static
+        // ceiling while every visible test still passed. Fixture:
+        // src/test/resources/META-INF/resources/img/settings/full/cal-nova-full-dark.webp.
+        given().get("/img/settings/full/cal-nova-full-dark.webp")
+                .then().statusCode(OK)
+                .header("Cache-Control", containsString("immutable"))
+                .header("Cache-Control", containsString("max-age=31536000"));
+    }
+
+    @Test
     void vectorMark_isCachedImmutablyForAYear() {
         // The top-level vector marks (wordmark/favicon SVGs) are content-hashed too (AppInfo.image), so
         // /img/*.svg rides the same app-immutable filter as the CSS/JS/settings thumbnails.
