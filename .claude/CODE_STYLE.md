@@ -87,6 +87,31 @@ still reflowed to fill the width (see above).
  */
 ```
 
+### No HTML entities in Javadoc
+
+Write the character itself, not its escape. `&nbsp;` between a number and its unit (`96&nbsp;MiB`) is never warranted — a plain space is what the
+rendered doc shows anyway, and the escape only costs readability in the source, where the Javadoc is actually read. For angle brackets, wrap the text
+in `{@code ...}` rather than escaping it.
+
+❌ **Wrong** — escaped entities in the prose:
+
+```java
+/**
+ * A single hash should take roughly 100–500&nbsp;ms, with 96&nbsp;MiB of memory-hardness, and the tooltip reads "Update available - v&lt;latest&gt;".
+ */
+```
+
+✅ **Right** — plain spaces, and `{@code ...}` carrying the angle brackets:
+
+```java
+/**
+ * A single hash should take roughly 100–500 ms, with 96 MiB of memory-hardness, and the tooltip reads {@code "Update available - v<latest>"}.
+ */
+```
+
+> The exception is a string *literal* that genuinely contains an entity — e.g. an assertion on the escaped HTML the app renders
+> (`.contains("&lt;script&gt;")`). That is data, not prose, and stays as-is.
+
 ### No comments on private members
 
 No **private** member — method, constructor, field, constant, **or nested type (record / class)** — may carry a Javadoc (`/** ... */`) **or** block (

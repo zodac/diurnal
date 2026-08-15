@@ -82,7 +82,7 @@ public final class TextFields {
      *
      * <p>
      * <strong>Set by what a note is carried in, not by what one can be stored in.</strong> The storage would take far more (a sealed {@code bytea} is
-     * bounded only by PostgreSQL's 1&nbsp;GB varlena limit), but three paths read note CONTENT in bulk and each scales linearly with this value: the
+     * bounded only by PostgreSQL's 1 GB varlena limit), but three paths read note CONTENT in bulk and each scales linearly with this value: the
      * dashboard warms a three-month window in one response (92 notes), {@code NotesApiResource} returns 31 per page, and a search opens the whole
      * journal. At this ceiling those are ~9.2M and ~3.1M code points respectively - large, but a response and a heap allocation the server can still
      * make. An order of magnitude higher would not be: a single note could then exceed

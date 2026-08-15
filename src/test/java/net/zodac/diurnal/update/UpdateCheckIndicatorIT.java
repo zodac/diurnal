@@ -38,8 +38,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Verifies the admin-only "Update available" footer indicator end to end (with a mocked {@link LatestReleaseClient}, so no outbound call is made):
- * the up-arrow (linking to the latest release, with an "Update available - v&lt;latest&gt;" tooltip) sits by the footer version link and appears on
- * <em>every</em> page's footer for an administrator when a newer release exists, and never otherwise - not when the running version is already
+ * the up-arrow (linking to the latest release, with an {@code "Update available - v<latest>"} tooltip) sits by the footer version link and appears
+ * on <em>every</em> page's footer for an administrator when a newer release exists, and never otherwise - not when the running version is already
  * current, and never for a non-admin.
  *
  * <p>

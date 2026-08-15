@@ -160,9 +160,9 @@ public class NotesInternalResource {
      *
      * <p>
      * The body is JSON rather than the form encoding every other internal mutation uses, because a note is far too big for a form attribute:
-     * Quarkus caps one at {@code quarkus.http.limits.max-form-attribute-size} (2&nbsp;KB by default) and answers {@code 413} above it, before the
+     * Quarkus caps one at {@code quarkus.http.limits.max-form-attribute-size} (2 KB by default) and answers {@code 413} above it, before the
      * request ever reaches this method. A note runs to {@link net.zodac.diurnal.text.TextFields#NOTE_MAX_LENGTH} code points, which URL-encodes to
-     * well over 100&nbsp;KB of non-ASCII text — so raising that limit far enough for this ONE field would also let every other form in the app (the
+     * well over 100 KB of non-ASCII text — so raising that limit far enough for this ONE field would also let every other form in the app (the
      * login email, an action name) carry a body that size. Nothing is lost by the change: the note card is driven by a plain {@code fetch}, not by
      * an HTMX form post, so it can send whatever shape it likes, and JSON is what the public twin already takes.
      *
