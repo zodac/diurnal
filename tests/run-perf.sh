@@ -49,7 +49,7 @@ BASEDIR="$2"
 cd "${BASEDIR}/tests"
 COMPOSE_FILE="docker-compose.perf.yml"
 PROJECT="diurnal-perf"
-K6_IMAGE="grafana/k6:2.1.0"
+K6_IMAGE="grafana/k6:2.2.0"
 
 # Load-shape + seed knobs (overridable from the environment). Kept modest by default so a local run
 # finishes in a couple of minutes; bump them in CI for a heavier sweep.

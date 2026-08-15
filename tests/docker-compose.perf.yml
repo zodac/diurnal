@@ -55,7 +55,7 @@ services:
     # a boot failure fails the perf run fast — but run-perf.sh ALSO measures cold-boot latency itself.
 
   db:
-    image: postgres:18.4-alpine
+    image: postgres:18.6-alpine
     environment:
       TZ: UTC
       POSTGRES_DB: diurnal_perf

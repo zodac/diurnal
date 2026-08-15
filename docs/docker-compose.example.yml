@@ -42,7 +42,7 @@ services:
     restart: unless-stopped
 
   diurnal-db:
-    image: postgres:18.4-alpine
+    image: postgres:18.6-alpine
     container_name: diurnal-db
     hostname: diurnal-db
     environment:

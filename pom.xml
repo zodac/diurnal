@@ -6,7 +6,7 @@
     <parent>
         <groupId>net.zodac</groupId>
         <artifactId>parent-pom</artifactId>
-        <version>1.0.18</version>
+        <version>1.0.19</version>
     </parent>
 
     <artifactId>diurnal</artifactId>
@@ -408,7 +408,7 @@
                         <!-- SmallRye Config reads the repo-root .env at HIGHER priority than the bundled %test profile, so a deployer flipping
                              PASSWORD_AUTH_ENABLED/ENABLE_REGISTRATION there would silently fail the whole auth suite. System properties outrank
                              .env, pinning the defaults the tests assume; a QuarkusTestProfile still overrides them for its own keys.
-                             OIDC is pinned off for the same reason: an ambient OIDC_ENABLED=true was observed booting default-profile ITs against a
+                             OIDC is pinned off for the same reason: an ambient OIDC_ENABLED=true was observed booting default-profile IT against a
                              live third-party issuer, so they tested a different auth configuration locally than in CI (which has no .env at all).
                              OidcAutoRedirectProfile and friends still turn it on for themselves. -->
                         <password.auth.enabled>true</password.auth.enabled>
