@@ -1,10 +1,21 @@
-# Project-level grype configuration, layered over code-quality-config/docker/.grype.yaml (this file is passed FIRST, so its
-# scalars win and its ignores are appended to the shared list). lint_and_tests.sh points grype at it with `-c`; it is not at
+# Project-level grype configuration, layered over code-quality-config/docker/.grype.yaml This file is passed FIRST, so its
+# scalars win and its ignores are appended to the shared list. lint_and_tests.sh points grype at it with `-c`; it is not at
 # the repo root, so grype does not pick it up by convention.
-#
-# Everything below is a glibc (libc6) CVE in the Debian 13 (trixie) base image. There is no newer libc6 to upgrade to.
-# Debian's security team marks them as "unimportant", so no package update will ever clear them, and all are Negligible severity.
 ignore:
+  # TODO: Resolve these when a new Eclipse Temurin image is available
+  - vulnerability: CVE-2026-41254
+    package:
+      name: openjdk
+      type: binary
+    reason: "Waiting for docker image release of >=26.0.2"
+  - vulnerability: CVE-2026-47063
+    package:
+      name: openjdk
+      type: binary
+    reason: "Waiting for docker image release of >=26.0.2"
+
+  # Everything below is a glibc (libc6) CVE in the Debian 13 (trixie) base image. There is no newer libc6 to upgrade to.
+  # Debian's security team marks them as "unimportant", so no package update will ever clear them, and all are Negligible severity.
   - vulnerability: CVE-2010-4756
     package:
       name: libc6

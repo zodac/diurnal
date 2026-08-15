@@ -147,7 +147,7 @@ FROM node:26.7.0-trixie AS nodesrc
 # Based on the SAME Postgres MAJOR the app runs against in production (the postgres:*-alpine pins in the
 # compose files); this is the Debian variant of that exact version so Chromium runs. update_postgres in
 # update_dependency_versions.sh bumps this tag in lockstep with the compose pins.
-FROM postgres:18.4 AS screenshots
+FROM postgres:18.6 AS screenshots
 ENV DEBIAN_FRONTEND=noninteractive
 # Node (from the pinned trixie image above) to run the generator; glibc, hosts Playwright's Chromium.
 COPY --from=nodesrc /usr/local /usr/local
