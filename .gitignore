@@ -56,7 +56,7 @@ tests/.e2e-app.pid
 # used to sit beside these and now live in the code-quality-config submodule
 # (code-quality-config/java/qodana/), beside every other linter's shared config, so nothing tracked is
 # left here and `rm -rf .qodana` costs only a cold run. No baseline is kept at all: every run is judged
-# fresh (see qodana.yaml).
+# fresh (see code-quality-config-overrides/qodana.yaml).
 .qodana/
 
 # Per-user Claude Code state (the checked-in .claude docs are CLAUDE.md, APIS.md, CODE_STYLE.md, UI_PATTERNS.md)

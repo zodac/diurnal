@@ -132,15 +132,16 @@ jobs:
       #
       # ONLY .qodana/cache is cached - NEVER .qodana/results, which is where the SARIF lands. That is not an
       # oversight: the gate is judged fresh on every run and deliberately keeps no baseline (see the "NO
-      # BASELINE" note in qodana.yaml), so restoring a previous run's findings would let a finding be
-      # inherited into a silently-accepted set - exactly what the no-baseline policy exists to prevent.
+      # BASELINE" note in code-quality-config-overrides/qodana.yaml), so restoring a previous run's
+      # findings would let a finding be inherited into a silently-accepted set - exactly what the
+      # no-baseline policy exists to prevent.
       #
       # Keyed on everything that decides what a cached index means: the pinned linter image (in
-      # qodana.yaml), the inspection profile, the IDE overrides, and the POM. The profile and the overrides
-      # live in the code-quality-config submodule, which the checkout step above pulls with
-      # `submodules: true` - without that they would hash to nothing and every submodule bump would silently
-      # reuse a stale index. A run whose key already exists
-      # restores and does NOT re-upload, so one entry is reused rather than a new one written every run.
+      # code-quality-config-overrides/qodana.yaml), the inspection profile, the IDE overrides, and the POM.
+      # The profile and the overrides live in the code-quality-config submodule, which the checkout step
+      # above pulls with `submodules: true` - without that they would hash to nothing and every submodule
+      # bump would silently reuse a stale index. A run whose key already exists restores and does NOT
+      # re-upload, so one entry is reused rather than a new one written every run.
       #
       # There is deliberately NO `restore-keys` fallback, unlike the Grype step above. A cache written
       # before ExternalStorageConfigurationManager was dropped from the overrides carries a module model
@@ -152,7 +153,7 @@ jobs:
         uses: actions/cache@v6.1.0
         with:
           path: .qodana/cache
-          key: ${{ runner.os }}-qodana-${{ hashFiles('qodana.yaml', 'code-quality-config/java/qodana/profiles/java.yaml', 'code-quality-config/java/qodana/overrides/**', 'pom.xml') }}
+          key: ${{ runner.os }}-qodana-${{ hashFiles('code-quality-config-overrides/qodana.yaml', 'code-quality-config/java/qodana/profiles/java.yaml', 'code-quality-config/java/qodana/overrides/**', 'pom.xml') }}
 
       # Executes the full gate one place.
       # Needs the host toolchain set up above: JDK+Maven, Node deps, Playwright, and Docker.

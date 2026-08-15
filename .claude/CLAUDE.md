@@ -87,18 +87,26 @@ mvn package
 # mounts over .idea/ inside the scan container - without
 # them 238 framework-instantiated declarations report as unused, with them 0.
 # BOTH INPUTS ARE IN THE SUBMODULE (`git submodule update --init` is a prerequisite of the scan, and the
-# wrapper refuses to start the container without them); qodana.yaml at the repo root is the only Qodana
-# config tracked here, and `.qodana/` is now purely the scan's gitignored working dir (cache/results/
-# idea-config). A change under code-quality-config/java/ auto-detects as the `java` step, so editing the
-# profile now re-triggers the tier that reads it.
+# wrapper refuses to start the container without them); code-quality-config-overrides/qodana.yaml is the
+# only Qodana config tracked here, and `.qodana/` is now purely the scan's gitignored working dir
+# (cache/results/idea-config). THAT FILE IS NOT AT THE REPO ROOT, so the CLI does not find it by
+# convention - the wrapper passes it with `--config`, and so must any hand-run scan. Its two kinds of
+# relative path resolve DIFFERENTLY, and `--config --help` is wrong about the first: `imports:` is relative
+# to the CONFIG FILE (hence the `../` in front of the submodule profile), while `exclude:` and the
+# per-inspection `ignore:` globs are relative to the PROJECT. A bad import fails the run outright
+# ("imports file not found"), so that one cannot go green by accident.
+# A change under code-quality-config/java/ OR to that qodana.yaml auto-detects as the `java` step, so
+# editing the profile, the overrides or the scan's own config re-triggers the tier that reads them.
+# The grype ignore list sits beside it (code-quality-config-overrides/.grype.yaml, passed with `-c`), so
+# the repo root holds no linter dotfiles at all.
 # ORDER DECIDES inside the profile - an individual `- inspection:` entry placed ABOVE its own
 # `- group: "category:..."` is silently re-enabled by it. It reports on JAVA SOURCE ONLY - the profile's
 # first entry is
 # `ignore: ["*", "**/*", "!**/*.java"]`, so every other file type stays with the gate that already covers
-# it (shellcheck, markdown, typescript, hadolint). The profile MUST be reached by `imports:` in
+# it (shellcheck, markdown, typescript, hadolint). The profile MUST be reached by `imports:` in that
 # qodana.yaml: `profile: path:` / `base: path:` / `--profile-path` are accepted and then silently
 # ignored, falling back to the IDE Default profile (which omits UnusedDeclaration - the whole point of
-# the step). It is a SUBSTEP of `java`, not a step of its own - scope the gate down to it when iterating
+# the step). `--config`, unlike those, IS honoured - which is what let the file leave the root at all. It is a SUBSTEP of `java`, not a step of its own - scope the gate down to it when iterating
 # on its config:
 .github/scripts/lint_and_tests.sh java:qodana
 

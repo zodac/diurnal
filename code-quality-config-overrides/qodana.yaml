@@ -1,12 +1,19 @@
 # Whole-program static analysis (the IntelliJ inspection engine in CI) - the only check in the gate that sees an unused PUBLIC declaration.
 # The inspection profile and the IDE entry-point overrides live in the code-quality-config submodule; run it with `lint_and_tests.sh java:qodana`.
+#
+# This file is NOT at the repo root, so the CLI does not find it by convention - lint_and_tests.sh passes it with `--config`, and a hand-run scan
+# must do the same. The relative paths below do NOT all resolve the same way, whatever `--config --help` says about them being project-based:
+#   - `imports:` resolves against THIS FILE's directory, which is why the profile below is reached through `../`. A path that does not resolve is
+#     reported ("imports file not found") and the scan exits non-zero, so this one cannot go wrong quietly.
+#   - `exclude:` paths and the per-inspection `ignore:` globs stay PROJECT-relative and were left exactly as they were (verified after the move:
+#     target/ and .qodana/ appear nowhere in the scanned directories).
 version: "1.0"
 
 # Using a hash since the 'year.month' tag is re-published and mutable
 linter: jetbrains/qodana-jvm-community:2026.2@sha256:8ff36b5cebc0a6d720f77dcf3e0a94a03c39b4c42c3724a99ce5f7e462e42f99
 
 imports:
-  - "code-quality-config/java/qodana/profiles/java.yaml"
+  - "../code-quality-config/java/qodana/profiles/java.yaml"
 
 # Project-specific overrides
 profile:
@@ -38,6 +45,7 @@ exclude:
       - .qodana/
       - assets/
       - code-quality-config/
+      - code-quality-config-overrides/
       - docs/
       - frontend/node_modules
       - sandbox/

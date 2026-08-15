@@ -19,7 +19,8 @@
 #                 - Docker image pins AND the pinned eslint toolchain (eslint, @eslint/js,
 #                   @typescript-eslint, globals, typescript) in .github/scripts/lint_and_tests.sh
 #                   (node when confirmed; hadolint + markdownlint-cli2 + shellcheck + grype + qodana
-#                   best-effort; the qodana pin is also mirrored into qodana.yaml's `linter:`)
+#                   best-effort; the qodana pin is also mirrored into the `linter:` of
+#                   code-quality-config-overrides/qodana.yaml)
 #                   Note: shellcheck installed as an apt/apk package instead (pinned in a
 #                   # BEGIN/END … PACKAGES block) is handled generically by the package updaters.
 #                 - k6 Docker image pin in tests/run-perf.sh (the perf tier's load generator; best-effort)
@@ -57,7 +58,7 @@ POM_XML="./pom.xml"
 WORKFLOWS_DIR=".github/workflows"
 GITMODULES_FILE=".gitmodules"
 LINT_SCRIPT=".github/scripts/lint_and_tests.sh"
-QODANA_CONFIG="qodana.yaml"
+QODANA_CONFIG="code-quality-config-overrides/qodana.yaml"
 PERF_SCRIPT="./tests/run-perf.sh"
 
 # Node version resolved (and confirmed to exist) by update_node, consumed by update_lint_script for
@@ -427,7 +428,8 @@ update_postgres() {
 #     are independent best-effort: each is bumped to the latest GitHub release whose corresponding
 #     Docker Hub tag is confirmed to exist.
 #   - QODANA_DOCKER_IMAGE is resolved from Docker Hub's tag list instead (it has no GitHub release to
-#     track), and is the one pin written to two files - the gate script and qodana.yaml's `linter:`.
+#     track), and is the one pin written to two files - the gate script and the `linter:` of
+#     code-quality-config-overrides/qodana.yaml.
 #
 # If shellcheck is instead pinned as an apt/apk package (a `shellcheck="<ver>"` line inside a
 # # BEGIN/END … PACKAGES block in a Dockerfile), no work is needed here — update_apt_packages /
@@ -513,8 +515,9 @@ update_lint_script() {
     # Hub with a matching YYYY.N-eap pre-release. So read the tag list and take the highest tag that is
     # bare YYYY.N - the anchored regex drops every -eap, and sort -V picks the newest (the API's order
     # is not guaranteed). Unlike the other pins this one lives in TWO files: the gate's own
-    # QODANA_DOCKER_IMAGE, and `linter:` in qodana.yaml, which is what the JetBrains CLI reads when the
-    # scan is run by hand. Both are rewritten here so they cannot drift apart.
+    # QODANA_DOCKER_IMAGE, and `linter:` in QODANA_CONFIG, which is what the JetBrains CLI reads when the
+    # scan is run by hand (with `--config`, since that file is no longer at the repo root where the CLI
+    # would find it unaided). Both are rewritten here so they cannot drift apart.
     # The tag alone is NOT a pin. JetBrains publish only YYYY.N and RE-PUSH it - `2026.2` carried build
     # 262.9608 and then 262.10073 within the same week - so two machines on the same tag can be running
     # different images, and a re-push can change the gate's result with no commit here. There is no patch
