@@ -162,6 +162,21 @@ public class AppInfo {
     }
 
     /**
+     * The content-hashed filename of a settings preview's full-size lightbox image, the counterpart of {@link #settingsImage(String)} under the same
+     * base name, referenced by {@code partials/preview-thumb.html} as {@code /img/settings/full/{...}} and carried to the lightbox by
+     * {@code settings.js}. Held as its own file so the picker's tiles - which paint at roughly a fifth of the lightbox's width - are not made to
+     * carry the full-size bytes on every Settings page view; this one is requested only when a preview is opened. The map is baked in at image-build
+     * time ({@link AppConfig#settingsFullImages()}); un-hashed dev/{@code mvn package} runs have no entry, so this falls back to the plain
+     * {@code <base>.webp} name.
+     *
+     * @param base the preview image base name, without extension (e.g. {@code page-nova-full-dark})
+     * @return the served full-size filename under {@code /img/settings/full/}
+     */
+    public String settingsFullImage(final String base) {
+        return appConfig.settingsFullImages().getOrDefault(base, base + ".webp");
+    }
+
+    /**
      * The content-hashed filename of a top-level {@code /img/} vector mark (e.g. {@code wordmark.svg} → {@code wordmark.9f3a1c2b4d5e.svg}),
      * referenced by the templates as {@code /img/{...}} so each deploy busts caches only when the mark's bytes change — the same per-file
      * cache-busting the {@code /css/} and {@code /js/} assets get. The map ({@link AppConfig#hashedImages()}) is keyed by the base name (the part

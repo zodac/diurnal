@@ -1,9 +1,18 @@
 {!
   A fixed-size, top-cropped screenshot thumbnail. See `.preview-thumb` in app.css for sizing.
+
+  `data-src` is the small TILE image; `data-full` is the full-size one the lightbox shows. They are
+  two different files under the same base name (img/settings/<base>.webp and
+  img/settings/full/<base>.webp) because this tile paints at ~185 CSS px while the lightbox panel is
+  capped at 1024 - one file serving both meant every Settings page view paid the lightbox's bytes.
+  settings.js reads `data-full` when opening a preview, so the big image is fetched only then.
+
   Params:
     alt     - image alt text
     imgBase - image base name without extension, e.g. "page-nova-full-dark"
 !}
 <span class="preview-thumb">
-    <img data-src="/img/settings/{inject:appInfo.settingsImage(imgBase)}" alt="{alt}" class="preview-img">
+    <img data-src="/img/settings/{inject:appInfo.settingsImage(imgBase)}"
+         data-full="/img/settings/full/{inject:appInfo.settingsFullImage(imgBase)}"
+         alt="{alt}" class="preview-img">
 </span>

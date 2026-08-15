@@ -286,6 +286,20 @@ Served assets: `wordmark.svg` (navbar/headings), `favicon.svg` (scalable favicon
 16/32/48, at web root), `icon-192.png` (Chromium-Android tab icon — **must** be a `<link rel="icon">` tag, not just manifest), `icon-512.png` (PWA
 manifest pair), `apple-touch-icon.png` (180px iOS), `manifest.json`.
 
+**The SVGs are emitted MINIFIED, and the minification is exact — never a precision/quality trade.** `generate-brand.py`'s `_compact_path` rewrites
+the outline fontTools produces (absolute `M/L/H/V/Q/Z`, one space per number) into its shortest equivalent form: the group's `translate` folded into
+the coordinates, each command in whichever of absolute/relative is shorter, a repeated command letter elided, the `T` shorthand for the smooth
+quadratic joins a rounded typeface is full of, and no separator the SVG number grammar does not need. That is ~45% off each file (wordmark 1995 →
+1121 bytes, 920 → 576 gzipped) with **byte-identical rasters** out of `generate-favicons.cjs` — the regression test for a change here is simply that
+re-running the pipeline leaves `favicon.ico`/`icon-*.png` untouched. **No coordinate is ever rounded.** Quantising them was measured and rejected: it
+buys ~176 further bytes gzipped on immutable-cached assets and shifts vertices by ~3px at the 512px PWA icon size. `wordmark-readme.svg` is
+hand-authored (not generated) but was compacted through the same `_compact_path`; its floor is the 4.1 kB base64 woff2 tagline font, which gzip
+cannot touch.
+
+Two traps if `_compact_path` is ever edited: a repeated command letter may only be elided when it matches in **case** (a relative `t` after an
+absolute `T` is a different command, and eliding it silently rewrites the curve), and a separator may only be dropped before a leading `.` when the
+preceding number already contains one (`121.5.5` reads as two numbers, `62.5` as one). Both were live bugs caught by rendering, not by reading.
+
 ### Settings preview thumbnails
 
 Theme, Calendar style, and Font pickers show real dashboard screenshots (via `partials/preview-option.html`). WebP files in
@@ -312,6 +326,44 @@ Theme, Calendar style, and Font pickers show real dashboard screenshots (via `pa
 
 Loading: `data-src` instead of `src` (no fetches until JS assigns). Two-phase load: visible images immediately, then `requestIdleCallback` for the
 rest.
+
+#### Each preview is TWO files: the tile and the lightbox image
+
+**`img/settings/<base>.webp` is the picker tile; `img/settings/full/<base>.webp` is the lightbox image** — same base name, two files, two hashed-name
+maps (`AppConfig.settingsImages` / `settingsFullImages`, `AppInfo.settingsImage` / `settingsFullImage`). `preview-thumb.html` carries the small one as
+`data-src` and the big one as `data-full`; `settings.js`'s `previewSrcFor` reads **`data-full`**, so the full-size bytes are fetched only when a reader
+actually opens a preview. They were one shared file (the tile CSS-cropped the full-size image); the tile paints at ~185 CSS px and the lightbox panel
+is `max-w-5xl` = 1024, so a single 3456px file made every Settings page view pay ~393 kB to draw a row of thumbnails. Split, that page load is ~97 kB,
+and even a reader who opens *every* picker still transfers less than before.
+
+> **Every derived width must be an exact integer divisor of that image's own capture width.** This is the load-bearing rule, and it is deeply
+> counter-intuitive: fewer pixels is **not** automatically fewer bytes. libwebp's lossless coder lives on flat colour runs and exact repeats, and a
+> fractional resize ratio blends neighbouring pixels into gradients that destroy both. Measured on these screenshots: 3456 → **1920 came out 2%
+> BIGGER than the untouched 3456 original**, 2048 saved nothing, while 3456 → 1728 (exactly half) saves 38%. A "reasonable-looking" round number like
+> 1920 or 1600 is the wrong instinct here — pick a divisor.
+
+`writeShot`/`fullPreviewWidth`/`tilePreviewWidth` in `generate-screenshots.cjs` own this. Full = **halve** a DPR-2 capture (which recovers the native
+CSS-pixel image exactly) while that still clears 1024; tile = the smallest exact divisor still ≥ 384 (the tile is ~185 CSS px, so 384 covers it past
+DPR 2). The calendar crops are captured at 1586 px = 793 CSS px and the lightbox shows them at their natural 793 CSS px, so their "full" stays as
+captured and only the tile is derived. Encoding is `cwebp -z 9` — the strongest **lossless** preset, an effort setting and never a quality trade; it
+beat both the plain `-lossless` default and `-m 6` on every image measured.
+
+**Lossy WebP was measured and rejected outright**: on flat-fill, sharp-text UI screenshots it is *larger* than lossless (q95 = 318% of the lossless
+file, q80 = 183%) as well as worse. Don't re-litigate it without re-measuring.
+
+**A full-size preview is fetched at most once per page load.** `settings.js`'s `previewImgCache` keys every modal `<img>` it builds by URL and keeps
+it for the life of the page; closing the lightbox **hides** the images instead of discarding them (it used to `innerHTML = ''` the container, so
+Theme → close → Font → close → Theme re-requested all three Theme images — measured, 3 extra requests). Keyed by URL rather than by tile because
+`page-nova-full-dark` backs both the Theme-dark and Font-nova tiles and must share one element; its `alt` is re-set per use. `renderPreview` hides
+every *cached* image, not just the current picker's, since the container now holds other pickers' images too. The files are content-hashed and
+`immutable`, so an HTTP-cache hit would usually spare the network anyway — the element cache is what makes it a guarantee rather than a
+probability, and it skips the re-decode. Pinned by `settings.spec.ts` "re-opening a picker's preview re-uses its images", which counts requests;
+that test was confirmed to fail (6 → 9 requests) against the old discard-on-close behaviour.
+
+`run-screenshot-build.sh` counts **both** sets (8 tiles + 8 full) and fails the build if either is short — tiles without their counterparts would
+leave every preview button broken. `CacheHeadersIT.settingsFullPreviewImage_inASubDirectory_isAlsoCachedImmutablyForAYear` pins that the
+`img/settings/.+` immutable pattern still spans the `/` into `full/`, and the `settings.spec.ts` preview test pins that the lightbox opens the
+`/img/settings/full/` URL rather than the tile's.
 
 Thumbnails use a fixed-ratio frame (`aspect-[3/4] sm:aspect-[3/2]` in `.preview-thumb`), cropped to the top — not tied to image aspect ratios. Route
 any future settings thumbnail through `partials/preview-thumb.html`.

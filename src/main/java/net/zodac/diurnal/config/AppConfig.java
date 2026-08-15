@@ -186,6 +186,19 @@ public interface AppConfig {
     Map<String, String> settingsImages();
 
     /**
+     * Base-name → content-hashed filename map for the settings preview LIGHTBOX images served under {@code /img/settings/full/}, the full-size
+     * counterparts of {@link #settingsImages()} under the same base names. The two are separate files because the picker tile paints at ~185 CSS px
+     * while the lightbox panel is capped at 1024 CSS px, so serving one full-size image for both cost every Settings page view several times the
+     * bytes it needed; this map's images are fetched only when a reader actually opens a preview. Populated at image-build time exactly as
+     * {@link #settingsImages()} is, and empty for a non-Docker {@code mvn package} / dev run, where
+     * {@link net.zodac.diurnal.web.AppInfo#settingsFullImage(String)} falls back to the un-hashed base name.
+     *
+     * @return the settings preview base-name to hashed full-size filename map, empty when un-hashed
+     */
+    @WithName("assets.settings-full-images")
+    Map<String, String> settingsFullImages();
+
+    /**
      * Base-name → content-hashed filename map for the top-level {@code /img/} vector marks — the wordmarks and scalable favicon (e.g.
      * {@code wordmark} → {@code wordmark.9f3a1c2b4d5e.svg}). Populated at image-build time (one entry per SVG, baked in by the Dockerfile's hashing
      * script), so each mark gets a fresh URL only when its bytes change and is served {@code immutable}. Empty for a non-Docker {@code mvn package} /

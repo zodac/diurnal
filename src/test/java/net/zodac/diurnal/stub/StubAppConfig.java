@@ -37,11 +37,13 @@ import net.zodac.diurnal.config.AppConfig;
  * @param jsSettingsFile the content-hashed settings-script filename
  * @param jsStatsFile the content-hashed stats-script filename
  * @param settingsImages the settings preview-thumbnail base-name to hashed-filename map
+ * @param settingsFullImages the settings preview full-size base-name to hashed-filename map
  * @param hashedImages the top-level image base-name to hashed-filename map
  */
 public record StubAppConfig(String repositoryUrl, String buildTimestamp, String cssFile, String jsFile, String jsAppFile, String jsDashboardFile,
     String jsNoteFile, String jsActionsFile, String jsAdminFile, String jsApiDocsFile, String jsSettingsFile, String jsStatsFile,
     Map<String, String> settingsImages,
+    Map<String, String> settingsFullImages,
     Map<String, String> hashedImages) implements AppConfig {
 
     /**
@@ -50,7 +52,7 @@ public record StubAppConfig(String repositoryUrl, String buildTimestamp, String 
      * @return an inert {@link StubAppConfig}
      */
     public static StubAppConfig empty() {
-        return new StubAppConfig("", "", "", "", "", "", "", "", "", "", "", "", Map.of(), Map.of());
+        return new StubAppConfig("", "", "", "", "", "", "", "", "", "", "", "", Map.of(), Map.of(), Map.of());
     }
 
     @Override

@@ -391,26 +391,55 @@ function clearPreviewAnims() {
     document.getElementById('preview-modal-panel').getAnimations().forEach(function (a) { a.cancel() })
 }
 
-// Returns the URL of the thumbnail <img> inside a preview tile.
+// Returns the URL of the FULL-SIZE image for a preview tile — `data-full` on the tile's <img>
+// (see partials/preview-thumb.html), a different file from the small one the tile itself paints.
+// Falls back to the tile image so a preview still opens if `data-full` is ever missing.
 // Always normalises to an absolute URL for reliable comparison and src assignment.
 function previewSrcFor(tile) {
     function toAbs(raw) { return raw ? new URL(raw, document.baseURI).href : '' }
+    function srcOf(el) { return toAbs(el.dataset.full || el.currentSrc || el.src || el.dataset.src || '') }
     const imgs = tile.querySelectorAll('img')
     for (let i = 0; i < imgs.length; i++) {
         const el = imgs[i]
         const visible = el.checkVisibility
             ? el.checkVisibility({ visibilityProperty: true, opacityProperty: true })
             : (el.offsetParent !== null && getComputedStyle(el).visibility !== 'hidden')
-        if (visible) {return toAbs(el.currentSrc || el.src || el.dataset.src || '')}
+        if (visible) {return srcOf(el)}
     }
-    return imgs.length ? toAbs(imgs[0].currentSrc || imgs[0].src || imgs[0].dataset.src || '') : ''
+    return imgs.length ? srcOf(imgs[0]) : ''
 }
 
-// Toggle which pre-loaded modal <img> is visible without mutating any src.
+// Every <img> the lightbox has ever built, keyed by its URL, kept in #preview-modal-imgs for the life
+// of the page. Closing the modal HIDES them rather than discarding them, so re-opening a picker — or
+// opening a second picker and coming back — re-uses the same elements and issues no request at all.
+// The files are also content-hashed and served `immutable`, but that only makes a re-fetch cheap;
+// keeping the elements is what stops one happening, including when the HTTP cache has evicted them,
+// and it skips the re-decode too. Keyed by URL because one file can back tiles in two pickers
+// (page-nova-full-dark is both the Theme-dark and the Font-nova preview), which must share one <img>.
+const previewImgCache = new Map()
+
+// The modal <img> for a tile, created on first use and re-used forever after.
+function previewImgFor(tile, imgClass) {
+    const src = previewSrcFor(tile)
+    let img = previewImgCache.get(src)
+    if (!img) {
+        img = document.createElement('img')
+        img.src = src
+        img.className = imgClass
+        img.style.display = 'none'
+        if (img.decode) {img.decode().catch(function () {})}
+        document.getElementById('preview-modal-imgs').appendChild(img)
+        previewImgCache.set(src, img)
+    }
+    img.alt = tile.dataset.previewTitle // a shared image is titled for the picker it is shown under
+    return img
+}
+
+// Toggle which pre-loaded modal <img> is visible without mutating any src. Every cached image is
+// hidden first, not just this picker's: the container also holds the ones built for other pickers.
 function renderPreview() {
-    previewModalImgs.forEach(function (img, i) {
-        img.style.display = i === previewIndex ? '' : 'none'
-    })
+    previewImgCache.forEach(function (img) { img.style.display = 'none' })
+    if (previewModalImgs[previewIndex]) {previewModalImgs[previewIndex].style.display = ''}
     document.getElementById('preview-modal-title').textContent = previewTiles[previewIndex].dataset.previewTitle
     const multi = previewTiles.length > 1
     document.getElementById('preview-prev').classList.toggle('hidden', !multi)
@@ -423,23 +452,12 @@ window.openPreview = function (btn) {
     previewTiles = Array.prototype.slice.call(
         document.querySelectorAll(`[data-preview-group="${  group  }"]`))
     previewIndex = previewTiles.indexOf(tile)
-    // Create one <img> per gallery tile, each loaded exactly once at open time.
-    // Subsequent previewStep calls toggle display rather than mutating src, so returning
-    // to a tile that was already shown never triggers a second network request.
+    // One <img> per gallery tile, loaded exactly once for the life of the page (previewImgFor).
+    // Subsequent previewStep calls toggle display rather than mutating src, and closing keeps the
+    // elements, so neither stepping between tiles nor re-opening a picker ever re-requests an image.
     // Covers all three pickers (theme / calendar / font) through a single code path.
-    const container = document.getElementById('preview-modal-imgs')
-    container.innerHTML = ''
-    const imgClass = container.dataset.imgClass
-    previewModalImgs = previewTiles.map(function (t) {
-        const img = document.createElement('img')
-        img.src = previewSrcFor(t)
-        img.alt = t.dataset.previewTitle
-        img.className = imgClass
-        img.style.display = 'none'
-        if (img.decode) {img.decode().catch(function () {})}
-        container.appendChild(img)
-        return img
-    })
+    const imgClass = document.getElementById('preview-modal-imgs').dataset.imgClass
+    previewModalImgs = previewTiles.map(function (t) { return previewImgFor(t, imgClass) })
     renderPreview()
 
     const modal = document.getElementById('preview-modal')
@@ -497,7 +515,11 @@ window.closePreview = function () {
         modal.classList.add('hidden')
         modal.classList.add('opacity-0') // restore the resting hidden-opacity for next open
         clearPreviewAnims()               // drop the forwards-fills so nothing stays composited
-        document.getElementById('preview-modal-imgs').innerHTML = ''
+        // The <img> elements are deliberately NOT discarded here (see previewImgCache) — they are
+        // simply hidden, so re-opening this picker costs no request. They sit inside the hidden
+        // modal, and a display:none image lets the browser drop its decoded bitmap anyway, so what
+        // is retained is the element, not the pixels.
+        previewImgCache.forEach(function (img) { img.style.display = 'none' })
         previewModalImgs = []
     }
 }
