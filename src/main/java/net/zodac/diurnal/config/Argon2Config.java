@@ -24,10 +24,10 @@ import io.smallrye.config.WithDefault;
  * Typed view over the {@code password.hash.argon2.*} settings that tune the Argon2id password hashing cost.
  *
  * <p>
- * The three cost parameters should be tuned so a single hash takes roughly 100–500&nbsp;ms on the target production hardware — slow enough to
+ * The three cost parameters should be tuned so a single hash takes roughly 100–500 ms on the target production hardware — slow enough to
  * frustrate offline brute-forcing of a leaked hash, fast enough not to hurt legitimate logins. The defaults (96 MiB of
  * memory, 3 iterations, and 4 lanes) exceed the OWASP Argon2id memory guidance and were measured
- * at ~130 ms on the reference host (an 8-core AMD Ryzen 7 5700X): 96&nbsp;MiB of memory-hardness held to that latency by spreading the work
+ * at ~130 ms on the reference host (an 8-core AMD Ryzen 7 5700X): 96 MiB of memory-hardness held to that latency by spreading the work
  * across 4 lanes. Re-measure and adjust on other hardware — raise {@link #memoryKib()} first on a faster or higher-core machine, lower it on a
  * constrained one. Increasing any parameter transparently re-hashes each account on its next successful login (see {@code Passwords.needsRehash}).
  */
