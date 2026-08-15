@@ -102,7 +102,7 @@ right now. There is no precedent to follow, which is why a new mode is needed.
 
 | Check | `CLEANED` (existing) | `MULTILINE` (notes) |
 |---|---|---|
-| Length in code points, reject-never-truncate | yes | yes (10,000) |
+| Length in code points, reject-never-truncate | yes | yes (10,000 by default; per-deployment) |
 | Invisible / zero-width / bidi / noncharacter rejection | yes | yes, **except LF** |
 | Zalgo (stacked marks) rejection | yes | yes |
 | NFC normalisation, whole-value strip | yes | yes |
@@ -262,8 +262,10 @@ speculatively, and this markup is rendered in exactly one place. Extract it if a
 the dirty state — there is no fragment endpoint and nothing is ever swapped inside `#note-panel`, which is what makes
 the resize dimensions durable with no re-application.
 
-- **Textarea** with `maxlength` from the catalogue and `overflow-y: auto`, so text longer than the default scrolls
-  (requirement 8).
+- **Textarea** with `overflow-y: auto`, so text longer than the default scrolls (requirement 8), and deliberately with
+  **no `maxlength`** — the attribute counts UTF-16 units, so it would cut an emoji-heavy note off at half the bound with
+  no explanation. The counter below the box measures code points exactly as the server does, and Save is what refuses
+  (see [`TEXT_INPUT.md`](TEXT_INPUT.md)).
 - **Explicit Save, Undo and Clear**, not autosave — the house convention is an explicit Save everywhere except
   Settings > User Preferences. Submitted via `fetch`, **not** htmx, because a note can legitimately answer 422 (too
   long, invisible characters) and htmx unsuppressably `console.error`s every 4xx.
@@ -393,7 +395,8 @@ invariants. `tests/ui/dashboard.spec.ts` covers it.
 ### The note colour
 
 **The colour notes are shown in is a per-user preference** (`User.noteColour`, `@Preference`, `V27__add_note_colour.sql`), picked in
-**Settings → Appearance → Note colour** with the same `colour-picker` + `random-colour-button` pair the new-action card uses, plus a
+**Settings → Notes → Note colour** (it lived under **Appearance** until the [character counter](#the-character-counter-preference) gave the notes
+settings a card of their own) with the same `colour-picker` + `random-colour-button` pair the new-action card uses, plus a
 **"Default colour"** button (`#note-colour-default`) that reverts to `UserSettings.DEFAULT_NOTE_COLOUR`. That button is this row's alone — an action
 has no default to go back to, its colour being whatever was picked when it was created — so it stays inline markup wired in `settings.js`, writing
 the value in and firing the same `change` event a hand-picked colour would. It carries the default as a `data-colour-default` attribute rendered by
@@ -694,6 +697,32 @@ deploy.
   and enforced by none.
 - **There is no locked state and no unlock step.** The application can open any user's data key on any request, so notes
   behave exactly as they did before encryption: no `423`, no session key, no gate on sign-in.
+
+### The character counter preference
+
+Added 2026-08-15. `User.showNoteCounter` (`@Preference`, `V30__add_show_note_counter.sql`, default **on**) decides whether the note box shows its
+`1,234 / 10,000` counter. Purely a display preference: the bound is untouched, an over-long note is refused exactly as before, and the API twin is
+`showNoteCounter` on `PATCH /api/v1/users/me` like every other preference.
+
+**It does not hide the counter when the note is OVER the bound.** That is the whole subtlety. The counter has two jobs — a running length, and the
+only on-screen explanation for Save going inert — and the preference is about the first. `refreshNoteCount()` in `note.js` therefore reads
+`SHOW_COUNT || noteIsOverLimit()`, so a user who turned it off still sees it, in red, at the one moment it is load-bearing, and it disappears again as
+soon as they are back under. Suppressing it unconditionally would leave a dead Save button with nothing anywhere saying why.
+
+Consequences of that choice, both deliberate:
+
+- **The `<span id="note-count">` is always rendered**, and the preference is a condition on its `hidden` flag rather than on the markup. It is what
+  the textarea's `aria-describedby` points at, and it has to exist for the over-limit reveal to have something to reveal.
+- **The row's layout is unchanged.** The counter already came and went (it is hidden with no day selected), so the `justify-between` flex row was
+  already living with one child; the preference adds no new visual case.
+
+| Decision | Chosen | Rejected alternative |
+|---|---|---|
+| Where it lives | A new **Settings → Notes** card | A fourth row in Preferences, or staying in Appearance. Rejected: two notes settings existed once this landed, and a reader should find anything about notes in one place |
+| What moves with it | The note colour moves out of Appearance into the new card | Leaving the colour in Appearance. Rejected: it would split the notes settings across two cards, which is the problem the card was made to solve |
+| Which column | Right, under Appearance | The left column. Rejected: the colour came OUT of Appearance, so keeping the control in the same column moves it once rather than twice for anyone who knew where it was |
+| Over the bound | Counter reappears regardless | Honour the preference absolutely. Rejected: it leaves an inert Save button unexplained |
+| Scope | The dashboard note box only | Also the `/notes` page. Rejected: nothing there counts characters — there is no editor on that page |
 
 ### The length bound is per-deployment (`NOTE_MAX_LENGTH`)
 

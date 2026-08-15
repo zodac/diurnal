@@ -523,7 +523,7 @@ test.describe("Dashboard – note character counter", () => {
     })
 })
 
-// The note COLOUR setting. One picker in Settings > Appearance, stored as one hex and rendered verbatim
+// The note COLOUR setting. One picker in Settings > Notes, stored as one hex and rendered verbatim
 // in both themes (like an action's colour); the only derived shade is the lightened variant today's
 // brand-filled calendar cell needs, which the server computes. These pin the wiring end to end — picker
 // to preference to the two places the colour is shown — which no server test can see.
@@ -598,7 +598,7 @@ test.describe("Settings – note colour", () => {
 
         await Promise.all([
             page.waitForResponse(r => r.url().includes("/internal/settings") && r.request().method() === "PATCH"),
-            page.locator("#settings-appearance [data-random-colour]").click(),
+            page.locator("#settings-notes [data-random-colour]").click(),
         ])
 
         const suggested = await page.locator("#noteColour").inputValue()

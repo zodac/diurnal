@@ -331,6 +331,11 @@ admin IP-lockout history follows the general value (no section of its own).
 - **A day NOTE may be written for any date, including a future one** — `NoteService` deliberately does not apply the
   `LogGuards.isFuture` rule that blocks logging. An empty note is no row (saving blank content deletes it), and a note's
   CONTENT must never reach the application log. See [`NOTES.md`](NOTES.md).
+- **The note box's character counter is a user preference** (`User.showNoteCounter`, default on, Settings > **Notes**
+  card alongside the note colour). Display-only: it never changes the bound, and `note.js` shows the counter anyway
+  while a note is OVER the bound (`SHOW_COUNT || noteIsOverLimit()`) because it is the only thing explaining an inert
+  Save button - so the `<span id="note-count">` is always rendered and the preference gates its `hidden` flag, never
+  its markup. See [`NOTES.md`](NOTES.md).
 - **A note's length bound is the ONE per-deployment entry in the `TextFields` catalogue** (`NOTE_MAX_LENGTH`, default
   10,000, range `[1, 100_000]` enforced at startup by `AppLifecycle`). Read it through **`note/NoteField`**, never
   `TextFields.NOTE` — that constant is only the DEFAULT instance, kept for `all()` and for tests. It is configurable

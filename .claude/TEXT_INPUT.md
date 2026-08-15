@@ -407,6 +407,15 @@ deployment-smoke) is green.
    `TextFieldExtensionsTest` (the normalisation pass, step by step and in order), `TextRulesTest` (the exemption is
    exactly one code point wide) and `NaughtyStringsTest` (a note rejects every invisible character the other fields
    reject).
+   > **Both halves of that bound sentence have since changed** and are kept only as history: `V28` dropped
+   > `notes.content` (so `TextFieldsSchemaIT` now asserts the column's ABSENCE, there being no width to pin a sealed
+   > `bytea` against), and 10,000 became the DEFAULT of a per-deployment `NOTE_MAX_LENGTH` rather than the bound
+   > itself - which is precisely what the missing column made possible. See item 10.
+10. **A per-deployment note bound + a counter preference** (2026-08-14/15). `NOTE_MAX_LENGTH` (`config/NotesConfig`
+    -> `note/NoteField`, range-checked at startup) makes `TextFields.NOTE` the only catalogue entry whose maximum is
+    not a compile-time constant, and `User.showNoteCounter` decides whether the note box shows its counter at all.
+    Both are documented in full - including what happens to notes already stored above a lowered bound - in
+    [`NOTES.md`](NOTES.md).
 
 ### Deliberately out of scope
 

@@ -75,7 +75,8 @@
                  Unlike the day logger, this stays live for a FUTURE date — a note may be written for
                  any day (see NoteService). !}
             <div id="note-panel" class="{#if showStatsSummary}lg:col-start-3 lg:row-start-2 {/if}card p-4 flex flex-col min-w-0 relative"
-                 data-note-date="{summaryDate}" data-note-max="{inject:textFields.note.maxLength}">
+                 data-note-date="{summaryDate}" data-note-max="{inject:textFields.note.maxLength}"
+                 data-note-counter="{showNoteCounter}">
                 <div class="flex items-center justify-between gap-2 mb-2">
                     <h3 class="text-base font-medium text-ink">Note</h3>
                     <span id="note-status" class="help-text" aria-live="polite"></span>
@@ -97,7 +98,11 @@
                      STORED note is non-empty, since there is nothing to clear otherwise. !}
                 <div class="flex items-center justify-between gap-2 mt-2">
                     {! Shown only while a day is selected and the box is typeable — a count against a
-                         disabled, empty box is noise. Muted under the limit, red over it. !}
+                         disabled, empty box is noise. Muted under the limit, red over it.
+                         Always RENDERED, even for a user who has turned the counter off in Settings: the
+                         element is what `aria-describedby` above points at, and note.js reveals it anyway
+                         while a note is over its bound, where it is the only explanation for Save going
+                         inert. The preference is therefore a condition on `hidden`, not on the markup. !}
                     <span id="note-count" class="note-count" hidden></span>
                     <div class="flex items-center gap-2">
                         <button type="button" id="note-clear" class="note-btn-secondary" hidden>Clear</button>

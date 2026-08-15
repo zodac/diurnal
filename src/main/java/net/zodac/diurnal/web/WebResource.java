@@ -642,6 +642,7 @@ public class WebResource {
      * @param pageSizeValue    each of those rows' page size (blank = follow {@code pageSize}), in the same order as {@code pageSizeSection}
      * @param decimalPlaces    the new decimal-place count, when submitted
      * @param showStatsSummary the stats-summary checkbox values (hidden {@code "false"} + ticked {@code "true"}), when submitted
+     * @param showNoteCounter  the note-counter checkbox values, in the same hidden-plus-ticked shape as {@code showStatsSummary}
      * @param statsOrder       every "Action stats" field key in the arranged order, when submitted
      * @param statsEnabled     the ticked "Action stats" field keys, when submitted alongside {@code statsOrder}
      * @param statsLabel       each "Action stats" field's custom name (blank = the built-in one), in the same order as {@code statsOrder}
@@ -664,15 +665,34 @@ public class WebResource {
         @FormParam("pageSizeValue") @Nullable final List<String> pageSizeValue,
         @FormParam("decimalPlaces") @Nullable final String decimalPlaces,
         @FormParam("showStatsSummary") @Nullable final List<String> showStatsSummary,
+        @FormParam("showNoteCounter") @Nullable final List<String> showNoteCounter,
         @FormParam("statsOrder") @Nullable final List<String> statsOrder,
         @FormParam("statsEnabled") @Nullable final List<String> statsEnabled,
         @FormParam("statsLabel") @Nullable final List<String> statsLabel) {
         final User user = currentUser.get();
 
+        // Grouped into helpers purely for length; every group threads the running result through, so the ordering and the
+        // stop-at-the-first-rejection behaviour are exactly as if the branches were still written out here in one run.
         ProfileResult result = new ProfileResult.Updated();
         if (displayName != null) {
             result = profileService.updateDisplayName(user, displayName);
         }
+        result = applyAppearance(user, result, theme, font, calendarView, noteColour, timezone);
+        result = applyPaging(user, result, pageSize, pageSizeSection, pageSizeValue, decimalPlaces);
+        result = applyToggles(user, result, showStatsSummary, showNoteCounter);
+        result = applyStatsFields(user, result, statsOrder, statsEnabled, statsLabel);
+
+        return switch (result) {
+            case final ProfileResult.Updated ignored -> Response.noContent().build();
+            // A rejected field leaves any field applied before it mutated on the managed entity; the class-level @RollbackOnErrorStatus rolls the
+            // whole transaction back on this 422, so a rejected request never silently persists part of a mutation.
+            case final ProfileResult.Invalid invalid -> Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(invalid.message()).build();
+        };
+    }
+
+    private ProfileResult applyAppearance(final User user, final ProfileResult current, final @Nullable String theme, final @Nullable String font,
+        final @Nullable String calendarView, final @Nullable String noteColour, final @Nullable String timezone) {
+        ProfileResult result = current;
         if (theme != null && stillValid(result)) {
             result = profileService.updateTheme(user, theme);
         }
@@ -688,6 +708,12 @@ public class WebResource {
         if (timezone != null && stillValid(result)) {
             result = profileService.updateTimezone(user, timezone);
         }
+        return result;
+    }
+
+    private ProfileResult applyPaging(final User user, final ProfileResult current, final @Nullable String pageSize,
+        final @Nullable List<String> pageSizeSection, final @Nullable List<String> pageSizeValue, final @Nullable String decimalPlaces) {
+        ProfileResult result = current;
         if (pageSize != null && stillValid(result)) {
             result = profileService.updatePageSize(user, pageSize);
         }
@@ -699,25 +725,33 @@ public class WebResource {
         if (decimalPlaces != null && stillValid(result)) {
             result = profileService.updateDecimalPlaces(user, decimalPlaces);
         }
-        // The checkbox posts a hidden "false" plus (when ticked) "true", so presence = any value and
-        // the setting is on iff the values contain "true".
+        return result;
+    }
+
+    // Both toggles post a hidden "false" plus (when ticked) "true", so presence = any value and the setting is on iff the values
+    // contain "true". Each row hx-includes only itself, so an absent parameter means "unchanged", never "off".
+    private ProfileResult applyToggles(final User user, final ProfileResult current, final @Nullable List<String> showStatsSummary,
+        final @Nullable List<String> showNoteCounter) {
+        ProfileResult result = current;
         if (showStatsSummary != null && !showStatsSummary.isEmpty() && stillValid(result)) {
             result = profileService.updateShowStatsSummary(user, showStatsSummary.contains("true"));
         }
-        // The stats picker posts EVERY row's key in its (drag-arranged) DOM order as statsOrder, plus
-        // the ticked subset as statsEnabled and each row's custom name as statsLabel. Every row posts one
-        // key and one name, so the two lists pair up by index (StatField.labelsByKey).
-        if (statsOrder != null && !statsOrder.isEmpty() && stillValid(result)) {
-            result = profileService.updateStatsFields(user, statsOrder, statsEnabled == null ? List.of() : statsEnabled,
-                    StatField.labelsByKey(statsOrder, statsLabel));
+        if (showNoteCounter != null && !showNoteCounter.isEmpty() && stillValid(result)) {
+            result = profileService.updateShowNoteCounter(user, showNoteCounter.contains("true"));
         }
+        return result;
+    }
 
-        return switch (result) {
-            case final ProfileResult.Updated ignored -> Response.noContent().build();
-            // A rejected field leaves any field applied before it mutated on the managed entity; the class-level @RollbackOnErrorStatus rolls the
-            // whole transaction back on this 422, so a rejected request never silently persists part of a mutation.
-            case final ProfileResult.Invalid invalid -> Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(invalid.message()).build();
-        };
+    // The stats picker posts EVERY row's key in its (drag-arranged) DOM order as statsOrder, plus the ticked subset as
+    // statsEnabled and each row's custom name as statsLabel. Every row posts one key and one name, so the two lists pair
+    // up by index (StatField.labelsByKey).
+    private ProfileResult applyStatsFields(final User user, final ProfileResult current, final @Nullable List<String> statsOrder,
+        final @Nullable List<String> statsEnabled, final @Nullable List<String> statsLabel) {
+        if (statsOrder == null || statsOrder.isEmpty() || !stillValid(current)) {
+            return current;
+        }
+        return profileService.updateStatsFields(user, statsOrder, statsEnabled == null ? List.of() : statsEnabled,
+                StatField.labelsByKey(statsOrder, statsLabel));
     }
 
     // Each field is applied only while every field before it was accepted, so the first rejection is the one reported and nothing after it runs.
@@ -851,6 +885,7 @@ public class WebResource {
                 .data("noteColour", user.noteColour)
                 // Rendered onto the "Default colour" button so the constant is written down once, in Java.
                 .data("noteColourDefault", UserSettings.DEFAULT_NOTE_COLOUR)
+                .data("showNoteCounter", user.showNoteCounter)
                 .data("statsFieldChoices", StatField.choices(user.statsFields))
                 .data("timezoneChoices",
                         UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone));
@@ -887,6 +922,7 @@ public class WebResource {
                 // calendar, so the marker rules stay a single pair regardless of the colour behind them.
                 .data("noteColour", user.noteColour)
                 .data("noteColourOnBrand", Colours.readableOn(user.noteColour, Colours.BRAND_FILL))
+                .data("showNoteCounter", user.showNoteCounter)
                 .data("showStatsSummary", user.showStatsSummary);
     }
 }

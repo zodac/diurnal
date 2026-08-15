@@ -19,8 +19,8 @@
         {#include partials/banner variant=settingsBannerVariant cls='mb-4' message=settingsMessage /}
         {/if}
 
-        {! Two-column settings layout (flex, not grid). On desktop the left column stacks Account
-             (top) then Preferences (below); the right column stacks Appearance then Statistics.
+        {! Two-column settings layout (flex, not grid). On desktop the left column stacks Account,
+             Preferences and Data; the right column stacks Appearance, Notes and Statistics.
              Flex columns (rather than a grid) let each column pack its cards flush from the top
              independently — a grid would stretch the short left cards to the tall Appearance card's
              row height, leaving a gap under Account.
@@ -28,12 +28,15 @@
              Which column a card belongs in follows one rule: it goes wherever the first free
              vertical slot is. Preferences runs lower than Appearance, so Statistics (added after
              both) lands under Appearance on the right rather than under Preferences on the left.
+             Notes joined the right column beneath Appearance for the same reason, and because the
+             note colour it inherited came out of Appearance — moving it across a column as well as
+             out of a card would have relocated the control twice over for anyone who knew where it was.
 
-             On MOBILE the order must be Account → Appearance → Preferences → Statistics. Because the
-             cards are grouped into the two column wrappers (needed for the desktop columns), BOTH
-             wrappers are `display:contents` below `lg` (`contents lg:flex…`): their boxes disappear
-             on mobile so all four cards become direct flex items of THIS container, and `order-last`
-             on Preferences and Statistics drops them (in source order) past Appearance. At `lg` the
+             On MOBILE the order is Account → Appearance → everything carrying `order-last`, in source
+             order (Preferences → Data → Notes → Statistics). Because the cards are grouped into the two
+             column wrappers (needed for the desktop columns), BOTH wrappers are `display:contents` below
+             `lg` (`contents lg:flex…`): their boxes disappear on mobile so every card becomes a direct
+             flex item of THIS container, and `order-last` drops those cards past Appearance. At `lg` the
              wrappers are real flex columns again and the order resets, so the desktop layout is
              unchanged.
 
@@ -498,47 +501,89 @@
                             endpoint="/internal/settings" options=calendarViewOptions current=calendarView border=true /}
                         {#include partials/preview-picker optionsId="font-options" label="Font" group="font"
                             endpoint="/internal/settings" options=fontOptions current=font border=true /}
+                    </div>
+                </div>
 
-                        {! Note colour: the same picker + randomise pair the new-action card uses, so a note
-                             is coloured exactly the way an action is, plus a revert-to-default button this row
-                             alone has (an action's colour has no "default" to go back to — it is whatever was
-                             picked when it was created). The picker auto-saves its own value on change
-                             (endpoint=), and both buttons drop a value into it and fire that same change —
-                             data-colour-scope is how the shared handler in app.js finds the input from the
-                             randomise button (the action pages scope it by <form>/<td>, which this row, not
-                             being a form, has neither of). ONE colour, used verbatim in both themes: the only
-                             derived shade is the lightened variant today's brand-filled calendar cell needs,
-                             which the server computes (see NOTES.md). !}
-                        {! The label block is `min-w-0` and NOT `shrink-0`, unlike the other preference rows:
-                             three 36px controls plus their gaps is far more than a single toggle, and with both
-                             sides refusing to shrink the row overflowed its card on a phone - the label ended up
-                             ON TOP of the buttons, swallowing their taps (caught by the mobile E2E project). The
-                             help text wraps instead; the controls keep `shrink-0` so they never squash. !}
-                        <div data-colour-scope class="flex items-center justify-between pt-2">
-                            <div class="min-w-0 pr-4">
-                                <label for="noteColour" class="block text-sm font-medium text-ink">Note colour</label>
-                                <p class="help-text mt-0.5">Colour of days with a note, and of the Notes statistics.</p>
-                            </div>
-                            <div class="ml-4 flex items-center gap-3 shrink-0">
-                                {#include partials/colour-picker id='noteColour' name='noteColour' value=noteColour
-                                    endpoint='/internal/settings' wrapperCls='shrink-0' inputCls='colour-picker-input' /}
-                                {#include partials/random-colour-button wrapperCls='shrink-0' iconCls='w-4 h-4' align='right'
-                                    btnCls='colour-picker-btn' /}
-                                {! Revert to the built-in colour. The default itself is server-rendered onto the
-                                     button rather than repeated in settings.js, so UserSettings.DEFAULT_NOTE_COLOUR
-                                     stays the only place it is written down. Single-use markup, so it stays inline
-                                     rather than becoming a partial (UI_PATTERNS.md section 1). !}
-                                <span class="group relative inline-flex shrink-0">
-                                    <button type="button"
-                                            id="note-colour-default"
-                                            data-colour-default="{noteColourDefault}"
-                                            class="colour-picker-btn"
-                                            aria-label="Default colour">
-                                        {#include partials/icon name='rotate-ccw' cls='w-4 h-4' /}
-                                    </button>
-                                    {#include partials/tooltip text="Default colour" pos="bottom" align="right" /}
-                                </span>
-                            </div>
+                {! Notes. The settings that belong to the notes feature rather than to the app's looks:
+                     the colour a note is marked in, and whether the note box counts characters. The colour
+                     lived in Appearance while it was the only one of its kind; a second notes setting is
+                     what made a card of their own the right home, so a reader looks in one place for
+                     anything to do with notes. order-last drops it below Appearance on mobile;
+                     lg:order-none restores the desktop column order. !}
+                <div id="settings-notes" class="card p-4 order-last lg:order-none">
+                    {#include partials/card-header title='Notes' help='Appearance and behaviour of your day notes.' /}
+
+                    {! Note colour: the same picker + randomise pair the new-action card uses, so a note
+                         is coloured exactly the way an action is, plus a revert-to-default button this row
+                         alone has (an action's colour has no "default" to go back to — it is whatever was
+                         picked when it was created). The picker auto-saves its own value on change
+                         (endpoint=), and both buttons drop a value into it and fire that same change —
+                         data-colour-scope is how the shared handler in app.js finds the input from the
+                         randomise button (the action pages scope it by <form>/<td>, which this row, not
+                         being a form, has neither of). ONE colour, used verbatim in both themes: the only
+                         derived shade is the lightened variant today's brand-filled calendar cell needs,
+                         which the server computes (see NOTES.md). !}
+                    {! The label block is `min-w-0` and NOT `shrink-0`, unlike the other preference rows:
+                         three 36px controls plus their gaps is far more than a single toggle, and with both
+                         sides refusing to shrink the row overflowed its card on a phone - the label ended up
+                         ON TOP of the buttons, swallowing their taps (caught by the mobile E2E project). The
+                         help text wraps instead; the controls keep `shrink-0` so they never squash. !}
+                    <div data-colour-scope class="flex items-center justify-between py-4 border-b border-line">
+                        <div class="min-w-0 pr-4">
+                            <label for="noteColour" class="block text-sm font-medium text-ink">Note colour</label>
+                            <p class="help-text mt-0.5">Colour of days with a note, and of the Notes statistics.</p>
+                        </div>
+                        <div class="ml-4 flex items-center gap-3 shrink-0">
+                            {#include partials/colour-picker id='noteColour' name='noteColour' value=noteColour
+                                endpoint='/internal/settings' wrapperCls='shrink-0' inputCls='colour-picker-input' /}
+                            {#include partials/random-colour-button wrapperCls='shrink-0' iconCls='w-4 h-4' align='right'
+                                btnCls='colour-picker-btn' /}
+                            {! Revert to the built-in colour. The default itself is server-rendered onto the
+                                 button rather than repeated in settings.js, so UserSettings.DEFAULT_NOTE_COLOUR
+                                 stays the only place it is written down. Single-use markup, so it stays inline
+                                 rather than becoming a partial (UI_PATTERNS.md section 1). !}
+                            <span class="group relative inline-flex shrink-0">
+                                <button type="button"
+                                        id="note-colour-default"
+                                        data-colour-default="{noteColourDefault}"
+                                        class="colour-picker-btn"
+                                        aria-label="Default colour">
+                                    {#include partials/icon name='rotate-ccw' cls='w-4 h-4' /}
+                                </button>
+                                {#include partials/tooltip text="Default colour" pos="bottom" align="right" /}
+                            </span>
+                        </div>
+                    </div>
+
+                    {! Character count. The same hidden-"false" + ticked-"true" toggle as the Statistics
+                         Summary row above, scoped by hx-include so BOTH inputs are sent. Display-only: the
+                         length bound is untouched, an over-long note is still refused, and the counter
+                         reappears while a note IS over the bound however this is set - it is the only thing
+                         explaining an inert Save button (see note.js). Last row in the card, so no divider. !}
+                    {! The label block is `min-w-0`, NOT the `shrink-0` the Statistics Summary row uses — same
+                         reason as the colour row above. `shrink-0` sizes the block to its help text UNWRAPPED, so a
+                         line any longer than that row's pushes the switch off the right of a 360px phone (measured:
+                         x=376 in a 360px viewport, un-clickable, caught by the mobile E2E project). `min-w-0` lets
+                         the help text wrap instead; the switch keeps `shrink-0` so it never squashes. !}
+                    <div id="note-counter-row" class="flex items-center justify-between pt-4">
+                        <div class="min-w-0 pr-4">
+                            <label for="showNoteCounter" class="block text-sm font-medium text-ink">Character count</label>
+                            <p class="help-text mt-0.5">Show a note's length against its limit on the dashboard.</p>
+                        </div>
+                        <div class="ml-4 flex items-center shrink-0">
+                            <input type="hidden" name="showNoteCounter" value="false">
+                            <label class="relative inline-flex items-center cursor-pointer">
+                                <input type="checkbox" id="showNoteCounter" name="showNoteCounter" value="true"
+                                       class="sr-only peer"
+                                       {#if showNoteCounter}checked{/if}
+                                       hx-patch="/internal/settings" hx-trigger="change" hx-swap="none"
+                                       hx-include="#note-counter-row">
+                                <span class="block w-11 h-6 rounded-full bg-surface-muted border border-line transition-colors
+                                             peer-checked:bg-brand peer-checked:border-brand
+                                             after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5
+                                             after:rounded-full after:bg-white after:shadow after:transition-transform
+                                             peer-checked:after:translate-x-5"></span>
+                            </label>
                         </div>
                     </div>
                 </div>

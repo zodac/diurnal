@@ -111,6 +111,13 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     @Column(name = "note_colour", nullable = false)
     public String noteColour = UserSettings.DEFAULT_NOTE_COLOUR;
 
+    // Whether the dashboard note box shows its character counter under the textarea. Display-only:
+    // the length bound is unchanged either way, and the counter still appears while a note is OVER
+    // it, since it is the only explanation for an inert Save button.
+    @Preference
+    @Column(name = "show_note_counter", nullable = false)
+    public boolean showNoteCounter = UserSettings.DEFAULT_SHOW_NOTE_COUNTER;
+
     // User-configurable "Action stats" display preference: the full, ordered arrangement of every
     // stat (its StatField key + enabled flag) selecting which per-action stats show on the Stats
     // page and in what order. Stored as a jsonb array of StatFieldPref, so a field keeps its position

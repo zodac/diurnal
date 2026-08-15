@@ -293,6 +293,38 @@ class SurfaceParityIT extends IntegrationTestBase {
     }
 
     @Test
+    void showNoteCounter_appliedIdenticallyOnBothSurfaces() {
+        // One rule (ProfileService.updateShowNoteCounter). A boolean has no value to reject, so the parity that matters is that BOTH surfaces
+        // write it and that an ABSENT value means "unchanged" on both - never a silent reset to the default.
+        given().formParam("showNoteCounter", "false")
+                .patch("/internal/settings")
+                .then().statusCode(NO_CONTENT);
+        runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().showNoteCounter)
+            .as("the web form turns the counter off")
+            .isFalse());
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"showNoteCounter":true}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(OK);
+        runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().showNoteCounter)
+            .as("the API turns it back on the very same way")
+            .isTrue());
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"theme":"dark"}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(OK);
+        runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().showNoteCounter)
+            .as("a partial update that omits the field must leave it exactly as it was")
+            .isTrue());
+    }
+
+    @Test
     void statFieldRename_appliedIdenticallyOnBothSurfaces() {
         // Renaming a stat is one shared rule (ProfileService.updateStatsFields): both surfaces normalise
         // the name the same way, and both REJECT an over-long one rather than truncating it.

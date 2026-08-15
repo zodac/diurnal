@@ -264,6 +264,10 @@ public class UserResource {
                 return result;
             }
         }
+        // No Invalid branch: a boolean has no value to reject, exactly as showStatsSummary has none.
+        if (preferences.showNoteCounter() != null) {
+            result = profileService.updateShowNoteCounter(user, preferences.showNoteCounter());
+        }
         if (preferences.timezone() != null) {
             result = profileService.updateTimezone(user, preferences.timezone());
         }
@@ -341,6 +345,7 @@ public class UserResource {
      * @param font             the UI font family; unrecognised values are rejected
      * @param calendarView     the dashboard calendar layout; unrecognised values are rejected
      * @param noteColour       the {@code #rrggbb} colour the user's day notes are shown in; anything else is rejected
+     * @param showNoteCounter  whether the dashboard note box shows its character counter
      * @param timezone         the IANA timezone override; blank resets to the server default, unrecognised values are rejected
      * @param pageSize         the rows per page in list views; rejected when out of range
      * @param pageSizes        the FULL set of per-section page-size overrides; a section left out follows {@code pageSize}
@@ -359,6 +364,9 @@ public class UserResource {
         @Schema(examples = UserSettings.DEFAULT_NOTE_COLOUR,
         description = "The colour the user's day notes are shown in, as a '#rrggbb' hex value; anything else is rejected.")
         @Nullable String noteColour,
+        @Schema(examples = "true", description = "Whether the dashboard note box shows its character counter. Display-only: the length bound is "
+        + "unchanged either way, and the counter still appears while a note is over it.")
+        @Nullable Boolean showNoteCounter,
         @Schema(examples = "Europe/London",
         description = "IANA timezone override from the offered options; blank resets to the server default, anything else is rejected.")
         @Nullable String timezone,

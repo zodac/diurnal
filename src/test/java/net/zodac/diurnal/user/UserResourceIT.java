@@ -71,6 +71,7 @@ class UserResourceIT extends IntegrationTestBase {
                 .body("preferences.font", equalTo("nova"))
                 .body("preferences.pageSize", equalTo(5))
                 .body("preferences.showStatsSummary", equalTo(true))
+                .body("preferences.showNoteCounter", equalTo(true))
                 .body("preferences.decimalPlaces", equalTo(1))
                 .body("preferences.calendarView", equalTo("full"))
                 .body("preferences.statsFields", nullValue())
@@ -86,6 +87,7 @@ class UserResourceIT extends IntegrationTestBase {
             u.font = "standard";
             u.pageSize = 50;
             u.showStatsSummary = false;
+            u.showNoteCounter = false;
             u.decimalPlaces = 2;
             u.calendarView = "minimal";
             u.timezone = "Europe/London";
@@ -108,6 +110,7 @@ class UserResourceIT extends IntegrationTestBase {
                 .body("preferences.font", equalTo("standard"))
                 .body("preferences.pageSize", equalTo(50))
                 .body("preferences.showStatsSummary", equalTo(false))
+                .body("preferences.showNoteCounter", equalTo(false))
                 .body("preferences.decimalPlaces", equalTo(2))
                 .body("preferences.calendarView", equalTo("minimal"))
                 .body("preferences.timezone", equalTo("Europe/London"));
