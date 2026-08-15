@@ -74,10 +74,10 @@
 #                    - java:smoke   the deployment-smoke suite (tests/run-smoke.sh); self-contained
 #                    - java:qodana  the whole-program analysis - the only check that can see an unused
 #                                   PUBLIC declaration (PMD/ErrorProne/SpotBugs all stop at private).
-#                                   Configured by qodana.yaml, whose inspection profile and IDE
-#                                   entry-point overrides live in the code-quality-config submodule
-#                                   (code-quality-config/java/qodana/). Name it alone when iterating on
-#                                   either of those rather than on the code.
+#                                   Configured by code-quality-config-overrides/qodana.yaml, whose
+#                                   inspection profile and IDE entry-point overrides live in the
+#                                   code-quality-config submodule (code-quality-config/java/qodana/).
+#                                   Name it alone when iterating on any of those rather than on the code.
 #
 #                  Examples:
 #                    ./lint_and_tests.sh
@@ -137,6 +137,18 @@ SCRIPT_DIR="$(cd -- "${SCRIPT_DIR}" > /dev/null 2>&1 && pwd)"
 SCRIPT_NAME="$(basename -- "${SCRIPT_SOURCE}")"
 SCRIPT_PATH="${SCRIPT_DIR}/${SCRIPT_NAME}"
 
+# This project's own linter configuration - the files that OVERRIDE or extend the shared rules in the
+# code-quality-config submodule, rather than replacing them: grype's project-level ignore list and the
+# whole of qodana.yaml. They sit in one tracked directory (named for the submodule it layers over) instead
+# of as dotfiles in the repo root, so every piece of CI configuration is in a directory rather than
+# scattered across the top level. Nothing here is found by convention any more - grype is pointed at its
+# file with `-c` and Qodana with `--config`, both of which this script passes explicitly. Paths are
+# relative to the repo root, which is also where each tool's container mounts it, so the same string works
+# on the host and inside the container.
+OVERRIDES_DIR="code-quality-config-overrides"
+GRYPE_CONFIG_FILE="${OVERRIDES_DIR}/.grype.yaml"
+QODANA_CONFIG_FILE="${OVERRIDES_DIR}/qodana.yaml"
+
 ESLINT_BUILD_IMAGE="local/diurnal-eslint:latest"
 ESLINT_NODE_IMAGE="node:26.7.0-alpine"
 
@@ -156,7 +168,7 @@ HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.15.1-alpine"
 MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.2"
 SHELLCHECK_DOCKER_IMAGE="koalaman/shellcheck:v0.11.0"
 # The IntelliJ inspection engine, packaged for CI. Tags are IntelliJ release trains (YYYY.N); the
-# `-eap` ones are pre-releases and are never pinned. KEEP IN SYNC with `linter:` in qodana.yaml —
+# `-eap` ones are pre-releases and are never pinned. KEEP IN SYNC with `linter:` in QODANA_CONFIG_FILE —
 # update_dependency_versions.sh bumps both together, so neither is edited by hand.
 QODANA_DOCKER_IMAGE="jetbrains/qodana-jvm-community:2026.2@sha256:8ff36b5cebc0a6d720f77dcf3e0a94a03c39b4c42c3724a99ce5f7e462e42f99"
 
@@ -183,7 +195,7 @@ QODANA_WORK_DIR="${PWD}/.qodana"
 # the code-quality-config submodule beside every other linter's shared config, so the gate depends on no
 # one's local IDE setup - and is copied into QODANA_IDEA_DIR, which is mounted over the project's `.idea`
 # inside the container so the real one is never touched. The inspection PROFILE is a sibling of it and is
-# reached by `imports:` in qodana.yaml rather than by this script.
+# reached by `imports:` in QODANA_CONFIG_FILE rather than by this script.
 QODANA_CONFIG_DIR="${PWD}/code-quality-config/java/qodana"
 QODANA_OVERRIDES_DIR="${QODANA_CONFIG_DIR}/overrides"
 QODANA_PROFILE_FILE="${QODANA_CONFIG_DIR}/profiles/java.yaml"
@@ -532,10 +544,10 @@ run_grype() {
     # The grype run reads the just-built local image via the mounted Docker socket, and the repo as the
     # working dir so the -c config paths resolve. Order is load-bearing: across multiple -c files
     # grype lets the FIRST file win every scalar key (verified empirically — later files do NOT override
-    # earlier scalars), while ignore lists from all files are appended. So the project-level .grype.yaml
-    # is passed FIRST (its log level / fail-on-severity / etc. take precedence), and the shared
-    # code-quality-config submodule config SECOND to supply the common won't-fix ignore list plus any
-    # scalar the project doesn't set. The project-level .grype.yaml is OPTIONAL — a project that needs no
+    # earlier scalars), while ignore lists from all files are appended. So the project-level config
+    # (GRYPE_CONFIG_FILE) is passed FIRST (its log level / fail-on-severity / etc. take precedence), and the
+    # shared code-quality-config submodule config SECOND to supply the common won't-fix ignore list plus any
+    # scalar the project doesn't set. The project-level config is OPTIONAL — a project that needs no
     # overrides can rely on the submodule config alone, so it is only added when the file exists (keeping
     # its FIRST position when present). The vulnerability DB is persisted in a named Docker volume (mounted
     # at /grype-db, pointed at by GRYPE_DB_CACHE_DIR) so it survives the --rm and is not re-downloaded
@@ -550,7 +562,7 @@ run_grype() {
     # they add no OS package and no jar to the final image - nothing grype looks at.
     local build_cmd=(docker build -t "${DIURNAL_RUNTIME_IMAGE}" --build-arg GENERATE_PREVIEWS=false -f Dockerfile .)
     local grype_config_args=()
-    [[ -f .grype.yaml ]] && grype_config_args+=(-c .grype.yaml)
+    [[ -f "${GRYPE_CONFIG_FILE}" ]] && grype_config_args+=(-c "${GRYPE_CONFIG_FILE}")
     grype_config_args+=(-c code-quality-config/docker/.grype.yaml)
     local grype_cmd=(docker run --rm
         -v /var/run/docker.sock:/var/run/docker.sock
@@ -1175,16 +1187,26 @@ run_markdown() {
     fi
 }
 
-# Answers "is the scan actually configured?" before a container is started. Both of the scan's inputs -
-# the inspection profile qodana.yaml imports, and the entry-point overrides mounted over `.idea` - live in
-# the code-quality-config submodule, so an uninitialised submodule leaves neither on disk.
+# Answers "is the scan actually configured?" before a container is started. Two of the scan's three inputs
+# - the inspection profile QODANA_CONFIG_FILE imports, and the entry-point overrides mounted over `.idea` -
+# live in the code-quality-config submodule, so an uninitialised submodule leaves neither on disk. The
+# third is QODANA_CONFIG_FILE itself, which is tracked here and so can only go missing by being moved.
 #
-# Neither absence is loud on its own, which is why this exists. A missing profile is the silent fall-back
-# to the IDE Default profile documented in qodana.yaml - that profile omits UnusedDeclaration, so the run
-# goes GREEN having skipped the one inspection this step was added for. A missing overrides directory is
-# the opposite and just as misleading: nothing teaches the community image what CDI or JAX-RS instantiate,
-# and 238 framework-managed declarations report as unused, none of them real.
+# No absence is loud on its own, which is why this exists. A missing profile is the silent fall-back to the
+# IDE Default profile documented in QODANA_CONFIG_FILE - that profile omits UnusedDeclaration, so the run
+# goes GREEN having skipped the one inspection this step was added for. A config file the `--config` path
+# does not resolve to is the same failure with one more step (no file, no `imports:`, Default profile), and
+# is checked rather than trusted precisely because the path is now written out instead of found by
+# convention. A missing overrides directory is the opposite and just as misleading: nothing teaches the
+# community image what CDI or JAX-RS instantiate, and 238 framework-managed declarations report as unused,
+# none of them real.
 qodana_config_guard() {
+    if [[ ! -f "${QODANA_CONFIG_FILE}" ]]; then
+        echo "❌ Qodana's configuration is missing - expected ${YELLOW}${QODANA_CONFIG_FILE}${RESET}"
+        echo "   That file is tracked in this repository; restore it (or fix the --config path) and try again."
+        return 1
+    fi
+
     [[ -f "${QODANA_PROFILE_FILE}" && -f "${QODANA_OVERRIDES_DIR}/misc.xml" ]] && return 0
     echo "❌ Qodana's configuration is missing - the code-quality-config submodule is not checked out."
     echo "   Expected ${YELLOW}${QODANA_PROFILE_FILE#"${PWD}/"}${RESET} and ${YELLOW}${QODANA_OVERRIDES_DIR#"${PWD}/"}/misc.xml${RESET}"
@@ -1200,7 +1222,7 @@ qodana_config_guard() {
 # This is the one analysis that sees the WHOLE project at once. PMD, ErrorProne and SpotBugs all report
 # unused code, but only for private members: each reads one compilation unit, so a public method could be
 # called from anywhere they cannot see. Dead public/package-private methods have reached master through
-# that gap. Configuration (profile, exclusions, the no-baseline policy) lives in qodana.yaml.
+# that gap. Configuration (profile, exclusions, the no-baseline policy) lives in QODANA_CONFIG_FILE.
 qodana_prepare() {
     local uid gid
     uid="$(id -u)"
@@ -1319,6 +1341,19 @@ qodana_prepare() {
     # into an accepted set - it has to be fixed or switched off in the profile. The image resolves the
     # project's Maven dependencies itself - mount the host's ~/.m2 into the container's home if that
     # resolution ever becomes the slow part of a run.
+    #
+    # --config is what lets the configuration live outside the repo root: the CLI looks for `qodana.yaml`
+    # beside the project only when it is not told otherwise. Unlike --profile-path it is honoured, and
+    # qodana_config_guard checks the file is there first, because a path that resolves to nothing is the
+    # same silent fall-back to the IDE Default profile.
+    #
+    # The two kinds of relative path inside that file do NOT resolve the same way, and `--config --help`
+    # ("Relative paths in the configuration will be based on the project directory") is wrong about the
+    # first: `imports:` is resolved against the CONFIG FILE's own directory, so the submodule profile is
+    # reached through a `../` that was not needed while the file sat in the root, while `exclude:` and the
+    # per-inspection `ignore:` globs really are project-relative and were left untouched. Only the import
+    # can be got wrong silently in principle, and in practice it is not: the run fails outright with
+    # "imports file not found" rather than quietly inspecting nothing.
     QODANA_CMD=(docker run --rm
         --name "${QODANA_CONTAINER}"
         -u "${uid}:${gid}"
@@ -1327,6 +1362,7 @@ qodana_prepare() {
         -v "${QODANA_WORK_DIR}/results":/data/results
         -v "${QODANA_WORK_DIR}/cache":/data/cache
         "${QODANA_DOCKER_IMAGE}"
+        --config "${QODANA_CONFIG_FILE}"
         --fail-threshold 0)
 }
 
@@ -1641,17 +1677,21 @@ detect_changed_steps() {
         # images, package pins, copy layout), the build context filter, or the ignore list itself. The
         # pom.xml path (bundled Java deps) is handled below with the same version-bump suppression as
         # java; sandbox/Dockerfile and docker-compose don't affect the published runtime image.
-        [[ "${file}" == "Dockerfile" || "${file}" == ".dockerignore" || "${file}" == ".grype.yaml" ]] && run_grype=true
+        [[ "${file}" == "Dockerfile" || "${file}" == ".dockerignore" || "${file}" == "${GRYPE_CONFIG_FILE}" ]] && run_grype=true
         # The `java` step is the whole JVM gate (Maven build + ITs + the E2E and deployment-smoke
         # suites), so anything feeding ANY of those three tiers triggers it:
         #   - src/, frontend/ (Tailwind source feeding the compiled stylesheet), pom.xml, the java lint config
         #     (which since the move now covers Qodana's profile and overrides too, so an edit to either
         #     re-triggers the tier that reads them - it never did while they sat in .qodana/);
+        #   - QODANA_CONFIG_FILE, the scan's own configuration. It never triggered anything while it was a
+        #     root-level qodana.yaml, so editing the exclusions or a project-level inspection override left
+        #     the tier that reads them unselected - the same gap the profile and overrides had;
         #   - the E2E suite's own files — the ui specs, shared helpers/global-setup, its Playwright config,
         #     the runner, and the tests/ npm/ts deps;
         #   - the deployment-smoke inputs — the runtime Dockerfile/.dockerignore, the smoke stack/suite,
         #     its Playwright config and runner.
         if [[ "${file}" =~ ^src/ || "${file}" =~ ^frontend/ || "${file}" == "pom.xml" || "${file}" =~ ^code-quality-config/java/ \
+           || "${file}" == "${QODANA_CONFIG_FILE}" \
            || "${file}" =~ ^tests/ui/ || "${file}" =~ ^tests/helpers/ || "${file}" == "tests/global-setup.ts" \
            || "${file}" == "tests/playwright.config.ts" || "${file}" == "tests/run-e2e.sh" \
            || "${file}" =~ ^tests/package(-lock)?\.json$ || "${file}" == "tests/tsconfig.json" \
