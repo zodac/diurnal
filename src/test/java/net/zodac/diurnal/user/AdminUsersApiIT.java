@@ -34,8 +34,8 @@ import java.time.Instant;
 import java.time.LocalDate;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
-import net.zodac.diurnal.auth.Session;
-import net.zodac.diurnal.auth.SessionStore;
+import net.zodac.diurnal.auth.session.Session;
+import net.zodac.diurnal.auth.session.SessionStore;
 import net.zodac.diurnal.log.ActionLog;
 import org.junit.jupiter.api.Test;
 

@@ -20,6 +20,7 @@ package net.zodac.diurnal.log;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
+import net.zodac.diurnal.SqlParameters;
 import org.junit.jupiter.api.Test;
 
 /**

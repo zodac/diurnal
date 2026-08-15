@@ -20,7 +20,7 @@ package net.zodac.diurnal.log;
 /**
  * The handwritten SQL and JPQL queries backing {@link ActionLog}'s static finder and mutation methods, held here as named constants to keep the
  * entity itself readable. Each query binds its parameters by name ({@code :name} placeholders), and {@code ActionLogQueriesTest} pins every
- * constant's parameter surface (via {@link SqlParameters}) to the exact set the corresponding {@link ActionLog} method binds. So a mistyped or
+ * constant's parameter surface (via {@code SqlParameters}) to the exact set the corresponding {@link ActionLog} method binds. So a mistyped or
  * orphaned placeholder fails at unit speed rather than only surfacing when the query is first executed against the database.
  */
 final class ActionLogQueries {

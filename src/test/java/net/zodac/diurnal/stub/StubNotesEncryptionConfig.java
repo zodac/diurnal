@@ -19,7 +19,7 @@ package net.zodac.diurnal.stub;
 
 import java.util.List;
 import java.util.Optional;
-import net.zodac.diurnal.config.NotesEncryptionConfig;
+import net.zodac.diurnal.note.NotesEncryptionConfig;
 
 /**
  * Reusable {@link NotesEncryptionConfig} stub built from its record components.

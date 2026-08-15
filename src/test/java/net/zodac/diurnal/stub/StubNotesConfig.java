@@ -17,7 +17,7 @@
 
 package net.zodac.diurnal.stub;
 
-import net.zodac.diurnal.config.NotesConfig;
+import net.zodac.diurnal.note.NotesConfig;
 import net.zodac.diurnal.text.TextFields;
 
 /**

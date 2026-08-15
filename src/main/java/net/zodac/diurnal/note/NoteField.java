@@ -19,7 +19,6 @@ package net.zodac.diurnal.note;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import net.zodac.diurnal.config.NotesConfig;
 import net.zodac.diurnal.text.TextField;
 import net.zodac.diurnal.text.TextFields;
 

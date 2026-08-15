@@ -26,7 +26,6 @@ import java.net.URI;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import net.zodac.diurnal.config.AppConfig;
-import net.zodac.diurnal.config.UpdateCheckConfig;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 

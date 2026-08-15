@@ -51,7 +51,7 @@ sources stay readable; only the image ships the minified form), then content-has
 one place — `scripts/hash-static-assets.sh`** (invoked by a single `RUN` in the Dockerfile's build stage): it renames
 every fingerprinted asset (CSS, the 9 scripts, the settings thumbnails, the vector marks) to `name.<sha256-12>.ext`
 (the hash is inserted after the first name segment, so `htmx.min.js` → `htmx.<hash>.min.js`) and bakes the hashed name
-into `microprofile-config.properties` (read by `AppConfig`/`AppInfo`). All are then served
+into `microprofile-config.properties` (read by `AssetsConfig`/`AppInfo`). All are then served
 `public, max-age=31536000, immutable` by the single `app-immutable` filter (`application.properties`). See
 "Static-asset caching" below for the full model.
 
@@ -259,14 +259,14 @@ italic, used as both body and display face). Master files live outside `src/` in
 
 Font family is indirect via `--font-body`/`--font-display` CSS variables. The **Font setting** is the `Font` enum (`nova`|`standard`|`dyslexic`,
 default `nova`; column `users.font` is `VARCHAR(16)`, no CHECK, migration V13, so new values need no migration) — the single source of truth for the
-picker, each constant carrying its value + label + preview metadata (see the picker-enum note below). `WebResource.updateFont` coerces the submitted
+picker, each constant carrying its value + label + preview metadata (see the picker-enum note below). `SettingsWebResource.updateFont` coerces the submitted
 value via `Font.from(raw).value()`. `layout.html` renders the class on `<html>` server-side
 (`{#if font == 'dyslexic'}font-dyslexic{#else if font != 'standard'}font-nova{/if}`), no FOUC, and preloads that theme's primary face; `standard`
 renders no class (system sans). The settings picker toggles the same classes live (`settings.js`). **`font` must be passed to every full-page
 template** (mirror `theme` 1:1; HTMX day-panel partials need neither).
 
 **Settings preview-tile pickers (Theme / Font / Calendar style) are enum-driven.** Each is a Java enum (`Theme`, `Font`, `CalendarView`) implementing
-`PreviewOption` (`value`/`label`/`title`/`alt`/`previewImage`), following the `StatField` "single source of truth" pattern. `WebResource` passes
+`PreviewOption` (`value`/`label`/`title`/`alt`/`previewImage`), following the `StatField` "single source of truth" pattern. `SettingsWebResource` passes
 `X.values()` to `settings.html`, which **loops** the constants into `partials/preview-option.html` (no hardcoded parallel tiles), and each
 submitted value is validated via `X.isValid(raw)` (an unrecognised value is REJECTED — 422 on the web, 400 on the API — never silently coerced;
 unit-tested to 100% PIT). The DB columns stay `String` (not `@Enumerated`); templates compare raw values, so a legacy/unknown stored value simply
@@ -330,7 +330,7 @@ rest.
 #### Each preview is TWO files: the tile and the lightbox image
 
 **`img/settings/<base>.webp` is the picker tile; `img/settings/full/<base>.webp` is the lightbox image** — same base name, two files, two hashed-name
-maps (`AppConfig.settingsImages` / `settingsFullImages`, `AppInfo.settingsImage` / `settingsFullImage`). `preview-thumb.html` carries the small one as
+maps (`AssetsConfig.settingsImages` / `settingsFullImages`, `AppInfo.settingsImage` / `settingsFullImage`). `preview-thumb.html` carries the small one as
 `data-src` and the big one as `data-full`; `settings.js`'s `previewSrcFor` reads **`data-full`**, so the full-size bytes are fetched only when a reader
 actually opens a preview. They were one shared file (the tile CSS-cropped the full-size image); the tile paints at ~185 CSS px and the lightbox panel
 is `max-w-5xl` = 1024, so a single 3456px file made every Settings page view pay ~393 kB to draw a row of thumbnails. Split, that page load is ~97 kB,
@@ -372,11 +372,11 @@ any future settings thumbnail through `partials/preview-thumb.html`.
 `scripts/hash-static-assets.sh`, which now first asserts the generated thumbnails are present — see the uncommitted-artifact
 note above) exactly like the `/css/`+`/js/` assets: each is renamed `<base>.<hash>.webp` and a
 `base→hashed` map is baked into `microprofile-config.properties` (`app.assets.settings-images.<base>=…`).
-`AppConfig.settingsImages()` exposes that map; `AppInfo.settingsImage(base)` resolves it (falling back to the un-hashed
+`AssetsConfig.settingsImages()` exposes that map; `AppInfo.settingsImage(base)` resolves it (falling back to the un-hashed
 `<base>.webp` when the map is empty — a non-Docker `mvn package`/dev run); `preview-thumb.html` emits
 `/img/settings/{inject:appInfo.settingsImage(imgBase)}`. Because the enum-driven `imgBase` (`PreviewOption.previewImage`) can't
 carry a per-file config key like the fixed CSS/JS names, the map is the indirection (the top-level `/img/` vector marks use the
-same trick — `AppConfig.hashedImages()` / `AppInfo.image('wordmark.svg')`). See "Static-asset caching" below for how the served
+same trick — `AssetsConfig.hashedImages()` / `AppInfo.image('wordmark.svg')`). See "Static-asset caching" below for how the served
 URLs are cached.
 
 ### Static-asset caching
@@ -395,7 +395,7 @@ Two `quarkus.http.filter` rules cover every served static asset (`application.pr
 
 The two regexes are provably disjoint (`/img/*.svg`+`/img/settings/` vs `/img/*.png`), so they never fight over `Cache-Control`.
 `html-pages` (`no-cache`) and `swagger-ui-assets` are unchanged. Covered by `CacheHeadersIT` (immutable on css/js/svg/settings,
-7-day on `/img/*.png`), `AppInfoTest`/`AppConfigTest` (the map lookups, fallbacks and hyphenated-key binding). **To hash a new
+7-day on `/img/*.png`), `AppInfoTest`/`AssetsConfigTest` (the map lookups, fallbacks and hyphenated-key binding). **To hash a new
 asset:** add a `bake` line to `scripts/hash-static-assets.sh` + wire its `AppInfo` reference; to add one that can't be hashed,
 ensure it falls under an `app-static` alternative.
 

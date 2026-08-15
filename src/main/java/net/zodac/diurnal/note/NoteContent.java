@@ -21,7 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.Optional;
 import java.util.UUID;
-import net.zodac.diurnal.crypto.Aes256Gcm;
+import net.zodac.diurnal.note.crypto.Aes256Gcm;
 
 /**
  * Seals and opens a single note's content under its owner's data key.

@@ -30,9 +30,9 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 import net.zodac.diurnal.http.HttpStatus;
+import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
-import net.zodac.diurnal.web.RollbackOnErrorStatus;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.jspecify.annotations.Nullable;
 

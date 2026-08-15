@@ -27,7 +27,6 @@ import io.quarkus.test.junit.TestProfile;
 import io.restassured.http.ContentType;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.user.User;
-import net.zodac.diurnal.web.RegistrationDisabledProfile;
 import org.junit.jupiter.api.Test;
 
 /**

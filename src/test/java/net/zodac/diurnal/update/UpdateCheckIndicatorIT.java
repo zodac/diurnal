@@ -31,7 +31,6 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.config.AppConfig;
-import net.zodac.diurnal.config.UpdateCheckConfig;
 import net.zodac.diurnal.user.Role;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

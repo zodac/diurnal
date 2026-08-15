@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
-import net.zodac.diurnal.config.OidcConfig;
+import net.zodac.diurnal.auth.oidc.OidcConfig;
 import net.zodac.diurnal.user.Role;
 import org.junit.jupiter.api.Test;
 

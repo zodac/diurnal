@@ -1,0 +1,111 @@
+/*
+ * BSD Zero Clause License
+ *
+ * Copyright (c) 2026-2026 zodac.net
+ *
+ * Permission to use, copy, modify, and/or distribute this software for any
+ * purpose with or without fee is hereby granted.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY
+ * SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF OR
+ * IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+ */
+
+package net.zodac.diurnal.auth;
+
+import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
+import static net.zodac.diurnal.http.HttpStatusCodes.FOUND;
+import static net.zodac.diurnal.http.HttpStatusCodes.MOVED_PERMANENTLY;
+import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.SEE_OTHER;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyOrNullString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+
+import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.junit.TestProfile;
+import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.user.User;
+import org.junit.jupiter.api.Test;
+
+/**
+ * Verifies that {@code ENABLE_REGISTRATION=false} can never lock out the first user: the registration page stays open during first-run setup (no
+ * users), but is rejected with {@code 404} once any user exists. Uses {@link RegistrationDisabledProfile} to force
+ * {@code registration.enabled=false}.
+ */
+@QuarkusTest
+@TestProfile(RegistrationDisabledProfile.class)
+class FirstRunRegistrationDisabledIT extends IntegrationTestBase {
+
+    @Test
+    void registerPage_firstRun_availableDespiteRegistrationDisabled() {
+        given().get("/register")
+                .then()
+                .statusCode(OK)
+                .body(containsString("Create the administrator account"));
+    }
+
+    @Test
+    void loginPage_firstRun_redirectsToWelcomeDespiteRegistrationDisabled() {
+        given().redirects().follow(false)
+                .get("/login")
+                .then()
+                .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
+                .header("Location", containsString("/welcome"));
+    }
+
+    @Test
+    void register_firstRun_createsInitialAccountDespiteRegistrationDisabled() {
+        given().redirects().follow(false)
+                .formParam("email", "first@example.com")
+                .formParam("displayName", "First Admin")
+                .formParam("password", "password123")
+                .formParam("confirmPassword", "password123")
+                .post("/register")
+                .then()
+                .statusCode(anyOf(equalTo(MOVED_PERMANENTLY), equalTo(FOUND), equalTo(SEE_OTHER)))
+                .cookie("diurnal_session", not(emptyOrNullString()))
+                .header("Location", not(containsString("/login")));
+    }
+
+    @Test
+    void registerPage_afterUserExists_showsDisabledBannerAndHidesForm() {
+        runInTx(() -> newUser("existing@example.com", "Existing"));
+
+        given().get("/register")
+                .then()
+                .statusCode(OK)
+                .contentType(containsString("text/html"))
+                .body(containsString("Registration is currently disabled. Please contact your system administrator."))
+                // The form is replaced by the banner: no password field, but a route back to sign in.
+                .body(not(containsString("name=\"password\"")))
+                .body(containsString("Back to sign in"));
+    }
+
+    @Test
+    void registerPost_afterUserExists_isForbiddenAndCreatesNoUser() {
+        runInTx(() -> newUser("existing@example.com", "Existing"));
+
+        given().redirects().follow(false)
+                .formParam("email", "second@example.com")
+                .formParam("displayName", "Second")
+                .formParam("password", "password123")
+                .formParam("confirmPassword", "password123")
+                .post("/register")
+                .then()
+                .statusCode(FORBIDDEN)
+                .body(containsString("Registration is currently disabled. Please contact your system administrator."));
+
+        runInTx(() -> assertThat(User.count())
+            .as("No new user should be created when registration is disabled")
+            .isEqualTo(1));
+    }
+}

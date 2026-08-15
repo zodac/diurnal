@@ -24,6 +24,7 @@ import net.zodac.diurnal.config.AppConfig;
 import net.zodac.diurnal.config.ApplicationVersion;
 import net.zodac.diurnal.stub.StubAppConfig;
 import net.zodac.diurnal.stub.StubApplicationVersion;
+import net.zodac.diurnal.stub.StubAssetsConfig;
 import net.zodac.diurnal.stub.StubUpdateCheckService;
 import net.zodac.diurnal.update.UpdateCheck;
 import net.zodac.diurnal.update.UpdateStatus;
@@ -38,6 +39,7 @@ class AppInfoTest {
 
     private static final UpdateStatus NO_UPDATE = UpdateCheck.evaluate("0.0.0", "0.0.0", "url");
     private static final AppConfig EMPTY_APP_CONFIG = StubAppConfig.empty();
+    private static final AssetsConfig EMPTY_ASSETS_CONFIG = StubAssetsConfig.empty();
     private static final Map<String, String> SETTINGS_IMAGES = Map.of("page-nova-full-dark", "page-nova-full-dark.9f3a1c2b4d5e.webp");
     private static final Map<String, String> SETTINGS_FULL_IMAGES = Map.of("page-nova-full-dark", "page-nova-full-dark.0011aabbccdd.webp");
     private static final Map<String, String> HASHED_IMAGES = Map.of("wordmark", "wordmark.9f3a1c2b4d5e.svg");
@@ -61,19 +63,21 @@ class AppInfoTest {
         final String jsFile, final String jsAppFile, final String jsDashboardFile,
         final String jsActionsFile, final String jsAdminFile, final String jsApiDocsFile,
         final String jsSettingsFile, final String jsStatsFile) {
-        return appInfo(new StubAppConfig(repositoryUrl, buildTimestamp, cssFile, jsFile, jsAppFile, jsDashboardFile,
-            "note.js", jsActionsFile, jsAdminFile, jsApiDocsFile, jsSettingsFile, jsStatsFile, SETTINGS_IMAGES, SETTINGS_FULL_IMAGES, HASHED_IMAGES));
+        return appInfo(new StubAppConfig(repositoryUrl, buildTimestamp),
+            new StubAssetsConfig(cssFile, jsFile, jsAppFile, jsDashboardFile, "note.js", jsActionsFile, jsAdminFile, jsApiDocsFile, jsSettingsFile,
+                jsStatsFile, SETTINGS_IMAGES, SETTINGS_FULL_IMAGES, HASHED_IMAGES));
     }
 
-    private static AppInfo appInfo(final AppConfig appConfig) {
-        return new AppInfo(StubApplicationVersion.of("dev"), appConfig, StubUpdateCheckService.of(NO_UPDATE));
+    private static AppInfo appInfo(final AppConfig appConfig, final AssetsConfig assetsConfig) {
+        return new AppInfo(StubApplicationVersion.of("dev"), appConfig, assetsConfig, StubUpdateCheckService.of(NO_UPDATE));
     }
 
     @Test
     void version_delegatesToApplicationVersion() {
         // getVersion() is a thin delegate over ApplicationVersion.release() (the packaged-VERSION
         // resolution itself is tested in ApplicationVersionTest); assert the value passes straight through.
-        final AppInfo appInfo = new AppInfo(StubApplicationVersion.of("1.2.3"), EMPTY_APP_CONFIG, StubUpdateCheckService.of(NO_UPDATE));
+        final AppInfo appInfo = new AppInfo(StubApplicationVersion.of("1.2.3"), EMPTY_APP_CONFIG, EMPTY_ASSETS_CONFIG,
+            StubUpdateCheckService.of(NO_UPDATE));
         assertThat(appInfo.getVersion())
             .as("getVersion() should return exactly what ApplicationVersion resolves")
             .isEqualTo("1.2.3");
@@ -82,7 +86,7 @@ class AppInfoTest {
     @Test
     void tagline_returnsApplicationTagline() {
         // The tagline is a fixed constant (single source of truth for the title/alt/tooltip).
-        assertThat(appInfo(EMPTY_APP_CONFIG).getTagline())
+        assertThat(appInfo(EMPTY_APP_CONFIG, EMPTY_ASSETS_CONFIG).getTagline())
             .as("the application tagline should be returned verbatim")
             .isEqualTo("Make every day count");
     }
@@ -131,7 +135,7 @@ class AppInfoTest {
     void jsNoteFile_returnsInjectedHashedFilename() {
         // Built from the stub directly: the appInfoWith(...) overloads pin the note filename, so it is the one
         // hashed script no overload can vary.
-        final AppInfo appInfo = appInfo(new StubAppConfig("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
+        final AppInfo appInfo = appInfo(new StubAppConfig("", ""), new StubAssetsConfig("app.css", "htmx.min.js", "app.js", "dashboard.js",
             "note.9f3a1c2b4d5e.js", "actions.js", "admin-users.js", "admin-api-docs.js", "settings.js", "stats.js",
             SETTINGS_IMAGES, SETTINGS_FULL_IMAGES, HASHED_IMAGES));
         assertThat(appInfo.getJsNoteFile())
@@ -335,6 +339,6 @@ class AppInfoTest {
     }
 
     private static AppInfo appInfoWithUpdate(final UpdateStatus status) {
-        return new AppInfo(StubApplicationVersion.of("dev"), EMPTY_APP_CONFIG, StubUpdateCheckService.of(status));
+        return new AppInfo(StubApplicationVersion.of("dev"), EMPTY_APP_CONFIG, EMPTY_ASSETS_CONFIG, StubUpdateCheckService.of(status));
     }
 }

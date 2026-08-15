@@ -21,7 +21,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Optional;
-import net.zodac.diurnal.config.OidcConfig;
+import net.zodac.diurnal.auth.oidc.OidcConfig;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.jspecify.annotations.Nullable;

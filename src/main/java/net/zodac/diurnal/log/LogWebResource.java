@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
 import net.zodac.diurnal.time.AppClock;
@@ -56,7 +57,6 @@ import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
-import net.zodac.diurnal.web.RollbackOnErrorStatus;
 
 /**
  * Increment/decrement endpoints for a day's action counts, plus the dashboard day-panel partials.

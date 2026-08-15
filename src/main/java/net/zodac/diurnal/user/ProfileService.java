@@ -33,8 +33,9 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * The single owner of every profile and preference update — display name, theme, font, calendar view, note colour, timezone, page size, decimal
- * places, stats-summary toggle and the "Action stats" arrangement — shared by the Settings page's HTMX endpoints ({@code WebResource}) and the REST
- * API's {@code PATCH /api/v1/users/me} ({@code UserResource}), so a rule added or changed here applies to both surfaces by construction (the
+ * places, stats-summary toggle and the "Action stats" arrangement — shared by the Settings page's HTMX endpoints
+ * ({@code SettingsWebResource}) and the REST API's {@code PATCH /api/v1/users/me} ({@code UserResource}), so a rule added or changed here applies to
+ * both surfaces by construction (the
  * {@code AuthenticationService} pattern). The resources only translate the returned {@link ProfileResult} into their medium.
  *
  * <p>

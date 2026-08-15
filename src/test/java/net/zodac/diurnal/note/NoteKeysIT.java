@@ -26,7 +26,7 @@ import io.restassured.http.ContentType;
 import java.util.Base64;
 import java.util.Objects;
 import net.zodac.diurnal.IntegrationTestBase;
-import net.zodac.diurnal.crypto.DataKeyEnvelope;
+import net.zodac.diurnal.note.crypto.DataKeyEnvelope;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
