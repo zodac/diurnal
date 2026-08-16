@@ -41,8 +41,9 @@ sealed interface NoteResult permits NoteResult.Saved, NoteResult.Cleared, NoteRe
     }
 
     /**
-     * The day now has no note: either the submission was blank (which is how a note is deleted — see {@link net.zodac.diurnal.text.TextFields#NOTE})
-     * or the note was removed outright. Clearing a day that had no note is this same no-op success.
+     * The day now has no note: either the submission was blank (which is how a note is deleted — see
+     * {@link net.zodac.diurnal.text.TextFields#DEFAULT_NOTE}) or the note was removed outright. Clearing a day that had no note is this same no-op
+     * success.
      *
      * @param date the day whose note was removed
      */

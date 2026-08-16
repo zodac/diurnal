@@ -255,15 +255,15 @@ public class ActionsInternalResource {
     private Response translate(final ActionResult result) {
         return switch (result) {
             case final ActionResult.Success success -> Response.ok(actionRowTemplate.data("action", success.action())).build();
-            case final ActionResult.BlankName ignored -> HtmxResponses.conflictBanner("#action-error", "Action name cannot be empty.");
-            case final ActionResult.NameTooLong ignored ->
+            case final ActionResult.BlankName _ -> HtmxResponses.conflictBanner("#action-error", "Action name cannot be empty.");
+            case final ActionResult.NameTooLong _ ->
                 HtmxResponses.conflictBanner("#action-error", TextFieldExtensions.lengthMessage(TextFields.ACTION_NAME));
             case final ActionResult.InvalidName invalid -> HtmxResponses.conflictBanner("#action-error", invalid.message());
-            case final ActionResult.InvalidColour ignored -> HtmxResponses.conflictBanner("#action-error",
+            case final ActionResult.InvalidColour _ -> HtmxResponses.conflictBanner("#action-error",
                 "Action colour is invalid");
             case final ActionResult.DuplicateName duplicate ->
                 HtmxResponses.conflictBanner("#action-error", "An action named '" + duplicate.name() + "' already exists.");
-            case final ActionResult.NotFound ignored -> Response.status(Response.Status.NOT_FOUND).build();
+            case final ActionResult.NotFound _ -> Response.status(Response.Status.NOT_FOUND).build();
         };
     }
 

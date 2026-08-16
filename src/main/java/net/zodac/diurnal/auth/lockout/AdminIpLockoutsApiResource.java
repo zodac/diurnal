@@ -43,7 +43,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
-import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jspecify.annotations.Nullable;
@@ -104,13 +103,11 @@ public class AdminIpLockoutsApiResource {
         description = "Returns every client IP that is locked out of login and registration right now, with each lockout's expiry and failure count. "
         + "Available only when the per-IP lockout is enabled.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The currently locked-out IPs.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = CurrentLockoutsDto.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "403", description = "The caller is not an administrator."),
-        @APIResponse(responseCode = "404", description = "The per-IP lockout feature is disabled.")
-    })
+    @APIResponse(responseCode = "200", description = "The currently locked-out IPs.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = CurrentLockoutsDto.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "403", description = "The caller is not an administrator.")
+    @APIResponse(responseCode = "404", description = "The per-IP lockout feature is disabled.")
     public Response listCurrent() {
         if (!ipThrottleConfig.enabled()) {
             return featureDisabled();
@@ -135,15 +132,13 @@ public class AdminIpLockoutsApiResource {
         + "expired or been manually unlocked. The page size is the calling administrator's 'items per page' preference; an out-of-range page is "
         + "rejected with a 400. Available only when the per-IP lockout is enabled.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The requested page of lockout history.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = IpLockoutHistoryPageDto.class))),
-        @APIResponse(responseCode = "400", description = "The requested page is out of range.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "403", description = "The caller is not an administrator."),
-        @APIResponse(responseCode = "404", description = "The per-IP lockout feature is disabled.")
-    })
+    @APIResponse(responseCode = "200", description = "The requested page of lockout history.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = IpLockoutHistoryPageDto.class)))
+    @APIResponse(responseCode = "400", description = "The requested page is out of range.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "403", description = "The caller is not an administrator.")
+    @APIResponse(responseCode = "404", description = "The per-IP lockout feature is disabled.")
     public Response listHistory(
         @Parameter(name = "page", in = ParameterIn.QUERY, description = "The 1-based page to return (default 1); out-of-range values are rejected.")
         @QueryParam("page") @DefaultValue("1") final int pageNum) {
@@ -175,12 +170,10 @@ public class AdminIpLockoutsApiResource {
         description = "Clears the lockout for the given client IP so login and registration from it are accepted again, and stamps the matching "
         + "history record as manually unlocked. Available only when the per-IP lockout is enabled.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "204", description = "The IP was unlocked."),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "403", description = "The caller is not an administrator."),
-        @APIResponse(responseCode = "404", description = "The feature is disabled, or the IP was not currently locked out.")
-    })
+    @APIResponse(responseCode = "204", description = "The IP was unlocked.")
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "403", description = "The caller is not an administrator.")
+    @APIResponse(responseCode = "404", description = "The feature is disabled, or the IP was not currently locked out.")
     public Response unlock(
         @Parameter(name = "ip", in = ParameterIn.PATH, required = true, description = "The client IP address to unlock.")
         @PathParam("ip") final String ip) {
@@ -188,8 +181,8 @@ public class AdminIpLockoutsApiResource {
             return featureDisabled();
         }
         return switch (ipLockoutService.unlock(identity.getPrincipal().getName(), ip, clock.now())) {
-            case final IpUnlockResult.NotLocked ignored -> Response.status(Response.Status.NOT_FOUND).build();
-            case final IpUnlockResult.Success ignored -> Response.noContent().build();
+            case final IpUnlockResult.NotLocked _ -> Response.status(Response.Status.NOT_FOUND).build();
+            case final IpUnlockResult.Success _ -> Response.noContent().build();
         };
     }
 

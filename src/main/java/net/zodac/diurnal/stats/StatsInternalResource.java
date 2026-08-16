@@ -46,6 +46,8 @@ import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -56,6 +58,8 @@ import org.jspecify.annotations.Nullable;
 @Path("/internal/stats")
 @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 public class StatsInternalResource {
+
+    private static final Logger LOGGER = LogManager.getLogger(StatsInternalResource.class);
 
     private final Template statsCardsTemplate;
     private final Template statsSummaryTemplate;
@@ -134,6 +138,7 @@ public class StatsInternalResource {
         try {
             yearMonth = YearMonth.parse(month);
         } catch (final DateTimeParseException e) {
+            LOGGER.trace("Rejecting monthly summary request: '{}' is not a valid yyyy-MM", month, e);
             return Response.status(Response.Status.BAD_REQUEST).build();
         }
 
@@ -174,12 +179,12 @@ public class StatsInternalResource {
                 .data("chart", chart)
                 .data("decimalPlaces", user.decimalPlaces)
                 .data("candidates", statsService.compareCandidates(user.id, chartedIds(chart), null))).build();
-            case final FrequencyResult.UnknownPeriod ignored -> Response.status(Response.Status.BAD_REQUEST).build();
-            case final FrequencyResult.UnknownWindow ignored -> Response.status(Response.Status.BAD_REQUEST).build();
-            case final FrequencyResult.TooManySubjects ignored -> Response.status(Response.Status.BAD_REQUEST).build();
-            case final FrequencyResult.DuplicateSubject ignored -> Response.status(Response.Status.BAD_REQUEST).build();
-            case final FrequencyResult.NotLogged ignored -> Response.status(Response.Status.BAD_REQUEST).build();
-            case final FrequencyResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
+            case final FrequencyResult.UnknownPeriod _ -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final FrequencyResult.UnknownWindow _ -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final FrequencyResult.TooManySubjects _ -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final FrequencyResult.DuplicateSubject _ -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final FrequencyResult.NotLogged _ -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final FrequencyResult.NotOwned _ -> Response.status(Response.Status.NOT_FOUND).build();
         };
     }
 

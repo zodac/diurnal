@@ -19,6 +19,8 @@ package net.zodac.diurnal.note.crypto;
 
 import java.util.Base64;
 import java.util.Optional;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -29,6 +31,8 @@ import org.jspecify.annotations.Nullable;
  * function that can be exercised without booting anything.
  */
 public final class MasterKey {
+
+    private static final Logger LOGGER = LogManager.getLogger(MasterKey.class);
 
     private static final Base64.Decoder DECODER = Base64.getDecoder();
 
@@ -72,6 +76,9 @@ public final class MasterKey {
         try {
             decoded = DECODER.decode(configured.strip());
         } catch (final IllegalArgumentException e) {
+            // TRACE rather than the returned message, which an operator sees at startup: the decoder reports only where it stopped and which
+            // character code it choked on, never the configured value, so recording it narrows down a typo without writing anything usable down.
+            LOGGER.trace("NOTE_ENCRYPTION_KEY did not decode as base64", e);
             return Optional.of("NOTE_ENCRYPTION_KEY is not valid base64. Generate one with: openssl rand -base64 32");
         }
 

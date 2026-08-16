@@ -57,7 +57,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
-import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jspecify.annotations.Nullable;
@@ -142,16 +141,14 @@ public class NotesApiResource {
         + "silently clamped)."
     )
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "One page of the matching notes, earliest first.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = NotesPageDto.class))),
-        @APIResponse(responseCode = "304", description = "Not modified: the result is unchanged since the ETag in the 'If-None-Match' request "
-                + "header, so no body is returned."),
-        @APIResponse(responseCode = "400", description = "Only one of 'start' and 'end' was given, or one of them is not a valid ISO-8601 date, or "
-                + "the requested page is out of range.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    })
+    @APIResponse(responseCode = "200", description = "One page of the matching notes, earliest first.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = NotesPageDto.class)))
+    @APIResponse(responseCode = "304", description = "Not modified: the result is unchanged since the ETag in the 'If-None-Match' request "
+        + "header, so no body is returned.")
+    @APIResponse(responseCode = "400", description = "Only one of 'start' and 'end' was given, or one of them is not a valid ISO-8601 date, or "
+        + "the requested page is out of range.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     public Response notes(
         @Parameter(name = "start", in = ParameterIn.QUERY,
         description = "Inclusive start of the range, as an ISO-8601 date (yyyy-MM-dd); only the date part is used. Omit together with 'end' "
@@ -260,15 +257,13 @@ public class NotesApiResource {
         description = "Returns the note written against the given day. A day with no note answers 404, which is how a caller distinguishes an empty "
         + "day from one holding an empty note (the latter cannot exist - a blank note is removed).")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The day's note.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = NoteDto.class))),
-        @APIResponse(responseCode = "304", description = "Not modified: the day is unchanged since the ETag in the 'If-None-Match' request header, "
-                + "so no body is returned."),
-        @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date."),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "404", description = "The day has no note.")
-    })
+    @APIResponse(responseCode = "200", description = "The day's note.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = NoteDto.class)))
+    @APIResponse(responseCode = "304", description = "Not modified: the day is unchanged since the ETag in the 'If-None-Match' request header, "
+        + "so no body is returned.")
+    @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date.")
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "404", description = "The day has no note.")
     public Response note(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to read, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
@@ -313,14 +308,12 @@ public class NotesApiResource {
         + "a count of 0 removing a log entry. Unlike a logged action, a note MAY be written against a future date. The content is normalised "
         + "before it is stored (line endings unified, blank-line runs condensed, each line trimmed), and the stored form is what is returned.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The stored note; the content is the normalised form, which may differ from what was sent.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = NoteDto.class))),
-        @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date, or the content is too long or holds invisible or "
-                + "text-direction characters.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    })
+    @APIResponse(responseCode = "200", description = "The stored note; the content is the normalised form, which may differ from what was sent.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = NoteDto.class)))
+    @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date, or the content is too long or holds invisible or "
+        + "text-direction characters.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     public Response writeNote(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to write, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
@@ -354,12 +347,10 @@ public class NotesApiResource {
         summary = "Remove a day's note",
         description = "Deletes the day's note (equivalent to writing blank content). A day with no note is a no-op.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "204", description = "The note was removed (or did not exist)."),
-        @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    })
+    @APIResponse(responseCode = "204", description = "The note was removed (or did not exist).")
+    @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     public Response deleteNote(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to clear, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))

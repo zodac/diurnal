@@ -181,7 +181,7 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
         }
 
         assertThat(undocumented)
-            .as("Every public operation must carry a full @Operation summary/description, @APIResponses and a @Tag — an endpoint added to the "
+            .as("Every public operation must carry a full @Operation summary/description, @APIResponse and a @Tag — an endpoint added to the "
                 + "contract without its documentation fails here")
             .isEmpty();
     }

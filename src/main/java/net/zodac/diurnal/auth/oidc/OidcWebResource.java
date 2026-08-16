@@ -142,8 +142,8 @@ public class OidcWebResource {
         final String token = sessionStore.create(
             user, Session.AUTH_SOURCE_OIDC, SessionCookies.userAgent(routingContext), ClientAddress.of(routingContext), clock.now());
         if (linkIntent != null) {
-            // A Settings "Connect" round trip: the link itself was applied during authentication (OidcUserProvisioner + OidcLinkPolicy);
-            // clear the one-shot intent marker and land back on Settings with a success banner instead of the dashboard.
+            // A Settings "Connect" round trip: the link itself was applied during authentication by OidcUserProvisioner and OidcLinkPolicy.
+            // Clear the one-shot intent marker and land back on Settings with a success banner instead of the dashboard.
             final NewCookie clearIntent =
                 new NewCookie.Builder(OidcUserProvisioner.LINK_COOKIE).value("").path("/").maxAge(0).httpOnly(true).build();
             return Response.seeOther(URI.create("/settings?msg=" + MSG_OIDC_CONNECTED))

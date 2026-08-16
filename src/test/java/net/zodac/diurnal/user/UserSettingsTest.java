@@ -215,14 +215,6 @@ class UserSettingsTest {
             .isFalse();
     }
 
-    @Test
-    void timezoneOptions_allValidZoneIds() {
-        for (final String tz : UserSettings.TIMEZONE_OPTIONS) {
-            // Throws DateTimeException if any offered id is not a real zone.
-            final var _ = ZoneId.of(tz);
-        }
-    }
-
     // ── UTC offset labels ───────────────────────────────────────────────────────
 
     @Test

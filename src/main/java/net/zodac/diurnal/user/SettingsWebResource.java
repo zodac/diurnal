@@ -186,7 +186,7 @@ public class SettingsWebResource {
         result = applyStatsFields(user, result, statsOrder, statsEnabled, statsLabel);
 
         return switch (result) {
-            case final ProfileResult.Updated ignored -> Response.noContent().build();
+            case final ProfileResult.Updated _ -> Response.noContent().build();
             // A rejected field leaves any field applied before it mutated on the managed entity; the class-level @RollbackOnErrorStatus rolls the
             // whole transaction back on this 422, so a rejected request never silently persists part of a mutation.
             case final ProfileResult.Invalid invalid -> Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(invalid.message()).build();
@@ -287,9 +287,9 @@ public class SettingsWebResource {
         final PasswordChangeResult result = passwordChangeService.change(currentUser.get(), currentPassword, newPassword,
             confirmPassword == null ? "" : confirmPassword, sessionToken, ClientAddress.of(routingContext));
         return switch (result) {
-            case final PasswordChangeResult.Success ignored -> Response.ok().build();
-            case final PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
-            case final PasswordChangeResult.WrongCurrentPassword ignored ->
+            case final PasswordChangeResult.Success _ -> Response.ok().build();
+            case final PasswordChangeResult.NotLocalAccount _ -> Response.status(Response.Status.FORBIDDEN).build();
+            case final PasswordChangeResult.WrongCurrentPassword _ ->
                 Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
             case final PasswordChangeResult.InvalidNewPassword invalid ->
                 Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(invalid.message()).build();
@@ -317,11 +317,11 @@ public class SettingsWebResource {
     public Response verifyCurrentPassword(@FormParam("currentPassword") final String currentPassword,
         @Context @Nullable final RoutingContext routingContext) {
         return switch (passwordChangeService.verify(currentUser.get(), currentPassword, ClientAddress.of(routingContext))) {
-            case final PasswordChangeResult.Success ignored -> Response.noContent().build();
-            case final PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
-            case final PasswordChangeResult.WrongCurrentPassword ignored ->
+            case final PasswordChangeResult.Success _ -> Response.noContent().build();
+            case final PasswordChangeResult.NotLocalAccount _ -> Response.status(Response.Status.FORBIDDEN).build();
+            case final PasswordChangeResult.WrongCurrentPassword _ ->
                 Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
-            case final PasswordChangeResult.InvalidNewPassword ignored -> Response.status(HttpStatus.UNPROCESSABLE_ENTITY).build();
+            case final PasswordChangeResult.InvalidNewPassword _ -> Response.status(HttpStatus.UNPROCESSABLE_ENTITY).build();
         };
     }
 

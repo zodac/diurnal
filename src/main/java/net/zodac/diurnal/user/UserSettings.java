@@ -22,6 +22,8 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -35,6 +37,8 @@ import org.jspecify.annotations.Nullable;
  * the entity it duplicated, so what remains is a rules holder like {@code colour.Colours} or {@code text.TextFields}.
  */
 public final class UserSettings {
+
+    private static final Logger LOGGER = LogManager.getLogger(UserSettings.class);
 
     public static final int DEFAULT_PAGE_SIZE = 5;
 
@@ -123,6 +127,7 @@ public final class UserSettings {
             final int value = Integer.parseInt(raw.strip());
             return isValidPageSize(value) ? value : null;
         } catch (final NumberFormatException e) {
+            LOGGER.trace("Rejecting page size '{}': not a whole number", raw, e);
             return null;
         }
     }
@@ -151,6 +156,7 @@ public final class UserSettings {
             final int value = Integer.parseInt(raw.strip());
             return isValidDecimalPlaces(value) ? value : null;
         } catch (final NumberFormatException e) {
+            LOGGER.trace("Rejecting decimal-place count '{}': not a whole number", raw, e);
             return null;
         }
     }

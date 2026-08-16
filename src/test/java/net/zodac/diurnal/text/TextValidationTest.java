@@ -318,7 +318,7 @@ class TextValidationTest {
             TextFields.STAT_NAME,
             TextFields.EMAIL,
             TextFields.PASSWORD,
-            TextFields.NOTE);
+            TextFields.DEFAULT_NOTE);
 
         assertThat(TextFields.all())
             .as("a field missing from the catalogue escapes every test that sweeps it")
@@ -341,7 +341,7 @@ class TextValidationTest {
         final Normalisation expected;
         if (field.equals(TextFields.PASSWORD)) {
             expected = Normalisation.VERBATIM;
-        } else if (field.equals(TextFields.NOTE)) {
+        } else if (field.equals(TextFields.DEFAULT_NOTE)) {
             expected = Normalisation.MULTILINE;
         } else {
             expected = Normalisation.CLEANED;

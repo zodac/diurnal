@@ -23,7 +23,7 @@ import net.zodac.diurnal.text.TextField;
 import net.zodac.diurnal.text.TextFields;
 
 /**
- * The day-note {@link TextField} as this deployment has configured it — {@link TextFields#NOTE} rebuilt at the {@code NOTE_MAX_LENGTH} bound.
+ * The day-note {@link TextField} as this deployment has configured it — {@link TextFields#DEFAULT_NOTE} rebuilt at the {@code NOTE_MAX_LENGTH} bound.
  *
  * <p>
  * Every other entry in the {@link TextFields} catalogue is a compile-time constant, and a caller simply names it. The note's bound is the one that

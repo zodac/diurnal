@@ -262,6 +262,41 @@ public String tokenHash;
 public String authSource;
 ```
 
+### Repeat a repeatable annotation — never wrap it in its container
+
+**A `@Repeatable` annotation is written out once per instance, directly on the declaration. Never wrap the instances in the container annotation's
+array form.** Java has allowed the repeated form since 8; the container (`@APIResponses({…})`, and any other `@Xs({@X, @X})` a library defines) is the
+pre-8 fallback, and using it costs a wrapper line, a closing `})`, an extra level of indentation on every entry, a comma between entries, and an import
+of a type the code never otherwise names. The repeated form reads as a list of independent facts about the method, which is what it is: entries can be
+reordered, added or deleted a whole line at a time, so a one-response diff touches one line rather than repunctuating its neighbour.
+
+This is a layout rule with no effect on behaviour — `javac` wraps the repeats into the identical container, so the generated OpenAPI document is
+byte-for-byte the same either way.
+
+❌ **Wrong** — wrapped in the container:
+
+```java
+@APIResponses({
+    @APIResponse(responseCode = "200", description = "The action was updated.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionDto.class))),
+    @APIResponse(responseCode = "404", description = "No such action.")
+})
+public Response update(final UUID id) {
+```
+
+✅ **Right** — repeated:
+
+```java
+@APIResponse(responseCode = "200", description = "The action was updated.",
+    content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionDto.class)))
+@APIResponse(responseCode = "404", description = "No such action.")
+public Response update(final UUID id) {
+```
+
+> **This is about repeated *annotations*, not every annotation that takes an array.** `@SuppressWarnings({"a", "b"})`, `@Target({METHOD, TYPE})` and
+> `@CsvSource({…})` hold arrays of strings, enums or data rows rather than nested annotations, and their braces stay — there is nothing to repeat.
+> The rule applies exactly where the array's elements are themselves `@`-prefixed.
+
 ### Nullability annotations on a field or method sit on their own line
 
 **`@Nullable` (and `@NonNull`/`@NotNull`) on a *field* or a *method* is written alone on the line directly above the declaration** — never inline
@@ -578,3 +613,34 @@ public class ApplicationVersion {
 `@QuarkusTest` probing the active environment to construct fixtures (e.g. the OIDC group ITs reading `oidc.admin.group`), or a test exercising a
 mapping mechanism itself (`AssetsConfigTest`), is idiomatic and must stay independent of the production mapping bean. Do not "fix" these to
 `@ConfigMapping`.
+
+### Panache statics are called on the entity, NEVER on `PanacheEntityBase`
+
+**A Panache active-record query is written on the entity class — `Action.count(…)`, `User.findById(…)`, `Note.list(…)` — never on the declaring
+supertype `PanacheEntityBase`.** This is not a preference: `PanacheEntityBase.count(…)` and every sibling are stubs whose whole body is
+`throw AbstractJpaOperations.implementationInjectionMissing()`. Quarkus generates the real implementations onto each `@Entity` subclass at build time
+(52 of them on `Action`), and because Java **hides** rather than overrides statics, `invokestatic` binds to whatever type is written at the call site.
+Move the call to the supertype and it binds to the throwing stub.
+
+❌ **Wrong** — fails at runtime with `IllegalStateException: This method is normally automatically overridden in subclasses: did you forget to
+annotate your entity with @Entity?`:
+
+```java
+if (PanacheEntityBase.count("userId = ?1 and name = ?2", user.id, normName) > 0L) {
+```
+
+✅ **Right** — called on the entity, which carries the generated implementation:
+
+```java
+if (Action.count("userId = ?1 and name = ?2", user.id, normName) > 0L) {
+```
+
+> **SonarQube `java:S3252` ("static base class members should not be accessed via derived types") is a FALSE POSITIVE on every one of these call
+> sites and must not be actioned** — its suggested fix ("use static access with `PanacheEntityBase`") is exactly the broken form above. The same
+> applies to IntelliJ's `StaticCallOnSubclass`, which `code-quality-config/java/qodana/profiles/java.yaml` already disables for this reason. The rule
+> is excluded in `code-quality-config-overrides/sonar.properties`; never "fix" the call site. This has broken the app once already: the dashboard
+> calendar's event feed silently returned nothing after
+> `Action.mapByUser` was changed to `PanacheEntityBase.<Action>list(…)`, caught only by the deployment-smoke tier.
+
+> **The generic witness goes on the call too** where the return type needs it (`Action.<Action>find(…)`, `User.<User>list(…)`) — that is the same
+> rule, not an exception to it.

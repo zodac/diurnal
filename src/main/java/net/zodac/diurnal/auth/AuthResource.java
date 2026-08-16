@@ -47,7 +47,6 @@ import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
-import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jspecify.annotations.Nullable;
@@ -114,20 +113,18 @@ public class AuthResource {
         description = "Creates an account and returns a Bearer session token for it. The initial administrator account cannot be created here — it "
         + "must be created locally through the setup page first."
     )
-    @APIResponses({
-        @APIResponse(responseCode = "201", description = "The account was created; returns a Bearer session token and basic profile.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = TokenResponse.class))),
-        @APIResponse(responseCode = "400", description = "The email, display name or password is missing or invalid."),
-        @APIResponse(responseCode = "403",
-                description = "Registration is disabled, or the initial administrator account has not been created via the setup page yet.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "404", description = "Password-based authentication is disabled on this deployment."),
-        @APIResponse(responseCode = "409", description = "The email is already registered.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "429",
-                description = "Too many failed attempts; retry after the period in the Retry-After header.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    })
+    @APIResponse(responseCode = "201", description = "The account was created; returns a Bearer session token and basic profile.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = TokenResponse.class)))
+    @APIResponse(responseCode = "400", description = "The email, display name or password is missing or invalid.")
+    @APIResponse(responseCode = "403",
+        description = "Registration is disabled, or the initial administrator account has not been created via the setup page yet.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "404", description = "Password-based authentication is disabled on this deployment.")
+    @APIResponse(responseCode = "409", description = "The email is already registered.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "429",
+        description = "Too many failed attempts; retry after the period in the Retry-After header.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     public Response register(final @Nullable RegisterRequest request, @Context @Nullable final RoutingContext routingContext) {
         // Surface policy (deliberately different from the web form): the API can never create the very
         // first (administrator) account — that must be done locally through the web setup flow
@@ -166,7 +163,7 @@ public class AuthResource {
             case final RegistrationResult.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
                     .entity(new ApiErrorResponse(invalidMessage(invalid)))
                     .build();
-            case final RegistrationResult.DuplicateEmail ignored -> Response.status(Response.Status.CONFLICT)
+            case final RegistrationResult.DuplicateEmail _ -> Response.status(Response.Status.CONFLICT)
                     .entity(new ApiErrorResponse("Email already registered"))
                     .build();
         };
@@ -192,17 +189,15 @@ public class AuthResource {
         summary = "Log in and obtain a token",
         description = "Validates an email and password and returns an opaque Bearer session token for the Authorization header on later calls."
     )
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "Credentials accepted; returns a Bearer session token and basic profile.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = TokenResponse.class))),
-        @APIResponse(responseCode = "400",
-                description = "The request body is missing the email/password or the email is malformed."),
-        @APIResponse(responseCode = "401", description = "Invalid email or password.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "429",
-                description = "Too many failed attempts; retry after the period in the Retry-After header.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    })
+    @APIResponse(responseCode = "200", description = "Credentials accepted; returns a Bearer session token and basic profile.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = TokenResponse.class)))
+    @APIResponse(responseCode = "400",
+        description = "The request body is missing the email/password or the email is malformed.")
+    @APIResponse(responseCode = "401", description = "Invalid email or password.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "429",
+        description = "Too many failed attempts; retry after the period in the Retry-After header.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     public Response login(final @Nullable LoginRequest request, @Context @Nullable final RoutingContext routingContext) {
         // No @Valid: like RegisterRequest, LoginRequest's bean-validation annotations feed the OpenAPI
         // schema only - the enforcement lives here so a 400 carries the shared ApiErrorResponse body
@@ -227,7 +222,7 @@ public class AuthResource {
                 yield Response.ok(new TokenResponse(newSession(user, routingContext), user.email, user.displayName)).build();
             }
             case final LoginResult.LockedOut locked -> lockedResponse(locked.remaining());
-            case final LoginResult.InvalidCredentials ignored -> Response.status(Response.Status.UNAUTHORIZED)
+            case final LoginResult.InvalidCredentials _ -> Response.status(Response.Status.UNAUTHORIZED)
                     .entity(new ApiErrorResponse("Invalid email or password"))
                     .build();
         };
@@ -245,10 +240,8 @@ public class AuthResource {
     @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
     @SecurityRequirement(name = "BearerAuth")
     @Operation(summary = "Log out", description = "Revokes the Bearer session token used to make this request.")
-    @APIResponses({
-        @APIResponse(responseCode = "204", description = "The session token was revoked (a missing/malformed header is a no-op)."),
-        @APIResponse(responseCode = "401", description = "No valid session token was supplied.")
-    })
+    @APIResponse(responseCode = "204", description = "The session token was revoked (a missing/malformed header is a no-op).")
+    @APIResponse(responseCode = "401", description = "No valid session token was supplied.")
     public Response logout(@HeaderParam("Authorization") @Nullable final String authorization) {
         if (authorization != null && authorization.startsWith(BEARER_PREFIX)) {
             sessionStore.revoke(authorization.substring(BEARER_PREFIX.length()).strip());
@@ -274,10 +267,8 @@ public class AuthResource {
         description = "Revokes EVERY session for the account — web logins and API tokens alike, including the token used to make this request. "
         + "Equivalent to the Settings page's 'Log out from everywhere'. All clients must re-authenticate afterwards."
     )
-    @APIResponses({
-        @APIResponse(responseCode = "204", description = "Every session for the account was revoked, including this request's token."),
-        @APIResponse(responseCode = "401", description = "No valid session token was supplied.")
-    })
+    @APIResponse(responseCode = "204", description = "Every session for the account was revoked, including this request's token.")
+    @APIResponse(responseCode = "401", description = "No valid session token was supplied.")
     public Response revokeAllSessions() {
         final User user = currentUser.get();
         sessionStore.revokeAllForUser(user.id);

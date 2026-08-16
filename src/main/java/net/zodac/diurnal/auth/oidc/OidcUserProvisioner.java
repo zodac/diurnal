@@ -174,19 +174,19 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
 
         return switch (decision) {
             case OidcLoginDecision.Deny(final OidcDenialReason reason) -> throw deny(reason, state, routingContext);
-            case final OidcLoginDecision.UseExisting ignored ->
+            case final OidcLoginDecision.UseExisting _ ->
                 authenticated(syncRole(Objects.requireNonNull(state.linked()), state.idpRole()), idTokenCred, routingContext);
-            case final OidcLoginDecision.LinkToSessionUser ignored -> {
+            case final OidcLoginDecision.LinkToSessionUser _ -> {
                 final User target = Objects.requireNonNull(state.linkTarget());
                 accountLinkService.link(target, state.issuer(), state.subject());
                 yield authenticated(syncRole(target, state.idpRole()), idTokenCred, routingContext);
             }
-            case final OidcLoginDecision.AdoptByEmail ignored -> {
+            case final OidcLoginDecision.AdoptByEmail _ -> {
                 final User matched = Objects.requireNonNull(state.emailMatch());
                 accountLinkService.link(matched, state.issuer(), state.subject());
                 yield authenticated(syncRole(matched, state.idpRole()), idTokenCred, routingContext);
             }
-            case final OidcLoginDecision.ProvisionNew ignored -> authenticated(provision(state, claims), idTokenCred, routingContext);
+            case final OidcLoginDecision.ProvisionNew _ -> authenticated(provision(state, claims), idTokenCred, routingContext);
         };
     }
 

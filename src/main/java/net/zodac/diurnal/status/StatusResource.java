@@ -28,7 +28,6 @@ import org.eclipse.microprofile.openapi.annotations.Operation;
 import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
-import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
 /**
@@ -65,12 +64,10 @@ public class StatusResource {
         summary = "Operational status",
         description = "Returns the application's liveness and readiness (Kubernetes-style) probe states, the running version and the process uptime. "
         + "Responds 200 when the database is reachable and 503 when it is not, so it doubles as a container health probe. Needs no authentication.")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The application is ready (database reachable).",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = SystemStatus.class))),
-        @APIResponse(responseCode = "503", description = "The application is not ready (database unreachable); readiness is 'DOWN'.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = SystemStatus.class)))
-    })
+    @APIResponse(responseCode = "200", description = "The application is ready (database reachable).",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = SystemStatus.class)))
+    @APIResponse(responseCode = "503", description = "The application is not ready (database unreachable); readiness is 'DOWN'.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = SystemStatus.class)))
     public Response status() {
         final SystemStatus current = statusService.current(Instant.now());
         return Response.status(StatusAssembler.httpStatus(current)).entity(current).build();

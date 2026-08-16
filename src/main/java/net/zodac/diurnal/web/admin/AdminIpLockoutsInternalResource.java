@@ -190,8 +190,8 @@ public class AdminIpLockoutsInternalResource {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
         return switch (ipLockoutService.unlock(identity.getPrincipal().getName(), ip, clock.now())) {
-            case final IpUnlockResult.NotLocked ignored -> HtmxResponses.conflictBanner("#admin-error", "That IP is no longer locked out.");
-            case final IpUnlockResult.Success ignored -> {
+            case final IpUnlockResult.NotLocked _ -> HtmxResponses.conflictBanner("#admin-error", "That IP is no longer locked out.");
+            case final IpUnlockResult.Success _ -> {
                 final User actor = currentUser.get();
                 final ZoneId zone = clock.zoneFor(actor.timezone);
                 final Instant now = clock.now();

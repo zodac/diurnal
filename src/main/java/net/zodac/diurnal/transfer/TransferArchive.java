@@ -30,6 +30,8 @@ import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -71,6 +73,8 @@ public final class TransferArchive {
      * The ceiling on the note bound is set where a SINGLE note cannot approach this figure, so the two can never invert.
      */
     public static final int MAX_MEMBER_BYTES = 32 * 1024 * 1024;
+
+    private static final Logger LOGGER = LogManager.getLogger(TransferArchive.class);
 
     private static final int MAX_ARCHIVE_BYTES = 64 * 1024 * 1024;
 
@@ -173,6 +177,8 @@ public final class TransferArchive {
                 members.put(entry.getName(), new String(content.get(), StandardCharsets.UTF_8));
             }
         } catch (final IOException e) {
+            // The returned message carries only the reason; the stack trace stays here, where it says which member the reader gave up on.
+            LOGGER.trace("Unable to unpack the uploaded archive", e);
             return new ArchiveOutcome.Malformed("The uploaded archive could not be read: " + e.getMessage());
         }
 

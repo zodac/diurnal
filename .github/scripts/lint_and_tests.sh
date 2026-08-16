@@ -154,12 +154,14 @@ SCRIPT_PATH="${SCRIPT_DIR}/${SCRIPT_NAME}"
 # whole of qodana.yaml. They sit in one tracked directory (named for the submodule it layers over) instead
 # of as dotfiles in the repo root, so every piece of CI configuration is in a directory rather than
 # scattered across the top level. Nothing here is found by convention any more - grype is pointed at its
-# file with `-c` and Qodana with `--config`, both of which this script passes explicitly. Paths are
+# file with `-c`, Qodana with `--config`, and SonarQube's properties are read and passed as `-D`s
+# (sonar_property_args), all of which this script does explicitly. Paths are
 # relative to the repo root, which is also where each tool's container mounts it, so the same string works
 # on the host and inside the container.
 OVERRIDES_DIR="code-quality-config-overrides"
 GRYPE_CONFIG_FILE="${OVERRIDES_DIR}/.grype.yaml"
 QODANA_CONFIG_FILE="${OVERRIDES_DIR}/qodana.yaml"
+SONAR_CONFIG_FILE="${OVERRIDES_DIR}/sonar.properties"
 
 ESLINT_BUILD_IMAGE="local/diurnal-eslint:latest"
 ESLINT_NODE_IMAGE="node:26.7.0-alpine"
@@ -286,6 +288,10 @@ PERF_HTTP_PORT="${PERF_HTTP_PORT:-8083}"
 # the sonar-maven-plugin (bound to `install`) runs, ingesting the Checkstyle/PMD/SpotBugs report XMLs
 # the same -Dall build just produced. It needs the SONARQUBE_HOST_URL and SONARQUBE_PAT env vars that
 # the parent-pom reads (sonar.host.url / sonar.token); without them the analysis step fails.
+#
+# This project's own analysis properties - the rule exclusions - live in SONAR_CONFIG_FILE and are read
+# and appended as `-D`s by sonar_property_args, because the Maven scanner ignores a
+# `sonar-project.properties`. See that function and the file's own header.
 #
 # run_java pre-flight-checks the server (sonarqube_reachable, using this same host/token) before
 # deciding whether to append -Dsonarqube at all: if it's unreachable, the analysis is skipped for this
@@ -492,6 +498,26 @@ sonarqube_reachable() {
         -u "${SONARQUBE_PAT}:" \
         "${SONARQUBE_HOST_URL%/}/api/server/version" 2>/dev/null) || return 1
     [[ "${http_code}" == "200" ]]
+}
+
+# Prints this project's SonarQube analysis properties (SONAR_CONFIG_FILE) as one `-Dkey=value` per line,
+# for run_java to append to the same `mvn` the analysis runs in. The SonarScanner for Maven reads only
+# Maven properties and ignores a `sonar-project.properties` entirely, so an external file has to be
+# handed over explicitly - the same arrangement grype (-c) and Qodana (--config) already use, keeping the
+# rule exclusions in a documented file rather than buried in the pom.
+#
+# Emitting one arg per LINE (rather than echoing them space-separated) is what keeps a value containing
+# spaces or a glob intact: run_java reads this with `mapfile`, so nothing is word-split or expanded. The
+# file is OPTIONAL - a project needing no overrides simply has none, and this prints nothing.
+sonar_property_args() {
+    [[ -f "${SONAR_CONFIG_FILE}" ]] || return 0
+
+    local line
+    while IFS= read -r line || [[ -n "${line}" ]]; do
+        line="${line#"${line%%[![:space:]]*}"}"    # strip leading whitespace
+        [[ -z "${line}" || "${line}" == '#'* ]] && continue
+        printf -- '-D%s\n' "${line}"
+    done < "${SONAR_CONFIG_FILE}"
 }
 
 # The eslint image is shared by the javascript and typescript steps. It installs eslint plus the
@@ -991,6 +1017,15 @@ run_java() {
         if sonarqube_reachable; then
             mvn_args+=(-Dsonarqube)
             mvn_label+=" -Dsonarqube"
+            # This project's analysis properties (rule exclusions, ...) ride the same mvn invocation - see
+            # sonar_property_args. Kept out of the label: they are configuration rather than something to
+            # re-type, and the file is named in the hint below instead.
+            local -a sonar_args=()
+            mapfile -t sonar_args < <(sonar_property_args || true)
+            if (( ${#sonar_args[@]} > 0 )); then
+                mvn_args+=("${sonar_args[@]}")
+                substep "applying ${#sonar_args[@]} analysis propert$( (( ${#sonar_args[@]} == 1 )) && echo y || echo ies) from ${SONAR_CONFIG_FILE}"
+            fi
         else
             echo "⚠️  SonarQube server at ${SONARQUBE_HOST_URL} is unreachable - skipping analysis for this run"
         fi
