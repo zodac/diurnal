@@ -22,6 +22,8 @@ import java.util.Arrays;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -34,6 +36,8 @@ import org.jspecify.annotations.Nullable;
  * timing); this class is stateless and side effect free.
  */
 public final class UpdateCheck {
+
+    private static final Logger LOGGER = LogManager.getLogger(UpdateCheck.class);
 
     private static final Pattern GITHUB_REPOSITORY = Pattern.compile("(?i)^https?://github\\.com/(?<owner>[^/]+)/(?<repo>[^/]+?)(?:\\.git)?/?$");
     private static final Pattern TAG_NAME = Pattern.compile("\"tag_name\"\\s*:\\s*\"(?<tag>[^\"]+)\"");
@@ -182,6 +186,7 @@ public final class UpdateCheck {
             }
         } catch (final NumberFormatException e) {
             // A numeric segment too large to fit in an int - treat the whole version as unparseable rather than throwing into the caller.
+            LOGGER.trace("Treating version '{}' as unparseable: a numeric segment does not fit in an int", version, e);
             return UNPARSEABLE_VERSION;
         }
         return parsed;

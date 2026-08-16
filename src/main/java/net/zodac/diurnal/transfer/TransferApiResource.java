@@ -39,7 +39,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
-import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 
@@ -104,11 +103,9 @@ public class TransferApiResource {
         + "encrypted in the database, and exporting it necessarily decrypts it, so the downloaded file has none of that protection."
     )
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The archive, as an attachment.",
-            content = @Content(mediaType = APPLICATION_ZIP, schema = @Schema(type = SchemaType.STRING, format = "binary"))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    })
+    @APIResponse(responseCode = "200", description = "The archive, as an attachment.",
+        content = @Content(mediaType = APPLICATION_ZIP, schema = @Schema(type = SchemaType.STRING, format = "binary")))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     public Response export() {
         final User user = currentUser.get();
         return Response.ok(exportService.export(user))
@@ -132,14 +129,12 @@ public class TransferApiResource {
         + "much the account currently holds, since an import replaces all of it."
     )
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The archive is valid; nothing was written.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ImportSummaryDto.class))),
-        @APIResponse(responseCode = "400", description = "The archive was refused - it is not a readable ZIP, it is missing a member, or at "
+    @APIResponse(responseCode = "200", description = "The archive is valid; nothing was written.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ImportSummaryDto.class)))
+    @APIResponse(responseCode = "400", description = "The archive was refused - it is not a readable ZIP, it is missing a member, or at "
         + "least one row is invalid. The reply locates every problem it can.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ImportRejectionDto.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    })
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ImportRejectionDto.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     public Response preview(
         @RequestBody(description = "The export archive to validate.",
         content = @Content(mediaType = APPLICATION_ZIP, schema = @Schema(type = SchemaType.STRING, format = "binary")))
@@ -166,14 +161,12 @@ public class TransferApiResource {
         + "it was. Call the preview endpoint first to see what will change."
     )
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The archive was imported; the account now holds exactly what it described.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ImportSummaryDto.class))),
-        @APIResponse(responseCode = "400", description = "The archive was refused, so nothing was written - it is not a readable ZIP, it is "
+    @APIResponse(responseCode = "200", description = "The archive was imported; the account now holds exactly what it described.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ImportSummaryDto.class)))
+    @APIResponse(responseCode = "400", description = "The archive was refused, so nothing was written - it is not a readable ZIP, it is "
         + "missing a member, or at least one row is invalid. The reply locates every problem it can.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ImportRejectionDto.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    })
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ImportRejectionDto.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     public Response importData(
         @RequestBody(description = "The export archive to import.",
         content = @Content(mediaType = APPLICATION_ZIP, schema = @Schema(type = SchemaType.STRING, format = "binary")))

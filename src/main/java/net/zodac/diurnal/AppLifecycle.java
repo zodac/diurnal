@@ -312,6 +312,7 @@ public class AppLifecycle {
             sleepBeforeRetry(attempt);
             return null;
         } catch (final InterruptedException e) {
+            LOGGER.trace("OIDC discovery probe attempt {} of {} was interrupted", attempt, PROBE_ATTEMPTS, e);
             Thread.currentThread().interrupt();
             return null;
         }
@@ -329,6 +330,7 @@ public class AppLifecycle {
         try {
             Thread.sleep(PROBE_RETRY_BACKOFF.toMillis());
         } catch (final InterruptedException e) {
+            LOGGER.trace("Interrupted while waiting to retry the OIDC discovery probe after attempt {} of {}", attempt, PROBE_ATTEMPTS, e);
             Thread.currentThread().interrupt();
         }
     }

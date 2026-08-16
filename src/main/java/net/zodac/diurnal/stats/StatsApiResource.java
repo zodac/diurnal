@@ -44,7 +44,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
-import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jspecify.annotations.Nullable;
@@ -91,13 +90,11 @@ public class StatsApiResource {
         + "been logged omitted. The page size is the user's 'items per page' preference; an out-of-range page is rejected with a 400 (never silently "
         + "clamped).")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The requested page of per-action statistics.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = StatsPageDto.class))),
-        @APIResponse(responseCode = "400", description = "The requested page is out of range.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    })
+    @APIResponse(responseCode = "200", description = "The requested page of per-action statistics.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = StatsPageDto.class)))
+    @APIResponse(responseCode = "400", description = "The requested page is out of range.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     public Response stats(
         @Parameter(name = "page", in = ParameterIn.QUERY,
         description = "The 1-based page to return (default 1); out-of-range values are rejected.")
@@ -136,14 +133,12 @@ public class StatsApiResource {
         + "peak, so the figures are directly comparable. An unrecognised period, a malformed window key, a repeated subject, more subjects than may "
         + "be charted together, or a comparison subject with no entries at all is rejected with a 400 (never silently corrected).")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The subjects' frequency over the requested window.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = FrequencyChartDto.class))),
-        @APIResponse(responseCode = "400", description = "The period, the window key or the set of subjects to chart is not valid.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "404", description = "One of the requested IDs does not belong to the authenticated user.")
-    })
+    @APIResponse(responseCode = "200", description = "The subjects' frequency over the requested window.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = FrequencyChartDto.class)))
+    @APIResponse(responseCode = "400", description = "The period, the window key or the set of subjects to chart is not valid.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "404", description = "One of the requested IDs does not belong to the authenticated user.")
     public Response frequency(
         @Parameter(name = "subjectId", in = ParameterIn.PATH,
         description = "The ID of the subject to chart: an action's ID, or the nil ID for the user's day notes.")
@@ -169,7 +164,7 @@ public class StatsApiResource {
             case FrequencyResult.DuplicateSubject(final UUID duplicate) -> badRequest("Action " + duplicate + " is charted more than once");
             case FrequencyResult.NotLogged(final UUID unlogged) ->
                 badRequest("Action " + unlogged + " has never been logged, so it cannot be compared against");
-            case final FrequencyResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
+            case final FrequencyResult.NotOwned _ -> Response.status(Response.Status.NOT_FOUND).build();
         };
     }
 

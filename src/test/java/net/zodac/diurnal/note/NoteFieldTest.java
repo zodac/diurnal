@@ -43,7 +43,7 @@ class NoteFieldTest {
     void field_withNoConfiguredValue_isTheCatalogueDefault() {
         assertThat(new NoteField(StubNotesConfig.withDefaults()).field())
             .as("an unset NOTE_MAX_LENGTH must leave the note exactly as the catalogue publishes it")
-            .isEqualTo(TextFields.NOTE);
+            .isEqualTo(TextFields.DEFAULT_NOTE);
     }
 
     @Test
@@ -58,7 +58,7 @@ class NoteFieldTest {
             .isZero();
         assertThat(field.rules())
             .as("the shared content rules must not be lost when the field is rebuilt")
-            .isEqualTo(TextFields.NOTE.rules());
+            .isEqualTo(TextFields.DEFAULT_NOTE.rules());
     }
 
     @Test

@@ -55,7 +55,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.parameters.RequestBody;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
-import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jspecify.annotations.Nullable;
@@ -118,16 +117,14 @@ public class LogsApiResource {
         description = "Returns all logged actions within the date range for the user."
     )
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "Logged events in the range (one entry per logged action per day).",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON,
-                        schema = @Schema(type = SchemaType.ARRAY, implementation = CalendarEventDto.class))),
-        @APIResponse(responseCode = "304", description = "Not modified: the range is unchanged since the ETag in the 'If-None-Match' request "
-                + "header, so no body is returned."),
-        @APIResponse(responseCode = "400",
-                description = "The 'start' or 'end' query parameter is missing or not a valid ISO-8601 date."),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    })
+    @APIResponse(responseCode = "200", description = "Logged events in the range (one entry per logged action per day).",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON,
+        schema = @Schema(type = SchemaType.ARRAY, implementation = CalendarEventDto.class)))
+    @APIResponse(responseCode = "304", description = "Not modified: the range is unchanged since the ETag in the 'If-None-Match' request "
+        + "header, so no body is returned.")
+    @APIResponse(responseCode = "400",
+        description = "The 'start' or 'end' query parameter is missing or not a valid ISO-8601 date.")
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     public Response events(
         @Parameter(name = "start", in = ParameterIn.QUERY, required = true,
         description = "Inclusive start of the range, as an ISO-8601 date (yyyy-MM-dd); only the date part is used.",
@@ -179,15 +176,13 @@ public class LogsApiResource {
         summary = "Get a day's logged counts",
         description = "Returns one entry per action logged on the given day; actions with no entry that day are omitted.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The day's logged counts.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON,
-                        schema = @Schema(type = SchemaType.ARRAY, implementation = DayLogEntryDto.class))),
-        @APIResponse(responseCode = "304", description = "Not modified: the day is unchanged since the ETag in the 'If-None-Match' request header, "
-                + "so no body is returned."),
-        @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date."),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    })
+    @APIResponse(responseCode = "200", description = "The day's logged counts.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON,
+        schema = @Schema(type = SchemaType.ARRAY, implementation = DayLogEntryDto.class)))
+    @APIResponse(responseCode = "304", description = "Not modified: the day is unchanged since the ETag in the 'If-None-Match' request header, "
+        + "so no body is returned.")
+    @APIResponse(responseCode = "400", description = "The date is not a valid ISO-8601 date.")
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     public Response dayLogs(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to read, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
@@ -233,14 +228,12 @@ public class LogsApiResource {
         description = "Sets the count to an explicit value: 0 removes the day's entry; a value above 999 is rejected with a 400 (never silently "
         + "clamped). Future dates (in the user's timezone) are rejected.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The resulting count.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = LogEntryDto.class))),
-        @APIResponse(responseCode = "400", description = "The date is invalid or in the future, or the count is missing, negative or above 999.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "404", description = "No such action owned by this user.")
-    })
+    @APIResponse(responseCode = "200", description = "The resulting count.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = LogEntryDto.class)))
+    @APIResponse(responseCode = "400", description = "The date is invalid or in the future, or the count is missing, negative or above 999.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "404", description = "No such action owned by this user.")
     public Response updateCount(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to write, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
@@ -283,15 +276,13 @@ public class LogsApiResource {
         description = "Atomically increments the count by 'amount' (default 1). An increment that would push the count above 999 is rejected with a "
         + "400 (never silently clamped). Race-safe for concurrent clients. Future dates (in the user's timezone) are rejected.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The resulting count.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = LogEntryDto.class))),
-        @APIResponse(responseCode = "400", description = "The date is invalid or in the future, the amount is below 1, or the increment would "
-                + "exceed 999.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "404", description = "No such action owned by this user.")
-    })
+    @APIResponse(responseCode = "200", description = "The resulting count.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = LogEntryDto.class)))
+    @APIResponse(responseCode = "400", description = "The date is invalid or in the future, the amount is below 1, or the increment would "
+        + "exceed 999.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "404", description = "No such action owned by this user.")
     public Response increment(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to write, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
@@ -320,14 +311,12 @@ public class LogsApiResource {
         description = "Atomically decrements the count by 'amount' (default 1), removing the day's entry at zero. Race-safe for concurrent "
         + "clients. Future dates (in the user's timezone) are rejected.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The resulting count.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = LogEntryDto.class))),
-        @APIResponse(responseCode = "400", description = "The date is invalid or in the future, or the amount is below 1.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "404", description = "No such action owned by this user.")
-    })
+    @APIResponse(responseCode = "200", description = "The resulting count.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = LogEntryDto.class)))
+    @APIResponse(responseCode = "400", description = "The date is invalid or in the future, or the amount is below 1.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "404", description = "No such action owned by this user.")
     public Response decrement(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to write, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
@@ -353,13 +342,11 @@ public class LogsApiResource {
         summary = "Remove a day's log entry for an action",
         description = "Deletes the day's entry for the action (equivalent to setting the count to 0). A missing entry is a no-op.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "204", description = "The entry was removed (or did not exist)."),
-        @APIResponse(responseCode = "400", description = "The date is invalid or in the future.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "404", description = "No such action owned by this user.")
-    })
+    @APIResponse(responseCode = "204", description = "The entry was removed (or did not exist).")
+    @APIResponse(responseCode = "400", description = "The date is invalid or in the future.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "404", description = "No such action owned by this user.")
     public Response deleteEntry(
         @Parameter(name = "date", in = ParameterIn.PATH, required = true, description = "The day to clear, as yyyy-MM-dd.",
         schema = @Schema(type = SchemaType.STRING, format = "date", examples = "2026-06-15"))
@@ -369,9 +356,9 @@ public class LogsApiResource {
         final User user = currentUser.get();
         final LocalDate day = DateRanges.requireDate("date", date);
         return switch (logService.deleteEntry(user, day, actionId)) {
-            case final LogResult.FutureDate ignored -> badRequest(FUTURE_DATE_MESSAGE);
-            case final LogResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
-            case final LogResult.Updated ignored -> Response.noContent().build();
+            case final LogResult.FutureDate _ -> badRequest(FUTURE_DATE_MESSAGE);
+            case final LogResult.NotOwned _ -> Response.status(Response.Status.NOT_FOUND).build();
+            case final LogResult.Updated _ -> Response.noContent().build();
         };
     }
 
@@ -407,8 +394,8 @@ public class LogsApiResource {
 
     private static Response translate(final LogResult result, final UUID actionId, final LocalDate day) {
         return switch (result) {
-            case final LogResult.FutureDate ignored -> badRequest(FUTURE_DATE_MESSAGE);
-            case final LogResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
+            case final LogResult.FutureDate _ -> badRequest(FUTURE_DATE_MESSAGE);
+            case final LogResult.NotOwned _ -> Response.status(Response.Status.NOT_FOUND).build();
             case final LogResult.Updated updated -> Response.ok(new LogEntryDto(actionId, day.toString(), updated.count())).build();
         };
     }

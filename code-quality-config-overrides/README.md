@@ -7,8 +7,8 @@ This project's own linting configuration: the files that override or extend the 
 directory named for the submodule they layer over, instead of as dotfiles at the repo root.
 
 Nothing here is found by convention. Each tool is pointed at its file explicitly by
-[lint_and_tests.sh](../.github/scripts/lint_and_tests.sh) — Grype with `-c`, Qodana with `--config` — so a scan run by
-hand must pass the same flag.
+[lint_and_tests.sh](../.github/scripts/lint_and_tests.sh) — Grype with `-c`, Qodana with `--config`, and SonarQube by
+having its properties read out and passed as `-D`s — so a scan run by hand must do the same.
 
 Relative paths *inside* these files are mostly repo-root-relative, with one exception worth knowing before editing
 `qodana.yaml`: its `imports:` resolves against **this directory** (hence the `../` in front of the submodule profile),
@@ -30,3 +30,10 @@ the scan outright rather than quietly falling back.
 
 - [qodana.yaml](./qodana.yaml) — the linter image pin, the `imports:` of the submodule's inspection profile, this
   project's inspection overrides, and the excluded paths.
+
+#### [SonarQube](https://www.sonarsource.com/products/sonarqube/)
+
+- [sonar.properties](./sonar.properties) — this project's analysis properties, today the `java:S3252` rule exclusion
+  (a false positive on every Panache active-record call site, whose suggested fix breaks the app at runtime). Read
+  line-by-line and appended as `-Dkey=value` to the analysis build, because the SonarScanner **for Maven** — which is
+  how this project analyses — reads only Maven properties and ignores a `sonar-project.properties` entirely.

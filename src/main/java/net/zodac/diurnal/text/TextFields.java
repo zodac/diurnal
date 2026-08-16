@@ -61,8 +61,8 @@ public final class TextFields {
      * <p>
      * Unlike every other bound here, this one is a <strong>default rather than the value in force</strong>: a deployment may set its own through
      * {@code NOTE_MAX_LENGTH} ({@link net.zodac.diurnal.note.NotesConfig#maxLength()}), and the field the application actually validates against
-     * is resolved from that by {@code note.NoteField}. The constant survives as the default, as the instance {@link #NOTE} and {@link #all()} carry,
-     * and as the compile-time value a test can bound itself by.
+     * is resolved from that by {@code note.NoteField}. The constant survives as the default, as the instance {@link #DEFAULT_NOTE} and {@link #all()}
+     * carry, and as the compile-time value a test can bound itself by.
      *
      * <p>
      * <strong>It is not pinned to a column, and cannot be.</strong> The plaintext {@code notes.content} column was dropped in {@code V28}; a note is
@@ -156,7 +156,7 @@ public final class TextFields {
      * no note" and removes the row. Clearing the box and saving is how a note is deleted, so a blank value is a legitimate request rather than a
      * rejection - exactly as a count of zero removes a log entry rather than failing.
      */
-    public static final TextField NOTE = note(NOTE_MAX_LENGTH);
+    public static final TextField DEFAULT_NOTE = note(NOTE_MAX_LENGTH);
 
     private TextFields() {
 
@@ -164,7 +164,7 @@ public final class TextFields {
 
     /**
      * A day-note field bounded at the given maximum - the one place the note's specification is written, so the configured field and the default
-     * {@link #NOTE} cannot differ in anything but their bound.
+     * {@link #DEFAULT_NOTE} cannot differ in anything but their bound.
      *
      * @param maxLength the longest accepted note in code points, within
      *                  {@code [}{@link #NOTE_MAX_LENGTH_FLOOR}{@code , }{@link #NOTE_MAX_LENGTH_CEILING}{@code ]}
@@ -180,6 +180,6 @@ public final class TextFields {
      * @return the catalogue
      */
     public static List<TextField> all() {
-        return List.of(ACTION_NAME, DISPLAY_NAME, STAT_NAME, EMAIL, PASSWORD, NOTE);
+        return List.of(ACTION_NAME, DISPLAY_NAME, STAT_NAME, EMAIL, PASSWORD, DEFAULT_NOTE);
     }
 }

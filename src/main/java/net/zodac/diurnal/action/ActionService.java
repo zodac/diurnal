@@ -187,10 +187,10 @@ class ActionService {
     // message the shared pipeline generated, so a rule added to ACTION_NAME later needs no change here.
     private static ActionResult nameRejection(final TextOutcome.Failure failure) {
         return switch (failure) {
-            case final TextOutcome.Blank ignored -> new ActionResult.BlankName();
-            case final TextOutcome.TooLong ignored -> new ActionResult.NameTooLong();
-            case final TextOutcome.TooShort ignored -> new ActionResult.InvalidName(TextOutcomeExtensions.message(failure));
-            case final TextOutcome.RuleFailed ignored -> new ActionResult.InvalidName(TextOutcomeExtensions.message(failure));
+            case final TextOutcome.Blank _ -> new ActionResult.BlankName();
+            case final TextOutcome.TooLong _ -> new ActionResult.NameTooLong();
+            case final TextOutcome.TooShort _ -> new ActionResult.InvalidName(TextOutcomeExtensions.message(failure));
+            case final TextOutcome.RuleFailed _ -> new ActionResult.InvalidName(TextOutcomeExtensions.message(failure));
         };
     }
 

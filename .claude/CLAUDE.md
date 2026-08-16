@@ -251,7 +251,7 @@ Reads may compose shared entity queries into surface-specific presentations (pag
 2. Pick the namespace: `/api/v1/*` public, `/internal/*` UI plumbing, or a page route. [`EndpointNamespaceTest` fails any `@Path` outside the
    sanctioned namespaces/page allowlist]
 3. Public endpoint → add it to `OpenApiSurfaceIT.PUBLIC_API_CONTRACT`. [that IT fails on any contract mismatch, in either direction]
-4. Public endpoint → full OpenAPI annotations (`@Tag`, `@Operation` summary+description, `@APIResponses`, `@SecurityRequirement`, `@Schema` on
+4. Public endpoint → full OpenAPI annotations (`@Tag`, `@Operation` summary+description, `@APIResponse`, `@SecurityRequirement`, `@Schema` on
    DTOs). [`OpenApiSurfaceIT.document_everyOperationIsFullyDocumented` fails a bare operation]
 5. If both surfaces expose the use case, extend `SurfaceParityIT` with a same-input/same-DB-outcome case.
 6. Breaking `/api/v1` changes are MAJOR-version events — flag for `RELEASE_NOTES.md` (hand-authored; never edit it yourself).

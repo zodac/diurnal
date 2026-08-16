@@ -40,6 +40,8 @@ import net.zodac.diurnal.note.crypto.DataKeyEnvelope;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,6 +58,8 @@ import org.junit.jupiter.api.BeforeEach;
  * class is annotated.
  */
 public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstractMethod - base for QuarkusTest subclasses; intentionally abstract
+
+    private static final Logger LOGGER = LogManager.getLogger(IntegrationTestBase.class);
 
     // Minimal-cost Argon2id, matching the cheap parameters pinned in application-test.properties — safe
     // for tests and fast enough not to slow the suite. Kept in sync so a seeded user's hash already
@@ -169,8 +173,9 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
     private void rollbackQuietly() {
         try {
             tx.rollback();
-        } catch (final SystemException ignored) {
-            // best-effort rollback; the original failure is rethrown by the caller
+        } catch (final SystemException e) {
+            // best-effort rollback; the original failure is rethrown by the caller, so this one is only ever a diagnostic
+            LOGGER.trace("Unable to roll back the test transaction", e);
         }
     }
 

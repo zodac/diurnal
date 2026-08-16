@@ -53,7 +53,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
-import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jspecify.annotations.Nullable;
@@ -101,15 +100,13 @@ public class ActionsApiResource {
         description = "Returns one page of the user's actions, ordered by name and optionally filtered by a case-insensitive name search. The "
         + "page size is the user's 'items per page' preference; an out-of-range page is rejected with a 400 (never silently clamped).")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The requested page of actions.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionPageDto.class))),
-        @APIResponse(responseCode = "304", description = "Not modified: the user's actions are unchanged since the ETag in the 'If-None-Match' "
-            + "request header, so no body is returned."),
-        @APIResponse(responseCode = "400", description = "The requested page is out of range.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    })
+    @APIResponse(responseCode = "200", description = "The requested page of actions.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionPageDto.class)))
+    @APIResponse(responseCode = "304", description = "Not modified: the user's actions are unchanged since the ETag in the 'If-None-Match' "
+        + "request header, so no body is returned.")
+    @APIResponse(responseCode = "400", description = "The requested page is out of range.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     public Response listActions(
         @Parameter(name = "page", in = ParameterIn.QUERY, description = "The 1-based page to return (default 1); out-of-range values are rejected.")
         @QueryParam("page") @DefaultValue("1") final int pageNum,
@@ -151,15 +148,13 @@ public class ActionsApiResource {
         description = "Creates a new action. A missing colour is filled in with a suggested one (as GET /api/v1/actions/random-colour would give), "
         + "but a malformed colour is rejected (never silently corrected); names must be unique per user.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "201", description = "The action was created.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionDto.class))),
-        @APIResponse(responseCode = "400", description = "The name is missing, blank, or longer than 100 characters, or the colour is malformed.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "409", description = "An action with this name already exists.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    })
+    @APIResponse(responseCode = "201", description = "The action was created.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionDto.class)))
+    @APIResponse(responseCode = "400", description = "The name is missing, blank, or longer than 100 characters, or the colour is malformed.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "409", description = "An action with this name already exists.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     public Response createAction(final @Nullable ActionRequest request) {
         // A create request requires the name; normalise an absent body/field to blank so the shared service
         // rejects it rather than treating it as a PATCH-style "keep".
@@ -181,11 +176,9 @@ public class ActionsApiResource {
         + "too similar to one the user's existing actions already use; once every palette colour is in use, a fresh one is generated rather than "
         + "repeated. Nothing is stored, and the colour is only a suggestion - it still has to be sent when creating the action.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The suggested colour.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionColourDto.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    })
+    @APIResponse(responseCode = "200", description = "The suggested colour.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionColourDto.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     public Response randomColour() {
         return Response.ok(new ActionColourDto(actionService.suggestColour(currentUser.get()))).build();
     }
@@ -200,12 +193,10 @@ public class ActionsApiResource {
     @Path("{id}")
     @Operation(summary = "Get an action", description = "Returns a single action owned by the user.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The action.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionDto.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "404", description = "No such action owned by this user.")
-    })
+    @APIResponse(responseCode = "200", description = "The action.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionDto.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "404", description = "No such action owned by this user.")
     public Response getAction(
         @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The action's ID.")
         @PathParam("id") final UUID id) {
@@ -231,16 +222,14 @@ public class ActionsApiResource {
         summary = "Update an action",
         description = "Renames and/or recolours an action. Absent fields keep their current value.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The updated action.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionDto.class))),
-        @APIResponse(responseCode = "400", description = "The new name is blank or longer than 100 characters, or the colour is malformed.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "404", description = "No such action owned by this user."),
-        @APIResponse(responseCode = "409", description = "An action with the new name already exists.",
-            content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
-    })
+    @APIResponse(responseCode = "200", description = "The updated action.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ActionDto.class)))
+    @APIResponse(responseCode = "400", description = "The new name is blank or longer than 100 characters, or the colour is malformed.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "404", description = "No such action owned by this user.")
+    @APIResponse(responseCode = "409", description = "An action with the new name already exists.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     public Response updateAction(
         @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The action's ID.")
         @PathParam("id") final UUID id,
@@ -264,11 +253,9 @@ public class ActionsApiResource {
         summary = "Delete an action",
         description = "Hard-deletes an action AND all of its logged entries. This cannot be undone.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "204", description = "The action and its logs were deleted."),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "404", description = "No such action owned by this user.")
-    })
+    @APIResponse(responseCode = "204", description = "The action and its logs were deleted.")
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "404", description = "No such action owned by this user.")
     public Response deleteAction(
         @Parameter(name = "id", in = ParameterIn.PATH, required = true, description = "The action's ID.")
         @PathParam("id") final UUID id) {
@@ -283,22 +270,22 @@ public class ActionsApiResource {
     private static Response translate(final ActionResult result, final Response.Status successStatus) {
         return switch (result) {
             case final ActionResult.Success success -> Response.status(successStatus).entity(ActionDto.from(success.action())).build();
-            case final ActionResult.BlankName ignored -> Response.status(Response.Status.BAD_REQUEST)
+            case final ActionResult.BlankName _ -> Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ApiErrorResponse("Action name cannot be empty"))
                 .build();
-            case final ActionResult.NameTooLong ignored -> Response.status(Response.Status.BAD_REQUEST)
+            case final ActionResult.NameTooLong _ -> Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ApiErrorResponse(TextFieldExtensions.lengthMessage(TextFields.ACTION_NAME)))
                 .build();
             case final ActionResult.InvalidName invalid -> Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ApiErrorResponse(invalid.message()))
                 .build();
-            case final ActionResult.InvalidColour ignored -> Response.status(Response.Status.BAD_REQUEST)
+            case final ActionResult.InvalidColour _ -> Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ApiErrorResponse("Action colour is invalid"))
                 .build();
             case final ActionResult.DuplicateName duplicate -> Response.status(Response.Status.CONFLICT)
                 .entity(new ApiErrorResponse("An action named '" + duplicate.name() + "' already exists"))
                 .build();
-            case final ActionResult.NotFound ignored -> Response.status(Response.Status.NOT_FOUND).build();
+            case final ActionResult.NotFound _ -> Response.status(Response.Status.NOT_FOUND).build();
         };
     }
 

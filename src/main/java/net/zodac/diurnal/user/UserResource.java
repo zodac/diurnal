@@ -47,7 +47,6 @@ import org.eclipse.microprofile.openapi.annotations.media.Content;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 import org.eclipse.microprofile.openapi.annotations.parameters.Parameter;
 import org.eclipse.microprofile.openapi.annotations.responses.APIResponse;
-import org.eclipse.microprofile.openapi.annotations.responses.APIResponses;
 import org.eclipse.microprofile.openapi.annotations.security.SecurityRequirement;
 import org.eclipse.microprofile.openapi.annotations.tags.Tag;
 import org.jspecify.annotations.Nullable;
@@ -99,14 +98,12 @@ public class UserResource {
         + "calendarView, statsFields, timezone)."
     )
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The authenticated user's profile.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = UserDto.class))),
-        @APIResponse(responseCode = "304", description = "Not modified: the profile is unchanged since the ETag in the 'If-None-Match' request "
-                + "header, so no body is returned."),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "404", description = "The authenticated account no longer exists.")
-    })
+    @APIResponse(responseCode = "200", description = "The authenticated user's profile.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = UserDto.class)))
+    @APIResponse(responseCode = "304", description = "Not modified: the profile is unchanged since the ETag in the 'If-None-Match' request "
+        + "header, so no body is returned.")
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "404", description = "The authenticated account no longer exists.")
     public Response me(@Context final Request request) {
         // CurrentUser resolves the account from the SecurityIdentity built by session auth
         // (UserIdentities.of): the userId attribute is preferred, with the principal email as the
@@ -147,13 +144,11 @@ public class UserResource {
         + "is not recognised is rejected with a 400 naming the allowed values — nothing is ever silently changed. A blank timezone explicitly "
         + "resets it to the server default.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "200", description = "The updated profile.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = UserDto.class))),
-        @APIResponse(responseCode = "400", description = "A submitted value is invalid; the message names the allowed values.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
-    })
+    @APIResponse(responseCode = "200", description = "The updated profile.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = UserDto.class)))
+    @APIResponse(responseCode = "400", description = "A submitted value is invalid; the message names the allowed values.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
     public Response updateMe(final @Nullable UpdateMeRequest request) {
         final User user = currentUser.get();
         if (request != null) {
@@ -185,14 +180,12 @@ public class UserResource {
         + "the calling token stays signed in. Rejected for accounts holding no password (OIDC-only accounts) — but works regardless of whether "
         + "password LOGIN is enabled, so a break-glass administrator can maintain its credential.")
     @SecurityRequirement(name = "BearerAuth")
-    @APIResponses({
-        @APIResponse(responseCode = "204", description = "The password was changed and every other session revoked."),
-        @APIResponse(responseCode = "400",
-                description = "The current password is incorrect, or the new password is missing, too long, or the same as the existing one.",
-                content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class))),
-        @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token."),
-        @APIResponse(responseCode = "403", description = "The account holds no password to change (OIDC-only sign-in).")
-    })
+    @APIResponse(responseCode = "204", description = "The password was changed and every other session revoked.")
+    @APIResponse(responseCode = "400",
+        description = "The current password is incorrect, or the new password is missing, too long, or the same as the existing one.",
+        content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
+    @APIResponse(responseCode = "401", description = "Missing or invalid Bearer token.")
+    @APIResponse(responseCode = "403", description = "The account holds no password to change (OIDC-only sign-in).")
     public Response changePassword(
         final @Nullable ChangePasswordRequest request,
         @Parameter(hidden = true) @HeaderParam("Authorization") @Nullable final String authorization,
@@ -204,9 +197,9 @@ public class UserResource {
         final PasswordChangeResult result = passwordChangeService.change(currentUser.get(), currentPassword, newPassword,
             null, callingToken(authorization, sessionCookie), ClientAddress.of(routingContext));
         return switch (result) {
-            case final PasswordChangeResult.Success ignored -> Response.noContent().build();
-            case final PasswordChangeResult.NotLocalAccount ignored -> Response.status(Response.Status.FORBIDDEN).build();
-            case final PasswordChangeResult.WrongCurrentPassword ignored -> Response.status(Response.Status.BAD_REQUEST)
+            case final PasswordChangeResult.Success _ -> Response.noContent().build();
+            case final PasswordChangeResult.NotLocalAccount _ -> Response.status(Response.Status.FORBIDDEN).build();
+            case final PasswordChangeResult.WrongCurrentPassword _ -> Response.status(Response.Status.BAD_REQUEST)
                     .entity(new ApiErrorResponse(PasswordChangeService.CURRENT_PASSWORD_ERROR))
                     .build();
             case final PasswordChangeResult.InvalidNewPassword invalid -> Response.status(Response.Status.BAD_REQUEST)

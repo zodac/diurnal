@@ -226,7 +226,7 @@ public class AuthWebResource {
                     return Duration.ofSeconds(seconds);
                 }
             } catch (final NumberFormatException e) {
-                LOGGER.debug("Malformed lockout cookie value: {}", lockoutCookie);
+                LOGGER.debug("Malformed lockout cookie value: {}", lockoutCookie, e);
             }
         }
         return ipThrottleConfig.lockoutDuration();
@@ -260,7 +260,7 @@ public class AuthWebResource {
             case final LoginResult.LockedOut locked -> Response.seeOther(URI.create("/login"))
                     .cookie(lockoutCookie(locked.remaining()))
                     .build();
-            case final LoginResult.InvalidCredentials ignored -> Response.seeOther(URI.create("/login?error=true")).build();
+            case final LoginResult.InvalidCredentials _ -> Response.seeOther(URI.create("/login?error=true")).build();
         };
     }
 
@@ -368,7 +368,7 @@ public class AuthWebResource {
             case final RegistrationResult.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
                     .entity(renderRegister(emailValue, displayNameValue, invalid.missingFields(), invalid.errors()))
                     .build();
-            case final RegistrationResult.DuplicateEmail ignored -> Response.status(Response.Status.BAD_REQUEST)
+            case final RegistrationResult.DuplicateEmail _ -> Response.status(Response.Status.BAD_REQUEST)
                     .entity(renderRegister(emailValue, displayNameValue, List.of(), List.of("That email is already registered.")))
                     .build();
         };

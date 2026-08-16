@@ -29,6 +29,8 @@ import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * The one authenticated-encryption primitive in the application: AES-256 in GCM mode, used both to encrypt a note's content under its owner's data
@@ -55,6 +57,8 @@ public final class Aes256Gcm {
      * The key size this primitive works in, in bytes (256 bits). Every data key and every wrapping key is exactly this long.
      */
     public static final int KEY_BYTES = 32;
+
+    private static final Logger LOGGER = LogManager.getLogger(Aes256Gcm.class);
 
     private static final int IV_BYTES = 12;
     private static final int TAG_BITS = 128;
@@ -122,8 +126,10 @@ public final class Aes256Gcm {
             return Optional.of(cipher.doFinal(ciphertext));
         } catch (final BadPaddingException | IllegalBlockSizeException | InvalidAlgorithmParameterException | InvalidKeyException
                        | NoSuchAlgorithmException | NoSuchPaddingException e) {
-            // The expected failure path, not an error: a wrong passphrase reaches here on every mistyped attempt. Swallowed deliberately - the
-            // exception distinguishes a bad tag from a bad key, and surfacing that difference would leak which one the caller got wrong.
+            // The expected failure path, not an error: a wrong passphrase reaches here on every mistyped attempt. Not surfaced to the caller - the
+            // exception distinguishes a bad tag from a bad key, and returning that difference would leak which one the caller got wrong - but
+            // recorded at TRACE so a genuine misconfiguration is diagnosable. The exception carries no key, plaintext or associated data.
+            LOGGER.trace("Unable to open sealed value", e);
             return Optional.empty();
         }
     }

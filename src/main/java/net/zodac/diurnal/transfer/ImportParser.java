@@ -35,6 +35,8 @@ import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.text.TextValidation;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -74,6 +76,8 @@ public final class ImportParser {
      * The most problems reported back from one archive. Further problems are counted but not listed.
      */
     public static final int MAX_REPORTED_PROBLEMS = 50;
+
+    private static final Logger LOGGER = LogManager.getLogger(ImportParser.class);
 
     private static final String ARCHIVE = "archive";
     private static final int NO_LINE = 0;
@@ -244,6 +248,7 @@ public final class ImportParser {
             try {
                 count = Integer.parseInt(rawCount);
             } catch (final NumberFormatException e) {
+                LOGGER.trace("{} line {}: the count column did not parse as a whole number", TransferFiles.LOGS_FILE, row.line(), e);
                 problems.add(TransferFiles.LOGS_FILE, row.line(), "'" + rawCount + "' is not a whole number.");
                 continue;
             }
@@ -296,6 +301,7 @@ public final class ImportParser {
         try {
             return LocalDate.parse(raw);
         } catch (final DateTimeParseException e) {
+            LOGGER.trace("{} line {}: the date column did not parse as YYYY-MM-DD", file, row.line(), e);
             problems.add(file, row.line(), "'" + raw + "' is not a date in YYYY-MM-DD form.");
             return null;
         }

@@ -37,7 +37,7 @@ class ImportParserTest {
 
     // The note field at its default bound, standing in for what NoteField resolves from NOTE_MAX_LENGTH at runtime.
     // note_boundIsTheConfiguredOne_notTheDefault covers a deployment that has set its own.
-    private static final TextField NOTE_FIELD = TextFields.NOTE;
+    private static final TextField NOTE_FIELD = TextFields.DEFAULT_NOTE;
 
     private static final String ACTIONS = "name,colour\r\nRunning,#e11d48\r\nReading,#0ea5e9\r\n";
     private static final String LOGS = "date,action,count\r\n2026-08-01,Running,1\r\n";

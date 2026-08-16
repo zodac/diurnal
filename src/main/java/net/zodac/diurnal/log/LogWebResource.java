@@ -57,6 +57,8 @@ import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 /**
  * Increment/decrement endpoints for a day's action counts, plus the dashboard day-panel partials.
@@ -65,6 +67,8 @@ import net.zodac.diurnal.user.User;
 @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
 @RollbackOnErrorStatus
 public class LogWebResource {
+
+    private static final Logger LOGGER = LogManager.getLogger(LogWebResource.class);
 
     private final Template dayPanelTemplate;
     private final Template dayActionsListTemplate;
@@ -163,6 +167,7 @@ public class LogWebResource {
         try {
             yearMonth = YearMonth.parse(month);
         } catch (final DateTimeParseException e) {
+            LOGGER.trace("Rejecting month panel request: '{}' is not a valid yyyy-MM", month, e);
             return Response.status(Response.Status.BAD_REQUEST).build();
         }
 
@@ -354,8 +359,8 @@ public class LogWebResource {
 
     private Response translate(final LocalDate date, final LogResult result) {
         return switch (result) {
-            case final LogResult.FutureDate ignored -> Response.status(Response.Status.BAD_REQUEST).build();
-            case final LogResult.NotOwned ignored -> Response.status(Response.Status.NOT_FOUND).build();
+            case final LogResult.FutureDate _ -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final LogResult.NotOwned _ -> Response.status(Response.Status.NOT_FOUND).build();
             case final LogResult.Updated updated -> Response.ok(item(date, updated.action(), updated.count())).build();
         };
     }
