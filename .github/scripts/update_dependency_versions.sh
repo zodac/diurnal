@@ -41,7 +41,10 @@
 #               (npm is run via Docker, so no host npm is needed)
 #
 # Exit codes:   0 — success (including best-effort partial updates)
-#               1 — hard failure (missing required file)
+#               1 — hard failure: a missing required file, a diverged version "like" group, or an
+#                   update that was found but BLOCKED by local changes (e.g. a submodule with
+#                   uncommitted work, which git refuses to check out). A blocked update is a
+#                   failure precisely because the run would otherwise report a bump it never made.
 # ------------------------------------------------------------------------------
 
 # This script is deliberately best-effort under `set -e`: every external step is a predicate
@@ -71,6 +74,14 @@ LINT_NODE_ALPINE=""
 
 ok()   { echo "  ✅ ${*}"; }
 warn() { echo "  ⚠️  ${*}" >&2; }
+err()  { echo "  ❌ ${*}" >&2; }
+
+# Updates that were BLOCKED rather than merely unavailable - the new version was found, and something
+# in the working tree stopped it being applied. Distinct from a `warn`: a warn means "could not look it
+# up, carry on" (a network blip, an untagged submodule), which is a legitimate no-op, whereas an entry
+# here means the run reported an update it did not actually make. Collected rather than thrown so the
+# remaining updaters still run, then listed at the end, where they set the exit code (see the entry point).
+BLOCKED_UPDATES=()
 
 # ── curl wrappers ─────────────────────────────────────────────────────────────
 
@@ -1048,6 +1059,7 @@ update_submodules() {
     git submodule update --init --recursive >/dev/null 2>&1 || true
 
     local paths=()
+    local blocked=0
     mapfile -t paths < <(git config -f "${GITMODULES_FILE}" --get-regexp '\.path$' | awk '{print $2}' || true)
 
     if [[ "${#paths[@]}" -eq 0 ]]; then
@@ -1061,7 +1073,12 @@ update_submodules() {
             continue
         fi
 
-        (
+        # `if ! ( … )` rather than `( … ) || …`: BOTH forms disable `set -e` inside the subshell (a command
+        # that is an operand of a conditional list runs with errexit off), so every failure below has to
+        # exit explicitly - which is precisely the bug this replaced. A bare `git checkout` that failed on a
+        # dirty tree used to fall through to the "Updated" line and leave the subshell exiting 0, so the run
+        # printed a successful update it had not made and still passed.
+        if ! (
             cd "${path}"
             git fetch --tags --quiet 2>/dev/null || { warn "fetch failed for '${path}', skipping"; exit 0; }
 
@@ -1085,20 +1102,50 @@ update_submodules() {
 
             echo "    ${path}: current=${current_tag} → latest=${latest_tag}"
 
-            if [[ "${latest_tag}" != "${current_tag}" ]]; then
-                git checkout --quiet "${latest_tag}"
-                echo "    Updated '${path}' to ${latest_tag}"
-                # Sync this submodule's OWN nested submodules to the newly checked-out tag (the new
-                # revision may add/move/remove them). Scoped here inside the submodule dir on purpose:
-                # a top-level `git submodule update` would instead reset '${path}' back to the commit
-                # in the superproject index, undoing the checkout above. Best-effort like the rest.
-                git submodule update --init --recursive --quiet 2>/dev/null \
-                    || warn "Could not sync nested submodules for '${path}'"
+            if [[ "${latest_tag}" == "${current_tag}" ]]; then
+                exit 0
             fi
-        ) || warn "Error processing submodule '${path}', skipping"
+
+            # Checked HERE rather than left to git, for two reasons. Git's own refusal is a five-line wall
+            # ending in "Aborting" that does not name the submodule, and - because the checkout is only one
+            # statement of several - letting it fail in place is what allowed the run to carry on and claim
+            # the update. Only a TRACKED modification is looked for: that is what blocks a checkout, whereas
+            # an untracked file is carried across it (and the guarded checkout below still catches the rare
+            # case where the new revision adds a file of the same name).
+            local dirty
+            dirty="$(git status --porcelain --untracked-files=no 2>/dev/null || true)"
+            if [[ -n "${dirty}" ]]; then
+                err "Submodule '${path}' has uncommitted changes - NOT updated ${current_tag} → ${latest_tag}"
+                while IFS= read -r change; do
+                    echo "       ${change}" >&2
+                done <<< "${dirty}"
+                echo "       Commit, stash or discard them in ${path}/, then re-run." >&2
+                exit 1
+            fi
+
+            if ! git checkout --quiet "${latest_tag}"; then
+                err "Submodule '${path}' could not be checked out at ${latest_tag} - NOT updated"
+                exit 1
+            fi
+
+            echo "    Updated '${path}' to ${latest_tag}"
+            # Sync this submodule's OWN nested submodules to the newly checked-out tag (the new
+            # revision may add/move/remove them). Scoped here inside the submodule dir on purpose:
+            # a top-level `git submodule update` would instead reset '${path}' back to the commit
+            # in the superproject index, undoing the checkout above. Best-effort like the rest.
+            git submodule update --init --recursive --quiet 2>/dev/null \
+                || warn "Could not sync nested submodules for '${path}'"
+        ); then
+            BLOCKED_UPDATES+=("submodule '${path}'")
+            blocked=$((blocked + 1))
+        fi
     done
 
-    ok "Submodules processed"
+    if [[ "${blocked}" -eq 0 ]]; then
+        ok "Submodules processed"
+    else
+        warn "Submodules processed, with ${blocked} left un-updated (listed at the end)"
+    fi
 }
 
 # ── 7. Parent POM ────────────────────────────────────────────────────────────
@@ -1295,6 +1342,18 @@ update_github_actions  || warn "GitHub Actions update failed, continuing..."
 # Final guard (NOT best-effort): the node + postgres like-groups must not have drifted apart. A
 # divergence here means a broken/mismatched build, so this hard-fails the whole run.
 verify_version_sync
+
+# Anything that was found but could NOT be applied fails the run. The individual reason was already
+# printed where it happened; this re-lists them at the bottom, because the detail scrolls far off the
+# top of a full update and the exit code is otherwise the only surviving signal.
+if [[ "${#BLOCKED_UPDATES[@]}" -gt 0 ]]; then
+    echo
+    echo "❌ Dependency version update finished with ${#BLOCKED_UPDATES[@]} update(s) blocked by local changes:" >&2
+    for blocked_update in "${BLOCKED_UPDATES[@]}"; do
+        echo "     - ${blocked_update}" >&2
+    done
+    exit 1
+fi
 
 echo
 echo "✅ Dependency version update complete."
