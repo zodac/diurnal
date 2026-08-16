@@ -417,14 +417,23 @@
   .dark .app-tooltip {
     box-shadow: 0 0 0 1px var(--color-brand-subtle), 0 10px 22px -6px rgb(0 0 0 / 0.55);
   }
-  .group:hover > .app-tooltip,
+  /* The touch path. `.tip-open` is set by the long-press handlers (app.js globally, settings.js for the
+     stats picker) and is the ONLY way a bubble opens on a device with no hover. */
   .group.tip-open > .app-tooltip {
     @apply opacity-100 visible;
   }
-  /* Dwell delay applies to the desktop hover path only — the touch long-press (`.tip-open`) is already
-     a deliberate gesture, so it reveals instantly. Hover-OUT stays instant (base rule has no delay). */
-  .group:hover > .app-tooltip {
-    transition-delay: var(--tooltip-delay);
+  /* The hover path, gated on the pointer actually HAVING hover. A phone applies a sticky `:hover` to
+     whatever was last touched, so while this rule was ungated a plain press opened the bubble — and left
+     it open as the page scrolled under the finger, because no gesture handler was involved and there was
+     no `.tip-open` for one to clear. Keyed off the capability rather than a width breakpoint, the same
+     way the hover-revealed row actions further down are. Dwell delay lives here too: it exists to stop
+     incidental hover tooltips, which a deliberate long-press is not (hover-OUT stays instant — the base
+     rule carries no delay). */
+  @media (hover: hover) {
+    .group:hover > .app-tooltip {
+      @apply opacity-100 visible;
+      transition-delay: var(--tooltip-delay);
+    }
   }
 
   /* Password-requirements popover: same floating look as `.app-tooltip`, but revealed by FOCUS of the
@@ -903,6 +912,15 @@
            the same min-height, so entering edit mode never changes the row's size. */
         .settings-field { min-height: 2.25rem; }
         .settings-field-actions { opacity: 0; pointer-events: none; transition: opacity .15s; }
+        /* Below `sm` the settings rows give up the .dt-actions 3.5rem-per-button slot: every pixel it
+           reserves for alignment comes off the VALUE beside it (the display name, which truncates long
+           before the card runs out of room on a phone), and the alignment it buys is between an Edit
+           the finger has already left and the Save that replaces it. The buttons themselves are
+           unchanged - only the padding around their text goes. Pairs with the invisible trailing-Cancel
+           stand-in, which settings.html drops at the same breakpoint. */
+        @media (max-width: 639px) {
+            .settings-field-actions .dt-btn { min-width: 0; }
+        }
         .settings-field:hover .settings-field-actions,
         .settings-field:focus-within .settings-field-actions { opacity: 1; pointer-events: auto; }
         /* The Action-stats picker rows carry the same hover/focus-revealed Rename control, but are

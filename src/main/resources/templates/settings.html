@@ -90,8 +90,12 @@
                                             class="dt-btn dt-btn-edit">Edit</button>
                                     {! Invisible stand-in for the edit state's trailing Cancel, so Edit occupies the
                                          SAME right-aligned slot Save will - the cursor never has to move between the
-                                         two states (the .dt-actions fixed-width slots do the rest). !}
-                                    <span aria-hidden="true" class="dt-btn invisible">Cancel</span>
+                                         two states (the .dt-actions fixed-width slots do the rest).
+                                         Dropped below `sm`: it reserves a whole button's width (3.5rem + the gap) for
+                                         a cursor-continuity nicety that only a mouse benefits from, and on a phone
+                                         that width comes straight off the display name beside it, which truncates
+                                         long before the card runs out of room. !}
+                                    <span aria-hidden="true" class="dt-btn invisible hidden sm:inline-block">Cancel</span>
                                 </div>
                             </div>
 
@@ -148,9 +152,10 @@
                                     <button type="button"
                                             id="password-edit-btn"
                                             class="dt-btn dt-btn-edit">Edit</button>
-                                    {! Same trailing-Cancel stand-in as the Display Name row above, so Edit sits
-                                         exactly where each step's Next/Save will. !}
-                                    <span aria-hidden="true" class="dt-btn invisible">Cancel</span>
+                                    {! Same trailing-Cancel stand-in as the Display Name row above (and dropped below
+                                         `sm` for the same reason), so Edit sits exactly where each step's Next/Save
+                                         will. !}
+                                    <span aria-hidden="true" class="dt-btn invisible hidden sm:inline-block">Cancel</span>
                                 </div>
                             </div>
 
@@ -342,26 +347,32 @@
                          the checkbox posts an additional "true" only when ticked, so the endpoint reads
                          the setting as on iff the posted values contain "true". hx-include scopes the
                          PATCH to this row so BOTH inputs are sent. !}
-                    <div id="stats-summary-row" class="flex items-center justify-between py-4 border-b border-line">
-                        <div class="shrink-0 pr-4">
+                    {! The switch sits on the TITLE's line, with the help text given the full row width
+                         underneath — the same shape partials/num-pref-row uses, so every row in this card
+                         reads the same way. It is also what keeps the switch on screen at phone widths:
+                         while the help text shared the title's column, a line longer than the row could
+                         fit pushed the switch off the right edge (the pattern the Notes card's two rows
+                         document from the other direction, by letting the help text wrap). !}
+                    <div id="stats-summary-row" class="py-4 border-b border-line">
+                        <div class="flex items-center justify-between gap-4">
                             <label for="showStatsSummary" class="block text-sm font-medium text-ink">Statistics Summary</label>
-                            <p class="help-text mt-0.5">Show the selected day's top 3 actions on dashboard.</p>
+                            <div class="flex items-center shrink-0">
+                                <input type="hidden" name="showStatsSummary" value="false">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="showStatsSummary" name="showStatsSummary" value="true"
+                                           class="sr-only peer"
+                                           {#if showStatsSummary}checked{/if}
+                                           hx-patch="/internal/settings" hx-trigger="change" hx-swap="none"
+                                           hx-include="#stats-summary-row">
+                                    <span class="block w-11 h-6 rounded-full bg-surface-muted border border-line transition-colors
+                                                 peer-checked:bg-brand peer-checked:border-brand
+                                                 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5
+                                                 after:rounded-full after:bg-white after:shadow after:transition-transform
+                                                 peer-checked:after:translate-x-5"></span>
+                                </label>
+                            </div>
                         </div>
-                        <div class="ml-4 flex items-center shrink-0">
-                            <input type="hidden" name="showStatsSummary" value="false">
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="showStatsSummary" name="showStatsSummary" value="true"
-                                       class="sr-only peer"
-                                       {#if showStatsSummary}checked{/if}
-                                       hx-patch="/internal/settings" hx-trigger="change" hx-swap="none"
-                                       hx-include="#stats-summary-row">
-                                <span class="block w-11 h-6 rounded-full bg-surface-muted border border-line transition-colors
-                                             peer-checked:bg-brand peer-checked:border-brand
-                                             after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5
-                                             after:rounded-full after:bg-white after:shadow after:transition-transform
-                                             peer-checked:after:translate-x-5"></span>
-                            </label>
-                        </div>
+                        <p class="help-text mt-1">Show the selected day's top 3 actions on dashboard.</p>
                     </div>
 
                     {! Decimal places + Items per page: the shared numeric-preference row (preset
@@ -381,9 +392,10 @@
 
                     {! Per-section overrides: a disclosure holding one row per paginated list (the admin-only
                          ones only for an administrator - the rows come from PageSizes.rows(user)). Each row is
-                         the same pill + stepper control as the row above, with a "Default" pill that clears its
-                         override: an EMPTY value is "follow the setting above", which is why the box shows the
-                         inherited number as a placeholder rather than as a value the user never chose.
+                         the same pill + stepper control as the row above, with an extra diamond ("Default") pill
+                         that clears its override: an EMPTY value is "follow the setting above", which is why the
+                         box shows the inherited number as a placeholder rather than as a value the user never
+                         chose.
 
                          The hx-patch sits on the PANEL, not on each field, so one save always carries the whole
                          set (the endpoint replaces every override with what it is sent) and the section keys and
@@ -401,17 +413,47 @@
                              hx-patch="/internal/settings" hx-trigger="save" hx-swap="none"
                              hx-include="#page-size-sections-panel">
                             {#for row in pageSizeSections}
-                            <div class="py-3 border-t border-line-subtle">
-                                <div class="flex items-center justify-between gap-4">
-                                    <label for="page-size-{row.key}" class="block text-sm text-ink-muted shrink-0">{row.label}</label>
-                                    <div id="page-size-{row.key}-presets" class="flex flex-wrap justify-end gap-1.5">
-                                        <button type="button" class="num-pref-pill" data-num-pref-clear aria-pressed="false">Default</button>
+                            {! The pills sit beside the label WHEN THEY FIT and drop to a line of their own when they
+                                 do not, with no breakpoint deciding it: the wrapper is `flex-wrap` and the pill box is
+                                 one unwrappable, unshrinkable item, so the browser measures the actual label and moves
+                                 the whole box down only if it has to. `ml-auto` right-aligns it either way. These rows
+                                 need that where the two above do not, because they carry the extra clear pill — even
+                                 with that pill down to an em dash, a long label (or a translation) can still take the
+                                 group past the ~311px a 375px phone gives the card. A media query would have had to
+                                 guess that threshold per label; this measures it. !}
+                            {! The divider separates one section row from the next, so the FIRST row does not get
+                                 one: above it is the disclosure toggle that opened this panel, which the toggle's
+                                 own row already sits under. `row_isFirst` is Qute's loop metadata, which keeps
+                                 this tied to the row's position in the LIST rather than to its position in the
+                                 DOM (a `first:` CSS variant would silently move the gap if anything were ever
+                                 rendered above the loop). !}
+                            <div class="py-3{#if !row_isFirst} border-t border-line-subtle{/if}">
+                                <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                                    <label for="page-size-{row.key}" class="block text-sm text-ink-muted">{row.label}</label>
+                                    <div id="page-size-{row.key}-presets" class="ml-auto flex shrink-0 gap-1.5">
+                                        {! The follow-the-general-value pill. A glyph rather than the word "Default": at
+                                             ~31px against the word's 70px it is what buys the pills their place beside the
+                                             label. The glyph is a WHITE DIAMOND, arrived at by elimination - an em dash
+                                             sat directly above this row's stepper `−` and the two read as the same
+                                             control; an empty set (∅) fixed that but reads as a slashed ZERO in a row of
+                                             page sizes; a dotted/plain square says "empty" best of all but is what a
+                                             MISSING glyph looks like, and U+2B1A is not covered on every phone. A diamond
+                                             is angular (no minus, no digit), is covered everywhere a page size is read,
+                                             and is the convention design tools use for "this value is bound to another".
+                                             The icon catalogue's `circle-slash` was the other candidate, but that one is
+                                             the 403 page's glyph and would carry "forbidden" over with it.
+                                             A symbol is not an accessible name and not self-explanatory, so the pill
+                                             carries BOTH an aria-label and the shared tooltip (`group relative` is the
+                                             host contract of partials/tooltip) - the word is one hover or long-press
+                                             away, never gone. !}
+                                        <button type="button" class="num-pref-pill group relative" data-num-pref-clear
+                                                aria-pressed="false" aria-label="Default">&#x25C7;{#include partials/tooltip text="Default" pos="bottom" /}</button>
                                         {#for option in pageSizeOptions}
                                         <button type="button" class="num-pref-pill" data-value="{option}" aria-pressed="false">{option}</button>
                                         {/for}
                                     </div>
                                 </div>
-                                <div class="mt-3 flex justify-end">
+                                <div class="mt-2 flex justify-end">
                                     <div class="num-pref-stepper shrink-0">
                                         <button type="button" id="page-size-{row.key}-minus" class="num-pref-stepper-btn"
                                                 aria-label="Fewer items per page for {row.label}">
@@ -560,31 +602,32 @@
                          length bound is untouched, an over-long note is still refused, and the counter
                          reappears while a note IS over the bound however this is set - it is the only thing
                          explaining an inert Save button (see note.js). Last row in the card, so no divider. !}
-                    {! The label block is `min-w-0`, NOT the `shrink-0` the Statistics Summary row uses — same
-                         reason as the colour row above. `shrink-0` sizes the block to its help text UNWRAPPED, so a
-                         line any longer than that row's pushes the switch off the right of a 360px phone (measured:
-                         x=376 in a 360px viewport, un-clickable, caught by the mobile E2E project). `min-w-0` lets
-                         the help text wrap instead; the switch keeps `shrink-0` so it never squashes. !}
-                    <div id="note-counter-row" class="flex items-center justify-between pt-4">
-                        <div class="min-w-0 pr-4">
+                    {! Same shape as the Statistics Summary row: the switch on the LABEL's line, the help text
+                         on the full row width beneath it. That is what keeps the switch on screen at phone
+                         widths — while the help text shared the label's column, a line longer than the row
+                         could fit pushed the switch off the right of a 360px phone (measured: x=376, un-
+                         clickable, caught by the mobile E2E project). The switch keeps `shrink-0` so it never
+                         squashes. !}
+                    <div id="note-counter-row" class="pt-4">
+                        <div class="flex items-center justify-between gap-4">
                             <label for="showNoteCounter" class="block text-sm font-medium text-ink">Character count</label>
-                            <p class="help-text mt-0.5">Show a note's length against its limit on the dashboard.</p>
+                            <div class="flex items-center shrink-0">
+                                <input type="hidden" name="showNoteCounter" value="false">
+                                <label class="relative inline-flex items-center cursor-pointer">
+                                    <input type="checkbox" id="showNoteCounter" name="showNoteCounter" value="true"
+                                           class="sr-only peer"
+                                           {#if showNoteCounter}checked{/if}
+                                           hx-patch="/internal/settings" hx-trigger="change" hx-swap="none"
+                                           hx-include="#note-counter-row">
+                                    <span class="block w-11 h-6 rounded-full bg-surface-muted border border-line transition-colors
+                                                 peer-checked:bg-brand peer-checked:border-brand
+                                                 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5
+                                                 after:rounded-full after:bg-white after:shadow after:transition-transform
+                                                 peer-checked:after:translate-x-5"></span>
+                                </label>
+                            </div>
                         </div>
-                        <div class="ml-4 flex items-center shrink-0">
-                            <input type="hidden" name="showNoteCounter" value="false">
-                            <label class="relative inline-flex items-center cursor-pointer">
-                                <input type="checkbox" id="showNoteCounter" name="showNoteCounter" value="true"
-                                       class="sr-only peer"
-                                       {#if showNoteCounter}checked{/if}
-                                       hx-patch="/internal/settings" hx-trigger="change" hx-swap="none"
-                                       hx-include="#note-counter-row">
-                                <span class="block w-11 h-6 rounded-full bg-surface-muted border border-line transition-colors
-                                             peer-checked:bg-brand peer-checked:border-brand
-                                             after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5
-                                             after:rounded-full after:bg-white after:shadow after:transition-transform
-                                             peer-checked:after:translate-x-5"></span>
-                            </label>
-                        </div>
+                        <p class="help-text mt-1">Show a note's length against its limit on the dashboard.</p>
                     </div>
                 </div>
 
@@ -649,11 +692,21 @@
                             <span class="stats-field-label group w-fit max-w-full min-w-0 text-sm">
                                 <span id="stats-field-label-{choice.key}" class="stats-field-caption block truncate text-ink">{choice.label}</span>
                                 {! .app-tooltip = the shared themed bubble; positioning/width per call site:
-                                     mobile → centred on the viewport at 95vw; sm+ → anchored, content width.
-                                     The description is the STAT's meaning, so it stays the catalogue text
-                                     however the user has renamed the stat. !}
+                                     mobile → centred on the viewport, capped at 95vw; sm+ → anchored, capped at
+                                     max-w-sm. The description is the STAT's meaning, so it stays the catalogue
+                                     text however the user has renamed the stat.
+                                     `w-max` (not `w-[95vw]`) on mobile too: 95vw as the WIDTH made every bubble
+                                     that wide whatever it held, so a description that wrapped one word onto a
+                                     second line left the rest of that line blank inside the bubble. Sized to the
+                                     content and capped at 95vw, it wraps at the same point and stops there. !}
                                 <span id="stats-field-desc-{choice.key}" role="tooltip"
-                                      class="app-tooltip bottom-full mb-1.5 left-1/2 -translate-x-1/2 w-[95vw] max-w-[95vw] sm:left-0 sm:translate-x-0 sm:w-max sm:max-w-sm">{choice.description}</span>
+                                      class="app-tooltip bottom-full mb-1.5 left-1/2 -translate-x-1/2 w-max max-w-[95vw] sm:left-0 sm:translate-x-0 sm:max-w-sm">{choice.description}{#if choice.mandatory}
+                                    {! The mandatory stat's "always shown" note lives HERE, on its own last line,
+                                         rather than beside the caption: as a row element it took a fixed slice of
+                                         the row's width off the caption, which truncated "Last performed" to
+                                         nothing on a phone. It is the answer to "why can't I switch this one off?",
+                                         so it belongs with the rest of the row's explanation. !}
+                                    <span class="block mt-1 text-ink-muted">Always shown</span>{/if}</span>
                             </span>
 
                             {! Rename editor — the caption's SIBLING in the same flex slot, not a separate
@@ -676,17 +729,12 @@
                                    maxlength="{inject:textFields.statName.maxLength}"
                                    aria-label="Custom name for the '{choice.defaultLabel}' stat">
 
-                            {#if choice.mandatory}
-                            {! Hidden while renaming so the input gets the full row width. !}
-                            <span class="stats-field-always shrink-0 text-xs text-ink-muted ml-auto">Always shown</span>
-                            {/if}
-
                             {! One actions slot for both modes: Rename (read) and Save (edit) render in the
                                  SAME position, with Cancel appearing beside Save — the slot reserves the
                                  width of both buttons so nothing moves as the row flips. Mirrors the
                                  data-table row actions (partials/dt-row-actions.html), which pairs
                                  Edit/Save and Delete/Cancel the same way. !}
-                            <div class="stats-field-actions dt-actions settings-field-actions shrink-0{#if !choice.mandatory} ml-auto{/if}">
+                            <div class="stats-field-actions dt-actions settings-field-actions shrink-0 ml-auto">
                                 <button type="button" class="stats-field-rename-btn dt-btn dt-btn-edit"
                                         aria-label="Rename the '{choice.defaultLabel}' stat">Rename</button>
                                 <button type="button" class="stats-field-save-btn dt-btn dt-btn-save hidden">Save</button>
