@@ -11,6 +11,10 @@
   comes with it) could only produce a value the server would reject. The field then still exists —
   hidden — because it is what carries the id, the form field name and the hx-patch.
 
+  The two toggle rows in Settings (Statistics Summary, Character count) are laid out to match this one
+  by hand rather than through this partial: their control is a single switch with no presets or
+  stepper, so there is nothing to parameterise. Keep the two shapes in step.
+
   Params (all required):
     rowId      — id of the row wrapper
     id         — the number field's id AND form field name (the PATCH endpoint reads this @FormParam)
@@ -25,37 +29,43 @@
     plusLabel  — aria-label for the + stepper button (unused when stepper=false)
     border     — true to add a bottom divider (between rows), false on the last row
 !}
+{! Two columns, not three stacked rows: the label and its help line on the left, the pills and the
+     stepper beneath them on the right. The stepper therefore sits DIRECTLY under the pills that write
+     the same field, instead of being pushed a line further down by a full-width help line between them.
+     The left column is `min-w-0` so the help text wraps into as many lines as it needs; the right one
+     is `shrink-0` so the controls are never squashed and the pills stay on one line. !}
 <div id="{rowId}" class="py-4{#if border} border-b border-line{/if}">
-    <div class="flex items-center justify-between gap-4">
-        <label for="{id}" class="block text-sm font-medium text-ink shrink-0">{label}</label>
-        {! Preset quick-picks (primary selection), right-aligned next to the label;
-             wrap on narrow screens for mobile compactness. !}
-        <div id="{id}Presets" class="flex flex-wrap justify-end gap-1.5">
-            {#for option in options}
-            <button type="button" class="num-pref-pill" data-value="{option}" aria-pressed="false">{option}</button>
-            {/for}
+    <div class="flex justify-between gap-4">
+        <div class="min-w-0">
+            <label for="{id}" class="block text-sm font-medium text-ink">{label}</label>
+            {#if help}<p class="help-text mt-1">{help}</p>{/if}
         </div>
-    </div>
-    {! The help line gets the full row width of its own, rather than sharing the label's column: beside
-         the pills it would compete with them for space and push the last pill onto a second line. !}
-    {#if help}<p class="help-text mt-1">{help}</p>{/if}
-    {#if stepper}
-    {! Custom fine-tune stepper, right-aligned on its own row under the presets. !}
-    <div class="mt-3 flex justify-end">
-        <div class="num-pref-stepper shrink-0">
-            <button type="button" id="{id}Minus" class="num-pref-stepper-btn" aria-label="{minusLabel}">
-                {#include partials/icon name='minus' cls='w-3.5 h-3.5' /}
-            </button>
-            <input type="number" id="{id}" name="{id}" min="{min}" max="{max}" value="{value}"
-                   inputmode="numeric" aria-label="{label}" class="num-pref-value"
+        <div class="shrink-0">
+            {! Preset quick-picks (primary selection), right-aligned next to the label. !}
+            <div id="{id}Presets" class="flex flex-wrap justify-end gap-1.5">
+                {#for option in options}
+                <button type="button" class="num-pref-pill" data-value="{option}" aria-pressed="false">{option}</button>
+                {/for}
+            </div>
+            {#if stepper}
+            {! Custom fine-tune stepper, right-aligned directly under the presets. !}
+            <div class="mt-2 flex justify-end">
+                <div class="num-pref-stepper shrink-0">
+                    <button type="button" id="{id}Minus" class="num-pref-stepper-btn" aria-label="{minusLabel}">
+                        {#include partials/icon name='minus' cls='w-3.5 h-3.5' /}
+                    </button>
+                    <input type="number" id="{id}" name="{id}" min="{min}" max="{max}" value="{value}"
+                           inputmode="numeric" aria-label="{label}" class="num-pref-value"
+                           hx-patch="{endpoint}" hx-trigger="save" hx-swap="none">
+                    <button type="button" id="{id}Plus" class="num-pref-stepper-btn" aria-label="{plusLabel}">
+                        {#include partials/icon name='plus' cls='w-3.5 h-3.5' /}
+                    </button>
+                </div>
+            </div>
+            {#else}
+            <input type="hidden" id="{id}" name="{id}" value="{value}"
                    hx-patch="{endpoint}" hx-trigger="save" hx-swap="none">
-            <button type="button" id="{id}Plus" class="num-pref-stepper-btn" aria-label="{plusLabel}">
-                {#include partials/icon name='plus' cls='w-3.5 h-3.5' /}
-            </button>
+            {/if}
         </div>
     </div>
-    {#else}
-    <input type="hidden" id="{id}" name="{id}" value="{value}"
-           hx-patch="{endpoint}" hx-trigger="save" hx-swap="none">
-    {/if}
 </div>

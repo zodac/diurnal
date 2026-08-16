@@ -847,6 +847,14 @@ document.addEventListener('click', function (e) {
     document.addEventListener('pointerup', cancel, true)
     document.addEventListener('pointercancel', cancel, true)
 
+    // A scroll is never a long press. `pointermove` above disarms the timer when the FINGER moves, but a
+    // touch that rests on a host while the page scrolls under it (a flick handed over to momentum, a
+    // scroll started elsewhere, a browser that stops reporting moves once it takes the gesture over as a
+    // scroll) leaves the timer running and pops the bubble open mid-scroll. Cancel on the scroll itself,
+    // and dismiss anything already open. Capture, because the scroll event does not bubble from a
+    // scrolling ancestor; passive, because nothing here is prevented.
+    document.addEventListener('scroll', function () { cancel(); closeTip() }, { capture: true, passive: true })
+
     // Swallow the click a long-press would otherwise trigger. Capture + stopImmediatePropagation so
     // it never reaches the element's own (htmx / link / colour-input) handler.
     document.addEventListener('click', function (e) {

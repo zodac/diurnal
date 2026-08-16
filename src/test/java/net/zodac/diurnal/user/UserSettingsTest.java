@@ -95,10 +95,17 @@ class UserSettingsTest {
     }
 
     @Test
-    void pageSizeOptions_containsExactlyFiveValues() {
+    void pageSizeOptions_containsExactlyFourValues() {
         assertThat(UserSettings.PAGE_SIZE_OPTIONS.size())
             .as("unexpected value")
-            .isEqualTo(5);
+            .isEqualTo(4);
+    }
+
+    @Test
+    void pageSizeOptions_areAllValidPageSizes() {
+        assertThat(UserSettings.PAGE_SIZE_OPTIONS)
+            .as("every offered preset must be an accepted page size")
+            .allMatch(UserSettings::isValidPageSize);
     }
 
     @Test

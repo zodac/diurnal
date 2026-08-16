@@ -68,9 +68,16 @@ mvn package
 .github/scripts/lint_and_tests.sh java,shellcheck # multiple steps, comma-separated
 .github/scripts/lint_and_tests.sh -v java         # stream full output (default hides it, prints on fail)
 .github/scripts/lint_and_tests.sh java:qodana     # ONE tier of a step: step:substep (see below)
-# Valid steps: docker, grype, java, javascript, markdown, perf, shellcheck, typescript
-# Substeps (only `java` has any): java:mvn, java:e2e, java:smoke, java:qodana — a bare `java` runs all
-# four; `java:e2e` alone reuses the fast-jar, so package it first (`java:mvn,java:e2e`).
+# Valid steps: docker, java, javascript, markdown, perf, shellcheck, typescript
+# Substeps (`docker` and `java` have them): docker:hadolint, docker:grype; java:mvn, java:e2e, java:smoke,
+# java:qodana — a bare step runs all of its tiers. `java:e2e` alone reuses the fast-jar, so package it
+# first (`java:mvn,java:e2e`).
+# The `docker` step is the whole Docker gate: hadolint over the Dockerfiles (seconds) AND the production
+# runtime image's build + grype CVE scan (minutes), run in parallel with each other. Auto-detection scopes
+# it to the tier the change touched (a docker-compose edit → `docker:hadolint`, a dependency bump →
+# `docker:grype`), so use `docker:hadolint` when iterating on a Dockerfile rather than paying for the scan.
+# A `docker` step carrying the scan runs AFTER the java step rather than alongside it, so its image build
+# is a cache hit off the smoke tier's identical one.
 # Prerequisite for the java step: cd tests && npx playwright install
 
 # The Qodana whole-program analysis is a TIER of the `java` gate above (in parallel with the Maven/E2E/
@@ -133,7 +140,8 @@ docker compose logs -f app
 > directly**, and **scope it to the step you touched**: `… java` after ANY Java/template/CSS/UI-spec/Dockerfile
 > change, `… shellcheck` after a `*.sh` edit, `… markdown` after docs, etc. (comma-separate to combine; bare =
 > auto-detect changed steps; `-v` streams output; `-f`/`--force` runs everything; `step:substep` narrows a step to
-> one of its tiers, which today means `java:mvn`/`java:e2e`/`java:smoke`/`java:qodana`). The `java` step **is** the
+> one of its tiers, which today means `docker:hadolint`/`docker:grype` and
+> `java:mvn`/`java:e2e`/`java:smoke`/`java:qodana`). The `java` step **is** the
 > whole JVM gate — `mvn clean install -Dall` (unit + `*IT` + linters) then, only if green, the E2E tier,
 > with the deployment-smoke and Qodana tiers running in parallel alongside them. **The Maven build is unit + `*IT` (+ linters) ONLY; E2E/smoke/perf are chained onto
 > the wrapper's steps, never in any `mvn` command — do not re-add them to the pom.** Full tier detail:
@@ -324,7 +332,9 @@ for the same window and feed `currentPage() - 1` to Panache's `Page.of`. A publi
 `totalPages()` - it REJECTS an out-of-range page instead of taking the clamp (surface policy, marked as such at each API resource).
 
 Page size is a per-user setting: the picker offers
-`{5, 10, 25, 50, 100}` (default `5`), but any whole number in `[MIN_PAGE_SIZE, MAX_PAGE_SIZE]` is accepted, parsed and range-checked in ONE pass by
+`{5, 10, 25, 50}` (default `5`; `MAX_PAGE_SIZE` is deliberately not a preset - five pills plus the per-section rows' "Default" pill do not fit one
+line of a phone-width card, and it stays reachable through the stepper), but any whole number in `[MIN_PAGE_SIZE, MAX_PAGE_SIZE]` is accepted, parsed
+and range-checked in ONE pass by
 `UserSettings.parsePageSize()` - an out-of-range value is rejected, never coerced. `PaginatedDayActions` adds filler rows to keep every page the same
 height.
 

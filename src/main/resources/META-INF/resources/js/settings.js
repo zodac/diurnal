@@ -789,9 +789,6 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
         row.querySelector('.stats-field-rename-btn').classList.toggle('hidden', editing)
         row.querySelector('.stats-field-save-btn').classList.toggle('hidden', !editing)
         row.querySelector('.stats-field-cancel-btn').classList.toggle('hidden', !editing)
-        // The mandatory row's "Always shown" note steps aside so the editor gets the full width.
-        const always = row.querySelector('.stats-field-always')
-        if (always) {always.classList.toggle('hidden', editing)}
         row.classList.toggle('settings-field-edit', editing)
     }
 
@@ -888,6 +885,17 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
     }
     list.addEventListener('pointerup', endPress)
     list.addEventListener('pointercancel', endPress)
+
+    // A scroll is never a long press. `pointermove` above already disarms the timer when the FINGER
+    // moves, but a touch that rests on a row while the page scrolls under it (a flick handed over to
+    // momentum, a scroll started elsewhere, a browser that stops reporting moves once it takes the
+    // gesture over as a scroll) leaves the timer running and pops the description open mid-scroll.
+    // Cancel on the scroll itself, and dismiss anything already open. Capture, because the scroll
+    // event does not bubble from a scrolling ancestor; passive, because nothing here is prevented.
+    window.addEventListener('scroll', function () {
+        if (tipTimer) { clearTimeout(tipTimer); tipTimer = null }
+        closeTips()
+    }, { capture: true, passive: true })
 
     list.addEventListener('click', function (e) {
         // The rename controls are checked BEFORE the keyboard guard below, so they work with Enter/space too.

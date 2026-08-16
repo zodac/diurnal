@@ -127,7 +127,7 @@ test.describe("Settings page", () => {
         await page.goto("/settings")
         const values = await page.locator("#pageSizePresets .num-pref-pill").evaluateAll(pills =>
             pills.map(p => (p as HTMLElement).dataset.value))
-        expect(values).toEqual(["5", "10", "25", "50", "100"])
+        expect(values).toEqual(["5", "10", "25", "50"])
     })
 
     test("change decimal places to 2 via preset pill persists", async ({ authenticatedPage: page }) => {

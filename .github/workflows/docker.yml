@@ -24,5 +24,8 @@ jobs:
         with:
           submodules: true
 
+      # The lint TIER of the `docker` step, not the whole step: the step's other tier builds the production
+      # runtime image and scans it for CVEs, which is minutes of work this job has no room (or cache) for.
+      # That tier runs in the release gate (publish.yml) and the monthly bump, where the image is built anyway.
       - name: Lint Dockerfiles with Hadolint
-        run: .github/scripts/lint_and_tests.sh docker -v
+        run: .github/scripts/lint_and_tests.sh docker:hadolint -v

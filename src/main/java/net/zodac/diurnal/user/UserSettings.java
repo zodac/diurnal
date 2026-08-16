@@ -39,7 +39,10 @@ public final class UserSettings {
     public static final int DEFAULT_PAGE_SIZE = 5;
 
     // Presets offered in the picker; a user may also enter any value in [MIN_PAGE_SIZE, MAX_PAGE_SIZE].
-    public static final List<Integer> PAGE_SIZE_OPTIONS = List.of(5, 10, 25, 50, 100);
+    // MAX_PAGE_SIZE itself is deliberately NOT among them: five pills plus the per-section rows' extra
+    // "Default" pill no longer fit on one line of a phone-width Settings card, and the widest of them was
+    // the least useful (a 100-row page is a scroll, not a page). It stays reachable through the stepper.
+    public static final List<Integer> PAGE_SIZE_OPTIONS = List.of(5, 10, 25, 50);
     private static final int MIN_PAGE_SIZE = 1;
     private static final int MAX_PAGE_SIZE = 100;
     // User-facing rejection message when an out-of-range or non-numeric page size is submitted.

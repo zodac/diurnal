@@ -44,7 +44,7 @@ public enum PageSection {
     /**
      * The dashboard's day panel, listing the selected day's actions.
      */
-    DASHBOARD("dashboard", "Dashboard actions", false),
+    DASHBOARD("dashboard", "Dashboard", false),
 
     /**
      * The {@code /actions} page (and its API twin).

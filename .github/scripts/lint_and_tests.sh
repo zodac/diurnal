@@ -15,6 +15,9 @@
 #                  `step:substep` (see "Substeps" below); a bare step name runs all of
 #                  them. Entries combine, so `java:mvn,java:qodana` runs those two tiers
 #                  and nothing else, and `java,markdown` is the whole gate plus markdown.
+#                  Auto-detection narrows a step the same way when only one of its tiers is
+#                  affected, so a docker-compose edit selects `docker:hadolint` rather than
+#                  the whole Docker gate.
 #
 #                  -v, --verbose
 #                    Show each step's full output. Off by default: steps print only a
@@ -39,18 +42,21 @@
 #                    CANCELLED (their result is unknown), separately from the step that actually failed.
 #
 #                  Execution order (see LANE_STEPS):
-#                    The lane-eligible steps - every linter plus `java` - run CONCURRENTLY, so the
-#                    linters' runtime disappears inside the multi-minute JVM gate. `grype` and `perf`
-#                    then run serially afterwards: grype builds the production runtime image that the
-#                    java step's smoke tier also builds (serial = a cache hit, concurrent = built twice),
-#                    and perf MEASURES the application, so anything else running invalidates its numbers.
-#                    The Qodana scan is a TIER of `java`, not a step beside it, so it rides that step's own
-#                    parallelism rather than the lane machinery.
+#                    The lane-eligible steps - every linter (`docker` only while it is scoped to its
+#                    hadolint tier) plus `java` - run CONCURRENTLY, so the
+#                    linters' runtime disappears inside the multi-minute JVM gate. A `docker` step
+#                    including its grype substep, and `perf`, then run serially afterwards: the scan builds
+#                    the production runtime image that the java step's smoke tier also builds (serial = a
+#                    cache hit, concurrent = built twice), and perf MEASURES the application, so anything
+#                    else running invalidates its numbers. The Qodana scan is a TIER of `java`, not a step
+#                    beside it, so it rides that step's own parallelism rather than the lane machinery -
+#                    as do the two Docker checks, which run in parallel with each other inside `docker`.
 #                    Selecting a single lane-eligible step skips the machinery and runs it inline.
 #
 #                  Valid steps:
-#                    - docker      Lint the Dockerfiles with hadolint
-#                    - grype       Build the runtime image and scan it for CVEs with grype
+#                    - docker      The Docker gate, in two tiers run CONCURRENTLY: hadolint over the
+#                                  Dockerfiles (seconds) and a build-and-scan CVE pass over the production
+#                                  runtime image with grype (minutes), so the lint costs nothing beside it
 #                    - java        The full JVM gate: mvn clean install -Dall (unit + *IT + linters),
 #                                  the Playwright E2E/UI suite, the deployment-smoke suite, and the Qodana
 #                                  whole-program analysis — the smoke and Qodana tiers run in parallel with
@@ -64,9 +70,13 @@
 #                    - typescript  Lint TypeScript files with eslint
 #
 #                  Substeps (see STEP_SUBSTEPS):
-#                    Only `java` has any, because it is the only step made of separable tiers. Naming
-#                    one runs THAT TIER ALONE, which is what you want when iterating on the thing it
+#                    `docker` and `java` have them, being the steps made of separable tiers. Naming one
+#                    runs THAT TIER ALONE, which is what you want when iterating on the thing it
 #                    checks rather than re-paying for the whole gate:
+#                    - docker:hadolint  lint Dockerfile + sandbox/Dockerfile with hadolint. Seconds, and
+#                                       the only tier a docker-compose or hadolint-config change needs
+#                    - docker:grype     build the production runtime image and scan it for CVEs. Minutes,
+#                                       and the reason a whole `docker` step no longer runs in the lanes
 #                    - java:mvn     mvn clean install -Dall (unit + *IT + linters); packages the fast-jar
 #                    - java:e2e     the Playwright E2E/UI suite (tests/run-e2e.sh). REUSES the fast-jar,
 #                                   so target/quarkus-app must already exist - run `java:mvn` first, or
@@ -87,7 +97,8 @@
 #                    ./lint_and_tests.sh -v java
 #                    ./lint_and_tests.sh java:qodana
 #                    ./lint_and_tests.sh java:mvn,java:e2e
-#                    ./lint_and_tests.sh grype
+#                    ./lint_and_tests.sh docker:hadolint
+#                    ./lint_and_tests.sh docker:grype
 #
 # Requirements:
 #   - Docker must be installed and available on the system PATH
@@ -101,9 +112,10 @@
 #     production image and brings up an isolated app+DB stack). The `mvn` gate itself stays unit + ITs +
 #     linters; the E2E and smoke tiers are deliberately NOT in the Maven build — they are chained into
 #     this step instead, so a single `java` run is the whole JVM-side gate.
-#   - The `grype` step builds the production runtime image and scans it, so it needs a Docker daemon
-#     the current user can build with; the scan runs from the grype image with the Docker
-#     socket mounted so it can read that just-built local image.
+#   - The `docker` step's grype tier builds the production runtime image and scans it, so it needs a Docker
+#     daemon the current user can build with; the scan runs from the grype image with the Docker
+#     socket mounted so it can read that just-built local image. Its hadolint tier needs nothing but the
+#     shared config in the submodule, and runs alongside it.
 #
 # Exit Codes:
 #   - 0: All linting and tests passed successfully
@@ -172,7 +184,8 @@ SHELLCHECK_DOCKER_IMAGE="koalaman/shellcheck:v0.11.0"
 # update_dependency_versions.sh bumps both together, so neither is edited by hand.
 QODANA_DOCKER_IMAGE="jetbrains/qodana-jvm-community:2026.2@sha256:8ff36b5cebc0a6d720f77dcf3e0a94a03c39b4c42c3724a99ce5f7e462e42f99"
 
-# The runtime image the grype step builds and scans (the same final stage the published image uses).
+# The runtime image the docker step's grype tier builds and scans (the same final stage the published
+# image uses).
 DIURNAL_RUNTIME_IMAGE="zodac/diurnal:latest"
 
 # Named Docker volume that persists grype's vulnerability DB between runs (mounted into the scanner
@@ -201,18 +214,21 @@ QODANA_OVERRIDES_DIR="${QODANA_CONFIG_DIR}/overrides"
 QODANA_PROFILE_FILE="${QODANA_CONFIG_DIR}/profiles/java.yaml"
 QODANA_IDEA_DIR="${QODANA_WORK_DIR}/idea-config"
 
-VALID_STEPS=("docker" "grype" "java" "javascript" "markdown" "perf" "shellcheck" "typescript")
+VALID_STEPS=("docker" "java" "javascript" "markdown" "perf" "shellcheck" "typescript")
 
-# The substeps each step can be narrowed to with `step:substep`, in the order they are reported. Only
-# `java` has any: it is the one step made of tiers that are separately meaningful (and separately
-# expensive), so it is the one place scoping saves real minutes. The Qodana scan is one of them rather
-# than a step of its own - it is a Java lint over the same sources as the rest of the gate, so a bare
-# `java` must include it, and `java:qodana` is how you run only the scan.
+# The substeps each step can be narrowed to with `step:substep`, in the order they are reported. `docker`
+# and `java` have them: they are the steps made of tiers that are separately meaningful (and separately
+# expensive), so they are where scoping saves real minutes. Both follow the same rule - a tier that checks
+# the same subject matter as the rest of the step belongs INSIDE it rather than beside it, so a bare step
+# name is the whole gate for that subject and `step:substep` is how you run one tier of it. Hence the
+# Qodana scan is a substep of `java` (a Java lint over the same sources as the rest of the gate) and the
+# CVE scan is a substep of `docker` (it scans the image the linted Dockerfile builds).
 #
 # A step absent from here has no substeps, and `step:anything` is rejected for it. Adding some is this
 # entry plus the branching inside that step's run_* function; everything else (parsing, validation, the
 # re-run hints, the lane machinery) is driven from this table.
 declare -A STEP_SUBSTEPS=(
+    [docker]="hadolint grype"
     [java]="mvn e2e smoke qodana"
 )
 
@@ -504,10 +520,11 @@ EOF
     fi
 }
 
-run_docker() {
-    echo
-    echo "Running Dockerfile lint using [${HADOLINT_DOCKER_IMAGE}]"
-    docker pull "${HADOLINT_DOCKER_IMAGE}" >/dev/null
+# Tier 1 of the `docker` step: hadolint over both Dockerfiles. Prints its findings and returns its exit
+# code, leaving the timing and the pass/fail summary to run_docker - which is what lets it be run in the
+# background beside the scan without either of them reporting on the step as a whole.
+run_hadolint_tier() {
+    local output
     if output=$(docker run --rm \
         -v "${PWD}":/app \
         -w /app \
@@ -515,26 +532,20 @@ run_docker() {
         hadolint --config code-quality-config/docker/.hadolint.yaml \
         Dockerfile sandbox/Dockerfile 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
-        local done_in
-        done_in="$(step_time)"
-        echo "✅ Dockerfile lint passed, finished in ${GREEN}${done_in}${RESET}"
-    else
-        # hadolint reports findings as JSON, so pretty-print them - but fall back to the raw text when
-        # the output is not JSON at all. It often isn't: a docker-level failure (daemon down, image pull
-        # refused) writes a plain error here, and piping that straight into jq replaced the one line
-        # explaining the failure with a parse error about it.
-        echo "${output}" | jq . 2>/dev/null || echo "${output}"
-        local done_in
-        done_in="$(step_time)"
-        echo "❌ Dockerfile lint failed after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v docker'${RESET} for the full output"
-        overall_exit_code=1
+        return 0
     fi
+
+    # hadolint reports findings as JSON, so pretty-print them - but fall back to the raw text when
+    # the output is not JSON at all. It often isn't: a docker-level failure (daemon down, image pull
+    # refused) writes a plain error here, and piping that straight into jq replaced the one line
+    # explaining the failure with a parse error about it.
+    echo "${output}" | jq . 2>/dev/null || echo "${output}"
+    return 1
 }
 
-run_grype() {
-    echo
-    echo "Building [${DIURNAL_RUNTIME_IMAGE}] and scanning it with Grype [${GRYPE_DOCKER_IMAGE}]"
-
+# Tier 2 of the `docker` step: build the production runtime image and scan it for CVEs. Returns its exit
+# code (0 = clean), same contract as the hadolint tier above.
+run_grype_tier() {
     # Build the production runtime image from the same multi-stage Dockerfile the published image uses,
     # so Grype scans exactly what ships: the distroless base OS packages, the jlink JRE, the busybox
     # wget binary and the Quarkus app's bundled Java dependency jars. The css/icons build stages only
@@ -574,27 +585,128 @@ run_grype() {
         "${grype_config_args[@]}"
         "${DIURNAL_RUNTIME_IMAGE}")
 
-    # Two substeps — build then scan — each with a progress line (even non-verbose) and its output
+    # Two phases — build then scan — each with a progress line (even non-verbose) and its output
     # captured until it fails (run_quietly). The scan is slow and, on a cold DB, downloads ~1.6GB, so
     # the progress lines matter; -v streams both live. Both paths share the command arrays above.
-    local done_in
     substep "docker build ${DIURNAL_RUNTIME_IMAGE}  (production runtime image)"
     if ! run_quietly "${build_cmd[@]}"; then
-        done_in="$(step_time)"
-        echo "❌ Grype scan failed after ${RED}${done_in}${RESET} (could not build ${DIURNAL_RUNTIME_IMAGE}): re-run ${YELLOW}'${SCRIPT_PATH} -v grype'${RESET} for the full output"
-        overall_exit_code=1
-        return
+        echo "   The production runtime image could not be built, so nothing was scanned."
+        return 1
     fi
 
     docker pull "${GRYPE_DOCKER_IMAGE}" >/dev/null
 
     substep "grype scan ${DIURNAL_RUNTIME_IMAGE}  (CVE scan via ${GRYPE_DOCKER_IMAGE})"
-    if run_quietly "${grype_cmd[@]}"; then
-        done_in="$(step_time)"
-        echo "✅ Grype scan passed, finished in ${GREEN}${done_in}${RESET}"
+    run_quietly "${grype_cmd[@]}"
+}
+
+# The Docker gate, in two tiers - each of them also a SUBSTEP, so either can be selected on its own
+# (`docker:hadolint`, `docker:grype`):
+#   1. hadolint over Dockerfile + sandbox/Dockerfile. Seconds, and the tier a docker-compose or
+#      hadolint-config change needs on its own.
+#   2. build the production runtime image and scan it for CVEs with grype. Minutes, and on a cold
+#      vulnerability DB several more.
+#
+# They share the subject matter - the Dockerfile one lints is the Dockerfile the other builds - and
+# NOTHING else: neither reads the other's output, they pull different images and the scan builds into the
+# daemon rather than the working tree. So they run CONCURRENTLY and the step costs max(hadolint, grype)
+# rather than their sum, which in practice is the scan's runtime with the lint free inside it.
+#
+# The scan runs in the FOREGROUND and the lint in the background, not the other way round: the scan is the
+# long, chatty tier whose per-phase progress lines (and, under -v, whose whole output) are the only
+# feedback the step gives while it runs, and two live streams interleave line-by-line into something
+# neither readable nor greppable (the same reason run_supervised_tier never streams the smoke tier). The
+# lint's output is a handful of lines, captured and replayed at the join.
+#
+# Unlike the java gate's tiers, neither tier stops the other when it fails: both results are reported. The
+# asymmetry is the point - by the time a hadolint finding could stop the scan the lint is already over, so
+# stopping saves nothing, while killing a `docker build`/`docker run` client mid-flight leaves the daemon
+# doing the work (the problem qodana_stop_container exists to solve) for no gain. Two findings reported
+# together also cost one re-run rather than two.
+run_docker() {
+    # Which of the two tiers this invocation covers. Both unless it was narrowed to a substep; every
+    # launch, join and report below is gated on these, so a scoped run pays for nothing it did not ask for.
+    local run_hadolint=false run_grype=false
+    runs_substep docker hadolint && run_hadolint=true
+    runs_substep docker grype && run_grype=true
+
+    # Named in tier order for the opening and summary lines, so a scoped run says which tiers it is.
+    local invocation tier_list=""
+    invocation="$(step_invocation docker)"
+    [[ "${run_hadolint}" == true ]] && tier_list+=" + hadolint"
+    [[ "${run_grype}" == true ]] && tier_list+=" + grype"
+    tier_list="${tier_list# + }"
+
+    echo
+    echo "Running the Docker gate [${invocation}]: ${tier_list}"
+
+    TIMED_SUBSTEPS=()
+
+    # Tier 1, launched first and joined at the end. It stamps its OWN finish time into an end-stamp file,
+    # because nothing polls for it: timed at the join it would be credited with every minute the scan was
+    # still running, and a two-second lint would report as the longer of the two tiers (the same trap the
+    # java gate's Qodana tier documents at its launch).
+    local hadolint_pid="" hadolint_log="" hadolint_end_file="" hadolint_start_ns="" hadolint_rc=""
+    if [[ "${run_hadolint}" == true ]]; then
+        hadolint_log="$(mktemp)"
+        hadolint_end_file="$(mktemp)"
+        hadolint_start_ns="$(date +%s%N)"
+        substep "hadolint  (Dockerfile, sandbox/Dockerfile via ${HADOLINT_DOCKER_IMAGE})"
+        # The pull is inside the background tier so the scan is never held behind a download that has
+        # nothing to do with it, and its result is ignored exactly as it always was: an image already
+        # present locally lints fine with no registry at all.
+        (
+            {
+                docker pull "${HADOLINT_DOCKER_IMAGE}" >/dev/null || true
+                run_hadolint_tier
+            } > "${hadolint_log}" 2>&1
+            hadolint_tier_rc=$?
+            date +%s%N > "${hadolint_end_file}"
+            exit "${hadolint_tier_rc}"
+        ) &
+        hadolint_pid=$!
+    fi
+
+    # Tier 2, in the foreground so its progress lines (and, under -v, its output) stream live.
+    local grype_rc="" grype_start_ns
+    if [[ "${run_grype}" == true ]]; then
+        grype_start_ns="$(date +%s%N)"
+        grype_rc=0
+        run_grype_tier || grype_rc=$?
+        record_substep_time "grype" "${grype_start_ns}" "${grype_rc}"
+    fi
+
+    # Join tier 1. Its captured output is printed when it failed (or under -v), and only then - a clean
+    # lint says nothing, like every other quiet step.
+    if [[ -n "${hadolint_pid}" ]]; then
+        hadolint_rc=0
+        wait "${hadolint_pid}" || hadolint_rc=$?
+        # The tier's own stamp (see its launch), not this moment. Empty only if it died before it could
+        # write one, in which case the join time is used - an upper bound, but a figure rather than a blank.
+        local hadolint_end_ns=""
+        [[ -s "${hadolint_end_file}" ]] && hadolint_end_ns="$(< "${hadolint_end_file}")"
+        record_substep_time "hadolint" "${hadolint_start_ns}" "${hadolint_rc}" "${hadolint_end_ns}"
+        if [[ "${hadolint_rc}" != "0" || "${VERBOSE}" == true ]] && [[ -s "${hadolint_log}" ]]; then
+            cat "${hadolint_log}"
+        fi
+        rm -f "${hadolint_log}" "${hadolint_end_file}"
+    fi
+
+    # Every failing tier is named, not just the first: both ran to completion, so both answers are known.
+    # String comparisons, not -eq: an empty value compares equal to 0 in bash's arithmetic context, so a
+    # tier whose exit code was somehow never captured would be reported as a pass.
+    local failed_tiers=""
+    [[ -n "${hadolint_rc}" && "${hadolint_rc}" != "0" ]] && failed_tiers+=" + hadolint"
+    [[ -n "${grype_rc}" && "${grype_rc}" != "0" ]] && failed_tiers+=" + grype"
+    failed_tiers="${failed_tiers# + }"
+
+    local done_in breakdown
+    done_in="$(step_time)"
+    breakdown="$(substep_breakdown)"
+    if [[ -z "${failed_tiers}" ]]; then
+        echo "✅ Docker gate [${invocation}] passed (${tier_list}), finished in ${GREEN}${done_in}${RESET}${breakdown}"
     else
-        done_in="$(step_time)"
-        echo "❌ Grype scan failed after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v grype'${RESET} for the full output"
+        echo "❌ Docker gate [${invocation}] failed at [${failed_tiers}] after ${RED}${done_in}${RESET}${breakdown}: re-run ${YELLOW}'${SCRIPT_PATH} -v ${invocation}'${RESET} for the full output"
         overall_exit_code=1
     fi
 }
@@ -1469,16 +1581,18 @@ run_shellcheck() {
 # over the working tree (no host port, no database, no build output, seconds to a couple of minutes) or the
 # multi-minute `java` gate. Run together, the linters' runtime disappears entirely inside the gate's.
 #
-# `grype` and `perf` are deliberately NOT lane-eligible:
-#   - grype builds the production runtime image, which the java step's smoke tier also builds from the same
-#     Dockerfile with the same GENERATE_PREVIEWS=false. Run after it, that build is a cache hit (the whole
-#     point of the note in run_grype); run alongside it, both start cold and the image is built twice.
+# `perf` is deliberately NOT lane-eligible, and `docker` only conditionally so (see lane_eligible):
 #   - perf MEASURES the application - cold-boot latency, post-boot RSS, k6 latency thresholds. Its ports are
 #     disjoint from everything else, so the problem is not a clash but CONTENTION: a machine also running
 #     PITest, Chromium and a multi-stage Docker build makes every threshold a coin flip. It runs alone.
+#   - docker's grype tier builds the production runtime image, which the java step's smoke tier also builds
+#     from the same Dockerfile with the same GENERATE_PREVIEWS=false. Run after it, that build is a cache
+#     hit (the whole point of the note in run_grype_tier); run alongside it, both start cold and the image
+#     is built twice. So the step joins the lanes only when that tier is not selected - lane_eligible, not
+#     this list, is the final answer for it.
 #   - qodana is not listed because it is not a step at all: the `java` gate runs it as a parallel tier (see
-#     run_java), and `java:qodana` scopes that gate down to it. Lane eligibility is a property of the STEP,
-#     so a substep-scoped `java` is lane-eligible exactly as the whole gate is.
+#     run_java), and `java:qodana` scopes that gate down to it. Lane eligibility is otherwise a property of
+#     the STEP, so a substep-scoped `java` is lane-eligible exactly as the whole gate is.
 LANE_STEPS=("docker" "java" "javascript" "markdown" "shellcheck" "typescript")
 
 # True when ${1} appears in the remaining arguments.
@@ -1490,6 +1604,18 @@ lane_contains() {
         [[ "${item}" == "${needle}" ]] && return 0
     done
     return 1
+}
+
+# True when ${1} may run in the parallel phase. LANE_STEPS is the base answer; `docker` qualifies it,
+# because only half of that step is lane-safe. `docker:hadolint` is a seconds-long `docker run` over the
+# working tree and rides the lanes exactly as the whole step used to, while its grype tier builds the image
+# the java gate's smoke tier builds (see LANE_STEPS) and so belongs in the serial tail, where that build is
+# a cache hit rather than a second cold one. Nothing is serialised that need not be: the hadolint tier still
+# runs in parallel INSIDE the step, alongside the scan that put it there.
+lane_eligible() {
+    lane_contains "${1}" "${LANE_STEPS[@]}" || return 1
+    [[ "${1}" == "docker" ]] && runs_substep docker grype && return 1
+    return 0
 }
 
 # Signal a still-running lane's whole process group and wait for it to go. TERM to the GROUP (the leading
@@ -1662,7 +1788,12 @@ detect_changed_steps() {
 
     echo "Checking changes since tag [${latest_tag}]..." >&2
 
-    local run_docker=false run_grype=false run_java=false run_javascript=false run_markdown=false run_shellcheck=false run_typescript=false
+    # The two `docker` tiers are detected SEPARATELY and the step is emitted scoped to whichever of them the
+    # change actually touched (see the emission at the end). Their triggers overlap only on the runtime
+    # Dockerfile itself: a docker-compose or hadolint-config edit needs the lint alone, and a dependency
+    # bump the scan alone - so merging them into one trigger would make every hadolint-only change pay for
+    # a multi-stage image build and a CVE scan, which is minutes for nothing.
+    local run_hadolint=false run_grype=false run_java=false run_javascript=false run_markdown=false run_shellcheck=false run_typescript=false
     local run_perf=false
     local java_changed_files=()
     # Perf's own inputs (the k6 scripts, the runner, the perf compose stack). A change to any of these
@@ -1672,7 +1803,7 @@ detect_changed_steps() {
 
     while IFS= read -r file; do
         [[ -z "${file}" ]] && continue
-        [[ "${file}" == "Dockerfile" || "${file}" =~ ^sandbox/Dockerfile || "${file}" == ".dockerignore" || "${file}" =~ ^(tests/)?docker-compose || "${file}" =~ ^code-quality-config/docker/ ]] && run_docker=true
+        [[ "${file}" == "Dockerfile" || "${file}" =~ ^sandbox/Dockerfile || "${file}" == ".dockerignore" || "${file}" =~ ^(tests/)?docker-compose || "${file}" =~ ^code-quality-config/docker/ ]] && run_hadolint=true
         # Grype re-scans when the contents of the runtime image change: the runtime Dockerfile (base
         # images, package pins, copy layout), the build context filter, or the ignore list itself. The
         # pom.xml path (bundled Java deps) is handled below with the same version-bump suppression as
@@ -1713,7 +1844,7 @@ detect_changed_steps() {
         # linter's config at once. Select them all rather than guessing which tool's rules moved; the
         # alternative (what this fixes) is a config bump that silently runs nothing at all.
         if [[ "${file}" == "code-quality-config" ]]; then
-            run_docker=true
+            run_hadolint=true
             run_grype=true
             run_java=true
             run_javascript=true
@@ -1801,7 +1932,9 @@ detect_changed_steps() {
         } | grep -E '^[+-][^+-]' || true
     )
     if [[ -n "${script_diff}" ]]; then
-        grep -qE '^[+-][[:space:]]*HADOLINT_DOCKER_IMAGE='                        <<<"${script_diff}" && run_docker=true
+        # Each Docker image pin re-triggers the TIER that pulls it, not the whole step: the two are
+        # separately selectable, so a hadolint bump has no reason to re-scan the runtime image.
+        grep -qE '^[+-][[:space:]]*HADOLINT_DOCKER_IMAGE='                        <<<"${script_diff}" && run_hadolint=true
         grep -qE '^[+-][[:space:]]*(GRYPE_DOCKER_IMAGE|DIURNAL_RUNTIME_IMAGE)='   <<<"${script_diff}" && run_grype=true
         grep -qE '^[+-][[:space:]]*(ESLINT_BUILD_IMAGE|ESLINT_NODE_IMAGE)='       <<<"${script_diff}" && run_javascript=true
         grep -qE '^[+-][[:space:]]*(ESLINT_BUILD_IMAGE|ESLINT_NODE_IMAGE)='       <<<"${script_diff}" && run_typescript=true
@@ -1811,8 +1944,16 @@ detect_changed_steps() {
         grep -qE '^[+-][[:space:]]*QODANA_DOCKER_IMAGE='                          <<<"${script_diff}" && run_java=true
     fi
 
-    [[ "${run_docker}"     == true ]] && echo "docker"
-    [[ "${run_grype}"      == true ]] && echo "grype"
+    # `docker` is emitted SCOPED unless both its tiers were triggered, so a change that touched only one
+    # of them runs only that one - the same string a caller would type, and parsed by the same code (see
+    # the auto-detection branch below, which feeds this list straight back through parse_step_selection).
+    if [[ "${run_hadolint}" == true && "${run_grype}" == true ]]; then
+        echo "docker"
+    elif [[ "${run_hadolint}" == true ]]; then
+        echo "docker:hadolint"
+    elif [[ "${run_grype}" == true ]]; then
+        echo "docker:grype"
+    fi
     [[ "${run_java}"       == true ]] && echo "java"
     [[ "${run_javascript}" == true ]] && echo "javascript"
     [[ "${run_markdown}"   == true ]] && echo "markdown"
@@ -1937,12 +2078,19 @@ if [[ "${FORCE}" == true ]]; then
     steps=("${VALID_STEPS[@]}")
     echo "Running ALL steps (forced): $(IFS=', '; echo "${steps[*]}")"
 elif [[ $# -eq 0 ]]; then
-    mapfile -t steps < <(detect_changed_steps || true)
-    if [[ ${#steps[@]} -eq 0 ]]; then
+    mapfile -t detected_steps < <(detect_changed_steps || true)
+    if [[ ${#detected_steps[@]} -eq 0 ]]; then
         echo "No relevant changes detected since last tag; nothing to run"
         exit 0
     fi
-    echo "Running steps: $(IFS=', '; echo "${steps[*]}")"
+    # Fed back through the same parser the [steps] argument uses, rather than assigned to `steps` directly:
+    # auto-detection can now emit a SCOPED entry (`docker:hadolint`), and it must narrow the step exactly as
+    # typing it would - which means SELECTED_SUBSTEPS, and so the one function that writes it.
+    detected_list="$(IFS=','; echo "${detected_steps[*]}")"
+    parse_step_selection "${detected_list}" || exit 1
+    detected_invocation=""
+    detected_invocation="$(selection_invocation)"
+    echo "Running steps: ${detected_invocation}"
 else
     parse_step_selection "${1}" || exit 1
     # Assigned on its own line so the command substitution's exit status isn't masked (SC2312).
@@ -1959,12 +2107,13 @@ overall_start=""
 overall_start="$(date +%s%N)"
 
 # Split the selected steps into the parallel lane set and the serial tail, keeping the order they were
-# selected in. See LANE_STEPS for why grype and perf are excluded from the lanes; running them after the
-# parallel phase is also what makes grype's image build a cache hit off the java step's smoke tier.
+# selected in. See LANE_STEPS and lane_eligible for why perf, and a `docker` step including its scan, are
+# excluded from the lanes; running them after the parallel phase is also what makes the scan's image build
+# a cache hit off the java step's smoke tier.
 parallel_selected=()
 serial_selected=()
 for step in "${steps[@]}"; do
-    if lane_contains "${step}" "${LANE_STEPS[@]}"; then
+    if lane_eligible "${step}"; then
         parallel_selected+=("${step}")
     else
         serial_selected+=("${step}")
@@ -1973,7 +2122,8 @@ done
 
 # A lone lane-eligible step has nothing to run alongside, so run it inline instead: no supervision
 # machinery, no captured-and-replayed output, and the everyday `lint_and_tests.sh java` (or `… shellcheck`)
-# behaves exactly as it always has. It leads the serial tail so grype, if also selected, still follows it.
+# behaves exactly as it always has. It leads the serial tail so a scan-carrying `docker` step (and `perf`),
+# if also selected, still follows it - which is what keeps that scan's image build a cache hit.
 if [[ "${#parallel_selected[@]}" -eq 1 ]]; then
     serial_selected=("${parallel_selected[@]}" "${serial_selected[@]}")
     parallel_selected=()
@@ -2000,7 +2150,6 @@ for idx in "${!serial_selected[@]}"; do
     overall_exit_code=0
     case "${step}" in
     docker) run_docker ;;
-    grype) run_grype ;;
     java) run_java ;;
     javascript) run_javascript ;;
     markdown) run_markdown ;;
