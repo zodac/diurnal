@@ -44,6 +44,8 @@ import org.junit.jupiter.api.Test;
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class ActionsResourceIT extends IntegrationTestBase {
 
+    private static final Pattern ACTION_ID_ATTRIBUTE = Pattern.compile("id=\"action-(?<id>[0-9a-f-]+)\"");
+
     private static final String PRIMARY = "actions-it@lt.test";
     private static final String OTHER = "actions-other@lt.test";
 
@@ -398,7 +400,7 @@ class ActionsResourceIT extends IntegrationTestBase {
             .then().statusCode(Response.Status.OK.getStatusCode())
             .extract().body().asString();
         // The returned HTML contains id="action-{uuid}"
-        final Matcher matcher = Pattern.compile("id=\"action-(?<id>[0-9a-f-]+)\"").matcher(html);
+        final Matcher matcher = ACTION_ID_ATTRIBUTE.matcher(html);
         if (matcher.find()) {
             return UUID.fromString(matcher.group("id"));
         }

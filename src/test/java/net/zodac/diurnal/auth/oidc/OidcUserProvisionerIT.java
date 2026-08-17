@@ -25,7 +25,9 @@ import io.quarkus.security.AuthenticationFailedException;
 import io.quarkus.security.identity.SecurityIdentity;
 import io.quarkus.test.junit.QuarkusTest;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.RoutingContext;
 import jakarta.inject.Inject;
+import jakarta.ws.rs.Path;
 import java.util.List;
 import java.util.Optional;
 import net.zodac.diurnal.IntegrationTestBase;
@@ -36,7 +38,9 @@ import org.junit.jupiter.api.Test;
 /**
  * Integration tests for {@link OidcUserProvisioner#linkOrCreate}: accounts are resolved by issuer + subject only (an email collision with an
  * unlinked local account refuses the login instead of silently linking), an explicitly-unverified email cannot provision an account, and IdP group
- * synchronisation never demotes the last remaining administrator.
+ * synchronisation never demotes the last remaining administrator. Also pins the one configuration invariant the bean depends on: the configured
+ * {@code quarkus.oidc.authentication.redirect-path} names the same route as {@code OidcWebResource.oidcCallback}, which is the path the
+ * session-revocation guard exempts.
  *
  * <p>
  * Group→role mapping is environment-dependent (a deployment may or may not configure {@code OIDC_ADMIN_GROUP}/{@code OIDC_USER_GROUP}), so — like
@@ -53,7 +57,23 @@ class OidcUserProvisionerIT extends IntegrationTestBase {
     OidcConfig oidcConfig;
 
     @Inject
+    QuarkusOidcConfig quarkusOidcConfig;
+
+    @Inject
     OidcUserProvisioner oidcUserProvisioner;
+
+    // ── The callback route the revocation guard exempts ───────────────────────
+
+    @Test
+    void configuredRedirectPath_namesTheCallbackRoute() throws NoSuchMethodException {
+        final String callbackRoute = OidcWebResource.class.getAnnotation(Path.class).value()
+            + OidcWebResource.class.getMethod("oidcCallback", String.class, RoutingContext.class).getAnnotation(Path.class).value();
+
+        assertThat(quarkusOidcConfig.redirectPath())
+            .as("The configured redirect path must name the callback route: the provisioner exempts exactly this path from the session-revocation "
+                + "guard, and a callback judged by that guard redirects into the code flow forever")
+            .isEqualTo(callbackRoute);
+    }
 
     // ── Email-based linking is removed: a collision refuses, never links ───────
 

@@ -44,6 +44,7 @@ class EndpointNamespaceTest {
     private static final Path SOURCE_ROOT = Path.of("src", "main", "java");
     private static final Pattern PATH_ANNOTATION = Pattern.compile("@Path\\(\"(?<path>[^\"]*)\"\\)");
     private static final Pattern TYPE_DECLARATION = Pattern.compile("public\\s+(?:final\\s+|abstract\\s+)?(?:class|interface|enum|record)\\s+\\w+");
+    private static final Pattern REPEATED_SLASHES = Pattern.compile("/+");
 
     private static final String PUBLIC_API_PREFIX = "/api/v1/";
     private static final String INTERNAL_PREFIX = "/internal/";
@@ -144,7 +145,7 @@ class EndpointNamespaceTest {
 
     private static String join(final String base, final String sub) {
         final String joined = "/" + base + "/" + sub;
-        final String normalised = joined.replaceAll("/+", "/");
+        final String normalised = REPEATED_SLASHES.matcher(joined).replaceAll("/");
         return normalised.length() > 1 && normalised.endsWith("/")
             ? normalised.substring(0, normalised.length() - 1)
             : normalised;

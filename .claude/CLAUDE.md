@@ -177,7 +177,11 @@ etc.). Lint config lives in the `code-quality-config/` git submodule — run `gi
 Quality gates (opt-in):
 
 - `-Dlint` — ErrorProne+NullAway (also run on every compile), Checkstyle, PMD, SpotBugs, Javadoc, Enforcer, license headers, dependency analysis,
-  PITest. Compiles test sources but does not run tests.
+  PITest. Compiles test sources but does not run tests. **Checkstyle runs TWICE**: the inherited `default` execution over the Java sources, and a
+  second `pom` execution over `pom.xml` itself (the shared config's file-level rules — `LineLength` max 150, `NewlineAtEndOfFile`,
+  `FileTabCharacter` — already cover `xml`, but the source-root scan never fed it any). It is the ONLY check in the whole gate that reads an XML
+  file, so a long line in the POM used to be found by nothing but the release pipeline's SonarQube run; other XML (e.g. `docs/*.xml`) is still
+  unlinted.
 - `-Dtests` — surefire unit tests (`*Test`) only.
 - `-Dall` — unit + `*IT` + full linters (NOT E2E/smoke — those are chained onto the wrapper's `java` step, outside Maven).
 

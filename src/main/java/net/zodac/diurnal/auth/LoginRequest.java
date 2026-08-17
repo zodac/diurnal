@@ -17,19 +17,24 @@
 
 package net.zodac.diurnal.auth;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
+import net.zodac.diurnal.text.TextFields;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
- * Credentials submitted to the JSON login endpoint. As with {@link RegisterRequest}, the bean-validation annotations here feed the OpenAPI schema
- * (required/format constraints) but are NOT the enforcement - the endpoint deliberately does not use {@code @Valid}; the missing/blank guard lives in
- * {@code AuthResource.login} so a rejection carries the shared {@code ApiErrorResponse} body.
+ * Credentials submitted to the JSON login endpoint. As with {@link RegisterRequest}, every constraint here is a {@link Schema} attribute and is
+ * <strong>documentation only</strong> - it describes the request in the published OpenAPI document and enforces nothing. The missing/blank guard
+ * lives in {@code AuthResource.login} so a rejection carries the shared {@code ApiErrorResponse} body, and Jakarta Bean Validation annotations are
+ * deliberately not used - see {@link RegisterRequest} for why.
  */
 @Schema(description = "Email/password credentials submitted to exchange for a Bearer session token.")
 @SuppressWarnings("unused") // JSON request body: the canonical constructor is invoked reflectively by Jackson, never from Java
 public record LoginRequest(
-    @NotBlank @Email @Schema(examples = "ada@example.com", description = "Registered email address of the account.") String email,
-    @NotBlank @Schema(examples = "correct horse battery staple", description = "Account password.") String password
+    @Schema(required = true, pattern = TextFields.NOT_BLANK_PATTERN,
+    examples = "ada@example.com", description = "Registered email address of the account.")
+    String email,
+
+    @Schema(required = true, pattern = TextFields.NOT_BLANK_PATTERN,
+    examples = "correct horse battery staple", description = "Account password.")
+    String password
 ) {
 }

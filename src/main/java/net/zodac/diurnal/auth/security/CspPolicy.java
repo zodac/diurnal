@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.auth.security;
 
+import java.util.regex.Pattern;
 import net.zodac.diurnal.openapi.OpenApiDocsPaths;
 
 /**
@@ -37,6 +38,10 @@ import net.zodac.diurnal.openapi.OpenApiDocsPaths;
  * three need the relaxations the docs policy below carries, and {@code default-src} closes off any directive this class doesn't otherwise set.
  */
 final class CspPolicy {
+
+    private static final Pattern SWAGGER_UI_PATH = Pattern.compile(OpenApiDocsPaths.SWAGGER_UI_PATH_REGEX);
+
+    private static final Pattern OPENAPI_DOCUMENT_PATH = Pattern.compile(OpenApiDocsPaths.OPENAPI_DOCUMENT_PATH_REGEX);
 
     private static final String FOUC_SCRIPT_HASH = "'sha256-cXgqQs2hN+sIaWJZiyQ8nLMT+YhCIxMlf9gdREXl5Dc='";
 
@@ -64,7 +69,7 @@ final class CspPolicy {
      * @return the relaxed documentation policy for the Swagger UI shell or the generated OpenAPI document, otherwise the app's strict policy
      */
     static String forPath(final String path) {
-        if (path.matches(OpenApiDocsPaths.SWAGGER_UI_PATH_REGEX) || path.matches(OpenApiDocsPaths.OPENAPI_DOCUMENT_PATH_REGEX)) {
+        if (SWAGGER_UI_PATH.matcher(path).matches() || OPENAPI_DOCUMENT_PATH.matcher(path).matches()) {
             return DOCS_POLICY;
         }
         return STRICT_POLICY;

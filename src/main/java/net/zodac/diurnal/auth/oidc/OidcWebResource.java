@@ -113,6 +113,10 @@ public class OidcWebResource {
 
     /**
      * Handles the OIDC redirect-back, records the login, and forwards the user to the dashboard.
+     *
+     * <p>
+     * This route must stay in step with {@code quarkus.oidc.authentication.redirect-path} - it is the path Quarkus sends the IdP back to, and the
+     * one {@link OidcUserProvisioner} exempts from the session-revocation guard. {@code OidcUserProvisionerIT} asserts the pair agree.
      */
     @GET
     @Path("oauth2/callback/oidc")

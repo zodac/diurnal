@@ -115,7 +115,10 @@ been minted yet), `OidcUserProvisioner` requires a valid `diurnal_session` resol
 authentication (`OidcLoginPolicy.revocationGuardSatisfied`, PIT-covered; glue in `OidcUserProvisioner.authenticated`). The failure challenge
 re-enters the code flow, round-trips the IdP (instant when the IdP session is alive) and re-mints a Diurnal session — so revocation in the
 `sessions` table is authoritative for OIDC users too, while `q_session` survives only for token refresh and RP-initiated logout, as originally
-intended. Direct service-level calls (tests, null `RoutingContext`) are exempt — no cookies to judge.
+intended. Direct service-level calls (tests, null `RoutingContext`) are exempt — no cookies to judge. The exempt path is **read from
+`quarkus.oidc.authentication.redirect-path`** (via `QuarkusOidcConfig.redirectPath()`), not restated as a constant: it and the `@Path` on
+`OidcWebResource.oidcCallback` must name the same route, or the callback is judged by a guard no callback can satisfy and loops back into the code
+flow forever — so `OidcUserProvisionerIT.configuredRedirectPath_namesTheCallbackRoute` asserts the pair agree.
 
 **Not chosen (B):** pinning protected pages to the session mechanism in config — a previous revision did this and broke the post-IdP login bounce;
 riskier to re-attempt and harder to test.

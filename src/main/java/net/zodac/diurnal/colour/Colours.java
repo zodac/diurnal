@@ -18,6 +18,7 @@
 package net.zodac.diurnal.colour;
 
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * The colour rules shared by everything the user may recolour - an action's calendar dot and swatch, and the day marker their notes are shown with.
@@ -49,7 +50,7 @@ public final class Colours {
     // point of the marker being the colour the user chose.
     private static final int LIGHTNESS_STEP_PERCENT = 5;
 
-    private static final String HEX_PATTERN = "^#[0-9a-fA-F]{6}$";
+    private static final Pattern HEX_PATTERN = Pattern.compile("^#[0-9a-fA-F]{6}$");
     private static final double CONTRAST_OFFSET = 0.05;
     // The sRGB curve is linear up to a channel fraction of 0.03928 and gamma-corrected above it. Expressed as the raw CHANNEL value the fraction
     // comes from (0.03928 * 255 = 10.02), for the same reason the contrast floor is: a channel is a whole number, so this boundary is reachable.
@@ -63,6 +64,12 @@ public final class Colours {
     private static final double BLUE_WEIGHT = 0.0722;
     private static final int HUE_DEGREES = 360;
     private static final int SECTOR_DEGREES = 60;
+    // The wheel is six 60-degree sectors, and each primary peaks at the start of one of them: red at 0 degrees, green at 120 (sector 2), blue at 240
+    // (sector 4). The dominant channel therefore picks the sector the hue starts from, and the off-axis term moves it within that sector. Red's own
+    // offset is 0 and is left out rather than written as `+ 0` - an addition of zero changes no result, so PITest could never kill a mutant of it.
+    private static final int SECTORS_PER_TURN = 6;
+    private static final int GREEN_PEAK_SECTOR = 2;
+    private static final int BLUE_PEAK_SECTOR = 4;
     private static final int CHANNEL_MAX = 255;
     private static final int PERCENT = 100;
     private static final int RED_OFFSET = 1;
@@ -84,7 +91,7 @@ public final class Colours {
      * @return {@code true} when the colour is an invalid hex value
      */
     public static boolean isInvalidHex(final String colour) {
-        return !colour.matches(HEX_PATTERN);
+        return !HEX_PATTERN.matcher(colour).matches();
     }
 
     /**
@@ -168,56 +175,59 @@ public final class Colours {
         return (int) (contrastRatio(colour, background) * TENTHS_PER_UNIT) >= MIN_CONTRAST_TENTHS;
     }
 
-    @SuppressWarnings("FloatingPointEquality")
     private static int hue(final String colour) {
-        final double red = fraction(colour, RED_OFFSET);
-        final double green = fraction(colour, GREEN_OFFSET);
-        final double blue = fraction(colour, BLUE_OFFSET);
-        final double max = Math.max(red, Math.max(green, blue));
-        final double chroma = max - Math.min(red, Math.min(green, blue));
-        if (chroma == 0) {
+        // Which channel the largest value came from is an INTEGER question, so it is asked of the integer channels rather than of their fractions.
+        // Dividing by 255 is monotonic, so the largest fraction is always the largest channel's and the arithmetic below is bit-for-bit what the
+        // fraction form produced - but the comparison no longer rests on the (correct, and correctly distrusted) claim that Math.max returns one of
+        // its arguments unchanged.
+        final int red = channel(colour, RED_OFFSET);
+        final int green = channel(colour, GREEN_OFFSET);
+        final int blue = channel(colour, BLUE_OFFSET);
+        final int max = Math.max(red, Math.max(green, blue));
+        final int min = Math.min(red, Math.min(green, blue));
+        if (max == min) {
             return 0;
         }
 
-        // Exact equality is correct here, not the comparison bug FloatingPointEquality exists to catch: Math.max returns one of its arguments
-        // unchanged, so `max` IS bit-for-bit one of the three, and the test is asking which channel it came from rather than whether two computed
-        // values are close.
-        //
         // The obvious rewrite - `red >= green && red >= blue`, etc. - was tried and reverted. It reads better but is untestable here: at a tie the
         // two sector formulas agree exactly ((g-b)/c == (b-r)/c + 2 when r == g, and so on for the other two), so mutating `>=` to `>` produces an
         // EQUIVALENT mutant that no test can kill, and PITest is held at 100% strength. Exact equality has no boundary to mutate.
+        final double chroma = fraction(max) - fraction(min);
         final double sector;
         if (max == red) {
-            sector = ((green - blue) / chroma) % 6;
+            sector = ((fraction(green) - fraction(blue)) / chroma) % SECTORS_PER_TURN;
         } else if (max == green) {
-            sector = ((blue - red) / chroma) + 2;
+            sector = ((fraction(blue) - fraction(red)) / chroma) + GREEN_PEAK_SECTOR;
         } else {
-            sector = ((red - green) / chroma) + 4;
+            sector = ((fraction(red) - fraction(green)) / chroma) + BLUE_PEAK_SECTOR;
         }
         // A negative sector (a hue just below red) wraps to the top of the wheel rather than to a negative degree count.
         return Math.floorMod(Math.toIntExact(Math.round(sector * SECTOR_DEGREES)), HUE_DEGREES);
     }
 
     private static int saturationPercent(final String colour) {
-        final double max = maxFraction(colour);
-        final double min = minFraction(colour);
-        final double chroma = max - min;
-        if (chroma == 0) {
+        // A grey is decided on the channels, for the same reason as in hue(...) - two equal channels are equal as whole numbers.
+        final int maxChannel = maxChannel(colour);
+        final int minChannel = minChannel(colour);
+        if (maxChannel == minChannel) {
             return 0;
         }
-        return percent(chroma / (1 - Math.abs(max + min - 1)));
+
+        final double max = fraction(maxChannel);
+        final double min = fraction(minChannel);
+        return percent((max - min) / (1 - Math.abs(max + min - 1)));
     }
 
     private static int lightnessPercent(final String colour) {
-        return percent((maxFraction(colour) + minFraction(colour)) / 2);
+        return percent((fraction(maxChannel(colour)) + fraction(minChannel(colour))) / 2);
     }
 
-    private static double maxFraction(final String colour) {
-        return Math.max(fraction(colour, RED_OFFSET), Math.max(fraction(colour, GREEN_OFFSET), fraction(colour, BLUE_OFFSET)));
+    private static int maxChannel(final String colour) {
+        return Math.max(channel(colour, RED_OFFSET), Math.max(channel(colour, GREEN_OFFSET), channel(colour, BLUE_OFFSET)));
     }
 
-    private static double minFraction(final String colour) {
-        return Math.min(fraction(colour, RED_OFFSET), Math.min(fraction(colour, GREEN_OFFSET), fraction(colour, BLUE_OFFSET)));
+    private static int minChannel(final String colour) {
+        return Math.min(channel(colour, RED_OFFSET), Math.min(channel(colour, GREEN_OFFSET), channel(colour, BLUE_OFFSET)));
     }
 
     private static int percent(final double value) {
@@ -239,8 +249,8 @@ public final class Colours {
             : StrictMath.pow((fraction + GAMMA_OFFSET) / GAMMA_DIVISOR, GAMMA_EXPONENT);
     }
 
-    private static double fraction(final String colour, final int offset) {
-        return (double) channel(colour, offset) / CHANNEL_MAX;
+    private static double fraction(final int channelValue) {
+        return (double) channelValue / CHANNEL_MAX;
     }
 
     private static int channel(final String colour, final int offset) {

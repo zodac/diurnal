@@ -174,7 +174,7 @@ class AppLifecycleTest {
         // configuration checks, which never reach it, so an inert instance is enough to construct the bean.
         final StubNotesEncryptionConfig encryptionConfig = StubNotesEncryptionConfig.of(notesKey);
         return new AppLifecycle(new StubPasswordAuthConfig(passwordEnabled, true),
-            new StubQuarkusOidcConfig(oidcEnabled, issuerUrl, true), StubOidcConfig.inert(), encryptionConfig,
+            new StubQuarkusOidcConfig(oidcEnabled, issuerUrl, true, "/oauth2/callback/oidc"), StubOidcConfig.inert(), encryptionConfig,
             new StubNotesConfig(noteMaxLength), new NoteKeys(encryptionConfig));
     }
 }

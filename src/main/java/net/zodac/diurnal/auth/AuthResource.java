@@ -199,9 +199,9 @@ public class AuthResource {
         description = "Too many failed attempts; retry after the period in the Retry-After header.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = ApiErrorResponse.class)))
     public Response login(final @Nullable LoginRequest request, @Context @Nullable final RoutingContext routingContext) {
-        // No @Valid: like RegisterRequest, LoginRequest's bean-validation annotations feed the OpenAPI
-        // schema only - the enforcement lives here so a 400 carries the shared ApiErrorResponse body
-        // (@Valid would emit the framework's default violation report instead) and a missing body can
+        // No bean validation: LoginRequest's constraints are @Schema attributes describing the published
+        // document, never enforcement. The guard lives here so a 400 carries the shared ApiErrorResponse
+        // body (@Valid would emit the framework's default violation report instead) and a missing body can
         // never reach authenticate() as a null (which would NPE into a 500).
         final String email = request == null ? null : request.email();
         final String password = request == null ? null : request.password();

@@ -106,10 +106,6 @@
         </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-hibernate-validator</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.quarkus</groupId>
             <artifactId>quarkus-jdbc-postgresql</artifactId>
         </dependency>
         <dependency>
@@ -312,6 +308,41 @@
                         <id>default</id>
                         <phase>prepare-package</phase>
                     </execution>
+                    <!--
+                        Lint THIS FILE too. The shared Checkstyle config already declares its file-level rules for
+                        "java, xml" (LineLength max=150, NewlineAtEndOfFile, FileTabCharacter), but the inherited
+                        `default` execution only ever feeds it the compile/test source roots plus the resource
+                        directories' *.properties - so no XML in this repo reached it, and pom.xml was the one build
+                        file no gate looked at (SonarQube reported the over-long lines here that nothing local could).
+                        This execution passes the POM alone: <sourceDirectories> is the repo root and <includes>
+                        narrows it to that single file, with the resource/test scanning switched off so nothing is
+                        linted twice. Only the file-level modules can apply - TreeWalker parses Java and is skipped
+                        for a non-.java file.
+                        The scan still WALKS the root, so target/ and node_modules/ are excluded (plexus already
+                        excludes .git and friends) to keep it off tens of thousands of irrelevant files.
+                        <outputFile> is overridden because the goal's default is the SAME
+                        target/checkstyle-result.xml the `default` execution writes - left alone, this run would
+                        overwrite the Java report and hand SonarQube (sonar.java.checkstyle.reportPaths, set in
+                        parent-pom) a document holding nothing but pom.xml.
+                    -->
+                    <execution>
+                        <id>pom</id>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <phase>prepare-package</phase>
+                        <configuration>
+                            <excludes>target/**,**/node_modules/**</excludes>
+                            <includeResources>false</includeResources>
+                            <includeTestResources>false</includeTestResources>
+                            <includeTestSourceDirectory>false</includeTestSourceDirectory>
+                            <includes>pom.xml</includes>
+                            <outputFile>${project.build.directory}/checkstyle-result-pom.xml</outputFile>
+                            <sourceDirectories>
+                                <sourceDirectory>${project.basedir}</sourceDirectory>
+                            </sourceDirectories>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
             <plugin>
@@ -402,7 +433,8 @@
                 <configuration>
                     <argLine>@{argLine} -Duser.timezone=UTC</argLine>
                     <systemPropertyVariables>
-                        <!-- Quarkus's logging backend is JBoss LogManager; the test JVM must install it before JUL inits (log4j-core is not a JUL LogManager, so it can't substitute). -->
+                        <!-- Quarkus's logging backend is JBoss LogManager; the test JVM must install it before JUL inits
+                             (log4j-core is not a JUL LogManager, so it can't substitute). -->
                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                         <maven.home>${maven.home}</maven.home>
                         <!-- SmallRye Config reads the repo-root .env at HIGHER priority than the bundled %test profile, so a deployer flipping
@@ -556,7 +588,9 @@
                                          profile); a non-UTC host can't shift IT date assertions. -->
                                     <argLine>@{argLine} -Duser.timezone=UTC</argLine>
                                     <systemPropertyVariables>
-                                        <!-- Quarkus's logging backend is JBoss LogManager; the test JVM must install it before JUL inits (log4j-core is not a JUL LogManager, so it can't substitute). -->
+                                        <!-- Quarkus's logging backend is JBoss LogManager; the test JVM must install it
+                                             before JUL inits (log4j-core is not a JUL LogManager, so it can't
+                                             substitute). -->
                                         <java.util.logging.manager>org.jboss.logmanager.LogManager</java.util.logging.manager>
                                         <maven.home>${maven.home}</maven.home>
                                         <!-- Same .env-immunity pin as the surefire block above (see the comment there). -->
