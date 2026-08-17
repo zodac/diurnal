@@ -281,8 +281,8 @@ public class SettingsWebResource {
         @FormParam("confirmPassword") final String confirmPassword,
         @CookieParam("diurnal_session") @Nullable final String sessionToken,
         @Context @Nullable final RoutingContext routingContext) {
-        // The web form collects a confirmPassword (normalised to blank so an empty field is rejected);
-        // everything else — the local-account guard, current-password proof, new-password rules, re-hash
+        // The web form collects a confirmPassword (normalised to blank so an empty field is rejected)
+        // Everything else — the local-account guard, current-password proof, new-password rules, re-hash
         // and other-session revocation — is the shared PasswordChangeService the API also calls.
         final PasswordChangeResult result = passwordChangeService.change(currentUser.get(), currentPassword, newPassword,
             confirmPassword == null ? "" : confirmPassword, sessionToken, ClientAddress.of(routingContext));

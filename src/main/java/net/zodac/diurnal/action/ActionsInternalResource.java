@@ -106,7 +106,7 @@ public class ActionsInternalResource {
         final var page = getActions(user.id, pageNum, searchTerm, PageSizes.forSection(user, PageSection.ACTIONS));
         final String extraQuery = (searchTerm == null || searchTerm.isBlank())
             ? ""
-            : "&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8);
+            : ("&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8));
         return Response.ok(actionsListTemplate.data("page", page, "extraQuery", extraQuery)).build();
     }
 

@@ -245,7 +245,7 @@ public final class Colours {
     private static double linearise(final int value) {
         final double fraction = (double) value / CHANNEL_MAX;
         return value <= LOW_CHANNEL_MAX
-            ? fraction / LOW_CHANNEL_DIVISOR
+            ? (fraction / LOW_CHANNEL_DIVISOR)
             : StrictMath.pow((fraction + GAMMA_OFFSET) / GAMMA_DIVISOR, GAMMA_EXPONENT);
     }
 

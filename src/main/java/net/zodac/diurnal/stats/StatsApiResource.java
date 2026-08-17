@@ -340,9 +340,11 @@ public class StatsApiResource {
         }
 
         private static FrequencySlotDto slotDto(final FrequencySlot slot, final List<UUID> actionIds) {
-            final List<FrequencyBarDto> bars = new ArrayList<>(slot.bars().size());
-            for (int index = 0; index < slot.bars().size(); index++) {
-                bars.add(new FrequencyBarDto(actionIds.get(index), slot.bars().get(index).count()));
+            final List<FrequencyBar> slotBars = slot.bars();
+            final int barCount = slotBars.size();
+            final List<FrequencyBarDto> bars = new ArrayList<>(barCount);
+            for (int index = 0; index < barCount; index++) {
+                bars.add(new FrequencyBarDto(actionIds.get(index), slotBars.get(index).count()));
             }
             return new FrequencySlotDto(slot.label(), slot.fullLabel(), List.copyOf(bars));
         }

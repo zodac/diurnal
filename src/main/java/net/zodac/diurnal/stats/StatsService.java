@@ -223,7 +223,6 @@ public class StatsService {
         if (!FrequencyPeriod.isValid(periodValue)) {
             return new FrequencyResult.UnknownPeriod(periodValue);
         }
-        final FrequencyPeriod period = FrequencyPeriod.of(periodValue);
 
         // The graph's own subject first, then the comparisons, in the order the user added them.
         final List<UUID> requested = Stream.concat(Stream.of(subjectId), compareIds.stream()).toList();
@@ -235,7 +234,6 @@ public class StatsService {
         // The notes subject is charted alongside actions, and is resolved FIRST — before any action lookup — so its sentinel id can never be
         // shadowed by a row. It needs no ownership check: there is exactly one notes subject per user, and it is theirs by construction.
         final List<UUID> actionIds = requested.stream().filter(id -> !StatSubject.NOTES_ID.equals(id)).toList();
-        final boolean notesCharted = requested.size() != actionIds.size();
 
         // Ordered by the request, not by the name-ascending order findByUserAndIds returns: the legend and the bar order within each column follow
         // the order the user built the comparison in, so adding an action never re-shuffles the bars already on screen.
@@ -253,12 +251,14 @@ public class StatsService {
 
         final User user = User.findById(userId);
         final LocalDate today = todayFor(user);
+        final FrequencyPeriod period = FrequencyPeriod.of(periodValue);
         final LocalDate anchor = resolveAnchor(period, rawAt, today);
         if (anchor == null) {
             return new FrequencyResult.UnknownWindow(Objects.requireNonNull(rawAt));
         }
 
         final List<StatSubject> charted = chartedSubjects(requested, ownedById, user);
+        final boolean notesCharted = requested.size() != actionIds.size();
         final List<MonthlyActionTotal> monthlyTotals = monthlyRollups(userId, actionIds, notesCharted);
 
         final Map<UUID, Map<Integer, Long>> countsByAction = switch (period) {
@@ -285,19 +285,25 @@ public class StatsService {
         final Set<UUID> excluded = Set.copyOf(charted);
         final String term = query == null ? "" : query.strip().toLowerCase(Locale.ENGLISH);
 
-        final List<StatSubject> candidates = new ArrayList<>();
-        final StatSubject notes = StatSubject.notes(noteColourFor(User.findById(userId)));
-        if (!excluded.contains(StatSubject.NOTES_ID)
-            && Note.count("userId = ?1", userId) > 0L
-            && (term.isEmpty() || notes.name().toLowerCase(Locale.ENGLISH).contains(term))) {
-            candidates.add(notes);
-        }
-        Action.findByUser(userId).stream()   // name-ascending
+        final List<StatSubject> actions = Action.findByUser(userId).stream()   // name-ascending
             .filter(action -> logged.contains(action.id))
             .filter(action -> !excluded.contains(action.id))
             .filter(action -> term.isEmpty() || action.name.toLowerCase(Locale.ENGLISH).contains(term))
             .map(StatSubject::of)
-            .forEach(candidates::add);
+            .toList();
+
+        final StatSubject notes = StatSubject.notes(noteColourFor(User.findById(userId)));
+        final boolean offersNotes = !excluded.contains(StatSubject.NOTES_ID)
+            && Note.count("userId = ?1", userId) > 0L
+            && (term.isEmpty() || notes.name().toLowerCase(Locale.ENGLISH).contains(term));
+        if (!offersNotes) {
+            return actions;
+        }
+
+        // Notes are pinned ahead of the actions, exactly as forAllSubjects pins them on the Stats page.
+        final List<StatSubject> candidates = new ArrayList<>(actions.size() + 1);
+        candidates.add(notes);
+        candidates.addAll(actions);
         return List.copyOf(candidates);
     }
 
@@ -318,7 +324,7 @@ public class StatsService {
         final Set<UUID> logged = ActionLog.loggedActionIds(userId);
         final long noteCount = Note.count("userId = ?1", userId);
         for (final UUID compareId : compareIds) {
-            final boolean absent = StatSubject.NOTES_ID.equals(compareId) ? noteCount == 0L : !logged.contains(compareId);
+            final boolean absent = StatSubject.NOTES_ID.equals(compareId) ? (noteCount == 0L) : !logged.contains(compareId);
             if (absent) {
                 return new FrequencyResult.NotLogged(compareId);
             }
@@ -521,8 +527,9 @@ public class StatsService {
             return new DaySpan(today, today);
         }
 
+        final int dateCount = sortedDates.size();
         DaySpan longest = new DaySpan(today, today);
-        for (int i = 1; i < sortedDates.size(); i++) {
+        for (int i = 1; i < dateCount; i++) {
             // The blank days between two logged dates: the day after the earlier one, up to (excluding) the later.
             final DaySpan gap = new DaySpan(sortedDates.get(i - 1).plusDays(1L), sortedDates.get(i));
             longest = longer(longest, gap);
@@ -539,10 +546,11 @@ public class StatsService {
             return new DaySpan(today, today);
         }
 
+        final int dateCount = sortedDates.size();
         final LocalDate first = sortedDates.getFirst();
         DaySpan longest = new DaySpan(first, first.plusDays(1L));
         LocalDate runStart = first;
-        for (int i = 1; i < sortedDates.size(); i++) {
+        for (int i = 1; i < dateCount; i++) {
             final LocalDate date = sortedDates.get(i);
             if (!date.equals(sortedDates.get(i - 1).plusDays(1L))) {
                 runStart = date;

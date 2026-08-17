@@ -342,9 +342,9 @@ public class AuthWebResource {
         final String emailValue = email == null ? "" : email;
         final String displayNameValue = displayName == null ? "" : displayName;
 
-        // The web form collects a confirmPassword (normalised to blank so an empty field is reported as
-        // missing rather than skipped); everything else — throttle, validation, duplicate check, account
-        // creation — is the shared RegistrationService the API also calls, so the rules cannot diverge.
+        // The web form collects a confirmPassword (normalised to blank so an empty field is reported as missing rather than skipped)
+        // Everything else — throttle, validation, duplicate check, account creation — is the shared RegistrationService the API also calls, so the
+        // rules cannot diverge.
         final Instant now = clock.now();
         final RegistrationResult result = registrationService.register(
             email, displayName, password, confirmPassword == null ? "" : confirmPassword,

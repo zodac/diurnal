@@ -129,8 +129,8 @@ public final class TextFieldExtensions {
      */
     public static String lengthMessage(final TextField field) {
         final String bounds = field.minLength() > 1
-            ? "between " + field.minLength() + " and " + field.maxLength()
-            : "at most " + field.maxLength();
+            ? ("between " + field.minLength() + " and " + field.maxLength())
+            : ("at most " + field.maxLength());
         return field.label() + " must be " + bounds + ' ' + Durations.plural(field.maxLength(), LENGTH_UNIT) + '.';
     }
 

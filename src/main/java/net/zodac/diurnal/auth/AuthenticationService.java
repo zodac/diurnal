@@ -86,12 +86,11 @@ public class AuthenticationService {
      * @return a {@link LoginResult} describing success, invalid credentials, or a lockout
      */
     public LoginResult authenticate(final String rawEmail, final String password, final String clientIp, final Instant now) {
-        final String email = rawEmail.toLowerCase(Locale.ROOT).strip();
-
         if (!passwordAuthConfig.enabled()) {
             return new LoginResult.InvalidCredentials();
         }
 
+        final String email = rawEmail.toLowerCase(Locale.ROOT).strip();
         if (ipThrottle.isLocked(clientIp, now)) {
             LOGGER.debug("Throttled login attempt for: {} (IP: {})", email, clientIp);
             return new LoginResult.LockedOut(ipThrottle.lockoutRemaining(clientIp, now));

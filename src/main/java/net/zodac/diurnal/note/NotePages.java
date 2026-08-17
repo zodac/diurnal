@@ -69,6 +69,6 @@ public final class NotePages {
      * @return {@code "&q=…"} URL-encoded, or an empty string when nothing is being searched for
      */
     public static String extraQuery(final String searchTerm) {
-        return searchTerm.isBlank() ? "" : "&q=" + URLEncoder.encode(searchTerm, StandardCharsets.UTF_8);
+        return searchTerm.isBlank() ? "" : ("&q=" + URLEncoder.encode(searchTerm, StandardCharsets.UTF_8));
     }
 }
