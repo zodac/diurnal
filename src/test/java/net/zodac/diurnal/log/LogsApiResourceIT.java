@@ -38,6 +38,8 @@ import org.junit.jupiter.api.Test;
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class LogsApiResourceIT extends IntegrationTestBase {
 
+    private static final Pattern ACTION_ID_ATTRIBUTE = Pattern.compile("id=\"action-(?<id>[0-9a-f-]+)\"");
+
     private static final String PRIMARY = "logs-api-it@lt.test";
     private static final String OTHER   = "logs-api-other@lt.test";
 
@@ -140,7 +142,7 @@ class LogsApiResourceIT extends IntegrationTestBase {
             .post("/internal/actions")
             .then().statusCode(OK).extract().body().asString();
 
-        final Matcher matcher = Pattern.compile("id=\"action-(?<id>[0-9a-f-]+)\"").matcher(html);
+        final Matcher matcher = ACTION_ID_ATTRIBUTE.matcher(html);
         if (!matcher.find()) {
             return; // skip if extraction fails
         }

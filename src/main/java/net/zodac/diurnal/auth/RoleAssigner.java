@@ -75,12 +75,12 @@ public class RoleAssigner {
         }
 
         final Optional<String> adminGroup = oidcConfig.adminGroup();
-        final Optional<String> userGroup = oidcConfig.userGroup();
         if (adminGroup.isPresent() && !adminGroup.get().isBlank()
             && groups.contains(adminGroup.get())) {
             return Optional.of(Role.ADMIN.storageValue());
         }
 
+        final Optional<String> userGroup = oidcConfig.userGroup();
         if (userGroup.isPresent() && !userGroup.get().isBlank()
             && groups.contains(userGroup.get())) {
             return Optional.of(Role.USER.storageValue());

@@ -239,6 +239,15 @@ class UpdateCheckTest {
             .isFalse();
     }
 
+    @Test
+    void isUpdateAvailable_tagWithThousandsOfSegments_comparesWithoutOverflowingTheStack() {
+        final String pathologicalTag = "1" + ".1".repeat(5_000);
+
+        assertThat(UpdateCheck.isUpdateAvailable("1.0.0", pathologicalTag))
+            .as("the matcher's bounded segment repetition should read the leading segments rather than recurse into a StackOverflowError")
+            .isTrue();
+    }
+
     // ── evaluate ──────────────────────────────────────────────────────────
 
     @Test

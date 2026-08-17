@@ -267,8 +267,9 @@ class StatFieldTest {
             Map.of());
 
         assertThat(encoded)
-            .as("unknown keys are not stored")
+            .as("unknown keys are not stored, and dropping one leaves the keys either side of it in place")
             .extracting(StatFieldPref::key)
+            .contains("current-streak", "last-performed")
             .doesNotContain("made-up");
     }
 

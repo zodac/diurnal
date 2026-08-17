@@ -24,7 +24,8 @@ import io.smallrye.config.WithName;
 /**
  * Typed view over the handful of framework-owned {@code quarkus.oidc.*} extension settings the application reads directly (as opposed to the
  * app's own {@code oidc.*} behaviour toggles in {@link OidcConfig}). Kept to the exact keys the app inspects - the extension owns the full
- * {@code quarkus.oidc.*} surface; this mapping is only a read-only view of the three the startup validation and the settings page need.
+ * {@code quarkus.oidc.*} surface; this mapping is only a read-only view of the four the startup validation, the settings page and the callback
+ * guard need.
  *
  * <p>
  * These are Quarkus' own keys rather than an application-defined {@code prefix.*} group, but they are still read through a mapping so no raw
@@ -61,4 +62,16 @@ public interface QuarkusOidcConfig {
     @WithName("discovery-enabled")
     @WithDefault("true")
     boolean discoveryEnabled();
+
+    /**
+     * The path Quarkus registers as the OIDC {@code redirect_uri} and completes the code exchange on. It is read here rather than restated as a
+     * constant because {@link OidcUserProvisioner} exempts exactly this path from the session-revocation guard: the two must name the same route, or
+     * the callback itself would be judged by a guard no callback can satisfy (it runs before the Diurnal session exists), redirecting it back into
+     * the code flow forever. {@code OidcWebResource.oidcCallback} carries the matching {@code @Path}, and an integration test asserts the pair agree.
+     *
+     * @return the configured callback path, defaulting to {@code /oauth2/callback/oidc}
+     */
+    @WithName("authentication.redirect-path")
+    @WithDefault("/oauth2/callback/oidc")
+    String redirectPath();
 }

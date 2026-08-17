@@ -186,6 +186,55 @@ private record PaginatedDayActions(List<DayActionStatus> items, int totalCount, 
 }
 ```
 
+### Validation lives in the static factory, never in the constructor
+
+**A type reached through a static factory (`of`/`from`/`create`/`parse`) does every check in that factory and throws from there. The constructor is
+field assignment and nothing else** — no `throw`, no `requireNonNull`, no range or blank check, no normalisation, no defensive `List.copyOf`. This is
+why the factories exist: the checks belong where a caller can see them, in a method with a name and Javadoc that can say `@throws`, rather than
+buried in an initialiser that every path through the type is forced to run.
+
+The rule keeps a rejected value from ever reaching a half-built object, and — specifically for the project's records — it keeps validation
+**testable**: PITest cannot hot-swap mutants into a record class, so a branch written in a compact constructor is invisible to the mutation gate and
+would sit permanently untested behind the 100% threshold (the same reason derived logic lives in a `<Type>Extensions` class; see `CLAUDE.md`).
+A record therefore has **no compact constructor at all** — there are none anywhere in this repo, and adding one is the smell.
+
+❌ **Wrong** — the check is in the constructor, so it is unnamed, undocumented and unmutatable:
+
+```java
+public record TextField(String label, int minLength, int maxLength) {
+
+    public TextField {
+        if (minLength > maxLength) {
+            throw new IllegalArgumentException("minLength cannot exceed maxLength");
+        }
+    }
+}
+```
+
+✅ **Right** — the factory checks and throws; the canonical constructor is left implicit:
+
+```java
+public record TextField(String label, int minLength, int maxLength) {
+
+    /**
+     * ...
+     *
+     * @throws IllegalArgumentException if {@code minLength} exceeds {@code maxLength}
+     */
+    public static TextField of(final String label, final int minLength, final int maxLength) {
+        if (minLength > maxLength) {
+            throw new IllegalArgumentException("minLength cannot exceed maxLength");
+        }
+        return new TextField(label, minLength, maxLength);
+    }
+}
+```
+
+> **A CDI `@Inject` constructor is not covered by this rule** — it has no factory in front of it, and deriving one field from an injected config
+> value (`clock = Clock.system(ZoneId.of(appConfig.timezone()))` in `AppClock`, `throttle = AttemptThrottle.create(...)` in `IpThrottle`) is the
+> normal shape for a bean. That is construction-time derivation, not validation; a bean that must *reject* its configuration does so at startup in
+> `AppLifecycle`, which is where every configuration guard already lives.
+
 ### Dependency injection is constructor-based — NEVER field injection
 
 **Every CDI dependency is injected through a single `@Inject`-annotated constructor that assigns `private final` fields. `@Inject` on a field is
@@ -398,6 +447,37 @@ return switch (outcome) {
     case final TextOutcome.Failure failure -> new ProfileResult.Invalid(TextOutcomeExtensions.message(failure));
 };
 ```
+
+### An unread pattern binding is `_`, never a placeholder name
+
+**Where an exhaustive `switch` matches a variant whose value the branch never reads, the binding is the unnamed pattern `_`** — not `ignored`,
+`unused`, `x` or a lowercased type name. This is the common shape over the project's sealed result types, where most variants are empty markers
+whose identity *is* the whole message. `_` says "this branch needs nothing from the match" in one character that the compiler enforces: an
+unnamed binding cannot be read, so a name can never quietly start being used, and there is no invented word to keep consistent across sites.
+
+Keep the `final` — a `_` binding is not reassignable either way, but every other case in the same switch carries it and the arms should read
+alike.
+
+❌ **Wrong** — a placeholder name for something no branch reads:
+
+```java
+case final ActionResult.BlankName ignored -> HtmxResponses.conflictBanner("#action-error", "Action name cannot be empty.");
+case final ActionResult.NotFound ignored -> Response.status(Response.Status.NOT_FOUND).build();
+```
+
+✅ **Right:**
+
+```java
+case final ActionResult.BlankName _ -> HtmxResponses.conflictBanner("#action-error", "Action name cannot be empty.");
+case final ActionResult.NotFound _ -> Response.status(Response.Status.NOT_FOUND).build();
+```
+
+> A binding the branch **does** read keeps its real name (`case final ActionResult.DuplicateName duplicate -> … duplicate.name()`); this rule is
+> only about bindings that exist solely to satisfy the pattern syntax.
+
+> Unnamed variables are JEP 456, standard since Java 22 (this project targets 26). Checkstyle's `PatternVariableName` permits `_` via the
+> `|_` alternation in `code-quality-config/java/checkstyle.xml`, matching the allowance `CatchParameterName` and `LambdaParameterName` already
+> make — so the same `_` is available for an unread catch parameter or lambda parameter.
 
 The pattern variable is **`final`**, like every other local (`case final ActionResult.Success success ->`, `instanceof final TextOutcome.Valid
 valid`).
@@ -644,3 +724,82 @@ if (Action.count("userId = ?1 and name = ?2", user.id, normName) > 0L) {
 
 > **The generic witness goes on the call too** where the return type needs it (`Action.<Action>find(…)`, `User.<User>list(…)`) — that is the same
 > rule, not an exception to it.
+
+### A request DTO's constraints are `@Schema` attributes, NEVER Jakarta Bean Validation
+
+**A `/api/v1` request DTO describes its constraints with `@Schema(required = …, minLength = …, maxLength = …, pattern = …)` and carries no
+`jakarta.validation.constraints` annotation at all.** `@NotBlank`, `@Size`, `@Email` and friends must not appear on a request body type, and no
+resource method parameter takes `@Valid`.
+
+This is a consequence of the single-business-logic rule, not a preference. Bean validation on a DTO can only ever run on the **API** surface, so
+enforcing a rule there would duplicate it — the annotation for JSON callers, the shared `*Service` for the web form — which is exactly the drift the
+architecture forbids. It would also replace the app's `ApiErrorResponse` body with the framework's default violation report on a 400.
+
+❌ **Wrong** — an annotation that promises enforcement on a type nothing validates:
+
+```java
+@NotBlank @Size(max = TextFields.PASSWORD_MAX_LENGTH, message = "Password must be at most {max} characters")
+@Schema(examples = "correct horse battery staple", description = "Password for the new account.")
+String password
+```
+
+✅ **Right** — the same published schema, stated as documentation:
+
+```java
+@Schema(required = true, pattern = TextFields.NOT_BLANK_PATTERN, maxLength = TextFields.PASSWORD_MAX_LENGTH,
+    examples = "correct horse battery staple", description = "Password for the new account.")
+String password
+```
+
+> **The generated document is identical either way.** SmallRye folds `@NotBlank` into `pattern: "\S"` (that is what `TextFields.NOT_BLANK_PATTERN`
+> preserves) and `@Size` into `minLength`/`maxLength`; `@Email` contributes **nothing at all**, so dropping it loses no documentation. Verified by
+> diffing `/q/openapi` across the conversion — only JSON key order moved.
+
+> **SonarQube `java:S6816` ("Add missing `@Valid`") reports this shape and must not be actioned by adding `@Valid`.** The rule is correct that the
+> constraints are unenforced; the resolution is to remove the constraint annotations, which is why none remain. Writing the bounds as `@Schema`
+> attributes leaves the rule nothing to report, so it stays live to catch a genuine missing `@Valid` if one is ever needed.
+
+> **The rule is enforced by the build, not just by this document.** `quarkus-hibernate-validator` was dropped from the POM once the last constraint
+> annotation went (nothing else pulls it — it was a direct dependency, and the whole gate including the deployment-smoke tier passes without it), so
+> `jakarta.validation` is off the compile classpath entirely: a re-added `@NotBlank` no longer compiles rather than silently doing nothing.
+> **Re-adding the extension is a deliberate decision, not a step in fixing a lint finding** — and if a use case ever genuinely needs runtime
+> validation, it needs a `ConstraintViolationException` mapper emitting `ApiErrorResponse` before it can honour the API's error contract.
+
+### A constant regex is a `static final Pattern`, never `String.matches`/`replaceAll`
+
+**A regular expression whose text is fixed at compile time is compiled ONCE into a `private static final Pattern` and used through
+`PATTERN.matcher(input)`.** Never call `String.matches`, `String.replaceAll` or `String.replaceFirst` with a literal (or a `String` constant), and
+never call `Pattern.compile` on a constant inside a method body. Each of those recompiles the expression on every single call — parsing the pattern
+and building its node graph — and the compiled `Pattern` is immutable and thread-safe, so there is nothing to gain by rebuilding it.
+
+❌ **Wrong** — recompiled on every request:
+
+```java
+private static final String HEX_PATTERN = "^#[0-9a-fA-F]{6}$";
+
+public static boolean isInvalidHex(final String colour) {
+    return !colour.matches(HEX_PATTERN);
+}
+```
+
+✅ **Right** — compiled once at class initialisation:
+
+```java
+private static final Pattern HEX_PATTERN = Pattern.compile("^#[0-9a-fA-F]{6}$");
+
+public static boolean isInvalidHex(final String colour) {
+    return !HEX_PATTERN.matcher(colour).matches();
+}
+```
+
+**This applies to test sources too** — hoist a literal `Pattern.compile(…)` out of a test method to a field, exactly as in `src/main`.
+
+> **`String.split` is the exception and stays as it is.** `split` carries a fast path that bypasses the regex engine entirely for a single-character
+> pattern that is not a metacharacter (`"@"`, `"\n"`) and for a two-character backslash escape of a non-alphanumeric (`"\\."`) — so
+> `jwt.split("\\.")` compiles no `Pattern` at all and needs no change. Only reach for a `Pattern` field if a `split` pattern is genuinely more
+> complex than that.
+
+> **A regex built from a runtime value cannot follow this rule and must not be forced to.** `NoteSearch.literal(query)` compiles
+> `Pattern.quote(theUsersSearchTerm)` per search, and `SecretsStayOutOfLogsTest` compiles a whole-word matcher per guarded identifier — the pattern
+> text is not known until the call, so there is no constant to hoist. Do not contort a readable `List.of(…)` of names into a parallel `Map<String,
+> Pattern>` to satisfy the linter; SonarQube's `java:S4248` only reports a **constant** argument.

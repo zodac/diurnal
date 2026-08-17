@@ -179,11 +179,9 @@ public class StatsInternalResource {
                 .data("chart", chart)
                 .data("decimalPlaces", user.decimalPlaces)
                 .data("candidates", statsService.compareCandidates(user.id, chartedIds(chart), null))).build();
-            case final FrequencyResult.UnknownPeriod _ -> Response.status(Response.Status.BAD_REQUEST).build();
-            case final FrequencyResult.UnknownWindow _ -> Response.status(Response.Status.BAD_REQUEST).build();
-            case final FrequencyResult.TooManySubjects _ -> Response.status(Response.Status.BAD_REQUEST).build();
-            case final FrequencyResult.DuplicateSubject _ -> Response.status(Response.Status.BAD_REQUEST).build();
-            case final FrequencyResult.NotLogged _ -> Response.status(Response.Status.BAD_REQUEST).build();
+            case final FrequencyResult.UnknownPeriod _, final FrequencyResult.UnknownWindow _, final FrequencyResult.TooManySubjects _,
+                 final FrequencyResult.DuplicateSubject _, final FrequencyResult.NotLogged _ ->
+                Response.status(Response.Status.BAD_REQUEST).build();
             case final FrequencyResult.NotOwned _ -> Response.status(Response.Status.NOT_FOUND).build();
         };
     }

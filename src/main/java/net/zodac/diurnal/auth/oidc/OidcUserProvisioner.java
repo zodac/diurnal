@@ -92,7 +92,6 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
     private static final Logger LOGGER = LogManager.getLogger(OidcUserProvisioner.class);
     private static final int MIN_JWT_SEGMENTS = 2;
     private static final long ERROR_COOKIE_MAX_AGE_SECONDS = 60L;
-    private static final String CALLBACK_PATH = "/oauth2/callback/oidc";
     private static final String LOGIN_ERROR_REDIRECT = "/login?error=oidc";
 
     private final Instance<OidcUserProvisioner> self;
@@ -100,6 +99,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
     private final NoteKeys noteKeys;
     private final PasswordAuthConfig passwordAuthConfig;
     private final OidcConfig oidcConfig;
+    private final QuarkusOidcConfig quarkusOidcConfig;
     private final AccountLinkService accountLinkService;
     private final SessionStore sessionStore;
     private final SessionConfig sessionConfig;
@@ -113,6 +113,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
      * @param roleAssigner the shared role-assignment policy
      * @param passwordAuthConfig the password-auth settings
      * @param oidcConfig the application OIDC policy settings
+     * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys, read here for the callback path the revocation guard exempts
      * @param accountLinkService the account-linking policy service
      * @param sessionStore the session store used to mint the OIDC session
      * @param sessionConfig the session settings
@@ -121,13 +122,14 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
      */
     @Inject
     public OidcUserProvisioner(final Instance<OidcUserProvisioner> self, final RoleAssigner roleAssigner, final PasswordAuthConfig passwordAuthConfig,
-        final OidcConfig oidcConfig, final AccountLinkService accountLinkService, final SessionStore sessionStore, final SessionConfig sessionConfig,
-        final AppClock clock, final NoteKeys noteKeys) {
+        final OidcConfig oidcConfig, final QuarkusOidcConfig quarkusOidcConfig, final AccountLinkService accountLinkService,
+        final SessionStore sessionStore, final SessionConfig sessionConfig, final AppClock clock, final NoteKeys noteKeys) {
         this.self = self;
         this.roleAssigner = roleAssigner;
         this.noteKeys = noteKeys;
         this.passwordAuthConfig = passwordAuthConfig;
         this.oidcConfig = oidcConfig;
+        this.quarkusOidcConfig = quarkusOidcConfig;
         this.accountLinkService = accountLinkService;
         this.sessionStore = sessionStore;
         this.sessionConfig = sessionConfig;
@@ -209,7 +211,7 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
     // A null RoutingContext (direct service-level calls in tests) has no cookies to judge and is exempt.
     private SecurityIdentity authenticated(final User user, final IdTokenCredential idTokenCred, @Nullable final RoutingContext routingContext) {
         if (routingContext != null && !OidcLoginPolicy.revocationGuardSatisfied(
-            CALLBACK_PATH.equals(routingContext.normalizedPath()), liveSessionForUser(user, routingContext))) {
+            quarkusOidcConfig.redirectPath().equals(routingContext.normalizedPath()), liveSessionForUser(user, routingContext))) {
             LOGGER.debug("Refusing q_session-only request for {}: no live server-side session - re-entering the code flow", user.email);
             // Expire the OIDC session cookie so the retry can't authenticate from it again (no redirect loop), then send the browser back into
             // the code flow: /oidc-login is pinned to the code mechanism, so the now-cookieless request challenges straight to the IdP, and the
@@ -263,9 +265,14 @@ public class OidcUserProvisioner implements SecurityIdentityAugmentor {
         final boolean linkedElsewhere = owner != OidcLinkPolicy.IdentityOwner.SESSION_USER
             && target.oidcSubject != null && !target.oidcSubject.isBlank();
         // The mistaken-account guard: the token's email must match the signed-in account's (both already normalised to lowercase).
-        return OidcLinkPolicy.decide(roleAssigner.isGroupCheckEnabled(), state.idpRole() != null, owner, linkedElsewhere,
-            demotesLastAdministrator(target, state.idpRole()), state.normalisedEmail().isBlank(),
-            target.email.equals(state.normalisedEmail()));
+        return OidcLinkPolicy.decide(new OidcLinkFacts(
+            roleAssigner.isGroupCheckEnabled(),
+            state.idpRole() != null,
+            owner,
+            linkedElsewhere,
+            demotesLastAdministrator(target, state.idpRole()),
+            state.normalisedEmail().isBlank(),
+            target.email.equals(state.normalisedEmail())));
     }
 
     // The Settings "Connect" flow: the link-intent cookie plus a valid signed-in session identifies the account to link. Anything short of both

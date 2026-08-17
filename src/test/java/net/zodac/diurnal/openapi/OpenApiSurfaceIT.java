@@ -142,6 +142,8 @@ class OpenApiSurfaceIT extends IntegrationTestBase {
             .extract().jsonPath().getMap("paths");
 
         assertThat(paths.keySet())
+            .as("The document must describe some paths at all - an empty document satisfies a path-shape check vacuously")
+            .isNotEmpty()
             .as("Every documented path must live under /api/v1/ — internal/page routes must never be documented")
             .allSatisfy(path -> assertThat(path)
             .as("unexpected non-public path in the OpenAPI document")

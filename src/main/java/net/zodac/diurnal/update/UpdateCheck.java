@@ -41,7 +41,7 @@ public final class UpdateCheck {
 
     private static final Pattern GITHUB_REPOSITORY = Pattern.compile("(?i)^https?://github\\.com/(?<owner>[^/]+)/(?<repo>[^/]+?)(?:\\.git)?/?$");
     private static final Pattern TAG_NAME = Pattern.compile("\"tag_name\"\\s*:\\s*\"(?<tag>[^\"]+)\"");
-    private static final Pattern VERSION_CORE = Pattern.compile("\\d+(?:\\.\\d+)*");
+    private static final Pattern VERSION_CORE = Pattern.compile("\\d+(?:\\.\\d+){0,9}");
     private static final String GITHUB_API_BASE = "https://api.github.com/repos/";
     private static final String RELEASES_PATH = "/releases";
     private static final String RELEASE_TAG_PATH = "/releases/tag/";
@@ -112,7 +112,8 @@ public final class UpdateCheck {
      * Whether {@code latestVersion} is a strictly newer release than {@code currentVersion}. Both strings are reduced to their leading dotted numeric
      * core (so a {@code v} prefix or a {@code -SNAPSHOT}/pre-release suffix is ignored) and compared segment by segment, treating a missing segment
      * as zero. A version with no numeric core (e.g. {@code dev}), or one too large to parse, is treated as not-newer so the check never falsely
-     * advertises an update.
+     * advertises an update. At most ten dotted segments are read from either version - four more than any released scheme uses, and a bound the
+     * matcher needs rather than a rule about versions (see {@code parseVersion}).
      *
      * @param currentVersion the running application version
      * @param latestVersion  the latest published release version
@@ -173,6 +174,9 @@ public final class UpdateCheck {
     // An empty array is the "unparseable" answer: a matched version core always yields at least one segment, so an empty
     // result cannot mean anything else.
     private static int[] parseVersion(final String version) {
+        // The dotted-segment repetition is BOUNDED rather than open-ended, because Java's regex engine recurses once per repetition of a GROUP (as
+        // opposed to of a single character class, which it loops over): an open `(?:\.\d+)*` throws StackOverflowError at around 3,000 segments, on
+        // roughly 6 kB of input. The latest version reaching here is a tag off the GitHub API response, so it is not ours to bound - the pattern is.
         final Matcher matcher = VERSION_CORE.matcher(version);
         if (!matcher.find()) {
             return UNPARSEABLE_VERSION;

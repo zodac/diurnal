@@ -17,30 +17,34 @@
 
 package net.zodac.diurnal.auth;
 
-import jakarta.validation.constraints.Email;
-import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.Size;
 import net.zodac.diurnal.text.TextFields;
 import org.eclipse.microprofile.openapi.annotations.media.Schema;
 
 /**
- * Payload submitted to the JSON registration endpoint. The bean-validation annotations here feed the OpenAPI schema (required/min/max constraints)
- * but are NOT the enforcement — the endpoint deliberately does not use {@code @Valid}; the authoritative rules live in {@link RegistrationService},
- * shared with the web form. The bounds are taken from the {@link TextFields} catalogue, so the documented schema cannot drift from what is enforced.
+ * Payload submitted to the JSON registration endpoint. Every constraint here is expressed as a {@link Schema} attribute and is
+ * <strong>documentation only</strong> - it describes the request in the published OpenAPI document and enforces nothing. The authoritative rules live
+ * in {@link RegistrationService}, shared with the web form, which is what lets a rejection carry the app's own error body rather than a framework
+ * violation report. The bounds are taken from the {@link TextFields} catalogue, so the documented schema cannot drift from what is enforced.
+ *
+ * <p>
+ * Jakarta Bean Validation annotations ({@code @NotBlank}, {@code @Size}) are deliberately NOT used, even though SmallRye would fold them into this
+ * same schema: an annotation that means "enforce this" has no business on a type nothing validates, and without {@code @Valid} on the endpoint it
+ * silently would not run. {@code pattern} carries the not-blank rule those annotations used to contribute.
  */
 @Schema(description = "Details for a new password-based account: email, display name and password.")
 @SuppressWarnings("unused") // constructed by Jackson when it deserialises the request body; no Java caller
 public record RegisterRequest(
-    @NotBlank @Email
-    @Schema(examples = "ada@example.com", description = "Email address for the new account; must be unique.")
+    @Schema(required = true, pattern = TextFields.NOT_BLANK_PATTERN,
+    examples = "ada@example.com", description = "Email address for the new account; must be unique.")
     String email,
 
-    @NotBlank @Size(min = TextFields.DISPLAY_NAME_MIN_LENGTH, max = TextFields.DISPLAY_NAME_MAX_LENGTH)
-    @Schema(examples = "Ada Lovelace", description = "Human-readable name shown in the UI.")
+    @Schema(required = true, pattern = TextFields.NOT_BLANK_PATTERN,
+    minLength = TextFields.DISPLAY_NAME_MIN_LENGTH, maxLength = TextFields.DISPLAY_NAME_MAX_LENGTH,
+    examples = "Ada Lovelace", description = "Human-readable name shown in the UI.")
     String displayName,
 
-    @NotBlank @Size(max = TextFields.PASSWORD_MAX_LENGTH, message = "Password must be at most {max} characters")
-    @Schema(examples = "correct horse battery staple", description = "Password for the new account; at most 128 characters.")
+    @Schema(required = true, pattern = TextFields.NOT_BLANK_PATTERN, maxLength = TextFields.PASSWORD_MAX_LENGTH,
+    examples = "correct horse battery staple", description = "Password for the new account; at most 128 characters.")
     String password
 ) {
 

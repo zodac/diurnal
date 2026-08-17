@@ -23,13 +23,23 @@ import java.util.List;
  * The catalogue of every free-text input in the app - the ONE place a length bound or a content rule for a user-submitted value is written.
  *
  * <p>
- * Each bound is also exposed as an {@code int} constant, because a Jakarta Bean Validation annotation ({@code @Size(max = ...)}) needs a compile-time
- * constant and cannot read it off the {@link TextField}. The constant is the value the field is built from, so the two cannot disagree.
+ * Each bound is also exposed as an {@code int} constant, because an annotation ({@code @Schema(maxLength = ...)} on a request DTO) needs a
+ * compile-time constant and cannot read it off the {@link TextField}. The constant is the value the field is built from, so the two cannot disagree.
  *
  * <p>
  * A maximum must match the width of the column the value is stored in; {@code TextFieldsTest} fails if a bound is changed without its column.
  */
 public final class TextFields {
+
+    /**
+     * The "must hold at least one non-whitespace character" rule, as a regular expression for an OpenAPI {@code @Schema(pattern = ...)}.
+     *
+     * <p>
+     * <strong>Documentation only.</strong> It describes a required text field in the published document and enforces nothing; the rule itself is
+     * applied by the shared {@code *Service} behind each endpoint. The value is what SmallRye used to derive from a {@code @NotBlank} annotation,
+     * kept so the document did not change when those annotations were removed.
+     */
+    public static final String NOT_BLANK_PATTERN = "\\S";
 
     /**
      * The longest accepted action name, matching the {@code actions.name} column width.

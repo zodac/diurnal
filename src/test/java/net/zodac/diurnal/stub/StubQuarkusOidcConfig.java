@@ -25,7 +25,9 @@ import net.zodac.diurnal.auth.oidc.QuarkusOidcConfig;
  * @param tenantEnabled whether the default OIDC tenant is enabled
  * @param authServerUrl the IdP base (issuer) URL
  * @param discoveryEnabled whether OIDC discovery is enabled
+ * @param redirectPath the OIDC callback path
  */
-public record StubQuarkusOidcConfig(boolean tenantEnabled, String authServerUrl, boolean discoveryEnabled) implements QuarkusOidcConfig {
+public record StubQuarkusOidcConfig(boolean tenantEnabled, String authServerUrl, boolean discoveryEnabled, String redirectPath)
+    implements QuarkusOidcConfig {
 
 }

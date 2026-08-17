@@ -56,6 +56,8 @@ class SecretsStayOutOfLogsTest {
     // A logging call and everything up to the end of its statement, across line breaks.
     private static final Pattern LOG_STATEMENT = Pattern.compile("LOGGER\\.\\w+\\(.*?\\);", Pattern.DOTALL);
 
+    private static final Pattern WHITESPACE_RUN = Pattern.compile("\\s+");
+
     // Identifiers that hold a note's content, a search term drawn from one, or a key. Whole-word, so prose in a format
     // string ("the notes data key") does not trip it and only an actual reference does.
     private static final List<String> FORBIDDEN = List.of(
@@ -120,6 +122,6 @@ class SecretsStayOutOfLogsTest {
     }
 
     private static String condensed(final String statement) {
-        return statement.replaceAll("\\s+", " ");
+        return WHITESPACE_RUN.matcher(statement).replaceAll(" ");
     }
 }

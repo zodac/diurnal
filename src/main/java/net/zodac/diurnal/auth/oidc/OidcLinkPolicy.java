@@ -54,38 +54,30 @@ public final class OidcLinkPolicy {
     /**
      * Decides the outcome of a link attempt.
      *
-     * @param groupCheckEnabled          at least one OIDC group→role mapping is configured
-     * @param inConfiguredGroup          the token's groups claim matched a configured group
-     * @param identityOwner              who already owns the presented identity
-     * @param sessionUserLinkedElsewhere the signed-in account is already linked to a <em>different</em> identity
-     * @param demotesLastAdministrator   applying the IdP-derived role to the signed-in account would demote the final remaining administrator
-     * @param emailMissing               the token carried no usable email claim, so the match below cannot be checked
-     * @param emailMatchesAccount        the token's email equals the signed-in account's email
+     * @param facts the gathered facts
      * @return the {@link OidcLoginDecision}
      */
-    public static OidcLoginDecision decide(final boolean groupCheckEnabled, final boolean inConfiguredGroup, final IdentityOwner identityOwner,
-        final boolean sessionUserLinkedElsewhere, final boolean demotesLastAdministrator, final boolean emailMissing,
-        final boolean emailMatchesAccount) {
-        if (groupCheckEnabled && !inConfiguredGroup) {
+    public static OidcLoginDecision decide(final OidcLinkFacts facts) {
+        if (facts.groupCheckEnabled() && !facts.inConfiguredGroup()) {
             return new OidcLoginDecision.Deny(OidcDenialReason.NOT_IN_GROUP);
         }
-        if (identityOwner == IdentityOwner.OTHER_USER) {
+        if (facts.identityOwner() == IdentityOwner.OTHER_USER) {
             return new OidcLoginDecision.Deny(OidcDenialReason.LINK_CONFLICT);
         }
-        if (identityOwner == IdentityOwner.NONE && sessionUserLinkedElsewhere) {
+        if (facts.identityOwner() == IdentityOwner.NONE && facts.sessionUserLinkedElsewhere()) {
             return new OidcLoginDecision.Deny(OidcDenialReason.ALREADY_LINKED);
         }
-        if (demotesLastAdministrator) {
+        if (facts.demotesLastAdministrator()) {
             return new OidcLoginDecision.Deny(OidcDenialReason.ROLE_SYNC_REFUSED);
         }
-        if (identityOwner == IdentityOwner.SESSION_USER) {
+        if (facts.identityOwner() == IdentityOwner.SESSION_USER) {
             return new OidcLoginDecision.UseExisting();
         }
         // Only the actual link (not the re-login above) requires the email match — the mistaken-account guard.
-        if (emailMissing) {
+        if (facts.emailMissing()) {
             return new OidcLoginDecision.Deny(OidcDenialReason.EMAIL_MISSING);
         }
-        if (!emailMatchesAccount) {
+        if (!facts.emailMatchesAccount()) {
             return new OidcLoginDecision.Deny(OidcDenialReason.LINK_EMAIL_MISMATCH);
         }
         return new OidcLoginDecision.LinkToSessionUser();
