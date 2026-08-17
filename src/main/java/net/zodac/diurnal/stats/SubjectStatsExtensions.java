@@ -154,7 +154,7 @@ public final class SubjectStatsExtensions {
         }
 
         final LocalDate lastDay = span.endExclusive().minusDays(1L);
-        return lastDay.equals(span.start()) ? start : start + RANGE_SEPARATOR + lastDay.format(DATE_FMT);
+        return lastDay.equals(span.start()) ? start : (start + RANGE_SEPARATOR + lastDay.format(DATE_FMT));
     }
 
     // ── Date labels ───────────────────────────────────────────────────────

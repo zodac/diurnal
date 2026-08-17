@@ -28,12 +28,6 @@ import java.util.Locale;
  */
 final class StatusAssembler {
 
-    private static final long MILLIS_PER_SECOND = 1_000L;
-    private static final long MILLIS_PER_MINUTE = 60_000L;
-    private static final long MILLIS_PER_HOUR = 3_600_000L;
-    private static final long SECONDS_PER_MINUTE = 60L;
-    private static final long MINUTES_PER_HOUR = 60L;
-
     private StatusAssembler() {
 
     }
@@ -75,16 +69,16 @@ final class StatusAssembler {
      * @return the formatted uptime string
      */
     static String formatUptime(final Duration uptime) {
-        final long totalMillis = Math.max(0L, uptime.toMillis());
-        final long hours = totalMillis / MILLIS_PER_HOUR;
-        final long minutes = totalMillis / MILLIS_PER_MINUTE % MINUTES_PER_HOUR;
-        final long seconds = totalMillis / MILLIS_PER_SECOND % SECONDS_PER_MINUTE;
-        final long millis = totalMillis % MILLIS_PER_SECOND;
+        final Duration elapsed = uptime.isNegative() ? Duration.ZERO : uptime;
+        final long hours = elapsed.toHours();
+        final int minutes = elapsed.toMinutesPart();
+        final int seconds = elapsed.toSecondsPart();
+        final int millis = elapsed.toMillisPart();
 
         if (hours > 0L) {
             return String.format(Locale.ROOT, "%d:%02d:%02d.%03d", hours, minutes, seconds, millis);
         }
-        if (minutes > 0L) {
+        if (minutes > 0) {
             return String.format(Locale.ROOT, "%d:%02d.%03d", minutes, seconds, millis);
         }
         return String.format(Locale.ROOT, "%d.%03d", seconds, millis);

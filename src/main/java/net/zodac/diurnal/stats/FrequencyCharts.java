@@ -94,8 +94,9 @@ final class FrequencyCharts {
                 List.copyOf(bars)));
         }
 
-        final List<FrequencySeries> series = new ArrayList<>(charted.size());
-        for (int index = 0; index < charted.size(); index++) {
+        final int chartedCount = charted.size();
+        final List<FrequencySeries> series = new ArrayList<>(chartedCount);
+        for (int index = 0; index < chartedCount; index++) {
             final StatSubject subject = charted.get(index);
             series.add(new FrequencySeries(subject.id(), subject.name(), subject.colour(),
                 seriesTotal(countsByAction.getOrDefault(subject.id(), Map.of()), slots), index > 0));

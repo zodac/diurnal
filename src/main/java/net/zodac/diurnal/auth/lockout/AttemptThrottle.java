@@ -52,7 +52,7 @@ public final class AttemptThrottle {
 
     // Read only as `!enabled`, which BooleanVariableAlwaysNegated objects to - but the inverse name it implies,
     // `disabled`, is what NegativelyNamedBooleanVariable objects to. Every read is a guard clause returning the
-    // no-op answer, so satisfying the first would mean wrapping four method bodies in `if (enabled) { ... }`.
+    // no-op answer, so satisfying the first would mean wrapping four method bodies in an IF guard.
     @SuppressWarnings("BooleanVariableAlwaysNegated")
     private final boolean enabled;
     private final int maxAttempts;
@@ -213,7 +213,6 @@ public final class AttemptThrottle {
 
         // Non-null default so isStaleAt needs no null guard; overwritten by the first recordFailure
         private Instant lastFailureAt = Instant.EPOCH;
-
         @Nullable
         private Instant lockedUntil;
 

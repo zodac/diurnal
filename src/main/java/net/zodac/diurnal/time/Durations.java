@@ -115,7 +115,7 @@ public final class Durations {
      * @return {@code unit} when {@code count} is exactly one, else {@code unit + "s"}
      */
     public static String plural(final long count, final String unit) {
-        return count == 1L ? unit : unit + "s";
+        return count == 1L ? unit : (unit + "s");
     }
 
     private static Period period(final DaySpan span) {

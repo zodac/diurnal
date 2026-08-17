@@ -192,7 +192,7 @@ public final class TextRules { // NOPMD: DataClass - a catalogue of rule constan
     private static boolean hasNoStackedMarks(final String value) {
         int run = 0;
         for (final int codePoint : value.codePoints().toArray()) {
-            run = isCombiningMark(codePoint) ? run + 1 : 0;
+            run = isCombiningMark(codePoint) ? (run + 1) : 0;
             if (run > MAX_CONSECUTIVE_MARKS) {
                 return false;
             }

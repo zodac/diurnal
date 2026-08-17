@@ -150,6 +150,6 @@ public final class NoteSearch {
     // which notes accept) into two unpaired halves that render as replacement characters.
     private static int cut(final String text, final int index) {
         final int clamped = Math.clamp(index, 0, text.length());
-        return clamped < text.length() && Character.isLowSurrogate(text.charAt(clamped)) ? clamped - 1 : clamped;
+        return clamped < text.length() && Character.isLowSurrogate(text.charAt(clamped)) ? (clamped - 1) : clamped;
     }
 }

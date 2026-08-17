@@ -109,6 +109,20 @@ outcome from a file that looks harmless.
 POM manages every dependency version (so a new one is a change there too), and the project's linters hold pure
 logic like this to 100% mutation coverage — a stronger guarantee than a dependency carries.
 
+### One parser object, not an accumulator parameter
+
+`ImportParser.parse` builds a short-lived `ArchiveParser` that owns the problems it finds. Each step (`parseActions`,
+`parseLogs`, `parseNotes`, `parseDate`) reports into it and returns only its drafts, and the outcome is decided from
+that state at the end. The accumulator was previously a `Problems` value threaded through every step's signature,
+which put a mutable out-parameter in the API of seven methods. `ImportParser` keeps the contract above and the entry
+point; `ArchiveParser` (and `CsvParser`, extracted from `Csv` for the same reason) is the reading itself, in its own
+file rather than nested — both are well past the 25-line bar SonarQube sets for a nested class.
+
+**Rejected:** making each step pure by returning its drafts *and* its own list of problems for `parse` to merge. That
+reads better in isolation, but the report cap (`MAX_REPORTED_PROBLEMS`, below) could then only be applied at the merge,
+leaving each step's list unbounded until that point — on precisely the malformed file the cap exists for. One shared
+list, capped as it grows, keeps that guarantee.
+
 ## Privacy
 
 **The archive holds note content in the clear.** Notes are encrypted at rest (see [`NOTES.md`](NOTES.md)) and an

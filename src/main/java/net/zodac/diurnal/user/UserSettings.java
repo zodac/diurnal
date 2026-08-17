@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.user;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
@@ -203,7 +204,7 @@ public final class UserSettings {
         final String id = zone.getId();
         final String offset = utcOffsetLabel(zone.getRules().getOffset(now));
         // The UTC zone's id already is its offset label — don't render the redundant "UTC (UTC)".
-        return id.equals(offset) ? id : id + " (" + offset + ")";
+        return id.equals(offset) ? id : (id + " (" + offset + ")");
     }
 
     /**
@@ -211,10 +212,11 @@ public final class UserSettings {
      */
     static String utcOffsetLabel(final ZoneOffset offset) {
         final int totalSeconds = offset.getTotalSeconds();
-        final int absSeconds = Math.abs(totalSeconds);
-        final int hours = absSeconds / 3600;
-        final int minutes = (absSeconds % 3600) / 60;
-        final String body = minutes == 0 ? String.valueOf(hours) : hours + ":" + String.format("%02d", minutes);
+        // The sign is carried by the "UTC+"/"UTC-" prefix below, so the magnitude is what gets split into its hour and minute parts.
+        final Duration magnitude = Duration.ofSeconds(totalSeconds).abs();
+        final long hours = magnitude.toHours();
+        final int minutes = magnitude.toMinutesPart();
+        final String body = minutes == 0 ? String.valueOf(hours) : (hours + ":" + String.format("%02d", minutes));
         // Zero falls through to the plain "UTC" label; keeping the sign checks reachable for 0 means
         // the boundary (> 0 / < 0) is testable rather than an equivalent mutant.
         if (totalSeconds > 0) {

@@ -74,6 +74,6 @@ public final class FrequencyChartExtensions {
             .map(series -> "compare=" + series.subjectId())
             .collect(Collectors.joining("&"));
         final String base = "/internal/stats/chart/" + primaryId + "/candidates";
-        return compared.isEmpty() ? base : base + '?' + compared;
+        return compared.isEmpty() ? base : (base + '?' + compared);
     }
 }

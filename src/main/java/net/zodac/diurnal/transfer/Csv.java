@@ -17,7 +17,6 @@
 
 package net.zodac.diurnal.transfer;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -47,11 +46,14 @@ import java.util.List;
  */
 public final class Csv {
 
+    // The four characters the format turns on are package-private because CsvParser reads with them what this class writes with; the rest are
+    // only ever written.
+    static final char QUOTE = '"';
+    static final char DELIMITER = ',';
+    static final char CARRIAGE_RETURN = '\r';
+    static final char LINE_FEED = '\n';
+
     private static final char BYTE_ORDER_MARK = '﻿';
-    private static final char QUOTE = '"';
-    private static final char DELIMITER = ',';
-    private static final char CARRIAGE_RETURN = '\r';
-    private static final char LINE_FEED = '\n';
     private static final String RECORD_SEPARATOR = "\r\n";
     private static final String ESCAPED_QUOTE = "\"\"";
 
@@ -87,11 +89,12 @@ public final class Csv {
      */
     public static CsvOutcome parse(final String document) {
         final String content = document.isEmpty() || document.charAt(0) != BYTE_ORDER_MARK ? document : document.substring(1);
-        return new Parser(content).parse();
+        return new CsvParser(content).parse();
     }
 
     private static void appendRecord(final StringBuilder document, final List<String> fields) {
-        for (int i = 0; i < fields.size(); i++) {
+        final int fieldCount = fields.size();
+        for (int i = 0; i < fieldCount; i++) {
             if (i > 0) {
                 document.append(DELIMITER);
             }
@@ -121,113 +124,5 @@ public final class Csv {
             || field.indexOf(DELIMITER) >= 0
             || field.indexOf(CARRIAGE_RETURN) >= 0
             || field.indexOf(LINE_FEED) >= 0;
-    }
-
-    private static final class Parser {
-
-        private final String content;
-        private final List<CsvRow> rows = new ArrayList<>();
-        private final List<String> fields = new ArrayList<>();
-        // Qodana's twin of the PMD suppression below. Deliberately does not spell out the P-M-D marker: PMD scans comment text for that token, reads
-        // this line as a suppression of its own, finds nothing on it to suppress, and fails the build with UnnecessaryWarningSuppression.
-        @SuppressWarnings("StringBufferField")
-        private final StringBuilder field = new StringBuilder(); // NOPMD: AvoidStringBufferField - a Parser lives for one parse() call
-
-        private boolean inQuotes;
-        private boolean atFieldStart = true;
-        private boolean recordOpen;
-        private int line = 1;
-        private int recordLine = 1;
-        private int index;
-
-        private Parser(final String content) {
-            this.content = content;
-        }
-
-        private CsvOutcome parse() {
-            while (index < content.length()) {
-                if (inQuotes) {
-                    insideQuotedField();
-                } else {
-                    outsideQuotedField();
-                }
-            }
-
-            if (inQuotes) {
-                return new CsvOutcome.Malformed(recordLine, "a quoted value is never closed - check for an unbalanced \" character");
-            }
-
-            // A document that ends without a trailing separator still has one record in hand; one that ends WITH a separator has already emitted it
-            // and left nothing open, which is what keeps a trailing newline from becoming an empty row. `recordOpen` is the difference between the
-            // two, and is also what makes a document ending in a delimiter ("a,") yield the trailing empty field it actually holds.
-            if (recordOpen) {
-                endRecord();
-            }
-            return new CsvOutcome.Parsed(List.copyOf(rows));
-        }
-
-        private void insideQuotedField() {
-            final char current = content.charAt(index);
-            if (current == QUOTE) {
-                if (nextIs(QUOTE)) {
-                    field.append(QUOTE);
-                    index += 2;
-                } else {
-                    inQuotes = false;
-                    index++;
-                }
-            } else if (current == CARRIAGE_RETURN || current == LINE_FEED) {
-                field.append(LINE_FEED);
-                consumeLineBreak(current);
-            } else {
-                field.append(current);
-                index++;
-            }
-        }
-
-        private void outsideQuotedField() {
-            final char current = content.charAt(index);
-            if (current == QUOTE && atFieldStart) {
-                inQuotes = true;
-                atFieldStart = false;
-                recordOpen = true;
-                index++;
-            } else if (current == DELIMITER) {
-                endField();
-                recordOpen = true;
-                index++;
-            } else if (current == CARRIAGE_RETURN || current == LINE_FEED) {
-                endRecord();
-                consumeLineBreak(current);
-                recordLine = line;
-            } else {
-                field.append(current);
-                atFieldStart = false;
-                recordOpen = true;
-                index++;
-            }
-        }
-
-        private void consumeLineBreak(final char current) {
-            index += current == CARRIAGE_RETURN && nextIs(LINE_FEED) ? 2 : 1;
-            line++;
-        }
-
-        private void endField() {
-            fields.add(field.toString());
-            field.setLength(0);
-            atFieldStart = true;
-        }
-
-        private void endRecord() {
-            endField();
-            rows.add(new CsvRow(recordLine, List.copyOf(fields)));
-            fields.clear();
-            recordOpen = false;
-        }
-
-        private boolean nextIs(final char expected) {
-            return index + 1 < content.length() && content.charAt(index + 1) == expected;
-        }
     }
 }

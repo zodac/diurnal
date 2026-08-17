@@ -64,18 +64,18 @@ public final class LockoutMessages {
             return "a moment";
         }
 
-        final long hours = totalSeconds / 3600L;
-        final long minutes = totalSeconds % 3600L / 60L;
-        final long seconds = totalSeconds % 60L;
+        final long hours = duration.toHours();
+        final int minutes = duration.toMinutesPart();
+        final int seconds = duration.toSecondsPart();
 
         final List<String> parts = new ArrayList<>();
         if (hours > 0L) {
             parts.add(unit(hours, "hour"));
         }
-        if (minutes > 0L) {
+        if (minutes > 0) {
             parts.add(unit(minutes, "minute"));
         }
-        if (seconds > 0L) {
+        if (seconds > 0) {
             parts.add(unit(seconds, "second"));
         }
         return join(parts);

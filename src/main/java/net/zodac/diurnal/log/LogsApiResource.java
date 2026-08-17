@@ -155,7 +155,7 @@ public class LogsApiResource {
             .filter(log -> actionMap.containsKey(log.actionId))
             .map(log -> {
                 final Action a = Objects.requireNonNull(actionMap.get(log.actionId));
-                final String title = log.count > 1 ? a.name + " ×" + log.count : a.name;
+                final String title = log.count > 1 ? (a.name + " ×" + log.count) : a.name;
                 return new CalendarEventDto(title, log.logDate.toString(), a.colour, a.colour);
             })
             .toList();

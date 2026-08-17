@@ -209,7 +209,7 @@ public class NotesApiResource {
         final List<NoteDto> items = Pages.slice(all, pageWindow);
         // The COUNT and the window only - never a note's content, and never what was searched for; see NoteService's logging rule.
         LOGGER.debug("Notes API read {} of {} note(s) over {} (page {}) for user {}",
-            items.size(), all.size(), window == null ? "the whole history" : window.start() + " to " + window.end(), pageNum, user.email);
+            items.size(), all.size(), window == null ? "the whole history" : (window.start() + " to " + window.end()), pageNum, user.email);
         return EntityTags.withPrivateValidator(Response.ok(new NotesPageDto(items, all.size(), pageWindow.totalPages(), pageNum)), tag).build();
     }
 

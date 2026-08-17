@@ -24,6 +24,7 @@ import jakarta.ws.rs.container.ContainerResponseContext;
 import jakarta.ws.rs.container.ContainerResponseFilter;
 import jakarta.ws.rs.ext.Provider;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -51,7 +52,6 @@ public class RequestLoggingFilter implements ContainerRequestFilter, ContainerRe
 
     private static final Logger LOGGER = LogManager.getLogger(RequestLoggingFilter.class);
     private static final String START_NANOS_PROPERTY = "net.zodac.diurnal.requestStartNanos";
-    private static final long NANOS_PER_MILLISECOND = 1_000_000L;
 
     // Infrastructure probe paths (Docker HEALTHCHECK etc.) that are never logged, at any level.
     private static final Set<String> UNLOGGED_PATHS = Set.of("api/v1/status");
@@ -98,10 +98,10 @@ public class RequestLoggingFilter implements ContainerRequestFilter, ContainerRe
      *
      * @param startNanos the earlier {@code nanoTime} reading (request arrival)
      * @param endNanos the later {@code nanoTime} reading (response emission)
-     * @return the elapsed whole milliseconds, {@code (endNanos - startNanos) / 1_000_000}
+     * @return the elapsed whole milliseconds between the two readings
      */
     static long millisBetween(final long startNanos, final long endNanos) {
-        return (endNanos - startNanos) / NANOS_PER_MILLISECOND;
+        return TimeUnit.NANOSECONDS.toMillis(endNanos - startNanos);
     }
 
     /**
