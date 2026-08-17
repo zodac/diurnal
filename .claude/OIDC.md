@@ -68,8 +68,8 @@
 - `POST /internal/settings/oidc/connect` sets the one-shot `diurnal_oidc_link` intent cookie (5 min, HttpOnly) and forwards into the code flow via
   `/oidc-login`. At the callback, `OidcUserProvisioner` sees intent cookie + valid `diurnal_session`, applies `OidcLinkPolicy`, and
   `AccountLinkService.link` attaches `iss`+`sub` AND removes the password; `OidcWebResource.oidcCallback` then lands on `/settings?msg=oidc-connected`
-  (the banner states the password was removed). The Settings UI arms a confirm first ("Your password will be removed"). Surface policy: no API twin
-  (browser redirect dance). **The token's email must match the signed-in account's email** (`LINK_EMAIL_MISMATCH`, added 2026-07-19 after a field
+  (the banner states the password was removed). The Settings UI arms a confirmation first ("Your password will be removed"). Surface policy: no API
+  twin (browser redirect dance). **The token's email must match the signed-in account's email** (`LINK_EMAIL_MISMATCH`, added 2026-07-19 after a field
   report) — not a security control (the user proved both sides), but the mistaken-account guard: completing the round trip signed in to the wrong
   IdP account must not silently bind a mismatched identity and discard the password. A missing email claim likewise refuses; an already-linked
   identity's re-login is still resolved by `iss`+`sub` only.

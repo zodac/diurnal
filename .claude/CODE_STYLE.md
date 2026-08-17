@@ -755,13 +755,13 @@ String password
 > preserves) and `@Size` into `minLength`/`maxLength`; `@Email` contributes **nothing at all**, so dropping it loses no documentation. Verified by
 > diffing `/q/openapi` across the conversion — only JSON key order moved.
 
-> **SonarQube `java:S6816` ("Add missing `@Valid`") reports this shape and must not be actioned by adding `@Valid`.** The rule is correct that the
+> **SonarQube `java:S6816` (Add missing `@Valid`) reports this shape and must not be actioned by adding `@Valid`.** The rule is correct that the
 > constraints are unenforced; the resolution is to remove the constraint annotations, which is why none remain. Writing the bounds as `@Schema`
 > attributes leaves the rule nothing to report, so it stays live to catch a genuine missing `@Valid` if one is ever needed.
 
 > **The rule is enforced by the build, not just by this document.** `quarkus-hibernate-validator` was dropped from the POM once the last constraint
 > annotation went (nothing else pulls it — it was a direct dependency, and the whole gate including the deployment-smoke tier passes without it), so
-> `jakarta.validation` is off the compile classpath entirely: a re-added `@NotBlank` no longer compiles rather than silently doing nothing.
+> `jakarta.validation` is off the compilation classpath entirely: a re-added `@NotBlank` no longer compiles rather than silently doing nothing.
 > **Re-adding the extension is a deliberate decision, not a step in fixing a lint finding** — and if a use case ever genuinely needs runtime
 > validation, it needs a `ConstraintViolationException` mapper emitting `ApiErrorResponse` before it can honour the API's error contract.
 

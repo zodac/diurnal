@@ -204,7 +204,7 @@ class AttemptThrottleTest {
 
         assertThat(outcome.failureCount())
                 .as("A disabled throttle reports no tracked failures")
-                .isEqualTo(0);
+                .isZero();
         assertThat(outcome.maxAttempts())
                 .as("A disabled throttle still reports the configured limit")
                 .isEqualTo(MAX_ATTEMPTS);

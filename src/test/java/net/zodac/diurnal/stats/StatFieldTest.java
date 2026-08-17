@@ -142,10 +142,8 @@ class StatFieldTest {
     void choices_null_marksEveryFieldSelectedInDefaultOrder() {
         final List<StatField.Choice> choices = StatField.choices(null);
         assertThat(choices)
-            .as("all fields present")
-            .hasSize(StatField.values().length);
-        assertThat(choices)
-            .as("every field selected by default")
+            .as("all fields present, every field selected by default")
+            .hasSize(StatField.values().length)
             .allMatch(StatField.Choice::selected);
         assertThat(choices.getFirst().key())
             .as("default order leads with last-performed")
@@ -209,13 +207,11 @@ class StatFieldTest {
     void keys_areUniqueAndNeverTheEnumName() {
         final List<String> keys = Arrays.stream(StatField.values()).map(StatField::key).toList();
         assertThat(keys)
-            .as("a duplicated key would silently collapse two stats into one stored slot")
-            .doesNotHaveDuplicates();
-        assertThat(keys)
-            .as("keys are the stable kebab-case storage form, never the enum constant name")
+            .as("keys are the stable kebab-case storage form, never the enum constant name with no duplicates")
             .allSatisfy(key -> assertThat(key)
             .as("key " + key)
-            .matches("[a-z][a-z-]*[a-z]"));
+            .matches("[a-z][a-z-]*[a-z]"))
+            .doesNotHaveDuplicates();
     }
 
     @Test
@@ -295,7 +291,7 @@ class StatFieldTest {
     void encode_partialSubmission_appendsEveryOmittedFieldExactlyOnce() {
         // Only two fields submitted, so the encoder must APPEND every other field (enabled) via the
         // second loop — each field present exactly once, no omissions and no duplicates. This pins the
-        // append loop's guard directly at the encode level (the choices()/displayFields() re-parse would
+        // append loop's guard directly at the encode level (the choices()/displayFields() reparse would
         // otherwise mask a dropped field, so the other encode tests don't detect it).
         final List<StatFieldPref> encoded = StatField.encode(
             List.of("current-streak", "best-year"),

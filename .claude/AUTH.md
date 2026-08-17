@@ -10,12 +10,12 @@
 `RoleAssigner` + their request/result types). Three subpackages carry the rest, and the dependency direction is **one-way and enforced by what
 imports what**:
 
-| Package | Role | Depends on |
-|---|---|---|
-| `auth.session` | the session substrate (store, tokens, auth mechanism, identity provider, sweeper, activity) | **nothing else in `auth`** |
-| `auth.lockout` | per-IP throttling + the admin lockout console | **nothing else in `auth`** |
-| `auth.oidc` | the whole OIDC sign-in/link flow, including its browser routes (`OidcWebResource`) | `auth` (`RoleAssigner`) + `auth.session` |
-| `auth.security` | response hardening applied to every request: `SecurityHeadersFilter`, `CspPolicy`, `CsrfProtectionFilter` | nothing else in `auth` |
+| Package         | Role                                                                                                      | Depends on                               |
+|-----------------|-----------------------------------------------------------------------------------------------------------|------------------------------------------|
+| `auth.session`  | the session substrate (store, tokens, auth mechanism, identity provider, sweeper, activity)               | **nothing else in `auth`**               |
+| `auth.lockout`  | per-IP throttling + the admin lockout console                                                             | **nothing else in `auth`**               |
+| `auth.oidc`     | the whole OIDC sign-in/link flow, including its browser routes (`OidcWebResource`)                        | `auth` (`RoleAssigner`) + `auth.session` |
+| `auth.security` | response hardening applied to every request: `SecurityHeadersFilter`, `CspPolicy`, `CsrfProtectionFilter` | nothing else in `auth`                   |
 
 So `auth.session` and `auth.lockout` are **sinks**: the credentials core reaches into them, never the reverse, which is what makes them safe for the
 rest of the app (`web`, `user`, `log`, `openapi`) to import directly. `auth.oidc` sits above the core; **nothing in `auth` imports `auth.oidc`.**

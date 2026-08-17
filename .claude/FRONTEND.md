@@ -218,13 +218,13 @@ both were reported as the marker "not working". Full rationale (including why it
 
 Notes ride the calendar's **existing** per-month cache, with their own promise map, loaded flag and radius:
 
-| Shared (one implementation) | Split (per data type) |
-|---|---|
-| `lru` recency list + `touch` | `monthPromises` / `notePromises` |
-| `CACHE_LIMIT = 12` | `monthLoaded` / `monthNotesLoaded` |
-| `PINNED_MONTHS` (prev/current/next) | `PREFETCH_RADIUS` 2 / `NOTE_PREFETCH_RADIUS` 1 |
-| `evictIfNeeded` (resident if EITHER side is loaded) | the merge function |
-| `dropMonth` — clears `dayData` **and** the note cache | |
+| Shared (one implementation)                           | Split (per data type)                          |
+|-------------------------------------------------------|------------------------------------------------|
+| `lru` recency list + `touch`                          | `monthPromises` / `notePromises`               |
+| `CACHE_LIMIT = 12`                                    | `monthLoaded` / `monthNotesLoaded`             |
+| `PINNED_MONTHS` (prev/current/next)                   | `PREFETCH_RADIUS` 2 / `NOTE_PREFETCH_RADIUS` 1 |
+| `evictIfNeeded` (resident if EITHER side is loaded)   | the merge function                             |
+| `dropMonth` — clears `dayData` **and** the note cache |                                                |
 
 Two radii mean a month can hold one side without the other, so `fetchAndRender`'s early-out is **two-sided** and
 `Promise.all`s whatever is missing, giving one repaint rather than a flicker per side. Selecting a day whose month is

@@ -174,7 +174,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
     @Test
     void save_withAnInvisibleCharacter_isUnprocessable() {
         given().contentType(ContentType.JSON)
-            .body("{\"content\":\"Ran 5k\\u200bbefore work\"}")
+            .body("{\"content\":\"Ran 5k\\u200b before work\"}")
             .post(DAY_PATH)
             .then().statusCode(UNPROCESSABLE_ENTITY);
     }
@@ -213,7 +213,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
             .then().statusCode(OK)
             .extract().asString();
 
-        assertThat(html.indexOf("Today")).as("both notes must be listed").isNotNegative();
+        assertThat(html).as("both notes must be listed").contains("Today");
         assertThat(html.indexOf(DAY.toString()))
             .as("the newest note must be rendered before the older one")
             .isLessThan(html.indexOf(DAY.minusDays(2).toString()));
@@ -232,11 +232,9 @@ class NotesInternalResourceIT extends IntegrationTestBase {
             .extract().asString();
 
         assertThat(html)
-            .as("the matching note's day must be listed, with the matched run wrapped for highlighting")
+            .as("the matching note's day must be listed, with match highlighted, and the non-matching note must be filtered out")
             .contains(DAY.toString())
-            .contains("<mark class=\"note-mark\">5k</mark>");
-        assertThat(html)
-            .as("the non-matching note must be filtered out")
+            .contains("<mark class=\"note-mark\">5k</mark>")
             .doesNotContain(DAY.minusDays(1).toString());
     }
 

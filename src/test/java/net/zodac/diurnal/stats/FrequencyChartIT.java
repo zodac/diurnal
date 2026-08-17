@@ -166,7 +166,7 @@ class FrequencyChartIT extends IntegrationTestBase {
 
     @Test
     void frequency_unknownAction_isNotFound() {
-        given().get("/api/v1/stats/" + UUID.randomUUID() + "/frequency")
+        given().get("/api/v1/stats/9999/frequency")
                 .then().statusCode(NOT_FOUND);
     }
 
