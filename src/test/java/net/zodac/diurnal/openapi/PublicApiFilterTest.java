@@ -79,15 +79,9 @@ class PublicApiFilterTest {
         new PublicApiFilter().filterOpenAPI(api);
 
         final Set<String> tags = api.getTags().stream().map(Tag::getName).collect(java.util.stream.Collectors.toUnmodifiableSet());
-        assertThat(tags.contains("Authentication"))
-            .as("Authentication tag is still used by /api/v1/auth/login")
-            .isTrue();
-        assertThat(tags.contains("Logs"))
-            .as("Logs tag is still used by /api/v1/logs/events")
-            .isTrue();
-        assertThat(tags.contains("Internal"))
-            .as("The Internal tag's only operation was removed, so it must be pruned")
-            .isFalse();
+        assertThat(tags)
+            .contains("Authentication", "Logs")
+            .doesNotContain("Internal");
     }
 
     @Test

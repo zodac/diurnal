@@ -36,7 +36,7 @@ class StatsServiceTest {
     void currentStreak_empty_returnsZero() {
         assertThat(Durations.days(StatsService.currentStreak(List.of(), TODAY)))
             .as("unexpected value")
-            .isEqualTo(0);
+            .isZero();
     }
 
     @Test
@@ -89,14 +89,14 @@ class StatsServiceTest {
         // 30 days ago is neither today nor yesterday — no current streak
         assertThat(Durations.days(StatsService.currentStreak(List.of(TODAY.minusDays(30)), TODAY)))
             .as("unexpected value")
-            .isEqualTo(0);
+            .isZero();
     }
 
     @Test
     void currentStreak_twoOldEntriesThenGap_returnsZero() {
         assertThat(Durations.days(StatsService.currentStreak(List.of(TODAY.minusDays(5), TODAY.minusDays(4)), TODAY)))
             .as("unexpected value")
-            .isEqualTo(0);
+            .isZero();
     }
 
     @Test
@@ -143,14 +143,14 @@ class StatsServiceTest {
     void longestGap_empty_returnsZero() {
         assertThat(Durations.days(StatsService.longestGap(List.of(), TODAY)))
             .as("unexpected value")
-            .isEqualTo(0);
+            .isZero();
     }
 
     @Test
     void longestGap_singleEntryToday_returnsZero() {
         assertThat(Durations.days(StatsService.longestGap(List.of(TODAY), TODAY)))
             .as("unexpected value")
-            .isEqualTo(0);
+            .isZero();
     }
 
     @Test
@@ -171,7 +171,7 @@ class StatsServiceTest {
     void longestGap_twoConsecutiveEndingToday_returnsZero() {
         assertThat(Durations.days(StatsService.longestGap(List.of(TODAY.minusDays(1), TODAY), TODAY)))
             .as("unexpected value")
-            .isEqualTo(0);
+            .isZero();
     }
 
     @Test
@@ -209,7 +209,7 @@ class StatsServiceTest {
             TODAY.minusDays(2), TODAY.minusDays(1), TODAY);
         assertThat(Durations.days(StatsService.longestGap(dates, TODAY)))
             .as("unexpected value")
-            .isEqualTo(0);
+            .isZero();
     }
 
     // ── longestGap / longestStreak: the run's dates ───────────────────────────
@@ -299,7 +299,7 @@ class StatsServiceTest {
     void longestStreak_empty_returnsZero() {
         assertThat(Durations.days(StatsService.longestStreak(List.of(), TODAY)))
             .as("unexpected value")
-            .isEqualTo(0);
+            .isZero();
     }
 
     @Test

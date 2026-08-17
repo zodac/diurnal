@@ -139,10 +139,8 @@ class Aes256GcmTest {
         final byte[] first = Aes256Gcm.randomKey();
 
         assertThat(first)
-            .as("a generated key should be exactly AES-256's key size")
-            .hasSize(Aes256Gcm.KEY_BYTES);
-        assertThat(first)
-            .as("two generated keys should differ")
+            .as("a generated key should be exactly AES-256's key size and should differ")
+            .hasSize(Aes256Gcm.KEY_BYTES)
             .isNotEqualTo(Aes256Gcm.randomKey());
     }
 

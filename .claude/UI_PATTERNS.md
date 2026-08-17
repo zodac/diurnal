@@ -34,7 +34,7 @@ single-use markup speculatively — note it as a candidate and extract on the se
   `form`, `td` or `[data-colour-scope]` - mark a non-form host (a Settings row) with the last of those.
   The full-size geometry of the pair is the `.colour-picker-input` / `.colour-picker-btn` component
   classes (the data-table row keeps its own compact `.dt-color-input` / `.dt-icon-btn` variants), so the
-  picker and every button beside it cannot drift apart in size.
+  picker and every button beside it cannot drift apart.
 - **A single-use block stays inline.** The dashboard's note box is the worked example: it is rendered exactly once and
   is deliberately never a swap target (see [`FRONTEND.md`](FRONTEND.md)), so it lives in `dashboard.html` rather than
   becoming `partials/note-card.html`. Extract it if a second caller ever appears.
@@ -155,7 +155,7 @@ evidence:
   (Qute, Java, JS) and cannot share code across languages — each language now builds it in exactly
   one place; keep the three byte-identical.
 - `register.html`'s server-rendered missing-fields banner ↔ the `data-validate` banner built in
-  `app.js`: both render "Please fill in the following field(s): <ul>…"; the two paths must look
+  `app.js`: both render `Please fill in the following field(s): <ul>…`; the two paths must look
   identical.
 - `actions.js`'s hardcoded `#actions-empty-row` HTML ↔ the same row in `partials/actions-list.html`.
 - `settings.js` `newStepValid()` ↔ `app.js`'s password-popover `met()`: the minLength/maxLength

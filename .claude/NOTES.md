@@ -34,23 +34,23 @@
 
 Each of these was a real fork; the rejected option is recorded so it is not silently re-litigated later.
 
-| Decision | Chosen | Rejected, and why |
-|---|---|---|
-| Stats-page depth | **Card + frequency graph.** Notes are a chartable series, comparable against actions on one graph | Card-only. Rejected: "the same way actions are" was taken literally |
-| Public API shape | **Fold notes into `GET /api/v1/stats`** as a `kind="notes"` item pinned first | A separate `GET /api/v1/notes/stats`. Rejected in favour of mirroring the UI exactly, accepting the MAJOR-version cost |
-| Dashboard summary strip | **Stats page only** — the "Top actions on <date>" strip is untouched | Adding a pinned Notes row. Rejected: only the Stats page was in the requirement, and it keeps the note save path from invalidating the summary cache |
-| Count semantics | **One note = a count of 1.** So `totalCount == totalDays` for notes, and the count averages equal the day averages | Word count. Rejected: no need, and it makes the tiles lie about what they measure |
-| Length cap | **10,000 code points**, `VARCHAR(10000)` | `TEXT`. Rejected: `information_schema.character_maximum_length` is `NULL` for `TEXT`, which would silently disable the `TextFieldsSchemaIT` bound-vs-column guard. **Superseded twice**: `V28` dropped the plaintext column entirely, and the 10,000 is now only the DEFAULT of a per-deployment `NOTE_MAX_LENGTH` — see [The length bound is per-deployment](#the-length-bound-is-per-deployment-note_max_length) |
-| Newlines | A new `Normalisation.MULTILINE`, identical to `CLEANED` except LF survives | Reusing `CLEANED`. Rejected: it collapses every whitespace run, flattening a journal entry into one paragraph |
-| Calendar cache | Notes ride the **existing** month LRU (shared `lru`/`CACHE_LIMIT`/`PINNED_MONTHS`/`dropMonth`), with their **own** promise map, loaded flag and prefetch radius | A standalone parallel notes cache. Rejected: it would duplicate ~120 lines of subtle LRU/pin/dedupe/evict logic that would then drift |
-| Notes prefetch radius | **±1 month** (events stay at ±2), 12-month shared LRU cap | ±2 for both. Rejected: notes are the heavier payload and the marginal value of a month two clicks away is low |
-| Note card rendering | Server-rendered **once** with the page; date changes only set the textarea value client-side | A per-day HTMX fragment swap. Rejected once content came from the client cache — there is nothing left to swap |
-| Resize | Three custom Pointer Events handles (right, bottom, corner) | Native CSS `resize: both`. Rejected: it gives only a corner grip and cannot do edges, which requirement 8 asks for explicitly |
-| Note colour | **One user preference, one hex, rendered verbatim in both themes** — see [The note colour](#the-note-colour) | Two pickers (light + dark), and a single pick auto-adjusted per theme. Both rejected: see that section |
-| Unsaved drafts | **Retained per tab in `sessionStorage`** — see [Draft retention](#draft-retention) | A `beforeunload` confirmation (shipped first, then replaced), `localStorage`, and server-side autosave. All rejected: see that section |
-| Searching sealed notes | **Open the notes and scan them in the application** — see [Searching notes](#searching-notes) | A per-word blind index, and searching the client's month cache. Both rejected: see that section |
-| Where search lives | **A dedicated `/notes` page**, which is also the browse-all view | Search inside the dashboard note panel. Rejected: the grid is a settled 2x2 and the panel's height is pinned to a 3-stat summary, so results would need an overlay |
-| Opening a result | **A link to `/?date=…`** on the dashboard | Expanding the note in the results list. Rejected: the dashboard already shows a note in full beside that day's actions and calendar, so a second way to render one would be strictly worse |
+| Decision                | Chosen                                                                                                                                                          | Rejected, and why                                                                                                                                                                                                                                                                                                                                                                                                  |
+|-------------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Stats-page depth        | **Card + frequency graph.** Notes are a chartable series, comparable against actions on one graph                                                               | Card-only. Rejected: "the same way actions are" was taken literally                                                                                                                                                                                                                                                                                                                                                |
+| Public API shape        | **Fold notes into `GET /api/v1/stats`** as a `kind="notes"` item pinned first                                                                                   | A separate `GET /api/v1/notes/stats`. Rejected in favour of mirroring the UI exactly, accepting the MAJOR-version cost                                                                                                                                                                                                                                                                                             |
+| Dashboard summary strip | **Stats page only** — the "Top actions on <date>" strip is untouched                                                                                            | Adding a pinned Notes row. Rejected: only the Stats page was in the requirement, and it keeps the note save path from invalidating the summary cache                                                                                                                                                                                                                                                               |
+| Count semantics         | **One note = a count of 1.** So `totalCount == totalDays` for notes, and the count averages equal the day averages                                              | Word count. Rejected: no need, and it makes the tiles lie about what they measure                                                                                                                                                                                                                                                                                                                                  |
+| Length cap              | **10,000 code points**, `VARCHAR(10000)`                                                                                                                        | `TEXT`. Rejected: `information_schema.character_maximum_length` is `NULL` for `TEXT`, which would silently disable the `TextFieldsSchemaIT` bound-vs-column guard. **Superseded twice**: `V28` dropped the plaintext column entirely, and the 10,000 is now only the DEFAULT of a per-deployment `NOTE_MAX_LENGTH` — see [The length bound is per-deployment](#the-length-bound-is-per-deployment-note_max_length) |
+| Newlines                | A new `Normalisation.MULTILINE`, identical to `CLEANED` except LF survives                                                                                      | Reusing `CLEANED`. Rejected: it collapses every whitespace run, flattening a journal entry into one paragraph                                                                                                                                                                                                                                                                                                      |
+| Calendar cache          | Notes ride the **existing** month LRU (shared `lru`/`CACHE_LIMIT`/`PINNED_MONTHS`/`dropMonth`), with their **own** promise map, loaded flag and prefetch radius | A standalone parallel notes cache. Rejected: it would duplicate ~120 lines of subtle LRU/pin/dedupe/evict logic that would then drift                                                                                                                                                                                                                                                                              |
+| Notes prefetch radius   | **±1 month** (events stay at ±2), 12-month shared LRU cap                                                                                                       | ±2 for both. Rejected: notes are the heavier payload and the marginal value of a month two clicks away is low                                                                                                                                                                                                                                                                                                      |
+| Note card rendering     | Server-rendered **once** with the page; date changes only set the textarea value client-side                                                                    | A per-day HTMX fragment swap. Rejected once content came from the client cache — there is nothing left to swap                                                                                                                                                                                                                                                                                                     |
+| Resize                  | Three custom Pointer Events handles (right, bottom, corner)                                                                                                     | Native CSS `resize: both`. Rejected: it gives only a corner grip and cannot do edges, which requirement 8 asks for explicitly                                                                                                                                                                                                                                                                                      |
+| Note colour             | **One user preference, one hex, rendered verbatim in both themes** — see [The note colour](#the-note-colour)                                                    | Two pickers (light + dark), and a single pick auto-adjusted per theme. Both rejected: see that section                                                                                                                                                                                                                                                                                                             |
+| Unsaved drafts          | **Retained per tab in `sessionStorage`** — see [Draft retention](#draft-retention)                                                                              | A `beforeunload` confirmation (shipped first, then replaced), `localStorage`, and server-side autosave. All rejected: see that section                                                                                                                                                                                                                                                                             |
+| Searching sealed notes  | **Open the notes and scan them in the application** — see [Searching notes](#searching-notes)                                                                   | A per-word blind index, and searching the client's month cache. Both rejected: see that section                                                                                                                                                                                                                                                                                                                    |
+| Where search lives      | **A dedicated `/notes` page**, which is also the browse-all view                                                                                                | Search inside the dashboard note panel. Rejected: the grid is a settled 2x2 and the panel's height is pinned to a 3-stat summary, so results would need an overlay                                                                                                                                                                                                                                                 |
+| Opening a result        | **A link to `/?date=…`** on the dashboard                                                                                                                       | Expanding the note in the results list. Rejected: the dashboard already shows a note in full beside that day's actions and calendar, so a second way to render one would be strictly worse                                                                                                                                                                                                                         |
 
 ## Design
 
@@ -81,7 +81,7 @@ CREATE TABLE notes (
   feed's weak ETag, mirroring `ActionLog.rangeVersion`.
 
 **Logging.** Every notes endpoint carries at least a `debug` line for traceability: the range feeds log the COUNT
-returned, the single-day read logs present/absent, a delete logs the request, and a rejected save logs the REASON
+returned, the single-day read logs present/absent, a delete request logs the request, and a rejected save logs the REASON
 (which is worded from the field and never quotes the value). `info` is reserved for the one destructive event —
 a note actually being removed — matching `LogService`'s own delete; a clear that removed nothing is `debug`.
 
@@ -100,16 +100,16 @@ right now. There is no precedent to follow, which is why a new mode is needed.
 
 `Normalisation.MULTILINE` is deliberately the **minimal delta** from `CLEANED`: LF is exempted, nothing else changes.
 
-| Check | `CLEANED` (existing) | `MULTILINE` (notes) |
-|---|---|---|
-| Length in code points, reject-never-truncate | yes | yes (10,000 by default; per-deployment) |
-| Invisible / zero-width / bidi / noncharacter rejection | yes | yes, **except LF** |
-| Zalgo (stacked marks) rejection | yes | yes |
-| NFC normalisation, whole-value strip | yes | yes |
-| Emoji, all scripts, `<script>`/SQL stored verbatim | yes | yes |
-| Other control characters to space | yes | yes |
-| Horizontal whitespace runs to one space | yes | yes |
-| `\r\n`/`\r` to `\n`, per-line trailing strip, 3+ blank lines to 1 | n/a | **new** |
+| Check                                                             | `CLEANED` (existing) | `MULTILINE` (notes)                     |
+|-------------------------------------------------------------------|----------------------|-----------------------------------------|
+| Length in code points, reject-never-truncate                      | yes                  | yes (10,000 by default; per-deployment) |
+| Invisible / zero-width / bidi / noncharacter rejection            | yes                  | yes, **except LF**                      |
+| Zalgo (stacked marks) rejection                                   | yes                  | yes                                     |
+| NFC normalisation, whole-value strip                              | yes                  | yes                                     |
+| Emoji, all scripts, `<script>`/SQL stored verbatim                | yes                  | yes                                     |
+| Other control characters to space                                 | yes                  | yes                                     |
+| Horizontal whitespace runs to one space                           | yes                  | yes                                     |
+| `\r\n`/`\r` to `\n`, per-line trailing strip, 3+ blank lines to 1 | n/a                  | **new**                                 |
 
 > **The trap.** `TextRules.NO_INVISIBLE_CHARACTERS` rejects Unicode category `Cc` — and LF *is* `Cc`. Today that never
 > fires because `CLEANED` has already converted every control character to a space before the rules run. Under
@@ -142,20 +142,20 @@ public static TextField note(final int maxLength) {
 **Public** (`/api/v1/notes`) — all four must be added to `OpenApiSurfaceIT.PUBLIC_API_CONTRACT`, fully OpenAPI-annotated,
 with the `id` acronym written as `ID` in every description:
 
-| Endpoint | Purpose |
-|---|---|
+| Endpoint                        | Purpose                                                    |
+|---------------------------------|------------------------------------------------------------|
 | `GET /api/v1/notes?start=&end=` | Notes in a date range (twin of the internal calendar feed) |
-| `GET /api/v1/notes/{date}` | One day's note |
-| `PUT /api/v1/notes/{date}` | Create or replace |
-| `DELETE /api/v1/notes/{date}` | Clear |
+| `GET /api/v1/notes/{date}`      | One day's note                                             |
+| `PUT /api/v1/notes/{date}`      | Create or replace                                          |
+| `DELETE /api/v1/notes/{date}`   | Clear                                                      |
 
 **Internal** (`/internal/notes`):
 
-| Endpoint | Purpose |
-|---|---|
-| `GET /internal/notes?start=&end=` | The range feed that fills the client cache. `@Compressed`, weak ETag. Returns `{date: content}` for **only** the days that have a note |
-| `POST /internal/notes/{date}` | Save (**JSON body**, not a form — see below) |
-| `POST /internal/notes/{date}/delete` | Clear |
+| Endpoint                             | Purpose                                                                                                                                |
+|--------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------|
+| `GET /internal/notes?start=&end=`    | The range feed that fills the client cache. `@Compressed`, weak ETag. Returns `{date: content}` for **only** the days that have a note |
+| `POST /internal/notes/{date}`        | Save (**JSON body**, not a form — see below)                                                                                           |
+| `POST /internal/notes/{date}/delete` | Clear                                                                                                                                  |
 
 > **The internal save takes JSON, unlike every other `/internal/*` mutation.** Quarkus caps a form attribute at
 > `quarkus.http.limits.max-form-attribute-size` (**2 KB** by default, and nothing in this app raises it) and answers
@@ -306,13 +306,12 @@ mirrored from `note.js`'s in-memory `noteDrafts` map into `sessionStorage` under
 a full load, so without this the map starts empty on every navigation.
 
 - **Exactly ONE draft is carried: the day last edited.** Drafts on other days still survive moving around the calendar —
-  that is the in-memory map's job and it is untouched — they simply do not survive a page load. The alternative
+  that is the in-memory map's job, and it is untouched — they simply do not survive a page load. The alternative
   (mirroring the whole map) was implemented first and then narrowed: it put a month of private prose in browser storage
   where one note's worth answers the actual need, which matters because `sessionStorage` is written to the browser
   profile **on disk**, unlike the map.
-- **Written synchronously on every keystroke** (and on save/undo/clear), deliberately not debounced: a debounce's flush
-  window is exactly the moment a navigation lands. A full quota or unavailable storage is swallowed **silently** — the
-  draft then just does not outlive the page, which is the behaviour this replaced, so there is nothing to tell the user.
+- **Written synchronously on every keystroke** (and on save/undo/clear), deliberately not debounced. A full quota or unavailable storage is swallowed
+  **silently** — the draft then just does not outlive the page, which is the behaviour this replaced, so there is nothing to tell the user.
 - **A draft equal to the stored note is not carried**, so a save or an undo removes the key rather than rewriting it.
 - **Cleared on the login page** by `app.js`, beside `diurnal.selectedDate` — an explicit logout, a session expiry or a
   second user on the same tab must never find someone else's journal entry waiting in the box.
@@ -348,13 +347,13 @@ Notes ride the **existing** per-month cache in `dashboard.js` rather than gettin
 prefetch radii mean notes cannot share a cache *entry* (a month two clicks out is events-loaded but notes-unloaded), so
 the flags split — but the subtle machinery stays shared, which is where the duplication risk actually lives.
 
-| Shared (one implementation) | Split (per data type) |
-|---|---|
-| `lru` recency array + `touch` | `monthPromises` / `notePromises` |
-| `CACHE_LIMIT = 12` | `monthLoaded` / `monthNotesLoaded` |
-| `PINNED_MONTHS` (prev/current/next) | `PREFETCH_RADIUS` 2 / `NOTE_PREFETCH_RADIUS` 1 |
-| `evictIfNeeded` | the merge function (events vs `{date: content}`) |
-| `dropMonth` — clears `dayData` **and** `noteData` | |
+| Shared (one implementation)                       | Split (per data type)                            |
+|---------------------------------------------------|--------------------------------------------------|
+| `lru` recency array + `touch`                     | `monthPromises` / `notePromises`                 |
+| `CACHE_LIMIT = 12`                                | `monthLoaded` / `monthNotesLoaded`               |
+| `PINNED_MONTHS` (prev/current/next)               | `PREFETCH_RADIUS` 2 / `NOTE_PREFETCH_RADIUS` 1   |
+| `evictIfNeeded`                                   | the merge function (events vs `{date: content}`) |
+| `dropMonth` — clears `dayData` **and** `noteData` |                                                  |
 
 "Cache the most recent 12" therefore falls out for free: eviction is shared, `dropMonth` clears both, and a month whose
 notes were never fetched simply has no `noteData` entries. No second cap, no second LRU.
@@ -408,11 +407,11 @@ obeys — and **rejected, never coerced**, on both surfaces (`422` on the web fo
 
 It reaches the three places notes are coloured:
 
-| Surface | How |
-|---|---|
+| Surface                    | How                                                                                                                                                  |
+|----------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Calendar day-number marker | `--note-colour` / `--note-colour-on-brand`, set as inline custom properties on `#calendar-wrap` by `dashboard.html`, read by the `.d-note-day` rules |
-| Stats page Notes swatch | `StatSubject.notes(colour)` — the colour is a constructor argument now, resolved by `StatsService` from the same `User` read that resolves "today" |
-| Frequency-graph bars | the same `StatSubject`, unchanged downstream |
+| Stats page Notes swatch    | `StatSubject.notes(colour)` — the colour is a constructor argument now, resolved by `StatsService` from the same `User` read that resolves "today"   |
+| Frequency-graph bars       | the same `StatSubject`, unchanged downstream                                                                                                         |
 
 > **One picker, not two — and the colour is used EXACTLY as picked in both themes.** This was a real fork, so both rejected options are recorded.
 > Before the setting existed the app was already inconsistent: the calendar marker rode `--color-success` (green-600 light / green-400 dark, so it
@@ -542,10 +541,10 @@ browse view before anything is typed.
 
 #### The page and its API twin
 
-| Surface | Selection | Order |
-|---|---|---|
-| `/notes` + `GET /internal/notes/list?q=&page=` | the whole history (`Note.findByUser`) | latest first |
-| `GET /api/v1/notes?q=&start=&end=&page=` | a date range, or the whole history when **both** bounds are omitted | earliest first |
+| Surface                                        | Selection                                                           | Order          |
+|------------------------------------------------|---------------------------------------------------------------------|----------------|
+| `/notes` + `GET /internal/notes/list?q=&page=` | the whole history (`Note.findByUser`)                               | latest first   |
+| `GET /api/v1/notes?q=&start=&end=&page=`       | a date range, or the whole history when **both** bounds are omitted | earliest first |
 
 Both call the **same** `NoteService.search`; the caller supplies the notes and their order, exactly as `readContents`
 already worked. Only the matching rule is shared — selection and ordering are each surface's own presentation, and
@@ -605,11 +604,11 @@ statistics (`Note.datesFor`/`monthlyTotals`/`dailyTotals`), the calendar's day m
 
 Envelope encryption, two levels:
 
-| | What | Where |
-|---|---|---|
-| Note | `AES-256-GCM` under the owner's data key, AAD = `user_id \|\| note_date` | `notes.content_encrypted` |
-| Data key | 32 random bytes, sealed under the application master key | `user_notes_keys.dek_wrapped` |
-| Master key | `NOTE_ENCRYPTION_KEY`, base64, 32 bytes | **configuration — never the database** |
+|            | What                                                                     | Where                                  |
+|------------|--------------------------------------------------------------------------|----------------------------------------|
+| Note       | `AES-256-GCM` under the owner's data key, AAD = `user_id \|\| note_date` | `notes.content_encrypted`              |
+| Data key   | 32 random bytes, sealed under the application master key                 | `user_notes_keys.dek_wrapped`          |
+| Master key | `NOTE_ENCRYPTION_KEY`, base64, 32 bytes                                  | **configuration — never the database** |
 
 A data key is minted when the account is created (`NoteKeys.assignTo`, called from `RegistrationService.createUser` and
 `OidcUserProvisioner.provision`) and never changes. `NotesKeyAssignmentTest` fails if any path constructs a `User`
@@ -648,16 +647,16 @@ boot without a usable one, so the failure is a startup error rather than a disco
 
 #### Decisions taken
 
-| Decision | Chosen | Rejected, and why |
-|---|---|---|
-| Where the key lives | **Configuration** (`NOTE_ENCRYPTION_KEY`) | A column beside the data. Rejected: the database would then hold both the lock and the key — decrypting is a join and ten lines of this project's own public source, so it would stop casual browsing and nothing else |
-| Who holds the secret | **The deployment** | The user, as a passphrase. Built in `V28`–`V30`, then removed: it bought protection from the operator, and cost a second secret to keep, an unlock step on every new session, and a failure mode where forgetting it destroyed years of writing with no remedy |
-| Key scope | **One data key per user**, wrapped by one master | Encrypting notes with the master directly. Rejected: rotation would then rewrite every note, and any future change of scheme could not be a re-wrap |
-| Key storage | **A table of its own** (`user_notes_keys`) | A column on `users`. Rejected: account rows are returned by the admin list and the profile endpoints, none of which should carry key material |
-| Missing key at startup | **Refuse to boot**, naming the variable | Failing lazily at first use. Rejected: the first sign would be a user unable to open their journal, long after the deployment mistake |
-| Key rotation | **Config-driven**, via `NOTE_ENCRYPTION_PREVIOUS_KEYS` | A button in the admin console. Rejected because it cannot work: the key lives in configuration and the application cannot write its own configuration, so a UI trigger could only re-run what boot already does — with a worse place to put the new key |
-| Existing plaintext notes | **`V28` empties the table and drops the column** | Keeping it for compatibility. Rejected: a readable column is a standing invitation, and every path that could write one had gone. There is no key at migration time to seal them with, and inventing one in SQL would mean writing it into the very database this protects |
-| A key that does not open the data | **Refuse to start** (`NoteKeys.opensExistingKeys`) | Carrying on and returning nothing. Rejected outright: a rotated or mistyped key is well-formed, so it passes the format check, opens nothing, and every note disappears from every screen while the rows sit untouched — and the calendar markers still show, because they are computed from dates. A user would see markers saying they wrote something beside an empty box, with nothing logged |
+| Decision                          | Chosen                                                 | Rejected, and why                                                                                                                                                                                                                                                                                                                                                                                 |
+|-----------------------------------|--------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Where the key lives               | **Configuration** (`NOTE_ENCRYPTION_KEY`)              | A column beside the data. Rejected: the database would then hold both the lock and the key — decrypting is a join and ten lines of this project's own public source, so it would stop casual browsing and nothing else                                                                                                                                                                            |
+| Who holds the secret              | **The deployment**                                     | The user, as a passphrase. Built in `V28`–`V30`, then removed: it bought protection from the operator, and cost a second secret to keep, an unlock step on every new session, and a failure mode where forgetting it destroyed years of writing with no remedy                                                                                                                                    |
+| Key scope                         | **One data key per user**, wrapped by one master       | Encrypting notes with the master directly. Rejected: rotation would then rewrite every note, and any future change of scheme could not be a re-wrap                                                                                                                                                                                                                                               |
+| Key storage                       | **A table of its own** (`user_notes_keys`)             | A column on `users`. Rejected: account rows are returned by the admin list and the profile endpoints, none of which should carry key material                                                                                                                                                                                                                                                     |
+| Missing key at startup            | **Refuse to boot**, naming the variable                | Failing lazily at first use. Rejected: the first sign would be a user unable to open their journal, long after the deployment mistake                                                                                                                                                                                                                                                             |
+| Key rotation                      | **Config-driven**, via `NOTE_ENCRYPTION_PREVIOUS_KEYS` | A button in the admin console. Rejected because it cannot work: the key lives in configuration and the application cannot write its own configuration, so a UI trigger could only re-run what boot already does — with a worse place to put the new key                                                                                                                                           |
+| Existing plaintext notes          | **`V28` empties the table and drops the column**       | Keeping it for compatibility. Rejected: a readable column is a standing invitation, and every path that could write one had gone. There is no key at migration time to seal them with, and inventing one in SQL would mean writing it into the very database this protects                                                                                                                        |
+| A key that does not open the data | **Refuse to start** (`NoteKeys.opensExistingKeys`)     | Carrying on and returning nothing. Rejected outright: a rotated or mistyped key is well-formed, so it passes the format check, opens nothing, and every note disappears from every screen while the rows sit untouched — and the calendar markers still show, because they are computed from dates. A user would see markers saying they wrote something beside an empty box, with nothing logged |
 
 #### Rotating the key
 
@@ -716,13 +715,13 @@ Consequences of that choice, both deliberate:
 - **The row's layout is unchanged.** The counter already came and went (it is hidden with no day selected), so the `justify-between` flex row was
   already living with one child; the preference adds no new visual case.
 
-| Decision | Chosen | Rejected alternative |
-|---|---|---|
-| Where it lives | A new **Settings → Notes** card | A fourth row in Preferences, or staying in Appearance. Rejected: two notes settings existed once this landed, and a reader should find anything about notes in one place |
-| What moves with it | The note colour moves out of Appearance into the new card | Leaving the colour in Appearance. Rejected: it would split the notes settings across two cards, which is the problem the card was made to solve |
-| Which column | Right, under Appearance | The left column. Rejected: the colour came OUT of Appearance, so keeping the control in the same column moves it once rather than twice for anyone who knew where it was |
-| Over the bound | Counter reappears regardless | Honour the preference absolutely. Rejected: it leaves an inert Save button unexplained |
-| Scope | The dashboard note box only | Also the `/notes` page. Rejected: nothing there counts characters — there is no editor on that page |
+| Decision           | Chosen                                                    | Rejected alternative                                                                                                                                                     |
+|--------------------|-----------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Where it lives     | A new **Settings → Notes** card                           | A fourth row in Preferences, or staying in Appearance. Rejected: two notes settings existed once this landed, and a reader should find anything about notes in one place |
+| What moves with it | The note colour moves out of Appearance into the new card | Leaving the colour in Appearance. Rejected: it would split the notes settings across two cards, which is the problem the card was made to solve                          |
+| Which column       | Right, under Appearance                                   | The left column. Rejected: the colour came OUT of Appearance, so keeping the control in the same column moves it once rather than twice for anyone who knew where it was |
+| Over the bound     | Counter reappears regardless                              | Honour the preference absolutely. Rejected: it leaves an inert Save button unexplained                                                                                   |
+| Scope              | The dashboard note box only                               | Also the `/notes` page. Rejected: nothing there counts characters — there is no editor on that page                                                                      |
 
 ### The length bound is per-deployment (`NOTE_MAX_LENGTH`)
 
@@ -739,14 +738,14 @@ pin — `notes.content` was dropped in `V28` and the sealed `bytea` has no width
 `TextValidation` and changing it costs nothing but a restart. The property that made the bound-vs-column guard
 impossible is the property that makes it configurable.
 
-| Decision | Chosen | Rejected alternative |
-|---|---|---|
-| Where the key lives | `notes.max-length`, a sibling mapping to `notes.encryption.*` | `app.notes.max-length` on `AppConfig`. Rejected: `password`/`password.hash.argon2` already prove sibling prefixes bind cleanly, and a note's bound is not app metadata |
-| Ceiling | **100,000**, refusing to boot above it | No ceiling. Rejected: the operator sets this, so the guard's job is to stop a value that quietly breaks the dashboard — see below |
-| Floor | **1** | 0 or negative allowed. Rejected: it leaves the note box on screen while refusing every non-empty note, i.e. a delete-only control with no explanation |
-| Out-of-range value | **Refuse to boot** | Clamp into range. Rejected: the reject-never-coerce rule, and a silently corrected bound is one nobody notices is wrong |
-| Notes already over a lowered bound | **Kept, untouched** | Truncate on read, or a migration. Rejected: see below |
-| An import of such a note | **Refused**, like any other over-long row | Exempt imported notes. Rejected: it would make the importer the one path accepting what no other path would |
+| Decision                           | Chosen                                                        | Rejected alternative                                                                                                                                                   |
+|------------------------------------|---------------------------------------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Where the key lives                | `notes.max-length`, a sibling mapping to `notes.encryption.*` | `app.notes.max-length` on `AppConfig`. Rejected: `password`/`password.hash.argon2` already prove sibling prefixes bind cleanly, and a note's bound is not app metadata |
+| Ceiling                            | **100,000**, refusing to boot above it                        | No ceiling. Rejected: the operator sets this, so the guard's job is to stop a value that quietly breaks the dashboard — see below                                      |
+| Floor                              | **1**                                                         | 0 or negative allowed. Rejected: it leaves the note box on screen while refusing every non-empty note, i.e. a delete-only control with no explanation                  |
+| Out-of-range value                 | **Refuse to boot**                                            | Clamp into range. Rejected: the reject-never-coerce rule, and a silently corrected bound is one nobody notices is wrong                                                |
+| Notes already over a lowered bound | **Kept, untouched**                                           | Truncate on read, or a migration. Rejected: see below                                                                                                                  |
+| An import of such a note           | **Refused**, like any other over-long row                     | Exempt imported notes. Rejected: it would make the importer the one path accepting what no other path would                                                            |
 
 **Why the ceiling is 100,000 and not a round million.** Nothing in storage argues for either — a sealed `bytea` runs to
 PostgreSQL's 1 GB varlena limit, and a note has already been TOASTed out of line since well below the current default
@@ -860,7 +859,7 @@ Each step should leave the tree green; run the scoped gate named in the step bef
 
 ## Deliberately out of scope
 
-- **No markdown or rich text.** A note is plain text, rendered as plain text. Qute escapes by default and the calendar
+- **No Markdown or rich text.** A note is plain text, rendered as plain text. Qute escapes by default and the calendar
   writes `textContent`, exactly as for every other user value (see the "made safe where it is RENDERED" row in
   [`TEXT_INPUT.md`](TEXT_INPUT.md)).
 - **No note in the dashboard stats-summary strip** — see [Decisions taken](#decisions-taken).

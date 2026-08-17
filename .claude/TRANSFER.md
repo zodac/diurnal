@@ -23,11 +23,11 @@ pins exactly that.
 A ZIP holding three CSV members. UTF-8 with a leading **byte-order mark**, **CRLF** record separators, RFC 4180
 quoting. The reader strips a BOM again and accepts CRLF, LF or a lone CR.
 
-| Member | Header | Notes |
-|---|---|---|
-| `actions.csv` | `name,colour` | ordered by name |
-| `logs.csv` | `date,action,count` | ordered by date then action |
-| `notes.csv` | `date,content` | ordered by date; content is **plain text** |
+| Member        | Header              | Notes                                      |
+|---------------|---------------------|--------------------------------------------|
+| `actions.csv` | `name,colour`       | ordered by name                            |
+| `logs.csv`    | `date,action,count` | ordered by date then action                |
+| `notes.csv`   | `date,content`      | ordered by date; content is **plain text** |
 
 **A log names its action by NAME, not by an id.** An id is meaningless to someone editing a spreadsheet, and
 `actions_user_name_unique` already makes the name a natural key within one account. No id column is exported at
@@ -36,7 +36,7 @@ all: under replace-all semantics the rows are recreated anyway, so renaming an a
 
 **The header is matched exactly** — the same names in the same order, tolerating only casing and surrounding
 whitespace. Guessing at a reordered or renamed column would let a file that means one thing be imported as
-another, and the import replaces everything, so a mis-read column is not a recoverable mistake.
+another, and the import replaces everything, so a misread column is not a recoverable mistake.
 
 ### The details that make it "editable"
 
@@ -72,7 +72,7 @@ replacement for. A half-applied replace is strictly worse than no import.
 
 ### A stateless two-step preview
 
-`preview` runs the identical unpack, parse and validation and stops short of the write; the browser then sends
+`preview` runs the identical unpack, parse and validation and stops short of the write request; the browser then sends
 **the same bytes again** to commit.
 
 *Rejected: staging the parsed archive server-side.* It would hold one user's whole journal, in the clear, in
@@ -165,13 +165,13 @@ explicitly, purely so a test can sit on each boundary exactly. The production pa
 
 ## Surfaces
 
-| Endpoint | Notes |
-|---|---|
-| `GET /api/v1/data/export` | `application/zip` attachment |
-| `POST /api/v1/data/import/preview` | validates, writes nothing, no `@Transactional` |
-| `POST /api/v1/data/import` | commits; `@Transactional` + `@RollbackOnErrorStatus` |
-| `POST /internal/data/import/preview` | the same, rendering the panel partial |
-| `POST /internal/data/import` | the same, rendering the panel partial |
+| Endpoint                             | Notes                                                |
+|--------------------------------------|------------------------------------------------------|
+| `GET /api/v1/data/export`            | `application/zip` attachment                         |
+| `POST /api/v1/data/import/preview`   | validates, writes nothing, no `@Transactional`       |
+| `POST /api/v1/data/import`           | commits; `@Transactional` + `@RollbackOnErrorStatus` |
+| `POST /internal/data/import/preview` | the same, rendering the panel partial                |
+| `POST /internal/data/import`         | the same, rendering the panel partial                |
 
 Both take the **raw archive as the request body** (`application/zip`), not a multipart form: it is one file with
 no fields beside it, so `curl --data-binary @diurnal-export.zip` is the whole call and the browser sends exactly
@@ -202,18 +202,18 @@ One "Data" card on `/settings`: an Export link, a file input, and `partials/impo
 rendered inline (idle) with the page **and** returned on its own by both internal endpoints — one partial, so the
 two forms cannot drift.
 
-The card is driven by `fetch` in `settings.js`, not htmx, for the reason the login, register and password cards
-are: a refused archive is an expected outcome answered with a `422`, and htmx logs every `4xx` to the console
-unsuppressably. It is also what lets the Import button re-send the very bytes the preview was computed from.
+The card is driven by `fetch` in `settings.js`, not htmx, for the reason the login, register and password cards are: a refused archive is an expected
+outcome answered with a `422`, and htmx logs every `4xx` to the console (unsuppressable). It is also what lets the Import button re-send the very
+bytes the preview was computed from.
 
 ## Tests
 
-| Tier | What it pins |
-|---|---|
-| `CsvTest` | RFC 4180 in both directions, BOM/CRLF, the one unparseable case, the awkward-value round trip |
-| `TransferArchiveTest` | the round trip and every limit that makes unpacking an upload safe |
-| `ImportParserTest` | every validation rule, the future-note/future-log asymmetry, the problem cap, and that content is never quoted |
-| `ImportSummaryExtensionsTest` | the preview's wording, and that every figure pluralises |
-| `TransferApiResourceIT` | export shape, export→import→export identity, replace, rollback on refusal, cross-account isolation |
-| `SurfaceParityIT` | the same archive through both surfaces leaves the same database state |
-| `tests/ui/data-transfer.spec.ts` | the card end to end: export downloads, preview, confirm, cancel, and a refusal shown in place |
+| Tier                             | What it pins                                                                                                   |
+|----------------------------------|----------------------------------------------------------------------------------------------------------------|
+| `CsvTest`                        | RFC 4180 in both directions, BOM/CRLF, the one unparseable case, the awkward-value round trip                  |
+| `TransferArchiveTest`            | the round trip and every limit that makes unpacking an upload safe                                             |
+| `ImportParserTest`               | every validation rule, the future-note/future-log asymmetry, the problem cap, and that content is never quoted |
+| `ImportSummaryExtensionsTest`    | the preview's wording, and that every figure pluralises                                                        |
+| `TransferApiResourceIT`          | export shape, export→import→export identity, replace, rollback on refusal, cross-account isolation             |
+| `SurfaceParityIT`                | the same archive through both surfaces leaves the same database state                                          |
+| `tests/ui/data-transfer.spec.ts` | the card end to end: export downloads, preview, confirm, cancel, and a refusal shown in place                  |
