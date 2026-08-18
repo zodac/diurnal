@@ -27,9 +27,9 @@
             data-random-colour
             data-random-colour-url="{url}"
             class="{btnCls}"
-            aria-label="Random colour">
+            aria-label="{msg:randomColour}">
         {#include partials/icon name='shuffle' cls=iconCls /}
     </button>
-    {#include partials/tooltip text="Random colour" pos=tipPos align=align /}
+    {#include partials/tooltip text=msg:randomColour pos=tipPos align=align /}
 </span>
 {/let}

@@ -61,7 +61,7 @@
 
             <div id="day-logger-panel" class="{#if showStatsSummary}lg:col-start-3 lg:row-start-1 {/if}card p-4 min-w-0">
                 <p class="empty-note">
-                    Click a day to log actions.
+                    {msg:clickDayToLogActions}
                 </p>
             </div>
 
@@ -78,7 +78,7 @@
                  data-note-date="{summaryDate}" data-note-max="{inject:textFields.note.maxLength}"
                  data-note-counter="{showNoteCounter}">
                 <div class="flex items-center justify-between gap-2 mb-2">
-                    <h3 class="text-base font-medium text-ink">Note</h3>
+                    <h3 class="text-base font-medium text-ink">{msg:noteHeading}</h3>
                     <span id="note-status" class="help-text" aria-live="polite"></span>
                 </div>
 
@@ -87,9 +87,9 @@
                      five thousand with no explanation. The counter below measures CODE POINTS instead,
                      exactly as the server does, and over-typing is allowed so the user can see how far over
                      they are and edit back down; Save is what refuses. !}
-                <label for="note-input" class="sr-only">Note for the selected day</label>
+                <label for="note-input" class="sr-only">{msg:noteForSelectedDay}</label>
                 <textarea id="note-input" class="form-input note-input" aria-describedby="note-count"
-                          placeholder="Write a note for this day...">{noteContent}</textarea>
+                          placeholder="{msg:noteInputPlaceholder}">{noteContent}</textarea>
 
                 <div id="note-error" class="mt-2 empty:hidden"></div>
 
@@ -105,9 +105,9 @@
                          inert. The preference is therefore a condition on `hidden`, not on the markup. !}
                     <span id="note-count" class="note-count" hidden></span>
                     <div class="flex items-center gap-2">
-                        <button type="button" id="note-clear" class="note-btn-secondary" hidden>Clear</button>
-                        <button type="button" id="note-undo" class="note-btn-secondary">Undo</button>
-                        <button type="button" id="note-save" class="note-btn-primary">Save</button>
+                        <button type="button" id="note-clear" class="note-btn-secondary" hidden>{msg:clear}</button>
+                        <button type="button" id="note-undo" class="note-btn-secondary">{msg:undo}</button>
+                        <button type="button" id="note-save" class="note-btn-primary">{msg:save}</button>
                     </div>
                 </div>
 

@@ -74,14 +74,14 @@ class TransferArchiveTest {
     void unpack_refusesInputThatIsNotZip() {
         assertThat(TransferArchive.unpack("date,content\r\n2026-08-01,plain csv\r\n".getBytes(StandardCharsets.UTF_8)))
             .as("a CSV uploaded by mistake should say so, rather than failing as a missing member")
-            .isEqualTo(new ArchiveOutcome.Malformed("The uploaded file is not a ZIP archive."));
+            .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.NotZipArchive()));
     }
 
     @Test
     void unpack_refusesAnEmptyUpload() {
         assertThat(TransferArchive.unpack(new byte[0]))
             .as("an empty body has no magic bytes to check")
-            .isEqualTo(new ArchiveOutcome.Malformed("The uploaded file is not a ZIP archive."));
+            .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.NotZipArchive()));
     }
 
     @Test
@@ -93,7 +93,7 @@ class TransferArchiveTest {
 
         assertThat(TransferArchive.unpack(zipOf(entries)))
             .as("an archive of a million tiny members must not cost a request to walk")
-            .isEqualTo(new ArchiveOutcome.Malformed("The uploaded archive holds more than " + TransferArchive.MAX_ENTRIES + " entries."));
+            .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.TooManyEntries(TransferArchive.MAX_ENTRIES)));
     }
 
     @Test
@@ -103,7 +103,7 @@ class TransferArchiveTest {
 
         assertThat(TransferArchive.unpack(archive))
             .as("decompressed bytes are counted as they are read, never trusted from the entry's declared size")
-            .isEqualTo(new ArchiveOutcome.Malformed("The uploaded archive is too large once decompressed."));
+            .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.ArchiveTooLarge()));
     }
 
     // ── the limits at their exact boundaries ──────────────────────────────────
@@ -119,7 +119,7 @@ class TransferArchiveTest {
             .isEqualTo(new ArchiveOutcome.Unpacked(Map.of(TransferFiles.NOTES_FILE, "date,content\r\n")));
         assertThat(TransferArchive.unpack(archive, 0, 64, 64))
             .as("one entry past the limit is not")
-            .isEqualTo(new ArchiveOutcome.Malformed("The uploaded archive holds more than 0 entries."));
+            .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.TooManyEntries(0)));
     }
 
     @Test
@@ -131,7 +131,7 @@ class TransferArchiveTest {
             .isEqualTo(new ArchiveOutcome.Unpacked(Map.of(TransferFiles.NOTES_FILE, "abcde")));
         assertThat(TransferArchive.unpack(archive, 8, 4, 64))
             .as("one byte past the per-member limit is not")
-            .isEqualTo(new ArchiveOutcome.Malformed("The uploaded archive is too large once decompressed."));
+            .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.ArchiveTooLarge()));
     }
 
     @Test
@@ -146,7 +146,7 @@ class TransferArchiveTest {
             .isEqualTo(new ArchiveOutcome.Unpacked(members));
         assertThat(TransferArchive.unpack(archive, 8, 5, 9))
             .as("the running total is what binds, so neither member alone being under the per-member cap saves it")
-            .isEqualTo(new ArchiveOutcome.Malformed("The uploaded archive is too large once decompressed."));
+            .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.ArchiveTooLarge()));
     }
 
     @Test
@@ -156,7 +156,7 @@ class TransferArchiveTest {
             .isEqualTo(new ArchiveOutcome.Unpacked(Map.of()));
         assertThat(TransferArchive.unpack(new byte[] {0x50}))
             .as("one byte is not")
-            .isEqualTo(new ArchiveOutcome.Malformed("The uploaded file is not a ZIP archive."));
+            .isEqualTo(new ArchiveOutcome.Malformed(new ImportReason.NotZipArchive()));
     }
 
     @Test

@@ -1,0 +1,209 @@
+{!
+  Resolves one StatTile's translated caption and secondary caption, then renders it via the shared
+  stat-tile partial (or its compact variant). Extracted here rather than duplicated across
+  partials/stats-cards.html and partials/stats-summary.html because the resolution logic is
+  identical in both places - only the tile's visual size differs (the `compact` param). Params:
+    tile    — the StatTile to render; see its Javadoc for what each subCount1/subCount2/subDaysAgo/
+              subElapsed field means for a given tile.key
+    compact — passed straight through to partials/stat-tile-dispatch
+
+  A direct Java call to AppMessages always returns the English default (see AppMessages' own class
+  Javadoc), so every translated word in a tile's caption/sub-caption is resolved HERE, template-side,
+  keyed on tile.key - SubjectStatsExtensions only ever hands this partial raw values. `sub` itself is
+  the em dash placeholder or a plain formatted date/date-range in a few arms below: neither is a word,
+  so it is used as literal text rather than through AppMessages (see StatTile's Javadoc).
+!}
+{#switch tile.key}
+
+    {#is 'total-count'}
+        {#if tile.labelIsCustom}
+            {#let label=tile.label sub=msg:statSubAllTime}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {#else}
+            {#let label=msg:statFieldLabelTotalCount sub=msg:statSubAllTime}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {/if}
+
+    {#is 'weekly-average'}
+        {#if tile.labelIsCustom}
+            {#let label=tile.label sub=msg:statSubDaysPerWeek}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {#else}
+            {#let label=msg:statFieldLabelWeeklyDayAverage sub=msg:statSubDaysPerWeek}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {/if}
+
+    {#is 'monthly-average'}
+        {#if tile.labelIsCustom}
+            {#let label=tile.label sub=msg:statSubDaysPerMonth}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {#else}
+            {#let label=msg:statFieldLabelMonthlyDayAverage sub=msg:statSubDaysPerMonth}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {/if}
+
+    {#is 'weekly-count-average'}
+        {#if tile.labelIsCustom}
+            {#let label=tile.label sub=msg:statSubCountPerWeek}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {#else}
+            {#let label=msg:statFieldLabelWeeklyCountAverage sub=msg:statSubCountPerWeek}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {/if}
+
+    {#is 'monthly-count-average'}
+        {#if tile.labelIsCustom}
+            {#let label=tile.label sub=msg:statSubCountPerMonth}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {#else}
+            {#let label=msg:statFieldLabelMonthlyCountAverage sub=msg:statSubCountPerMonth}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {/if}
+
+    {#is 'total-days'}
+        {#if tile.labelIsCustom}
+            {#if tile.subCount1 == 1}
+                {#let label=tile.label sub=msg:statSubUniqueDaySingular}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else}
+                {#let label=tile.label sub=msg:statSubUniqueDaysPlural}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {/if}
+        {#else}
+            {#if tile.subCount1 == 1}
+                {#let label=msg:statFieldLabelTotalDays sub=msg:statSubUniqueDaySingular}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else}
+                {#let label=msg:statFieldLabelTotalDays sub=msg:statSubUniqueDaysPlural}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {/if}
+        {/if}
+
+    {#is 'best-month'}
+        {#if tile.labelIsCustom}
+            {#if tile.subCount1 == 1}
+                {#let label=tile.label sub=msg:statSubTimeSingular}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else}
+                {#let label=tile.label sub=msg:statSubTimesPlural(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {/if}
+        {#else}
+            {#if tile.subCount1 == 1}
+                {#let label=msg:statFieldLabelBestMonth sub=msg:statSubTimeSingular}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else}
+                {#let label=msg:statFieldLabelBestMonth sub=msg:statSubTimesPlural(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {/if}
+        {/if}
+
+    {#is 'best-year'}
+        {#if tile.labelIsCustom}
+            {#if tile.subCount1 == 1}
+                {#let label=tile.label sub=msg:statSubTimeSingular}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else}
+                {#let label=tile.label sub=msg:statSubTimesPlural(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {/if}
+        {#else}
+            {#if tile.subCount1 == 1}
+                {#let label=msg:statFieldLabelBestYear sub=msg:statSubTimeSingular}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else}
+                {#let label=msg:statFieldLabelBestYear sub=msg:statSubTimesPlural(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {/if}
+        {/if}
+
+    {#is 'vs-last-month'}
+        {#if tile.labelIsCustom}
+            {#let label=tile.label sub=msg:statSubMonthContext(tile.subCount1, tile.subCount2)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {#else}
+            {#let label=msg:statFieldLabelVsLastMonth sub=msg:statSubMonthContext(tile.subCount1, tile.subCount2)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {/if}
+
+    {#is 'vs-last-year'}
+        {#if tile.labelIsCustom}
+            {#let label=tile.label sub=msg:statSubYearContext(tile.subCount1, tile.subCount2)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {#else}
+            {#let label=msg:statFieldLabelVsLastYear sub=msg:statSubYearContext(tile.subCount1, tile.subCount2)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {/if}
+
+    {#is 'longest-streak'}
+        {#if tile.labelIsCustom}
+            {#let label=tile.label}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=tile.sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {#else}
+            {#let label=msg:statFieldLabelLongestStreak}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=tile.sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {/if}
+
+    {#is 'biggest-gap'}
+        {#if tile.labelIsCustom}
+            {#let label=tile.label}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=tile.sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {#else}
+            {#let label=msg:statFieldLabelLongestGap}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=tile.sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {/if}
+
+    {! current-streak / current-gap: sub is "" (empty run) or the run's raw, un-prefixed start date -
+       see StatTile's Javadoc. Only the still-open case needs a word ("since"), so it is the only one
+       resolved through AppMessages; the empty case renders no sub-caption at all (partials/stat-tile
+       and stat-tile-compact both skip the row when sub is blank). !}
+    {#is 'current-streak'}
+        {#if tile.labelIsCustom}
+            {#if tile.sub}
+                {#let label=tile.label sub=msg:statSubSince(tile.sub)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else}
+                {#let label=tile.label}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub="" subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {/if}
+        {#else}
+            {#if tile.sub}
+                {#let label=msg:statFieldLabelCurrentStreak sub=msg:statSubSince(tile.sub)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else}
+                {#let label=msg:statFieldLabelCurrentStreak}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub="" subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {/if}
+        {/if}
+
+    {#is 'current-gap'}
+        {#if tile.labelIsCustom}
+            {#if tile.sub}
+                {#let label=tile.label sub=msg:statSubSince(tile.sub)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else}
+                {#let label=tile.label}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub="" subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {/if}
+        {#else}
+            {#if tile.sub}
+                {#let label=msg:statFieldLabelCurrentGap sub=msg:statSubSince(tile.sub)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else}
+                {#let label=msg:statFieldLabelCurrentGap}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub="" subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {/if}
+        {/if}
+
+    {! first-performed / last-performed: subDaysAgo is -1 (never performed - the em dash placeholder,
+       not a word), 0 (today), 1 (yesterday), or >= 2 (subElapsed carries the still-English condensed
+       duration - Phase 2 debt - that statSubAgo wraps). !}
+    {#is 'first-performed'}
+        {#if tile.labelIsCustom}
+            {#if tile.subDaysAgo == -1}
+                {#let label=tile.label}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub="—" subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else if tile.subDaysAgo == 0}
+                {#let label=tile.label sub=msg:today}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else if tile.subDaysAgo == 1}
+                {#let label=tile.label sub=msg:statSubYesterday}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else}
+                {#let label=tile.label sub=msg:statSubAgo(tile.subElapsed)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {/if}
+        {#else}
+            {#if tile.subDaysAgo == -1}
+                {#let label=msg:statFieldLabelFirstPerformed}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub="—" subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else if tile.subDaysAgo == 0}
+                {#let label=msg:statFieldLabelFirstPerformed sub=msg:today}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else if tile.subDaysAgo == 1}
+                {#let label=msg:statFieldLabelFirstPerformed sub=msg:statSubYesterday}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else}
+                {#let label=msg:statFieldLabelFirstPerformed sub=msg:statSubAgo(tile.subElapsed)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {/if}
+        {/if}
+
+    {#is 'last-performed'}
+        {#if tile.labelIsCustom}
+            {#if tile.subDaysAgo == -1}
+                {#let label=tile.label}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub="—" subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else if tile.subDaysAgo == 0}
+                {#let label=tile.label sub=msg:today}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else if tile.subDaysAgo == 1}
+                {#let label=tile.label sub=msg:statSubYesterday}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else}
+                {#let label=tile.label sub=msg:statSubAgo(tile.subElapsed)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {/if}
+        {#else}
+            {#if tile.subDaysAgo == -1}
+                {#let label=msg:statFieldLabelLastPerformed}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub="—" subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else if tile.subDaysAgo == 0}
+                {#let label=msg:statFieldLabelLastPerformed sub=msg:today}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else if tile.subDaysAgo == 1}
+                {#let label=msg:statFieldLabelLastPerformed sub=msg:statSubYesterday}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {#else}
+                {#let label=msg:statFieldLabelLastPerformed sub=msg:statSubAgo(tile.subElapsed)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+            {/if}
+        {/if}
+
+{/switch}

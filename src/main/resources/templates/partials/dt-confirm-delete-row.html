@@ -14,7 +14,7 @@
     deleteUrl / deleteTarget / deleteSwap — the destructive hx-post
     restoreUrl   — Cancel hx-get that re-renders the plain row back into #{rowId}
 !}
-{#let confirmLabel=confirmLabel.or('Delete')}
+{#let confirmLabel=confirmLabel.or(msg:deleteLabel)}
 <tr id="{rowId}" class="dt-row-highlight dt-row-confirm">
     <td colspan="{cols}" class="dt-confirm-cell">
         <div class="flex items-center gap-3">

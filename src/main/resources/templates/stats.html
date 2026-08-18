@@ -7,16 +7,16 @@
     {#include partials/navbar active='stats' /}
 
     <main id="stats-main" class="page-container px-4 py-8">
-        <h2 class="page-title mb-6">Stats</h2>
+        <h2 class="page-title mb-6">{msg:statsPageTitle}</h2>
 
         {#if page.totalCount == 0}
         <div class="card p-4 text-center">
             {#if hasActions}
-            <p class="text-ink-muted">No logs for any actions yet.</p>
+            <p class="text-ink-muted">{msg:noLogsYet}</p>
             {#else}
-            <p class="text-ink-muted mb-3">No actions defined yet.</p>
+            <p class="text-ink-muted mb-3">{msg:noActionsDefinedYet}</p>
             <a href="/actions" class="btn-primary">
-                Add actions
+                {msg:addActions}
             </a>
             {/if}
         </div>
@@ -40,9 +40,9 @@
     <div class="modal-panel card">
         <div class="modal-header">
             <h3 id="stats-chart-title" class="card-title truncate"></h3>
-            <button type="button" id="stats-chart-close" class="chart-nav-btn group relative" aria-label="Close graph">
+            <button type="button" id="stats-chart-close" class="chart-nav-btn group relative" aria-label="{msg:closeGraph}">
                 {#include partials/icon name='close' cls='chart-nav-glyph' /}
-                {#include partials/tooltip text="Close" pos="bottom" align="right" /}
+                {#include partials/tooltip text=msg:close pos="bottom" align="right" /}
             </button>
         </div>
         <div id="stats-chart-body" data-decimal-places="{decimalPlaces}"></div>

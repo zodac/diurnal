@@ -1,0 +1,40 @@
+{!
+  Translated text for every ImportReason variant that is NOT InvalidTextField (which instead renders
+  partials/text-failure-message.html - see TransferInternalResource's importReasonBanner). Params:
+    kind        — 'notZipArchive' | 'tooManyEntries' | 'archiveTooLarge' | 'archiveUnreadable' | 'csvUnreadable' |
+                   'missingMember' | 'emptyFile' | 'wrongHeader' | 'wrongColumnCount' | 'invalidColour' |
+                   'duplicateAction' | 'futureLog' | 'unknownAction' | 'nonNumericCount' | 'countOutOfRange' |
+                   'duplicateLog' | 'emptyNote' | 'duplicateNote' | 'invalidDate'
+    maxEntries  — 'tooManyEntries' only, never translated
+    detail      — 'archiveUnreadable' only, the underlying exception message, never translated
+    file        — 'missingMember' only, never translated
+    header      — 'emptyFile' | 'wrongHeader' only, never translated
+    expected    — 'wrongColumnCount' only, never translated
+    actual      — 'wrongColumnCount' only, never translated
+    name        — 'duplicateAction' only, never translated
+    date        — 'futureLog' | 'duplicateLog' | 'emptyNote' | 'duplicateNote' only, never translated
+    actionName  — 'unknownAction' | 'duplicateLog' only, never translated
+    raw         — 'nonNumericCount' | 'invalidDate' only, never translated
+    max         — 'countOutOfRange' only, never translated
+!}
+{#switch kind}
+    {#is 'notZipArchive'}{msg:importNotZipArchive}
+    {#is 'tooManyEntries'}{msg:importTooManyEntries(maxEntries)}
+    {#is 'archiveTooLarge'}{msg:importArchiveTooLarge}
+    {#is 'archiveUnreadable'}{msg:importArchiveUnreadable(detail)}
+    {#is 'csvUnreadable'}{msg:importCsvUnreadable}
+    {#is 'missingMember'}{msg:importMissingMember(file)}
+    {#is 'emptyFile'}{msg:importEmptyFile(header)}
+    {#is 'wrongHeader'}{msg:importWrongHeader(header)}
+    {#is 'wrongColumnCount'}{msg:importWrongColumnCount(expected, actual)}
+    {#is 'invalidColour'}{msg:importInvalidColour}
+    {#is 'duplicateAction'}{msg:importDuplicateAction(name)}
+    {#is 'futureLog'}{msg:importFutureLog(date)}
+    {#is 'unknownAction'}{msg:importUnknownAction(actionName)}
+    {#is 'nonNumericCount'}{msg:importNonNumericCount(raw)}
+    {#is 'countOutOfRange'}{msg:importCountOutOfRange(max)}
+    {#is 'duplicateLog'}{msg:importDuplicateLog(actionName, date)}
+    {#is 'emptyNote'}{msg:importEmptyNote(date)}
+    {#is 'duplicateNote'}{msg:importDuplicateNote(date)}
+    {#is 'invalidDate'}{msg:importInvalidDate(raw)}
+{/switch}

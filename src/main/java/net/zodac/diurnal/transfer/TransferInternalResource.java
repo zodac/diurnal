@@ -19,6 +19,7 @@ package net.zodac.diurnal.transfer;
 
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
+import io.quarkus.qute.i18n.MessageBundles;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -29,6 +30,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
+import java.util.Locale;
 import net.zodac.diurnal.http.HttpStatus;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.user.CurrentUser;
@@ -68,20 +70,29 @@ public class TransferInternalResource {
     private final CurrentUser currentUser;
     private final ImportService importService;
     private final Template importPanelTemplate;
+    private final Template importReasonTemplate;
+    private final Template textFailureMessageTemplate;
 
     /**
-     * Injects the current-user accessor, the shared import service and the import panel partial.
+     * Injects the current-user accessor, the shared import service and the import panel partial and the two partials that translate an
+     * {@link ImportReason}.
      *
-     * @param currentUser         the current-user accessor
-     * @param importService       the shared import service
-     * @param importPanelTemplate the import panel partial template
+     * @param currentUser                the current-user accessor
+     * @param importService              the shared import service
+     * @param importPanelTemplate        the import panel partial template
+     * @param importReasonTemplate       the translated import-refusal-reason partial template
+     * @param textFailureMessageTemplate the shared text-validation-pipeline rejection message partial template
      */
     @Inject
     public TransferInternalResource(final CurrentUser currentUser, final ImportService importService,
-        @Location("partials/import-panel") final Template importPanelTemplate) {
+        @Location("partials/import-panel") final Template importPanelTemplate,
+        @Location("partials/import-reason") final Template importReasonTemplate,
+        @Location("partials/text-failure-message") final Template textFailureMessageTemplate) {
         this.currentUser = currentUser;
         this.importService = importService;
         this.importPanelTemplate = importPanelTemplate;
+        this.importReasonTemplate = importReasonTemplate;
+        this.textFailureMessageTemplate = textFailureMessageTemplate;
     }
 
     /**
@@ -94,7 +105,8 @@ public class TransferInternalResource {
     @Path("import/preview")
     @Consumes(APPLICATION_ZIP)
     public Response preview(final byte[] archive) {
-        return render(importService.preview(currentUser.get(), archive));
+        final var user = currentUser.get();
+        return render(importService.preview(user, archive), Locale.forLanguageTag(user.language));
     }
 
     /**
@@ -108,36 +120,102 @@ public class TransferInternalResource {
     @Consumes(APPLICATION_ZIP)
     @Transactional
     public Response apply(final byte[] archive) {
-        return render(importService.apply(currentUser.get(), archive));
+        final var user = currentUser.get();
+        return render(importService.apply(user, archive), Locale.forLanguageTag(user.language));
     }
 
-    private Response render(final ImportResult result) {
+    private Response render(final ImportResult result, final Locale locale) {
         return switch (result) {
-            case final ImportResult.Previewed previewed -> panel("preview", previewed.summary(), List.of(), 0, "").build();
-            case final ImportResult.Applied applied -> panel("applied", applied.summary(), List.of(), 0, applied(applied.summary())).build();
-            // 422 on the web where the API answers 400 - the same per-surface split every other rejected input uses.
-            case final ImportResult.Rejected rejected -> panel("rejected", null, rejected.problems(), rejected.totalFound(),
-                "The archive was refused, so nothing was changed.").status(HttpStatus.UNPROCESSABLE_ENTITY).build();
-            case final ImportResult.Malformed malformed -> panel("rejected", null, List.of(), 0, malformed.reason())
-                .status(HttpStatus.UNPROCESSABLE_ENTITY).build();
+            case final ImportResult.Previewed previewed -> panel("preview", previewed.summary(), List.of(), 0, "", locale).build();
+            case final ImportResult.Applied applied -> panel("applied", applied.summary(), List.of(), 0, "", locale).build();
+            // 422 on the web where the API answers 400 - the same per-surface split every other rejected input uses. An empty message
+            // means the generic translated refusal banner (see import-panel.html).
+            case final ImportResult.Rejected rejected ->
+                panel("rejected", null, translatedProblems(rejected.problems(), locale), rejected.totalFound(), "", locale)
+                    .status(HttpStatus.UNPROCESSABLE_ENTITY).build();
+            case final ImportResult.Malformed malformed ->
+                panel("rejected", null, List.of(), 0, importReasonBanner(malformed.reason(), locale), locale)
+                    .status(HttpStatus.UNPROCESSABLE_ENTITY).build();
         };
     }
 
-    // Worded here rather than in the panel, because the success banner is the shared partial and it takes one ready-made string. Every figure still
-    // goes through the summary's own extensions, so this cannot pluralise differently from the preview above it.
-    private static String applied(final ImportSummary summary) {
-        return "Imported " + ImportSummaryExtensions.actionsLabel(summary)
-            + ", " + ImportSummaryExtensions.logsLabel(summary)
-            + " and " + ImportSummaryExtensions.notesLabel(summary) + ".";
-    }
-
-    private Response.ResponseBuilder panel(final String state, final @Nullable ImportSummary summary, final List<ImportProblem> problems,
-        final int totalProblems, final String message) {
+    private Response.ResponseBuilder panel(final String state, final @Nullable ImportSummary summary, final List<ImportProblemView> problems,
+        final int totalProblems, final String message, final Locale locale) {
         return Response.ok(importPanelTemplate.data(
             "state", state,
             "summary", summary,
             "problems", problems,
             "totalProblems", totalProblems,
-            "message", message));
+            "message", message)
+            .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale));
+    }
+
+    private List<ImportProblemView> translatedProblems(final List<ImportProblem> problems, final Locale locale) {
+        return problems.stream()
+            .map(problem -> new ImportProblemView(problem.file(), problem.line(), importReasonBanner(problem.reason(), locale)))
+            .toList();
+    }
+
+    // One exhaustive arm per ImportReason variant, so its length/coupling is the size of the catalogue rather than complexity - see
+    // ImportService.message's identical shape (the API's own composer over the same sealed type) for why splitting it is worse.
+    @SuppressWarnings({"OverlyLongMethod", "OverlyCoupledMethod"})
+    private String importReasonBanner(final ImportReason reason, final Locale locale) {
+        return switch (reason) {
+            case final ImportReason.InvalidTextField invalid ->
+                textFailureMessageTemplate.data("failure", invalid.failure()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.NotZipArchive _ ->
+                importReasonTemplate.data("kind", "notZipArchive").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.TooManyEntries tooMany -> importReasonTemplate.data("kind", "tooManyEntries", "maxEntries", tooMany.maxEntries())
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.ArchiveTooLarge _ ->
+                importReasonTemplate.data("kind", "archiveTooLarge").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.ArchiveUnreadable unreadable ->
+                importReasonTemplate.data("kind", "archiveUnreadable", "detail", String.valueOf(unreadable.detail()))
+                    .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.CsvUnreadable _ ->
+                importReasonTemplate.data("kind", "csvUnreadable").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.MissingMember missing -> importReasonTemplate.data("kind", "missingMember", "file", missing.file())
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.EmptyFile empty -> importReasonTemplate.data("kind", "emptyFile", "header", empty.header())
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.WrongHeader wrongHeader -> importReasonTemplate.data("kind", "wrongHeader", "header", wrongHeader.header())
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.WrongColumnCount wrongCount -> importReasonTemplate
+                .data("kind", "wrongColumnCount", "expected", wrongCount.expected(), "actual", wrongCount.actual())
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.InvalidColour _ ->
+                importReasonTemplate.data("kind", "invalidColour").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.DuplicateAction duplicate -> importReasonTemplate.data("kind", "duplicateAction", "name", duplicate.name())
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.FutureLog futureLog -> importReasonTemplate
+                .data("kind", "futureLog", "date", futureLog.date().toString()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.UnknownAction unknown -> importReasonTemplate.data("kind", "unknownAction", "actionName", unknown.actionName())
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.NonNumericCount nonNumeric -> importReasonTemplate.data("kind", "nonNumericCount", "raw", nonNumeric.raw())
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.CountOutOfRange outOfRange -> importReasonTemplate.data("kind", "countOutOfRange", "max", outOfRange.max())
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.DuplicateLog duplicate -> importReasonTemplate
+                .data("kind", "duplicateLog", "actionName", duplicate.actionName(), "date", duplicate.date().toString())
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.EmptyNote emptyNote -> importReasonTemplate
+                .data("kind", "emptyNote", "date", emptyNote.date().toString()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.DuplicateNote duplicate -> importReasonTemplate
+                .data("kind", "duplicateNote", "date", duplicate.date().toString()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ImportReason.InvalidDate invalidDate -> importReasonTemplate.data("kind", "invalidDate", "raw", invalidDate.raw())
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+        };
+    }
+
+    /**
+     * One located problem, with its reason already resolved to translated text - {@code import-panel.html} reads this exactly as it read
+     * {@link ImportProblem} before the reason became structured.
+     *
+     * @param file   the archive member the problem is in, or the archive itself when a whole member is missing
+     * @param line   the 1-based line, or {@code 0} when the problem is with the member as a whole rather than a row in it
+     * @param reason the translated cause
+     */
+    private record ImportProblemView(String file, int line, String reason) {
+
     }
 }

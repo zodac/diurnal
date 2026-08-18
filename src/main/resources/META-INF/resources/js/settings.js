@@ -87,7 +87,7 @@ document.getElementById('account-form').addEventListener('htmx:afterRequest', fu
         const navMobile = document.getElementById('nav-display-name-mobile')
         if (navMobile) {navMobile.textContent = newName}
         window.cancelEditDisplayName()
-        showAccountStatus('Saved', false)
+        showAccountStatus(window.Diurnal.i18n.saved, false)
     }
 })
 
@@ -299,7 +299,7 @@ document.getElementById('account-form').addEventListener('htmx:afterRequest', fu
         window.Diurnal.postForm(passwordEls.confirm, 'text/plain').then(function (resp) {
             if (resp.ok) {
                 window.cancelEditPassword()
-                showAccountStatus('Saved', false)
+                showAccountStatus(window.Diurnal.i18n.saved, false)
                 return undefined
             }
             return resp.text().then(function (body) {
@@ -327,7 +327,7 @@ document.getElementById('prefs-form').addEventListener('htmx:afterRequest', func
     const indicator = card ? card.querySelector('[data-saved]') : null
     if (!indicator) {return}
     if (e.detail.successful) {
-        flashStatus(indicator, 'Saved', false)
+        flashStatus(indicator, window.Diurnal.i18n.saved, false)
     } else {
         flashStatus(indicator, e.detail.xhr.responseText || 'Could not save', true)
     }

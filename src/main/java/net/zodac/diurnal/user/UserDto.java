@@ -45,6 +45,7 @@ public record UserDto(
      *
      * @param theme the UI theme: {@code light}, {@code dark} or {@code system}
      * @param font the UI font family: {@code nova} (brand typography), {@code standard} (system sans) or {@code dyslexic} (OpenDyslexic)
+     * @param language the UI language: {@code en-GB}, {@code en-US}, {@code es-ES}, {@code es-419}, {@code ar-SA} or {@code ja-JP}
      * @param pageSize the number of rows shown per page in list views
      * @param pageSizes the per-section page-size overrides; a section with no entry (or {@code null} altogether) follows {@code pageSize}
      * @param showStatsSummary whether the dashboard renders the per-action stats-summary strip
@@ -59,6 +60,7 @@ public record UserDto(
     public record Preferences(
         @Schema(examples = "system", description = "The UI colour scheme: 'light', 'dark', or 'system'.") String theme,
         @Schema(examples = "nova", description = "The UI font family: 'nova', 'standard' or 'dyslexic'.") String font,
+        @Schema(examples = "en-GB", description = "The UI language: 'en-GB', 'en-US', 'es-ES', 'es-419', 'ar-SA' or 'ja-JP'.") String language,
         @Schema(examples = "25", description = "Number of rows displayed per page in list views.") int pageSize,
         @Schema(description = "Per-section overrides of the page size ('dashboard', 'actions', 'notes', 'stats', 'users'); a section with no entry, "
         + "or null altogether, uses 'pageSize'.")
@@ -91,6 +93,7 @@ public record UserDto(
             new Preferences(
                         user.theme,
                         user.font,
+                        user.language,
                         user.pageSize,
                         user.pageSizes,
                         user.showStatsSummary,

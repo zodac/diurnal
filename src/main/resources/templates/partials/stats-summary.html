@@ -14,7 +14,7 @@
 !}
 {#if !dayStats.isEmpty()}
 <div class="card p-4">
-    <h3 class="text-base font-medium text-ink mb-3">Top actions on {dateLabel}</h3>
+    <h3 class="text-base font-medium text-ink mb-3">{msg:topActionsOn(dateLabel)}</h3>
     <div class="flex flex-col gap-3">
         {#for s in dayStats}
         <div class="stat-tile px-3 py-2 border border-line-subtle
@@ -29,7 +29,7 @@
                cover each action's WHOLE history — the selected day only picks which actions show. !}
             <dl class="grid grid-cols-3 gap-2 sm:gap-4 min-w-0 sm:flex-1">
                 {#for tile in s.tiles(summaryFields, decimalPlaces)}
-                {#include partials/stat-tile-compact label=tile.label value=tile.value sub=tile.sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}
+                    {#include partials/stat-tile-row tile=tile compact=true /}
                 {/for}
             </dl>
         </div>

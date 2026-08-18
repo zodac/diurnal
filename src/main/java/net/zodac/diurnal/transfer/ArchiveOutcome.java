@@ -40,9 +40,9 @@ public sealed interface ArchiveOutcome permits ArchiveOutcome.Unpacked, ArchiveO
     /**
      * The archive could not be opened.
      *
-     * @param reason the human-readable cause
+     * @param reason the cause
      */
-    record Malformed(String reason) implements ArchiveOutcome {
+    record Malformed(ImportReason reason) implements ArchiveOutcome {
 
     }
 }

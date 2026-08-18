@@ -28,42 +28,42 @@ class TextFieldTest {
 
     @Test
     void of_buildsCleanedFieldCarryingTheSharedRules() {
-        final TextField field = TextField.of("Nickname", 2, 30);
+        final TextField field = TextField.of("nickname", "Nickname", 2, 30);
 
         assertThat(field)
             .as("every readable field must carry the shared content rules, so none can be added that skips them")
-            .isEqualTo(new TextField("Nickname", 2, 30, Normalisation.CLEANED, SHARED_RULES));
+            .isEqualTo(new TextField("nickname", "Nickname", 2, 30, Normalisation.CLEANED, SHARED_RULES));
     }
 
     @Test
     void multiline_buildsMultilineFieldCarryingTheNewlineTolerantRules() {
-        final TextField field = TextField.multiline("Journal", 1, 5000);
+        final TextField field = TextField.multiline("journal", "Journal", 1, 5000);
 
         // The rule swap is the whole point of the factory: a multi-line field must carry the newline-TOLERANT invisible-character rule, because the
         // strict one rejects the line feed it exists to preserve. It keeps the stacked-marks rule unchanged.
         final List<TextRule> expected = List.of(TextRules.NO_INVISIBLE_CHARACTERS_ALLOWING_NEWLINE, TextRules.NO_STACKED_MARKS);
         assertThat(field)
             .as("a multi-line field must keep the shared content policy, with only the newline exempted")
-            .isEqualTo(new TextField("Journal", 1, 5000, Normalisation.MULTILINE, expected));
+            .isEqualTo(new TextField("journal", "Journal", 1, 5000, Normalisation.MULTILINE, expected));
     }
 
     @Test
     void secret_buildsVerbatimFieldWithoutRules() {
-        final TextField field = TextField.secret("Passphrase", 1, 64);
+        final TextField field = TextField.secret("passphrase", "Passphrase", 1, 64);
 
         assertThat(field)
             .as("a secret must never be normalised")
-            .isEqualTo(new TextField("Passphrase", 1, 64, Normalisation.VERBATIM, List.of()));
+            .isEqualTo(new TextField("passphrase", "Passphrase", 1, 64, Normalisation.VERBATIM, List.of()));
     }
 
     @Test
     void withRules_keepsEveryOtherPartOfTheSpec() {
-        final TextField field = TextField.of("Nickname", 2, 30).withRules(TextRules.EMAIL_SHAPE);
+        final TextField field = TextField.of("nickname", "Nickname", 2, 30).withRules(TextRules.EMAIL_SHAPE);
 
         final List<TextRule> expected = List.of(TextRules.NO_INVISIBLE_CHARACTERS, TextRules.NO_STACKED_MARKS, TextRules.EMAIL_SHAPE);
         assertThat(field)
             .as("unexpected value")
-            .isEqualTo(new TextField("Nickname", 2, 30, Normalisation.CLEANED, expected));
+            .isEqualTo(new TextField("nickname", "Nickname", 2, 30, Normalisation.CLEANED, expected));
     }
 
     @Test
@@ -71,7 +71,7 @@ class TextFieldTest {
         // A field-specific rule must never be able to displace a shared one.
         final TextRule extra = new TextRule("extra", value -> true, "is always fine.");
 
-        assertThat(TextField.of("Nickname", 2, 30).withRules(extra).rules())
+        assertThat(TextField.of("nickname", "Nickname", 2, 30).withRules(extra).rules())
             .as("the shared rules must survive a field adding its own")
             .containsExactlyElementsOf(List.of(TextRules.NO_INVISIBLE_CHARACTERS, TextRules.NO_STACKED_MARKS, extra));
     }

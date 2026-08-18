@@ -762,7 +762,7 @@ document.addEventListener('click', function (e) {
 (function () {
     // Must match SessionActivityService.ACTIVE_WINDOW on the server.
     const ACTIVE_WINDOW_MS = 5 * 60 * 1000
-    const IDLE_LABEL = 'Inactive'
+    const IDLE_LABEL = window.Diurnal.i18n.inactive
     const wired = new WeakSet()
 
     function wire(el) {

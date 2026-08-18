@@ -1,0 +1,31 @@
+{!
+  Translated OIDC banner text, rendered via a nested Template.render() call from AuthWebResource's
+  login-page banner and SettingsWebResource's connect-flow banner - both need the resolved STRING as
+  ordinary template data (a short-lived cookie/query-param code, resolved before the page's own
+  TemplateInstance exists), not a {msg:...} call inside a page already mid-render. A direct Java call
+  to AppMessages always returns the English default (see that interface's own class Javadoc), which is
+  exactly the bug this partial replaces - net.zodac.diurnal.auth.oidc.OidcDenialReason#message(String)
+  and the "Connected to X…" sentence were both composed in Java before this existed. Params:
+    code                    - an OidcDenialReason#code(), OidcWebResource.MSG_OIDC_CONNECTED
+                              ("oidc-connected"), or anything else (unrecognised/absent - renders
+                              nothing, or the generic fallback, per fallbackToUnauthorized)
+    provider                - the configured identity provider's display name, only used by the codes
+                              whose message embeds it
+    fallbackToUnauthorized  - when true, an unrecognised code renders the generic oidcUnauthorized
+                              text instead of nothing; the login page's error banner always has SOME
+                              text when it is shown at all, where the Settings connect banner instead
+                              shows no banner for an unrecognised code
+!}
+{#switch code}
+    {#is 'oidc-connected'}{msg:oidcConnectedSuccess(provider)}
+    {#is 'setup-required'}{msg:oidcSetupRequired}
+    {#is 'email-missing'}{msg:oidcEmailMissing}
+    {#is 'email-unverified'}{msg:oidcEmailUnverified}
+    {#is 'not-in-group'}{msg:oidcNotInGroup}
+    {#is 'account-exists'}{msg:oidcAccountExists(provider)}
+    {#is 'role-sync-refused'}{msg:oidcRoleSyncRefused}
+    {#is 'link-conflict'}{msg:oidcLinkConflict(provider)}
+    {#is 'link-email-mismatch'}{msg:oidcLinkEmailMismatch(provider)}
+    {#is 'already-linked'}{msg:oidcAlreadyLinked(provider)}
+    {#else}{#if fallbackToUnauthorized}{msg:oidcUnauthorized}{/if}
+{/switch}

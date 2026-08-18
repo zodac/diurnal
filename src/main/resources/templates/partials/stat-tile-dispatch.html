@@ -1,0 +1,10 @@
+{!
+  The compact/full choice for one already-resolved tile, factored out of partials/stat-tile-row so
+  that file's per-key label/sub branching does not also have to duplicate this choice at every leaf.
+  Params: compact, label, value, sub, subNum, valueClass, date — see partials/stat-tile.
+!}
+{#if compact}
+{#include partials/stat-tile-compact label=label value=value sub=sub subNum=subNum valueClass=valueClass date=date /}
+{#else}
+{#include partials/stat-tile label=label value=value sub=sub subNum=subNum valueClass=valueClass date=date /}
+{/if}

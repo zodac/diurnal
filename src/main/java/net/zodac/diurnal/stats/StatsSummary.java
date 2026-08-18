@@ -19,8 +19,10 @@ package net.zodac.diurnal.stats;
 
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
+import io.quarkus.qute.i18n.MessageBundles;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import net.zodac.diurnal.time.DayLabels;
 import net.zodac.diurnal.user.User;
 
@@ -78,6 +80,7 @@ public final class StatsSummary {
                 .data("summaryFields", summaryFields)
                 .data("decimalPlaces", user.decimalPlaces)
                 .data("summaryDate", date.toString())
-                .data("dateLabel", DayLabels.spelledOut(date));
+                .data("dateLabel", DayLabels.spelledOut(date))
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag(user.language));
     }
 }

@@ -165,7 +165,7 @@ window.Diurnal = window.Diurnal || {};
         const draft = noteDrafts[dateStr]
         noteInput.value = draft === undefined ? (noteSaved[dateStr] || '') : draft
         refreshNoteState()
-        setNoteStatus(noteIsDirty() ? 'Unsaved changes' : '', 'brand')
+        setNoteStatus(noteIsDirty() ? window.Diurnal.i18n.unsavedChanges : '', 'brand')
     }
 
     function loadNote(dateStr) {
@@ -272,7 +272,7 @@ window.Diurnal = window.Diurnal || {};
             persistDraft()
             if (noteError) { noteError.innerHTML = '' }
             refreshNoteState()
-            setNoteStatus(noteIsDirty() ? 'Unsaved changes' : '', 'brand')
+            setNoteStatus(noteIsDirty() ? window.Diurnal.i18n.unsavedChanges : '', 'brand')
         })
     }
 
@@ -306,7 +306,7 @@ window.Diurnal = window.Diurnal || {};
                     noteInput.value = stored.content // the STORED (normalised) form, not what was typed
                 }
                 refreshNoteState()
-                if (noteDate === dateStr) { flashNoteStatus('Saved', 'success') }
+                if (noteDate === dateStr) { flashNoteStatus(window.Diurnal.i18n.saved, 'success') }
                 // The cache was just updated in place, so the grid only needs repainting — writing the first
                 // note on a day turns its number green, clearing the last one turns it back.
                 cal.noteChanged()
@@ -343,7 +343,7 @@ window.Diurnal = window.Diurnal || {};
             persistDraft()
             if (noteError) { noteError.innerHTML = '' }
             refreshNoteState()
-            setNoteStatus(noteIsDirty() ? 'Unsaved changes' : '', 'brand')
+            setNoteStatus(noteIsDirty() ? window.Diurnal.i18n.unsavedChanges : '', 'brand')
             noteInput.focus()
         })
     }

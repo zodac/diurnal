@@ -8,9 +8,9 @@
 
     {! Content !}
     <main id="notes-main" class="page-container px-4 py-8">
-        <h2 class="page-title mb-1">Notes</h2>
+        <h2 class="page-title mb-1">{msg:notesCardTitle}</h2>
         <p class="page-subtitle">
-            View and search through your notes.
+            {msg:notesSubtitle}
         </p>
 
         {! Search + list. Unlike the Actions page there is no "hide it all when empty" wrapper: with no
@@ -21,7 +21,7 @@
              render time. `value` re-seeds the box from ?q= so a bookmarked or reloaded search still reads
              correctly. !}
         {#include partials/search-input id="note-search-input" url="/internal/notes/list?page=1" target="#note-list"
-                  placeholder="Search your notes…" value=searchTerm disabled=searchDisabled /}
+                  placeholder=msg:searchNotesPlaceholder value=searchTerm disabled=searchDisabled /}
 
         <div class="card overflow-hidden">
             <div id="note-list">

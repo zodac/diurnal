@@ -20,6 +20,7 @@ package net.zodac.diurnal.user;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
+import io.quarkus.qute.i18n.MessageBundles;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -39,10 +40,11 @@ import jakarta.ws.rs.core.NewCookie;
 import jakarta.ws.rs.core.Response;
 import java.net.URI;
 import java.util.List;
+import java.util.Locale;
 import net.zodac.diurnal.auth.PasswordChangeResult;
 import net.zodac.diurnal.auth.PasswordChangeService;
+import net.zodac.diurnal.auth.PasswordRejection;
 import net.zodac.diurnal.auth.oidc.OidcConfig;
-import net.zodac.diurnal.auth.oidc.OidcDenialReason;
 import net.zodac.diurnal.auth.oidc.OidcWebResource;
 import net.zodac.diurnal.auth.oidc.QuarkusOidcConfig;
 import net.zodac.diurnal.auth.session.SessionCookies;
@@ -67,6 +69,10 @@ public class SettingsWebResource {
     private static final Logger LOGGER = LogManager.getLogger(SettingsWebResource.class);
 
     private final Template settingsTemplate;
+    private final Template oidcMessagesTemplate;
+    private final Template passwordRejectionTemplate;
+    private final Template profileRejectionTemplate;
+    private final Template textFailureMessageTemplate;
     private final CurrentUser currentUser;
     private final AppClock clock;
     private final ProfileService profileService;
@@ -77,10 +83,14 @@ public class SettingsWebResource {
     private final OidcConfig oidcConfig;
 
     /**
-     * Injects the settings template, the current-user accessor, the shared profile and password-change services, the session store and cookie
-     * builder, and the OIDC config views the Identity Provider section reads.
+     * Injects the settings template, the translated OIDC connect/denial banner partial, the current-user accessor, the shared profile and
+     * password-change services, the session store and cookie builder, and the OIDC config views the Identity Provider section reads.
      *
      * @param settingsTemplate the settings page template
+     * @param oidcMessagesTemplate the translated OIDC connect/denial banner partial template
+     * @param passwordRejectionTemplate the translated password-mismatch/unchanged banner partial template
+     * @param profileRejectionTemplate the translated preference-rejection banner partial template
+     * @param textFailureMessageTemplate the shared text-validation-pipeline rejection message partial template
      * @param currentUser the current-user accessor
      * @param clock the application clock for date-boundary logic
      * @param profileService the shared profile-mutation service
@@ -92,10 +102,19 @@ public class SettingsWebResource {
      */
     @SuppressWarnings("OverlyCoupledMethod")
     @Inject
-    public SettingsWebResource(@Location("settings") final Template settingsTemplate, final CurrentUser currentUser, final AppClock clock,
+    public SettingsWebResource(@Location("settings") final Template settingsTemplate,
+        @Location("partials/oidc-messages") final Template oidcMessagesTemplate,
+        @Location("partials/password-rejection") final Template passwordRejectionTemplate,
+        @Location("partials/profile-rejection") final Template profileRejectionTemplate,
+        @Location("partials/text-failure-message") final Template textFailureMessageTemplate,
+        final CurrentUser currentUser, final AppClock clock,
         final ProfileService profileService, final PasswordChangeService passwordChangeService, final SessionStore sessionStore,
         final SessionCookies sessionCookies, final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig) {
         this.settingsTemplate = settingsTemplate;
+        this.oidcMessagesTemplate = oidcMessagesTemplate;
+        this.passwordRejectionTemplate = passwordRejectionTemplate;
+        this.profileRejectionTemplate = profileRejectionTemplate;
+        this.textFailureMessageTemplate = textFailureMessageTemplate;
         this.currentUser = currentUser;
         this.clock = clock;
         this.profileService = profileService;
@@ -137,6 +156,7 @@ public class SettingsWebResource {
      * @param displayName      the new display name, when submitted
      * @param theme            the new theme, when submitted
      * @param font             the new font, when submitted
+     * @param language         the new UI language, when submitted
      * @param calendarView     the new dashboard calendar style, when submitted
      * @param noteColour       the new day-notes colour, when submitted
      * @param timezone         the new IANA timezone, when submitted
@@ -160,6 +180,7 @@ public class SettingsWebResource {
         @FormParam("displayName") @Nullable final String displayName,
         @FormParam("theme") @Nullable final String theme,
         @FormParam("font") @Nullable final String font,
+        @FormParam("language") @Nullable final String language,
         @FormParam("calendarView") @Nullable final String calendarView,
         @FormParam("noteColour") @Nullable final String noteColour,
         @FormParam("timezone") @Nullable final String timezone,
@@ -173,6 +194,7 @@ public class SettingsWebResource {
         @FormParam("statsEnabled") @Nullable final List<String> statsEnabled,
         @FormParam("statsLabel") @Nullable final List<String> statsLabel) {
         final User user = currentUser.get();
+        final Locale locale = locale(user);
 
         // Grouped into helpers purely for length; every group threads the running result through, so the ordering and the
         // stop-at-the-first-rejection behaviour are exactly as if the branches were still written out here in one run.
@@ -180,7 +202,7 @@ public class SettingsWebResource {
         if (displayName != null) {
             result = profileService.updateDisplayName(user, displayName);
         }
-        result = applyAppearance(user, result, theme, font, calendarView, noteColour, timezone);
+        result = applyAppearance(user, result, theme, font, language, calendarView, noteColour, timezone);
         result = applyPaging(user, result, pageSize, pageSizeSection, pageSizeValue, decimalPlaces);
         result = applyToggles(user, result, showStatsSummary, showNoteCounter);
         result = applyStatsFields(user, result, statsOrder, statsEnabled, statsLabel);
@@ -189,18 +211,45 @@ public class SettingsWebResource {
             case final ProfileResult.Updated _ -> Response.noContent().build();
             // A rejected field leaves any field applied before it mutated on the managed entity; the class-level @RollbackOnErrorStatus rolls the
             // whole transaction back on this 422, so a rejected request never silently persists part of a mutation.
-            case final ProfileResult.Invalid invalid -> Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(invalid.message()).build();
+            case final ProfileResult.Invalid invalid ->
+                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(profileRejectionBanner(invalid.rejection(), locale)).build();
+        };
+    }
+
+    private String profileRejectionBanner(final ProfileRejection rejection, final Locale locale) {
+        return switch (rejection) {
+            case final ProfileRejection.InvalidTextField invalid ->
+                textFailureMessageTemplate.data("failure", invalid.failure()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ProfileRejection.InvalidTheme invalid -> profileRejectionTemplate.data("kind", "theme", "allowedValues",
+                invalid.allowedValues()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ProfileRejection.InvalidFont invalid -> profileRejectionTemplate.data("kind", "font", "allowedValues",
+                invalid.allowedValues()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ProfileRejection.InvalidLanguage invalid -> profileRejectionTemplate.data("kind", "language", "allowedValues",
+                invalid.allowedValues()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ProfileRejection.InvalidCalendarView invalid -> profileRejectionTemplate.data("kind", "calendarView", "allowedValues",
+                invalid.allowedValues()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ProfileRejection.InvalidNoteColour _ ->
+                profileRejectionTemplate.data("kind", "noteColour").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ProfileRejection.InvalidTimezone _ ->
+                profileRejectionTemplate.data("kind", "timezone").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ProfileRejection.InvalidPageSize _ ->
+                profileRejectionTemplate.data("kind", "pageSize").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ProfileRejection.InvalidDecimalPlaces _ ->
+                profileRejectionTemplate.data("kind", "decimalPlaces").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
         };
     }
 
     private ProfileResult applyAppearance(final User user, final ProfileResult current, final @Nullable String theme, final @Nullable String font,
-        final @Nullable String calendarView, final @Nullable String noteColour, final @Nullable String timezone) {
+        final @Nullable String language, final @Nullable String calendarView, final @Nullable String noteColour, final @Nullable String timezone) {
         ProfileResult result = current;
         if (theme != null && stillValid(result)) {
             result = profileService.updateTheme(user, theme);
         }
         if (font != null && stillValid(result)) {
             result = profileService.updateFont(user, font);
+        }
+        if (language != null && stillValid(result)) {
+            result = profileService.updateLanguage(user, language);
         }
         if (calendarView != null && stillValid(result)) {
             result = profileService.updateCalendarView(user, calendarView);
@@ -262,6 +311,10 @@ public class SettingsWebResource {
         return !(result instanceof ProfileResult.Invalid);
     }
 
+    private static Locale locale(final User user) {
+        return Locale.forLanguageTag(user.language);
+    }
+
     /**
      * Changes the current (local) user's password. To defend against a hijacked session silently taking over the account, the caller must prove
      * knowledge of the existing password: the flow first asks for the {@code currentPassword}, then the new password entered and re-entered to
@@ -284,7 +337,8 @@ public class SettingsWebResource {
         // The web form collects a confirmPassword (normalised to blank so an empty field is rejected)
         // Everything else — the local-account guard, current-password proof, new-password rules, re-hash
         // and other-session revocation — is the shared PasswordChangeService the API also calls.
-        final PasswordChangeResult result = passwordChangeService.change(currentUser.get(), currentPassword, newPassword,
+        final User user = currentUser.get();
+        final PasswordChangeResult result = passwordChangeService.change(user, currentPassword, newPassword,
             confirmPassword == null ? "" : confirmPassword, sessionToken, ClientAddress.of(routingContext));
         return switch (result) {
             case final PasswordChangeResult.Success _ -> Response.ok().build();
@@ -292,7 +346,18 @@ public class SettingsWebResource {
             case final PasswordChangeResult.WrongCurrentPassword _ ->
                 Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
             case final PasswordChangeResult.InvalidNewPassword invalid ->
-                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(invalid.message()).build();
+                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(passwordRejectionBanner(invalid.reason(), locale(user))).build();
+        };
+    }
+
+    private String passwordRejectionBanner(final PasswordRejection rejection, final Locale locale) {
+        return switch (rejection) {
+            case final PasswordRejection.Mismatch _ ->
+                passwordRejectionTemplate.data("kind", "mismatch").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final PasswordRejection.TooLong tooLong ->
+                textFailureMessageTemplate.data("failure", tooLong.failure()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final PasswordRejection.Unchanged _ ->
+                passwordRejectionTemplate.data("kind", "unchanged").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
         };
     }
 
@@ -343,18 +408,21 @@ public class SettingsWebResource {
 
     private TemplateInstance settingsView(final User user, @Nullable final String msg) {
         final String providerName = oidcConfig.providerName();
+        final Locale locale = locale(user);
         // The one-shot status banner for the connect flow's redirect back: the success code, or a refused connection's OidcDenialReason code
         // (the provisioner sends link denials back HERE — the session is still valid, and bouncing to the login page read as a logout).
-        // An unknown (or absent) code renders no banner.
-        final String settingsMessage;
-        final boolean settingsMessageIsError;
-        if (OidcWebResource.MSG_OIDC_CONNECTED.equals(msg)) {
-            settingsMessage = "Connected to " + providerName + ", and your password has been removed.";
-            settingsMessageIsError = false;
-        } else {
-            settingsMessage = OidcDenialReason.fromCode(msg).map(reason -> reason.message(providerName)).orElse(null);
-            settingsMessageIsError = settingsMessage != null;
-        }
+        // An unknown (or absent) code renders no banner. Rendered via oidcMessagesTemplate (a real, locale-aware template render) rather than
+        // OidcDenialReason#message(String)/a hand-composed success sentence — both are Java-composed and so always English, see that partial's
+        // Javadoc.
+        // .strip() matters: an unrecognised/absent code renders no text from the partial's own {#switch}/{#else}, but
+        // Qute's line-trimming still leaves a trailing newline in that empty case - "\n" is empty to Java's isBlank()
+        // below, but truthy to the template's own {#if settingsMessage}, which would otherwise show an empty green banner.
+        final String settingsMessage = oidcMessagesTemplate
+            .data("code", msg, "provider", providerName, "fallbackToUnauthorized", false)
+            .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)
+            .render()
+            .strip();
+        final boolean settingsMessageIsError = !settingsMessage.isBlank() && !OidcWebResource.MSG_OIDC_CONNECTED.equals(msg);
         return settingsTemplate
                 .data("settingsMessage", settingsMessage)
                 .data("settingsBannerVariant", settingsMessageIsError ? "error" : "success")
@@ -372,6 +440,9 @@ public class SettingsWebResource {
                 .data("oidcProviderName", oidcConfig.providerName())
                 .data("theme", user.theme)
                 .data("font", user.font)
+                .data("language", user.language)
+                .data("languageOptions", Language.values())
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)
                 .data("isAdmin", user.isAdmin())
                 .data("pageSize", user.pageSize)
                 .data("pageSizeOptions", UserSettings.PAGE_SIZE_OPTIONS)

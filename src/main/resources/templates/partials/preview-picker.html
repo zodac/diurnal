@@ -22,7 +22,40 @@
     <div id="{optionsId}" class="grid grid-cols-3 gap-3" role="radiogroup" aria-label="{label}"
          hx-patch="{endpoint}" hx-trigger="change" hx-swap="none" hx-include="#{optionsId}">
         {#for option in options}
-        {#include partials/preview-option group=group value=option.value current=current imgBase=option.previewImage label=option.label title=option.title alt=option.alt /}
+        {! The label/title/alt are resolved HERE, by value, rather than off option.label/.title/.alt directly:
+           AppMessages is locale-bound per TemplateInstance (see its Javadoc), so only a {msg:...} call made
+           INSIDE a render picks up the user's language - a Java-side call (e.g. from a *Extensions class)
+           would always return the English default. The enum's own label/title/alt fields are left untouched
+           (they still back e.g. ProfileService's "must be one of: ..." validation text). !}
+        {#switch option.value}
+            {#is 'system'}
+                {#include partials/preview-option group=group value=option.value current=current imgBase=option.previewImage
+                    label=msg:themeLabelSystem title=msg:themeTitleSystem alt=msg:themeAltSystem /}
+            {#is 'light'}
+                {#include partials/preview-option group=group value=option.value current=current imgBase=option.previewImage
+                    label=msg:themeLabelLight title=msg:themeTitleLight alt=msg:themeAltLight /}
+            {#is 'dark'}
+                {#include partials/preview-option group=group value=option.value current=current imgBase=option.previewImage
+                    label=msg:themeLabelDark title=msg:themeTitleDark alt=msg:themeAltDark /}
+            {#is 'full'}
+                {#include partials/preview-option group=group value=option.value current=current imgBase=option.previewImage
+                    label=msg:calendarViewLabelFull title=msg:calendarViewTitleFull alt=msg:calendarViewAltFull /}
+            {#is 'minimal'}
+                {#include partials/preview-option group=group value=option.value current=current imgBase=option.previewImage
+                    label=msg:calendarViewLabelMinimal title=msg:calendarViewTitleMinimal alt=msg:calendarViewAltMinimal /}
+            {#is 'stacked'}
+                {#include partials/preview-option group=group value=option.value current=current imgBase=option.previewImage
+                    label=msg:calendarViewLabelStacked title=msg:calendarViewTitleStacked alt=msg:calendarViewAltStacked /}
+            {#is 'nova'}
+                {#include partials/preview-option group=group value=option.value current=current imgBase=option.previewImage
+                    label=msg:fontLabelNova title=msg:fontTitleNova alt=msg:fontAltNova /}
+            {#is 'standard'}
+                {#include partials/preview-option group=group value=option.value current=current imgBase=option.previewImage
+                    label=msg:fontLabelStandard title=msg:fontTitleStandard alt=msg:fontAltStandard /}
+            {#is 'dyslexic'}
+                {#include partials/preview-option group=group value=option.value current=current imgBase=option.previewImage
+                    label=msg:fontLabelDyslexic title=msg:fontTitleDyslexic alt=msg:fontAltDyslexic /}
+        {/switch}
         {/for}
     </div>
 </div>

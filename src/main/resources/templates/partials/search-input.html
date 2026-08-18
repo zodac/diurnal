@@ -15,7 +15,7 @@
   The three optional params are defaulted with `.or(...)` because Qute is strict: a bare {placeholder}
   on a caller that doesn't pass the key throws "Key not found" at render time.
 !}
-{#let placeholder=placeholder.or('Search…') value=value.or('') disabled=disabled.or(false)}
+{#let placeholder=placeholder.or(msg:searchPlaceholderDefault) value=value.or('') disabled=disabled.or(false)}
 <div class="mb-4">
     <input type="text"
            id="{id}"

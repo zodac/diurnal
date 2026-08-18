@@ -20,6 +20,7 @@ package net.zodac.diurnal.web;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
+import io.quarkus.qute.i18n.MessageBundles;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
@@ -27,6 +28,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
 import java.time.LocalDate;
+import java.util.Locale;
 import net.zodac.diurnal.colour.Colours;
 import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.note.NoteService;
@@ -90,6 +92,8 @@ public class DashboardWebResource {
                 .data("displayName", user.displayName)
                 .data("theme", user.theme)
                 .data("font", user.font)
+                .data("language", user.language)
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag(user.language))
                 .data("isAdmin", user.isAdmin())
                 .data("calendarView", user.calendarView)
                 .data("today", today.toString())

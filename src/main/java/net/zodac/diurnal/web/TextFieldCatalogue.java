@@ -23,6 +23,7 @@ import jakarta.inject.Named;
 import net.zodac.diurnal.note.NoteField;
 import net.zodac.diurnal.text.TextField;
 import net.zodac.diurnal.text.TextFields;
+import net.zodac.diurnal.text.TextRules;
 
 /**
  * Exposes the {@link TextFields} catalogue to every template as {@code {inject:textFields}}, so an input's {@code maxlength} attribute and its
@@ -116,5 +117,17 @@ public class TextFieldCatalogue {
     @SuppressWarnings("unused") // read by name from dashboard.html; no Java caller
     public TextField note() {
         return noteField.field();
+    }
+
+    /**
+     * The longest run of consecutive combining marks any field accepts, for {@code partials/text-failure-message.html}'s
+     * {@code noStackedMarks}-shaped rejection messages - the one {@link net.zodac.diurnal.text.TextRule} bound not carried on the rule or field
+     * itself.
+     *
+     * @return {@link TextRules#MAX_CONSECUTIVE_MARKS}
+     */
+    @SuppressWarnings("unused") // read by name from partials/text-failure-message.html; no Java caller
+    public int maxConsecutiveMarks() {
+        return TextRules.MAX_CONSECUTIVE_MARKS;
     }
 }

@@ -20,8 +20,8 @@
     </colgroup>
     <thead>
         <tr>
-            <th class="dt-head-cell dt-text-inset">Date</th>
-            <th class="dt-head-cell">Note</th>
+            <th class="dt-head-cell dt-text-inset">{msg:dateColumnHeader}</th>
+            <th class="dt-head-cell">{msg:noteHeading}</th>
         </tr>
     </thead>
     <tbody id="notes-tbody" class="dt-tbody">
@@ -37,7 +37,7 @@
         {/for}
         {#if page.items.isEmpty()}
         <tr id="notes-empty-row">
-            <td colspan="2" class="dt-empty">{#if extraQuery}No notes match your search.{#else}No notes yet, write one on the dashboard.{/if}</td>
+            <td colspan="2" class="dt-empty">{#if extraQuery}{msg:noNotesMatchSearch}{#else}{msg:noNotesYetWriteOnDashboard}{/if}</td>
         </tr>
         {/if}
     </tbody>

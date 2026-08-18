@@ -20,6 +20,7 @@ package net.zodac.diurnal.web.admin;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
+import io.quarkus.qute.i18n.MessageBundles;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.DefaultValue;
@@ -31,6 +32,7 @@ import jakarta.ws.rs.core.MediaType;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import net.zodac.diurnal.auth.lockout.IpLockoutService;
 import net.zodac.diurnal.auth.lockout.IpThrottleConfig;
@@ -109,6 +111,8 @@ public class AdminWebResource {
                 .data("displayName", actor.displayName)
                 .data("theme", actor.theme)
                 .data("font", actor.font)
+                .data("language", actor.language)
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag(actor.language))
                 .data("isAdmin", true)
                 .data("page", AdminUsersInternalResource.toRows(page, zone, sessionActivityService.recentActivityByUser(ids, now)))
                 .data("ipThrottleEnabled", lockoutEnabled)
@@ -132,6 +136,8 @@ public class AdminWebResource {
                 .data("displayName", actor.displayName)
                 .data("theme", actor.theme)
                 .data("font", actor.font)
+                .data("language", actor.language)
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag(actor.language))
                 .data("isAdmin", true);
     }
 }

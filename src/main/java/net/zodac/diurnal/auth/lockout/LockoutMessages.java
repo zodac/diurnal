@@ -38,17 +38,29 @@ public final class LockoutMessages {
     }
 
     /**
-     * The full sentence shown to a locked-out user on either surface (login or registration), stating the <em>exact</em> whole seconds remaining on
-     * the lockout, e.g. "Too many failed attempts. Please try again in 42 seconds.".
+     * The full sentence shown to a locked-out user on the JSON API, stating the <em>exact</em> whole seconds remaining on the lockout, e.g.
+     * "Too many failed attempts. Please try again in 42 seconds.". The API always renders this in English — see
+     * {@code net.zodac.diurnal.web.AppMessages}'s class Javadoc on why a direct Java call can never be locale-aware; the web surface instead passes
+     * {@link #retrySeconds(Duration)} as template data and lets {@code login.html}/{@code register.html} resolve the translated sentence themselves
+     * via {@code {msg:lockoutRetrySingular/Plural}}.
      *
      * @param remaining how much of the lockout is left
-     * @return the user-facing lockout message
+     * @return the user-facing lockout message, in English
      */
     public static String retryMessage(final Duration remaining) {
-        // Floor to at least one second so the message never reads "0 seconds" — matches the Retry-After
-        // header the API sends alongside it.
-        final long seconds = Math.max(1L, remaining.toSeconds());
+        final long seconds = retrySeconds(remaining);
         return "Too many failed attempts. Please try again in " + seconds + (seconds == 1L ? " second." : " seconds.");
+    }
+
+    /**
+     * The whole seconds remaining on a lockout, floored to at least one so neither surface ever reads "0 seconds" — matches the
+     * {@code Retry-After}/{@code X-Lockout-Retry-After} header sent alongside it.
+     *
+     * @param remaining how much of the lockout is left
+     * @return the floored whole seconds remaining
+     */
+    public static long retrySeconds(final Duration remaining) {
+        return Math.max(1L, remaining.toSeconds());
     }
 
     /**

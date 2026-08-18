@@ -3,7 +3,7 @@
     <td class="dt-cell whitespace-nowrap">{u.displayName}</td>
     <td class="dt-cell">
         <span data-dt-view class="flex items-center gap-2">
-            <span class="dt-badge dt-badge-{u.role}">{u.roleName}</span>
+            <span class="dt-badge dt-badge-{u.role}">{#switch u.role}{#is 'admin'}{msg:roleAdmin}{#else}{msg:roleUser}{/switch}</span>
         </span>
         <span data-dt-edit class="hidden flex items-center gap-2">
             <form id="user-form-{u.id}"
@@ -12,21 +12,21 @@
                   hx-swap="outerHTML">
                 <select name="role" class="dt-select">
                     {#for option in role:options}
-                    <option value="{option.storageValue}" {#if u.role == option.storageValue}selected{/if}>{option.displayName}</option>
+                    <option value="{option.storageValue}" {#if u.role == option.storageValue}selected{/if}>{#switch option.storageValue}{#is 'admin'}{msg:roleAdmin}{#else}{msg:roleUser}{/switch}</option>
                     {/for}
                 </select>
             </form>
         </span>
     </td>
-    <td class="dt-cell dt-cell-muted">{u.authSourceLabel}</td>
+    <td class="dt-cell dt-cell-muted">{#switch u.authSource}{#is 'oidc'}{msg:authSourceOidc}{#is 'local+oidc'}{msg:authSourceLocalOidc}{#else}{msg:authSourceLocal}{/switch}</td>
     <td class="dt-cell dt-cell-muted">
-        {#include partials/tooltip-text text=u.createdLabel tip=u.zoneTooltip /}
+        {#include partials/tooltip-text text=u.createdLabel tip=msg:zoneTooltip(u.zoneLabel) /}
     </td>
     <td class="dt-cell dt-cell-muted">
         {#if u.lastLoginLabel == 'Never'}
-        {u.lastLoginLabel}
+        {msg:neverLoggedIn}
         {#else}
-        {#include partials/tooltip-text text=u.lastLoginLabel tip=u.zoneTooltip /}
+        {#include partials/tooltip-text text=u.lastLoginLabel tip=msg:zoneTooltip(u.zoneLabel) /}
         {/if}
     </td>
     {! Active presence dot. Green when the user made an authenticated request within the active window
@@ -36,16 +36,16 @@
          tooltip and no time. !}
     <td class="dt-cell">
         {#if u.recentlyActive}
-        <span class="presence group relative inline-flex" data-elapsed-seconds="{u.secondsSinceLastRequest}" aria-label="Active">
+        <span class="presence group relative inline-flex" data-elapsed-seconds="{u.secondsSinceLastRequest}" aria-label="{msg:active}">
             <span class="presence-dot presence-dot-active" aria-hidden="true"></span>
             <span aria-hidden="true" class="app-tooltip w-max bottom-full mb-1.5 left-1/2 -translate-x-1/2">
-                <span data-activity-label>Last seen <span data-activity-clock>0:00</span> ago</span>
+                <span data-activity-label>{msg:lastSeenPrefix} <span data-activity-clock>0:00</span> {msg:agoSuffix}</span>
             </span>
         </span>
         {#else}
-        <span class="presence group relative inline-flex" aria-label="Inactive">
+        <span class="presence group relative inline-flex" aria-label="{msg:inactive}">
             <span class="presence-dot presence-dot-idle" aria-hidden="true"></span>
-            <span aria-hidden="true" class="app-tooltip w-max bottom-full mb-1.5 left-1/2 -translate-x-1/2">Inactive</span>
+            <span aria-hidden="true" class="app-tooltip w-max bottom-full mb-1.5 left-1/2 -translate-x-1/2">{msg:inactive}</span>
         </span>
         {/if}
     </td>

@@ -5,18 +5,18 @@
 
     {#include partials/card-wordmark /}
     {#if setup}
-    <p class="text-sm text-ink-muted mb-6">Create the administrator account for this instance</p>
+    <p class="text-sm text-ink-muted mb-6">{msg:registerSetupSubtitle}</p>
     {#else if registrationDisabled}
-    <p class="text-sm text-ink-muted mb-6">Registration unavailable</p>
+    <p class="text-sm text-ink-muted mb-6">{msg:registrationUnavailable}</p>
     {#else}
-    <p class="text-sm text-ink-muted mb-6">Create a new account</p>
+    <p class="text-sm text-ink-muted mb-6">{msg:registerSubtitle}</p>
     {/if}
 
     {#if registrationDisabled}
     {#include partials/banner variant='error' cls='mb-4'
-        message='Registration is currently disabled. Please contact your system administrator.' /}
+        message=msg:registrationDisabledBanner /}
     <p class="mt-4 text-center text-sm text-ink-muted">
-        <a href="/login" class="link-brand">Back to sign in</a>
+        <a href="/login" class="link-brand">{msg:backToSignIn}</a>
     </p>
     {#else}
 
@@ -30,37 +30,48 @@
        non-blank AND confirmPassword matches password (a UX hint — the banner + server validation
        remain the real backstops). !}
     <form method="post" action="/register" novalidate data-validate data-ajax-errors data-disable-until-complete class="space-y-4">
-        <div data-form-errors class="space-y-2" {#if missingFields.size == 0 && errors.size == 0}hidden{/if}>
+        <div data-form-errors class="space-y-2"
+             {#if missingFields.size == 0 && errors.size == 0 && !duplicateEmail && lockoutSeconds == 0}hidden{/if}>
             {#if missingFields.size > 0}
             <div class="banner banner-error">
-                Please fill in the following {#if missingFields.size == 1}field{#else}fields{/if}:
+                {msg:missingFieldsPrefix} {#if missingFields.size == 1}{msg:missingFieldSingular}{#else}{msg:missingFieldsPlural}{/if}:
                 <ul class="list-disc list-inside mt-1">
                     {#for field in missingFields}
-                    <li>{field}</li>
+                    <li>{#switch field}{#is 'email'}{msg:fieldEmail}{#is 'displayName'}{msg:fieldDisplayName}{#is 'password'}{msg:fieldPassword}{#is 'confirmPassword'}{msg:fieldConfirmPassword}{/switch}</li>
                     {/for}
                 </ul>
             </div>
+            {/if}
+            {#if duplicateEmail}
+            {#include partials/banner variant='error' message=msg:emailAlreadyRegistered /}
+            {/if}
+            {#if lockoutSeconds > 0}
+                {#if lockoutSeconds == 1}
+                {#include partials/banner variant='error' message=msg:lockoutRetrySingular(lockoutSeconds) /}
+                {#else}
+                {#include partials/banner variant='error' message=msg:lockoutRetryPlural(lockoutSeconds) /}
+                {/if}
             {/if}
             {#for message in errors}
             {#include partials/banner variant='error' message=message /}
             {/for}
         </div>
-        {#include partials/form-field id="email" name="email" label="Email" type="email" required=true autocomplete="email" maxlength=inject:textFields.email.maxLength value=email /}
-        {#include partials/form-field id="displayName" name="displayName" label="Display name" type="text" required=true autocomplete="name" maxlength=inject:textFields.displayName.maxLength value=displayName /}
+        {#include partials/form-field id="email" name="email" label=msg:fieldEmail type="email" required=true autocomplete="email" maxlength=inject:textFields.email.maxLength value=email /}
+        {#include partials/form-field id="displayName" name="displayName" label=msg:fieldDisplayName type="text" required=true autocomplete="name" maxlength=inject:textFields.displayName.maxLength value=displayName /}
         <div class="relative">
-            {#include partials/form-field id="password" name="password" label="Password" type="password" required=true autocomplete="new-password" maxlength=inject:textFields.password.maxLength value="" /}
+            {#include partials/form-field id="password" name="password" label=msg:fieldPassword type="password" required=true autocomplete="new-password" maxlength=inject:textFields.password.maxLength value="" /}
             {#include partials/password-constraints for="password" /}
         </div>
-        {#include partials/form-field id="confirmPassword" name="confirmPassword" label="Confirm password" type="password" required=true autocomplete="new-password" maxlength=inject:textFields.password.maxLength value="" /}
+        {#include partials/form-field id="confirmPassword" name="confirmPassword" label=msg:fieldConfirmPassword type="password" required=true autocomplete="new-password" maxlength=inject:textFields.password.maxLength value="" /}
         <button type="submit" class="btn-primary w-full">
-            Create account
+            {msg:createAccount}
         </button>
     </form>
 
     {#if !setup}
     <p class="mt-4 text-center text-sm text-ink-muted">
-        Already have an account?
-        <a href="/login" class="link-brand">Sign in</a>
+        {msg:alreadyRegisteredPrompt}
+        <a href="/login" class="link-brand">{msg:signIn}</a>
     </p>
     {/if}
     {/if}

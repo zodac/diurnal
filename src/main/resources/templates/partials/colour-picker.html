@@ -28,7 +28,7 @@
            {#if form}form="{form}"
            {/if}{#if endpoint}hx-patch="{endpoint}" hx-trigger="change" hx-swap="none"
            {/if}class="{inputCls}"
-           aria-label="Pick a colour">
-    {#include partials/tooltip text="Pick a colour" pos=tipPos align="left" /}
+           aria-label="{msg:pickColour}">
+    {#include partials/tooltip text=msg:pickColour pos=tipPos align="left" /}
 </span>
 {/let}

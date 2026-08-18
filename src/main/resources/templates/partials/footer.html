@@ -33,8 +33,8 @@
         {#let isAdmin=isAdmin.or(false) updateAvailable=inject:appInfo.updateAvailable}
         <span class="inline-flex items-center gap-1">
             <a href="{inject:appInfo.repositoryUrl}/releases/tag/{inject:appInfo.version}" target="_blank" rel="noopener"
-               aria-label="Release notes"
-               class="group relative hover:text-brand transition-colors">v{inject:appInfo.version}{#include partials/tooltip text="Release notes" pos="top" /}</a>
+               aria-label="{msg:releaseNotesTooltip}"
+               class="group relative hover:text-brand transition-colors">v{inject:appInfo.version}{#include partials/tooltip text=msg:releaseNotesTooltip pos="top" /}</a>
             {#if isAdmin && updateAvailable}
             <a href="{inject:appInfo.updateUrl}" target="_blank" rel="noopener"
                aria-label="{inject:appInfo.updateTooltip}"
@@ -46,10 +46,10 @@
         {! GitHub mark (official octicon). Not part of the app brand — it's the icon of the
              external service being linked to — so it uses currentColor, not a brand token. !}
         <a href="{inject:appInfo.repositoryUrl}" target="_blank" rel="noopener"
-           aria-label="View source on GitHub"
+           aria-label="{msg:viewSourceOnGithub}"
            class="group relative inline-flex items-center gap-1.5 hover:text-brand transition-colors">
             {#include partials/icon name='github' cls='h-3.5 w-3.5' /}
-            GitHub{#include partials/tooltip text="View source on GitHub" pos="top" /}
+            {msg:github}{#include partials/tooltip text=msg:viewSourceOnGithub pos="top" /}
         </a>
     </div>
 </footer>

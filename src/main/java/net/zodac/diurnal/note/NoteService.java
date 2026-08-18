@@ -181,11 +181,12 @@ public class NoteService {
     NoteResult save(final User user, final LocalDate day, final @Nullable String content) {
         final TextOutcome outcome = TextValidation.check(noteField.field(), content);
         if (!(outcome instanceof TextOutcome.Valid(final String normalised))) {
-            final String message = TextOutcomeExtensions.message((TextOutcome.Failure) outcome);
+            final TextOutcome.Failure failure = (TextOutcome.Failure) outcome;
             // The REASON only - it is worded from the field and never quotes the submitted value, so this
-            // cannot leak note content (see the class Javadoc).
-            LOGGER.debug("Note rejected for {} by user {}: {}", day, user.email, message);
-            return new NoteResult.Invalid(message);
+            // cannot leak note content (see the class Javadoc). Always logged in English (see
+            // TextOutcomeExtensions#message's own Javadoc); the surfaces separately resolve their own wording.
+            LOGGER.debug("Note rejected for {} by user {}: {}", day, user.email, TextOutcomeExtensions.message(failure));
+            return new NoteResult.Invalid(failure);
         }
 
         // The value stored is ALWAYS the normalised one the pipeline produced, never the raw submission.

@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import net.zodac.diurnal.time.DaySpan;
 import net.zodac.diurnal.time.Durations;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Derived labels, trends and predicates computed from an {@link SubjectStats} record.
@@ -44,7 +45,6 @@ public final class SubjectStatsExtensions {
     private static final DateTimeFormatter DATE_FMT  = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter DATE_FMT_NO_YEAR = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH);
     private static final double ZERO = 0.0;
-    private static final String TIME_UNIT = "time";
     private static final String RANGE_SEPARATOR = " – ";
 
     private SubjectStatsExtensions() {
@@ -101,46 +101,81 @@ public final class SubjectStatsExtensions {
     @SuppressWarnings("OverlyLongMethod")
     private static StatTile tile(final SubjectStats stats, final DisplayStat displayed, final int decimalPlaces) {
         final String label = displayed.label();
+        final String key = displayed.field().key();
+        // A rename is "the user's own text" the moment it differs from the catalogue's own default wording (the
+        // same equality StatField.customLabelFor already applies on write/read) - only the DEFAULT case is ever
+        // translated, per I18N.md's "third bucket" notes (a Java-side AppMessages call is not locale-aware here,
+        // so the actual translation lookup happens template-side, keyed on this StatTile's key).
+        final boolean labelIsCustom = !label.equals(displayed.field().label());
         return switch (displayed.field()) {
-            case CURRENT_STREAK -> durationTile(label, stats.currentStreak(), true);
-            case LONGEST_STREAK -> durationTile(label, stats.longestStreak(), false);
-            case CURRENT_GAP    -> durationTile(label, currentGapSpan(stats), true);
-            case LONGEST_GAP    -> durationTile(label, stats.longestGap(), false);
-            case TOTAL_DAYS     -> numeric(label, Integer.toString(stats.totalDays()), totalDaysUnit(stats));
-            case TOTAL_COUNT    -> numeric(label, Long.toString(stats.totalCount()), "all time");
-            case WEEKLY_DAY_AVERAGE    -> numeric(label, weeklyDayAverage(stats, decimalPlaces), "days / week");
-            case MONTHLY_DAY_AVERAGE   -> numeric(label, monthlyDayAverage(stats, decimalPlaces), "days / month");
-            case WEEKLY_COUNT_AVERAGE  -> numeric(label, weeklyCountAverage(stats, decimalPlaces), "count / week");
-            case MONTHLY_COUNT_AVERAGE -> numeric(label, monthlyCountAverage(stats, decimalPlaces), "count / month");
-            case FIRST_PERFORMED -> labelTile(label, firstLabel(stats), sinceFirstLabel(stats));
-            case LAST_PERFORMED -> labelTile(label, lastLabel(stats), sinceLabel(stats));
-            case VS_LAST_MONTH  -> trendTile(label, monthTrend(stats), monthContext(stats), monthTrendClass(stats));
-            case VS_LAST_YEAR   -> trendTile(label, yearTrend(stats), yearContext(stats), yearTrendClass(stats));
+            case CURRENT_STREAK -> durationTile(key, label, labelIsCustom, stats.currentStreak(), true);
+            case LONGEST_STREAK -> durationTile(key, label, labelIsCustom, stats.longestStreak(), false);
+            case CURRENT_GAP    -> durationTile(key, label, labelIsCustom, currentGapSpan(stats), true);
+            case LONGEST_GAP    -> durationTile(key, label, labelIsCustom, stats.longestGap(), false);
+            case TOTAL_DAYS     -> numeric(key, label, labelIsCustom, Integer.toString(stats.totalDays()), stats.totalDays());
+            case TOTAL_COUNT    -> numeric(key, label, labelIsCustom, Long.toString(stats.totalCount()), 0L);
+            case WEEKLY_DAY_AVERAGE    -> numeric(key, label, labelIsCustom, weeklyDayAverage(stats, decimalPlaces), 0L);
+            case MONTHLY_DAY_AVERAGE   -> numeric(key, label, labelIsCustom, monthlyDayAverage(stats, decimalPlaces), 0L);
+            case WEEKLY_COUNT_AVERAGE  -> numeric(key, label, labelIsCustom, weeklyCountAverage(stats, decimalPlaces), 0L);
+            case MONTHLY_COUNT_AVERAGE -> numeric(key, label, labelIsCustom, monthlyCountAverage(stats, decimalPlaces), 0L);
+            case FIRST_PERFORMED ->
+                sinceTile(key, label, labelIsCustom, firstLabel(stats),
+                    stats.firstPerformed() == null ? null : new DaySpan(stats.firstPerformed(), stats.today()));
+            case LAST_PERFORMED ->
+                sinceTile(key, label, labelIsCustom, lastLabel(stats), stats.lastPerformed() == null ? null : currentGapSpan(stats));
+            case VS_LAST_MONTH  ->
+                trendTile(key, label, labelIsCustom, monthTrend(stats), monthTrendClass(stats), stats.thisMonthCount(), stats.lastMonthCount());
+            case VS_LAST_YEAR   ->
+                trendTile(key, label, labelIsCustom, yearTrend(stats), yearTrendClass(stats), stats.thisYearCount(), stats.lastYearCount());
             // The high scores lead with WHEN the record was set; the count itself is the secondary caption.
-            case BEST_MONTH     -> labelTile(label, stats.bestMonthLabel(), Durations.count(stats.bestMonthCount(), TIME_UNIT));
-            case BEST_YEAR      -> labelTile(label, stats.bestYearLabel(), Durations.count(stats.bestYearCount(), TIME_UNIT));
+            case BEST_MONTH     -> recordTile(key, label, labelIsCustom, stats.bestMonthLabel(), stats.bestMonthCount());
+            case BEST_YEAR      -> recordTile(key, label, labelIsCustom, stats.bestYearLabel(), stats.bestYearCount());
         };
     }
 
-    private static StatTile numeric(final String label, final String value, final String sub) {
-        return new StatTile(label, value, sub, false, "text-ink", false);
+    private static StatTile numeric(final String key, final String label, final boolean labelIsCustom, final String value,
+        final long subCount1) {
+        return new StatTile(key, label, labelIsCustom, value, "", false, "text-ink", false, subCount1, 0L, 0, "");
     }
 
-    private static StatTile labelTile(final String label, final String value, final String sub) {
-        return new StatTile(label, value, sub, true, "text-ink", true);
+    // FIRST_PERFORMED / LAST_PERFORMED: the sub-caption is "Today"/"Yesterday"/"<elapsed> ago", or a dash when
+    // never performed - see partials/stats-cards.html's {#switch tile.key}, which is the only place that can
+    // resolve those words in the viewer's own language (a direct Java call to AppMessages always returns the
+    // English default; see AppMessages' own class Javadoc). -1 (never performed) rather than a boolean-plus-count
+    // pair, since every legitimate day count is >= 0. LAST_PERFORMED's caller passes the SAME span as the
+    // CURRENT_GAP tile (currentGapSpan, shifted a day from the naive first/today range) so the two report
+    // identically for the same distance.
+    private static StatTile sinceTile(final String key, final String label, final boolean labelIsCustom, final String value,
+        final @Nullable DaySpan span) {
+        if (span == null) {
+            return new StatTile(key, label, labelIsCustom, value, "", true, "text-ink", true, 0L, 0L, -1, "");
+        }
+        final int daysAgo = Durations.days(span);
+        final String elapsed = daysAgo >= 2 ? Durations.label(span) : "";
+        return new StatTile(key, label, labelIsCustom, value, "", true, "text-ink", true, 0L, 0L, daysAgo, elapsed);
     }
 
-    private static StatTile trendTile(final String label, final String value, final String sub, final String valueClass) {
-        return new StatTile(label, value, sub, true, valueClass, false);
+    private static StatTile recordTile(final String key, final String label, final boolean labelIsCustom, final String value,
+        final long subCount1) {
+        return new StatTile(key, label, labelIsCustom, value, "", true, "text-ink", true, subCount1, 0L, 0, "");
+    }
+
+    private static StatTile trendTile(final String key, final String label, final boolean labelIsCustom, final String value,
+        final String valueClass, final long subCount1, final long subCount2) {
+        return new StatTile(key, label, labelIsCustom, value, "", true, valueClass, false, subCount1, subCount2, 0, "");
     }
 
     // Every duration tile leads with the figure AND its unit ("1 day", "5 days", "1 year, 2 months, 3 days"),
     // so the four streak/gap tiles read identically however long the run is - a one-day run must not render a
     // bare "1" while a longer one spells its units out. The sub-caption then carries the run's actual dates,
     // which is the one piece of information the condensed duration drops. A run that is still going has no end
-    // date to show ("since 1 May 2026"), a one-day run needs only the single date, and an empty run has none.
-    private static StatTile durationTile(final String label, final DaySpan span, final boolean ongoing) {
-        return new StatTile(label, Durations.label(span), rangeLabel(span, ongoing), false, "text-ink", true);
+    // date to show, a one-day run needs only the single date, and an empty run has none. Only the still-going
+    // case needs a translated word ("since") in front of the date - a closed range is dates and a punctuation
+    // separator, neither of which is English-specific - so only that word moves to the template; see
+    // partials/stats-cards.html's {#switch tile.key}.
+    private static StatTile durationTile(final String key, final String label, final boolean labelIsCustom, final DaySpan span,
+        final boolean ongoing) {
+        return new StatTile(key, label, labelIsCustom, Durations.label(span), rangeLabel(span, ongoing), false, "text-ink", true, 0L, 0L, 0, "");
     }
 
     private static String rangeLabel(final DaySpan span, final boolean ongoing) {
@@ -150,7 +185,7 @@ public final class SubjectStatsExtensions {
 
         final String start = span.start().format(DATE_FMT);
         if (ongoing) {
-            return "since " + start;
+            return start;
         }
 
         final LocalDate lastDay = span.endExclusive().minusDays(1L);
@@ -199,43 +234,6 @@ public final class SubjectStatsExtensions {
         return lastPerformed.getYear() == stats.today().getYear()
                 ? lastPerformed.format(DATE_FMT_NO_YEAR)
                 : lastPerformed.format(DATE_FMT);
-    }
-
-    /**
-     * A relative label for the last-performed date: "Today", "Yesterday", or the elapsed span plus "ago" ({@code "5 days ago"},
-     * {@code "1 year, 17 days ago"}). The span uses the same condensed {@link Durations} wording as the "Current gap" tile, which measures exactly
-     * the same distance.
-     *
-     * @param stats the statistics to inspect
-     * @return the relative last-performed label
-     */
-    @TemplateExtension
-    public static String sinceLabel(final SubjectStats stats) {
-        return stats.lastPerformed() == null ? "—" : agoLabel(currentGapSpan(stats));
-    }
-
-    /**
-     * A relative label for the first-performed date - how long the user has been doing this at all: "Today", "Yesterday", or the elapsed span plus
-     * "ago" ({@code "5 days ago"}, {@code "1 year, 17 days ago"}).
-     *
-     * @param stats the statistics to inspect
-     * @return the relative first-performed label
-     */
-    @TemplateExtension
-    public static String sinceFirstLabel(final SubjectStats stats) {
-        final LocalDate firstPerformed = stats.firstPerformed();
-        return firstPerformed == null ? "—" : agoLabel(new DaySpan(firstPerformed, stats.today()));
-    }
-
-    private static String agoLabel(final DaySpan elapsed) {
-        final int days = Durations.days(elapsed);
-        if (days == 0) {
-            return "Today";
-        }
-        if (days == 1) {
-            return "Yesterday";
-        }
-        return Durations.label(elapsed) + " ago";
     }
 
     // ── Averages ──────────────────────────────────────────────────────────
@@ -337,17 +335,6 @@ public final class SubjectStatsExtensions {
         return Durations.days(currentGapSpan(stats));
     }
 
-    /**
-     * The unit phrase ({@code "unique day"}/{@code "unique days"}) matching the total-days count.
-     *
-     * @param stats the statistics to inspect
-     * @return the total-days unit phrase
-     */
-    @TemplateExtension
-    public static String totalDaysUnit(final SubjectStats stats) {
-        return Durations.plural(stats.totalDays(), "unique day");
-    }
-
     // ── Comparative helpers ───────────────────────────────────────────────
 
     /**
@@ -370,17 +357,6 @@ public final class SubjectStatsExtensions {
     @TemplateExtension
     public static String monthTrendClass(final SubjectStats stats) {
         return trendClass(stats.thisMonthCount(), stats.lastMonthCount());
-    }
-
-    /**
-     * A "{@code X this month · Y last month}" context string.
-     *
-     * @param stats the statistics to inspect
-     * @return the month context string
-     */
-    @TemplateExtension
-    public static String monthContext(final SubjectStats stats) {
-        return stats.thisMonthCount() + " this month · " + stats.lastMonthCount() + " last month";
     }
 
     /**
@@ -414,17 +390,6 @@ public final class SubjectStatsExtensions {
     @TemplateExtension
     public static String yearTrendClass(final SubjectStats stats) {
         return trendClass(stats.thisYearCount(), stats.lastYearCount());
-    }
-
-    /**
-     * A "{@code X this year · Y last year}" context string.
-     *
-     * @param stats the statistics to inspect
-     * @return the year context string
-     */
-    @TemplateExtension
-    public static String yearContext(final SubjectStats stats) {
-        return stats.thisYearCount() + " this year · " + stats.lastYearCount() + " last year";
     }
 
     // ── Private ───────────────────────────────────────────────────────────

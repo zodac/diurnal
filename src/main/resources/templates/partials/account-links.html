@@ -8,10 +8,10 @@
                Optional, defaulted here with `.or(false)` (Qute is strict — see nav-links.html).
 !}
 {#let showTips=showTips.or(false)}
-<a id="{id}" href="/settings" {#if showTips}aria-label="Account settings" {/if}class="group relative text-sm {#if active == 'settings'}nav-link-active{#else}nav-link{/if}">{displayName}{#if showTips}{#include partials/tooltip text="Account settings" pos="bottom" align="right" /}{/if}</a>
+<a id="{id}" href="/settings" {#if showTips}aria-label="{msg:accountSettingsTooltip}" {/if}class="group relative text-sm {#if active == 'settings'}nav-link-active{#else}nav-link{/if}">{displayName}{#if showTips}{#include partials/tooltip text=msg:accountSettingsTooltip pos="bottom" align="right" /}{/if}</a>
 <form method="post" action="/logout" class="flex items-center">
-    <button type="submit" {#if showTips}aria-label="Log out" {/if}class="group relative text-sm nav-link">
-        Log out{#if showTips}{#include partials/tooltip text="Sign out of your account" pos="bottom" align="right" /}{/if}
+    <button type="submit" {#if showTips}aria-label="{msg:logOut}" {/if}class="group relative text-sm nav-link">
+        {msg:logOut}{#if showTips}{#include partials/tooltip text=msg:signOutOfAccountTooltip pos="bottom" align="right" /}{/if}
     </button>
 </form>
 {/let}

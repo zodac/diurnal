@@ -1,0 +1,19 @@
+{!
+  Translated text for the eight ProfileRejection causes that are NOT the shared text-validation
+  pipeline (InvalidTextField instead renders partials/text-failure-message.html - see
+  SettingsWebResource's profileRejectionBanner). Params:
+    kind           — 'theme' | 'font' | 'language' | 'calendarView' | 'noteColour' | 'timezone' |
+                      'pageSize' | 'decimalPlaces'
+    allowedValues  — the enum's own storage values, comma-joined, never translated; only used by
+                      'theme' | 'font' | 'language' | 'calendarView'
+!}
+{#switch kind}
+    {#is 'theme'}{msg:profileInvalidTheme(allowedValues)}
+    {#is 'font'}{msg:profileInvalidFont(allowedValues)}
+    {#is 'language'}{msg:profileInvalidLanguage(allowedValues)}
+    {#is 'calendarView'}{msg:profileInvalidCalendarView(allowedValues)}
+    {#is 'noteColour'}{msg:profileInvalidNoteColour}
+    {#is 'timezone'}{msg:profileInvalidTimezone}
+    {#is 'pageSize'}{msg:profileInvalidPageSize}
+    {#is 'decimalPlaces'}{msg:profileInvalidDecimalPlaces}
+{/switch}

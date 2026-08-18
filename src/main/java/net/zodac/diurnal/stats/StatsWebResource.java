@@ -20,6 +20,7 @@ package net.zodac.diurnal.stats;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
+import io.quarkus.qute.i18n.MessageBundles;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.DefaultValue;
@@ -28,6 +29,7 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
+import java.util.Locale;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.PageSection;
@@ -76,6 +78,8 @@ public class StatsWebResource {
                 .data("displayName", user.displayName)
                 .data("theme", user.theme)
                 .data("font", user.font)
+                .data("language", user.language)
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag(user.language))
                 .data("isAdmin", user.isAdmin())
                 .data("hasActions", !Action.findByUser(user.id).isEmpty())
                 .data("decimalPlaces", user.decimalPlaces)

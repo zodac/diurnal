@@ -50,10 +50,10 @@ public sealed interface RegistrationResult
     /**
      * The submission failed validation. The failure was recorded against the per-IP throttle before returning.
      *
-     * @param missingFields the human-readable names of required fields that were blank (e.g. {@code Email})
-     * @param errors        the human-readable validation errors for the fields that were present
+     * @param missingFields the required fields that were left blank
+     * @param errors        the causes for the fields that were present but rejected
      */
-    record Invalid(List<String> missingFields, List<String> errors) implements RegistrationResult {
+    record Invalid(List<RequiredField> missingFields, List<RegistrationError> errors) implements RegistrationResult {
 
     }
 
@@ -62,5 +62,37 @@ public sealed interface RegistrationResult
      */
     record DuplicateEmail() implements RegistrationResult {
 
+    }
+
+    /**
+     * A required registration field, named so a blank submission can be reported without an opaque, English-only label. {@code CONFIRM_PASSWORD} is
+     * a web-form-only field with no {@code TextFields} catalogue entry of its own (the API has no confirmation field at all - see
+     * {@link RegistrationService#register}).
+     */
+    enum RequiredField {
+
+        /** The account email. */
+        EMAIL("email"),
+        /** The account display name. */
+        DISPLAY_NAME("displayName"),
+        /** The account password. */
+        PASSWORD("password"),
+        /** The web form's re-entered password. */
+        CONFIRM_PASSWORD("confirmPassword");
+
+        private final String key;
+
+        RequiredField(final String key) {
+            this.key = key;
+        }
+
+        /**
+         * A stable, non-English identifier for this field, used to switch on it in a translated template.
+         *
+         * @return the field key
+         */
+        public String key() {
+            return key;
+        }
     }
 }

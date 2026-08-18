@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import net.zodac.diurnal.text.TextField;
 import net.zodac.diurnal.text.TextFields;
+import net.zodac.diurnal.text.TextOutcome;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -74,7 +75,7 @@ class ImportParserTest {
 
         assertThat(problems(ImportParser.parse(archive(ACTIONS, "date,action,count\r\n2027-01-01,Running,1\r\n", NOTES), TODAY, NOTE_FIELD)))
             .as("claiming to have already performed an action tomorrow is not")
-            .containsExactly(new ImportProblem(TransferFiles.LOGS_FILE, 2, "A log cannot be dated in the future (2027-01-01)."));
+            .containsExactly(new ImportProblem(TransferFiles.LOGS_FILE, 2, new ImportReason.FutureLog(LocalDate.of(2027, 1, 1))));
     }
 
     @Test
@@ -83,8 +84,8 @@ class ImportParserTest {
         incomplete.put(TransferFiles.ACTIONS_FILE, ACTIONS);
 
         final List<ImportProblem> expected = List.of(
-            new ImportProblem("archive", 0, "The archive does not contain logs.csv, which a complete export always has."),
-            new ImportProblem("archive", 0, "The archive does not contain notes.csv, which a complete export always has."));
+            new ImportProblem("archive", 0, new ImportReason.MissingMember(TransferFiles.LOGS_FILE)),
+            new ImportProblem("archive", 0, new ImportReason.MissingMember(TransferFiles.NOTES_FILE)));
         assertThat(problems(ImportParser.parse(incomplete, TODAY, NOTE_FIELD)))
             .as("an import replaces everything, so a partial archive would delete what its missing members describe")
             .containsExactlyElementsOf(expected);
@@ -94,7 +95,7 @@ class ImportParserTest {
     void parse_requiresTheExactHeaderRow() {
         assertThat(problems(ImportParser.parse(archive("name,color\r\nRunning,#e11d48\r\n", LOGS, NOTES), TODAY, NOTE_FIELD)))
             .as("guessing at a renamed column would let a file that means one thing be imported as another")
-            .containsExactly(new ImportProblem(TransferFiles.ACTIONS_FILE, 1, "The header row must be exactly name,colour."));
+            .containsExactly(new ImportProblem(TransferFiles.ACTIONS_FILE, 1, new ImportReason.WrongHeader("name,colour")));
     }
 
     @Test
@@ -106,8 +107,7 @@ class ImportParserTest {
 
     @Test
     void parse_reportsAnEmptyMember() {
-        final ImportProblem expected = new ImportProblem(TransferFiles.ACTIONS_FILE, 1,
-            "The file is empty - it must start with the header row name,colour.");
+        final ImportProblem expected = new ImportProblem(TransferFiles.ACTIONS_FILE, 1, new ImportReason.EmptyFile("name,colour"));
         assertThat(problems(ImportParser.parse(archive("", LOGS, NOTES), TODAY, NOTE_FIELD)))
             .as("a member with no header at all is not a member of an export")
             .containsExactly(expected);
@@ -115,8 +115,7 @@ class ImportParserTest {
 
     @Test
     void parse_reportsAnUnreadableMember() {
-        final ImportProblem expected = new ImportProblem(TransferFiles.NOTES_FILE, 2,
-            "The file could not be read - a quoted value is never closed - check for an unbalanced \" character.");
+        final ImportProblem expected = new ImportProblem(TransferFiles.NOTES_FILE, 2, new ImportReason.CsvUnreadable());
         assertThat(problems(ImportParser.parse(archive(ACTIONS, LOGS, "date,content\r\n2026-08-01,\"never closed\r\n"), TODAY, NOTE_FIELD)))
             .as("a CSV that cannot be parsed is located at the record that broke it")
             .containsExactly(expected);
@@ -126,7 +125,7 @@ class ImportParserTest {
     void parse_reportsRowWithWrongNumberOfColumns() {
         assertThat(problems(ImportParser.parse(archive("name,colour\r\nRunning\r\n", LOGS, NOTES), TODAY, NOTE_FIELD)))
             .as("a short row is ambiguous rather than partially usable")
-            .contains(new ImportProblem(TransferFiles.ACTIONS_FILE, 2, "Expected 2 columns but found 1."));
+            .contains(new ImportProblem(TransferFiles.ACTIONS_FILE, 2, new ImportReason.WrongColumnCount(2, 1)));
     }
 
     @Test
@@ -143,15 +142,17 @@ class ImportParserTest {
         assertThat(problems(ImportParser.parse(archive(blankAndTooLong, NO_LOGS, NO_NOTES), TODAY, NOTE_FIELD)))
             .as("an import must not be a way to store a name no form would accept")
             .containsExactlyElementsOf(List.of(
-                new ImportProblem(TransferFiles.ACTIONS_FILE, 2, "Action name cannot be empty."),
-                new ImportProblem(TransferFiles.ACTIONS_FILE, 3, "Action name must be at most 100 characters.")));
+                new ImportProblem(TransferFiles.ACTIONS_FILE, 2,
+                    new ImportReason.InvalidTextField(new TextOutcome.Blank(TextFields.ACTION_NAME))),
+                new ImportProblem(TransferFiles.ACTIONS_FILE, 3,
+                    new ImportReason.InvalidTextField(new TextOutcome.TooLong(TextFields.ACTION_NAME)))));
     }
 
     @Test
     void parse_rejectsMalformedColourRatherThanDefaultingIt() {
         assertThat(problems(ImportParser.parse(archive("name,colour\r\nRunning,red\r\n", NO_LOGS, NO_NOTES), TODAY, NOTE_FIELD)))
             .as("silently substituting the default would produce an import that succeeded and is wrong")
-            .containsExactly(new ImportProblem(TransferFiles.ACTIONS_FILE, 2, "The colour must be a hex value such as #6366f1."));
+            .containsExactly(new ImportProblem(TransferFiles.ACTIONS_FILE, 2, new ImportReason.InvalidColour()));
     }
 
     @Test
@@ -160,7 +161,7 @@ class ImportParserTest {
 
         assertThat(problems(ImportParser.parse(archive(duplicated, NO_LOGS, NO_NOTES), TODAY, NOTE_FIELD)))
             .as("an action name is unique within an account, so a file cannot describe two")
-            .containsExactly(new ImportProblem(TransferFiles.ACTIONS_FILE, 3, "The action 'Running' appears more than once."));
+            .containsExactly(new ImportProblem(TransferFiles.ACTIONS_FILE, 3, new ImportReason.DuplicateAction("Running")));
     }
 
     @Test
@@ -169,7 +170,7 @@ class ImportParserTest {
 
         assertThat(problems(ImportParser.parse(archive(ACTIONS, unknown, NOTES), TODAY, NOTE_FIELD)))
             .as("a log's action is resolved from the archive's own actions, so an unknown name has nothing to point at")
-            .containsExactly(new ImportProblem(TransferFiles.LOGS_FILE, 2, "No action named 'Swimming' is defined in actions.csv."));
+            .containsExactly(new ImportProblem(TransferFiles.LOGS_FILE, 2, new ImportReason.UnknownAction("Swimming")));
     }
 
     @Test
@@ -190,9 +191,9 @@ class ImportParserTest {
         final String outOfRange = "date,action,count\r\n2026-08-01,Running,0\r\n2026-08-02,Running,1500\r\n2026-08-03,Running,many\r\n";
 
         final List<ImportProblem> expected = List.of(
-            new ImportProblem(TransferFiles.LOGS_FILE, 2, "The count must be between 1 and 999."),
-            new ImportProblem(TransferFiles.LOGS_FILE, 3, "The count must be between 1 and 999."),
-            new ImportProblem(TransferFiles.LOGS_FILE, 4, "'many' is not a whole number."));
+            new ImportProblem(TransferFiles.LOGS_FILE, 2, new ImportReason.CountOutOfRange(999)),
+            new ImportProblem(TransferFiles.LOGS_FILE, 3, new ImportReason.CountOutOfRange(999)),
+            new ImportProblem(TransferFiles.LOGS_FILE, 4, new ImportReason.NonNumericCount("many")));
         assertThat(problems(ImportParser.parse(archive(ACTIONS, outOfRange, NOTES), TODAY, NOTE_FIELD)))
             .as("a file of ten thousand rows cannot afford a silent correction the user is not watching")
             .containsExactlyElementsOf(expected);
@@ -212,7 +213,7 @@ class ImportParserTest {
 
         assertThat(problems(ImportParser.parse(archive(ACTIONS, "date,action,count\r\n2026-08-01,Running,1000\r\n", NO_NOTES), TODAY, NOTE_FIELD)))
             .as("one past the cap is refused rather than clamped down to it")
-            .containsExactly(new ImportProblem(TransferFiles.LOGS_FILE, 2, "The count must be between 1 and 999."));
+            .containsExactly(new ImportProblem(TransferFiles.LOGS_FILE, 2, new ImportReason.CountOutOfRange(999)));
     }
 
     @Test
@@ -221,8 +222,8 @@ class ImportParserTest {
         final String twoNotes = "date,content\r\n2026-08-01,\"first\"\r\n2026-08-01,\"second\"\r\n";
 
         final List<ImportProblem> expected = List.of(
-            new ImportProblem(TransferFiles.LOGS_FILE, 3, "There is already a log for 'Running' on 2026-08-01."),
-            new ImportProblem(TransferFiles.NOTES_FILE, 3, "There is already a note for 2026-08-01."));
+            new ImportProblem(TransferFiles.LOGS_FILE, 3, new ImportReason.DuplicateLog("Running", LocalDate.of(2026, 8, 1))),
+            new ImportProblem(TransferFiles.NOTES_FILE, 3, new ImportReason.DuplicateNote(LocalDate.of(2026, 8, 1))));
         assertThat(problems(ImportParser.parse(archive(ACTIONS, twoLogs, twoNotes), TODAY, NOTE_FIELD)))
             .as("one count per action per day, one note per day - the same uniqueness the database holds")
             .containsExactlyElementsOf(expected);
@@ -234,14 +235,14 @@ class ImportParserTest {
 
         assertThat(problems(ImportParser.parse(archive(ACTIONS, NO_LOGS, badDates), TODAY, NOTE_FIELD)))
             .as("a locale-formatted date read as ISO would silently land on the wrong day")
-            .containsExactly(new ImportProblem(TransferFiles.NOTES_FILE, 2, "'07/08/2026' is not a date in YYYY-MM-DD form."));
+            .containsExactly(new ImportProblem(TransferFiles.NOTES_FILE, 2, new ImportReason.InvalidDate("07/08/2026")));
     }
 
     @Test
     void parse_rejectsAnEmptyNoteRatherThanStoringOne() {
         assertThat(problems(ImportParser.parse(archive(ACTIONS, NO_LOGS, "date,content\r\n2026-08-01,\"   \"\r\n"), TODAY, NOTE_FIELD)))
             .as("an empty note is no note, so a row describing one is a mistake rather than a deletion")
-            .containsExactly(new ImportProblem(TransferFiles.NOTES_FILE, 2, "The note for 2026-08-01 is empty - delete the row instead."));
+            .containsExactly(new ImportProblem(TransferFiles.NOTES_FILE, 2, new ImportReason.EmptyNote(LocalDate.of(2026, 8, 1))));
     }
 
     @Test
@@ -254,7 +255,8 @@ class ImportParserTest {
             .isInstanceOf(ParseOutcome.Planned.class);
         assertThat(problems(ImportParser.parse(members, TODAY, TextFields.note(49))))
             .as("the same note is refused once the deployment's bound is lower - an import cannot store what the note box would reject")
-            .containsExactly(new ImportProblem(TransferFiles.NOTES_FILE, 2, "Note must be at most 49 characters."));
+            .containsExactly(new ImportProblem(TransferFiles.NOTES_FILE, 2,
+                new ImportReason.InvalidTextField(new TextOutcome.TooLong(TextFields.note(49)))));
     }
 
     @Test
@@ -265,6 +267,8 @@ class ImportParserTest {
 
         assertThat(problems(outcome).getFirst().reason())
             .as("a journal entry must not be echoed back out of a rejection banner any more than into a log")
+            .isEqualTo(new ImportReason.InvalidTextField(new TextOutcome.TooLong(NOTE_FIELD)));
+        assertThat(ImportService.message(problems(outcome).getFirst().reason()))
             .doesNotContain("sss")
             .isEqualTo("Note must be at most 10000 characters.");
     }

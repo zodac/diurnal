@@ -20,6 +20,7 @@ package net.zodac.diurnal.log;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
+import io.quarkus.qute.i18n.MessageBundles;
 import io.quarkus.vertx.http.Compressed;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -121,7 +122,8 @@ public class LogWebResource {
             .data("date", date)
             .data("dateLabel", DayLabels.spelledOut(date))
             .data("future", future)
-            .data("page", page);
+            .data("page", page)
+            .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale(user));
     }
 
     /**
@@ -136,7 +138,7 @@ public class LogWebResource {
         @QueryParam("q") @DefaultValue("") final String searchTerm) {
         final User user = currentUser.get();
         final var page = getActions(user.id, date, pageNum, searchTerm, PageSizes.forSection(user, PageSection.DASHBOARD));
-        return dayActionsListTemplate.data("date", date, "page", page);
+        return dayActionsListTemplate.data("date", date, "page", page).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale(user));
     }
 
     /**
@@ -182,6 +184,7 @@ public class LogWebResource {
             .collect(Collectors.groupingBy(log -> log.logDate, Collectors.toMap(log -> log.actionId, log -> log.count)));
 
         final int dayPageSize = PageSizes.forSection(user, PageSection.DASHBOARD);
+        final Locale locale = locale(user);
         final Map<String, String> panels = new LinkedHashMap<>();
         for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1L)) {
             final boolean future = LogGuards.isFuture(date, user, clock);
@@ -191,6 +194,7 @@ public class LogWebResource {
                 .data("dateLabel", DayLabels.spelledOut(date))
                 .data("future", future)
                 .data("page", page)
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)
                 .render());
         }
         return Response.ok(panels).build();
@@ -251,7 +255,7 @@ public class LogWebResource {
         }
 
         final ActionLog entry = ActionLog.findEntry(user.id, actionId, date);
-        return Response.ok(item(date, action, entry == null ? 0 : entry.count)).build();
+        return Response.ok(item(date, action, entry == null ? 0 : entry.count, locale(user))).build();
     }
 
     /**
@@ -270,7 +274,8 @@ public class LogWebResource {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
 
-        return Response.ok(dayActionItemConfirmDeleteTemplate.data("date", date, "action", action)).build();
+        return Response.ok(dayActionItemConfirmDeleteTemplate.data("date", date, "action", action)
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale(user))).build();
     }
 
     /**
@@ -283,7 +288,8 @@ public class LogWebResource {
     public Response deleteEntry(
         @PathParam("date") final LocalDate date,
         @PathParam("actionId") final UUID actionId) {
-        return translate(date, logService.deleteEntry(currentUser.get(), date, actionId));
+        final User user = currentUser.get();
+        return translate(date, logService.deleteEntry(user, date, actionId), locale(user));
     }
 
     // ── Increment ─────────────────────────────────────────────────────────
@@ -340,7 +346,8 @@ public class LogWebResource {
         // The web form's input contract: a negative count is coerced to zero, i.e. "clear the day"
         // (the API instead rejects it with a 400) — a per-surface translation of intent, not a
         // different write rule; the shared LogService owns the cap and delete-at-zero semantics.
-        return translate(date, logService.updateCount(currentUser.get(), date, actionId, Math.max(requestedCount, 0)));
+        final User user = currentUser.get();
+        return translate(date, logService.updateCount(user, date, actionId, Math.max(requestedCount, 0)), locale(user));
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────
@@ -354,19 +361,23 @@ public class LogWebResource {
         final LogResult result = delta == 0
             ? logService.readCount(user, date, actionId)
             : logService.adjust(user, date, actionId, delta, increment);
-        return translate(date, result);
+        return translate(date, result, locale(user));
     }
 
-    private Response translate(final LocalDate date, final LogResult result) {
+    private Response translate(final LocalDate date, final LogResult result, final Locale locale) {
         return switch (result) {
             case final LogResult.FutureDate _ -> Response.status(Response.Status.BAD_REQUEST).build();
             case final LogResult.NotOwned _ -> Response.status(Response.Status.NOT_FOUND).build();
-            case final LogResult.Updated updated -> Response.ok(item(date, updated.action(), updated.count())).build();
+            case final LogResult.Updated updated -> Response.ok(item(date, updated.action(), updated.count(), locale)).build();
         };
     }
 
-    private TemplateInstance item(final LocalDate date, final Action action, final int count) {
-        return dayActionItemTemplate.data("date", date, "action", action, "count", count);
+    private TemplateInstance item(final LocalDate date, final Action action, final int count, final Locale locale) {
+        return dayActionItemTemplate.data("date", date, "action", action, "count", count).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale);
+    }
+
+    private static Locale locale(final User user) {
+        return Locale.forLanguageTag(user.language);
     }
 
     /**

@@ -26,7 +26,6 @@ import java.util.UUID;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
-import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
@@ -187,10 +186,9 @@ class ActionService {
     // message the shared pipeline generated, so a rule added to ACTION_NAME later needs no change here.
     private static ActionResult nameRejection(final TextOutcome.Failure failure) {
         return switch (failure) {
-            case final TextOutcome.Blank _ -> new ActionResult.BlankName();
-            case final TextOutcome.TooLong _ -> new ActionResult.NameTooLong();
-            case final TextOutcome.TooShort _, final TextOutcome.RuleFailed _ ->
-                new ActionResult.InvalidName(TextOutcomeExtensions.message(failure));
+            case final TextOutcome.Blank _ -> new ActionResult.BlankName(failure);
+            case final TextOutcome.TooLong _ -> new ActionResult.NameTooLong(failure);
+            case final TextOutcome.TooShort _, final TextOutcome.RuleFailed _ -> new ActionResult.InvalidName(failure);
         };
     }
 

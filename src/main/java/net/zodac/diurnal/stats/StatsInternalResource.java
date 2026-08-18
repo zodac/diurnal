@@ -20,6 +20,7 @@ package net.zodac.diurnal.stats;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
+import io.quarkus.qute.i18n.MessageBundles;
 import io.quarkus.vertx.http.Compressed;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -178,7 +179,8 @@ public class StatsInternalResource {
             case FrequencyResult.Charted(final FrequencyChart chart) -> Response.ok(statsChartTemplate
                 .data("chart", chart)
                 .data("decimalPlaces", user.decimalPlaces)
-                .data("candidates", statsService.compareCandidates(user.id, chartedIds(chart), null))).build();
+                .data("candidates", statsService.compareCandidates(user.id, chartedIds(chart), null))
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, java.util.Locale.forLanguageTag(user.language))).build();
             case final FrequencyResult.UnknownPeriod _, final FrequencyResult.UnknownWindow _, final FrequencyResult.TooManySubjects _,
                  final FrequencyResult.DuplicateSubject _, final FrequencyResult.NotLogged _ ->
                 Response.status(Response.Status.BAD_REQUEST).build();
@@ -209,7 +211,8 @@ public class StatsInternalResource {
         final List<UUID> charted = new ArrayList<>();
         charted.add(subjectId);
         charted.addAll(compareIds);
-        return statsChartCandidatesTemplate.data("candidates", statsService.compareCandidates(user.id, charted, query));
+        return statsChartCandidatesTemplate.data("candidates", statsService.compareCandidates(user.id, charted, query))
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, java.util.Locale.forLanguageTag(user.language));
     }
 
     private static List<UUID> chartedIds(final FrequencyChart chart) {
@@ -232,7 +235,8 @@ public class StatsInternalResource {
         return statsCardsTemplate
                 .data("decimalPlaces", user.decimalPlaces)
                 .data("statsFields", StatField.displayFields(user.statsFields))
-                .data("page", paginate(statsService.forAllSubjects(user.id), pageNum, PageSizes.forSection(user, PageSection.STATS)));
+                .data("page", paginate(statsService.forAllSubjects(user.id), pageNum, PageSizes.forSection(user, PageSection.STATS)))
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, java.util.Locale.forLanguageTag(user.language));
     }
 
     /**

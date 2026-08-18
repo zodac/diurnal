@@ -41,13 +41,6 @@ public class AppInfo {
     private static final int YEAR_LENGTH = 4;
     private static final String FALLBACK_YEAR = "2026";
 
-    /**
-     * The application tagline ({@code Make every day count}). Single source of truth surfaced to the templates as {@code {inject:appInfo.tagline}} —
-     * used by the page {@code <title>}, the login wordmark's {@code alt} text, and the navbar logo tooltip — so a change to the tagline touches only
-     * this one constant.
-     */
-    private static final String TAGLINE = "Make every day count";
-
     private final ApplicationVersion applicationVersion;
     private final AppConfig appConfig;
     private final AssetsConfig assetsConfig;
@@ -79,16 +72,6 @@ public class AppInfo {
      */
     public String getVersion() {
         return applicationVersion.release();
-    }
-
-    /**
-     * The application tagline ({@code Make every day count}), shown in the page title, the login wordmark's {@code alt} text, and the navbar logo
-     * tooltip.
-     *
-     * @return the tagline
-     */
-    public String getTagline() {
-        return TAGLINE;
     }
 
     /**

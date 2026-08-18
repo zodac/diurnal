@@ -1,0 +1,104 @@
+{!
+  A single row of the Settings "Action stats" picker (settings.html's #stats-fields-list): drag handle,
+  enable checkbox, caption + description tooltip, and the rename editor/actions slot.
+
+  Extracted out of settings.html's {#for choice in statsFieldChoices} loop so the per-stat translated
+  strings (defaultLabel/description) can be resolved by the CALLER via a {#switch choice.key} - AppMessages
+  is locale-bound per TemplateInstance (see its Javadoc), so the translation lookup has to happen at a
+  literal {msg:...} call site, which a shared/generic loop body can't do for 16 different catalogue
+  entries. See I18N.md's Phase 1 "third bucket" notes.
+
+  Params (all required):
+    choice      — the StatField.Choice (key, label, defaultLabel, customLabel, description, selected, mandatory)
+    defaultLabel — the CALLER-resolved, translated catalogue label for this stat (same text as choice.defaultLabel,
+                    just localised)
+    description  — the caller-resolved, translated tooltip description for this stat (same text as
+                    choice.description, just localised)
+!}
+<li class="stats-field-row relative flex items-center gap-3 rounded-lg border border-line px-3 py-2 bg-surface select-none{#if !choice.mandatory} cursor-pointer{/if}"
+    data-key="{choice.key}">
+    {! Drag handle: the only drag-initiating region (touch-none keeps a touch
+         drag from scrolling the page). Pointer Events drive the reorder, so this
+         works with mouse AND touch. !}
+    <span class="stats-field-handle shrink-0 cursor-grab text-ink-muted touch-none" aria-hidden="true">
+        {#include partials/icon name='drag-handle' cls='w-4 h-4' /}
+    </span>
+    {! Always posts, and moves with the row → captures the full arrangement.
+         statsLabel is its partner: one per row, in the same DOM order, holding
+         this stat's CUSTOM name only (blank = use the built-in one), so the two
+         lists pair up by index server-side. It deliberately does NOT hold the
+         rendered caption — posting that back would pin every stat's wording the
+         first time any one of them was renamed. !}
+    <input type="hidden" name="statsOrder" value="{choice.key}">
+    <input type="hidden" name="statsLabel" value="{choice.customLabel}">
+    {! Visual only (pointer-events-none) so it never toggles on its own: a SHORT
+         press anywhere on the row except the handle flips it via the script below,
+         which dispatches a change event so the htmx PATCH still fires. Keyboard
+         (space) toggles it natively. !}
+    <input type="checkbox" id="stats-field-{choice.key}" name="statsEnabled" value="{choice.key}"
+           class="shrink-0 accent-brand pointer-events-none"
+           aria-labelledby="stats-field-label-{choice.key}"
+           aria-describedby="stats-field-desc-{choice.key}"
+           {#if choice.selected}checked{/if}{#if choice.mandatory} disabled{/if}>
+    {! Text: hover (desktop) or long-press (touch) reveals the description
+         tooltip. `group` scopes the hover; `.tip-open` (added by the script on a
+         long press) is the touch equivalent. The tooltip sits OUTSIDE the
+         truncating span so the ellipsis overflow never clips it, and is capped to
+         the label width on mobile so it can't push the page sideways. !}
+    {! w-fit (not flex-1) so the hover/long-press target is only the text glyphs,
+         not the empty row space to its right (which still toggles, via the row).
+         NOT `relative`: the tooltip is positioned against the ROW (li.relative) so
+         that on mobile it can be viewport-centred at 95vw (the row is centred in
+         the viewport) rather than pinned to this narrow text box. !}
+    <span class="stats-field-label group w-fit max-w-full min-w-0 text-sm">
+        <span id="stats-field-label-{choice.key}" class="stats-field-caption block truncate text-ink">{#if choice.customLabel != ''}{choice.customLabel}{#else}{defaultLabel}{/if}</span>
+        {! .app-tooltip = the shared themed bubble; positioning/width per call site:
+             mobile → centred on the viewport, capped at 95vw; sm+ → anchored, capped at
+             max-w-sm. The description is the STAT's meaning, so it stays the catalogue
+             text however the user has renamed the stat.
+             `w-max` (not `w-[95vw]`) on mobile too: 95vw as the WIDTH made every bubble
+             that wide whatever it held, so a description that wrapped one word onto a
+             second line left the rest of that line blank inside the bubble. Sized to the
+             content and capped at 95vw, it wraps at the same point and stops there. !}
+        <span id="stats-field-desc-{choice.key}" role="tooltip"
+              class="app-tooltip bottom-full mb-1.5 left-1/2 -translate-x-1/2 w-max max-w-[95vw] sm:left-0 sm:translate-x-0 sm:max-w-sm">{description}{#if choice.mandatory}
+            {! The mandatory stat's "always shown" note lives HERE, on its own last line,
+                 rather than beside the caption: as a row element it took a fixed slice of
+                 the row's width off the caption, which truncated "Last performed" to
+                 nothing on a phone. It is the answer to "why can't I switch this one off?",
+                 so it belongs with the rest of the row's explanation. !}
+            <span class="block mt-1 text-ink-muted">{msg:alwaysShown}</span>{/if}</span>
+    </span>
+
+    {! Rename editor — the caption's SIBLING in the same flex slot, not a separate
+         row state, so swapping the two cannot move the text: `.stats-field-caption`
+         carries this input's border and padding as transparent, so both boxes are
+         the same size and the glyphs stay on the same pixel (see app.css).
+         NOT a <form>: the row's inputs already belong to the picker's PATCH, so
+         committing just writes the hidden statsLabel above and fires the same
+         `change` every other control here fires. Pre-filled with the stat's CURRENT
+         caption whether or not it has been renamed, so editing always starts from
+         what the user can see; the placeholder is the built-in (translated) name,
+         which is what an emptied field restores. Saving the built-in name unchanged
+         is therefore NOT a rename - the server treats a stat's own label as "not
+         renamed" (StatField.encode), so it keeps tracking the catalogue rather than
+         pinning today's wording. select-text/cursor-text undo the row's
+         drag-friendly select-none + cursor-pointer. !}
+    <input type="text" class="stats-field-input dt-text-input hidden flex-1 min-w-0 select-text cursor-text"
+           value="{#if choice.customLabel != ''}{choice.customLabel}{#else}{defaultLabel}{/if}"
+           placeholder="{defaultLabel}"
+           maxlength="{inject:textFields.statName.maxLength}"
+           aria-label="{msg:customNameForStat(defaultLabel)}">
+
+    {! One actions slot for both modes: Rename (read) and Save (edit) render in the
+         SAME position, with Cancel appearing beside Save — the slot reserves the
+         width of both buttons so nothing moves as the row flips. Mirrors the
+         data-table row actions (partials/dt-row-actions.html), which pairs
+         Edit/Save and Delete/Cancel the same way. !}
+    <div class="stats-field-actions dt-actions settings-field-actions shrink-0 ml-auto">
+        <button type="button" class="stats-field-rename-btn dt-btn dt-btn-edit"
+                aria-label="{msg:renameStat(defaultLabel)}">{msg:rename}</button>
+        <button type="button" class="stats-field-save-btn dt-btn dt-btn-save hidden">{msg:save}</button>
+        <button type="button" class="stats-field-cancel-btn dt-btn dt-btn-cancel hidden">{msg:cancel}</button>
+    </div>
+</li>

@@ -3,8 +3,11 @@
    'nova' (the default brand theme) → `font-nova`, 'dyslexic' → `font-dyslexic`, 'standard' → no class
    (the system sans stays). Rendered statically here so it's correct from first paint with no FOUC; the
    settings picker toggles the same class live. The `.dark` class is added separately by the FOUC script
-   below and coexists. !}
-<html lang="en" data-theme="{theme}"{#if font == 'dyslexic'} class="font-dyslexic"{#else if font != 'standard'} class="font-nova"{/if}>
+   below and coexists. `dir` is hardcoded "ltr" for every language for now — RTL support (Arabic) is
+   Phase 3 of .claude/I18N.md; only then does this become conditional. !}
+<html lang="{language}" dir="ltr" data-theme="{theme}"
+      data-i18n-unsaved-changes="{msg:unsavedChanges}" data-i18n-saved="{msg:saved}" data-i18n-inactive="{msg:inactive}"
+      {#if font == 'dyslexic'} class="font-dyslexic"{#else if font != 'standard'} class="font-nova"{/if}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -26,7 +29,7 @@
         same rules now live in app.css instead.
     !}
     <meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false}'>
-    <title>Diurnal – {inject:appInfo.tagline}</title>
+    <title>Diurnal – {msg:tagline}</title>
     {!
         Favicons: the single-letter "d" mark. favicon.svg is generated from the brand font by
         scripts/generate-brand.py; the rasters are rendered from it by scripts/generate-favicons.cjs.
@@ -57,6 +60,17 @@
     !}
     <script>
         window.Diurnal = window.Diurnal || {};
+        {! The handful of strings composed client-side (note.js's dirty-state line, settings.js's
+             save flash, app.js's presence label) - resolved here, in the one place every page
+             already renders with the request's locale, rather than hardcoded in the scripts. Read
+             off data-i18n-* (HTML-attribute-escaped by Qute) rather than interpolated directly into
+             this script as a quoted JS literal, since a translation containing an apostrophe would
+             otherwise break the page for every user of that language. !}
+        window.Diurnal.i18n = {
+            unsavedChanges: document.documentElement.dataset.i18nUnsavedChanges,
+            saved: document.documentElement.dataset.i18nSaved,
+            inactive: document.documentElement.dataset.i18nInactive
+        };
         window.Diurnal.applyTheme = function (theme, opts) {
             opts = opts || {};
             var root = document.documentElement;
@@ -135,7 +149,7 @@
     <noscript>
         <div class="page-container px-4 py-4">
             {#include partials/banner variant='warning'
-                message='JavaScript is required for Diurnal to work. You can still sign in and read your pages, but logging actions, the calendar, and saving settings will not work until it is enabled.' /}
+                message=msg:noJsWarning('Diurnal') /}
         </div>
     </noscript>
     {#insert body}Page content{/insert}

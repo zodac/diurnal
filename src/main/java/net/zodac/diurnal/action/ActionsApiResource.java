@@ -40,8 +40,7 @@ import java.util.UUID;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
-import net.zodac.diurnal.text.TextFieldExtensions;
-import net.zodac.diurnal.text.TextFields;
+import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
@@ -270,14 +269,14 @@ public class ActionsApiResource {
     private static Response translate(final ActionResult result, final Response.Status successStatus) {
         return switch (result) {
             case final ActionResult.Success success -> Response.status(successStatus).entity(ActionDto.from(success.action())).build();
-            case final ActionResult.BlankName _ -> Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ApiErrorResponse("Action name cannot be empty"))
+            case final ActionResult.BlankName blank -> Response.status(Response.Status.BAD_REQUEST)
+                .entity(new ApiErrorResponse(TextOutcomeExtensions.message(blank.failure())))
                 .build();
-            case final ActionResult.NameTooLong _ -> Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ApiErrorResponse(TextFieldExtensions.lengthMessage(TextFields.ACTION_NAME)))
+            case final ActionResult.NameTooLong tooLong -> Response.status(Response.Status.BAD_REQUEST)
+                .entity(new ApiErrorResponse(TextOutcomeExtensions.message(tooLong.failure())))
                 .build();
             case final ActionResult.InvalidName invalid -> Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ApiErrorResponse(invalid.message()))
+                .entity(new ApiErrorResponse(TextOutcomeExtensions.message(invalid.failure())))
                 .build();
             case final ActionResult.InvalidColour _ -> Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ApiErrorResponse("Action colour is invalid"))

@@ -31,6 +31,7 @@ import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.note.NoteField;
 import net.zodac.diurnal.note.NoteService;
+import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
@@ -184,5 +185,48 @@ public class ImportService {
             notes.put(draft.date(), draft.content());
         }
         noteService.replaceAll(user, notes);
+    }
+
+    /**
+     * The English wording for a refused archive or a refused row within one, for the API's {@code 400} body. The web surface instead resolves a
+     * translated sentence via {@code partials/import-reason.html} (or, for {@link ImportReason.InvalidTextField}, the shared
+     * {@code partials/text-failure-message.html}).
+     *
+     * @param reason the refusal cause
+     * @return the default (English) message
+     */
+    // One exhaustive arm per ImportReason variant, so its length/coupling is the size of the catalogue rather than complexity - splitting it would
+    // need a second switch over the same sealed type, which must either carry an unreachable `default -> throw` (a mutant no test can kill, and
+    // PITest is held at 100%) or a reachable one that silently absorbs the next variant added. The flat table is the safer form (see
+    // SubjectStatsExtensions.tile for the identical precedent).
+    @SuppressWarnings({"OverlyLongMethod", "OverlyCoupledMethod"})
+    public static String message(final ImportReason reason) {
+        return switch (reason) {
+            case final ImportReason.NotZipArchive _ -> "The uploaded file is not a ZIP archive.";
+            case final ImportReason.TooManyEntries tooMany -> "The uploaded archive holds more than " + tooMany.maxEntries() + " entries.";
+            case final ImportReason.ArchiveTooLarge _ -> "The uploaded archive is too large once decompressed.";
+            case final ImportReason.ArchiveUnreadable unreadable -> "The uploaded archive could not be read: " + unreadable.detail();
+            case final ImportReason.CsvUnreadable _ ->
+                "The file could not be read - a quoted value is never closed - check for an unbalanced \" character.";
+            case final ImportReason.MissingMember missing -> "The archive does not contain " + missing.file() + ", which a complete export "
+                + "always has.";
+            case final ImportReason.EmptyFile empty -> "The file is empty - it must start with the header row " + empty.header() + ".";
+            case final ImportReason.WrongHeader wrongHeader -> "The header row must be exactly " + wrongHeader.header() + ".";
+            case final ImportReason.WrongColumnCount wrongCount ->
+                "Expected " + wrongCount.expected() + " columns but found " + wrongCount.actual() + ".";
+            case final ImportReason.InvalidTextField invalid -> TextOutcomeExtensions.message(invalid.failure());
+            case final ImportReason.InvalidColour _ -> "The colour must be a hex value such as #6366f1.";
+            case final ImportReason.DuplicateAction duplicate -> "The action '" + duplicate.name() + "' appears more than once.";
+            case final ImportReason.FutureLog futureLog -> "A log cannot be dated in the future (" + futureLog.date() + ").";
+            case final ImportReason.UnknownAction unknown ->
+                "No action named '" + unknown.actionName() + "' is defined in " + TransferFiles.ACTIONS_FILE + ".";
+            case final ImportReason.NonNumericCount nonNumeric -> "'" + nonNumeric.raw() + "' is not a whole number.";
+            case final ImportReason.CountOutOfRange outOfRange -> "The count must be between 1 and " + outOfRange.max() + ".";
+            case final ImportReason.DuplicateLog duplicate ->
+                "There is already a log for '" + duplicate.actionName() + "' on " + duplicate.date() + ".";
+            case final ImportReason.EmptyNote emptyNote -> "The note for " + emptyNote.date() + " is empty - delete the row instead.";
+            case final ImportReason.DuplicateNote duplicate -> "There is already a note for " + duplicate.date() + ".";
+            case final ImportReason.InvalidDate invalidDate -> "'" + invalidDate.raw() + "' is not a date in YYYY-MM-DD form.";
+        };
     }
 }

@@ -62,7 +62,7 @@ class TextOutcomeExtensionsTest {
     @Test
     void message_ruleFailure_isWordedForWhicheverFieldCarriesTheRule() {
         // A rule states its requirement relative to the field, so one shared rule words itself correctly everywhere it is used.
-        final TextField field = TextField.of("Action name", 1, 100).withRules(TextRules.EMAIL_SHAPE);
+        final TextField field = TextField.of("action-name", "Action name", 1, 100).withRules(TextRules.EMAIL_SHAPE);
 
         assertThat(TextOutcomeExtensions.message(new TextOutcome.RuleFailed(field, TextRules.EMAIL_SHAPE)))
             .as("unexpected value")

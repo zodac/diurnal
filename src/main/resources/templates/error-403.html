@@ -1,8 +1,8 @@
 {#include layout.html}
 
 {#body}
-{#include partials/error-page variant='danger' title='Access Denied'
-    message='You do not have permission to view this page.' icon='circle-slash' /}
+{#include partials/error-page variant='danger' title=msg:accessDenied
+    message=msg:accessDeniedMessage icon='circle-slash' /}
 {/body}
 
 {/include}

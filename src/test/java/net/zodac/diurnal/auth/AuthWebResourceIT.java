@@ -161,7 +161,7 @@ class AuthWebResourceIT extends IntegrationTestBase {
                 .post("/register")
                 .then()
                 .statusCode(BAD_REQUEST)
-                .body(containsString("The passwords did not match."));
+                .body(containsString("Passwords do not match"));
     }
 
     @Test

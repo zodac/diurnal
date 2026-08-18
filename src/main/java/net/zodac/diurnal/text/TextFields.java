@@ -126,28 +126,28 @@ public final class TextFields {
     /**
      * The name of an action, as shown in the actions table and against every calendar entry.
      */
-    public static final TextField ACTION_NAME = TextField.of("Action name", 1, ACTION_NAME_MAX_LENGTH);
+    public static final TextField ACTION_NAME = TextField.of("action-name", "Action name", 1, ACTION_NAME_MAX_LENGTH);
 
     /**
      * The name a user is greeted and listed by.
      */
-    public static final TextField DISPLAY_NAME = TextField.of("Display name", DISPLAY_NAME_MIN_LENGTH, DISPLAY_NAME_MAX_LENGTH);
+    public static final TextField DISPLAY_NAME = TextField.of("display-name", "Display name", DISPLAY_NAME_MIN_LENGTH, DISPLAY_NAME_MAX_LENGTH);
 
     /**
      * The custom caption a user may give a stat tile. Optional: a blank submission is the reset that restores the catalogue label, so it normalises
      * to an accepted empty value rather than a rejection.
      */
-    public static final TextField STAT_NAME = TextField.of("Stat name", 0, STAT_NAME_MAX_LENGTH);
+    public static final TextField STAT_NAME = TextField.of("stat-name", "Stat name", 0, STAT_NAME_MAX_LENGTH);
 
     /**
      * The email address an account is identified by.
      */
-    public static final TextField EMAIL = TextField.of("Email", EMAIL_MIN_LENGTH, EMAIL_MAX_LENGTH).withRules(TextRules.EMAIL_SHAPE);
+    public static final TextField EMAIL = TextField.of("email", "Email", EMAIL_MIN_LENGTH, EMAIL_MAX_LENGTH).withRules(TextRules.EMAIL_SHAPE);
 
     /**
      * A raw (pre-hash) password. The one {@link Normalisation#VERBATIM} field: whitespace is part of the secret.
      */
-    public static final TextField PASSWORD = TextField.secret("Password", PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH);
+    public static final TextField PASSWORD = TextField.secret("password", "Password", PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH);
 
     /**
      * A single day's free-text note, at its {@link #NOTE_MAX_LENGTH default} bound.
@@ -181,7 +181,7 @@ public final class TextFields {
      * @return the field specification
      */
     public static TextField note(final int maxLength) {
-        return TextField.multiline("Note", 0, maxLength);
+        return TextField.multiline("note", "Note", 0, maxLength);
     }
 
     /**

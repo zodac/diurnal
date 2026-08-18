@@ -38,7 +38,7 @@
 {#let searchSource=searchSource.or('') scrollTop=scrollTop.or(true)}
 {#if alwaysShow || page.totalPages > 1}
 <div class="dt-pagination{#if borderless} dt-pagination--borderless{/if}">
-    <p>Showing <span id="showing-shown">{page.items.size}</span> of <span id="showing-total">{page.totalCount}</span></p>
+    <p>{msg:showingLabel} <span id="showing-shown">{page.items.size}</span> {msg:ofLabel} <span id="showing-total">{page.totalCount}</span></p>
     {#if page.totalPages > 1}
     <div class="flex gap-2">
         {#if page.currentPage > 1}
@@ -47,16 +47,16 @@
            {#if searchSource}data-search-source="{searchSource}"
            {/if}hx-target="{target}"
            hx-swap="innerHTML{#if scrollTop} show:window:top{/if}"
-           class="dt-page-link">← Previous</a>
+           class="dt-page-link">← {msg:previous}</a>
         {/if}
-        <span>Page {page.currentPage} of {page.totalPages}</span>
+        <span>{msg:pageOfTotal(page.currentPage, page.totalPages)}</span>
         {#if page.currentPage < page.totalPages}
         <a href="{#if pageUrl}{pageUrl}?page={page.currentPage + 1}{extraQuery}{#else}#{/if}"
            hx-get="{listUrl}?page={page.currentPage + 1}{extraQuery}"
            {#if searchSource}data-search-source="{searchSource}"
            {/if}hx-target="{target}"
            hx-swap="innerHTML{#if scrollTop} show:window:top{/if}"
-           class="dt-page-link">Next →</a>
+           class="dt-page-link">{msg:next} →</a>
         {/if}
     </div>
     {/if}

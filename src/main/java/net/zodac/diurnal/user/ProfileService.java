@@ -62,7 +62,7 @@ public class ProfileService {
     public ProfileResult updateDisplayName(final User user, final @Nullable String displayName) {
         return switch (TextValidation.check(TextFields.DISPLAY_NAME, displayName)) {
             case final TextOutcome.Valid valid -> applyDisplayName(user, valid.value());
-            case final TextOutcome.Failure failure -> new ProfileResult.Invalid(TextOutcomeExtensions.message(failure));
+            case final TextOutcome.Failure failure -> new ProfileResult.Invalid(new ProfileRejection.InvalidTextField(failure));
         };
     }
 
@@ -82,7 +82,7 @@ public class ProfileService {
      */
     public ProfileResult updateTheme(final User user, final @Nullable String theme) {
         if (theme == null || !Theme.isValid(theme)) {
-            return new ProfileResult.Invalid("Theme must be one of: " + allowedValues(Theme.values()) + ".");
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidTheme(allowedValues(Theme.values())));
         }
         return applySetting(user, "Theme", theme, () -> user.theme = theme);
     }
@@ -96,9 +96,23 @@ public class ProfileService {
      */
     public ProfileResult updateFont(final User user, final @Nullable String font) {
         if (font == null || !Font.isValid(font)) {
-            return new ProfileResult.Invalid("Font must be one of: " + allowedValues(Font.values()) + ".");
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidFont(allowedValues(Font.values())));
         }
         return applySetting(user, "Font", font, () -> user.font = font);
+    }
+
+    /**
+     * Updates the UI language, rejecting an unrecognised value.
+     *
+     * @param user     the acting user
+     * @param language the submitted language value
+     * @return the outcome
+     */
+    public ProfileResult updateLanguage(final User user, final @Nullable String language) {
+        if (language == null || !Language.isValid(language)) {
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidLanguage(allowedLanguageValues()));
+        }
+        return applySetting(user, "Language", language, () -> user.language = language);
     }
 
     /**
@@ -110,7 +124,7 @@ public class ProfileService {
      */
     public ProfileResult updateCalendarView(final User user, final @Nullable String calendarView) {
         if (calendarView == null || !CalendarView.isValid(calendarView)) {
-            return new ProfileResult.Invalid("Calendar style must be one of: " + allowedValues(CalendarView.values()) + ".");
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidCalendarView(allowedValues(CalendarView.values())));
         }
         return applySetting(user, "Calendar view", calendarView, () -> user.calendarView = calendarView);
     }
@@ -126,7 +140,7 @@ public class ProfileService {
      */
     public ProfileResult updateNoteColour(final User user, final @Nullable String noteColour) {
         if (noteColour == null || Colours.isInvalidHex(noteColour)) {
-            return new ProfileResult.Invalid(UserSettings.NOTE_COLOUR_MESSAGE);
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidNoteColour());
         }
         return applySetting(user, "Note colour", noteColour, () -> user.noteColour = noteColour);
     }
@@ -144,7 +158,7 @@ public class ProfileService {
             return applySetting(user, "Timezone", null, () -> user.timezone = null); // NOPMD: NullAssignment - null IS the server-default state
         }
         if (!UserSettings.isValidTimezone(timezone)) {
-            return new ProfileResult.Invalid("Timezone must be one of the offered timezone options.");
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidTimezone());
         }
         return applySetting(user, "Timezone", timezone, () -> user.timezone = timezone);
     }
@@ -159,7 +173,7 @@ public class ProfileService {
     public ProfileResult updatePageSize(final User user, final @Nullable String pageSize) {
         final Integer parsed = UserSettings.parsePageSize(pageSize);
         if (parsed == null) {
-            return new ProfileResult.Invalid(UserSettings.PAGE_SIZE_RANGE_MESSAGE);
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidPageSize());
         }
         final int value = parsed;
         return applySetting(user, "Page size", value, () -> user.pageSize = value);
@@ -182,7 +196,7 @@ public class ProfileService {
      */
     public ProfileResult updatePageSizes(final User user, final List<String> sections, final @Nullable List<String> values) {
         return switch (PageSizes.parse(sections, values)) {
-            case final PageSizeOutcome.Failure failure -> new ProfileResult.Invalid(failure.message());
+            case final PageSizeOutcome.Failure _ -> new ProfileResult.Invalid(new ProfileRejection.InvalidPageSize());
             case final PageSizeOutcome.Valid valid -> applyPageSizes(user, valid.overrides());
         };
     }
@@ -197,7 +211,7 @@ public class ProfileService {
     public ProfileResult updateDecimalPlaces(final User user, final @Nullable String decimalPlaces) {
         final Integer parsed = UserSettings.parseDecimalPlaces(decimalPlaces);
         if (parsed == null) {
-            return new ProfileResult.Invalid(UserSettings.DECIMAL_PLACES_RANGE_MESSAGE);
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidDecimalPlaces());
         }
         final int value = parsed;
         return applySetting(user, "Decimal places", value, () -> user.decimalPlaces = value);
@@ -253,7 +267,7 @@ public class ProfileService {
         for (final Map.Entry<String, String> submitted : labels.entrySet()) {
             final TextOutcome outcome = TextValidation.check(TextFields.STAT_NAME, submitted.getValue());
             if (!(outcome instanceof TextOutcome.Valid(final String value))) {
-                return new ProfileResult.Invalid(TextOutcomeExtensions.message((TextOutcome.Failure) outcome));
+                return new ProfileResult.Invalid(new ProfileRejection.InvalidTextField((TextOutcome.Failure) outcome));
             }
 
             // A name that normalises to nothing is the reset that restores the catalogue label, so it is simply not carried.
@@ -272,8 +286,35 @@ public class ProfileService {
         return java.util.Arrays.stream(options).map(PreviewOption::value).collect(java.util.stream.Collectors.joining(", "));
     }
 
+    // Language does not implement PreviewOption (see its Javadoc), so it needs its own allowed-values join.
+    private static String allowedLanguageValues() {
+        return java.util.Arrays.stream(Language.values()).map(Language::value).collect(java.util.stream.Collectors.joining(", "));
+    }
+
     private static ProfileResult applyPageSizes(final User user, final @Nullable List<PageSizePref> overrides) {
         return applySetting(user, "Page sizes", PageSizes.describe(overrides), () -> user.pageSizes = overrides);
+    }
+
+    /**
+     * The English rejection sentence for a {@link ProfileRejection} - what the API resource still calls directly (it stays English by design); the
+     * web resource instead resolves a translated sentence via {@code partials/profile-rejection.html} (or, for
+     * {@link ProfileRejection.InvalidTextField}, {@code partials/text-failure-message.html}).
+     *
+     * @param rejection the rejection cause
+     * @return the message, in English
+     */
+    public static String message(final ProfileRejection rejection) {
+        return switch (rejection) {
+            case final ProfileRejection.InvalidTheme invalid -> "Theme must be one of: " + invalid.allowedValues() + ".";
+            case final ProfileRejection.InvalidFont invalid -> "Font must be one of: " + invalid.allowedValues() + ".";
+            case final ProfileRejection.InvalidLanguage invalid -> "Language must be one of: " + invalid.allowedValues() + ".";
+            case final ProfileRejection.InvalidCalendarView invalid -> "Calendar style must be one of: " + invalid.allowedValues() + ".";
+            case final ProfileRejection.InvalidNoteColour _ -> UserSettings.NOTE_COLOUR_MESSAGE;
+            case final ProfileRejection.InvalidTimezone _ -> "Timezone must be one of the offered timezone options.";
+            case final ProfileRejection.InvalidPageSize _ -> UserSettings.PAGE_SIZE_RANGE_MESSAGE;
+            case final ProfileRejection.InvalidDecimalPlaces _ -> UserSettings.DECIMAL_PLACES_RANGE_MESSAGE;
+            case final ProfileRejection.InvalidTextField invalid -> TextOutcomeExtensions.message(invalid.failure());
+        };
     }
 
     private static ProfileResult applySetting(final User user, final String settingName, final @Nullable Object newValue, final Runnable mutation) {

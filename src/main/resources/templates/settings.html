@@ -8,9 +8,9 @@
 
     {! Content !}
     <main id="settings-main" class="page-container px-4 py-8">
-        <h2 class="page-title mb-1">Settings</h2>
+        <h2 class="page-title mb-1">{msg:settingsPageTitle}</h2>
         <p class="page-subtitle">
-            Manage your account preferences and appearance.
+            {msg:settingsSubtitle}
         </p>
 
         {! One-shot status banner for the redirect-based account-link actions (connect/disconnect the
@@ -56,7 +56,7 @@
                     {! The header's status indicator shows the green "Saved" confirmation OR a red
                          validation error (password change) in the SAME spot, so an error never shifts
                          the layout. Colour + text are set by showAccountStatus() in settings.js. !}
-                    {#include partials/card-header title='Account' statusId='account-status' /}
+                    {#include partials/card-header title=msg:accountCardTitle statusId='account-status' /}
 
                     <div class="space-y-4">
                         {! Email (read-only). The value sits in a `.settings-field` row (same
@@ -64,7 +64,7 @@
                              so all three value rows are the same height and the vertical rhythm between
                              every field is equal. !}
                         <div>
-                            <label class="field-label-caps">Email</label>
+                            <label class="field-label-caps">{msg:fieldEmail}</label>
                             <div class="settings-field flex items-center">
                                 <p class="text-sm text-ink">{email}</p>
                             </div>
@@ -78,7 +78,7 @@
                              row; `px-2 -mx-2` lets the hover background / edit ring bleed into the
                              padding while the text stays aligned with the Email value above. !}
                         <div>
-                            <label class="field-label-caps">Display Name</label>
+                            <label class="field-label-caps">{msg:fieldDisplayName}</label>
 
                             {! Read mode !}
                             <div id="display-name-view"
@@ -87,7 +87,7 @@
                                 <div class="dt-actions settings-field-actions">
                                     <button type="button"
                                             id="display-name-edit-btn"
-                                            class="dt-btn dt-btn-edit">Edit</button>
+                                            class="dt-btn dt-btn-edit">{msg:edit}</button>
                                     {! Invisible stand-in for the edit state's trailing Cancel, so Edit occupies the
                                          SAME right-aligned slot Save will - the cursor never has to move between the
                                          two states (the .dt-actions fixed-width slots do the rest).
@@ -95,7 +95,7 @@
                                          a cursor-continuity nicety that only a mouse benefits from, and on a phone
                                          that width comes straight off the display name beside it, which truncates
                                          long before the card runs out of room. !}
-                                    <span aria-hidden="true" class="dt-btn invisible hidden sm:inline-block">Cancel</span>
+                                    <span aria-hidden="true" class="dt-btn invisible hidden sm:inline-block">{msg:cancel}</span>
                                 </div>
                             </div>
 
@@ -115,10 +115,10 @@
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <div class="dt-actions">
                                         <button type="submit"
-                                                class="dt-btn dt-btn-save">Save</button>
+                                                class="dt-btn dt-btn-save">{msg:save}</button>
                                         <button type="button"
                                                 id="display-name-cancel-btn"
-                                                class="dt-btn dt-btn-cancel">Cancel</button>
+                                                class="dt-btn dt-btn-cancel">{msg:cancel}</button>
                                     </div>
                                 </div>
                             </form>
@@ -142,7 +142,7 @@
                              new → re-enter) occupies the SAME slot, so the row never grows or reflows. !}
                         {#if canChangePassword}
                         <div>
-                            <label class="field-label-caps">Password</label>
+                            <label class="field-label-caps">{msg:fieldPassword}</label>
 
                             {! Read mode: fixed masked placeholder + Edit (no reveal — nothing to show). !}
                             <div id="password-view"
@@ -151,11 +151,11 @@
                                 <div class="dt-actions settings-field-actions">
                                     <button type="button"
                                             id="password-edit-btn"
-                                            class="dt-btn dt-btn-edit">Edit</button>
+                                            class="dt-btn dt-btn-edit">{msg:edit}</button>
                                     {! Same trailing-Cancel stand-in as the Display Name row above (and dropped below
                                          `sm` for the same reason), so Edit sits exactly where each step's Next/Save
                                          will. !}
-                                    <span aria-hidden="true" class="dt-btn invisible hidden sm:inline-block">Cancel</span>
+                                    <span aria-hidden="true" class="dt-btn invisible hidden sm:inline-block">{msg:cancel}</span>
                                 </div>
                             </div>
 
@@ -176,16 +176,16 @@
                                            id="currentPassword"
                                            name="currentPassword"
                                            autocomplete="current-password"
-                                           placeholder="Current password"
+                                           placeholder="{msg:currentPasswordPlaceholder}"
                                            maxlength="{inject:textFields.password.maxLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" data-reveal-target="currentPassword"
-                                            aria-label="Show password" class="settings-eye">
+                                            aria-label="{msg:showPassword}" class="settings-eye">
                                         {#include partials/eye-icons /}
                                     </button>
                                     <div class="dt-actions">
-                                        <button type="submit" class="dt-btn dt-btn-save">Next</button>
-                                        <button type="button" class="dt-btn dt-btn-cancel password-cancel-btn">Cancel</button>
+                                        <button type="submit" class="dt-btn dt-btn-save">{msg:next}</button>
+                                        <button type="button" class="dt-btn dt-btn-cancel password-cancel-btn">{msg:cancel}</button>
                                     </div>
                                 </div>
                             </form>
@@ -198,16 +198,16 @@
                                     <input type="password"
                                            id="newPassword"
                                            autocomplete="new-password"
-                                           placeholder="New password"
+                                           placeholder="{msg:newPasswordPlaceholder}"
                                            maxlength="{inject:textFields.password.maxLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" data-reveal-target="newPassword"
-                                            aria-label="Show password" class="settings-eye">
+                                            aria-label="{msg:showPassword}" class="settings-eye">
                                         {#include partials/eye-icons /}
                                     </button>
                                     <div class="dt-actions">
-                                        <button type="submit" class="dt-btn dt-btn-save">Next</button>
-                                        <button type="button" class="dt-btn dt-btn-cancel password-cancel-btn">Cancel</button>
+                                        <button type="submit" class="dt-btn dt-btn-save">{msg:next}</button>
+                                        <button type="button" class="dt-btn dt-btn-cancel password-cancel-btn">{msg:cancel}</button>
                                     </div>
                                 </div>
                                 {! `differsFrom` adds the "must be a new password" row: the value must not equal the
@@ -232,16 +232,16 @@
                                            id="confirmPassword"
                                            name="confirmPassword"
                                            autocomplete="new-password"
-                                           placeholder="Re-enter new password"
+                                           placeholder="{msg:reenterNewPasswordPlaceholder}"
                                            maxlength="{inject:textFields.password.maxLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" data-reveal-target="confirmPassword"
-                                            aria-label="Show password" class="settings-eye">
+                                            aria-label="{msg:showPassword}" class="settings-eye">
                                         {#include partials/eye-icons /}
                                     </button>
                                     <div class="dt-actions">
-                                        <button type="submit" class="dt-btn dt-btn-save">Save</button>
-                                        <button type="button" class="dt-btn dt-btn-cancel password-cancel-btn">Cancel</button>
+                                        <button type="submit" class="dt-btn dt-btn-save">{msg:save}</button>
+                                        <button type="button" class="dt-btn dt-btn-cancel password-cancel-btn">{msg:cancel}</button>
                                     </div>
                                 </div>
                             </form>
@@ -257,13 +257,13 @@
                              about exactly that (in-place confirm idiom: destructive left, Cancel right). !}
                         {#if oidcEnabled}
                         <div>
-                            <label class="field-label-caps">Identity Provider</label>
+                            <label class="field-label-caps">{msg:identityProviderLabel}</label>
 
                             {#if isOidcUser}
                             <div class="settings-field flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg">
                                 {! The provider name links to the IdP itself (OIDC_ISSUER_URL), brand-coloured
                                      via link-brand — the same resting colour the Connect button had. !}
-                                <p class="text-sm text-ink-muted">Connected to
+                                <p class="text-sm text-ink-muted">{msg:connectedToPrefix}
                                     <a href="{oidcIssuerUrl}" target="_blank" rel="noopener noreferrer"
                                        class="link-brand">{oidcProviderName}</a>.</p>
                             </div>
@@ -278,17 +278,17 @@
                             <div id="oidc-connect-view"
                                  class="settings-field flex items-center px-2 -mx-2 rounded-lg">
                                 <button type="button" id="oidc-connect-arm-btn"
-                                        class="dt-btn-connect">Connect to {oidcProviderName}</button>
+                                        class="dt-btn-connect">{msg:connectToProvider(oidcProviderName)}</button>
                             </div>
 
                             <form id="oidc-connect-confirm"
                                   method="post" action="/internal/settings/oidc/connect"
                                   class="hidden settings-field settings-field-confirm flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg">
-                                <span class="text-sm text-ink-muted">Sign in with {oidcProviderName} only from now on? Your password will be removed.</span>
+                                <span class="text-sm text-ink-muted">{msg:connectConfirm(oidcProviderName)}</span>
                                 <div class="dt-actions">
-                                    <button type="submit" class="dt-btn dt-btn-danger">Connect</button>
+                                    <button type="submit" class="dt-btn dt-btn-danger">{msg:connect}</button>
                                     <button type="button" id="oidc-connect-cancel-btn"
-                                            class="dt-btn dt-btn-cancel">Cancel</button>
+                                            class="dt-btn dt-btn-cancel">{msg:cancel}</button>
                                 </div>
                             </form>
                             {/if}
@@ -302,15 +302,15 @@
                              on the RIGHT, matching the data-table delete-confirm. The confirm is a plain POST
                              form (no data-ajax-submit), so its 303 navigates the browser to /login. !}
                         <div>
-                            <label class="field-label-caps">Sessions</label>
+                            <label class="field-label-caps">{msg:sessionsLabel}</label>
 
                             {! View: description + the arming trigger. !}
                             <div id="logout-all-view"
                                  class="settings-field flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg">
-                                <p class="text-sm text-ink-muted">Sign out of Diurnal on this and every other device.</p>
+                                <p class="text-sm text-ink-muted">{msg:signOutEverywhere('Diurnal')}</p>
                                 <div class="dt-actions">
                                     <button type="button" id="logout-all-arm-btn"
-                                            class="dt-btn dt-btn-danger">Log out everywhere</button>
+                                            class="dt-btn dt-btn-danger">{msg:logOutEverywhere}</button>
                                 </div>
                             </div>
 
@@ -318,11 +318,11 @@
                             <form id="logout-all-confirm"
                                   method="post" action="/internal/settings/sessions/revoke-all"
                                   class="hidden settings-field settings-field-confirm flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg">
-                                <span class="text-sm text-ink-muted">Log out on all devices?</span>
+                                <span class="text-sm text-ink-muted">{msg:logOutConfirm}</span>
                                 <div class="dt-actions">
-                                    <button type="submit" class="dt-btn dt-btn-danger">Log out everywhere</button>
+                                    <button type="submit" class="dt-btn dt-btn-danger">{msg:logOutEverywhere}</button>
                                     <button type="button" id="logout-all-cancel-btn"
-                                            class="dt-btn dt-btn-cancel">Cancel</button>
+                                            class="dt-btn dt-btn-cancel">{msg:cancel}</button>
                                 </div>
                             </form>
                         </div>
@@ -332,13 +332,27 @@
                 {! Preferences. order-last drops it below Appearance on mobile (where the
                      left-column wrapper is display:contents); lg:order-none restores desktop order. !}
                 <div id="settings-preferences" class="card p-4 order-last lg:order-none">
-                    {#include partials/card-header title='Preferences' /}
+                    {#include partials/card-header title=msg:preferencesCardTitle /}
 
                     {! Timezone !}
-                    {#include partials/select-field id="timezone" label="Timezone" endpoint="/internal/settings" border=true}
+                    {#include partials/select-field id="timezone" label=msg:timezoneLabel endpoint="/internal/settings" border=true}
                         {#options}
                         {#for choice in timezoneChoices}
                         <option value="{choice.value}" {#if choice.selected}selected{/if}>{choice.label}</option>
+                        {/for}
+                        {/options}
+                    {/include}
+
+                    {! Language. A plain dropdown rather than a preview-tile picker (unlike Theme/Font/Calendar
+                         style): a flag or thumbnail is a poor fit for a language choice, since Spanish and Arabic
+                         are each spoken across many countries. Each option is labelled in its OWN language (its
+                         autonym) — see Language.label() — so a user can find their own before the rest of the UI
+                         has switched to it. Only English currently has any translated content; the other options
+                         are offered ahead of the translations landing (see .claude/I18N.md). !}
+                    {#include partials/select-field id="language" label=msg:languageLabel endpoint="/internal/settings" border=true}
+                        {#options}
+                        {#for option in languageOptions}
+                        <option value="{option.value}" {#if option.value == language}selected{/if}>{option.label}</option>
                         {/for}
                         {/options}
                     {/include}
@@ -355,7 +369,7 @@
                          document from the other direction, by letting the help text wrap). !}
                     <div id="stats-summary-row" class="py-4 border-b border-line">
                         <div class="flex items-center justify-between gap-4">
-                            <label for="showStatsSummary" class="block text-sm font-medium text-ink">Statistics Summary</label>
+                            <label for="showStatsSummary" class="block text-sm font-medium text-ink">{msg:statisticsSummaryLabel}</label>
                             <div class="flex items-center shrink-0">
                                 <input type="hidden" name="showStatsSummary" value="false">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -372,7 +386,7 @@
                                 </label>
                             </div>
                         </div>
-                        <p class="help-text mt-1">Show the selected day's top 3 actions on dashboard.</p>
+                        <p class="help-text mt-1">{msg:statisticsSummaryHelp}</p>
                     </div>
 
                     {! Decimal places + Items per page: the shared numeric-preference row (preset
@@ -380,15 +394,15 @@
                          see partials/num-pref-row.html). Both surfaces are wired by the shared
                          wireNumericPref() helper in settings.js. Decimal places offers no stepper:
                          its three pills already span the whole accepted range. !}
-                    {#include partials/num-pref-row rowId='decimal-places-row' id='decimalPlaces' label='Decimal places'
-                        help='Precision of the values shown for statistics.'
+                    {#include partials/num-pref-row rowId='decimal-places-row' id='decimalPlaces' label=msg:decimalPlacesLabel
+                        help=msg:decimalPlacesHelp
                         endpoint='/internal/settings' min=0 max=2 value=decimalPlaces options=decimalPlacesOptions
                         stepper=false minusLabel='' plusLabel='' border=true /}
 
-                    {#include partials/num-pref-row rowId='page-size-row' id='pageSize' label='Items per page'
-                        help='Default number of items per page.'
+                    {#include partials/num-pref-row rowId='page-size-row' id='pageSize' label=msg:itemsPerPageLabel
+                        help=msg:itemsPerPageHelp
                         endpoint='/internal/settings' min=1 max=100 value=pageSize options=pageSizeOptions
-                        stepper=true minusLabel='Fewer items per page' plusLabel='More items per page' border=false /}
+                        stepper=true minusLabel=msg:fewerItemsPerPage plusLabel=msg:moreItemsPerPage border=false /}
 
                     {! Per-section overrides: a disclosure holding one row per paginated list (the admin-only
                          ones only for an administrator - the rows come from PageSizes.rows(user)). Each row is
@@ -406,7 +420,7 @@
                                 class="group flex items-center gap-1.5 text-xs font-medium text-ink-muted cursor-pointer rounded-md
                                        transition-colors hover:text-ink focus:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-ring">
                             {#include partials/icon name='chevron-right' cls='w-3.5 h-3.5 transition-transform duration-200 group-aria-expanded:rotate-90' /}
-                            Set a different value for each section
+                            {msg:perSectionValueToggle}
                         </button>
 
                         <div id="page-size-sections-panel" class="hidden"
@@ -447,7 +461,7 @@
                                              host contract of partials/tooltip) - the word is one hover or long-press
                                              away, never gone. !}
                                         <button type="button" class="num-pref-pill group relative" data-num-pref-clear
-                                                aria-pressed="false" aria-label="Default">&#x25C7;{#include partials/tooltip text="Default" pos="bottom" /}</button>
+                                                aria-pressed="false" aria-label="{msg:defaultLabel}">&#x25C7;{#include partials/tooltip text=msg:defaultLabel pos="bottom" /}</button>
                                         {#for option in pageSizeOptions}
                                         <button type="button" class="num-pref-pill" data-value="{option}" aria-pressed="false">{option}</button>
                                         {/for}
@@ -456,15 +470,15 @@
                                 <div class="mt-2 flex justify-end">
                                     <div class="num-pref-stepper shrink-0">
                                         <button type="button" id="page-size-{row.key}-minus" class="num-pref-stepper-btn"
-                                                aria-label="Fewer items per page for {row.label}">
+                                                aria-label="{msg:fewerItemsPerPageFor(row.label)}">
                                             {#include partials/icon name='minus' cls='w-3.5 h-3.5' /}
                                         </button>
                                         <input type="hidden" name="pageSizeSection" value="{row.key}">
                                         <input type="number" id="page-size-{row.key}" name="pageSizeValue" min="1" max="100"
                                                value="{row.value.or('')}" placeholder="{pageSize}" inputmode="numeric"
-                                               data-page-size-section aria-label="Items per page for {row.label}" class="num-pref-value">
+                                               data-page-size-section aria-label="{msg:itemsPerPageFor(row.label)}" class="num-pref-value">
                                         <button type="button" id="page-size-{row.key}-plus" class="num-pref-stepper-btn"
-                                                aria-label="More items per page for {row.label}">
+                                                aria-label="{msg:moreItemsPerPageFor(row.label)}">
                                             {#include partials/icon name='plus' cls='w-3.5 h-3.5' /}
                                         </button>
                                     </div>
@@ -479,8 +493,8 @@
                      the right column already carries the two tall pickers. order-last drops it below
                      Appearance on mobile; lg:order-none restores desktop order. !}
                 <div id="settings-data" class="card p-4 order-last lg:order-none">
-                    {#include partials/card-header title='User Data'
-                        help='Backup your data' /}
+                    {#include partials/card-header title=msg:userDataCardTitle
+                        help=msg:backupYourData /}
 
                     <div class="space-y-4">
                         {! Export. A plain link to the PUBLIC endpoint, not an /internal twin: a cookie is
@@ -489,33 +503,32 @@
                              TransferInternalResource). !}
                         <div class="flex items-center justify-between gap-3">
                             <div class="min-w-0">
-                                <p class="text-sm font-medium text-ink">Export</p>
+                                <p class="text-sm font-medium text-ink">{msg:exportLabel}</p>
                                 {! Stated plainly, because it is true and the user is about to put the file
                                      somewhere: notes are encrypted in the database, and a download of them
                                      cannot be. !}
                                 <p class="help-text mt-0.5">
-                                    A ZIP holding CSV files of your data.
+                                    {msg:exportHelp}
                                 </p>
                             </div>
                             {! shrink-0 + whitespace-nowrap keep the label on one line; the help text
                                  beside it carries min-w-0 so IT absorbs the width instead. !}
                             <a id="data-export-link" href="/api/v1/data/export" download
-                               class="btn-primary text-xs px-3 py-1.5 shrink-0 whitespace-nowrap">Export User Data</a>
+                               class="btn-primary text-xs px-3 py-1.5 shrink-0 whitespace-nowrap">{msg:exportUserData}</a>
                         </div>
 
                         {! Import. The file is never submitted by the input itself — settings.js reads it and
                              posts the raw bytes, first to the preview and then, only if the user confirms, to
                              the import. !}
                         <div class="pt-4 border-t border-line">
-                            <p class="text-sm font-medium text-ink">Import</p>
+                            <p class="text-sm font-medium text-ink">{msg:importLabel}</p>
                             <p class="help-text mt-0.5">
-                                Restores an exported archive. This <strong class="text-ink">replaces</strong> everything
-                                for your user.
+                                {msg:importHelpPrefix} <strong class="text-ink">{msg:importHelpEmphasis}</strong> {msg:importHelpSuffix}
                             </p>
                             {! .file-input gives the browser's own "Choose file" button the same brand
                                  surface as the Export button above (see app.css). !}
                             <input type="file" id="data-import-file" accept=".zip,application/zip"
-                                   aria-label="Choose an export archive to import"
+                                   aria-label="{msg:chooseExportArchiveToImport}"
                                    class="file-input mt-3 block w-full text-sm text-ink-muted">
                             {#include partials/import-panel /}
                         </div>
@@ -530,18 +543,18 @@
 
                 {! Appearance (fills the freed horizontal space). !}
                 <div id="settings-appearance" class="card p-4">
-                    {#include partials/card-header title='Appearance' /}
+                    {#include partials/card-header title=msg:appearanceCardTitle /}
 
                     {! Theme / Calendar style / Font: three identical preview-tile pickers, each the
                          shared partials/preview-picker (label + self-including radiogroup that
                          auto-saves its own value). Only the last one drops the divider. The pickers
                          fill the card width (no max-w-md) so the right column's freed space is used. !}
                     <div class="space-y-6">
-                        {#include partials/preview-picker optionsId="theme-options" label="Theme" group="theme"
+                        {#include partials/preview-picker optionsId="theme-options" label=msg:themeLabel group="theme"
                             endpoint="/internal/settings" options=themeOptions current=theme border=true /}
-                        {#include partials/preview-picker optionsId="calendar-options" label="Calendar style" group="calendarView"
+                        {#include partials/preview-picker optionsId="calendar-options" label=msg:calendarStyleLabel group="calendarView"
                             endpoint="/internal/settings" options=calendarViewOptions current=calendarView border=true /}
-                        {#include partials/preview-picker optionsId="font-options" label="Font" group="font"
+                        {#include partials/preview-picker optionsId="font-options" label=msg:fontLabel group="font"
                             endpoint="/internal/settings" options=fontOptions current=font border=true /}
                     </div>
                 </div>
@@ -553,7 +566,7 @@
                      anything to do with notes. order-last drops it below Appearance on mobile;
                      lg:order-none restores the desktop column order. !}
                 <div id="settings-notes" class="card p-4 order-last lg:order-none">
-                    {#include partials/card-header title='Notes' help='Appearance and behaviour of your day notes.' /}
+                    {#include partials/card-header title=msg:notesCardTitle help=msg:notesCardHelp /}
 
                     {! Note colour: the same picker + randomise pair the new-action card uses, so a note
                          is coloured exactly the way an action is, plus a revert-to-default button this row
@@ -572,8 +585,8 @@
                          help text wraps instead; the controls keep `shrink-0` so they never squash. !}
                     <div data-colour-scope class="flex items-center justify-between py-4 border-b border-line">
                         <div class="min-w-0 pr-4">
-                            <label for="noteColour" class="block text-sm font-medium text-ink">Note colour</label>
-                            <p class="help-text mt-0.5">Colour of days with a note, and of the Notes statistics.</p>
+                            <label for="noteColour" class="block text-sm font-medium text-ink">{msg:noteColourLabel}</label>
+                            <p class="help-text mt-0.5">{msg:noteColourHelp}</p>
                         </div>
                         <div class="ml-4 flex items-center gap-3 shrink-0">
                             {#include partials/colour-picker id='noteColour' name='noteColour' value=noteColour
@@ -589,10 +602,10 @@
                                         id="note-colour-default"
                                         data-colour-default="{noteColourDefault}"
                                         class="colour-picker-btn"
-                                        aria-label="Default colour">
+                                        aria-label="{msg:defaultColour}">
                                     {#include partials/icon name='rotate-ccw' cls='w-4 h-4' /}
                                 </button>
-                                {#include partials/tooltip text="Default colour" pos="bottom" align="right" /}
+                                {#include partials/tooltip text=msg:defaultColour pos="bottom" align="right" /}
                             </span>
                         </div>
                     </div>
@@ -610,7 +623,7 @@
                          squashes. !}
                     <div id="note-counter-row" class="pt-4">
                         <div class="flex items-center justify-between gap-4">
-                            <label for="showNoteCounter" class="block text-sm font-medium text-ink">Character count</label>
+                            <label for="showNoteCounter" class="block text-sm font-medium text-ink">{msg:characterCountLabel}</label>
                             <div class="flex items-center shrink-0">
                                 <input type="hidden" name="showNoteCounter" value="false">
                                 <label class="relative inline-flex items-center cursor-pointer">
@@ -627,7 +640,7 @@
                                 </label>
                             </div>
                         </div>
-                        <p class="help-text mt-1">Show a note's length against its limit on the dashboard.</p>
+                        <p class="help-text mt-1">{msg:characterCountHelp}</p>
                     </div>
                 </div>
 
@@ -641,7 +654,7 @@
                      "Last performed" is mandatory (disabled+checked) — the server forces it enabled.
                      order-last drops it below Appearance on mobile; lg:order-none restores desktop. !}
                 <div id="settings-statistics" class="card p-4 order-last lg:order-none">
-                    {#include partials/card-header title='Statistics' help='Choose, name and order the stats shown for actions.' /}
+                    {#include partials/card-header title=msg:statisticsCardTitle help=msg:statisticsCardHelp /}
 
                     {! The container owns the PATCH: it fires on any checkbox `change` and on the
                          custom `reorder` event dispatched after a drag, including its descendant inputs
@@ -654,93 +667,56 @@
                         hx-patch="/internal/settings" hx-trigger="change, reorder"
                         hx-include="#stats-fields-list" hx-swap="none">
                         {#for choice in statsFieldChoices}
-                        <li class="stats-field-row relative flex items-center gap-3 rounded-lg border border-line px-3 py-2 bg-surface select-none{#if !choice.mandatory} cursor-pointer{/if}"
-                            data-key="{choice.key}">
-                            {! Drag handle: the only drag-initiating region (touch-none keeps a touch
-                                 drag from scrolling the page). Pointer Events drive the reorder, so this
-                                 works with mouse AND touch. !}
-                            <span class="stats-field-handle shrink-0 cursor-grab text-ink-muted touch-none" aria-hidden="true">
-                                {#include partials/icon name='drag-handle' cls='w-4 h-4' /}
-                            </span>
-                            {! Always posts, and moves with the row → captures the full arrangement.
-                                 statsLabel is its partner: one per row, in the same DOM order, holding
-                                 this stat's CUSTOM name only (blank = use the built-in one), so the two
-                                 lists pair up by index server-side. It deliberately does NOT hold the
-                                 rendered caption — posting that back would pin every stat's wording the
-                                 first time any one of them was renamed. !}
-                            <input type="hidden" name="statsOrder" value="{choice.key}">
-                            <input type="hidden" name="statsLabel" value="{choice.customLabel}">
-                            {! Visual only (pointer-events-none) so it never toggles on its own: a SHORT
-                                 press anywhere on the row except the handle flips it via the script below,
-                                 which dispatches a change event so the htmx PATCH still fires. Keyboard
-                                 (space) toggles it natively. !}
-                            <input type="checkbox" id="stats-field-{choice.key}" name="statsEnabled" value="{choice.key}"
-                                   class="shrink-0 accent-brand pointer-events-none"
-                                   aria-labelledby="stats-field-label-{choice.key}"
-                                   aria-describedby="stats-field-desc-{choice.key}"
-                                   {#if choice.selected}checked{/if}{#if choice.mandatory} disabled{/if}>
-                            {! Text: hover (desktop) or long-press (touch) reveals the description
-                                 tooltip. `group` scopes the hover; `.tip-open` (added by the script on a
-                                 long press) is the touch equivalent. The tooltip sits OUTSIDE the
-                                 truncating span so the ellipsis overflow never clips it, and is capped to
-                                 the label width on mobile so it can't push the page sideways. !}
-                            {! w-fit (not flex-1) so the hover/long-press target is only the text glyphs,
-                                 not the empty row space to its right (which still toggles, via the row).
-                                 NOT `relative`: the tooltip is positioned against the ROW (li.relative) so
-                                 that on mobile it can be viewport-centred at 95vw (the row is centred in
-                                 the viewport) rather than pinned to this narrow text box. !}
-                            <span class="stats-field-label group w-fit max-w-full min-w-0 text-sm">
-                                <span id="stats-field-label-{choice.key}" class="stats-field-caption block truncate text-ink">{choice.label}</span>
-                                {! .app-tooltip = the shared themed bubble; positioning/width per call site:
-                                     mobile → centred on the viewport, capped at 95vw; sm+ → anchored, capped at
-                                     max-w-sm. The description is the STAT's meaning, so it stays the catalogue
-                                     text however the user has renamed the stat.
-                                     `w-max` (not `w-[95vw]`) on mobile too: 95vw as the WIDTH made every bubble
-                                     that wide whatever it held, so a description that wrapped one word onto a
-                                     second line left the rest of that line blank inside the bubble. Sized to the
-                                     content and capped at 95vw, it wraps at the same point and stops there. !}
-                                <span id="stats-field-desc-{choice.key}" role="tooltip"
-                                      class="app-tooltip bottom-full mb-1.5 left-1/2 -translate-x-1/2 w-max max-w-[95vw] sm:left-0 sm:translate-x-0 sm:max-w-sm">{choice.description}{#if choice.mandatory}
-                                    {! The mandatory stat's "always shown" note lives HERE, on its own last line,
-                                         rather than beside the caption: as a row element it took a fixed slice of
-                                         the row's width off the caption, which truncated "Last performed" to
-                                         nothing on a phone. It is the answer to "why can't I switch this one off?",
-                                         so it belongs with the rest of the row's explanation. !}
-                                    <span class="block mt-1 text-ink-muted">Always shown</span>{/if}</span>
-                            </span>
-
-                            {! Rename editor — the caption's SIBLING in the same flex slot, not a separate
-                                 row state, so swapping the two cannot move the text: `.stats-field-caption`
-                                 carries this input's border and padding as transparent, so both boxes are
-                                 the same size and the glyphs stay on the same pixel (see app.css).
-                                 NOT a <form>: the row's inputs already belong to the picker's PATCH, so
-                                 committing just writes the hidden statsLabel above and fires the same
-                                 `change` every other control here fires. Pre-filled with the stat's CURRENT
-                                 caption whether or not it has been renamed, so editing always starts from
-                                 what the user can see; the placeholder is the built-in name, which is what
-                                 an emptied field restores. Saving the built-in name unchanged is therefore
-                                 NOT a rename - the server treats a stat's own label as "not renamed"
-                                 (StatField.encode), so it keeps tracking the catalogue rather than
-                                 pinning today's wording. select-text/cursor-text undo the row's
-                                 drag-friendly select-none + cursor-pointer. !}
-                            <input type="text" class="stats-field-input dt-text-input hidden flex-1 min-w-0 select-text cursor-text"
-                                   value="{choice.label}"
-                                   placeholder="{choice.defaultLabel}"
-                                   maxlength="{inject:textFields.statName.maxLength}"
-                                   aria-label="Custom name for the '{choice.defaultLabel}' stat">
-
-                            {! One actions slot for both modes: Rename (read) and Save (edit) render in the
-                                 SAME position, with Cancel appearing beside Save — the slot reserves the
-                                 width of both buttons so nothing moves as the row flips. Mirrors the
-                                 data-table row actions (partials/dt-row-actions.html), which pairs
-                                 Edit/Save and Delete/Cancel the same way. !}
-                            <div class="stats-field-actions dt-actions settings-field-actions shrink-0 ml-auto">
-                                <button type="button" class="stats-field-rename-btn dt-btn dt-btn-edit"
-                                        aria-label="Rename the '{choice.defaultLabel}' stat">Rename</button>
-                                <button type="button" class="stats-field-save-btn dt-btn dt-btn-save hidden">Save</button>
-                                <button type="button" class="stats-field-cancel-btn dt-btn dt-btn-cancel hidden">Cancel</button>
-                            </div>
-                        </li>
+                        {#switch choice.key}
+                            {#is 'last-performed'}{#let defaultLabel=msg:statFieldLabelLastPerformed description=msg:statFieldDescLastPerformed}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'first-performed'}{#let defaultLabel=msg:statFieldLabelFirstPerformed description=msg:statFieldDescFirstPerformed}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'current-streak'}{#let defaultLabel=msg:statFieldLabelCurrentStreak description=msg:statFieldDescCurrentStreak}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'longest-streak'}{#let defaultLabel=msg:statFieldLabelLongestStreak description=msg:statFieldDescLongestStreak}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'current-gap'}{#let defaultLabel=msg:statFieldLabelCurrentGap description=msg:statFieldDescCurrentGap}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'biggest-gap'}{#let defaultLabel=msg:statFieldLabelLongestGap description=msg:statFieldDescLongestGap}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'total-count'}{#let defaultLabel=msg:statFieldLabelTotalCount description=msg:statFieldDescTotalCount}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'total-days'}{#let defaultLabel=msg:statFieldLabelTotalDays description=msg:statFieldDescTotalDays}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'best-month'}{#let defaultLabel=msg:statFieldLabelBestMonth description=msg:statFieldDescBestMonth}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'best-year'}{#let defaultLabel=msg:statFieldLabelBestYear description=msg:statFieldDescBestYear}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'weekly-count-average'}{#let defaultLabel=msg:statFieldLabelWeeklyCountAverage description=msg:statFieldDescWeeklyCountAverage}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'monthly-count-average'}{#let defaultLabel=msg:statFieldLabelMonthlyCountAverage description=msg:statFieldDescMonthlyCountAverage}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'weekly-average'}{#let defaultLabel=msg:statFieldLabelWeeklyDayAverage description=msg:statFieldDescWeeklyDayAverage}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'monthly-average'}{#let defaultLabel=msg:statFieldLabelMonthlyDayAverage description=msg:statFieldDescMonthlyDayAverage}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'vs-last-month'}{#let defaultLabel=msg:statFieldLabelVsLastMonth description=msg:statFieldDescVsLastMonth}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'vs-last-year'}{#let defaultLabel=msg:statFieldLabelVsLastYear description=msg:statFieldDescVsLastYear}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                        {/switch}
                         {/for}
                     </ul>
                 </div>
@@ -758,9 +734,9 @@
                     <div class="flex items-center gap-2 shrink-0">
                         <button type="button" id="preview-apply"
                                 class="btn-primary text-xs px-3 py-1.5 sm:text-sm sm:px-4 sm:py-2">
-                            Apply
+                            {msg:applyPreview}
                         </button>
-                        <button type="button" id="preview-close" aria-label="Close preview"
+                        <button type="button" id="preview-close" aria-label="{msg:closePreview}"
                                 class="icon-btn-primary">
                             {#include partials/icon name='close' /}
                         </button>
@@ -781,11 +757,11 @@
                          data-img-class="block mx-auto max-w-full max-h-[calc(100dvh-6rem)] w-auto h-auto object-contain rounded-lg shadow-2xl border border-white/10"></div>
                     {! Arrows centred with inset-y-0 + my-auto (NOT -translate-y-1/2): a transform would
                          put each on its own GPU layer and make the glyph sub-pixel-snap on first hover. !}
-                    <button type="button" id="preview-prev" aria-label="Previous preview"
+                    <button type="button" id="preview-prev" aria-label="{msg:previousPreview}"
                             class="icon-btn-primary absolute left-2 inset-y-0 my-auto">
                         {#include partials/icon name='chevron-left' /}
                     </button>
-                    <button type="button" id="preview-next" aria-label="Next preview"
+                    <button type="button" id="preview-next" aria-label="{msg:nextPreview}"
                             class="icon-btn-primary absolute right-2 inset-y-0 my-auto">
                         {#include partials/icon name='chevron-right' /}
                     </button>

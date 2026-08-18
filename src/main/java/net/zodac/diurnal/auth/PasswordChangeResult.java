@@ -50,9 +50,9 @@ public sealed interface PasswordChangeResult
     /**
      * The submitted new password was rejected; nothing was changed.
      *
-     * @param message the human-readable rejection reason (the same wording on every surface)
+     * @param reason the rejection cause
      */
-    record InvalidNewPassword(String message) implements PasswordChangeResult {
+    record InvalidNewPassword(PasswordRejection reason) implements PasswordChangeResult {
 
     }
 }

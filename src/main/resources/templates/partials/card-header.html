@@ -22,7 +22,7 @@
     {/if}
     <span {#if statusId}id="{statusId}"{#else}data-saved{/if}
           class="text-xs text-success opacity-0 transition-opacity duration-300">
-        Saved
+        {msg:saved}
     </span>
 </div>
 {/let}

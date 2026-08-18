@@ -33,7 +33,6 @@ import net.zodac.diurnal.text.TextField;
 import net.zodac.diurnal.text.TextFieldExtensions;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
-import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.text.TextValidation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -85,7 +84,7 @@ final class ArchiveParser {
     ParseOutcome parse() {
         for (final String required : TransferFiles.ALL_FILES) {
             if (!members.containsKey(required)) {
-                addProblem(ARCHIVE, NO_LINE, "The archive does not contain " + required + ", which a complete export always has.");
+                addProblem(ARCHIVE, NO_LINE, new ImportReason.MissingMember(required));
             }
         }
         // Without every member there is nothing to validate against - a log's action is resolved from actions.csv - so this is a full stop rather
@@ -124,7 +123,7 @@ final class ArchiveParser {
     private Optional<List<CsvRow>> dataRows(final String file, final List<String> header) {
         return switch (Csv.parse(members.getOrDefault(file, ""))) {
             case final CsvOutcome.Malformed malformed -> {
-                addProblem(file, malformed.line(), "The file could not be read - " + malformed.reason() + ".");
+                addProblem(file, malformed.line(), new ImportReason.CsvUnreadable());
                 yield Optional.empty();
             }
             case final CsvOutcome.Parsed parsed -> headerAndDataRows(file, header, parsed.rows());
@@ -133,14 +132,15 @@ final class ArchiveParser {
 
     private Optional<List<CsvRow>> headerAndDataRows(final String file, final List<String> header, final List<CsvRow> parsedRows) {
         final List<CsvRow> rows = new ArrayList<>(parsedRows);
+        final String joinedHeader = String.join(",", header);
         if (rows.isEmpty()) {
-            addProblem(file, HEADER_LINE, "The file is empty - it must start with the header row " + String.join(",", header) + ".");
+            addProblem(file, HEADER_LINE, new ImportReason.EmptyFile(joinedHeader));
             return Optional.empty();
         }
 
         final CsvRow headerRow = rows.removeFirst();
         if (!matchesHeader(headerRow.fields(), header)) {
-            addProblem(file, headerRow.line(), "The header row must be exactly " + String.join(",", header) + ".");
+            addProblem(file, headerRow.line(), new ImportReason.WrongHeader(joinedHeader));
             return Optional.empty();
         }
 
@@ -150,7 +150,7 @@ final class ArchiveParser {
                 continue;
             }
             if (row.fields().size() != header.size()) {
-                addProblem(file, row.line(), "Expected " + header.size() + " columns but found " + row.fields().size() + ".");
+                addProblem(file, row.line(), new ImportReason.WrongColumnCount(header.size(), row.fields().size()));
                 continue;
             }
             dataRows.add(row);
@@ -166,17 +166,17 @@ final class ArchiveParser {
         for (final CsvRow row : rows) {
             final TextOutcome nameOutcome = TextValidation.check(TextFields.ACTION_NAME, row.fields().getFirst());
             if (!(nameOutcome instanceof TextOutcome.Valid(final String value))) {
-                addProblem(TransferFiles.ACTIONS_FILE, row.line(), TextOutcomeExtensions.message((TextOutcome.Failure) nameOutcome));
+                addProblem(TransferFiles.ACTIONS_FILE, row.line(), new ImportReason.InvalidTextField((TextOutcome.Failure) nameOutcome));
                 continue;
             }
 
             final String colour = row.fields().get(1).strip();
             if (Colours.isInvalidHex(colour)) {
-                addProblem(TransferFiles.ACTIONS_FILE, row.line(), "The colour must be a hex value such as #6366f1.");
+                addProblem(TransferFiles.ACTIONS_FILE, row.line(), new ImportReason.InvalidColour());
                 continue;
             }
             if (!seen.add(value)) {
-                addProblem(TransferFiles.ACTIONS_FILE, row.line(), "The action '" + value + "' appears more than once.");
+                addProblem(TransferFiles.ACTIONS_FILE, row.line(), new ImportReason.DuplicateAction(value));
                 continue;
             }
             actions.add(new ActionDraft(value, colour));
@@ -194,7 +194,7 @@ final class ArchiveParser {
                 continue;
             }
             if (LogGuards.isFuture(date, today)) {
-                addProblem(TransferFiles.LOGS_FILE, row.line(), "A log cannot be dated in the future (" + date + ").");
+                addProblem(TransferFiles.LOGS_FILE, row.line(), new ImportReason.FutureLog(date));
                 continue;
             }
 
@@ -202,8 +202,7 @@ final class ArchiveParser {
             // "Reading" rather than being refused for a difference the user cannot see.
             final String actionName = TextFieldExtensions.normalise(TextFields.ACTION_NAME, row.fields().get(1));
             if (!actionNames.contains(actionName)) {
-                addProblem(TransferFiles.LOGS_FILE, row.line(),
-                    "No action named '" + actionName + "' is defined in " + TransferFiles.ACTIONS_FILE + ".");
+                addProblem(TransferFiles.LOGS_FILE, row.line(), new ImportReason.UnknownAction(actionName));
                 continue;
             }
 
@@ -215,16 +214,16 @@ final class ArchiveParser {
                 count = Integer.parseInt(rawCount);
             } catch (final NumberFormatException e) {
                 LOGGER.trace("{} line {}: the count column did not parse as a whole number", TransferFiles.LOGS_FILE, row.line(), e);
-                addProblem(TransferFiles.LOGS_FILE, row.line(), "'" + rawCount + "' is not a whole number.");
+                addProblem(TransferFiles.LOGS_FILE, row.line(), new ImportReason.NonNumericCount(rawCount));
                 continue;
             }
             // Rejected, never clamped: a file of ten thousand rows cannot afford a silent correction nobody is watching.
             if (count < 1 || count > ActionLog.MAX_DAILY_COUNT) {
-                addProblem(TransferFiles.LOGS_FILE, row.line(), "The count must be between 1 and " + ActionLog.MAX_DAILY_COUNT + ".");
+                addProblem(TransferFiles.LOGS_FILE, row.line(), new ImportReason.CountOutOfRange(ActionLog.MAX_DAILY_COUNT));
                 continue;
             }
             if (!seen.add(date + " " + actionName)) {
-                addProblem(TransferFiles.LOGS_FILE, row.line(), "There is already a log for '" + actionName + "' on " + date + ".");
+                addProblem(TransferFiles.LOGS_FILE, row.line(), new ImportReason.DuplicateLog(actionName, date));
                 continue;
             }
             logs.add(new LogDraft(date, actionName, count));
@@ -245,16 +244,16 @@ final class ArchiveParser {
             // A note is deliberately NOT future-checked - unlike a log, writing down a day in advance is a legitimate thing to do.
             final TextOutcome contentOutcome = TextValidation.check(noteField, row.fields().get(1));
             if (!(contentOutcome instanceof TextOutcome.Valid(final String value))) {
-                // The pipeline's own message, worded from the field and never quoting the value - so no note content reaches this banner.
-                addProblem(TransferFiles.NOTES_FILE, row.line(), TextOutcomeExtensions.message((TextOutcome.Failure) contentOutcome));
+                // The pipeline's own reason, worded from the field and never quoting the value - so no note content reaches this banner.
+                addProblem(TransferFiles.NOTES_FILE, row.line(), new ImportReason.InvalidTextField((TextOutcome.Failure) contentOutcome));
                 continue;
             }
             if (value.isEmpty()) {
-                addProblem(TransferFiles.NOTES_FILE, row.line(), "The note for " + date + " is empty - delete the row instead.");
+                addProblem(TransferFiles.NOTES_FILE, row.line(), new ImportReason.EmptyNote(date));
                 continue;
             }
             if (!seen.add(date)) {
-                addProblem(TransferFiles.NOTES_FILE, row.line(), "There is already a note for " + date + ".");
+                addProblem(TransferFiles.NOTES_FILE, row.line(), new ImportReason.DuplicateNote(date));
                 continue;
             }
             notes.add(new NoteDraft(date, value));
@@ -268,12 +267,12 @@ final class ArchiveParser {
             return LocalDate.parse(raw);
         } catch (final DateTimeParseException e) {
             LOGGER.trace("{} line {}: the date column did not parse as YYYY-MM-DD", file, row.line(), e);
-            addProblem(file, row.line(), "'" + raw + "' is not a date in YYYY-MM-DD form.");
+            addProblem(file, row.line(), new ImportReason.InvalidDate(raw));
             return null;
         }
     }
 
-    private void addProblem(final String file, final int line, final String reason) {
+    private void addProblem(final String file, final int line, final ImportReason reason) {
         total++;
         if (reported.size() < ImportParser.MAX_REPORTED_PROBLEMS) {
             reported.add(new ImportProblem(file, line, reason));
