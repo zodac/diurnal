@@ -12,7 +12,7 @@
     candidates — the offerable StatSubjects (required; may be empty)
 !}
 {#if candidates.isEmpty()}
-<p class="empty-note">Nothing else to compare.</p>
+<p class="empty-note">{msg:nothingElseToCompare}</p>
 {#else}
 <ul class="chart-candidates">
     {#for candidate in candidates}

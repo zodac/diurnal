@@ -1,0 +1,19 @@
+{!
+  Translated fixed-shape text shared by AdminUsersInternalResource and AdminIpLockoutsInternalResource
+  (both HTMX resources under /internal/admin, both banner into #admin-error) - AdminUserResult and
+  IpUnlockResult carry no message field, so each surface already words its own text independently; the
+  API's own JSON error text is untouched by this file. Params:
+    key — 'userNotFound' | 'invalidRole' | 'lastAdminRemove' | 'lastAdminDelete' | 'deleteUserPrompt' |
+          'lockoutNotFound' | 'ipNotLocked' | 'unlockPrompt' | 'unlockLabel'
+!}
+{#switch key}
+    {#is 'userNotFound'}{msg:adminUserNotFound}
+    {#is 'invalidRole'}{msg:adminInvalidRole}
+    {#is 'lastAdminRemove'}{msg:adminCannotRemoveLastAdmin}
+    {#is 'lastAdminDelete'}{msg:adminCannotDeleteLastAdmin}
+    {#is 'deleteUserPrompt'}{msg:deleteUserPrompt}
+    {#is 'lockoutNotFound'}{msg:lockoutNoLongerExists}
+    {#is 'ipNotLocked'}{msg:ipNoLongerLocked}
+    {#is 'unlockPrompt'}{msg:unlockIpPrompt}
+    {#is 'unlockLabel'}{msg:unlockLabel}
+{/switch}

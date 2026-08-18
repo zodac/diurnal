@@ -19,6 +19,7 @@ package net.zodac.diurnal.action;
 
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
+import io.quarkus.qute.i18n.MessageBundles;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -39,8 +40,7 @@ import java.util.UUID;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
-import net.zodac.diurnal.text.TextFieldExtensions;
-import net.zodac.diurnal.text.TextFields;
+import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
@@ -63,6 +63,8 @@ public class ActionsInternalResource {
     private final Template actionsListTemplate;
     private final Template actionRowTemplate;
     private final Template confirmDeleteRowTemplate;
+    private final Template actionMessagesTemplate;
+    private final Template textFailureMessageTemplate;
     private final CurrentUser currentUser;
     private final ActionService actionService;
 
@@ -72,6 +74,8 @@ public class ActionsInternalResource {
      * @param actionsListTemplate the paginated actions-list partial template
      * @param actionRowTemplate the single action-row partial template
      * @param confirmDeleteRowTemplate the delete-confirmation row partial template
+     * @param actionMessagesTemplate the fixed-shape ActionResult/delete-prompt message partial template
+     * @param textFailureMessageTemplate the shared text-validation-pipeline rejection message partial template
      * @param currentUser the current-user accessor
      * @param actionService the shared action-mutation service
      */
@@ -79,10 +83,14 @@ public class ActionsInternalResource {
     ActionsInternalResource(@Location("partials/actions-list") final Template actionsListTemplate,
         @Location("partials/action-row") final Template actionRowTemplate,
         @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
+        @Location("partials/action-messages") final Template actionMessagesTemplate,
+        @Location("partials/text-failure-message") final Template textFailureMessageTemplate,
         final CurrentUser currentUser, final ActionService actionService) {
         this.actionsListTemplate = actionsListTemplate;
         this.actionRowTemplate = actionRowTemplate;
         this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
+        this.actionMessagesTemplate = actionMessagesTemplate;
+        this.textFailureMessageTemplate = textFailureMessageTemplate;
         this.currentUser = currentUser;
         this.actionService = actionService;
     }
@@ -107,7 +115,8 @@ public class ActionsInternalResource {
         final String extraQuery = (searchTerm == null || searchTerm.isBlank())
             ? ""
             : ("&q=" + java.net.URLEncoder.encode(searchTerm, java.nio.charset.StandardCharsets.UTF_8));
-        return Response.ok(actionsListTemplate.data("page", page, "extraQuery", extraQuery)).build();
+        return Response.ok(actionsListTemplate.data("page", page, "extraQuery", extraQuery)
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale(user))).build();
     }
 
     /**
@@ -133,11 +142,12 @@ public class ActionsInternalResource {
     @Path("{id}")
     @Produces(MediaType.TEXT_HTML)
     public Response viewItem(@PathParam("id") final UUID id) {
-        final Action action = actionService.findOwned(currentUser.get(), id);
+        final User user = currentUser.get();
+        final Action action = actionService.findOwned(user, id);
         if (action == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
-        return Response.ok(actionRowTemplate.data("action", action)).build();
+        return Response.ok(actionRowTemplate.data("action", action).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale(user))).build();
     }
 
     /**
@@ -150,10 +160,17 @@ public class ActionsInternalResource {
     @Path("{id}/confirm-delete")
     @Produces(MediaType.TEXT_HTML)
     public Response confirmDelete(@PathParam("id") final UUID id) {
-        final Action action = actionService.findOwned(currentUser.get(), id);
+        final User user = currentUser.get();
+        final Action action = actionService.findOwned(user, id);
         if (action == null) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
+        final Locale locale = locale(user);
+        // The prompt is resolved by rendering actionMessagesTemplate (a real, locale-aware template
+        // render) rather than a Java string literal, so it translates correctly - a raw literal handed
+        // to dt-confirm-delete-row.html as inert data can never pick up the request's locale.
+        final String prompt = actionMessagesTemplate.data("key", "deletePrompt")
+            .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
         // Surgical delete: the destructive POST returns 204 and the row is removed in place
         // (see actions.html beforeSwap), so the confirmation row targets its own row with outerHTML.
         return Response.ok(confirmDeleteRowTemplate
@@ -161,11 +178,12 @@ public class ActionsInternalResource {
                 .data("cols", 3)
                 .data("swatchColour", action.colour)
                 .data("label", action.name)
-                .data("prompt", "Delete this action?")
+                .data("prompt", prompt)
                 .data("deleteUrl", "/internal/actions/" + id + "/delete")
                 .data("deleteTarget", "#action-" + id)
                 .data("deleteSwap", "outerHTML")
-                .data("restoreUrl", "/internal/actions/" + id)).build();
+                .data("restoreUrl", "/internal/actions/" + id)
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
     }
 
     // ── Mutations ─────────────────────────────────────────────────────────
@@ -187,7 +205,8 @@ public class ActionsInternalResource {
         // The form always submits a name; normalise a missing field to blank so it is rejected rather
         // than treated as a PATCH-style "keep" by the shared service. A missing colour is passed on as
         // null, so it takes the same suggestion the API gives a caller that omitted it.
-        return translate(actionService.create(currentUser.get(), name == null ? "" : name, colour));
+        final User user = currentUser.get();
+        return translate(actionService.create(user, name == null ? "" : name, colour), locale(user));
     }
 
     /**
@@ -209,7 +228,8 @@ public class ActionsInternalResource {
         @FormParam("colour") @DefaultValue(ActionValidation.DEFAULT_COLOUR) final String colour) {
         // The edit form always submits both fields; normalise a missing name to blank so it is rejected
         // rather than treated as a PATCH-style "keep" by the shared service.
-        return translate(actionService.update(currentUser.get(), id, name == null ? "" : name, colour));
+        final User user = currentUser.get();
+        return translate(actionService.update(user, id, name == null ? "" : name, colour), locale(user));
     }
 
     /**
@@ -252,19 +272,32 @@ public class ActionsInternalResource {
         return new PaginatedActions(Pages.slice(filtered, window), filtered.size(), window.totalPages(), window.currentPage());
     }
 
-    private Response translate(final ActionResult result) {
+    private Response translate(final ActionResult result, final Locale locale) {
         return switch (result) {
-            case final ActionResult.Success success -> Response.ok(actionRowTemplate.data("action", success.action())).build();
-            case final ActionResult.BlankName _ -> HtmxResponses.conflictBanner("#action-error", "Action name cannot be empty.");
-            case final ActionResult.NameTooLong _ ->
-                HtmxResponses.conflictBanner("#action-error", TextFieldExtensions.lengthMessage(TextFields.ACTION_NAME));
-            case final ActionResult.InvalidName invalid -> HtmxResponses.conflictBanner("#action-error", invalid.message());
-            case final ActionResult.InvalidColour _ -> HtmxResponses.conflictBanner("#action-error",
-                "Action colour is invalid");
+            case final ActionResult.Success success ->
+                Response.ok(actionRowTemplate.data("action", success.action()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
+            case final ActionResult.BlankName blank -> HtmxResponses.conflictBanner("#action-error", textFailureBanner(blank.failure(), locale));
+            case final ActionResult.NameTooLong tooLong ->
+                HtmxResponses.conflictBanner("#action-error", textFailureBanner(tooLong.failure(), locale));
+            case final ActionResult.InvalidName invalid ->
+                HtmxResponses.conflictBanner("#action-error", textFailureBanner(invalid.failure(), locale));
+            case final ActionResult.InvalidColour _ -> HtmxResponses.conflictBanner("#action-error", messageBanner("invalidColour", "", locale));
             case final ActionResult.DuplicateName duplicate ->
-                HtmxResponses.conflictBanner("#action-error", "An action named '" + duplicate.name() + "' already exists.");
+                HtmxResponses.conflictBanner("#action-error", messageBanner("duplicate", duplicate.name(), locale));
             case final ActionResult.NotFound _ -> Response.status(Response.Status.NOT_FOUND).build();
         };
+    }
+
+    private String messageBanner(final String key, final String name, final Locale locale) {
+        return actionMessagesTemplate.data("key", key).data("name", name).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+    }
+
+    private String textFailureBanner(final TextOutcome.Failure failure, final Locale locale) {
+        return textFailureMessageTemplate.data("failure", failure).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+    }
+
+    private static Locale locale(final User user) {
+        return Locale.forLanguageTag(user.language);
     }
 
     /**

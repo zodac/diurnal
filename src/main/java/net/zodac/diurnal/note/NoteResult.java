@@ -18,6 +18,7 @@
 package net.zodac.diurnal.note;
 
 import java.time.LocalDate;
+import net.zodac.diurnal.text.TextOutcome;
 
 /**
  * The outcome of a note mutation by {@link NoteService}: the caller (the web UI's internal resource or the public REST API) maps each case to its own
@@ -53,12 +54,13 @@ sealed interface NoteResult permits NoteResult.Saved, NoteResult.Cleared, NoteRe
 
     /**
      * The submitted content broke a rule on {@code TextFields#NOTE} — it was too long, or held an invisible or text-direction character, or too many
-     * stacked combining marks. The cause is carried as a ready-worded message rather than a variant per rule, so a rule added to the field later
-     * needs no change here or in the surfaces that render it.
+     * stacked combining marks. Carried as the raw {@link TextOutcome.Failure} rather than a ready-worded message, so a rule added to the field later
+     * needs no change here - the API resource words it in English via {@code TextOutcomeExtensions#message}, the web resource resolves a translated
+     * sentence via {@code partials/text-failure-message.html}.
      *
-     * @param message the user-facing sentence explaining what is wrong with the note
+     * @param failure the rejection
      */
-    record Invalid(String message) implements NoteResult {
+    record Invalid(TextOutcome.Failure failure) implements NoteResult {
 
     }
 

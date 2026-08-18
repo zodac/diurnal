@@ -1,8 +1,8 @@
 <header id="site-header" class="bg-surface border-b border-line px-4 py-3 relative">
     <div class="flex items-center gap-6">
-        <a href="/" aria-label="{inject:appInfo.tagline}" class="group relative flex items-center shrink-0">
+        <a href="/" aria-label="{msg:tagline}" class="group relative flex items-center shrink-0">
             <img src="/img/{inject:appInfo.image('wordmark.svg')}" alt="Diurnal" fetchpriority="high" class="h-6 w-auto" width="91" height="24">
-            {#include partials/tooltip text=inject:appInfo.tagline pos="bottom" align="left" /}
+            {#include partials/tooltip text=msg:tagline pos="bottom" align="left" /}
         </a>
 
         {! Desktop navigation: hidden on narrow viewports !}
@@ -14,7 +14,7 @@
         </div>
 
         {! Mobile hamburger: shown only when the desktop nav is hidden !}
-        <button type="button" id="hamburger-btn" aria-label="Toggle menu" aria-controls="mobile-menu" aria-expanded="false"
+        <button type="button" id="hamburger-btn" aria-label="{msg:toggleMenu}" aria-controls="mobile-menu" aria-expanded="false"
                 class="group sm:hidden ml-auto p-1 -my-1 -mr-1 text-ink-muted aria-expanded:text-brand aria-[expanded=false]:hover:text-ink focus:outline-hidden transition-colors">
             {#include partials/icon name='hamburger' cls='w-6 h-6 transition-transform duration-200 group-aria-expanded:rotate-90' /}
         </button>

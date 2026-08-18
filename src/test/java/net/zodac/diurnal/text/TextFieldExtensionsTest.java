@@ -203,7 +203,7 @@ class TextFieldExtensionsTest {
 
     @Test
     void lengthMessage_maximumOfOne_isSingular() {
-        assertThat(TextFieldExtensions.lengthMessage(TextField.of("Initial", 1, 1)))
+        assertThat(TextFieldExtensions.lengthMessage(TextField.of("initial", "Initial", 1, 1)))
             .as("a one-character bound must never read '1 characters'")
             .isEqualTo("Initial must be at most 1 character.");
     }
@@ -213,8 +213,8 @@ class TextFieldExtensionsTest {
     @Test
     void constraints_fieldWithMinimum_publishesBothBounds() {
         final List<TextConstraint> expected = List.of(
-            new TextConstraint("minLength", 1, "At least 1 character"),
-            new TextConstraint("maxLength", 128, "At most 128 characters"));
+            new TextConstraint("minLength", 1),
+            new TextConstraint("maxLength", 128));
 
         assertThat(TextFieldExtensions.constraints(TextFields.PASSWORD))
             .as("unexpected value")
@@ -223,7 +223,7 @@ class TextFieldExtensionsTest {
 
     @Test
     void constraints_optionalField_publishesOnlyTheMaximum() {
-        final List<TextConstraint> expected = List.of(new TextConstraint("maxLength", 25, "At most 25 characters"));
+        final List<TextConstraint> expected = List.of(new TextConstraint("maxLength", 25));
 
         assertThat(TextFieldExtensions.constraints(TextFields.STAT_NAME))
             .as("an optional field has no minimum to require")

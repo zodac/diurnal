@@ -24,9 +24,9 @@ import jakarta.transaction.Transactional;
 import java.util.UUID;
 import net.zodac.diurnal.auth.lockout.IpThrottle;
 import net.zodac.diurnal.auth.session.SessionStore;
-import net.zodac.diurnal.text.TextFieldExtensions;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
+import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
@@ -58,12 +58,6 @@ public class PasswordChangeService {
      * User-facing rejection message when the submitted current password does not match the stored hash.
      */
     public static final String CURRENT_PASSWORD_ERROR = "Current password is incorrect";
-
-    private static final String NEW_PASSWORD_ERROR = "Passwords do not match";
-
-    private static final String NEW_PASSWORD_TOO_LONG_ERROR = TextFieldExtensions.lengthMessage(TextFields.PASSWORD);
-
-    private static final String NEW_PASSWORD_UNCHANGED_ERROR = "New password must be different from the existing password";
 
     private static final Logger LOGGER = LogManager.getLogger(PasswordChangeService.class);
 
@@ -119,6 +113,11 @@ public class PasswordChangeService {
      * @param clientIp        the client IP, for the audit log
      * @return the outcome
      */
+    // Coupled by the sealed result's own shape, not by a design smell: the current-password proof, the new-password
+    // pipeline check and its three distinct rejection causes, and the unchanged-password guard are each one
+    // necessary branch of the same rule, exactly as the constructors elsewhere in this file's package are
+    // (@SuppressWarnings("OverlyCoupledMethod") on AuthWebResource/SettingsWebResource's DI constructors).
+    @SuppressWarnings("OverlyCoupledMethod")
     public PasswordChangeResult change(final User user, final @Nullable String currentPassword, final @Nullable String newPassword,
         final @Nullable String confirmPassword, final @Nullable String currentRawToken, final String clientIp) {
         if (notLocalAccount(user)) {
@@ -133,22 +132,24 @@ public class PasswordChangeService {
         // Surface policy: where a confirmation was collected, a mismatch is reported before anything else - the web form presents its two
         // new-password boxes as one "do these match" step, so the pair is wrong before either box's contents are.
         if (confirmPassword != null && !confirmPassword.equals(newPassword)) {
-            return new PasswordChangeResult.InvalidNewPassword(NEW_PASSWORD_ERROR);
+            return new PasswordChangeResult.InvalidNewPassword(new PasswordRejection.Mismatch());
         }
         // ONE pass through the same catalogue entry registration uses, so a new password is bounded identically however it arrives (the cap keeps
         // the hashing cost bounded - an over-long input is a cheap CPU-exhaustion lever). An absent password is a rejection of the same step as a
-        // mismatch, so it carries that wording rather than the pipeline's.
+        // mismatch, so it carries that cause rather than the pipeline's blank one.
         final TextOutcome outcome = TextValidation.check(TextFields.PASSWORD, newPassword);
         if (!(outcome instanceof TextOutcome.Valid(final String value))) {
-            return new PasswordChangeResult.InvalidNewPassword(
-                outcome instanceof TextOutcome.Blank ? NEW_PASSWORD_ERROR : NEW_PASSWORD_TOO_LONG_ERROR);
+            return outcome instanceof TextOutcome.Blank
+                ? new PasswordChangeResult.InvalidNewPassword(new PasswordRejection.Mismatch())
+                : new PasswordChangeResult.InvalidNewPassword(
+                    new PasswordRejection.TooLong((TextOutcome.Failure) outcome));
         }
 
         // A password change must actually change something: re-submitting the existing password would re-hash it and revoke every other session for
         // no gain, and silently accepting it tells the user their password changed when it did not. The current password has already been proven
         // above, so this is a plain comparison of two values known to be the account's - no second Argon2id verification.
         if (value.equals(currentPassword)) {
-            return new PasswordChangeResult.InvalidNewPassword(NEW_PASSWORD_UNCHANGED_ERROR);
+            return new PasswordChangeResult.InvalidNewPassword(new PasswordRejection.Unchanged());
         }
 
         // The new hash is computed here, outside any transaction (see the class Javadoc). It hashes the value the check above accepted - for a
@@ -181,6 +182,22 @@ public class PasswordChangeService {
         }
         LOGGER.info("Password changed for user: {} (other sessions revoked)", user.email);
         return new PasswordChangeResult.Success();
+    }
+
+    /**
+     * The English rejection sentence for a {@link PasswordRejection} - what the API resource still calls directly (it stays
+     * English by design); the web resource instead resolves a translated sentence via {@code partials/text-failure-message.html} for the
+     * {@code TooLong} cause, or its own fixed-shape entries for {@code Mismatch}/{@code Unchanged}.
+     *
+     * @param rejection the rejection cause
+     * @return the message, in English
+     */
+    public static String message(final PasswordRejection rejection) {
+        return switch (rejection) {
+            case final PasswordRejection.Mismatch _ -> "Passwords do not match";
+            case final PasswordRejection.TooLong tooLong -> TextOutcomeExtensions.message(tooLong.failure());
+            case final PasswordRejection.Unchanged _ -> "New password must be different from the existing password";
+        };
     }
 
     // Only accounts HOLDING a password can verify or change one; OIDC-only accounts have none. Deliberately

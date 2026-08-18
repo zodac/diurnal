@@ -81,6 +81,10 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     public String font = Font.DEFAULT.value();
 
     @Preference
+    @Column(name = "language", nullable = false)
+    public String language = Language.DEFAULT.value();
+
+    @Preference
     @Column(name = "page_size", nullable = false)
     public int pageSize = UserSettings.DEFAULT_PAGE_SIZE;
 

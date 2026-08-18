@@ -25,23 +25,23 @@
     {! Period toggle (Month/Year) on the left, window stepper on the right. Both post back through
        stats.js, which re-fetches this fragment with the chosen period/window. !}
     <div class="chart-controls">
-        <div class="chart-periods" role="group" aria-label="Graph period">
+        <div class="chart-periods" role="group" aria-label="{msg:graphPeriodAriaLabel}">
             <button type="button" class="chart-period{#if chart.period.value == 'month'} chart-period-active{/if}"
-                    data-chart-period="month"{#if chart.period.value == 'month'} aria-current="true"{/if}>Month</button>
+                    data-chart-period="month"{#if chart.period.value == 'month'} aria-current="true"{/if}>{msg:month}</button>
             <button type="button" class="chart-period{#if chart.period.value == 'year'} chart-period-active{/if}"
-                    data-chart-period="year"{#if chart.period.value == 'year'} aria-current="true"{/if}>Year</button>
+                    data-chart-period="year"{#if chart.period.value == 'year'} aria-current="true"{/if}>{msg:year}</button>
         </div>
         <div class="chart-nav">
             <button type="button" class="chart-nav-btn group relative" data-chart-at="{chart.previousKey}"
-                    {#if !chart.hasPrevious}disabled {/if}aria-label="Earlier">
+                    {#if !chart.hasPrevious}disabled {/if}aria-label="{msg:earlier}">
                 {#include partials/icon name='chevron-left' cls='chart-nav-glyph' /}
-                {#include partials/tooltip text="Earlier" pos="bottom" align="left" /}
+                {#include partials/tooltip text=msg:earlier pos="bottom" align="left" /}
             </button>
             <span class="chart-window">{chart.periodLabel}</span>
             <button type="button" class="chart-nav-btn group relative" data-chart-at="{chart.nextKey}"
-                    {#if !chart.hasNext}disabled {/if}aria-label="Later">
+                    {#if !chart.hasNext}disabled {/if}aria-label="{msg:later}">
                 {#include partials/icon name='chevron-right' cls='chart-nav-glyph' /}
-                {#include partials/tooltip text="Later" pos="bottom" align="right" /}
+                {#include partials/tooltip text=msg:later pos="bottom" align="right" /}
             </button>
         </div>
     </div>
@@ -56,7 +56,7 @@
             <span class="truncate">{series.subjectName}</span>
             {#if series.removable}
             <button type="button" class="chart-chip-remove" data-chart-remove="{series.subjectId}"
-                    aria-label="Stop comparing {series.subjectName}">
+                    aria-label="{msg:stopComparing(series.subjectName)}">
                 {#include partials/icon name='close' cls='chart-chip-glyph' /}
             </button>
             {/if}
@@ -67,7 +67,7 @@
         <button type="button" class="chart-compare-btn" data-chart-compare-open aria-expanded="false"
                 aria-controls="chart-compare-panel">
             {#include partials/icon name='plus' cls='chart-compare-glyph' /}
-            Compare to...
+            {msg:compareToEllipsis}
         </button>
         {/if}
     </div>
@@ -77,7 +77,7 @@
          user types, so the search box keeps focus and its caret across a keystroke. The hx-get URL
          already carries the currently-charted comparisons, so an action on the graph is never offered. !}
     <div id="chart-compare-panel" class="chart-compare-panel hidden">
-        {#include partials/search-input id="chart-candidate-search" url=chart.candidatesUrl target="#chart-candidate-list" placeholder="Search actions…" /}
+        {#include partials/search-input id="chart-candidate-search" url=chart.candidatesUrl target="#chart-candidate-list" placeholder=msg:searchActionsPlaceholder /}
         <div id="chart-candidate-list">
             {#include partials/stats-chart-candidates candidates=candidates /}
         </div>
@@ -85,7 +85,7 @@
     {/if}
 
     {#if chart.peak == 0}
-    <p class="empty-note">Nothing logged in {chart.periodLabel}.</p>
+    <p class="empty-note">{msg:nothingLoggedIn(chart.periodLabel)}</p>
     {#else}
     {! The plot is decorative to assistive tech (its per-column values are already in the hover bubbles,
          which are aria-hidden), so the accessible summary is the caption underneath. !}
@@ -102,6 +102,6 @@
         </div>
         {/for}
     </div>
-    <p class="chart-caption">{chart.total} logged across {chart.periodLabel}, peaking at {chart.peak}.</p>
+    <p class="chart-caption">{msg:chartCaption(chart.total, chart.periodLabel, chart.peak)}</p>
     {/if}
 </div>

@@ -1,7 +1,7 @@
 {#if page.items.isEmpty()}
 <p class="empty-note">
-    No actions defined yet.
-    <a href="/actions" class="link-brand">Add one</a>
+    {msg:noActionsDefinedYet}
+    <a href="/actions" class="link-brand">{msg:addOne}</a>
 </p>
 {#else}
 {#for status in page.items}

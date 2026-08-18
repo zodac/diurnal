@@ -1,8 +1,8 @@
 {#include layout.html}
 
 {#body}
-{#include partials/error-page variant='warning' title='Page Not Found'
-    message="The page you're looking for doesn't exist." icon='question-circle' /}
+{#include partials/error-page variant='warning' title=msg:pageNotFound
+    message=msg:pageNotFoundMessage icon='question-circle' /}
 {/body}
 
 {/include}

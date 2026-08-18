@@ -146,13 +146,9 @@ public final class TextFieldExtensions {
     public static List<TextConstraint> constraints(final TextField field) {
         final List<TextConstraint> constraints = new ArrayList<>();
         if (field.minLength() > 0) {
-            constraints.add(new TextConstraint("minLength", field.minLength(), boundLabel("At least", field.minLength())));
+            constraints.add(new TextConstraint("minLength", field.minLength()));
         }
-        constraints.add(new TextConstraint("maxLength", field.maxLength(), boundLabel("At most", field.maxLength())));
+        constraints.add(new TextConstraint("maxLength", field.maxLength()));
         return constraints;
-    }
-
-    private static String boundLabel(final String prefix, final int count) {
-        return prefix + ' ' + Durations.count(count, LENGTH_UNIT);
     }
 }

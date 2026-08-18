@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.util.List;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.time.DaySpan;
+import org.assertj.core.groups.Tuple;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
@@ -133,39 +134,6 @@ class SubjectStatsTest {
             .isEqualTo("3 September 2024");
     }
 
-    @Test
-    void sinceFirstLabel_neverPerformed_returnsDash() {
-        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.sinceFirstLabel(subjectStats))
-            .as("unexpected value")
-            .isEqualTo("—");
-    }
-
-    @Test
-    void sinceFirstLabel_startedToday_returnsToday() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY, TODAY, 1, 1, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.sinceFirstLabel(subjectStats))
-            .as("unexpected value")
-            .isEqualTo("Today");
-    }
-
-    @Test
-    void sinceFirstLabel_startedYesterday_returnsYesterday() {
-        final SubjectStats subjectStats = stats(2, 2L, TODAY.minusDays(1L), TODAY, 2, 2, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.sinceFirstLabel(subjectStats))
-            .as("unexpected value")
-            .isEqualTo("Yesterday");
-    }
-
-    @Test
-    void sinceFirstLabel_longHistory_isCondensed() {
-        // TODAY is 15 June 2025, so a start of 3 September 2024 is 9 months and 12 days back.
-        final SubjectStats subjectStats = stats(2, 2L, LocalDate.of(2024, 9, 3), TODAY, 1, 1, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.sinceFirstLabel(subjectStats))
-            .as("unexpected value")
-            .isEqualTo("9 months, 12 days ago");
-    }
-
     // ── performedThisMonth ──────────────────────────────────────────────────────
 
     @Test
@@ -182,48 +150,6 @@ class SubjectStatsTest {
         assertThat(SubjectStatsExtensions.performedThisMonth(subjectStats))
             .as("expected condition to be true")
             .isTrue();
-    }
-
-    // ── sinceLabel ────────────────────────────────────────────────────────────
-
-    @Test
-    void sinceLabel_nullLastPerformed_returnsDash() {
-        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.sinceLabel(subjectStats))
-            .as("unexpected value")
-            .isEqualTo("—");
-    }
-
-    @Test
-    void sinceLabel_today_returnsToday() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY, TODAY, 1, 1, 1L, 0L, 1L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.sinceLabel(subjectStats))
-            .as("unexpected value")
-            .isEqualTo("Today");
-    }
-
-    @Test
-    void sinceLabel_yesterday_returnsYesterday() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(1L), TODAY.minusDays(1L), 0, 1, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.sinceLabel(subjectStats))
-            .as("unexpected value")
-            .isEqualTo("Yesterday");
-    }
-
-    @Test
-    void sinceLabel_twoDaysAgo_returnsDaysAgoLabel() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(2L), TODAY.minusDays(2L), 0, 1, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.sinceLabel(subjectStats))
-            .as("unexpected value")
-            .isEqualTo("2 days ago");
-    }
-
-    @Test
-    void sinceLabel_thirtyDaysAgo() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(30L), TODAY.minusDays(30L), 0, 1, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.sinceLabel(subjectStats))
-            .as("unexpected value")
-            .isEqualTo("30 days ago");
     }
 
     // ── weeklyDayAverage / monthlyDayAverage / weeklyCountAverage / monthlyCountAverage ────────
@@ -383,32 +309,6 @@ class SubjectStatsTest {
             .isEqualTo(12);
     }
 
-    // ── totalDaysUnit ─────────────────────────────────────────────────────────
-
-    @Test
-    void totalDaysUnit_one_isSingular() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY, TODAY, 1, 1, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.totalDaysUnit(subjectStats))
-            .as("unexpected value")
-            .isEqualTo("unique day");
-    }
-
-    @Test
-    void totalDaysUnit_zero_isPlural() {
-        final SubjectStats subjectStats = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(SubjectStatsExtensions.totalDaysUnit(subjectStats))
-            .as("unexpected value")
-            .isEqualTo("unique days");
-    }
-
-    @Test
-    void totalDaysUnit_many_isPlural() {
-        final SubjectStats subjectStats = stats(2, 2, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
-        assertThat(SubjectStatsExtensions.totalDaysUnit(subjectStats))
-            .as("unexpected value")
-            .isEqualTo("unique days");
-    }
-
     // ── monthTrend / monthTrendClass ──────────────────────────────────────────
 
     @Test
@@ -495,15 +395,7 @@ class SubjectStatsTest {
             .isEqualTo("text-red-500");
     }
 
-    // ── monthContext / yearContext ─────────────────────────────────────────────
-
-    @Test
-    void monthContext_formatIsCorrect() {
-        final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 5, 2, 0, 0, "—", 0, "—", 0);
-        assertThat(SubjectStatsExtensions.monthContext(subjectStats))
-            .as("unexpected value")
-            .isEqualTo("5 this month · 2 last month");
-    }
+    // ── thisMonthContext ─────────────────────────────────────────────────────────
 
     @Test
     void thisMonthContext_formatIsCorrect() {
@@ -511,14 +403,6 @@ class SubjectStatsTest {
         assertThat(SubjectStatsExtensions.thisMonthContext(subjectStats))
             .as("unexpected value")
             .isEqualTo("5 this month");
-    }
-
-    @Test
-    void yearContext_formatIsCorrect() {
-        final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 0, 0, 10, 4, "—", 0, "—", 0);
-        assertThat(SubjectStatsExtensions.yearContext(subjectStats))
-            .as("unexpected value")
-            .isEqualTo("10 this year · 4 last year");
     }
 
     // ── tiles ──────────────────────────────────────────────────────────────────
@@ -540,6 +424,12 @@ class SubjectStatsTest {
             .as("tiles render in the supplied field order")
             .extracting(StatTile::label)
             .containsExactly("Total count", "Current streak");
+        assertThat(tiles)
+            .as("an un-renamed tile carries its field's key and is flagged as NOT custom, so the template resolves a translated caption for it")
+            .extracting(StatTile::key, StatTile::labelIsCustom)
+            .containsExactly(
+            Tuple.tuple(StatField.TOTAL_COUNT.key(), false),
+            Tuple.tuple(StatField.CURRENT_STREAK.key(), false));
     }
 
     @Test
@@ -556,6 +446,12 @@ class SubjectStatsTest {
         assertThat(tile.value())
             .as("renaming a stat changes only its caption, never the figure it reports")
             .isEqualTo("3");
+        assertThat(tile.key())
+            .as("the field's stable key is carried regardless of any rename")
+            .isEqualTo(StatField.TOTAL_COUNT.key());
+        assertThat(tile.labelIsCustom())
+            .as("a renamed stat is flagged as custom, so the template renders tile.label() as-is rather than translating it")
+            .isTrue();
     }
 
     @Test
@@ -567,9 +463,9 @@ class SubjectStatsTest {
         assertThat(tile.value())
             .as("total days value")
             .isEqualTo("1");
-        assertThat(tile.sub())
-            .as("singular unit for a total of one")
-            .isEqualTo("unique day");
+        assertThat(tile.subCount1())
+            .as("the raw total, for the template to pluralise its translated unit word")
+            .isEqualTo(1L);
         assertThat(tile.subNum())
             .as("a unit word is not a locale-grouped number")
             .isFalse();
@@ -643,8 +539,8 @@ class SubjectStatsTest {
         final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.CURRENT_STREAK)), 1).getFirst();
 
         assertThat(tile.sub())
-            .as("a still-running streak has no end date to show")
-            .isEqualTo("since 10 June 2025");
+            .as("a still-running streak's sub carries only the raw start date - the template adds the translated 'since'")
+            .isEqualTo("10 June 2025");
     }
 
     @Test
@@ -696,8 +592,9 @@ class SubjectStatsTest {
             .as("nine days have elapsed since the action was last performed")
             .isEqualTo("9 days");
         assertThat(tile.sub())
-            .as("the blank run starts the day after the action was last performed, and is still open")
-            .isEqualTo("since 7 June 2025");
+            .as("the blank run starts the day after the action was last performed, and is still open - the raw start date only, "
+                + "since the template adds the translated 'since'")
+            .isEqualTo("7 June 2025");
     }
 
     @Test
@@ -723,9 +620,9 @@ class SubjectStatsTest {
         assertThat(tile.value())
             .as("the month is the headline, not the count")
             .isEqualTo("June 2025");
-        assertThat(tile.sub())
-            .as("the count is the secondary caption, singular-aware")
-            .isEqualTo("21 times");
+        assertThat(tile.subCount1())
+            .as("the raw record count, for the template to pluralise its translated 'time(s)' caption")
+            .isEqualTo(21L);
         assertThat(tile.date())
             .as("a month label uses the smaller date styling")
             .isTrue();
@@ -740,9 +637,9 @@ class SubjectStatsTest {
         assertThat(tile.value())
             .as("the year is the headline, not the count")
             .isEqualTo("2025");
-        assertThat(tile.sub())
-            .as("a single occurrence reads '1 time', never '1 times'")
-            .isEqualTo("1 time");
+        assertThat(tile.subCount1())
+            .as("a single occurrence is the raw count 1, so the template picks its singular '1 time' caption")
+            .isEqualTo(1L);
     }
 
     @Test
@@ -760,9 +657,38 @@ class SubjectStatsTest {
         assertThat(tile.value())
             .as("value is the first-performed date at full width")
             .isEqualTo("12 June 2025");
-        assertThat(tile.sub())
-            .as("sub is how long ago the user started")
-            .isEqualTo("3 days ago");
+        assertThat(tile.subDaysAgo())
+            .as("the raw elapsed day count, for the template to compose its translated '<elapsed> ago' caption")
+            .isEqualTo(3);
+        assertThat(tile.subElapsed())
+            .as("the elapsed run, condensed (still English pending Phase 2)")
+            .isEqualTo("3 days");
+    }
+
+    @Test
+    void tiles_lastPerformed_twoDaysAgo_isTheLowerBoundaryForElapsedText() {
+        // The boundary between "Yesterday" (a fixed word) and an elapsed-duration phrase is exactly 2 days.
+        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(2L), TODAY.minusDays(2L), 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LAST_PERFORMED)), 1).getFirst();
+
+        assertThat(tile.subDaysAgo())
+            .as("unexpected value")
+            .isEqualTo(2);
+        assertThat(tile.subElapsed())
+            .as("two days ago is already worded as an elapsed duration, not the fixed 'Yesterday'")
+            .isEqualTo("2 days");
+    }
+
+    @Test
+    void tiles_firstPerformed_neverPerformed_hasNoDaysAgo() {
+        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.FIRST_PERFORMED)), 1).getFirst();
+
+        assertThat(tile.subDaysAgo())
+            .as("-1 signals 'never performed' - the template renders the dash placeholder, no translated word applies")
+            .isEqualTo(-1);
     }
 
     @Test
@@ -777,12 +703,43 @@ class SubjectStatsTest {
         assertThat(tile.value())
             .as("value is the formatted date")
             .isEqualTo("12 June 2025");
-        assertThat(tile.sub())
-            .as("sub is the relative label")
-            .isEqualTo("3 days ago");
+        assertThat(tile.subDaysAgo())
+            .as("the raw elapsed day count")
+            .isEqualTo(3);
+        assertThat(tile.subElapsed())
+            .as("the elapsed run, condensed (still English pending Phase 2)")
+            .isEqualTo("3 days");
         assertThat(tile.subNum())
             .as("the relative label carries a day count")
             .isTrue();
+    }
+
+    @Test
+    void tiles_lastPerformed_today_isZeroDaysAgo() {
+        final SubjectStats subjectStats = stats(1, 1L, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LAST_PERFORMED)), 1).getFirst();
+
+        assertThat(tile.subDaysAgo())
+            .as("0 signals 'today' - the template resolves its own translated word rather than an elapsed-duration phrase")
+            .isZero();
+        assertThat(tile.subElapsed())
+            .as("no elapsed text is needed for today/yesterday")
+            .isEmpty();
+    }
+
+    @Test
+    void tiles_lastPerformed_yesterday_isOneDayAgo() {
+        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(1L), TODAY.minusDays(1L), 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LAST_PERFORMED)), 1).getFirst();
+
+        assertThat(tile.subDaysAgo())
+            .as("1 signals 'yesterday' - the template resolves its own translated word rather than an elapsed-duration phrase")
+            .isEqualTo(1);
+        assertThat(tile.subElapsed())
+            .as("no elapsed text is needed for today/yesterday")
+            .isEmpty();
     }
 
     @Test
@@ -797,9 +754,12 @@ class SubjectStatsTest {
         assertThat(tile.valueClass())
             .as("upward trend is green")
             .isEqualTo("text-green-600");
-        assertThat(tile.sub())
-            .as("sub carries the month context")
-            .isEqualTo("5 this month · 2 last month");
+        assertThat(tile.subCount1())
+            .as("this month's raw count, for the template's translated month-context caption")
+            .isEqualTo(5L);
+        assertThat(tile.subCount2())
+            .as("last month's raw count")
+            .isEqualTo(2L);
         assertThat(tile.subNum())
             .as("context carries locale-groupable counts")
             .isTrue();

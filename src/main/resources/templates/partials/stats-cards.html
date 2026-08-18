@@ -13,9 +13,9 @@
             <span class="swatch swatch-md" style="background-color: {s.subject.colour}"></span>
             <h3 class="card-title truncate min-w-0">{s.subject.name}</h3>
             <button type="button" class="chart-open-btn group relative" data-chart-subject="{s.subject.id}"
-                    data-chart-name="{s.subject.name}" aria-label="Show frequency graph for {s.subject.name}">
+                    data-chart-name="{s.subject.name}" aria-label="{msg:showFrequencyGraphFor(s.subject.name)}">
                 {#include partials/icon name='chart-bar' cls='chart-open-glyph' /}
-                {#include partials/tooltip text="Frequency graph" align="right" /}
+                {#include partials/tooltip text=msg:frequencyGraphTooltip align="right" /}
             </button>
         </div>
 
@@ -25,7 +25,7 @@
              StatTile (see SubjectStatsExtensions.tiles). !}
         <dl class="grid stat-tile-grid gap-2">
             {#for tile in s.tiles(statsFields, decimalPlaces)}
-            {#include partials/stat-tile label=tile.label value=tile.value sub=tile.sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}
+                {#include partials/stat-tile-row tile=tile compact=false /}
             {/for}
         </dl>
 

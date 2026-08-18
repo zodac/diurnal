@@ -20,6 +20,7 @@ package net.zodac.diurnal.web.admin;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
+import io.quarkus.qute.i18n.MessageBundles;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -69,6 +70,7 @@ public class AdminUsersInternalResource {
     private final Template adminUsersListTemplate;
     private final Template adminUserRowTemplate;
     private final Template confirmDeleteRowTemplate;
+    private final Template adminMessagesTemplate;
     private final SecurityIdentity identity;
     private final CurrentUser currentUser;
     private final AdminUserService adminUserService;
@@ -82,6 +84,7 @@ public class AdminUsersInternalResource {
      * @param adminUsersListTemplate the paginated admin-users-list partial template
      * @param adminUserRowTemplate the single admin-user-row partial template
      * @param confirmDeleteRowTemplate the delete-confirmation row partial template
+     * @param adminMessagesTemplate the fixed-shape admin banner/prompt message partial template
      * @param identity the calling administrator's security identity
      * @param currentUser the current-user accessor
      * @param adminUserService the shared admin-user-mutation service
@@ -91,12 +94,14 @@ public class AdminUsersInternalResource {
     @Inject
     public AdminUsersInternalResource(@Location("partials/admin-users-list") final Template adminUsersListTemplate,
         @Location("partials/admin-user-row") final Template adminUserRowTemplate,
-        @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate, final SecurityIdentity identity,
+        @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
+        @Location("partials/admin-messages") final Template adminMessagesTemplate, final SecurityIdentity identity,
         final CurrentUser currentUser, final AdminUserService adminUserService, final SessionActivityService sessionActivityService,
         final AppClock clock) {
         this.adminUsersListTemplate = adminUsersListTemplate;
         this.adminUserRowTemplate = adminUserRowTemplate;
         this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
+        this.adminMessagesTemplate = adminMessagesTemplate;
         this.identity = identity;
         this.currentUser = currentUser;
         this.adminUserService = adminUserService;
@@ -115,7 +120,8 @@ public class AdminUsersInternalResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance usersList(@QueryParam("page") @DefaultValue("1") final int pageNum) {
         final User actor = currentUser.get();
-        return adminUsersListTemplate.data("page", pageRows(adminUserService.usersPage(pageNum, PageSizes.forSection(actor, PageSection.USERS))));
+        return adminUsersListTemplate.data("page", pageRows(adminUserService.usersPage(pageNum, PageSizes.forSection(actor, PageSection.USERS))))
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale(actor));
     }
 
     /**
@@ -128,11 +134,12 @@ public class AdminUsersInternalResource {
     @Path("{id}")
     @Produces(MediaType.TEXT_HTML)
     public Response userRow(@PathParam("id") final UUID id) {
+        final Locale locale = locale(currentUser.get());
         final User target = adminUserService.find(id);
         if (target == null) {
-            return HtmxResponses.conflictBanner("#admin-error", "User not found.");
+            return HtmxResponses.conflictBanner("#admin-error", messageBanner("userNotFound", locale));
         }
-        return Response.ok(adminUserRowTemplate.data("u", singleRow(target))).build();
+        return Response.ok(adminUserRowTemplate.data("u", singleRow(target)).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
     }
 
     /**
@@ -145,9 +152,10 @@ public class AdminUsersInternalResource {
     @Path("{id}/confirm-delete")
     @Produces(MediaType.TEXT_HTML)
     public Response confirmDeleteUser(@PathParam("id") final UUID id) {
+        final Locale locale = locale(currentUser.get());
         final User target = adminUserService.find(id);
         if (target == null) {
-            return HtmxResponses.conflictBanner("#admin-error", "User not found.");
+            return HtmxResponses.conflictBanner("#admin-error", messageBanner("userNotFound", locale));
         }
         // Admin delete re-renders the whole list (innerHTML), so the confirmation row's destructive
         // POST targets #admin-users-list; Cancel restores just this row from /internal/admin/users/{id}.
@@ -156,11 +164,12 @@ public class AdminUsersInternalResource {
                 .data("cols", 8)
                 .data("swatchColour", null)
                 .data("label", target.email)
-                .data("prompt", "Delete this user, their actions and logs?")
+                .data("prompt", messageBanner("deleteUserPrompt", locale))
                 .data("deleteUrl", "/internal/admin/users/" + id + "/delete")
                 .data("deleteTarget", "#admin-users-list")
                 .data("deleteSwap", "innerHTML")
-                .data("restoreUrl", "/internal/admin/users/" + id)).build();
+                .data("restoreUrl", "/internal/admin/users/" + id)
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
     }
 
     /**
@@ -176,13 +185,15 @@ public class AdminUsersInternalResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response changeRole(@PathParam("id") final UUID id, @FormParam("role") final String role) {
+        final Locale locale = locale(currentUser.get());
         return switch (adminUserService.changeRole(identity.getPrincipal().getName(), id, role)) {
-            case final AdminUserResult.InvalidRole _ -> HtmxResponses.conflictBanner("#admin-error", "Invalid role value.");
-            case final AdminUserResult.NotFound _ -> HtmxResponses.conflictBanner("#admin-error", "User not found.");
-            case final AdminUserResult.LastAdmin _ -> HtmxResponses.conflictBanner("#admin-error", "Cannot remove the last administrator.");
+            case final AdminUserResult.InvalidRole _ -> HtmxResponses.conflictBanner("#admin-error", messageBanner("invalidRole", locale));
+            case final AdminUserResult.NotFound _ -> HtmxResponses.conflictBanner("#admin-error", messageBanner("userNotFound", locale));
+            case final AdminUserResult.LastAdmin _ -> HtmxResponses.conflictBanner("#admin-error", messageBanner("lastAdminRemove", locale));
             // Re-render just this row (outerHTML) so the surrounding rows don't repaint — the edited row
             // swaps straight from its edit state to a fresh view state, with no whole-list flash.
-            case final AdminUserResult.Success success -> Response.ok(adminUserRowTemplate.data("u", singleRow(success.user()))).build();
+            case final AdminUserResult.Success success -> Response.ok(
+                adminUserRowTemplate.data("u", singleRow(success.user())).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
         };
     }
 
@@ -197,11 +208,13 @@ public class AdminUsersInternalResource {
     @Produces(MediaType.TEXT_HTML)
     @Transactional
     public Response deleteUser(@PathParam("id") final UUID id) {
+        final Locale locale = locale(currentUser.get());
         return switch (adminUserService.deleteUser(identity.getPrincipal().getName(), id)) {
-            case final AdminUserResult.NotFound _ -> HtmxResponses.conflictBanner("#admin-error", "User not found.");
-            case final AdminUserResult.LastAdmin _ -> HtmxResponses.conflictBanner("#admin-error", "Cannot delete the last administrator.");
-            case final AdminUserResult.InvalidRole _ -> HtmxResponses.conflictBanner("#admin-error", "Invalid role value.");
-            case final AdminUserResult.Success _ -> Response.ok(adminUsersListTemplate.data("page", pageRows(firstPage()))).build();
+            case final AdminUserResult.NotFound _ -> HtmxResponses.conflictBanner("#admin-error", messageBanner("userNotFound", locale));
+            case final AdminUserResult.LastAdmin _ -> HtmxResponses.conflictBanner("#admin-error", messageBanner("lastAdminDelete", locale));
+            case final AdminUserResult.InvalidRole _ -> HtmxResponses.conflictBanner("#admin-error", messageBanner("invalidRole", locale));
+            case final AdminUserResult.Success _ -> Response.ok(
+                adminUsersListTemplate.data("page", pageRows(firstPage())).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
         };
     }
 
@@ -248,6 +261,14 @@ public class AdminUsersInternalResource {
 
     private static DateTimeFormatter formatter(final ZoneId zone) {
         return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ROOT).withZone(zone);
+    }
+
+    private String messageBanner(final String key, final Locale locale) {
+        return adminMessagesTemplate.data("key", key).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+    }
+
+    private static Locale locale(final User user) {
+        return Locale.forLanguageTag(user.language);
     }
 
     // The timestamps are rendered in the viewing administrator's configured timezone (falling back to

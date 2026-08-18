@@ -7,9 +7,9 @@
     {#include partials/navbar active='admin' /}
 
     <main id="admin-users-main" class="page-container px-4 py-8">
-        <h2 class="page-title mb-2">User Management</h2>
+        <h2 class="page-title mb-2">{msg:userManagementPageTitle}</h2>
         <p class="page-subtitle">
-            Manage user accounts and roles.
+            {msg:userManagementSubtitle}
         </p>
 
         {! Error target for inline HTMX errors !}

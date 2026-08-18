@@ -5,11 +5,11 @@
 {#if future}
 {! Future dates cannot be logged against !}
 <p class="empty-note">
-    Actions can't be logged for a future date.
+    {msg:actionsCannotBeLoggedFuture}
 </p>
 {#else}
 {! Search bar !}
-{#include partials/search-input id="day-search-input" url=str:fmt('/internal/logs/day/%s/list?page=1', date) target="#day-actions-list" placeholder="Search actions…" /}
+{#include partials/search-input id="day-search-input" url=str:fmt('/internal/logs/day/%s/list?page=1', date) target="#day-actions-list" placeholder=msg:searchActionsPlaceholder /}
 
 {! Actions list !}
 <div id="day-actions-list" class="flex flex-col gap-1">

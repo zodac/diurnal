@@ -23,7 +23,7 @@
             <button hx-get="/internal/admin/ip-lockouts/{row.id}/confirm-unlock"
                     hx-target="#ip-lockout-row-{row.id}"
                     hx-swap="outerHTML"
-                    class="dt-btn dt-btn-delete">Unlock</button>
+                    class="dt-btn dt-btn-delete">{msg:unlock}</button>
         </div>
         {/if}
     </td>

@@ -32,6 +32,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import net.zodac.diurnal.auth.lockout.LockoutMessages;
 import net.zodac.diurnal.auth.session.Session;
 import net.zodac.diurnal.auth.session.SessionStore;
@@ -172,9 +173,10 @@ public class AuthResource {
     private static String invalidMessage(final RegistrationResult.Invalid invalid) {
         final List<String> parts = new ArrayList<>();
         if (!invalid.missingFields().isEmpty()) {
-            parts.add("Missing required fields: " + String.join(", ", invalid.missingFields()));
+            final String fields = invalid.missingFields().stream().map(RegistrationService::label).collect(Collectors.joining(", "));
+            parts.add("Missing required fields: " + fields);
         }
-        parts.addAll(invalid.errors());
+        invalid.errors().stream().map(RegistrationService::message).forEach(parts::add);
         return String.join(" ", parts);
     }
 

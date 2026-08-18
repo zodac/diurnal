@@ -128,8 +128,10 @@ public class RegistrationService {
         final TextOutcome displayNameOutcome = TextValidation.check(TextFields.DISPLAY_NAME, displayNameValue);
         final TextOutcome passwordOutcome = TextValidation.check(TextFields.PASSWORD, passwordValue);
 
-        final List<String> missingFields = missingFields(emailOutcome, displayNameOutcome, passwordOutcome, confirmPassword);
-        final List<String> errors = errors(emailOutcome, displayNameOutcome, passwordOutcome, passwordValue, confirmPassword);
+        final List<RegistrationResult.RequiredField> missingFields =
+            missingFields(emailOutcome, displayNameOutcome, passwordOutcome, confirmPassword);
+        final List<RegistrationError> errors =
+            errors(emailOutcome, displayNameOutcome, passwordOutcome, passwordValue, confirmPassword);
         if (!missingFields.isEmpty() || !errors.isEmpty()) {
             RegistrationAttemptLog.logFailure(LOGGER, ipLockoutService.recordFailure(clientIp, now), emailValue, clientIp);
             return new RegistrationResult.Invalid(missingFields, errors);
@@ -195,44 +197,75 @@ public class RegistrationService {
         return new RegistrationResult.Success(user);
     }
 
-    private static List<String> missingFields(final TextOutcome email, final TextOutcome displayName, final TextOutcome password,
-        final @Nullable String confirmPassword) {
-        final List<String> missing = new ArrayList<>();
-        addIfBlank(missing, email, "Email");
-        addIfBlank(missing, displayName, "Display name");
-        addIfBlank(missing, password, "Password");
+    private static List<RegistrationResult.RequiredField> missingFields(final TextOutcome email, final TextOutcome displayName,
+        final TextOutcome password, final @Nullable String confirmPassword) {
+        final List<RegistrationResult.RequiredField> missing = new ArrayList<>();
+        addIfBlank(missing, email, RegistrationResult.RequiredField.EMAIL);
+        addIfBlank(missing, displayName, RegistrationResult.RequiredField.DISPLAY_NAME);
+        addIfBlank(missing, password, RegistrationResult.RequiredField.PASSWORD);
         // Surface policy: the confirmation is a web-form-only field with no stored value, so it has no catalogue entry of its own.
         if (confirmPassword != null && confirmPassword.isEmpty()) {
-            missing.add("Confirm password");
+            missing.add(RegistrationResult.RequiredField.CONFIRM_PASSWORD);
         }
         return missing;
     }
 
-    private static void addIfBlank(final List<String> missing, final TextOutcome outcome, final String label) {
+    private static void addIfBlank(final List<RegistrationResult.RequiredField> missing, final TextOutcome outcome,
+        final RegistrationResult.RequiredField field) {
         if (outcome instanceof TextOutcome.Blank) {
-            missing.add(label);
+            missing.add(field);
         }
     }
 
-    private static List<String> errors(final TextOutcome email, final TextOutcome displayName, final TextOutcome password,
-        final String passwordValue, final @Nullable String confirmPassword) {
-        final List<String> errors = new ArrayList<>();
+    private static List<RegistrationError> errors(final TextOutcome email, final TextOutcome displayName,
+        final TextOutcome password, final String passwordValue, final @Nullable String confirmPassword) {
+        final List<RegistrationError> errors = new ArrayList<>();
         addRejection(errors, email);
         addRejection(errors, displayName);
         addRejection(errors, password);
 
         if (confirmPassword != null && !passwordValue.isEmpty() && !confirmPassword.isEmpty() && !passwordValue.equals(confirmPassword)) {
-            errors.add("The passwords did not match.");
+            errors.add(new RegistrationError.PasswordMismatch());
         }
 
         return errors;
     }
 
     // A blank value is already listed by missingFields(), so only a real length/content problem is worded as an error here.
-    private static void addRejection(final List<String> errors, final TextOutcome outcome) {
+    private static void addRejection(final List<RegistrationError> errors, final TextOutcome outcome) {
         if (outcome instanceof final TextOutcome.Failure failure && !(failure instanceof TextOutcome.Blank)) {
-            errors.add(TextOutcomeExtensions.message(failure));
+            errors.add(new RegistrationError.FieldError(failure));
         }
+    }
+
+    /**
+     * The English wording for a required field left blank, for the API's {@code 400} body. The web surface instead resolves a translated label from
+     * the field's {@link RegistrationResult.RequiredField#key()} in {@code register.html}.
+     *
+     * @param field the blank field
+     * @return the default (English) label
+     */
+    public static String label(final RegistrationResult.RequiredField field) {
+        return switch (field) {
+            case EMAIL -> "Email";
+            case DISPLAY_NAME -> "Display name";
+            case PASSWORD -> "Password";
+            case CONFIRM_PASSWORD -> "Confirm password";
+        };
+    }
+
+    /**
+     * The English wording for a rejected (present but invalid) registration field, for the API's {@code 400} body. The web surface instead resolves
+     * a translated sentence via {@code partials/text-failure-message.html}/{@code partials/password-rejection.html}.
+     *
+     * @param error the rejection cause
+     * @return the default (English) message
+     */
+    public static String message(final RegistrationError error) {
+        return switch (error) {
+            case final RegistrationError.FieldError fieldError -> TextOutcomeExtensions.message(fieldError.failure());
+            case final RegistrationError.PasswordMismatch _ -> "Passwords do not match";
+        };
     }
 
     // The normalised value the single pipeline pass produced. The fallback is unreachable from register() (every field is known to be Valid by the

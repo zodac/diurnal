@@ -59,9 +59,9 @@ public sealed interface ImportResult permits ImportResult.Previewed, ImportResul
     /**
      * The upload could not be read as an archive at all - it is not a ZIP, it is empty, or it decompresses past the size caps.
      *
-     * @param reason the human-readable cause
+     * @param reason the cause
      */
-    record Malformed(String reason) implements ImportResult {
+    record Malformed(ImportReason reason) implements ImportResult {
 
     }
 }

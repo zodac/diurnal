@@ -94,7 +94,7 @@ public class UserResource {
     @Operation(
         summary = "Get the current user",
         description = "Returns the authenticated user's profile: ID, email, display name, role, and a "
-        + "nested preferences object (theme, font, pageSize, showStatsSummary, decimalPlaces, "
+        + "nested preferences object (theme, font, language, pageSize, showStatsSummary, decimalPlaces, "
         + "calendarView, statsFields, timezone)."
     )
     @SecurityRequirement(name = "BearerAuth")
@@ -153,10 +153,10 @@ public class UserResource {
         final User user = currentUser.get();
         if (request != null) {
             final ProfileResult result = applyUpdates(user, request);
-            if (result instanceof ProfileResult.Invalid(final String message)) {
+            if (result instanceof ProfileResult.Invalid(final ProfileRejection rejection)) {
                 // A rejected field leaves any field applied before it mutated on the managed entity; the class-level @RollbackOnErrorStatus rolls
                 // the whole transaction back on this 400, so a rejected request never silently persists part of a mutation.
-                return Response.status(Response.Status.BAD_REQUEST).entity(new ApiErrorResponse(message)).build();
+                return Response.status(Response.Status.BAD_REQUEST).entity(new ApiErrorResponse(ProfileService.message(rejection))).build();
             }
         }
         return Response.ok(UserDto.from(user)).build();
@@ -203,7 +203,7 @@ public class UserResource {
                     .entity(new ApiErrorResponse(PasswordChangeService.CURRENT_PASSWORD_ERROR))
                     .build();
             case final PasswordChangeResult.InvalidNewPassword invalid -> Response.status(Response.Status.BAD_REQUEST)
-                    .entity(new ApiErrorResponse(invalid.message()))
+                    .entity(new ApiErrorResponse(PasswordChangeService.message(invalid.reason())))
                     .build();
         };
     }
@@ -241,6 +241,12 @@ public class UserResource {
         }
         if (preferences.font() != null) {
             result = profileService.updateFont(user, preferences.font());
+            if (result instanceof ProfileResult.Invalid) {
+                return result;
+            }
+        }
+        if (preferences.language() != null) {
+            result = profileService.updateLanguage(user, preferences.language());
             if (result instanceof ProfileResult.Invalid) {
                 return result;
             }
@@ -337,6 +343,7 @@ public class UserResource {
      *
      * @param theme            the UI colour scheme; unrecognised values are rejected
      * @param font             the UI font family; unrecognised values are rejected
+     * @param language         the UI language; unrecognised values are rejected
      * @param calendarView     the dashboard calendar layout; unrecognised values are rejected
      * @param noteColour       the {@code #rrggbb} colour the user's day notes are shown in; anything else is rejected
      * @param showNoteCounter  whether the dashboard note box shows its character counter
@@ -353,6 +360,9 @@ public class UserResource {
         @Nullable String theme,
         @Schema(examples = "nova", description = "The UI font family: 'nova', 'standard' or 'dyslexic'; anything else is rejected.")
         @Nullable String font,
+        @Schema(examples = "en-GB",
+        description = "The UI language: 'en-GB', 'en-US', 'es-ES', 'es-419', 'ar-SA' or 'ja-JP'; anything else is rejected.")
+        @Nullable String language,
         @Schema(examples = "full", description = "Dashboard calendar layout: 'full', 'minimal' or 'stacked'; anything else is rejected.")
         @Nullable String calendarView,
         @Schema(examples = UserSettings.DEFAULT_NOTE_COLOUR,

@@ -21,6 +21,7 @@ import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.security.ForbiddenException;
 import io.quarkus.security.identity.SecurityIdentity;
+import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.core.Response;
@@ -52,11 +53,12 @@ public class ForbiddenExceptionMapper {
      * {@link SecurityIdentity} is resolved synchronously here (unlike the 404 mapper, which runs on unmatched routes) because a denied request has
      * already passed through authentication.
      *
-     * @param exception the forbidden exception (its cause does not affect the page)
+     * @param exception      the forbidden exception (its cause does not affect the page)
+     * @param routingContext the request routing context, read only for its {@code Accept-Language} header
      * @return the styled 403 HTML {@link Response}
      */
     @ServerExceptionMapper
-    public Response toResponse(final ForbiddenException exception) {
-        return ErrorPages.render(errorTemplate, Response.Status.FORBIDDEN, identity);
+    public Response toResponse(final ForbiddenException exception, final RoutingContext routingContext) {
+        return ErrorPages.render(errorTemplate, Response.Status.FORBIDDEN, identity, routingContext.request().getHeader("Accept-Language"));
     }
 }

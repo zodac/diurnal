@@ -1,0 +1,15 @@
+{!
+  ActionsInternalResource's translated fixed-shape text: the InvalidColour/DuplicateName banners plus
+  the delete-confirmation prompt (previously a raw Java string handed to dt-confirm-delete-row.html as
+  inert data, which never resolves per-locale - see I18N.md's Phase 1 writeup). BlankName/NameTooLong/
+  InvalidName instead render partials/text-failure-message.html (they carry a TextOutcome.Failure, not
+  a fixed key). The API's own JSON error text is untouched by this file - it is a separate literal in
+  ActionsApiResource. Params:
+    key  — 'invalidColour' | 'duplicate' | 'deletePrompt'
+    name — the colliding name, only used by 'duplicate'
+!}
+{#switch key}
+    {#is 'invalidColour'}{msg:actionColourInvalid}
+    {#is 'duplicate'}{msg:duplicateActionName(name)}
+    {#is 'deletePrompt'}{msg:deleteActionPrompt}
+{/switch}

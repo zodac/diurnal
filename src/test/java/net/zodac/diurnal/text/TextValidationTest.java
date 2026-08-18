@@ -239,7 +239,7 @@ class TextValidationTest {
     @Test
     void check_multipleRules_reportsTheFirstFailure() {
         final TextRule alwaysFails = new TextRule("alwaysFails", value -> false, "Never satisfied.");
-        final TextField field = TextField.of("Test", 1, 50).withRules(TextRules.EMAIL_SHAPE, alwaysFails);
+        final TextField field = TextField.of("test", "Test", 1, 50).withRules(TextRules.EMAIL_SHAPE, alwaysFails);
 
         assertThat(TextValidation.check(field, "no-at-symbol"))
             .as("the first failing rule must be the one reported")

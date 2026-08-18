@@ -19,6 +19,7 @@ package net.zodac.diurnal.web.admin;
 
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
+import io.quarkus.qute.i18n.MessageBundles;
 import io.quarkus.security.identity.SecurityIdentity;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
@@ -67,6 +68,7 @@ public class AdminIpLockoutsInternalResource {
     private final Template adminIpLockoutsTableTemplate;
     private final Template adminIpLockoutRowTemplate;
     private final Template confirmDeleteRowTemplate;
+    private final Template adminMessagesTemplate;
     private final SecurityIdentity identity;
     private final CurrentUser currentUser;
     private final IpLockoutService ipLockoutService;
@@ -80,6 +82,7 @@ public class AdminIpLockoutsInternalResource {
      * @param adminIpLockoutsTableTemplate the lockout-table partial template
      * @param adminIpLockoutRowTemplate    the single lockout-row partial template
      * @param confirmDeleteRowTemplate     the shared in-place confirm-row partial template (reused for the unlock confirmation)
+     * @param adminMessagesTemplate        the fixed-shape admin banner/prompt message partial template
      * @param identity                     the calling administrator's security identity
      * @param currentUser                  the current-user accessor
      * @param ipLockoutService             the shared per-IP lockout service
@@ -89,11 +92,13 @@ public class AdminIpLockoutsInternalResource {
     @Inject
     public AdminIpLockoutsInternalResource(@Location("partials/admin-ip-lockouts-table") final Template adminIpLockoutsTableTemplate,
         @Location("partials/admin-ip-lockout-row") final Template adminIpLockoutRowTemplate,
-        @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate, final SecurityIdentity identity,
+        @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
+        @Location("partials/admin-messages") final Template adminMessagesTemplate, final SecurityIdentity identity,
         final CurrentUser currentUser, final IpLockoutService ipLockoutService, final IpThrottleConfig ipThrottleConfig, final AppClock clock) {
         this.adminIpLockoutsTableTemplate = adminIpLockoutsTableTemplate;
         this.adminIpLockoutRowTemplate = adminIpLockoutRowTemplate;
         this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
+        this.adminMessagesTemplate = adminMessagesTemplate;
         this.identity = identity;
         this.currentUser = currentUser;
         this.ipLockoutService = ipLockoutService;
@@ -118,7 +123,8 @@ public class AdminIpLockoutsInternalResource {
         final ZoneId zone = clock.zoneFor(actor.timezone);
         final Instant now = clock.now();
         final PaginatedIpLockouts history = toHistory(ipLockoutService.history(pageNum, actor.pageSize, now), zone, now);
-        return Response.ok(adminIpLockoutsTableTemplate.data("history", history)).build();
+        return Response.ok(adminIpLockoutsTableTemplate.data("history", history)
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale(actor))).build();
     }
 
     /**
@@ -135,9 +141,10 @@ public class AdminIpLockoutsInternalResource {
         if (!ipThrottleConfig.enabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
+        final Locale locale = locale(currentUser.get());
         final IpLockout lockout = ipLockoutService.find(id);
         if (lockout == null) {
-            return HtmxResponses.conflictBanner("#admin-error", "That lockout no longer exists.");
+            return HtmxResponses.conflictBanner("#admin-error", messageBanner("lockoutNotFound", locale));
         }
         // Unlock re-renders the whole table (innerHTML), so the confirm row's destructive POST targets #ip-lockouts-table; Cancel restores just this
         // row from /internal/admin/ip-lockouts/{id}/row. The unlock itself is keyed by IP (it clears the in-memory enforcement entry for the IP).
@@ -146,12 +153,13 @@ public class AdminIpLockoutsInternalResource {
                 .data("cols", 5)
                 .data("swatchColour", null)
                 .data("label", lockout.ipAddress)
-                .data("prompt", "Unlock this IP so it can log in and register again?")
-                .data("confirmLabel", "Unlock")
+                .data("prompt", messageBanner("unlockPrompt", locale))
+                .data("confirmLabel", messageBanner("unlockLabel", locale))
                 .data("deleteUrl", "/internal/admin/ip-lockouts/" + lockout.ipAddress + "/unlock")
                 .data("deleteTarget", "#ip-lockouts-table")
                 .data("deleteSwap", "innerHTML")
-                .data("restoreUrl", "/internal/admin/ip-lockouts/" + id + "/row")).build();
+                .data("restoreUrl", "/internal/admin/ip-lockouts/" + id + "/row")
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
     }
 
     /**
@@ -167,12 +175,15 @@ public class AdminIpLockoutsInternalResource {
         if (!ipThrottleConfig.enabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
+        final User actor = currentUser.get();
+        final Locale locale = locale(actor);
         final IpLockout lockout = ipLockoutService.find(id);
         if (lockout == null) {
-            return HtmxResponses.conflictBanner("#admin-error", "That lockout no longer exists.");
+            return HtmxResponses.conflictBanner("#admin-error", messageBanner("lockoutNotFound", locale));
         }
-        final ZoneId zone = clock.zoneFor(currentUser.get().timezone);
-        return Response.ok(adminIpLockoutRowTemplate.data("row", singleRow(lockout, zone, clock.now()))).build();
+        final ZoneId zone = clock.zoneFor(actor.timezone);
+        return Response.ok(adminIpLockoutRowTemplate.data("row", singleRow(lockout, zone, clock.now()))
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
     }
 
     /**
@@ -189,14 +200,16 @@ public class AdminIpLockoutsInternalResource {
         if (!ipThrottleConfig.enabled()) {
             return Response.status(Response.Status.NOT_FOUND).build();
         }
+        final Locale locale = locale(currentUser.get());
         return switch (ipLockoutService.unlock(identity.getPrincipal().getName(), ip, clock.now())) {
-            case final IpUnlockResult.NotLocked _ -> HtmxResponses.conflictBanner("#admin-error", "That IP is no longer locked out.");
+            case final IpUnlockResult.NotLocked _ -> HtmxResponses.conflictBanner("#admin-error", messageBanner("ipNotLocked", locale));
             case final IpUnlockResult.Success _ -> {
                 final User actor = currentUser.get();
                 final ZoneId zone = clock.zoneFor(actor.timezone);
                 final Instant now = clock.now();
                 yield Response.ok(adminIpLockoutsTableTemplate
-                        .data("history", toHistory(ipLockoutService.history(1, actor.pageSize, now), zone, now))).build();
+                        .data("history", toHistory(ipLockoutService.history(1, actor.pageSize, now), zone, now))
+                        .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
             }
         };
     }
@@ -225,6 +238,14 @@ public class AdminIpLockoutsInternalResource {
 
     private static DateTimeFormatter formatter(final ZoneId zone) {
         return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ROOT).withZone(zone);
+    }
+
+    private String messageBanner(final String key, final Locale locale) {
+        return adminMessagesTemplate.data("key", key).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+    }
+
+    private static Locale locale(final User user) {
+        return Locale.forLanguageTag(user.language);
     }
 
     /**

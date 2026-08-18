@@ -21,8 +21,8 @@ package net.zodac.diurnal.text;
  * The shared catalogue of {@link TextRule}s, so a content check is written once and referenced by every field that wants it.
  *
  * <p>
- * A rule that should apply to EVERY text input belongs in the defaults of {@link TextField#of(String, int, int)} rather than here, so no field can be
- * added that quietly skips it.
+ * A rule that should apply to EVERY text input belongs in the defaults of {@link TextField#of(String, String, int, int)} rather than here, so no
+ * field can be added that quietly skips it.
  */
 public final class TextRules { // NOPMD: DataClass - a catalogue of rule constants; the branching lives in the predicates behind them
 

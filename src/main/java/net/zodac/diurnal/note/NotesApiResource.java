@@ -44,6 +44,7 @@ import net.zodac.diurnal.log.DateRanges;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
+import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
@@ -329,7 +330,7 @@ public class NotesApiResource {
             case final NoteResult.Saved saved -> Response.ok(new NoteDto(saved.date().toString(), saved.content())).build();
             case final NoteResult.Cleared cleared -> Response.ok(new NoteDto(cleared.date().toString(), "")).build();
             case final NoteResult.Invalid invalid -> Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ApiErrorResponse(invalid.message()))
+                .entity(new ApiErrorResponse(TextOutcomeExtensions.message(invalid.failure())))
                 .build();
         };
     }

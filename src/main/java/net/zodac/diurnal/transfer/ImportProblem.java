@@ -30,8 +30,8 @@ package net.zodac.diurnal.transfer;
  *
  * @param file   the archive member the problem is in, or the archive itself when a whole member is missing
  * @param line   the 1-based line, or {@code 0} when the problem is with the member as a whole rather than a row in it
- * @param reason the human-readable cause
+ * @param reason the cause
  */
-public record ImportProblem(String file, int line, String reason) {
+public record ImportProblem(String file, int line, ImportReason reason) {
 
 }

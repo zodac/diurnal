@@ -146,7 +146,7 @@ public final class TransferArchive {
      */
     static ArchiveOutcome unpack(final byte[] archive, final int maxEntries, final int maxMemberBytes, final int maxArchiveBytes) {
         if (!hasZipMagic(archive)) {
-            return new ArchiveOutcome.Malformed("The uploaded file is not a ZIP archive.");
+            return new ArchiveOutcome.Malformed(new ImportReason.NotZipArchive());
         }
 
         final Map<String, String> members = new LinkedHashMap<>();
@@ -161,7 +161,7 @@ public final class TransferArchive {
                 }
                 entries++;
                 if (entries > maxEntries) {
-                    return new ArchiveOutcome.Malformed("The uploaded archive holds more than " + maxEntries + " entries.");
+                    return new ArchiveOutcome.Malformed(new ImportReason.TooManyEntries(maxEntries));
                 }
                 if (entry.isDirectory() || !TransferFiles.ALL_FILES.contains(entry.getName())) {
                     continue;
@@ -170,7 +170,7 @@ public final class TransferArchive {
                 final int remaining = maxArchiveBytes - totalBytes;
                 final Optional<byte[]> content = readCapped(zip, Math.min(maxMemberBytes, remaining));
                 if (content.isEmpty()) {
-                    return new ArchiveOutcome.Malformed("The uploaded archive is too large once decompressed.");
+                    return new ArchiveOutcome.Malformed(new ImportReason.ArchiveTooLarge());
                 }
 
                 totalBytes += content.get().length;
@@ -179,7 +179,7 @@ public final class TransferArchive {
         } catch (final IOException e) {
             // The returned message carries only the reason; the stack trace stays here, where it says which member the reader gave up on.
             LOGGER.trace("Unable to unpack the uploaded archive", e);
-            return new ArchiveOutcome.Malformed("The uploaded archive could not be read: " + e.getMessage());
+            return new ArchiveOutcome.Malformed(new ImportReason.ArchiveUnreadable(e.getMessage()));
         }
 
         return new ArchiveOutcome.Unpacked(Map.copyOf(members));

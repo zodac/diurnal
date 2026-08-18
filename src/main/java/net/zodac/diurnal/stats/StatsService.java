@@ -296,13 +296,12 @@ public class StatsService {
         final boolean offersNotes = !excluded.contains(StatSubject.NOTES_ID)
             && Note.count("userId = ?1", userId) > 0L
             && (term.isEmpty() || notes.name().toLowerCase(Locale.ENGLISH).contains(term));
-        if (!offersNotes) {
-            return actions;
-        }
 
         // Notes are pinned ahead of the actions, exactly as forAllSubjects pins them on the Stats page.
         final List<StatSubject> candidates = new ArrayList<>(actions.size() + 1);
-        candidates.add(notes);
+        if (offersNotes) {
+            candidates.add(notes);
+        }
         candidates.addAll(actions);
         return List.copyOf(candidates);
     }

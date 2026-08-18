@@ -22,59 +22,19 @@ import java.util.List;
 import net.zodac.diurnal.user.Role;
 
 /**
- * Derived display labels computed from a {@link UserRow} record.
+ * Derived display data computed from a {@link UserRow} record.
  *
  * <p>
  * Held here, off the {@code UserRow} data record, so the branching logic can be unit- and mutation-tested in isolation — the same data/logic split as
- * {@code SubjectStatsExtensions}. The methods are {@link TemplateExtension}s, so Qute resolves {@code {u.roleName}} against a {@code UserRow} value,
- * and {@code {role:options}} against the {@link Role} catalogue, in the admin users table.
+ * {@code SubjectStatsExtensions}. {@code {role:options}} is a {@link TemplateExtension} resolving against the {@link Role} catalogue, in the admin
+ * users table. The role/auth-source/"Never" LABELS themselves are resolved template-side (a {@code {#switch}} on {@code u.role}/{@code u.authSource}
+ * calling {@code {msg:...}}), not here — {@code AppMessages} is locale-bound per {@code TemplateInstance} (see its Javadoc), so a Java-side call from
+ * this class would always return the English default regardless of the viewing administrator's language. See I18N.md's Phase 1 "third bucket" notes.
  */
 public final class UserRowExtensions {
 
     private UserRowExtensions() {
 
-    }
-
-    /**
-     * The human-readable role label shown in the table, derived from the {@link Role} catalogue.
-     *
-     * @param row the row to inspect
-     * @return the display name of the row's role (falls back to {@link Role#USER} for unknown values)
-     */
-    @TemplateExtension
-    public static String roleName(final UserRow row) {
-        return Role.fromStorageValue(row.role()).displayName();
-    }
-
-    /**
-     * The tooltip shown on the row's date cells, naming the timezone the timestamps are rendered in.
-     *
-     * <p>
-     * Built here rather than inline in the template because Qute takes a quoted {@code {#include}} parameter literally —
-     * {@code text="Timezone: {u.zoneLabel}"} would render the braces verbatim — so the fully-composed string must be passed as a single expression
-     * ({@code text=u.zoneTooltip}).
-     *
-     * @param row the row to inspect
-     * @return the timezone tooltip label, e.g. {@code "Timezone: Europe/London"}
-     */
-    @TemplateExtension
-    public static String zoneTooltip(final UserRow row) {
-        return "Timezone: " + row.zoneLabel();
-    }
-
-    /**
-     * The human-readable sign-in-source label shown in the table's "Sign-in" column.
-     *
-     * @param row the row to inspect
-     * @return {@code "Local"}, {@code "OIDC"} or {@code "Local + OIDC"} (falls back to {@code "Local"} for unknown values)
-     */
-    @TemplateExtension
-    public static String authSourceLabel(final UserRow row) {
-        return switch (row.authSource()) {
-            case "oidc" -> "OIDC";
-            case "local+oidc" -> "Local + OIDC";
-            default -> "Local";
-        };
     }
 
     /**

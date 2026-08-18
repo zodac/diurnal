@@ -20,12 +20,14 @@ package net.zodac.diurnal.action;
 import io.quarkus.qute.Location;
 import io.quarkus.qute.Template;
 import io.quarkus.qute.TemplateInstance;
+import io.quarkus.qute.i18n.MessageBundles;
 import jakarta.annotation.security.RolesAllowed;
 import jakarta.inject.Inject;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.core.MediaType;
+import java.util.Locale;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
@@ -81,6 +83,8 @@ public class ActionsWebResource {
                 .data("page", page)
                 .data("suggestedColour", actionService.suggestColour(user))
                 .data("theme", user.theme)
-                .data("font", user.font);
+                .data("font", user.font)
+                .data("language", user.language)
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag(user.language));
     }
 }

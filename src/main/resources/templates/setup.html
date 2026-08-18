@@ -4,17 +4,15 @@
 {#include partials/centered-card}
 
     {#include partials/card-wordmark /}
-    <p class="text-sm text-ink-muted mb-6">Welcome — let's get you set up</p>
+    <p class="text-sm text-ink-muted mb-6">{msg:setupWelcomeSubtitle}</p>
 
     <div class="space-y-4 text-sm text-ink">
         <p>
-            <span class="font-medium">Diurnal</span> helps you track the habits and actions you
-            care about. Log what you do each day, build streaks, and review your progress on the
-            dashboard calendar and the stats pages.
+            <span class="font-medium">Diurnal</span> {msg:setupIntro}
         </p>
     </div>
     <a href="/register" class="btn-primary w-full mt-6">
-        Create administrator account
+        {msg:createAdministratorAccount}
     </a>
 
 {/include}

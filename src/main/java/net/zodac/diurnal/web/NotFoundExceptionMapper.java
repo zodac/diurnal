@@ -62,7 +62,8 @@ public class NotFoundExceptionMapper {
             if (identity.isAnonymous() && isWebNavigation(routingContext)) {
                 return Response.seeOther(URI.create("/login")).build();
             }
-            return ErrorPages.render(errorTemplate, Response.Status.NOT_FOUND, identity);
+            return ErrorPages.render(errorTemplate, Response.Status.NOT_FOUND, identity,
+                routingContext.request().getHeader("Accept-Language"));
         });
     }
 

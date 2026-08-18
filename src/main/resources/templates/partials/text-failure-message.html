@@ -1,0 +1,66 @@
+{!
+  Translated text for a rejected free-text submission (net.zodac.diurnal.text.TextOutcome.Failure),
+  rendered via a nested Template.render() call from the web surface of whichever *Result carries it
+  (ActionResult.InvalidName, NoteResult.Invalid, PasswordChangeResult.InvalidNewPassword). The API's
+  own English text is unaffected - it still calls TextOutcomeExtensions.message(failure) directly,
+  by design (see that method's own Javadoc).
+
+  One whole, atomic sentence per (field, failure shape) - never a `{fieldLabel} {requirement}`
+  substitution, even though a substitution would still let a translator reorder words: the rule
+  wording ("cannot contain...") is a dependent clause written to follow a specific subject, and
+  subject-verb/article agreement (a real concern in many languages) cannot be fixed by reordering a
+  shared template alone. See AppMessages' own "Text-validation pipeline rejections" section for the
+  full reasoning.
+
+  Params:
+    failure - the TextOutcome.Failure to render; failure.field.key selects the outer arm,
+              failure.shapeKey ('blank' | 'length' | a TextRule#id()) the inner one
+!}
+{#switch failure.field.key}
+
+    {#is 'action-name'}
+        {#switch failure.shapeKey}
+            {#is 'blank'}{msg:actionNameBlank}
+            {#is 'length'}{msg:actionNameLength(failure.field.maxLength)}
+            {#is 'noInvisibleCharacters'}{msg:actionNameNoInvisibleChars}
+            {#is 'noStackedMarks'}{msg:actionNameNoStackedMarks(inject:textFields.maxConsecutiveMarks)}
+        {/switch}
+
+    {#is 'display-name'}
+        {#switch failure.shapeKey}
+            {#is 'blank'}{msg:displayNameBlank}
+            {#is 'length'}{msg:displayNameLength(failure.field.minLength, failure.field.maxLength)}
+            {#is 'noInvisibleCharacters'}{msg:displayNameNoInvisibleChars}
+            {#is 'noStackedMarks'}{msg:displayNameNoStackedMarks(inject:textFields.maxConsecutiveMarks)}
+        {/switch}
+
+    {#is 'stat-name'}
+        {#switch failure.shapeKey}
+            {#is 'length'}{msg:statNameLength(failure.field.maxLength)}
+            {#is 'noInvisibleCharacters'}{msg:statNameNoInvisibleChars}
+            {#is 'noStackedMarks'}{msg:statNameNoStackedMarks(inject:textFields.maxConsecutiveMarks)}
+        {/switch}
+
+    {#is 'email'}
+        {#switch failure.shapeKey}
+            {#is 'blank'}{msg:emailBlank}
+            {#is 'length'}{msg:emailLength(failure.field.minLength, failure.field.maxLength)}
+            {#is 'noInvisibleCharacters'}{msg:emailNoInvisibleChars}
+            {#is 'noStackedMarks'}{msg:emailNoStackedMarks(inject:textFields.maxConsecutiveMarks)}
+            {#is 'emailShape'}{msg:emailShapeInvalid}
+        {/switch}
+
+    {#is 'password'}
+        {#switch failure.shapeKey}
+            {#is 'blank'}{msg:passwordBlank}
+            {#is 'length'}{msg:passwordLength(failure.field.maxLength)}
+        {/switch}
+
+    {#is 'note'}
+        {#switch failure.shapeKey}
+            {#is 'length'}{msg:noteLength(failure.field.maxLength)}
+            {#is 'noInvisibleCharactersAllowingNewline'}{msg:noteNoInvisibleChars}
+            {#is 'noStackedMarks'}{msg:noteNoStackedMarks(inject:textFields.maxConsecutiveMarks)}
+        {/switch}
+
+{/switch}

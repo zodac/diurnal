@@ -34,9 +34,9 @@ public sealed interface ProfileResult permits ProfileResult.Updated, ProfileResu
     /**
      * The submitted value was rejected; nothing was changed.
      *
-     * @param message the human-readable rejection reason (the same wording on every surface)
+     * @param rejection the rejection cause
      */
-    record Invalid(String message) implements ProfileResult {
+    record Invalid(ProfileRejection rejection) implements ProfileResult {
 
     }
 }

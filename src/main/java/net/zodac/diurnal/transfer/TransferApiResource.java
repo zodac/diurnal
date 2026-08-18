@@ -182,7 +182,7 @@ public class TransferApiResource {
             // Both refusals answer 400 with the same shape - the API's own half of the per-surface split (the internal twin says 422). A malformed
             // upload is simply a refusal with nothing to locate, so it carries an empty problem list rather than a different body.
             case final ImportResult.Malformed malformed -> Response.status(Response.Status.BAD_REQUEST)
-                .entity(new ImportRejectionDto(malformed.reason(), List.of(), 1))
+                .entity(new ImportRejectionDto(ImportService.message(malformed.reason()), List.of(), 1))
                 .build();
             case final ImportResult.Rejected rejected -> Response.status(Response.Status.BAD_REQUEST)
                 .entity(ImportRejectionDto.from(rejected))
@@ -231,7 +231,7 @@ public class TransferApiResource {
         private static ImportRejectionDto from(final ImportResult.Rejected rejected) {
             final List<ImportProblemDto> problems = rejected.problems()
                 .stream()
-                .map(problem -> new ImportProblemDto(problem.file(), problem.line(), problem.reason()))
+                .map(problem -> new ImportProblemDto(problem.file(), problem.line(), ImportService.message(problem.reason())))
                 .toList();
             return new ImportRejectionDto("The archive was refused, so nothing was written", problems, rejected.totalFound());
         }

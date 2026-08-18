@@ -13,9 +13,9 @@
 {#include partials/centered-card}
 
     <h1 class="mb-5">
-        <img src="/img/{inject:appInfo.image('wordmark-readme.svg')}" alt="Diurnal — {inject:appInfo.tagline}" fetchpriority="high" class="w-full max-w-[260px] h-auto mx-auto" width="6314" height="2340">
+        <img src="/img/{inject:appInfo.image('wordmark-readme.svg')}" alt="Diurnal — {msg:tagline}" fetchpriority="high" class="w-full max-w-[260px] h-auto mx-auto" width="6314" height="2340">
     </h1>
-    <p class="text-sm text-ink-muted mb-6 text-center">Sign in to your account</p>
+    <p class="text-sm text-ink-muted mb-6 text-center">{msg:loginSubtitle}</p>
 
     {#if oidcError}
     {#include partials/banner variant='error' cls='mb-4' message=oidcErrorMessage /}
@@ -25,15 +25,19 @@
 
     {#if registered}
     {#include partials/banner variant='success' cls='mb-4'
-        message='Account created — you can now sign in.' /}
+        message=msg:accountCreatedBanner /}
     {/if}
 
     {#if error}
-    {#include partials/banner variant='error' cls='mb-4' message='Invalid email or password.' /}
+    {#include partials/banner variant='error' cls='mb-4' message=msg:invalidCredentials /}
     {/if}
 
     {#if locked}
-    {#include partials/banner variant='error' cls='mb-4' message=lockedMessage /}
+        {#if lockoutSeconds == 1}
+        {#include partials/banner variant='error' cls='mb-4' message=msg:lockoutRetrySingular(lockoutSeconds) /}
+        {#else}
+        {#include partials/banner variant='error' cls='mb-4' message=msg:lockoutRetryPlural(lockoutSeconds) /}
+        {/if}
     {/if}
 
     {! novalidate + data-validate: the shared client-side validator (app.js) surfaces
@@ -43,17 +47,17 @@
        the lockout countdown holds the button disabled independently via data-hold-disabled). !}
     <form method="post" action="/login" novalidate data-validate data-ajax-submit data-disable-until-complete class="space-y-4">
         <div data-form-errors class="space-y-2" hidden></div>
-        {#include partials/form-field id="email" name="email" label="Email" type="email" required=true autocomplete="email" maxlength="" /}
-        {#include partials/form-field id="password" name="password" label="Password" type="password" required=true autocomplete="current-password" maxlength="" /}
+        {#include partials/form-field id="email" name="email" label=msg:fieldEmail type="email" required=true autocomplete="email" maxlength="" /}
+        {#include partials/form-field id="password" name="password" label=msg:fieldPassword type="password" required=true autocomplete="current-password" maxlength="" /}
         <button type="submit" class="btn-primary w-full">
-            Sign in
+            {msg:signIn}
         </button>
     </form>
 
     {#if registrationEnabled}
     <p class="mt-4 text-center text-sm text-ink-muted">
-        Don't have an account?
-        <a href="/register" class="link-brand">Register</a>
+        {msg:noAccountPrompt}
+        <a href="/register" class="link-brand">{msg:register}</a>
     </p>
     {/if}
 
@@ -66,19 +70,19 @@
             <div class="w-full border-t border-line"></div>
         </div>
         <div class="relative flex justify-center text-xs uppercase">
-            <span class="bg-surface px-2 text-ink-muted">or</span>
+            <span class="bg-surface px-2 text-ink-muted">{msg:orDivider}</span>
         </div>
     </div>
     {/if}
 
     <a href="/oidc-login" class="btn-secondary">
-        Log in with {oidcProviderName}
+        {msg:loginWithProvider(oidcProviderName)}
     </a>
     {/if}
 
     {#if !passwordAuthEnabled && !oidcEnabled}
     {#include partials/banner variant='warning'
-        message='No authentication method is configured. Please contact your administrator.' /}
+        message=msg:noAuthMethodConfigured /}
     {/if}
 
 {/include}
