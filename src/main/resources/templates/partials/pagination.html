@@ -19,7 +19,20 @@
                  list embedded in a page that shouldn't jump (the dashboard day panel)
 
   The "Showing" counter exposes #showing-shown / #showing-total so surgical (HTMX 204)
-  row removals can keep the count in sync without re-rendering the whole list.
+  row removals can keep the count in sync without re-rendering the whole list. Both spans, and the
+  "Page X of Y" span, carry `.js-digits` (app.js) so their digits show this language's own glyphs
+  (e.g. Eastern Arabic-Indic under Arabic) - no `.js-num` grouping here (a page number is never
+  grouped). A caller that surgically rewrites #showing-shown/#showing-total's textContent (actions.js
+  is the one today) must delocalize before parsing the current value back to a number and re-localize
+  the result before writing it, the same round-trip settings.js's numeric fields use - see actions.js.
+
+  The "Showing X of Y" `<p>` and the "Page X of Y" `<span>` ALSO carry `.js-phrase` (app.css,
+  `unicode-bidi: plaintext`) — confirmed by real-browser testing that under `dir="rtl"` this exact
+  shape (English words with an embedded, now-localized-digit number, and no direction of its own
+  pinned) renders with its WORD ORDER reversed ("Page 1 of 2" → "2 of 1 Page"), not just its digits
+  needing glyphs. `.js-digits`' `isolate` only protects a number FROM its surroundings; it does
+  nothing for the surrounding WORDS' own order. See app.css's own comment on `.js-phrase` for why this
+  needs no revisit once Phase 5 replaces "Showing"/"of"/"Page" with real Arabic wording.
 
   `alwaysShow=true` (Actions, Admin — real `.dt-table`s in a rounded `overflow-hidden` card)
   keeps the footer rendered even on a single page, for two reasons: it stops the last table
@@ -38,7 +51,7 @@
 {#let searchSource=searchSource.or('') scrollTop=scrollTop.or(true)}
 {#if alwaysShow || page.totalPages > 1}
 <div class="dt-pagination{#if borderless} dt-pagination--borderless{/if}">
-    <p>{msg:showingLabel} <span id="showing-shown">{page.items.size}</span> {msg:ofLabel} <span id="showing-total">{page.totalCount}</span></p>
+    <p class="js-phrase">{msg:showingLabel} <span id="showing-shown" class="js-digits">{page.items.size}</span> {msg:ofLabel} <span id="showing-total" class="js-digits">{page.totalCount}</span></p>
     {#if page.totalPages > 1}
     <div class="flex gap-2">
         {#if page.currentPage > 1}
@@ -49,7 +62,7 @@
            hx-swap="innerHTML{#if scrollTop} show:window:top{/if}"
            class="dt-page-link">← {msg:previous}</a>
         {/if}
-        <span>{msg:pageOfTotal(page.currentPage, page.totalPages)}</span>
+        <span class="js-digits js-phrase">{msg:pageOfTotal(page.currentPage, page.totalPages)}</span>
         {#if page.currentPage < page.totalPages}
         <a href="{#if pageUrl}{pageUrl}?page={page.currentPage + 1}{extraQuery}{#else}#{/if}"
            hx-get="{listUrl}?page={page.currentPage + 1}{extraQuery}"

@@ -162,5 +162,198 @@ evidence:
   token checks are duplicated on purpose (no cross-file dependency, so a stale cached `app.js`
   can't break the settings gate); both mirror `text.TextConstraint.type`, which
   `TextFieldExtensions.constraints(...)` emits.
+
+## 7. RTL & logical properties (`.claude/I18N.md` Phase 3)
+
+`<html dir>` varies by language (`user/Language#dir()`, Arabic is the one offered RTL language today) — so **any
+new physical-direction utility class or CSS property is a bug**, not just a style nit, and is picked up by grepping
+for `\b(ml-|mr-|pl-|pr-|left-|right-|text-left|text-right)` in templates or `margin-left|padding-left|text-align:
+left|...` in `frontend/css/app.css` before landing.
+
+- **Use the logical form**: `ml-*`/`mr-*` → `ms-*`/`me-*`; `pl-*`/`pr-*` → `ps-*`/`pe-*`; `left-*`/`right-*`
+  (positioning) → `start-*`/`end-*`; `text-left`/`text-right` → `text-start`/`text-end`. In hand-written `app.css`
+  rules: `margin-left`/`margin-right` → `margin-inline-start`/`margin-inline-end` (same for `padding-`), `left`/
+  `right` (positioning) → `inset-inline-start`/`inset-inline-end`, `border-left`/`border-right` →
+  `border-inline-start`/`border-inline-end`, `text-align: left/right` → `text-align: start/end`. Tailwind v4 ships
+  all of these natively (`ms-`/`me-`/`ps-`/`pe-`/`start-`/`end-`/`text-start`/`text-end`/`rounded-s-`/`rounded-e-`),
+  no plugin or config needed.
+- **A centring pattern (`left-1/2` + `-translate-x-1/2`) LOOKS direction-symmetric but is NOT** — converting the
+  anchor to `start-1/2` is correct and necessary, but the transform must ALSO become a direction-aware pair
+  (`ltr:-translate-x-1/2 rtl:translate-x-1/2`), for the same reason as the toggle-switch thumb below: `transform`
+  has no logical axis. `start-1/2` = `left: 50%` under LTR (shift left by half the element's width to center it,
+  `-translate-x-1/2`) but = `right: 50%` under RTL (shift RIGHT by half its width instead, `translate-x-1/2`) — a
+  single unscoped `-translate-x-1/2` only centers the LTR case and drags the element further off the physical left
+  under RTL. This was shipped wrong once (every `align="center"` tooltip in the shared `partials/tooltip.html` /
+  `frequency-slot-tooltip.html` / `admin-user-row.html` / `stats-field-row.html`) and wasn't caught until a real
+  mobile RTL pass showed the page itself overflowing horizontally — the visual symptom of a centered element
+  drifting off one edge is easy to misread as an unrelated layout bug, so treat ANY `-translate-x-*` paired with a
+  logical inset as suspect and check it in a real RTL browser, not by inspection.
+- **A directional GLYPH (an SVG icon or a Unicode character encoding a real forward/back meaning — chevrons,
+  arrows, «/‹/›/») does NOT mirror on its own** just because its container does. Two patterns, chosen by what the
+  glyph already is:
+  - An SVG via `partials/icon.html`: give the component class (or an inline `cls=`) an
+    `rtl:scale-x-[-1]` — see `.chart-nav-glyph` in `app.css` (a dedicated class, fixed in the CSS) vs the
+    settings.html preview-modal chevrons (no dedicated class, fixed inline at the call site). **Not every
+    chevron is directional** — `settings.html`'s disclosure-toggle chevron rotates 90° on expand and encodes no
+    forward/back meaning, so it stays unmirrored; check what a glyph MEANS before mirroring it.
+  - A literal Unicode character (no SVG involved): wrap it and transform the wrapper — see
+    `partials/calendar-toolbar.html`. A horizontally-flipped « renders as a correct-looking » (and the reverse),
+    so `rtl:scale-x-[-1]` mirrors these exactly like an SVG icon would, with no `{#if}`-based character-swapping
+    needed.
+- **A `transform`/`cursor` value has no logical form** — unlike `left`/`margin`/`border`, CSS offers no
+  direction-relative keyword for `scaleX()`'s sign or a diagonal-resize cursor (`nwse-resize` vs `nesw-resize`).
+  These need an explicit `[dir="rtl"] .foo { ... }` override (or Tailwind's `rtl:` variant) rather than a logical
+  property — see `.note-resize-corner`'s cursor flip in `app.css`.
+- **A toggle-switch thumb's `peer-checked:` translate is a physical `translate-x`, not a logical one** — Tailwind
+  has no `translate-inline-end` utility, so a checked-state shift needs BOTH an explicit `ltr:`/`rtl:` pair
+  (`peer-checked:ltr:after:translate-x-5 peer-checked:rtl:after:-translate-x-5`), never a single unscoped
+  `peer-checked:after:translate-x-5` once the thumb's REST position (`after:start-0.5`) is logical — an unscoped
+  transform would then push the thumb the same PHYSICAL direction regardless of which edge it actually rests
+  against, moving it off the track under RTL. See the two toggle switches in `settings.html`.
+- **CSS Grid `grid-column-start`/flexbox `justify-content ~ flex-start/flex-end`/plain DOM-order auto-flow are
+  ALREADY logical** (relative to the grid/flex container's start line, not the physical viewport) — a component
+  built from these with no explicit physical override (the dashboard's outer grid, the calendar's day grid, the
+  calendar toolbar) mirrors automatically under `dir="rtl"` with zero class changes. Don't add an `rtl:` override
+  to a component like this without first checking whether it already mirrors for free — verify in a real browser,
+  not just by reading the CSS, since an unnecessary override is easy to get backwards.
+- **JS that reads real pixel geometry (`getBoundingClientRect()`) is usually ALREADY direction-agnostic** — it
+  reflects however the browser actually rendered the element, mirrored layout included. JS that HARDCODES a
+  physical assumption (`el.left > other.left` meaning "beside, to the right", or a drag delta's sign assuming
+  which edge a resize handle sits on) is not, and needs an explicit `document.dir === 'rtl'` (or
+  `getComputedStyle(document.documentElement).direction`) branch. See `note.js`'s `noteMaxWidth()`/resize-drag
+  math for a real example of each shape, and `dashboard.js`'s month/year popup positioning for a real example of
+  the geometry-based kind needing no change at all.
+- **`dir="rtl"` mirrors LAYOUT only — it has no bearing on which digit GLYPHS a number renders as.** Arabic
+  (`ar-SA`) uses Eastern Arabic-Indic digits (`١٢٣`), which is a separate, orthogonal axis from direction. A
+  number the server or client renders as a bare `String`/`Number#toString()` always stays Latin-digit — it needs
+  an explicit localization pass:
+  - Client-side text already tagged `.js-num` (app.js) is grouped AND digit-localized together via
+    `Number#toLocaleString(Diurnal.lang)` — for figures where both apply (stats counts/averages).
+  - A calendar day number or year must localize digits WITHOUT ever grouping (a year must never render "٢،٠٢٦" —
+    years aren't grouped in any language) — use `Diurnal.localizeDigits(text)` (a glyph-for-glyph regex
+    transcode built from `Intl.NumberFormat`, no grouping applied), or tag the element `.js-digits` and let the
+    matching `Diurnal.localizeDigitsIn(root)` walker (app.js, same shape as `.js-num`'s `formatNumbers`) do it
+    declaratively on page load / after an HTMX swap. See `dashboard.js`'s `setCalTitle` and day-cell rendering,
+    and `.js-digits` on the footer year/version and the Settings preset pills.
+  - **A decorative label for a bound value (a preset pill) localizes its own TEXT via `.js-digits` while its
+    `data-value` attribute (what JS reads to write the real input) is left untouched.** `.js-digits`/`.js-num`
+    only ever rewrite text nodes, never attributes — an `href` or `data-*` value is never touched even inside a
+    localized element (see the footer version link).
+  - **An EDITABLE numeric field can also display this language's own digit glyphs, but only if it is
+    `type="text" inputmode="numeric"`, not `type="number"`** — a number input's `.value` is spec-constrained to
+    a plain ASCII "valid floating-point number" string and cannot hold e.g. Eastern Arabic-Indic digits at all.
+    The Settings numeric steppers (`partials/num-pref-row.html`, `.num-pref-value`) use this shape: JS
+    (`wireNumericPref` in settings.js) localizes the field's value/placeholder for display on every read/write,
+    but the value that actually leaves the browser is delocalized back to plain Latin right before the request
+    fires (a shared `htmx:configRequest` listener rewrites the specific field names, since htmx otherwise builds
+    the PATCH straight from each field's live — localized — DOM value). Bounds validation (`min`/`max`) is
+    JS-side only (`clamp()`, passed as plain numbers, not read off the markup) plus the server, which is
+    unaffected either way since it only ever receives Latin digits. The day panel's per-action count field
+    (`partials/day-action-item.html`) uses the GENERIC version of this same shape, `.js-num-input` (app.js) —
+    reach for `wireNumericPref` only when a field also needs preset pills/a stepper/clamping; a bare editable
+    count needs nothing beyond `.js-num-input`.
+  - **`DateTimeFormatter#withLocale(locale)` does NOT switch numbering systems the way `NumberFormat` does** —
+    a weekday/month NAME localizes, but a day-of-month/year NUMBER stays plain ASCII unless the formatter is
+    ALSO given `.withDecimalStyle(DecimalStyle.of(locale))`. Every Java-side date formatter that renders a
+    number (not just a name) needs this chained — use `Language#localizeNumerals(DateTimeFormatter)` rather
+    than repeating the `withDecimalStyle` call at each site. A formatter that must stay locale-agnostic on
+    purpose (a wire key/id round-tripping through a URL, e.g. `FrequencyKeys`' month/year key) must NOT get
+    this — keep the KEY formatter and the DISPLAY LABEL formatter separate rather than sharing one, even when
+    they'd otherwise produce identical ASCII output for `en-GB`.
+  - **A "plain `fetch()` + `innerHTML`" swap bypasses htmx's own swap mechanism entirely, so `htmx:afterSwap`
+    never fires — none of `.js-num`/`.js-digits`/`.js-num-input`/`Diurnal.fitFigures`'s declarative passes run
+    on it.** This is a RECURRING shape in this codebase (the dashboard's day panel and stats-summary card,
+    the stats page's frequency-chart modal) — each caller must call every relevant `Diurnal.*In(root)` pass by
+    hand right after setting `innerHTML` (see `dashboard.js`'s `swapDayPanel`/`swapStatsSummary`,
+    `stats.js`'s chart `load()`). A newly-added localization pass is easy to wire into the DECLARATIVE
+    `htmx:afterSwap` path and then forget for these three manual call sites — grep `\.innerHTML\s*=` across
+    `META-INF/resources/js/` when adding one, and check each hit.
+  - **A localized digit run needs bidi ISOLATION, not just an inherited `dir`** — a number is always written
+    left-to-right internally regardless of the surrounding language, but a plain inherited `dir` (`unicode-bidi:
+    embed`, the browser default for the `dir` attribute) still lets the Unicode Bidi Algorithm consider
+    neighbouring characters at the run's boundary; this showed up for real as a version string's leading "v"
+    reordering to the trailing edge next to Arabic-Indic digits. `.js-num`/`.js-digits`/`.js-num-input` all
+    carry `unicode-bidi: isolate` in `app.css` for this reason (matching what `<bdi>` gives HTML content
+    natively) — a future digit-bearing marker class should too.
+  - **A PHRASE that mixes translatable WORDS with an embedded number needs a DIFFERENT fix again — `.js-phrase`
+    (`unicode-bidi: plaintext`), not `.js-digits`' `isolate`.** `isolate` only protects a number from its
+    surroundings; it does nothing about the WORDS around it reordering against each other and against the
+    number. Confirmed for real: "Page 1 of 2" (still-English — Phase 5 hasn't shipped translations) rendered
+    as "2 of 1 Page" under `dir="rtl"` with no direction pinned on the phrase — every word/number is its own
+    bidi run, and an RTL paragraph places the first logical run on the right and works leftward, backwards for
+    Latin-script text. `unicode-bidi: plaintext` fixes this WITHOUT hardcoding a direction (unlike the footer's
+    `dir="ltr"` pin): it resolves the phrase's own base direction from its first STRONGLY-directional character
+    (a digit is direction-neutral and gets skipped) — so "Page 1 of 2" resolves LTR (first strong char "P") and
+    a genuinely Arabic phrase this same class also covers (a Java-formatted date embedded in an English "since
+    {date}" caption) resolves RTL from its own Arabic letters, unaffected. **This needs no Phase 5 revisit** —
+    the heuristic keeps adapting once English message-bundle wording becomes real Arabic. Applied to
+    `partials/stat-tile.html`/`stat-tile-compact.html` (value+sub, unconditionally), `partials/pagination.html`,
+    `partials/tooltip.html`/`frequency-slot-tooltip.html`, the frequency chart's caption, and — the broadest
+    single win — `partials/banner.html` and its JS mirror `Diurnal.bannerHtml()` (app.js), which together back
+    most success/error messages app-wide. Reserve `.js-digits` alone for content that is ONLY EVER digits with
+    no surrounding words (a version number, a bare count in an input); use `.js-phrase` (alongside `.js-digits`
+    if it also needs digit-glyph transcoding) for anything a translator's sentence could wrap around.
+  - **`.textContent`/`.innerText` extraction cannot catch a bidi reordering bug — it reads LOGICAL DOM order,
+    not the VISUAL rendering the Unicode Bidi Algorithm actually produces.** Every `.js-phrase` bug above was
+    invisible to the `.innerText` dumps used throughout this whole effort's verification (the DOM order was
+    always correct — "Page 1 of 2", digits in the right place — only the on-screen RENDERING was reversed).
+    Any RTL verification claim needs an actual screenshot (or a bounding-box/position check) of the specific
+    text, not just a dump of its DOM content, or a real bug reads as "already verified working."
+- **Some server-rendered text is deliberately app CHROME, not page content, and stays untranslated/unmirrored/
+  Latin-digit on purpose** — the footer's build year · version · GitHub row (`partials/footer.html`) is the one
+  example today: its row carries a pinned `dir="ltr"` (order never mirrors, treated like a copyright/version bug
+  the way most software does) but its digits DO still localize (`.js-digits` on the year and the version text) —
+  order-pinning and digit-glyph localization are separate, independently-decided axes, not a package deal. This
+  was a deliberate per-element product call (asked of the user, not inferred), not a default to copy elsewhere
+  without the same judgment call.
+- **The app's STRUCTURAL layout (which panel/column sits where) is a SEPARATE decision from the footer's above,
+  and a bigger one: it is now deliberately PINNED, not mirrored** — a considered reversal of Phase 3's original
+  "let CSS Grid/Flexbox auto-mirror" approach, made after the auto-mirroring shipped and was reviewed for real
+  (asked of the user, not inferred). The navbar (`partials/navbar.html`), Settings' two-column layout
+  (`settings.html`'s `#prefs-form`) and the dashboard's 2x2 panel grid (`dashboard.html`) are all app WORKSPACE
+  chrome — positions a user builds muscle memory for — not a reading surface, so which panel/column/link sits
+  where stays IDENTICAL across every language. Only the CONTENT inside each pinned region still fully localizes
+  (RTL text alignment, mirrored controls within a card, the calendar's own internal day-grid, `.js-phrase`
+  phrases, digit glyphs) — this is content mirroring, same as everywhere else in the app, just inside a frame
+  that no longer moves.
+  - **The mechanism**: `dir="ltr"` on the STRUCTURAL container (the flex/grid row that must stay physically
+    ordered) freezes its own item placement, then EVERY grid/flex item inside it re-asserts the page's REAL
+    direction via `dir="{language:dir(language)}"` (the same `Language#dir()`/`LanguageExtensions` bridge
+    `layout.html` uses for `<html dir>`) — so a re-asserted item's own content behaves exactly as if nothing
+    were pinned, while its OUTER position never moves. Never rely on inheritance alone once a `dir="ltr"` is
+    pinned upstream — anything that should still localize needs its own explicit re-assertion, or it silently
+    inherits the frozen `ltr` too.
+  - **A pinned region can still have INTERNAL pieces that must stop mirroring as a consequence** — found for
+    real with the dashboard's note-panel resize handle: `.note-resize-right`/`-corner`'s CSS used a LOGICAL
+    property (`inset-inline-end`) from when the panel itself still moved sides under RTL; once the panel's
+    OUTER position was pinned but its OWN `dir` was still re-asserted to the real direction, the handle would
+    have kept flipping to the panel's OTHER edge under Arabic while the panel itself stayed put — a handle
+    is positioning/chrome, the same category as the panel's own position, so it was reverted to a PHYSICAL
+    property (`right`), and `note.js`'s matching `document.documentElement.dir === 'rtl'` branches (the
+    `sideBySide` check, the resize-drag sign) were removed entirely, back to their original always-physical
+    form. **Check every internal `inset-inline-*`/logical-property/`[dir="rtl"]` rule inside a region before
+    pinning it** — anything reasoned about "moves with `dir`" during Phase 3 needs re-deriving once its
+    container stops moving.
+  - Verified with real-browser screenshots (not just DOM text — see the bidi lesson above) comparing `en-GB`
+    and `ar-SA` side by side: navbar, Settings' cards and the dashboard's four panels are pixel-identical in
+    position between the two, with only their internal content differing.
+  - **A `dir="ltr"` pin, once anything inside it uses a COMPETING `ltr:`/`rtl:` Tailwind pair (one rule per
+    direction — a centering transform, a toggle-switch thumb), breaks that pair in a way that's easy to miss
+    because it looks like nothing should be wrong.** Tailwind compiles `ltr:`/`rtl:` to
+    `:where(:dir(X),[dir=X],[dir=X] *)` — the `[dir=X] *` clause matches ANY ancestor with that literal
+    attribute, not the nearest one (unlike native `:dir()`, which resolves like `direction` inheritance —
+    correctly nearest-ancestor-based). Once a pinned region has `<html dir="rtl">` still somewhere further up
+    (with no `dir="rtl"` reassertion inside the pinned region itself, like the navbar/footer), BOTH halves of a
+    competing pair match at once, and CSS source order — not proximity — silently wins. Confirmed for real: a
+    tooltip's centering pair, nested in the pinned navbar, always resolved to the RTL half regardless of the
+    tooltip's own correctly-resolved `:dir(ltr)`, shifting it a full 100% of its own width to the wrong side.
+    **The fix is `.app-tooltip-center`/`.toggle-thumb` (app.css) — hand-written rules against the native
+    `:dir()` pseudo-class directly, which has no such fallback clause and is immune.** A SINGLE-direction
+    override (no competing opposite-direction rule — `.cal-chevron`, the settings preview-modal's
+    `rtl:scale-x-[-1]`) is NOT affected: there is nothing for source order to arbitrate between. **Before adding
+    a new competing `ltr:`/`rtl:` PAIR anywhere in a `dir="ltr"`-pinned region (or anywhere it could ever end up
+    nested under one), use `:dir()` directly instead of Tailwind's prefix** — see app.css's own comment on
+    `.app-tooltip-center` for the fuller mechanism and how to verify it (host/tooltip center-point geometry, not
+    just DOM presence).
 - The FOUC script's hex literals in `layout.html` ↔ the `--color-*` tokens in `app.css`
   (documented in the script comment: it runs before the stylesheet exists).

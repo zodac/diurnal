@@ -44,12 +44,20 @@
              radiogroups below and on the two selects in partials/select-field): updating one setting
              no longer touches the others, so there is no wrapper form and no shared/scoped trigger.
              This wrapper is just the layout container (and the delegation point for the "Saved"
-             indicator in the script below). !}
-        <div id="prefs-form" class="flex flex-col lg:flex-row gap-6 lg:items-start">
+             indicator in the script below).
+
+             `dir="ltr"` on this row pins WHICH COLUMN IS LEFT/RIGHT regardless of language - a
+             deliberate product decision (asked of the user, not inferred): this is the app's own
+             workspace arrangement, not reading content, so it does not mirror the way a translated
+             sentence does. Each column wrapper below re-asserts the PAGE's real direction
+             (`language:dir`), so every card's own content - labels, values, the RTL-mirrored controls
+             within a card - still reads correctly; only the LEFT/RIGHT column assignment is frozen.
+             See .claude/UI_PATTERNS.md section 7. !}
+        <div id="prefs-form" dir="ltr" class="flex flex-col lg:flex-row gap-6 lg:items-start">
 
             {! Left column on desktop; on mobile `display:contents` so its cards join the outer
-                 flex flow (see the layout comment above). !}
-            <div class="contents lg:flex lg:flex-col lg:gap-6 lg:flex-1 lg:min-w-0">
+                 flex flow (see the layout comment above). dir re-asserted (see the note on #prefs-form). !}
+            <div dir="{language:dir(language)}" class="contents lg:flex lg:flex-col lg:gap-6 lg:flex-1 lg:min-w-0">
 
                 {! Account !}
                 <div id="settings-account" class="card p-4">
@@ -378,11 +386,10 @@
                                            {#if showStatsSummary}checked{/if}
                                            hx-patch="/internal/settings" hx-trigger="change" hx-swap="none"
                                            hx-include="#stats-summary-row">
-                                    <span class="block w-11 h-6 rounded-full bg-surface-muted border border-line transition-colors
+                                    <span class="toggle-thumb block w-11 h-6 rounded-full bg-surface-muted border border-line transition-colors
                                                  peer-checked:bg-brand peer-checked:border-brand
-                                                 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5
-                                                 after:rounded-full after:bg-white after:shadow after:transition-transform
-                                                 peer-checked:after:translate-x-5"></span>
+                                                 after:content-[''] after:absolute after:top-0.5 after:start-0.5 after:h-5 after:w-5
+                                                 after:rounded-full after:bg-white after:shadow after:transition-transform"></span>
                                 </label>
                             </div>
                         </div>
@@ -430,7 +437,7 @@
                             {! The pills sit beside the label WHEN THEY FIT and drop to a line of their own when they
                                  do not, with no breakpoint deciding it: the wrapper is `flex-wrap` and the pill box is
                                  one unwrappable, unshrinkable item, so the browser measures the actual label and moves
-                                 the whole box down only if it has to. `ml-auto` right-aligns it either way. These rows
+                                 the whole box down only if it has to. `ms-auto` end-aligns it either way. These rows
                                  need that where the two above do not, because they carry the extra clear pill — even
                                  with that pill down to an em dash, a long label (or a translation) can still take the
                                  group past the ~311px a 375px phone gives the card. A media query would have had to
@@ -444,7 +451,7 @@
                             <div class="py-3{#if !row_isFirst} border-t border-line-subtle{/if}">
                                 <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
                                     <label for="page-size-{row.key}" class="block text-sm text-ink-muted">{row.label}</label>
-                                    <div id="page-size-{row.key}-presets" class="ml-auto flex shrink-0 gap-1.5">
+                                    <div id="page-size-{row.key}-presets" class="ms-auto flex shrink-0 gap-1.5">
                                         {! The follow-the-general-value pill. A glyph rather than the word "Default": at
                                              ~31px against the word's 70px it is what buys the pills their place beside the
                                              label. The glyph is a WHITE DIAMOND, arrived at by elimination - an em dash
@@ -463,7 +470,7 @@
                                         <button type="button" class="num-pref-pill group relative" data-num-pref-clear
                                                 aria-pressed="false" aria-label="{msg:defaultLabel}">&#x25C7;{#include partials/tooltip text=msg:defaultLabel pos="bottom" /}</button>
                                         {#for option in pageSizeOptions}
-                                        <button type="button" class="num-pref-pill" data-value="{option}" aria-pressed="false">{option}</button>
+                                        <button type="button" class="num-pref-pill js-digits" data-value="{option}" aria-pressed="false">{option}</button>
                                         {/for}
                                     </div>
                                 </div>
@@ -474,7 +481,10 @@
                                             {#include partials/icon name='minus' cls='w-3.5 h-3.5' /}
                                         </button>
                                         <input type="hidden" name="pageSizeSection" value="{row.key}">
-                                        <input type="number" id="page-size-{row.key}" name="pageSizeValue" min="1" max="100"
+                                        {! type="text", not "number" - see partials/num-pref-row.html's matching
+                                             field for why (wireNumericPref displays this language's own digit
+                                             glyphs here, which type="number" cannot hold). !}
+                                        <input type="text" id="page-size-{row.key}" name="pageSizeValue"
                                                value="{row.value.or('')}" placeholder="{pageSize}" inputmode="numeric"
                                                data-page-size-section aria-label="{msg:itemsPerPageFor(row.label)}" class="num-pref-value">
                                         <button type="button" id="page-size-{row.key}-plus" class="num-pref-stepper-btn"
@@ -538,8 +548,8 @@
 
             {! Right column on desktop (Appearance, then Statistics below it); on mobile
                  `display:contents` so its cards join the outer flex flow (see the layout comment
-                 above). !}
-            <div class="contents lg:flex lg:flex-col lg:gap-6 lg:flex-1 lg:min-w-0">
+                 above). dir re-asserted (see the note on #prefs-form). !}
+            <div dir="{language:dir(language)}" class="contents lg:flex lg:flex-col lg:gap-6 lg:flex-1 lg:min-w-0">
 
                 {! Appearance (fills the freed horizontal space). !}
                 <div id="settings-appearance" class="card p-4">
@@ -584,11 +594,11 @@
                          ON TOP of the buttons, swallowing their taps (caught by the mobile E2E project). The
                          help text wraps instead; the controls keep `shrink-0` so they never squash. !}
                     <div data-colour-scope class="flex items-center justify-between py-4 border-b border-line">
-                        <div class="min-w-0 pr-4">
+                        <div class="min-w-0 pe-4">
                             <label for="noteColour" class="block text-sm font-medium text-ink">{msg:noteColourLabel}</label>
                             <p class="help-text mt-0.5">{msg:noteColourHelp}</p>
                         </div>
-                        <div class="ml-4 flex items-center gap-3 shrink-0">
+                        <div class="ms-4 flex items-center gap-3 shrink-0">
                             {#include partials/colour-picker id='noteColour' name='noteColour' value=noteColour
                                 endpoint='/internal/settings' wrapperCls='shrink-0' inputCls='colour-picker-input' /}
                             {#include partials/random-colour-button wrapperCls='shrink-0' iconCls='w-4 h-4' align='right'
@@ -632,11 +642,10 @@
                                            {#if showNoteCounter}checked{/if}
                                            hx-patch="/internal/settings" hx-trigger="change" hx-swap="none"
                                            hx-include="#note-counter-row">
-                                    <span class="block w-11 h-6 rounded-full bg-surface-muted border border-line transition-colors
+                                    <span class="toggle-thumb block w-11 h-6 rounded-full bg-surface-muted border border-line transition-colors
                                                  peer-checked:bg-brand peer-checked:border-brand
-                                                 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5
-                                                 after:rounded-full after:bg-white after:shadow after:transition-transform
-                                                 peer-checked:after:translate-x-5"></span>
+                                                 after:content-[''] after:absolute after:top-0.5 after:start-0.5 after:h-5 after:w-5
+                                                 after:rounded-full after:bg-white after:shadow after:transition-transform"></span>
                                 </label>
                             </div>
                         </div>
@@ -758,12 +767,12 @@
                     {! Arrows centred with inset-y-0 + my-auto (NOT -translate-y-1/2): a transform would
                          put each on its own GPU layer and make the glyph sub-pixel-snap on first hover. !}
                     <button type="button" id="preview-prev" aria-label="{msg:previousPreview}"
-                            class="icon-btn-primary absolute left-2 inset-y-0 my-auto">
-                        {#include partials/icon name='chevron-left' /}
+                            class="icon-btn-primary absolute start-2 inset-y-0 my-auto">
+                        {#include partials/icon name='chevron-left' cls='rtl:scale-x-[-1]' /}
                     </button>
                     <button type="button" id="preview-next" aria-label="{msg:nextPreview}"
-                            class="icon-btn-primary absolute right-2 inset-y-0 my-auto">
-                        {#include partials/icon name='chevron-right' /}
+                            class="icon-btn-primary absolute end-2 inset-y-0 my-auto">
+                        {#include partials/icon name='chevron-right' cls='rtl:scale-x-[-1]' /}
                     </button>
                 </div>
             </div>
@@ -774,7 +783,10 @@
              the stats-fields drag/toggle/tooltip picker). Extracted from the inline block that used
              to sit here into /js/settings.js so it rides the content-hashed `immutable` cache
              instead of being re-parsed on every page load. Served as settings.<hash>.js in prod
-             (baked into AppInfo.jsSettingsFile), settings.js in dev; runs after the shared /js/app.js. !}
+             (baked into AppInfo.jsSettingsFile), settings.js in dev. THIS script tag sits inside
+             layout.html's `{#insert body}`, so it actually runs BEFORE that layout's own trailing
+             /js/app.js (the next <script> once this insertion closes) - see settings.js's own header
+             comment for what that means for any code in it that calls a window.Diurnal.* helper. !}
         <script src="/js/{inject:appInfo.jsSettingsFile}"></script>
     </main>
 

@@ -3,10 +3,10 @@
     label      — caption (dt)
     value      — the figure (dd); a number for numeric tiles, a date/label for date tiles
     sub        — optional secondary caption (dd); always `data-fit`, since it may carry a date range
-    subNum     — optional; true when `sub` carries number(s) to locale-group (NOT a date/label)
+    subNum     — optional; true when `sub` carries number(s) to locale-GROUP (NOT a date/label)
     valueClass — optional colour/utility for the value (e.g. a trend colour); defaults to text-ink
     date       — optional; true when `value` is a date/label rather than a figure (skips the
-                 `.js-num` locale grouping, which the `sub` takes on when `subNum` is set)
+                 `.js-num` locale GROUPING, which the `sub` takes on when `subNum` is set)
 
   EVERY value renders at the SAME type (size, weight, family) whatever it carries — a count, a date
   or a condensed duration — so a card of tiles reads as one set of figures. A long value is fitted to
@@ -14,9 +14,25 @@
   abbreviate a spelled-out month, then a 4-digit year, then a count over 10,000, and `data-fit-scale`
   then lets it step the type size down, in each case only as far as it must. A value that fits is
   left exactly as the server rendered it, at the full size, so a wide viewport shows the full text.
+
+  `.js-digits` (app.js) is applied UNCONDITIONALLY to both `dd`s, regardless of `date`/`subNum` —
+  every value/sub here carries a digit that must show this language's own glyphs, whether or not it
+  is also GROUPED: a plain count/average (`.js-num`, digits+grouping together via toLocaleString), a
+  worded duration ("1 day" - digits only, grouping a "1" would be nonsensical), or a date/year (digits
+  only; the Java side already localises most of these via Language#localizeNumerals, so `.js-digits`
+  is typically a safe no-op there, but stays as a client-side backstop). Layering `.js-digits` on top
+  of an already-`.js-num`-processed value is harmless: its regex only matches ASCII '0'-9', which an
+  already-localized digit no longer is.
+
+  `.js-phrase` (app.css, `unicode-bidi: plaintext`) is ALSO applied unconditionally, for a different
+  reason: several values/subs here are TRANSLATABLE PHRASES with an embedded number ("1 day", "since
+  {date}", "3 times", "5 this month · 2 last month"), and under `dir="rtl"` a phrase like that needs
+  its OWN resolved base direction — `.js-digits`'s `isolate` only protects the number FROM the phrase,
+  it does nothing for the phrase's word order. See app.css's own comment for the confirmed bug this
+  fixes and why it self-adapts once Phase 5 replaces the English wording with real Arabic.
 !}
 <div class="stat-tile">
     <dt class="help-text mb-1">{label}</dt>
-    <dd data-fit data-fit-scale class="text-lg font-bold leading-tight font-display {valueClass ?: 'text-ink'}{#if !date} js-num{/if}">{value}</dd>
-    {#if sub}<dd data-fit class="help-text mt-0.5{#if subNum} js-num{/if}">{sub}</dd>{/if}
+    <dd data-fit data-fit-scale class="text-lg font-bold leading-tight font-display js-digits js-phrase {valueClass ?: 'text-ink'}{#if !date} js-num{/if}">{value}</dd>
+    {#if sub}<dd data-fit class="help-text mt-0.5 js-digits js-phrase{#if subNum} js-num{/if}">{sub}</dd>{/if}
 </div>

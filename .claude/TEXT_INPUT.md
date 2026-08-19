@@ -172,6 +172,13 @@ Each bound is ALSO a `public static final int` constant, because a Bean Validati
 (`@Size(max = ...)` on `RegisterRequest`) needs a compile-time constant. The field is built from the constant, so
 the two cannot disagree.
 
+> **This catalogue is also the complete list of what `.claude/I18N.md`'s translation work must never touch.**
+> `ACTION_NAME`, `DISPLAY_NAME`, `STAT_NAME`, `EMAIL`, `PASSWORD`, `NOTE` are all the user's own words (or
+> identifying/secret data that was never prose), stored and read back exactly as typed — none of the six is ever
+> a candidate for automatic translation, transliteration or "correction" just because a viewer's language
+> setting changed. See the fuller statement in [`I18N.md`](I18N.md)'s Phase 5, and `NOTE`'s own privacy-angle
+> invariant in [`NOTES.md`](NOTES.md).
+
 > **`NOTE` is the one entry whose bound is not fixed at compile time.** A deployment may set its own through
 > `NOTE_MAX_LENGTH` (`config/NotesConfig`), and the field the application validates against is built from that by
 > `note/NoteField` — so `TextFields.NOTE` is the DEFAULT instance rather than the one in force, and

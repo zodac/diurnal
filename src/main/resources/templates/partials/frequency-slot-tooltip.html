@@ -12,7 +12,16 @@
   (see AppMessages' own class Javadoc). Duplicates partials/tooltip's span markup deliberately rather
   than bending that partial's text-only contract for this one caller.
 !}
+{! `.js-digits` (app.js) localizes slot.fullLabel's digits (already mostly done server-side by
+     FrequencyCharts, which this template has no control over otherwise) and every `msg:statSub*`
+     count's embedded digit - grouping never applies here (small per-day/month counts), so
+     `.js-digits`, not `.js-num`. `.js-phrase` (app.css) fixes each line's WORD order under
+     `dir="rtl"` - "{date}: N times"/"{action name}: N times" mixes a label with an English count
+     phrase, the same shape `partials/pagination.html` proved gets visually reversed without it;
+     `unicode-bidi: plaintext` resolves per LINE (it treats `white-space: pre-line`'s `\n` as a
+     paragraph separator), so a multi-action tooltip's lines each get their own correct direction
+     independently, including when `bar.subjectName` is itself an arbitrary user-typed action name. !}
 <span aria-hidden="true"
-      class="app-tooltip w-max max-w-[16rem] bottom-full mb-1.5{#if align == 'left'} left-0{#else if align == 'right'} right-0{#else} left-1/2 -translate-x-1/2{/if}">{#if slot.bars.size == 1}{slot.fullLabel}: {#if slot.bars[0].count == 1}{msg:statSubTimeSingular}{#else}{msg:statSubTimesPlural(slot.bars[0].count)}{/if}{#else}{slot.fullLabel}
+      class="app-tooltip js-digits js-phrase w-max max-w-[16rem] bottom-full mb-1.5{#if align == 'left'} start-0{#else if align == 'right'} end-0{#else} start-1/2 app-tooltip-center{/if}">{#if slot.bars.size == 1}{slot.fullLabel}: {#if slot.bars[0].count == 1}{msg:statSubTimeSingular}{#else}{msg:statSubTimesPlural(slot.bars[0].count)}{/if}{#else}{slot.fullLabel}
 {#for bar in slot.bars}{bar.subjectName}: {#if bar.count == 1}{msg:statSubTimeSingular}{#else}{msg:statSubTimesPlural(bar.count)}{/if}{#if bar_hasNext}
 {/if}{/for}{/if}</span>

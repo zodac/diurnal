@@ -17,7 +17,10 @@
             −
         </button>
 
-        {! Count (editable) !}
+        {! Count (editable). `.js-num-input` (app.js) displays this language's own digit glyphs while
+             keeping the value submitted over the wire plain Latin - the editable-field counterpart to
+             `.js-digits` (read-only display); see settings.js's wireNumericPref for the fuller version
+             of this same pattern. !}
         <input type="text" inputmode="numeric" maxlength="3"
                name="count"
                value="{count}"
@@ -25,7 +28,7 @@
                hx-trigger="change"
                hx-target="#log-{date}-{action.id}"
                hx-swap="innerHTML"
-               class="inline-num-input w-10 h-7
+               class="js-num-input inline-num-input w-10 h-7
                       {#if count == 0}text-ink-muted{#else}text-ink{/if}">
 
         {! Increment: hidden (not just disabled) at the daily cap ({log:maxDailyCount}, mirroring
@@ -43,7 +46,7 @@
         {! Delete entry: wrapped in .dt-actions so the button gets the same min-width as the
              confirm state's Cancel, keeping Cancel in exactly the same position on swap.
              Always rendered; invisible (not just opacity-0) when there is no log to erase. !}
-        <div class="dt-actions ml-[0.2rem]">
+        <div class="dt-actions ms-[0.2rem]">
             <button hx-get="/internal/logs/{date}/{action.id}/confirm-delete"
                     hx-target="#log-{date}-{action.id}"
                     hx-swap="innerHTML"

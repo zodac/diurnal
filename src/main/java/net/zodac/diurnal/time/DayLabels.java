@@ -20,6 +20,7 @@ package net.zodac.diurnal.time;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DecimalStyle;
 import java.time.format.FormatStyle;
 import java.time.format.TextStyle;
 import java.util.List;
@@ -47,7 +48,11 @@ public final class DayLabels {
      * @return the spelled-out label
      */
     public static String spelledOut(final LocalDate date, final Locale locale) {
-        return date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale));
+        // withDecimalStyle is required in addition to withLocale: DateTimeFormatter (unlike NumberFormat) does not
+        // switch numbering systems from the locale alone, so the day-of-month/year fields would otherwise stay
+        // plain ASCII digits even beside a fully-localised weekday/month name (e.g. Arabic's Eastern Arabic-Indic
+        // digits) - see user/Language#localizeNumerals and .claude/I18N.md's Phase 3 follow-up.
+        return date.format(DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL).withLocale(locale).withDecimalStyle(DecimalStyle.of(locale)));
     }
 
     /**

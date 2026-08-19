@@ -38,14 +38,14 @@
         {#if u.recentlyActive}
         <span class="presence group relative inline-flex" data-elapsed-seconds="{u.secondsSinceLastRequest}" aria-label="{msg:active}">
             <span class="presence-dot presence-dot-active" aria-hidden="true"></span>
-            <span aria-hidden="true" class="app-tooltip w-max bottom-full mb-1.5 left-1/2 -translate-x-1/2">
+            <span aria-hidden="true" class="app-tooltip w-max bottom-full mb-1.5 start-1/2 app-tooltip-center">
                 <span data-activity-label>{msg:lastSeenPrefix} <span data-activity-clock>0:00</span> {msg:agoSuffix}</span>
             </span>
         </span>
         {#else}
         <span class="presence group relative inline-flex" aria-label="{msg:inactive}">
             <span class="presence-dot presence-dot-idle" aria-hidden="true"></span>
-            <span aria-hidden="true" class="app-tooltip w-max bottom-full mb-1.5 left-1/2 -translate-x-1/2">{msg:inactive}</span>
+            <span aria-hidden="true" class="app-tooltip w-max bottom-full mb-1.5 start-1/2 app-tooltip-center">{msg:inactive}</span>
         </span>
         {/if}
     </td>

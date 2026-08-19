@@ -10,10 +10,19 @@
     wrapper (after </main>). Because the wrapper is at least one viewport tall and <main> is `flex-1`,
     the footer's bottom rests on the bottom of the viewport on short pages, and sits just below the
     content (reached by scrolling) on tall ones.
+
+    `dir="ltr"` is PINNED on the row, deliberately not left to mirror under `dir="rtl"` (.claude/I18N.md
+    Phase 3): year/version/GitHub-link is build metadata, not page content, and is treated the same way a
+    copyright bug or version string is on most software - a fixed-order strip regardless of UI language.
+    That is an ORDER decision only, separate from digit glyphs: the year and the version's visible text
+    both carry `js-digits` (app.js), so they still show this language's own numerals (e.g. Eastern
+    Arabic-Indic under Arabic) - `dir="ltr"` only pins layout order/bidi, it has no bearing on which
+    glyphs a digit renders as. The version link's `href` is NEVER touched (an app.js digit pass only
+    ever rewrites text nodes, not attributes), so the release URL stays the real ASCII version always.
 !}
 <footer id="site-footer" class="bg-surface border-t border-line px-4 py-3 text-xs text-ink-muted">
-    <div class="flex items-center justify-center gap-2">
-        <span>{inject:appInfo.buildYear}</span>
+    <div dir="ltr" class="flex items-center justify-center gap-2">
+        <span class="js-digits">{inject:appInfo.buildYear}</span>
         <span aria-hidden="true">&middot;</span>
         {! Version + admin-only "newer version available" indicator, grouped in one inline-flex span so they read as
              a unit. Two SEPARATE links with different targets:
@@ -34,7 +43,7 @@
         <span class="inline-flex items-center gap-1">
             <a href="{inject:appInfo.repositoryUrl}/releases/tag/{inject:appInfo.version}" target="_blank" rel="noopener"
                aria-label="{msg:releaseNotesTooltip}"
-               class="group relative hover:text-brand transition-colors">v{inject:appInfo.version}{#include partials/tooltip text=msg:releaseNotesTooltip pos="top" /}</a>
+               class="group relative hover:text-brand transition-colors"><span class="js-digits">v{inject:appInfo.version}</span>{#include partials/tooltip text=msg:releaseNotesTooltip pos="top" /}</a>
             {#if isAdmin && updateAvailable}
             <a href="{inject:appInfo.updateUrl}" target="_blank" rel="noopener"
                aria-label="{inject:appInfo.updateTooltip}"

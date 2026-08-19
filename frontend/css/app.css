@@ -395,6 +395,67 @@
  * primary button references it directly (it no longer needs to dodge a dark-mode lightening).
  */
 @layer components {
+  /* Locale-localized digits ------------------------------------------------- */
+  /* `.js-num`/`.js-digits`/`.js-num-input` (app.js/settings.js, .claude/I18N.md Phase 3) rewrite an
+     element's digit characters into the resolved language's own glyphs (e.g. Eastern Arabic-Indic under
+     Arabic). That content has its own inherent left-to-right run (a number is never itself written
+     right-to-left, in any language) which may now differ from the page's base direction, so it is
+     ISOLATED from the surrounding bidi context rather than merely embedded: a plain inherited `dir`
+     still lets the Unicode Bidi Algorithm consider neighbouring characters at the run's boundary (seen
+     for real: a version string's leading "v" reordering to the trailing edge next to Arabic-Indic
+     digits), where `unicode-bidi: isolate` fully seals it off, matching what `<bdi>` gives HTML content
+     natively. Applies regardless of the surrounding element's own `dir` (LTR row, RTL page, or neither),
+     since a run of digits benefits from isolation either way. */
+  .js-num, .js-digits, .js-num-input { unicode-bidi: isolate; }
+
+  /* A PHRASE that MIXES translatable words with an embedded number - a stat-tile value/sub
+     ("1 day", "3 times", "Page 1 of 2"), a tooltip, a shared-message caption - is a different bug
+     shape from the pure-digit case above, and needs a different fix: `isolate` only seals a run off
+     from the OUTSIDE, it does nothing about the RUNS WITHIN the phrase reordering against each other.
+     Confirmed for real: under `dir="rtl"`, "Page 1 of 2" (English words, untranslated - Phase 5 hasn't
+     shipped Arabic content yet) rendered as "2 of 1 Page" - each word/number is its own bidi run, and
+     with no direction pinned on the phrase itself, the RTL paragraph places the FIRST logical run on
+     the right and works leftward, which is backwards for a Latin-script phrase read by anyone (English
+     OR Arabic-literate) who parses Latin letters left-to-right on sight.
+     `unicode-bidi: plaintext` fixes this WITHOUT hardcoding a direction: it resolves the phrase's OWN
+     base direction from its first STRONGLY-directional character (skipping digits, which are direction-
+     neutral) - "Page 1 of 2" resolves LTR (first strong char "P"), while a genuinely Arabic phrase this
+     same class also covers (e.g. a Java-formatted date embedded in an English "since {date}" caption)
+     resolves RTL from its own Arabic letters, unaffected. Verified both directions render correctly
+     with this rule, confirming it needs NO Phase-5 revisit once English message-bundle text is replaced
+     with real Arabic: the heuristic adapts to whatever language is actually there. Reserve `.js-digits`
+     alone (isolate) for content that is ONLY ever digits with no surrounding words (a version number, a
+     bare count in an input) - `.js-phrase` is for anything a translator's sentence could wrap around. */
+  .js-phrase { unicode-bidi: plaintext; }
+
+  /* A COMPETING ltr:/rtl: Tailwind variant PAIR (one rule per direction, e.g. a centering transform
+     that must shift the opposite way depending on direction) breaks once the app has NESTED, CONFLICTING
+     `dir` attributes — which it now deliberately does (`.claude/UI_PATTERNS.md` section 7: the navbar,
+     Settings' columns and the dashboard's panels pin `dir="ltr"` on a structural container while a
+     nearer descendant re-asserts the real `dir`, or a pinned region simply has no `dir="rtl"` reassertion
+     at all, as the navbar/footer don't). Tailwind compiles `ltr:`/`rtl:` to
+     `:where(:dir(X),[dir=X],[dir=X] *)` - the `[dir=X] *` clause matches ANY ancestor with that literal
+     attribute, not the NEAREST one, unlike the native `:dir()` pseudo-class (which correctly resolves
+     like `direction` inheritance does). So once BOTH a `dir="ltr"` ancestor and a `dir="rtl"` ancestor
+     exist ANYWHERE in the chain - regardless of which is nearer - BOTH the `ltr:` and `rtl:` copies of a
+     competing pair match simultaneously, and CSS SOURCE ORDER (not DOM nesting) silently picks the
+     winner. Confirmed for real: a tooltip's `ltr:-translate-x-1/2 rtl:translate-x-1/2` centering pair,
+     nested in the `dir="ltr"`-pinned navbar with `<html dir="rtl">` still an ancestor further up, always
+     resolved to the RTL rule (later in Tailwind's compiled output) regardless of the tooltip's own,
+     correctly-nearest-ancestor-resolved `:dir(ltr)` — shifting it a full 100% of its own width to the
+     wrong side ("shifted right too much"). The fix is these TWO classes below, written against the
+     native `:dir()` pseudo-class directly instead of Tailwind's `ltr:`/`rtl:` prefix - `:dir()` has no
+     `[dir=X] *`-style fallback, so it is immune to this. A SINGLE-direction override (no competing
+     opposite-direction rule - `.cal-chevron`'s `[dir="rtl"] { transform: scaleX(-1) }`, or
+     `rtl:scale-x-[-1]` on the settings preview-modal chevrons) is NOT affected by this bug: there is
+     nothing for source order to arbitrate between, so the plain ancestor-attribute selector matching
+     correctly (some ancestor has the target dir, regardless of a farther conflicting one) is enough. Only
+     a competing PAIR needs this treatment. */
+  .app-tooltip-center:dir(ltr) { translate: -50% 0; }
+  .app-tooltip-center:dir(rtl) { translate: 50% 0; }
+  .peer:checked ~ .toggle-thumb:dir(ltr)::after { translate: 1.25rem 0; }
+  .peer:checked ~ .toggle-thumb:dir(rtl)::after { translate: -1.25rem 0; }
+
   /* Tooltip ---------------------------------------------------------------- */
   /* Themed hover / long-press tooltip bubble — the app's single tooltip style (Action-stats picker,
      and any future tooltip). Matches the theme (surface background + ink text) with a border and
@@ -558,7 +619,7 @@
      a selector of its own, so the surface is re-applied here rather than in the template (which would
      be exactly the hand-kept duplicate the .btn-primary note above warns about). */
   .file-input::file-selector-button {
-    @apply mr-3 inline-flex items-center justify-center rounded-lg border-0 px-3 py-1.5
+    @apply me-3 inline-flex items-center justify-center rounded-lg border-0 px-3 py-1.5
            text-xs font-medium bg-brand text-on-brand cursor-pointer transition-colors;
   }
   .file-input:hover::file-selector-button { @apply bg-brand-hover; }
@@ -624,7 +685,7 @@
      — see the settings rows. The selected text then truncates with an ellipsis instead of overflowing. */
   .form-select {
     @apply rounded-lg border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-sm text-ink
-           focus:ring-brand-ring focus:border-brand-ring py-1.5 pl-3 pr-8 cursor-pointer max-w-full min-w-0;
+           focus:ring-brand-ring focus:border-brand-ring py-1.5 ps-3 pe-8 cursor-pointer max-w-full min-w-0;
   }
   /* Selectable screenshot-preview tile (settings Theme / Calendar-style pickers). Sits
      after a `sr-only peer` radio so the checked/hover/focus states are driven by the input. */
@@ -646,10 +707,10 @@
   .preview-img   { @apply absolute inset-0 block w-full h-full object-cover object-top; }
   .preview-label { @apply block text-center text-xs font-medium py-1 text-ink-muted; }
   .peer:checked ~ .preview-option .preview-label { @apply text-brand; }
-  /* (!) full-size-preview affordance, floated over the thumbnail's top-right corner. A ring + solid
+  /* (!) full-size-preview affordance, floated over the thumbnail's top-end corner. A ring + solid
      translucent fill keeps it legible over any screenshot (light or dark). */
   .preview-info {
-    @apply absolute top-1 right-1 z-10 inline-flex items-center justify-center w-6 h-6
+    @apply absolute top-1 end-1 z-10 inline-flex items-center justify-center w-6 h-6
            rounded-full text-white bg-black/55 ring-1 ring-white/70 shadow-xs
            hover:bg-black/75 transition-colors
            focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white;
@@ -682,16 +743,13 @@
            hover:bg-surface-muted hover:text-ink
            focus:outline-hidden focus-visible:ring-2 focus-visible:ring-brand-ring focus-visible:z-10;
   }
-  /* The stepper's editable value. Native spin buttons are hidden — the ± buttons replace them.
-     The number matches the preset pills' size (text-xs). */
+  /* The stepper's editable value: `type="text"` (see partials/num-pref-row.html), not "number" — so
+     it can display this language's own digit glyphs — meaning there is no native spin button to hide
+     here (a text input has none). The number matches the preset pills' size (text-xs). */
   .num-pref-value {
     @apply w-9 text-center text-xs font-medium text-ink bg-transparent border-x border-line
            focus:outline-hidden focus:ring-2 focus:ring-brand-ring focus:z-10;
-    -moz-appearance: textfield;
-    appearance: textfield;
   }
-  .num-pref-value::-webkit-inner-spin-button,
-  .num-pref-value::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
 
   /* Navigation links ------------------------------------------------------- */
   .nav-link { @apply text-ink-muted hover:text-ink transition-colors; }
@@ -777,7 +835,7 @@
            <colgroup> proportions win and the snippet truncates inside its share (see .note-snippet). */
         .dt-table-fixed { table-layout: fixed; }
         .dt-table thead tr { border-bottom: 1px solid var(--color-border); }
-        .dt-head-cell { padding: .75rem 1rem; text-align: left; font-size: .75rem; line-height: 1rem;
+        .dt-head-cell { padding: .75rem 1rem; text-align: start; font-size: .75rem; line-height: 1rem;
             font-weight: 500; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .025em; }
         .dt-tbody > tr + tr { border-top: 1px solid var(--color-border-subtle); }
 
@@ -992,13 +1050,13 @@
             padding: .25rem .5rem; background: var(--color-input-bg); color: var(--color-text); }
         .dt-text-input:focus { outline: none; box-shadow: 0 0 0 2px var(--color-brand-ring); border-color: transparent; }
         /* A cell whose read state is plain text and whose edit state is a .dt-text-input has to inset
-           the TEXT by that input's own border + padding, or the words jump 9px right the moment the row
-           enters edit. Applied to the read text AND to the column's header, so the header, the read
-           value and the edited value all share one left edge. Keep in step with .dt-text-input above. */
-        .dt-text-inset { padding-left: calc(.5rem + 1px); }
+           the TEXT by that input's own border + padding, or the words jump 9px toward the end the moment
+           the row enters edit. Applied to the read text AND to the column's header, so the header, the
+           read value and the edited value all share one start edge. Keep in step with .dt-text-input above. */
+        .dt-text-inset { padding-inline-start: calc(.5rem + 1px); }
         /* On a header the inset ADDS to the cell's own padding (which the rule above would otherwise
-           replace outright), so the heading lands on the same left edge as the values beneath it. */
-        .dt-head-cell.dt-text-inset { padding-left: calc(1rem + .5rem + 1px); }
+           replace outright), so the heading lands on the same start edge as the values beneath it. */
+        .dt-head-cell.dt-text-inset { padding-inline-start: calc(1rem + .5rem + 1px); }
         .dt-color-input { width: 1rem; height: 1rem; border-radius: 9999px; border: 0; padding: 0;
             background: transparent; cursor: pointer; flex-shrink: 0; }
         /* Compact icon control sitting beside an edit-row input (the randomise-colour button next to
@@ -1127,6 +1185,13 @@
   /* Match the text buttons' total height: their content box is 1.2em (line-height) tall, so reserve
      that here too (the square 1em glyph alone would leave this button ~2px shorter). */
   .cal-toolbar-glyph { width: 1em; height: 1.2em; }
+  /* Wraps the toolbar's «/‹/›/» characters (calendar-toolbar.html) — dir="rtl" mirrors LAYOUT, never
+     glyph content, so a bare « would still point the wrong way once flexbox moves it to the visual
+     right. A horizontally-flipped « renders as a correct-looking » and vice versa, so this one rule
+     mirrors all four glyphs correctly with no {#if} character-swapping. inline-block so the transform
+     has a box to act on (a bare inline text node ignores `transform`). */
+  .cal-chevron { display: inline-block; }
+  [dir="rtl"] .cal-chevron { transform: scaleX(-1); }
   /* The "Today" action sits at the bottom of the month/year picker popup (#cal-pop) — the same shared
      primary brand button (surface from app.css), separated from the month grid above it. Only its
      full-width geometry differs from the toolbar buttons. */
@@ -1231,21 +1296,24 @@
   .dark .d-cal-full .d-min-dow-header span { color: rgb(229, 231, 235); }
 
   /* Grid: rows grow with their events (the widget ran height:'auto'); a 1px line frames every cell via
-     a top/left frame on the grid plus right/bottom on each cell (so internal lines stay a single pixel). */
+     a top/start frame on the grid plus end/bottom on each cell (so internal lines stay a single pixel).
+     Logical (inline-start/inline-end, not left/right) so the frame's outer edge follows the grid's own
+     start column under dir="rtl" instead of staying pinned to the physical left. */
   .d-cal-full.d-min-grid {
     height: auto;
     grid-template-rows: repeat(6, minmax(76px, auto));
     border-top: 1px solid var(--cal-grid-line);
-    border-left: 1px solid var(--cal-grid-line);
+    border-inline-start: 1px solid var(--cal-grid-line);
   }
   .d-cal-full .d-min-cell {
     align-items: stretch; justify-content: flex-start; padding: 0; overflow: hidden;
-    border-right: 1px solid var(--cal-grid-line);
+    border-inline-end: 1px solid var(--cal-grid-line);
     border-bottom: 1px solid var(--cal-grid-line);
   }
   .dark .d-cal-full .d-min-cell { background: rgb(17, 24, 39); }
 
-  /* Day number: small, top-RIGHT, 4px inset (matching the widget). */
+  /* Day number: small, top-end corner, 4px inset (matching the widget) — flex-end already follows the
+     logical end side, so this needed no change beyond the comment. */
   .d-cal-full .d-full-top { display: flex; justify-content: flex-end; }
   .d-cal-full .d-full-daynum {
     font-size: 0.75rem; line-height: 1; padding: 4px; color: var(--color-text);
@@ -1481,7 +1549,13 @@
   .note-resize { display: block; }
 }
 /* Generous hit areas (8px edges, a 14px corner) that sit just inside the card's rounded border, so the
-   grab target is comfortable on a mouse and reachable with a finger without overlapping the textarea. */
+   grab target is comfortable on a mouse and reachable with a finger without overlapping the textarea.
+   PHYSICAL positions, deliberately, not logical: the note panel's own position in the dashboard grid is
+   pinned regardless of language (.claude/UI_PATTERNS.md section 7 — the dashboard's 2x2 layout is app
+   workspace chrome, not reading content), so the handle's edge never needs to move either. Was logical
+   (`inset-inline-end`) during an earlier draft of that decision, when the panel itself still mirrored
+   sides under RTL; reverted once the panel's position was pinned, since a still-logical handle would
+   have flipped to the panel's OTHER edge under Arabic while the panel itself stayed put. */
 .note-resize-right {
   top: 0.5rem; bottom: 0.9rem; right: -3px; width: 8px;
   cursor: ew-resize;
@@ -1603,7 +1677,7 @@
   /* The chart button on each stats card. Sits at the end of the header row, reveals its brand colour on
      hover like the other icon-only controls (calendar toolbar, day panel). */
   .chart-open-btn {
-    margin-left: auto;
+    margin-inline-start: auto;
     flex-shrink: 0;
     display: flex;
     align-items: center;
@@ -1660,7 +1734,11 @@
   }
   .chart-nav-btn:hover:not(:disabled) { color: var(--color-brand); background-color: var(--color-brand-faint); }
   .chart-nav-btn:disabled { opacity: 0.35; cursor: default; }
+  /* earlier/later use chevron-left/chevron-right (a genuine back/forward pair through the charted
+     window, unlike settings.html's disclosure-toggle chevron), so they mirror under RTL along with
+     which button ends up on which side (see the start-/end- classes at the call site). */
   .chart-nav-glyph { width: 1rem; height: 1rem; }
+  [dir="rtl"] .chart-nav-glyph { transform: scaleX(-1); }
   .chart-window {
     min-width: 8.5rem;
     text-align: center;
@@ -1738,7 +1816,7 @@
     padding: 0.3rem 0.4rem;
     border-radius: 0.375rem;
     font-size: 0.8125rem;
-    text-align: left;
+    text-align: start;
     color: var(--color-text-strong);
     transition: background-color .15s ease, color .15s ease;
   }
@@ -1781,11 +1859,12 @@
   /* Hovering along a row of bars should feel immediate, so the shared 500ms dwell delay is dropped
      here (it exists to stop incidental tooltips on single icon buttons, which is not this). */
   .chart-col:hover > .app-tooltip { transition-delay: 0ms; }
-  /* A multi-action column names each action on its own line (FrequencySlotExtensions.tooltip joins them
-     with newlines), so the bubble has to honour them. Left-aligned, since it is a list, not a label. */
+  /* A multi-action column names each action on its own line (partials/frequency-slot-tooltip.html joins
+     them with newlines), so the bubble has to honour them. Start-aligned, since it is a list, not a
+     label. */
   .chart-col > .app-tooltip {
     white-space: pre-line;
-    text-align: left;
+    text-align: start;
   }
 
   .chart-tick {

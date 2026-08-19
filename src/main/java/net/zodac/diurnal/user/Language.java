@@ -17,6 +17,8 @@
 
 package net.zodac.diurnal.user;
 
+import java.time.format.DateTimeFormatter;
+import java.time.format.DecimalStyle;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
@@ -145,6 +147,17 @@ public enum Language {
     }
 
     /**
+     * This language's writing direction, for {@code <html dir="...">} ({@code .claude/I18N.md}'s Phase 3). The
+     * single source of truth for which offered languages are RTL, so a future RTL addition (Hebrew, Urdu, ...)
+     * needs no template change - only a new {@code case} here.
+     *
+     * @return {@code "rtl"} for a right-to-left language, otherwise {@code "ltr"}
+     */
+    public String dir() {
+        return this == ARABIC ? "rtl" : "ltr";
+    }
+
+    /**
      * The date-time pattern for a day spelled out WITHOUT its year (e.g. {@code "15 June"}, used by
      * {@code SubjectStatsExtensions} for a stat tile's "latest" date once it falls outside the current year). Unlike
      * {@link #locale()} feeding {@code DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)} for a full date, the JDK
@@ -175,6 +188,21 @@ public enum Language {
             case SPANISH_SPAIN, SPANISH_LATIN_AMERICA -> "MMMM 'de' yyyy";
             case JAPANESE -> "yyyy年M月";
         };
+    }
+
+    /**
+     * Applies this language's own digit glyphs to an already-built {@link DateTimeFormatter} (from {@link #locale()} feeding
+     * {@link DateTimeFormatter#ofLocalizedDate}, or {@link #dayMonthPattern()}/{@link #monthYearPattern()} feeding
+     * {@link DateTimeFormatter#ofPattern(String, Locale)}). Unlike {@link java.text.NumberFormat}, {@code DateTimeFormatter}'s {@code withLocale}
+     * alone does NOT switch numbering systems - a day-of-month or year field renders in plain ASCII digits regardless of locale unless the
+     * formatter is additionally given a {@link DecimalStyle} - so every date formatter that renders a day/month/year NUMBER (as opposed to a
+     * weekday/month NAME, which {@code withLocale} already localises) must chain this. See {@code .claude/I18N.md}'s Phase 3 follow-up.
+     *
+     * @param formatter the formatter to apply this language's digits to
+     * @return the formatter, with its {@link DecimalStyle} set to this language's own
+     */
+    public DateTimeFormatter localizeNumerals(final DateTimeFormatter formatter) {
+        return formatter.withDecimalStyle(DecimalStyle.of(locale()));
     }
 
     /**

@@ -92,6 +92,17 @@ a note actually being removed — matching `LogService`'s own delete; a clear th
 > filter records method, path and status (never a body); and a rejection message is worded from the field rather than
 > quoting the value (see [`TEXT_INPUT.md`](TEXT_INPUT.md)). No path leaks one today — keep it that way.
 
+> **A note's CONTENT must never be translated or otherwise machine-altered — only the UI around it.** The same
+> reasoning as the logging rule above, from the opposite direction: a journal entry is the user's own words, in
+> whatever language THEY wrote it in, and it is not this app's place to rewrite, "correct" or re-express it —
+> not via a translation feature, not as a side effect of the [`.claude/I18N.md`](I18N.md) effort, not even as an
+> optional convenience. `.claude/I18N.md`'s phases translate the app's OWN chrome (labels, buttons, messages,
+> date/number formatting) — a note's stored `content` is opaque user data that passes through unmodified end to
+> end, exactly like `NoteService` already treats it for encryption (seal it, never parse or rewrite it). If a
+> future feature ever wants to translate or summarise note content, that is a deliberate, separately-decided,
+> user-initiated action (e.g. an explicit "translate this note" button the user chooses to press) — never
+> something that happens automatically because the viewer's language setting changed.
+
 ### Text validation
 
 **There is no multi-line field in the app today.** Every existing input is single-line, and `Normalisation.CLEANED`

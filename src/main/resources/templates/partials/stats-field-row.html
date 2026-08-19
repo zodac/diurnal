@@ -61,7 +61,7 @@
              second line left the rest of that line blank inside the bubble. Sized to the
              content and capped at 95vw, it wraps at the same point and stops there. !}
         <span id="stats-field-desc-{choice.key}" role="tooltip"
-              class="app-tooltip bottom-full mb-1.5 left-1/2 -translate-x-1/2 w-max max-w-[95vw] sm:left-0 sm:translate-x-0 sm:max-w-sm">{description}{#if choice.mandatory}
+              class="app-tooltip bottom-full mb-1.5 start-1/2 app-tooltip-center w-max max-w-[95vw] sm:start-0 sm:translate-x-0 sm:max-w-sm">{description}{#if choice.mandatory}
             {! The mandatory stat's "always shown" note lives HERE, on its own last line,
                  rather than beside the caption: as a row element it took a fixed slice of
                  the row's width off the caption, which truncated "Last performed" to
@@ -95,7 +95,7 @@
          width of both buttons so nothing moves as the row flips. Mirrors the
          data-table row actions (partials/dt-row-actions.html), which pairs
          Edit/Save and Delete/Cancel the same way. !}
-    <div class="stats-field-actions dt-actions settings-field-actions shrink-0 ml-auto">
+    <div class="stats-field-actions dt-actions settings-field-actions shrink-0 ms-auto">
         <button type="button" class="stats-field-rename-btn dt-btn dt-btn-edit"
                 aria-label="{msg:renameStat(defaultLabel)}">{msg:rename}</button>
         <button type="button" class="stats-field-save-btn dt-btn dt-btn-save hidden">{msg:save}</button>

@@ -4,8 +4,14 @@
  *
  * Served as /js/settings.<hash>.js in production (hashed + `immutable` in the Dockerfile, baked into
  * AppInfo.jsSettingsFile) and /js/settings.js in dev. Loaded only on the settings page, as a classic
- * script at the end of <body>, after the shared /js/app.js. Every control below is wired via
- * addEventListener at the bottom of this file — none of the markup carries inline on*= handlers.
+ * script INSIDE layout.html's `{#insert body}` — which means it actually runs BEFORE the shared
+ * /js/app.js, not after: app.js is the next <script> tag once that whole insertion closes, positioned
+ * there deliberately so IT sees a fully-parsed <body> (see its own header comment). Anything here that
+ * needs a window.Diurnal.* helper at CALL time (not just from inside a listener callback that fires
+ * later, by which point app.js has long since run) must go inside the DOMContentLoaded block near the
+ * numeric-preference wiring — see the comment there for why plain top-level won't do. Every control is
+ * otherwise wired via addEventListener at the bottom of this file — none of the markup carries inline
+ * on*= handlers.
  */
 
 // Flash a status indicator: set its text, colour it green (success) or red (error), fade it in,
@@ -350,6 +356,27 @@ document.getElementById('prefs-form').addEventListener('change', function (e) {
     }
 })
 
+// Unlike theme/font above, the language picker can't be applied live: `<html lang>`/`dir` and
+// every locale-formatted date/number on the page (including this one) are resolved server-side at
+// render time, not by anything this fire-and-forget PATCH returns. Reload once the new value is
+// saved, so the effect is visible without a manual navigation.
+//
+// Guarded explicitly against a NO-OP reselect (picking the language already active) rather than
+// relying on the native <select> "change" suppression a real click would get: that suppression is a
+// property of genuine pointer/keyboard interaction with the browser's own dropdown UI, not of the
+// `change` event itself — anything that sets `.value` and dispatches the event programmatically
+// (as automated UI testing does) still fires it even when the value didn't move. Tracking the last
+// value ourselves makes the "only on an actual change" rule hold for every input method.
+const languageSelect = document.getElementById('language')
+let lastLanguage = languageSelect.value
+languageSelect.addEventListener('htmx:afterRequest', function (e) {
+    if (e.detail.successful && languageSelect.value !== lastLanguage) {
+        window.location.reload()
+        return
+    }
+    lastLanguage = languageSelect.value
+})
+
 // ── Note colour: revert to the built-in default ──────────────────────────
 // The picker itself auto-saves (hx-trigger="change"), and the randomise button beside it is the
 // shared handler in app.js — so this only has to write the value in and fire the same `change`
@@ -570,6 +597,15 @@ function wireNumericPref(opts) {
     const clearPill = presets.querySelector('[data-num-pref-clear]')
     const MIN = opts.min
     const MAX = opts.max
+    // The field DISPLAYS this language's own digit glyphs (server-rendered `value`/`placeholder` are
+    // always plain Latin, since Java can't know the client's resolved language) but every READ below
+    // goes through `trueValue`/`shown`, which delocalize first - so `field.value` itself is the only
+    // thing that needs converting once, right here, before anything reads or compares it. The actual
+    // PATCH is delocalized separately, right before it leaves the browser (see the shared
+    // htmx:configRequest listener below) - `field.value` staying localized the whole time is what
+    // lets it keep being the visible input text.
+    field.value = window.Diurnal.localizeDigits(field.value)
+    if (field.placeholder) { field.placeholder = window.Diurnal.localizeDigits(field.placeholder) }
     // The last value the server accepted — the value to restore if a typed entry is rejected.
     let lastGood = field.value
 
@@ -585,26 +621,30 @@ function wireNumericPref(opts) {
     }
 
     // Highlight the preset pill matching the current value (none, if it is a custom value), or
-    // the "Default" pill when the field is empty.
+    // the "Default" pill when the field is empty. Pills' `data-value` is always plain Latin (it never
+    // touches the DOM as visible text there — see partials/num-pref-row.html), so only `field.value`
+    // needs delocalizing before the comparison.
     function syncPills() {
-        const val = parseInt(field.value, 10)
+        const val = parseInt(window.Diurnal.delocalizeDigits(field.value), 10)
         presets.querySelectorAll('.num-pref-pill').forEach(function (pill) {
             mark(pill, parseInt(pill.dataset.value, 10) === val)
         })
         if (clearPill) { mark(clearPill, field.value === '') }
     }
 
-    // Shows a new value and saves it. A value equal to the one already shown (e.g. pressing − at
-    // the minimum, or a pill for the already-selected value) is a no-op — skip the save so we
-    // don't PATCH an unchanged setting.
+    // Shows a new value (a plain Latin string) and saves it. A value equal to the one already shown
+    // (e.g. pressing − at the minimum, or a pill for the already-selected value) is a no-op — skip
+    // the save so we don't PATCH an unchanged setting. Compares against the LOCALIZED form of `next`,
+    // since that's what `field.value` itself holds.
     //
     // A number equal to the inherited one is deliberately NOT folded back to the empty "Default"
     // state: setting a row to 25 while the general preference happens to be 25 is an explicit
     // choice to page THAT list by 25, and it must survive the general preference moving to
     // something else. Only the "Default" pill clears a row.
     function commit(next) {
-        if (next === field.value) { return }
-        field.value = next
+        const shownNext = window.Diurnal.localizeDigits(next)
+        if (shownNext === field.value) { return }
+        field.value = shownNext
         syncPills()
         htmx.trigger(saveOn, 'save')
     }
@@ -615,9 +655,10 @@ function wireNumericPref(opts) {
     }
 
     // ± steps from the shown value, or — for a cleared field — from the inherited value it is
-    // showing as its placeholder, so the first press lands next to what the user sees.
+    // showing as its placeholder, so the first press lands next to what the user sees. Both are
+    // delocalized first, since either may hold this language's own digit glyphs.
     function shown() {
-        return parseInt(field.value === '' ? field.placeholder : field.value, 10)
+        return parseInt(window.Diurnal.delocalizeDigits(field.value === '' ? field.placeholder : field.value), 10)
     }
 
     if (minus) { minus.addEventListener('click', function () { setValid(shown() - 1) }) }
@@ -631,10 +672,13 @@ function wireNumericPref(opts) {
             setValid(parseInt(pill.dataset.value, 10))
         }
     })
-    // Direct typing / native arrow keys: send the RAW value (no clamping) so the server
-    // validates it. The `save` event (not `change`) carries the PATCH, so this handler is
-    // not re-entered by the save itself.
+    // Direct typing / native arrow keys: send the RAW value (no clamping) so the server validates
+    // it. Re-rendered through delocalize→localize first, so whatever the user typed — this
+    // language's own digits, plain Latin ones (many keyboards still produce these even under an
+    // Arabic layout), or a mix — settles on one consistent, this-language display. The `save` event
+    // (not `change`) carries the PATCH, so this handler is not re-entered by the save itself.
     field.addEventListener('change', function () {
+        field.value = window.Diurnal.localizeDigits(window.Diurnal.delocalizeDigits(field.value))
         syncPills()
         htmx.trigger(saveOn, 'save')
     })
@@ -653,17 +697,56 @@ function wireNumericPref(opts) {
     syncPills()
 }
 
-wireNumericPref({ field: 'pageSize', minus: 'pageSizeMinus', plus: 'pageSizePlus',
-                  presets: 'pageSizePresets', min: 1, max: 100 })
-wireNumericPref({ field: 'decimalPlaces', presets: 'decimalPlacesPresets', min: 0, max: 2 })
+// The three numeric-pref field NAMES wireNumericPref manages (pageSize, decimalPlaces, and the
+// per-section pageSizeValue - repeated once per row, so htmx collects it as an array). Their
+// `<input>`s display this language's own digit glyphs (see wireNumericPref above), but a PATCH is
+// built straight from each field's live DOM value - so intercept the outgoing parameters here and
+// delocalize any of these three before the request leaves the browser. The server only ever sees
+// plain Latin digits, matching every other numeric field in the app. A no-op under a Latin-digit
+// language, and harmless for a request that carries none of these names.
+document.body.addEventListener('htmx:configRequest', function (e) {
+    ['pageSize', 'decimalPlaces', 'pageSizeValue'].forEach(function (name) {
+        // e.detail.parameters is htmx's FormData-backed Proxy, not a plain object: reading a
+        // MULTI-valued key (pageSizeValue, once per section row) returns its OWN array-flavoured
+        // Proxy, not a real Array - `Array.isArray()` passes on it (Array.isArray sees through a
+        // Proxy to its target), but its wrapped `.map()` doesn't return the mapped array; it applies
+        // the call and re-syncs the underlying FormData itself, so `.map()` evaluates to `undefined`.
+        // Assigning THAT back (`parameters[name] = undefined`) hits the proxy's `set` trap, which
+        // deletes every existing entry for the key first and then appends the literal string
+        // "undefined" once - wiping all N section values down to one corrupt one. Going through the
+        // real FormData methods directly (getAll/delete/append, forwarded as-is by the proxy) instead
+        // sidesteps that broken wrapper entirely and works identically for a single-valued key
+        // (pageSize, decimalPlaces) and a multi-valued one (pageSizeValue).
+        const values = e.detail.parameters.getAll(name)
+        if (values.length === 0) { return }
+        e.detail.parameters.delete(name)
+        values.forEach(function (v) { e.detail.parameters.append(name, window.Diurnal.delocalizeDigits(v)) })
+    })
+})
 
 // Per-section page sizes: the same control as the row above, plus the "Default" pill, saving
 // through the panel so one PATCH carries the whole set (the endpoint replaces every override
 // with what it is sent, so a row must never save on its own).
 const pageSizeFields = document.querySelectorAll('[data-page-size-section]')
-pageSizeFields.forEach(function (field) {
-    wireNumericPref({ field: field.id, minus: `${field.id}-minus`, plus: `${field.id}-plus`,
-                      presets: `${field.id}-presets`, min: 1, max: 100, saveOn: 'page-size-sections-panel' })
+
+// wireNumericPref (above) now reads window.Diurnal.localizeDigits/delocalizeDigits at CALL time
+// (its very first lines), not just from listener callbacks that fire later — so, unlike the rest of
+// this file, these three calls can't run at plain top level: despite this file's own header comment
+// ("after the shared /js/app.js"), settings.js is actually the LAST thing inside layout.html's
+// `{#insert body}` and app.js is the NEXT script tag after that whole insertion closes — meaning
+// app.js provably runs AFTER settings.js reaches this point, not before, and window.Diurnal.
+// localizeDigits does not exist yet. DOMContentLoaded fires only once every parser-blocking
+// <script> in the document — including that later app.js — has finished executing, so deferring
+// these three calls to it is what actually gets the documented order. See the load-order note this
+// forced onto the top of the file.
+document.addEventListener('DOMContentLoaded', function () {
+    wireNumericPref({ field: 'pageSize', minus: 'pageSizeMinus', plus: 'pageSizePlus',
+                      presets: 'pageSizePresets', min: 1, max: 100 })
+    wireNumericPref({ field: 'decimalPlaces', presets: 'decimalPlacesPresets', min: 0, max: 2 })
+    pageSizeFields.forEach(function (field) {
+        wireNumericPref({ field: field.id, minus: `${field.id}-minus`, plus: `${field.id}-plus`,
+                          presets: `${field.id}-presets`, min: 1, max: 100, saveOn: 'page-size-sections-panel' })
+    })
 })
 
 // The general "Items per page" is what a section without its own value falls back to, and every

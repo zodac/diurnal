@@ -1,5 +1,10 @@
 {! Shared inline message banner. Pass `variant` (error | success | warning) and `message`.
    Optional `cls` adds extra utility classes (e.g. spacing like `mb-4`). The visual styling
    lives in the `.banner*` rules in layout.html so Qute pages and Java-built HTMX error
-   responses stay identical. !}
-<div class="banner banner-{variant} {cls ?: ''}">{message}</div>
+   responses stay identical.
+
+   `js-digits js-phrase` apply unconditionally: most banner messages are plain translated text with
+   no digits (a safe no-op for both), but several embed a count (import summaries, validation errors
+   like "must be at least N characters") - one shared pair of classes here covers every current and
+   future caller, the same reasoning as partials/tooltip.html. !}
+<div class="banner banner-{variant} js-digits js-phrase {cls ?: ''}">{message}</div>

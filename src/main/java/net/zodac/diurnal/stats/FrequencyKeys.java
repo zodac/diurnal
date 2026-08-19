@@ -41,8 +41,10 @@ final class FrequencyKeys {
     private static final Pattern MONTH_KEY = Pattern.compile("^\\d{4}-\\d{2}$");
     private static final Pattern YEAR_KEY = Pattern.compile("^\\d{4}$");
     private static final DateTimeFormatter MONTH_KEY_FMT = DateTimeFormatter.ofPattern("yyyy-MM", Locale.ENGLISH);
-    // Also YEAR's DISPLAY label (see #label below): four ASCII digits, so it needs no locale - no offered language
-    // uses non-Latin digits for a plain year number.
+    // The wire key ONLY (see #key below) - fixed ASCII digits and Locale.ENGLISH deliberately, since this round-trips
+    // through URLs/params and must parse identically regardless of viewer language. NOT used for the YEAR display
+    // label any more (see #label below) - Arabic's Eastern Arabic-Indic digits proved that claim wrong; #label
+    // builds its own locale-decimal-styled formatter for that case instead.
     private static final DateTimeFormatter YEAR_KEY_FMT = DateTimeFormatter.ofPattern("yyyy", Locale.ENGLISH);
 
     private FrequencyKeys() {
@@ -112,7 +114,9 @@ final class FrequencyKeys {
     }
 
     /**
-     * The window's heading, spelled out in full ({@code July 2026} / {@code 2026}).
+     * The window's heading, spelled out in full ({@code July 2026} / {@code 2026}). Unlike {@link #key(FrequencyPeriod, LocalDate)}, this is
+     * user-visible, so - despite a year having no WORDS to localise - its digits still need this language's own glyphs (e.g. Eastern Arabic-Indic
+     * for Arabic); {@link #YEAR_KEY_FMT} cannot be reused here for that reason (it is fixed-ASCII, deliberately, for the wire key).
      *
      * @param period the window's period
      * @param anchor the first day of the window
@@ -121,8 +125,8 @@ final class FrequencyKeys {
      */
     static String label(final FrequencyPeriod period, final LocalDate anchor, final Language language) {
         return switch (period) {
-            case MONTH -> anchor.format(DateTimeFormatter.ofPattern(language.monthYearPattern(), language.locale()));
-            case YEAR -> anchor.format(YEAR_KEY_FMT);
+            case MONTH -> anchor.format(language.localizeNumerals(DateTimeFormatter.ofPattern(language.monthYearPattern(), language.locale())));
+            case YEAR -> anchor.format(language.localizeNumerals(DateTimeFormatter.ofPattern("yyyy", language.locale())));
         };
     }
 

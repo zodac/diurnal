@@ -1,5 +1,12 @@
 <header id="site-header" class="bg-surface border-b border-line px-4 py-3 relative">
-    <div class="flex items-center gap-6">
+    {! `dir="ltr"` pins this row's physical arrangement (logo left, nav next, account/hamburger right)
+         regardless of language - a deliberate product decision (asked of the user, not inferred): the
+         navbar is app CHROME a user builds positional muscle memory for, not reading content, so it
+         does not mirror the way the calendar/notes grid or a translated sentence does. Every item here
+         is a single short label (never a multi-word phrase mixing scripts), so freezing the CONTAINER's
+         direction doesn't fight anything inside it - a translated Arabic link label still shapes and
+         reads correctly, it just doesn't reorder the row. See .claude/UI_PATTERNS.md section 7. !}
+    <div dir="ltr" class="flex items-center gap-6">
         <a href="/" aria-label="{msg:tagline}" class="group relative flex items-center shrink-0">
             <img src="/img/{inject:appInfo.image('wordmark.svg')}" alt="Diurnal" fetchpriority="high" class="h-6 w-auto" width="91" height="24">
             {#include partials/tooltip text=msg:tagline pos="bottom" align="left" /}
@@ -9,13 +16,13 @@
         <nav class="hidden sm:flex gap-4 text-sm">
             {#include partials/nav-links active=active isAdmin=isAdmin showTips=true /}
         </nav>
-        <div class="hidden sm:flex ml-auto items-center gap-4">
+        <div class="hidden sm:flex ms-auto items-center gap-4">
             {#include partials/account-links id="nav-display-name" active=active showTips=true /}
         </div>
 
         {! Mobile hamburger: shown only when the desktop nav is hidden !}
         <button type="button" id="hamburger-btn" aria-label="{msg:toggleMenu}" aria-controls="mobile-menu" aria-expanded="false"
-                class="group sm:hidden ml-auto p-1 -my-1 -mr-1 text-ink-muted aria-expanded:text-brand aria-[expanded=false]:hover:text-ink focus:outline-hidden transition-colors">
+                class="group sm:hidden ms-auto p-1 -my-1 -me-1 text-ink-muted aria-expanded:text-brand aria-[expanded=false]:hover:text-ink focus:outline-hidden transition-colors">
             {#include partials/icon name='hamburger' cls='w-6 h-6 transition-transform duration-200 group-aria-expanded:rotate-90' /}
         </button>
     </div>
