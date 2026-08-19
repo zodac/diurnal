@@ -8,7 +8,38 @@
     text  — the tooltip text (required)
     pos   — 'top' (default) | 'bottom': which side of the host the bubble sits on
     align — 'center' (default) | 'left' | 'right': horizontal anchor. Use left/right for edge buttons
-            so the bubble grows inward and can never push the page sideways.
+            so the bubble grows inward and can never push the page sideways. The NAMES stay physical
+            (a caller says which edge of the viewport/row the host button sits near), but the CSS they
+            map to is logical (start-0/end-0, not left-0/right-0): a button anchored to its row's
+            leading edge keeps `align='left'` regardless of language, and the bubble still grows inward
+            from whichever physical side that ends up on once dir="rtl" mirrors the row.
+
+  The default (centered) case anchors at `start-1/2` and re-centers with a translate — `transform` has no
+  logical axis, so a single `-translate-x-1/2` is only correct under LTR (where `start-1/2` = `left: 50%`,
+  and shifting left by half the bubble's own width centers it). Under RTL, `start-1/2` = `right: 50%`, so
+  centering needs a shift in the OPPOSITE physical direction. Getting this wrong doesn't just miscenter
+  the bubble — it visibly pushes the whole page's scrollable width out to one side (a centered tooltip
+  drifting further off one edge), so it is worth getting right even though it looks like a cosmetic
+  detail.
+
+  `.app-tooltip-center` (app.css), NOT Tailwind's `ltr:`/`rtl:` prefix, does that direction-aware shift —
+  deliberately: Tailwind compiles `ltr:`/`rtl:` to `:where(:dir(X),[dir=X],[dir=X] *)`, and that
+  `[dir=X] *` clause matches ANY ancestor with the attribute, not the nearest one. Once this app started
+  pinning `dir="ltr"` on some structural containers while a nearer descendant (or `<html>` itself, for a
+  region with no re-assertion at all, like the navbar) carries the real `dir="rtl"`, a competing
+  `ltr:`/`rtl:` PAIR like this one started matching BOTH rules at once, with CSS source order silently
+  picking the wrong one — confirmed for real: this tooltip, nested in the navbar, shifted a full 100% of
+  its own width to the wrong side. `.app-tooltip-center` uses the native `:dir()` pseudo-class instead,
+  which (like the `direction` property) correctly resolves from the NEAREST `dir` ancestor and has no such
+  fallback clause. See app.css's own comment on the class for the fuller mechanism.
+
+  `.js-digits`/`.js-phrase` (app.js/app.css) are applied unconditionally: most callers pass plain
+  translated text with no digits (a safe no-op for both), but a handful embed a number (the footer's
+  admin-only "Update available - v<latest>" tooltip is one) — for those, `.js-digits` localizes the
+  digit glyphs and `.js-phrase` (`unicode-bidi: plaintext`) keeps the surrounding words in their own
+  correct reading order under `dir="rtl"` (confirmed needed: see app.css's comment on `.js-phrase` for
+  the real bug this fixes). One shared pair of classes here covers every current and future caller
+  rather than remembering to add them per call site.
 !}
 {! `pos`/`align` are optional (see above), so resolve them through the documented defaults here rather
    than requiring every caller to pass them — otherwise a caller that omits one makes the `{#if pos ==
@@ -18,5 +49,5 @@
    parsing — so `.or(...)` is used here instead. !}
 {#let pos=pos.or('top') align=align.or('center')}
 <span aria-hidden="true"
-      class="app-tooltip w-max max-w-[16rem]{#if pos == 'bottom'} top-full mt-1.5{#else} bottom-full mb-1.5{/if}{#if align == 'left'} left-0{#else if align == 'right'} right-0{#else} left-1/2 -translate-x-1/2{/if}">{text}</span>
+      class="app-tooltip js-digits js-phrase w-max max-w-[16rem]{#if pos == 'bottom'} top-full mt-1.5{#else} bottom-full mb-1.5{/if}{#if align == 'left'} start-0{#else if align == 'right'} end-0{#else} start-1/2 app-tooltip-center{/if}">{text}</span>
 {/let}

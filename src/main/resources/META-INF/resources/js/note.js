@@ -380,8 +380,10 @@ window.Diurnal = window.Diurnal || {};
         const calWrap = document.getElementById('calendar-wrap')
         const calendar = calWrap ? calWrap.getBoundingClientRect() : null
         const panelBox = notePanel.getBoundingClientRect()
-        // Side by side (lg+) only when the calendar actually sits to the left; stacked in one column the
-        // box may use the full content width.
+        // Side by side (lg+) only when the calendar sits to the note's physical left; stacked in one
+        // column the box may use the full content width. The dashboard's 2x2 grid position is pinned
+        // regardless of language (.claude/UI_PATTERNS.md section 7), so this comparison is never
+        // direction-aware — the calendar is always physically left of the note panel.
         const sideBySide = calendar !== null && panelBox.left > calendar.left + 1
         return sideBySide ? Math.max(noteNaturalWidth(), available - MIN_CALENDAR_WIDTH) : available
     }

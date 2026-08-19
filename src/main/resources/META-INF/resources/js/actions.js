@@ -20,6 +20,16 @@
 // Asking for a fresh suggestion here keeps the "already randomised" state true for every add, not
 // just the first, and it is only correct AFTER the add: the suggestion avoids the colours in use,
 // which now includes the one just taken.
+// #showing-shown/#showing-total display this language's own digit glyphs (`.js-digits`,
+// partials/pagination.html), so a surgical read/write here must delocalize before parsing and
+// re-localize before writing back - the same round-trip settings.js's numeric fields use.
+function readCount(el) {
+    return parseInt(window.Diurnal.delocalizeDigits(el.textContent), 10)
+}
+function writeCount(el, value) {
+    el.textContent = window.Diurnal.localizeDigits(String(value))
+}
+
 document.getElementById('new-action-form').addEventListener('htmx:afterRequest', function (event) {
     if (event.detail.xhr.status === 200) {
         document.getElementById('action-error').innerHTML = ''
@@ -30,8 +40,8 @@ document.getElementById('new-action-form').addEventListener('htmx:afterRequest',
         if (er) {er.remove()}
         const sh = document.getElementById('showing-shown')
         const tot = document.getElementById('showing-total')
-        if (sh) {sh.textContent = parseInt(sh.textContent, 10) + 1}
-        if (tot) {tot.textContent = parseInt(tot.textContent, 10) + 1}
+        if (sh) {writeCount(sh, readCount(sh) + 1)}
+        if (tot) {writeCount(tot, readCount(tot) + 1)}
         const section = document.getElementById('actions-section')
         if (section) {
             section.dataset.total = parseInt(section.dataset.total, 10) + 1
@@ -66,9 +76,9 @@ document.body.addEventListener('htmx:beforeSwap', function (e) {
         e.detail.shouldSwap = true
         const sh = document.getElementById('showing-shown')
         const tot = document.getElementById('showing-total')
-        if (sh) {sh.textContent = parseInt(sh.textContent, 10) - 1}
-        const filteredLeft = tot ? parseInt(tot.textContent, 10) - 1 : 0
-        if (tot) {tot.textContent = filteredLeft}
+        if (sh) {writeCount(sh, readCount(sh) - 1)}
+        const filteredLeft = tot ? readCount(tot) - 1 : 0
+        if (tot) {writeCount(tot, filteredLeft)}
 
         const section = document.getElementById('actions-section')
         const totalLeft = section ? parseInt(section.dataset.total, 10) - 1 : 0

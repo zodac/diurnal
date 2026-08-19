@@ -26,13 +26,18 @@ document.addEventListener('DOMContentLoaded', function () {
     // come from Diurnal (app.js), the one place the project spells out "June" → "Jun" — the stats
     // tiles' own date fitting reduces their labels through the same ladder.
     function setCalTitle(el, year, monthIndex) {
+        // Slice the plain Latin digits first (a fixed "last 2 characters" is meaningless once
+        // transcoded), then localize each form — so the abbreviated year keeps this language's own
+        // digit glyphs too, not just the full one (Diurnal.MONTHS_FULL/ABBR are already localized).
         const yr = String(year)
+        const yrFull  = window.Diurnal.localizeDigits(yr)
+        const yrAbbr  = window.Diurnal.localizeDigits(yr.slice(-2))
         el.innerHTML =
             `<span class="cal-title-month-full">${  window.Diurnal.MONTHS_FULL[monthIndex]  }</span>` +
             `<span class="cal-title-month-abbr">${  window.Diurnal.MONTHS_ABBR[monthIndex]  }</span>` +
             ' ' +
-            `<span class="cal-title-year-full">${  yr  }</span>` +
-            `<span class="cal-title-year-abbr">${  yr.slice(-2)  }</span>`
+            `<span class="cal-title-year-full">${  yrFull  }</span>` +
+            `<span class="cal-title-year-abbr">${  yrAbbr  }</span>`
         fitCalTitle(el)
     }
 
@@ -196,10 +201,19 @@ document.addEventListener('DOMContentLoaded', function () {
 
     // Swap a day's cached/loaded HTML into the panel and wire its HTMX attributes (htmx.process, since
     // we set innerHTML directly rather than going through htmx.ajax). Lifts the in-flight dim.
+    //
+    // This bypasses htmx's own swap entirely, so none of app.js's htmx:afterSwap-driven passes
+    // (locale number grouping/digit localization, figure fitting, the day-panel's own count fields)
+    // run on their own here — call each explicitly, the same way the stats-summary panel already does
+    // for its own plain-fetch load (see loadStatsSummary below).
     function swapDayPanel(html) {
         if (!dayPanel) {return}
         dayPanel.innerHTML = html
         htmx.process(dayPanel)
+        window.Diurnal.formatNumbers(dayPanel)
+        window.Diurnal.localizeDigitsIn(dayPanel)
+        window.Diurnal.localizeNumInputsIn(dayPanel)
+        window.Diurnal.fitFigures(dayPanel)
         dayPanel.style.opacity = ''
     }
 
@@ -236,13 +250,15 @@ document.addEventListener('DOMContentLoaded', function () {
     )
 
     // Swap a day's card into the host. The figures are server-rendered as bare digits in their fullest
-    // form, so the two presentation passes that normally run on page load / after an HTMX swap (locale
-    // number grouping, and the responsive shortening of long dates and large counts) have to be re-applied
-    // by hand here — this is a plain fetch + innerHTML, which fires neither.
+    // form, so the presentation passes that normally run on page load / after an HTMX swap (locale
+    // number grouping, digit-only localization, and the responsive shortening of long dates and large
+    // counts) have to be re-applied by hand here — this is a plain fetch + innerHTML, which fires none
+    // of them.
     function swapStatsSummary(html) {
         if (!statsHost) {return}
         statsHost.innerHTML = html
         window.Diurnal.formatNumbers(statsHost)
+        window.Diurnal.localizeDigitsIn(statsHost)
         window.Diurnal.fitFigures(statsHost)
     }
 
@@ -850,7 +866,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     top.className = 'd-full-top'
                     const num = document.createElement('span')
                     num.className = 'd-full-daynum'
-                    num.textContent = dy
+                    num.textContent = window.Diurnal.localizeDigits(dy)
                     top.appendChild(num)
                     cell.appendChild(top)
 
@@ -868,7 +884,10 @@ document.addEventListener('DOMContentLoaded', function () {
                         // drop the name independently of the ×N. dataset carries the parts for re-fitting.
                         const mIdx     = a.label.lastIndexOf(' ×')
                         const nameStr  = mIdx !== -1 ? a.label.slice(0, mIdx) : a.label
-                        const countStr = mIdx !== -1 ? a.label.slice(mIdx + 1) : '' // "×N"
+                        // "×N" - localize the digit now (both the displayed span and the dataset used
+                        // for re-fitting, so a later re-measurement sees the same glyphs actually on
+                        // screen, not the server's original Latin digit).
+                        const countStr = mIdx !== -1 ? window.Diurnal.localizeDigits(a.label.slice(mIdx + 1)) : ''
                         const title = document.createElement('span')
                         title.className = 'd-full-event-title'
                         title.textContent = nameStr
@@ -891,7 +910,7 @@ document.addEventListener('DOMContentLoaded', function () {
                     // moving the circle (the background/ring sits on .d-min-date itself).
                     dateInk = document.createElement('span')
                     dateInk.className = 'd-min-date-ink'
-                    dateInk.textContent = dy
+                    dateInk.textContent = window.Diurnal.localizeDigits(dy)
                     dateNum.appendChild(dateInk)
                     cell.appendChild(dateNum)
 

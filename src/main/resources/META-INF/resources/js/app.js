@@ -32,15 +32,26 @@ window.Diurnal.formatClock = function (totalSeconds) {
     const s = totalSeconds > 0 ? totalSeconds : 0
     const mins = Math.floor(s / 60)
     const secs = s % 60
-    return `${(mins < 10 ? '0' : '') + mins  }:${  secs < 10 ? '0' : ''  }${secs}`
+    const clock = `${(mins < 10 ? '0' : '') + mins  }:${  secs < 10 ? '0' : ''  }${secs}`
+    // localizeDigits is defined further down this file, but only ever CALLED here later (async, off a
+    // setInterval tick) - by then the whole file has finished executing, so the forward reference is safe.
+    return window.Diurnal.localizeDigits(clock)
 }
 
 // The ONE place the inline error-banner markup is built client-side, mirroring
 // partials/banner.html (and the Java-built HTMX banners) — a keep-in-sync pair, see
 // .claude/UI_PATTERNS.md. The message is NOT escaped here: callers pass trusted literals, or
 // escape user content themselves (the form validator below).
+//
+// partials/banner.html gets its digit-localization/bidi-ordering via the shared `.js-digits`/
+// `.js-phrase` DOM passes (registered on htmx:afterSwap), but this markup is inserted by a raw
+// `slot.innerHTML =` write - one of the "plain fetch + innerHTML" paths that bypasses htmx's swap
+// event entirely (see the note in dashboard.js's swapDayPanel). Rather than remembering to call the
+// DOM passes by hand at every one of this helper's several call sites, localizeDigits runs on the
+// MESSAGE STRING directly here (this function already has it as a plain JS string, before it ever
+// becomes DOM) - `.js-phrase` (CSS-only, no JS pass needed) still covers the bidi-ordering half.
 window.Diurnal.bannerHtml = function (message) {
-    return `<div class="banner banner-error">${  message  }</div>`
+    return `<div class="banner banner-error js-phrase">${  window.Diurnal.localizeDigits(message)  }</div>`
 }
 
 // True when every [required] field in the form holds a non-blank value. Shared by the
@@ -532,7 +543,8 @@ document.addEventListener('click', function (e) {
 // Japanese-language preference with an English-locale browser must still group numbers the
 // Japanese way, matching every other figure the server rendered on the same page), so 1000
 // becomes "1,000" (en) or "1.000" (de) etc. Only elements explicitly tagged `.js-num` are
-// touched — never date/label fields (e.g. "Jun 2026"), names or emails — so years are left alone.
+// touched — never date/label fields (e.g. "Jun 2026"), names or emails; a year/day-of-month instead
+// goes through Diurnal.localizeDigits (below), which transcodes digits without ever grouping them.
 (function () {
     // Any element holding a number of 5+ digits (i.e. >= 10,000) keeps its ungrouped server text on
     // `data-num-raw`, so the fitting pass below can re-derive a "10.0k" form from exact digits rather
@@ -543,6 +555,37 @@ document.addEventListener('click', function (e) {
         return decimals > 0
             ? num.toLocaleString(window.Diurnal.lang, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
             : num.toLocaleString(window.Diurnal.lang)
+    }
+    // Glyph-for-glyph digit transcoding, deliberately WITHOUT grouping — for a calendar day number or
+    // year, which must show this language's own digit glyphs (e.g. Eastern Arabic-Indic for Arabic)
+    // but must NEVER gain a "2,026"-style grouping separator a bare Number#toLocaleString would add.
+    // Built from Intl.NumberFormat itself, not a hardcoded numbering-system table, so it stays correct
+    // for whatever the resolved language's own CLDR data says — a no-op for every Latin-digit language.
+    // Operates on the STRING (not a parsed Number), so a zero-padded value ("05") keeps its padding.
+    const DIGIT_GLYPHS = (function () {
+        const nf = new Intl.NumberFormat(window.Diurnal.lang, { useGrouping: false })
+        const glyphs = {}
+        for (let d = 0; d <= 9; d += 1) { glyphs[d] = nf.format(d) }
+        return glyphs
+    })()
+    window.Diurnal.localizeDigits = function (text) {
+        return String(text).replace(/\d/g, function (digit) { return DIGIT_GLYPHS[digit] })
+    }
+    // The reverse transcode, for an EDITABLE field that displays this language's own digit glyphs
+    // (a Settings numeric stepper) but must submit/parse plain Latin digits underneath — see
+    // wireNumericPref in settings.js. Only ever strips this language's OWN glyph set (built from the
+    // same Intl.NumberFormat as DIGIT_GLYPHS above), so it never touches a character that merely looks
+    // digit-adjacent in some other script. A no-op under a Latin-digit language, same as the forward
+    // direction.
+    const LATIN_FROM_GLYPH = (function () {
+        const map = {}
+        for (let d = 0; d <= 9; d += 1) { map[DIGIT_GLYPHS[d]] = String(d) }
+        return map
+    })()
+    const GLYPH_CHARS = Object.keys(LATIN_FROM_GLYPH).map(function (ch) { return ch.replace(/[-\]\\^]/g, '\\$&') }).join('')
+    const GLYPH_PATTERN = new RegExp(`[${GLYPH_CHARS}]`, 'g')
+    window.Diurnal.delocalizeDigits = function (text) {
+        return String(text).replace(GLYPH_PATTERN, function (glyph) { return LATIN_FROM_GLYPH[glyph] })
     }
     // Replace each run of digits (optionally with a decimal part) in a string, preserving everything
     // around it: "+1234" → "+1,234" and "1234 this month" → "1,234 this month".
@@ -574,6 +617,83 @@ document.addEventListener('click', function (e) {
     // content (e.g. the stats list paginating in).
     window.Diurnal.formatNumbers(document.body)
     document.body.addEventListener('htmx:afterSwap', function (e) { window.Diurnal.formatNumbers(e.target) })
+})();
+
+// ── Digit-only localization (no grouping) ──────────────────────────────────────
+// A second, narrower pass alongside .js-num above: `.js-digits` marks server-rendered numeric text
+// that must show this language's own digit glyphs but must NEVER be grouped - a settings preset
+// pill (its own value already round-trips through `data-value`, untouched here), the footer's build
+// year, the footer's version text. Kept separate from formatNumbers rather than a mode flag on
+// `.js-num`, so a caller can't accidentally group a year or a version number by picking the wrong
+// class. Never touches an attribute (href, data-value) - only text nodes, same as formatNumbers.
+(function () {
+    window.Diurnal.localizeDigitsIn = function (rootParam) {
+        const root = rootParam || document.body
+        const els = []
+        if (root.classList && root.classList.contains('js-digits')) { els.push(root) }
+        if (root.querySelectorAll) { Array.prototype.push.apply(els, root.querySelectorAll('.js-digits')) }
+        els.forEach(function (el) {
+            if (el.dataset.digitsDone) { return } // idempotent: don't re-walk an already-localized element
+            el.dataset.digitsDone = '1'
+            const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null)
+            const nodes = []
+            let node
+            while ((node = walker.nextNode())) { nodes.push(node) }
+            nodes.forEach(function (textNode) {
+                textNode.nodeValue = window.Diurnal.localizeDigits(textNode.nodeValue)
+            })
+        })
+    }
+    window.Diurnal.localizeDigitsIn(document.body)
+    document.body.addEventListener('htmx:afterSwap', function (e) { window.Diurnal.localizeDigitsIn(e.target) })
+})();
+
+// ── Editable numeric text inputs that display localized digits ────────────────
+// `.js-digits` (above) is read-only text. `.js-num-input` is the editable-field counterpart: a
+// `type="text" inputmode="numeric"` field (never `type="number"` - that value is spec-constrained to
+// ASCII digits and cannot hold e.g. Eastern Arabic-Indic ones) whose VALUE should show this language's
+// own digit glyphs while the request that actually leaves the browser carries plain Latin ones. The
+// day panel's per-action count field (partials/day-action-item.html) is the one user today; settings.js's
+// wireNumericPref is the fuller version of this same pattern (presets/stepper), kept separate there since
+// it also owns pill-highlighting/clamping this generic version has no notion of.
+(function () {
+    function localizeField(field) {
+        if (field.dataset.numInputDone) { return } // idempotent: don't re-localize an already-shown value
+        field.dataset.numInputDone = '1'
+        field.value = window.Diurnal.localizeDigits(field.value)
+    }
+    // Exposed (not just wired to htmx:afterSwap) because at least one caller sets innerHTML directly
+    // rather than going through an htmx swap (dashboard.js's day panel) and must call this explicitly,
+    // the same way it already does for formatNumbers/localizeDigitsIn/fitFigures.
+    window.Diurnal.localizeNumInputsIn = function (rootParam) {
+        const root = rootParam || document.body
+        if (root.matches && root.matches('.js-num-input')) { localizeField(root) }
+        if (root.querySelectorAll) { root.querySelectorAll('.js-num-input').forEach(localizeField) }
+    }
+    window.Diurnal.localizeNumInputsIn(document.body)
+    document.body.addEventListener('htmx:afterSwap', function (e) { window.Diurnal.localizeNumInputsIn(e.target) })
+
+    // Normalize whatever was typed (this language's own digits, plain Latin ones - many keyboards
+    // still produce these even under a non-Latin layout - or a mix) to one consistent, this-language
+    // display once the value commits, mirroring wireNumericPref's identical `change` handling.
+    document.body.addEventListener('change', function (e) {
+        if (e.target.matches && e.target.matches('.js-num-input')) {
+            e.target.value = window.Diurnal.localizeDigits(window.Diurnal.delocalizeDigits(e.target.value))
+        }
+    })
+
+    // The actual request is built from the field's live (localized) DOM value - delocalize the named
+    // parameter back to Latin right before it leaves the browser, the same htmx:configRequest shape
+    // settings.js uses for its own numeric fields (see that file for why getAll/delete/append, not a
+    // direct assignment, is required here).
+    document.body.addEventListener('htmx:configRequest', function (e) {
+        ['count'].forEach(function (name) {
+            const values = e.detail.parameters.getAll(name)
+            if (values.length === 0) { return }
+            e.detail.parameters.delete(name)
+            values.forEach(function (v) { e.detail.parameters.append(name, window.Diurnal.delocalizeDigits(v)) })
+        })
+    })
 })();
 
 // ── Responsive figure fitting (dates, large counts) ───────────────────────────
@@ -611,8 +731,13 @@ document.addEventListener('click', function (e) {
     window.Diurnal.MONTHS_FULL = monthNames('long')
     window.Diurnal.MONTHS_ABBR = monthNames('short')
 
+    // A bare `\b` is an ASCII word boundary (built on \w, which never matches an Arabic - or any
+    // non-Latin - letter), so it silently matches NOTHING around a non-Latin month name: confirmed,
+    // "20 أغسطس 2026".replace(/\bأغسطس\b/g, ...) is a no-op, meaning the abbreviation step below would
+    // never fire for Arabic. The Unicode-aware equivalent - negative lookaround on \p{L}/\p{N} (needs
+    // the `u` flag) - works identically across every script.
     const MONTH_PATTERNS = window.Diurnal.MONTHS_FULL.map(function (month) {
-        return new RegExp(`\\b${  month  }\\b`, 'g')
+        return new RegExp(`(?<![\\p{L}\\p{N}])${  month  }(?![\\p{L}\\p{N}])`, 'gu')
     })
 
     // "15 June 2026" → "15 Jun 2026". Whole words only, so "1 month, 2 days" is untouched.
@@ -622,8 +747,13 @@ document.addEventListener('click', function (e) {
         }, text)
     }
     // "15 Jun 2026" → "15 Jun 26". Only a bare 19xx/20xx reads as a year, so a count never matches.
+    // `fitFigures` runs after the locale-digit passes (.js-num/.js-digits) further up this file, so by
+    // the time this sees `text` its digits may already be this language's own glyphs, not ASCII - the
+    // \d/literal-19/20 match below only ever recognizes ASCII, so delocalize first (a no-op for a
+    // Latin-digit language) and re-localize the result (matching what was already on screen).
     window.Diurnal.shortenYears = function (text) {
-        return text.replace(/\b(?:19|20)(\d{2})\b/g, '$1')
+        const shortened = window.Diurnal.delocalizeDigits(text).replace(/\b(?:19|20)(\d{2})\b/g, '$1')
+        return window.Diurnal.localizeDigits(shortened)
     }
     // The ordered abbreviation ladder for a label, widest first, with each step included only when it
     // actually shortens the one before it. A label with no month, year or large count yields a single

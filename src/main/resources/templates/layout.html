@@ -3,9 +3,11 @@
    'nova' (the default brand theme) → `font-nova`, 'dyslexic' → `font-dyslexic`, 'standard' → no class
    (the system sans stays). Rendered statically here so it's correct from first paint with no FOUC; the
    settings picker toggles the same class live. The `.dark` class is added separately by the FOUC script
-   below and coexists. `dir` is hardcoded "ltr" for every language for now — RTL support (Arabic) is
-   Phase 3 of .claude/I18N.md; only then does this become conditional. !}
-<html lang="{language}" dir="ltr" data-theme="{theme}"
+   below and coexists. `dir` is resolved from the SAME `language` value via {language:dir(language)}
+   (user/LanguageExtensions, backed by user/Language#dir - the one place that knows which offered
+   languages are RTL), so no page-rendering resource needs to thread a second value alongside
+   `language` just for this. !}
+<html lang="{language}" dir="{language:dir(language)}" data-theme="{theme}"
       data-i18n-unsaved-changes="{msg:unsavedChanges}" data-i18n-saved="{msg:saved}" data-i18n-inactive="{msg:inactive}"
       {#if font == 'dyslexic'} class="font-dyslexic"{#else if font != 'standard'} class="font-nova"{/if}>
 <head>

@@ -8,15 +8,18 @@
     sub        — optional secondary caption (dd)
     subNum     — optional; true when `sub` carries number(s) to locale-group (NOT a date/label)
     valueClass — optional colour/utility for the value; defaults to text-ink
-    date       — optional; true when `value` is a date/label (skips the `.js-num` locale grouping,
+    date       — optional; true when `value` is a date/label (skips the `.js-num` locale GROUPING,
                  which the `sub` then takes on whenever `subNum` says it carries numbers)
 
   `data-fit` marks the lines Diurnal.fitFigures() (app.js) may shorten when they overflow this
   column — see the note in `partials/stat-tile.html`. These columns are the narrowest place a stat
   is rendered, so they abbreviate first.
+
+  `.js-digits`/`.js-phrase` apply unconditionally, same reasoning as `partials/stat-tile.html` — see
+  its own comment for why `.js-phrase` is separate from (and needed in addition to) `.js-digits`.
 !}
 <div>
     <dt class="help-text text-[0.65rem] sm:text-xs">{label}</dt>
-    <dd data-fit class="text-xs sm:text-sm font-semibold {valueClass ?: 'text-ink'}{#if !date} js-num{/if}">{value}</dd>
-    {#if sub}<dd data-fit class="help-text text-[0.65rem] sm:text-xs{#if subNum} js-num{/if}">{sub}</dd>{/if}
+    <dd data-fit class="text-xs sm:text-sm font-semibold js-digits js-phrase {valueClass ?: 'text-ink'}{#if !date} js-num{/if}">{value}</dd>
+    {#if sub}<dd data-fit class="help-text text-[0.65rem] sm:text-xs js-digits js-phrase{#if subNum} js-num{/if}">{sub}</dd>{/if}
 </div>

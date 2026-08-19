@@ -21,7 +21,9 @@
     label      — the visible field label (also the field's aria-label)
     help       — a help line under the label, or "" for none
     endpoint   — the hx-patch URL
-    min / max  — the field's bounds (the server still validates authoritatively); unused when stepper=false
+    min / max  — the field's bounds, for the CALLER's own wireNumericPref(...) wiring (settings.js) -
+                 not rendered here (the field is `type="text"`; JS clamps, the server still validates
+                 authoritatively); unused when stepper=false
     value      — the current value
     options    — the preset values, rendered as pills in order
     stepper    — true to render the −/+ fine-tune stepper, false for pills only
@@ -41,20 +43,32 @@
             {#if help}<p class="help-text mt-1">{help}</p>{/if}
         </div>
         <div class="shrink-0">
-            {! Preset quick-picks (primary selection), right-aligned next to the label. !}
+            {! Preset quick-picks (primary selection), right-aligned next to the label. `js-digits`
+                 (app.js) localizes the visible LABEL's digit glyphs only (e.g. Eastern Arabic-Indic
+                 under Arabic) - `data-value` stays plain Latin, since that is the string settings.js
+                 parses for comparisons. The field below shows the SAME localized digits (wired by
+                 wireNumericPref, not `js-digits` - an <input>'s value isn't a text node a DOM walker
+                 sees), and settings.js delocalizes it again right before the PATCH leaves the browser,
+                 so the server only ever receives plain Latin digits either way. !}
             <div id="{id}Presets" class="flex flex-wrap justify-end gap-1.5">
                 {#for option in options}
-                <button type="button" class="num-pref-pill" data-value="{option}" aria-pressed="false">{option}</button>
+                <button type="button" class="num-pref-pill js-digits" data-value="{option}" aria-pressed="false">{option}</button>
                 {/for}
             </div>
             {#if stepper}
-            {! Custom fine-tune stepper, right-aligned directly under the presets. !}
+            {! Custom fine-tune stepper, right-aligned directly under the presets. `type="text"` (not
+                 `number`) so wireNumericPref (settings.js) can display this language's own digit
+                 glyphs - a `type="number"` value is spec-constrained to plain ASCII digits and cannot
+                 hold them. Bounds are enforced entirely in JS (wireNumericPref's `clamp`, passed
+                 `min`/`max` as plain numbers, not read off this markup) and authoritatively by the
+                 server, so no `min`/`max` attribute is needed here either - those are inert on a text
+                 input. !}
             <div class="mt-2 flex justify-end">
                 <div class="num-pref-stepper shrink-0">
                     <button type="button" id="{id}Minus" class="num-pref-stepper-btn" aria-label="{minusLabel}">
                         {#include partials/icon name='minus' cls='w-3.5 h-3.5' /}
                     </button>
-                    <input type="number" id="{id}" name="{id}" min="{min}" max="{max}" value="{value}"
+                    <input type="text" id="{id}" name="{id}" value="{value}"
                            inputmode="numeric" aria-label="{label}" class="num-pref-value"
                            hx-patch="{endpoint}" hx-trigger="save" hx-swap="none">
                     <button type="button" id="{id}Plus" class="num-pref-stepper-btn" aria-label="{plusLabel}">

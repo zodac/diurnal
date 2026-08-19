@@ -26,11 +26,11 @@
          preview runs the identical parse and stops short of the write — so the confirmation below
          is an informed one rather than a formality. !}
     <div class="rounded-lg border border-line bg-surface-muted p-3">
-        <p class="text-sm text-ink">
+        <p class="text-sm text-ink js-digits js-phrase">
             {msg:importArchiveHolds(msg:importActionsCount(summary.actions), msg:importLogsCount(summary.logs), msg:importNotesCount(summary.notes))}
         </p>
         {#if summary.replacesExistingData}
-        <p class="help-text mt-1">
+        <p class="help-text mt-1 js-digits js-phrase">
             {msg:importRemovesExisting(msg:importReplacedSummary(summary.replacedActions, summary.replacedLogs, summary.replacedNotes))}
         </p>
         {#else}
@@ -65,14 +65,14 @@
     <ul class="mt-2 space-y-1 text-xs text-ink-muted max-h-48 overflow-y-auto">
         {#for problem in problems}
         <li>
-            <span class="font-medium text-ink">{problem.file}{#if problem.line > 0}{msg:atLine(problem.line)}{/if}</span>
+            <span class="font-medium text-ink js-digits js-phrase">{problem.file}{#if problem.line > 0}{msg:atLine(problem.line)}{/if}</span>
             &mdash; {problem.reason}
         </li>
         {/for}
     </ul>
     {/if}
     {#if totalProblems > problems.size}
-    <p class="help-text mt-2">{msg:showingFirstOfTotalProblems(problems.size, totalProblems)}</p>
+    <p class="help-text mt-2 js-digits js-phrase">{msg:showingFirstOfTotalProblems(problems.size, totalProblems)}</p>
     {/if}
     {/if}
 

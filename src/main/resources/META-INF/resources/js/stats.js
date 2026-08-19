@@ -55,9 +55,11 @@ function load(period, at, compare) {
             body.innerHTML = html
             // The swap is a plain innerHTML write, not an htmx one, so the passes that normally run on
             // htmx:afterSwap have to be re-run by hand (same as the dashboard's stats-summary card):
-            // the shared figure formatting, and htmx's own wiring for the picker's search box — which
-            // arrives inside this fragment and would otherwise never be bound.
+            // the shared figure formatting, digit-only localization (the chart's axis ticks and hover
+            // tooltips), and htmx's own wiring for the picker's search box — which arrives inside this
+            // fragment and would otherwise never be bound.
             window.Diurnal.formatNumbers(body)
+            window.Diurnal.localizeDigitsIn(body)
             window.Diurnal.fitFigures(body)
             window.htmx.process(body)
         })

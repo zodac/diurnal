@@ -176,8 +176,10 @@ final class FrequencyCharts {
 
     private static String fullLabel(final FrequencyPeriod period, final LocalDate anchor, final int slot, final Language language) {
         return switch (period) {
-            case MONTH -> anchor.withDayOfMonth(slot).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(language.locale()));
-            case YEAR -> anchor.withMonth(slot).format(DateTimeFormatter.ofPattern(language.monthYearPattern(), language.locale()));
+            case MONTH -> anchor.withDayOfMonth(slot)
+                .format(language.localizeNumerals(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(language.locale())));
+            case YEAR -> anchor.withMonth(slot)
+                .format(language.localizeNumerals(DateTimeFormatter.ofPattern(language.monthYearPattern(), language.locale())));
         };
     }
 

@@ -148,7 +148,7 @@ public final class SubjectStatsExtensions {
     // Javadoc) becomes text for the web surface; StatsApiResource carries the identical rule for the API's own,
     // always-English composer.
     private static String bestMonthLabel(final @Nullable YearMonth month, final Language lang) {
-        return month == null ? "—" : month.format(DateTimeFormatter.ofPattern(lang.monthYearPattern(), lang.locale()));
+        return month == null ? "—" : month.format(lang.localizeNumerals(DateTimeFormatter.ofPattern(lang.monthYearPattern(), lang.locale())));
     }
 
     private static StatTile numeric(final String key, final String label, final boolean labelIsCustom, final String value,
@@ -220,13 +220,13 @@ public final class SubjectStatsExtensions {
     // just vocabulary) every offered Language expects, verified against the old fixed "d MMMM yyyy" pattern's
     // English output before this replaced it.
     private static DateTimeFormatter dateFmt(final Language lang) {
-        return DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(lang.locale());
+        return lang.localizeNumerals(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(lang.locale()));
     }
 
     // The day-plus-abbreviated-month, no-year shape ("15 Jun") - no FormatStyle offers this, see
     // Language#dayMonthPattern's own Javadoc.
     private static DateTimeFormatter dateFmtNoYear(final Language lang) {
-        return DateTimeFormatter.ofPattern(lang.dayMonthPattern(), lang.locale());
+        return lang.localizeNumerals(DateTimeFormatter.ofPattern(lang.dayMonthPattern(), lang.locale()));
     }
 
     // ── Date labels ───────────────────────────────────────────────────────

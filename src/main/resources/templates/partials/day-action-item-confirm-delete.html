@@ -5,10 +5,10 @@
 
   Layout mirrors the normal item so Cancel lands in exactly the Erase position:
     normal:  [name flex-1] [controls] [.dt-actions: Erase]
-    confirm: [name flex-1] [prompt right-aligned] [.dt-actions: Erase | Cancel]
-  Both rows end with .dt-actions (via partials/confirm-actions.html); Cancel is the rightmost
-  .dt-btn, so it shares the same min-width (3.5rem) and right-edge position as the normal Erase
-  button. The prompt is kept short and right-aligned, so the action name (flex-1) keeps the
+    confirm: [name flex-1] [prompt end-aligned] [.dt-actions: Erase | Cancel]
+  Both rows end with .dt-actions (via partials/confirm-actions.html); Cancel is the trailing
+  .dt-btn, so it shares the same min-width (3.5rem) and end-edge position as the normal Erase
+  button. The prompt is kept short and end-aligned, so the action name (flex-1) keeps the
   maximum room before it has to truncate.
 !}
 {#let logTarget=str:fmt('#log-%s-%s', date, action.id)}
@@ -20,6 +20,6 @@
     {#include partials/confirm-actions prompt=msg:eraseEntriesPrompt confirmLabel=msg:erase
         confirmUrl=str:fmt('/internal/logs/%s/%s/delete', date, action.id) confirmTarget=logTarget confirmSwap='innerHTML'
         cancelUrl=str:fmt('/internal/logs/%s/%s', date, action.id) cancelTarget=logTarget cancelSwap='innerHTML'
-        promptCls='shrink-0 ml-2 text-right' actionsCls='ml-2' /}
+        promptCls='shrink-0 ms-2 text-end' actionsCls='ms-2' /}
 </div>
 {/let}

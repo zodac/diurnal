@@ -86,7 +86,7 @@
     {/if}
 
     {#if chart.peak == 0}
-    <p class="empty-note">{msg:nothingLoggedIn(chart.periodLabel)}</p>
+    <p class="empty-note js-digits js-phrase">{msg:nothingLoggedIn(chart.periodLabel)}</p>
     {#else}
     {! The plot is decorative to assistive tech (its per-column values are already in the hover bubbles,
          which are aria-hidden), so the accessible summary is the caption underneath. !}
@@ -98,11 +98,11 @@
                 <div class="chart-bar" style="height: {bar.heightPercent}%; background-color: {bar.subjectColour}"></div>
                 {/for}
             </div>
-            <span class="chart-tick">{slot.label}</span>
+            <span class="chart-tick js-digits">{slot.label}</span>
             {#include partials/frequency-slot-tooltip slot=slot align=slot.tipAlign /}
         </div>
         {/for}
     </div>
-    <p class="chart-caption">{msg:chartCaption(chart.total, chart.periodLabel, chart.peak)}</p>
+    <p class="chart-caption js-digits js-phrase">{msg:chartCaption(chart.total, chart.periodLabel, chart.peak)}</p>
     {/if}
 </div>

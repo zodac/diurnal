@@ -1,16 +1,21 @@
 {! Shared calendar toolbar — a single, non-wrapping row reused for EVERY calendar style (full, minimal,
    stacked) so the navigation chrome is identical across calendars, themes and viewports. Three groups:
-   the prev-year/prev-month buttons («  ‹) are pinned to the LEFT edge, the next-month/next-year buttons
-   (›  ») to the RIGHT edge, and the month/year title + jump-to-month glyph sit centred between them
-   (`justify-content: space-between` with equal-width side groups keeps the centre group dead-centre).
+   the prev-year/prev-month buttons («  ‹) sit at the START edge, the next-month/next-year buttons
+   (›  ») at the END edge, and the month/year title + jump-to-month glyph sit centred between them
+   (`justify-content: space-between` with equal-width side groups keeps the centre group dead-centre) —
+   plain flexbox, so the whole row mirrors under dir="rtl" with no class changes here. The glyphs
+   themselves need help, though: dir="rtl" mirrors LAYOUT, never GLYPH CONTENT, so a flipped « would
+   otherwise still point the wrong way once it lands on the visual right. Each is wrapped in a
+   `.cal-chevron` span (app.css: `rtl:scale-x-[-1]`) — a horizontally-flipped « renders as a
+   correct-looking » and vice versa, so the same markup is correct in both directions with no {#if}.
    dashboard.html wires the stable button ids to the shared grid engine (buildGridCalendar) that draws
    every style — full, minimal and stacked. The "Today" action lives at the bottom of
    the month/year picker popup (#cal-pop), NOT in the toolbar row. The popup is positioned absolutely
    against the enclosing `#calendar-wrap` (which is `position: relative`). !}
 <div class="cal-toolbar">
     <div class="cal-toolbar-side">
-        <button id="cal-prev-year" type="button" class="cal-toolbar-btn group relative" aria-label="{msg:previousYear}">«{#include partials/tooltip text=msg:previousYear pos="bottom" align="left" /}</button>
-        <button id="cal-prev"      type="button" class="cal-toolbar-btn group relative" aria-label="{msg:previousMonth}">‹{#include partials/tooltip text=msg:previousMonth pos="bottom" align="left" /}</button>
+        <button id="cal-prev-year" type="button" class="cal-toolbar-btn group relative" aria-label="{msg:previousYear}"><span class="cal-chevron">«</span>{#include partials/tooltip text=msg:previousYear pos="bottom" align="left" /}</button>
+        <button id="cal-prev"      type="button" class="cal-toolbar-btn group relative" aria-label="{msg:previousMonth}"><span class="cal-chevron">‹</span>{#include partials/tooltip text=msg:previousMonth pos="bottom" align="left" /}</button>
     </div>
     <div class="cal-toolbar-center">
         <span id="cal-title" class="cal-title"></span>
@@ -19,21 +24,21 @@
         </button>
     </div>
     <div class="cal-toolbar-side cal-toolbar-side-right">
-        <button id="cal-next"      type="button" class="cal-toolbar-btn group relative" aria-label="{msg:nextMonth}">›{#include partials/tooltip text=msg:nextMonth pos="bottom" align="right" /}</button>
-        <button id="cal-next-year" type="button" class="cal-toolbar-btn group relative" aria-label="{msg:nextYear}">»{#include partials/tooltip text=msg:nextYear pos="bottom" align="right" /}</button>
+        <button id="cal-next"      type="button" class="cal-toolbar-btn group relative" aria-label="{msg:nextMonth}"><span class="cal-chevron">›</span>{#include partials/tooltip text=msg:nextMonth pos="bottom" align="right" /}</button>
+        <button id="cal-next-year" type="button" class="cal-toolbar-btn group relative" aria-label="{msg:nextYear}"><span class="cal-chevron">»</span>{#include partials/tooltip text=msg:nextYear pos="bottom" align="right" /}</button>
     </div>
 </div>
 <div id="cal-pop"
      class="hidden absolute z-50 mt-1 p-3">
     <div class="flex items-center justify-between mb-2">
-        <button type="button" data-y="-1" class="cal-nav-btn group relative" aria-label="{msg:previousYear}">‹{#include partials/tooltip text=msg:previousYear pos="bottom" align="left" /}</button>
+        <button type="button" data-y="-1" class="cal-nav-btn group relative" aria-label="{msg:previousYear}"><span class="cal-chevron">‹</span>{#include partials/tooltip text=msg:previousYear pos="bottom" align="left" /}</button>
         {! Editable year — same interaction as the day panel's count input (type a value; commits on
            change/Enter). The ‹ › steppers still nudge it. Changing the year only repaints the picker's
            month grid; navigation happens when a month is picked. !}
         <input type="text" inputmode="numeric" maxlength="4"
                class="cal-pop-year inline-num-input w-14 h-7 text-ink"
                aria-label="{msg:jumpToYear}">
-        <button type="button" data-y="1" class="cal-nav-btn group relative" aria-label="{msg:nextYear}">›{#include partials/tooltip text=msg:nextYear pos="bottom" align="right" /}</button>
+        <button type="button" data-y="1" class="cal-nav-btn group relative" aria-label="{msg:nextYear}"><span class="cal-chevron">›</span>{#include partials/tooltip text=msg:nextYear pos="bottom" align="right" /}</button>
     </div>
     <div class="cal-pop-months grid grid-cols-3 gap-1"></div>
     <button id="cal-today" type="button" class="cal-today-btn">{msg:today}</button>
