@@ -28,12 +28,15 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
 import net.zodac.diurnal.time.Durations;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.Language;
 import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
@@ -154,7 +157,10 @@ public class StatsApiResource {
         description = "The window to chart, as 'yyyy-MM' for a month or 'yyyy' for a year. Defaults to the window containing today.")
         @QueryParam("at") final @Nullable String at) {
         final User user = currentUser.get();
-        return switch (statsService.frequency(user.id, subjectId, compareIds, period, at)) {
+        // The public API stays English regardless of the caller's own language preference (see AppMessages' class
+        // Javadoc: a JSON `message`/label field is an API contract detail, not translatable UI text) - so this is
+        // the one caller that always supplies Language.DEFAULT rather than the viewing user's own.
+        return switch (statsService.frequency(user.id, subjectId, compareIds, period, at, Language.DEFAULT)) {
             case FrequencyResult.Charted(final FrequencyChart chart) -> Response.ok(FrequencyChartDto.from(chart)).build();
             case FrequencyResult.UnknownPeriod(final String submitted) -> badRequest("Unknown period '" + submitted + "'");
             case FrequencyResult.UnknownWindow(final String submitted) ->
@@ -193,7 +199,7 @@ public class StatsApiResource {
      * @param thisYearCount  the total count this calendar year
      * @param kind           what the statistics are about ({@code action} or {@code notes})
      * @param lastYearCount  the total count last calendar year
-     * @param bestMonthLabel the label of the highest-count month (e.g. {@code 2026-06})
+     * @param bestMonthLabel the label of the highest-count month (e.g. {@code June 2026})
      * @param bestMonthCount the highest single-month count
      * @param bestYearLabel  the label of the highest-count year (e.g. {@code 2026})
      * @param bestYearCount  the highest single-year count
@@ -221,7 +227,7 @@ public class StatsApiResource {
         @Schema(examples = "18", description = "The total count last calendar month.") long lastMonthCount,
         @Schema(examples = "57", description = "The total count this calendar year.") long thisYearCount,
         @Schema(examples = "203", description = "The total count last calendar year.") long lastYearCount,
-        @Schema(examples = "2026-06", description = "The label of the highest-count month.") String bestMonthLabel,
+        @Schema(examples = "June 2026", description = "The label of the highest-count month.") String bestMonthLabel,
         @Schema(examples = "21", description = "The highest single-month count.") long bestMonthCount,
         @Schema(examples = "2026", description = "The label of the highest-count year.") String bestYearLabel,
         @Schema(examples = "203", description = "The highest single-year count.") long bestYearCount) {
@@ -250,10 +256,17 @@ public class StatsApiResource {
                 stats.lastMonthCount(),
                 stats.thisYearCount(),
                 stats.lastYearCount(),
-                stats.bestMonthLabel(),
+                bestMonthLabel(stats.bestMonth()),
                 stats.bestMonthCount(),
                 stats.bestYearLabel(),
                 stats.bestYearCount());
+        }
+
+        // English always, per the API's own "stays English" policy (see the frequency() method's comment) - stats.bestMonth() is the raw month
+        // rather than a pre-formatted word specifically so this composer, and the web surface's own locale-aware one, can each format it
+        // independently.
+        private static String bestMonthLabel(final @Nullable YearMonth month) {
+            return month == null ? "—" : month.format(DateTimeFormatter.ofPattern(Language.DEFAULT.monthYearPattern(), Language.DEFAULT.locale()));
         }
     }
 

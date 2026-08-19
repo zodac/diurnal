@@ -21,8 +21,9 @@ import java.util.List;
 
 /**
  * One column of the frequency graph: a single day of a month window, or a single month of a year window, holding one {@link FrequencyBar} per charted
- * action (drawn side by side within the column). A pure data carrier for the {@code partials/stats-chart} template; the hover wording is derived by
- * {@link FrequencySlotExtensions}.
+ * action (drawn side by side within the column). A pure data carrier for the {@code partials/stats-chart} template; the hover wording is composed by
+ * {@code partials/frequency-slot-tooltip} (a template, not a Java extension - it embeds a translated "N times" per bar, which a plain Java call can
+ * never produce; see {@code AppMessages}' own class Javadoc).
  *
  * <p>
  * Every slot of the window gets a column, including the ones with nothing logged (every bar {@code 0}), so the axis stays evenly spaced and a blank

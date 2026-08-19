@@ -35,6 +35,7 @@ import net.zodac.diurnal.note.NoteService;
 import net.zodac.diurnal.stats.StatsService;
 import net.zodac.diurnal.stats.StatsSummary;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.time.DayLabels;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
@@ -83,6 +84,7 @@ public class DashboardWebResource {
     public TemplateInstance dashboard() {
         final User user = currentUser.get();
         final LocalDate today = clock.today(clock.zoneFor(user.timezone));
+        final Locale locale = Locale.forLanguageTag(user.language);
         // The initially selected day's note is rendered inline, the same way the stats summary card is:
         // dashboard.js seeds its client-side cache from it, so opening the dashboard costs no request.
         final Note note = Note.findEntry(user.id, today);
@@ -93,7 +95,8 @@ public class DashboardWebResource {
                 .data("theme", user.theme)
                 .data("font", user.font)
                 .data("language", user.language)
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag(user.language))
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)
+                .data("weekdayLabels", DayLabels.weekdayAbbreviations(locale))
                 .data("isAdmin", user.isAdmin())
                 .data("calendarView", user.calendarView)
                 .data("today", today.toString())

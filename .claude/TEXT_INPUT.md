@@ -278,11 +278,13 @@ creates rework for the other.
 
 ### The rest of the outstanding i18n work
 
-All of it lives outside this package: `<html lang="en">` is hard-coded (as is the absent `dir`),
-`time/Durations.plural` appends an English "s" (Arabic has six plural forms), the display-name bound of 50 was
-sized against the Latin navbar (CJK glyphs are about twice as wide), and a translated rejection message would need
-whole message templates rather than the current `label + ' ' + requirement` concatenation, whose word order is
-English-specific.
+Most of it lives outside this package, and some of it is already done — see `.claude/I18N.md` for the current
+phase. `dir` is still hard-coded `ltr` (Phase 3); the display-name bound of 50 was sized against the Latin navbar
+(CJK glyphs are about twice as wide, Phase 4/5 territory); a translated rejection message needed whole message
+templates rather than the `label + ' ' + requirement` concatenation this note originally flagged, and Phase 1
+built exactly that (`partials/text-failure-message.html`, one atomic sentence per (field, failure-shape) pair -
+see I18N.md's Phase 1 slice 7). Pluralisation is likewise no longer a bare English "+s": `web/AppMessages`
+entries branch on the CLDR category they need entirely inside their own `{#if}` (Phase 2) - see I18N.md.
 
 ## Flow
 

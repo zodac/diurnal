@@ -21,6 +21,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
@@ -31,10 +32,11 @@ import org.junit.jupiter.api.Test;
 class NotePagesTest {
 
     private static final LocalDate DAY = LocalDate.of(2026, 6, 15);
+    private static final Locale EN_GB = Locale.forLanguageTag("en-GB");
 
     @Test
     void of_buildsRowPerHitWithBothFormsOfTheDate() {
-        final PaginatedNotes page = NotePages.of(List.of(new NoteHit(DAY, "Ran a 5k")), "", 1, 5);
+        final PaginatedNotes page = NotePages.of(List.of(new NoteHit(DAY, "Ran a 5k")), "", 1, 5, EN_GB);
 
         assertThat(page.items())
             .as("one hit produces one row")
@@ -49,7 +51,7 @@ class NotePagesTest {
 
     @Test
     void of_highlightsTheSearchTermInEachRow() {
-        final PaginatedNotes page = NotePages.of(List.of(new NoteHit(DAY, "Ran a 5k")), "5k", 1, 5);
+        final PaginatedNotes page = NotePages.of(List.of(new NoteHit(DAY, "Ran a 5k")), "5k", 1, 5, EN_GB);
 
         assertThat(page.items().getFirst().snippet())
             .as("the row's snippet flags the matched run so the template can mark it")
@@ -58,7 +60,7 @@ class NotePagesTest {
 
     @Test
     void of_slicesToTheRequestedPageAndCountsTheWhole() {
-        final PaginatedNotes page = NotePages.of(hits(12), "", 2, 5);
+        final PaginatedNotes page = NotePages.of(hits(12), "", 2, 5, EN_GB);
 
         assertThat(page.items())
             .as("page 2 of 12 at 5 per page holds the second five")
@@ -76,35 +78,35 @@ class NotePagesTest {
 
     @Test
     void of_countsAnExactMultipleAsWholePages() {
-        assertThat(NotePages.of(hits(10), "", 1, 5).totalPages())
+        assertThat(NotePages.of(hits(10), "", 1, 5, EN_GB).totalPages())
             .as("10 matches at 5 per page is exactly 2 pages, with no empty third")
             .isEqualTo(2);
     }
 
     @Test
     void of_returnsPartialFinalPage() {
-        assertThat(NotePages.of(hits(12), "", 3, 5).items())
+        assertThat(NotePages.of(hits(12), "", 3, 5, EN_GB).items())
             .as("the last page holds only the remaining matches")
             .hasSize(2);
     }
 
     @Test
     void of_clampsPageAboveTheRange() {
-        assertThat(NotePages.of(hits(12), "", 99, 5).currentPage())
+        assertThat(NotePages.of(hits(12), "", 99, 5, EN_GB).currentPage())
             .as("the web surface clamps an out-of-range page rather than rejecting it, as every other list view does")
             .isEqualTo(3);
     }
 
     @Test
     void of_clampsPageBelowTheRange() {
-        assertThat(NotePages.of(hits(12), "", 0, 5).currentPage())
+        assertThat(NotePages.of(hits(12), "", 0, 5, EN_GB).currentPage())
             .as("a page below 1 clamps to the first page")
             .isEqualTo(1);
     }
 
     @Test
     void of_reportsAnEmptyFirstPageWhenNothingMatched() {
-        final PaginatedNotes page = NotePages.of(List.of(), "nothing", 1, 5);
+        final PaginatedNotes page = NotePages.of(List.of(), "nothing", 1, 5, EN_GB);
 
         assertThat(page.items())
             .as("no matches means no rows")

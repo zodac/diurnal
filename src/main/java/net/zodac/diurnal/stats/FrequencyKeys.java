@@ -21,6 +21,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.regex.Pattern;
+import net.zodac.diurnal.user.Language;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -40,8 +41,9 @@ final class FrequencyKeys {
     private static final Pattern MONTH_KEY = Pattern.compile("^\\d{4}-\\d{2}$");
     private static final Pattern YEAR_KEY = Pattern.compile("^\\d{4}$");
     private static final DateTimeFormatter MONTH_KEY_FMT = DateTimeFormatter.ofPattern("yyyy-MM", Locale.ENGLISH);
+    // Also YEAR's DISPLAY label (see #label below): four ASCII digits, so it needs no locale - no offered language
+    // uses non-Latin digits for a plain year number.
     private static final DateTimeFormatter YEAR_KEY_FMT = DateTimeFormatter.ofPattern("yyyy", Locale.ENGLISH);
-    private static final DateTimeFormatter MONTH_LABEL_FMT = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
 
     private FrequencyKeys() {
 
@@ -114,11 +116,12 @@ final class FrequencyKeys {
      *
      * @param period the window's period
      * @param anchor the first day of the window
+     * @param language the language to word the label in (a year has no words, so it only affects a month window)
      * @return the window's display label
      */
-    static String label(final FrequencyPeriod period, final LocalDate anchor) {
+    static String label(final FrequencyPeriod period, final LocalDate anchor, final Language language) {
         return switch (period) {
-            case MONTH -> anchor.format(MONTH_LABEL_FMT);
+            case MONTH -> anchor.format(DateTimeFormatter.ofPattern(language.monthYearPattern(), language.locale()));
             case YEAR -> anchor.format(YEAR_KEY_FMT);
         };
     }

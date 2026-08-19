@@ -20,6 +20,7 @@ package net.zodac.diurnal.note;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Locale;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
 import net.zodac.diurnal.time.DayLabels;
@@ -49,14 +50,15 @@ public final class NotePages {
      * @param query    the search term, used to highlight each row's snippet
      * @param pageNum  the requested 1-based page (clamped into range)
      * @param pageSize the user's page size
+     * @param locale   the viewing user's locale, for each row's spelled-out day
      * @return the requested page
      */
-    public static PaginatedNotes of(final List<NoteHit> hits, final String query, final int pageNum, final int pageSize) {
+    public static PaginatedNotes of(final List<NoteHit> hits, final String query, final int pageNum, final int pageSize, final Locale locale) {
         final PageWindow window = Pages.window(hits.size(), pageNum, pageSize);
 
         final List<NoteRow> items = Pages.slice(hits, window)
             .stream()
-            .map(hit -> new NoteRow(hit.date().toString(), DayLabels.spelledOut(hit.date()), NoteSearch.snippet(hit.content(), query)))
+            .map(hit -> new NoteRow(hit.date().toString(), DayLabels.spelledOut(hit.date(), locale), NoteSearch.snippet(hit.content(), query)))
             .toList();
 
         return new PaginatedNotes(items, hits.size(), window.totalPages(), window.currentPage());

@@ -76,6 +76,14 @@ public enum Role {
      * Every role ordered alphabetically by {@link #displayName()} — the catalogue backing the admin role picker, so a newly-added role surfaces
      * automatically in a stable, sorted order.
      *
+     * <p>
+     * <strong>Deliberately plain {@link String#compareTo}, not a {@link java.text.Collator}</strong> (checked, not missed, during
+     * {@code .claude/I18N.md}'s Phase 2): {@link #displayName()} is a fixed, English-only Java constant — the RENDERED role name a viewing admin
+     * sees is resolved separately, template-side ({@code {#switch u.role}} in {@code partials/admin-user-row.html}, per Phase 1's "a Java-side
+     * {@code AppMessages} call is always English" rule) — so this order can never reflect the translated text anyway, and two plain ASCII words
+     * ("Administrator", "User") collate identically under {@code String.compareTo} and every real-world {@code Collator} alike. Revisit only if
+     * this catalogue grows enough roles, or gains enough non-ASCII display names, for the two to diverge.
+     *
      * @return all roles sorted by display name
      */
     public static List<Role> byDisplayName() {

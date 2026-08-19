@@ -30,7 +30,7 @@ import java.time.LocalDate;
  * in - so every day count that is shown to a user as a duration is carried as one of these, anchored on the dates it actually covered.
  *
  * <p>
- * A pure data carrier: the length, the duration label and the "does it reach a month" test all live in {@link Durations} (PITest cannot hot-swap
+ * A pure data carrier: the length and the years/months/days breakdown both live in {@link Durations} (PITest cannot hot-swap
  * mutants into a record, so logic held here would silently escape the mutation gate).
  *
  * @param start the first day in the run

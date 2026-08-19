@@ -6,6 +6,7 @@
     dayStats      — the day's SubjectStats, highest count on that day first (may be empty)
     summaryFields — the DisplayStats to render per row (the user's top three enabled "Action stats")
     decimalPlaces — the user's fractional-stat preference, for the tile figures
+    language      — the viewing user's User.language, for every date/number a tile carries
     dateLabel     — the selected day, spelled out ("Monday, 15 June 2026")
 
   The whole card is omitted on a day with nothing logged: an empty strip would just be noise under
@@ -28,7 +29,7 @@
                statistic; the display preference only selects which tiles appear here. The figures
                cover each action's WHOLE history — the selected day only picks which actions show. !}
             <dl class="grid grid-cols-3 gap-2 sm:gap-4 min-w-0 sm:flex-1">
-                {#for tile in s.tiles(summaryFields, decimalPlaces)}
+                {#for tile in s.tiles(summaryFields, decimalPlaces, language)}
                     {#include partials/stat-tile-row tile=tile compact=true /}
                 {/for}
             </dl>

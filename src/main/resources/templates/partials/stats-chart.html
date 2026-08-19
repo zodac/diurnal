@@ -8,9 +8,10 @@
   Up to FrequencyCharts.MAX_SERIES actions are charted together, their bars grouped within each column
   and all scaled against ONE peak so they are directly comparable. Every slot of the window gets a
   column, including the empty ones, so the axis stays evenly spaced and a blank run reads as a visible
-  trough. Bar heights, hover wording and tooltip anchors are all pre-computed (FrequencyCharts /
-  FrequencySlotExtensions) — there is no branching left in here beyond the empty-window case, the two
-  disabled navigation buttons and whether the compare picker is offered.
+  trough. Bar heights and tooltip anchors are pre-computed (FrequencyCharts); the hover wording itself
+  is composed by partials/frequency-slot-tooltip, since it needs a translated "N times" per bar — there
+  is no other branching left in here beyond the empty-window case, the two disabled navigation buttons
+  and whether the compare picker is offered.
 
   Params:
     chart      — the FrequencyChart to draw (required)
@@ -98,7 +99,7 @@
                 {/for}
             </div>
             <span class="chart-tick">{slot.label}</span>
-            {#include partials/tooltip text=slot.tooltip align=slot.tipAlign /}
+            {#include partials/frequency-slot-tooltip slot=slot align=slot.tipAlign /}
         </div>
         {/for}
     </div>

@@ -21,7 +21,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.LocalDate;
 import java.time.YearMonth;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -45,6 +44,7 @@ import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.time.DaySpan;
 import net.zodac.diurnal.time.Durations;
+import net.zodac.diurnal.user.Language;
 import net.zodac.diurnal.user.User;
 import net.zodac.diurnal.user.UserSettings;
 import org.jspecify.annotations.Nullable;
@@ -54,9 +54,6 @@ import org.jspecify.annotations.Nullable;
  */
 @ApplicationScoped
 public class StatsService {
-
-    private static final DateTimeFormatter MONTH_FMT =
-        DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
 
     private final AppClock clock;
 
@@ -215,10 +212,13 @@ public class StatsService {
      * @param compareIds the further actions to chart alongside it, in the order they were added
      * @param rawPeriod the requested period, or {@code null}/blank for the default
      * @param rawAt the requested window key, or {@code null}/blank for the window containing today
+     * @param language the language to word the chart's month/year labels in - the viewing user's own for the web surface, always
+     *     {@link Language#DEFAULT} for the public API (see {@code AppMessages}' class Javadoc: English stays the API's one contract, so this is
+     *     the sole caller-supplied value rather than the request's resolved language)
      * @return the assembled chart, or the case explaining why it could not be assembled
      */
     FrequencyResult frequency(final UUID userId, final UUID subjectId, final List<UUID> compareIds, final @Nullable String rawPeriod,
-        final @Nullable String rawAt) {
+        final @Nullable String rawAt, final Language language) {
         final String periodValue = rawPeriod == null || rawPeriod.isBlank() ? FrequencyPeriod.DEFAULT.value() : rawPeriod;
         if (!FrequencyPeriod.isValid(periodValue)) {
             return new FrequencyResult.UnknownPeriod(periodValue);
@@ -267,7 +267,7 @@ public class StatsService {
         };
 
         return new FrequencyResult.Charted(
-            FrequencyCharts.build(charted, period, anchor, countsByAction, today, earliestLoggedMonth(monthlyTotals)));
+            FrequencyCharts.build(charted, period, anchor, countsByAction, today, earliestLoggedMonth(monthlyTotals), language));
     }
 
     /**
@@ -452,7 +452,7 @@ public class StatsService {
         if (sortedDates.isEmpty()) {
             final DaySpan noSpan = new DaySpan(today, today);
             return new SubjectStats(subject, 0, 0L, null, null, noSpan, noSpan, noSpan,
-                    0L, 0L, 0L, 0L, "—", 0L, "—", 0L, today);
+                    0L, 0L, 0L, 0L, null, 0L, "—", 0L, today);
         }
 
         final YearMonth thisMonth = YearMonth.from(today);
@@ -486,7 +486,7 @@ public class StatsService {
                 byMonth.getOrDefault(prevMonth, 0L),
                 byYear.getOrDefault(thisYear, 0L),
                 byYear.getOrDefault(thisYear - 1, 0L),
-                bestMonth != null ? bestMonth.getKey().format(MONTH_FMT) : "—",
+                bestMonth != null ? bestMonth.getKey() : null,
                 bestMonth != null ? bestMonth.getValue() : 0L,
                 bestYear  != null ? String.valueOf(bestYear.getKey()) : "—",
                 bestYear  != null ? bestYear.getValue() : 0L,

@@ -24,7 +24,7 @@
              tiles show here and in what sequence. s.tiles(...) maps each selected StatField to a
              StatTile (see SubjectStatsExtensions.tiles). !}
         <dl class="grid stat-tile-grid gap-2">
-            {#for tile in s.tiles(statsFields, decimalPlaces)}
+            {#for tile in s.tiles(statsFields, decimalPlaces, language)}
                 {#include partials/stat-tile-row tile=tile compact=false /}
             {/for}
         </dl>

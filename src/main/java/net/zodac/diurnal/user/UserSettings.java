@@ -23,6 +23,7 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -216,7 +217,7 @@ public final class UserSettings {
         final Duration magnitude = Duration.ofSeconds(totalSeconds).abs();
         final long hours = magnitude.toHours();
         final int minutes = magnitude.toMinutesPart();
-        final String body = minutes == 0 ? String.valueOf(hours) : (hours + ":" + String.format("%02d", minutes));
+        final String body = minutes == 0 ? String.valueOf(hours) : (hours + ":" + String.format(Locale.ROOT, "%02d", minutes));
         // Zero falls through to the plain "UTC" label; keeping the sign checks reachable for 0 means
         // the boundary (> 0 / < 0) is testable rather than an equivalent mutant.
         if (totalSeconds > 0) {

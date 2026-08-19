@@ -545,10 +545,14 @@ compare picker's search box arrives inside the fragment and would otherwise neve
   (`[data-chart-shown-period="month"] .chart-col:not(:nth-child(5n+1)) .chart-tick`).
 - **All bars scale against ONE peak** (`FrequencyCharts.heightPercent`), never per action — that is what makes two
   charted actions comparable. A logged slot is floored at 3% so it can't round away to an invisible sliver.
-- **Hover is per COLUMN, not per bar** (`FrequencySlotExtensions.tooltip`): at 31 days × 3 actions a bar is a couple
-  of pixels wide. One action reads `3 July 2026: 4 times`; two or more list each action on its own line, which the
-  `white-space: pre-line` rule on `.chart-col > .app-tooltip` renders. Counts go through `Durations.count`, so a lone
-  entry reads "1 time". The shared 500ms tooltip dwell delay is dropped here so hovering along the axis feels live.
+- **Hover is per COLUMN, not per bar** (`partials/frequency-slot-tooltip.html`): at 31 days × 3 actions a bar is a
+  couple of pixels wide. One action reads `3 July 2026: 4 times`; two or more list each action on its own line,
+  which the `white-space: pre-line` rule on `.chart-col > .app-tooltip` renders. This is a TEMPLATE, not a
+  `FrequencySlotExtensions` Java extension (which was deleted in I18N.md's Phase 2) — it embeds a translated
+  "N times" per bar via `{#for}` + `{msg:statSubTimeSingular}`/`{msg:statSubTimesPlural}`, something a Java call can
+  never produce (a Java call is always English; see `AppMessages`' class Javadoc), so a lone entry correctly reads
+  "1 time" in every offered language, not just English's "+s" rule. The shared 500ms tooltip dwell delay is dropped
+  here so hovering along the axis feels live.
 - **Compare picker**: `Compare to...` reveals `#chart-compare-panel`, whose search box reuses
   `partials/search-input.html` to HTMX-swap **only** `#chart-candidate-list` (so the box keeps focus/caret across a
   keystroke). It offers the user's actions that have **≥1 logged entry**, are not already charted, and match the

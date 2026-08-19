@@ -248,9 +248,9 @@ class StatsServiceIT extends IntegrationTestBase {
         assertThat(stats.lastYearCount())
             .as("last year (2025) = 10+1")
             .isEqualTo(11L);
-        assertThat(stats.bestMonthLabel())
+        assertThat(stats.bestMonth())
             .as("best month is Dec 2025")
-            .isEqualTo("December 2025");
+            .isEqualTo(YearMonth.of(2025, 12));
         assertThat(stats.bestMonthCount())
             .as("best month total")
             .isEqualTo(10L);

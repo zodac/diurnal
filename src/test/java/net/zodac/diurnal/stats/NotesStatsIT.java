@@ -27,6 +27,7 @@ import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.time.Durations;
+import net.zodac.diurnal.user.Language;
 import net.zodac.diurnal.user.UserSettings;
 import org.junit.jupiter.api.Test;
 
@@ -189,7 +190,7 @@ class NotesStatsIT extends IntegrationTestBase {
             newNote(userId, TODAY.minusDays(1), "Two");
         });
 
-        final FrequencyResult result = statsService.frequency(userId, StatSubject.NOTES_ID, List.of(), "month", null);
+        final FrequencyResult result = statsService.frequency(userId, StatSubject.NOTES_ID, List.of(), "month", null, Language.ENGLISH_GB);
         assertThat(result)
             .as("the notes subject must chart like any other")
             .isInstanceOf(FrequencyResult.Charted.class);
@@ -214,7 +215,7 @@ class NotesStatsIT extends IntegrationTestBase {
         });
         final UUID actionId = runInTxGet(() -> Action.<Action>find("userId = ?1", userId).firstResult().id);
 
-        final FrequencyResult result = statsService.frequency(userId, actionId, List.of(StatSubject.NOTES_ID), "month", null);
+        final FrequencyResult result = statsService.frequency(userId, actionId, List.of(StatSubject.NOTES_ID), "month", null, Language.ENGLISH_GB);
         assertThat(result)
             .as("an action and the notes subject must chart together")
             .isInstanceOf(FrequencyResult.Charted.class);
@@ -237,7 +238,7 @@ class NotesStatsIT extends IntegrationTestBase {
         });
         final UUID actionId = runInTxGet(() -> Action.<Action>find("userId = ?1", userId).firstResult().id);
 
-        assertThat(statsService.frequency(userId, actionId, List.of(StatSubject.NOTES_ID), "month", null))
+        assertThat(statsService.frequency(userId, actionId, List.of(StatSubject.NOTES_ID), "month", null, Language.ENGLISH_GB))
             .as("a comparison against notes that do not exist must be rejected, not charted empty")
             .isInstanceOf(FrequencyResult.NotLogged.class);
     }
@@ -245,7 +246,7 @@ class NotesStatsIT extends IntegrationTestBase {
     @Test
     void chartingNotesWithNoneWritten_isTheHonestEmptyChart() {
         // The PRIMARY subject is exempt from that rule: its card is reachable with no entries, so an empty chart is the honest answer.
-        assertThat(statsService.frequency(userId, StatSubject.NOTES_ID, List.of(), "month", null))
+        assertThat(statsService.frequency(userId, StatSubject.NOTES_ID, List.of(), "month", null, Language.ENGLISH_GB))
             .as("the graph's own subject may be empty")
             .isInstanceOf(FrequencyResult.Charted.class);
     }

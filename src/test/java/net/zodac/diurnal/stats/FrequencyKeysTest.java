@@ -20,6 +20,7 @@ package net.zodac.diurnal.stats;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
+import net.zodac.diurnal.user.Language;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
@@ -111,14 +112,14 @@ class FrequencyKeysTest {
 
     @Test
     void label_month_spellsTheMonthOutInFull() {
-        assertThat(FrequencyKeys.label(FrequencyPeriod.MONTH, LocalDate.of(2026, 7, 1)))
+        assertThat(FrequencyKeys.label(FrequencyPeriod.MONTH, LocalDate.of(2026, 7, 1), Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("July 2026");
     }
 
     @Test
     void label_year_isTheYearAlone() {
-        assertThat(FrequencyKeys.label(FrequencyPeriod.YEAR, LocalDate.of(2026, 1, 1)))
+        assertThat(FrequencyKeys.label(FrequencyPeriod.YEAR, LocalDate.of(2026, 1, 1), Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("2026");
     }

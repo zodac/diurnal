@@ -75,12 +75,14 @@ public final class StatsSummary {
             .stream()
             .limit(FIELD_LIMIT)
             .toList();
+        final Locale locale = Locale.forLanguageTag(user.language);
         return template
                 .data("dayStats", dayStats)
                 .data("summaryFields", summaryFields)
                 .data("decimalPlaces", user.decimalPlaces)
+                .data("language", user.language)
                 .data("summaryDate", date.toString())
-                .data("dateLabel", DayLabels.spelledOut(date))
-                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag(user.language));
+                .data("dateLabel", DayLabels.spelledOut(date, locale))
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale);
     }
 }

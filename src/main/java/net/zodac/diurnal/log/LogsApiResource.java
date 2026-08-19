@@ -35,8 +35,11 @@ import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
+import java.text.Collator;
 import java.time.LocalDate;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -203,9 +206,13 @@ public class LogsApiResource {
         if (counts.isEmpty()) {
             return EntityTags.withPrivateValidator(Response.ok(List.of()), tag).build();
         }
+        // Collated rather than code-point order: user-typed action names are free text in any script, and plain
+        // String.compareTo (uppercase-before-lowercase, ordinal for accented/non-Latin characters) mis-sorts them
+        // for the viewing user's own language.
+        final Collator collator = Collator.getInstance(Locale.forLanguageTag(user.language));
         final List<DayLogEntryDto> entries = Action.findByUserAndIds(user.id, counts.keySet()).stream()
             .map(a -> new DayLogEntryDto(a.id, a.name, a.colour, Objects.requireNonNull(counts.get(a.id))))
-            .sorted(java.util.Comparator.comparing(DayLogEntryDto::name))
+            .sorted(Comparator.comparing(DayLogEntryDto::name, collator::compare))
             .toList();
         return EntityTags.withPrivateValidator(Response.ok(entries), tag).build();
     }

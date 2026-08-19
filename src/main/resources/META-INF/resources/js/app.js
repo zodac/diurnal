@@ -17,6 +17,14 @@
 // (settings.js, dashboard.js).
 window.Diurnal = window.Diurnal || {}
 
+// The resolved app language (not the browser's own locale - see the comment on
+// formatNumber below for why that distinction matters), read off <html lang> - every page
+// already renders it there (layout.html), from the same User.language/Accept-Language
+// resolution the server-side AppMessages bundle uses. Every locale-aware browser API below
+// (Intl.DateTimeFormat, toLocaleString) is driven by this ONE constant rather than each
+// call site reading document.documentElement.lang for itself.
+window.Diurnal.lang = document.documentElement.lang || 'en-GB'
+
 // m:ss, clamped so it can NEVER render a negative value. Shared by the two live counters below (the
 // lockout countdown ticking DOWN to an expiry, the presence counter ticking UP from a last-seen), which
 // render the same clock and must not drift into two spellings of it.
@@ -517,12 +525,14 @@ document.addEventListener('click', function (e) {
     })
 })();
 
-// ── Browser-locale number grouping ────────────────────────────────────────────
+// ── App-locale number grouping ─────────────────────────────────────────────────
 // Stats figures (counts, streaks, trends, averages) are rendered as bare digit strings by the
 // server, which can't know the viewer's locale. This formats every number inside a `.js-num`
-// element using the *browser's* locale (`toLocaleString()` with no locale arg), so 1000 becomes
-// "1,000" (en) or "1.000" (de) etc. Only elements explicitly tagged `.js-num` are touched —
-// never date/label fields (e.g. "Jun 2026"), names or emails — so years are left alone.
+// element using the *resolved app language* (Diurnal.lang, NOT the browser's own locale — a
+// Japanese-language preference with an English-locale browser must still group numbers the
+// Japanese way, matching every other figure the server rendered on the same page), so 1000
+// becomes "1,000" (en) or "1.000" (de) etc. Only elements explicitly tagged `.js-num` are
+// touched — never date/label fields (e.g. "Jun 2026"), names or emails — so years are left alone.
 (function () {
     // Any element holding a number of 5+ digits (i.e. >= 10,000) keeps its ungrouped server text on
     // `data-num-raw`, so the fitting pass below can re-derive a "10.0k" form from exact digits rather
@@ -531,8 +541,8 @@ document.addEventListener('click', function (e) {
 
     window.Diurnal.formatNumber = function (num, decimals) {
         return decimals > 0
-            ? num.toLocaleString(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
-            : num.toLocaleString(undefined)
+            ? num.toLocaleString(window.Diurnal.lang, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+            : num.toLocaleString(window.Diurnal.lang)
     }
     // Replace each run of digits (optionally with a decimal part) in a string, preserving everything
     // around it: "+1234" → "+1,234" and "1234 this month" → "1,234 this month".
@@ -587,10 +597,19 @@ document.addEventListener('click', function (e) {
     const DEFAULT_DECIMALS = 1
     const OVERFLOW_TOLERANCE = 1 // px; scrollWidth rounds up, so ignore a sub-pixel "overflow"
 
-    window.Diurnal.MONTHS_FULL = ['January', 'February', 'March', 'April', 'May', 'June',
-                                  'July', 'August', 'September', 'October', 'November', 'December']
-    window.Diurnal.MONTHS_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                                  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+    // Full/abbreviated month names in the resolved app language (Diurnal.lang), not a hardcoded
+    // English array — Intl.DateTimeFormat draws on the SAME CLDR data java.time uses server-side
+    // (user/Language#monthYearPattern, time/DayLabels), so shortenMonths below abbreviates whatever
+    // month name the server actually rendered. A fixed UTC noon avoids any host-timezone date
+    // arithmetic shifting which calendar month is formatted.
+    const monthNames = function (style) {
+        const fmt = new Intl.DateTimeFormat(window.Diurnal.lang, { month: style, timeZone: 'UTC' })
+        return Array.from({ length: 12 }, function (_, month) {
+            return fmt.format(new Date(Date.UTC(2000, month, 1, 12)))
+        })
+    }
+    window.Diurnal.MONTHS_FULL = monthNames('long')
+    window.Diurnal.MONTHS_ABBR = monthNames('short')
 
     const MONTH_PATTERNS = window.Diurnal.MONTHS_FULL.map(function (month) {
         return new RegExp(`\\b${  month  }\\b`, 'g')

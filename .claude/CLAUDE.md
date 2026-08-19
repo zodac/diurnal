@@ -441,13 +441,16 @@ admin IP-lockout history follows the general value (no section of its own).
   at least one auth mechanism at startup. Password MANAGEMENT stays available regardless: any account holding a password (the break-glass admin)
   can change it via Settings / `PUT /api/v1/users/me/password` — `PasswordChangeService` keys on the hash, not on `PASSWORD_AUTH_ENABLED`.
 - Login uses query params: `?error` = failed login; `?registered=true` = success after registration.
-- `SubjectStatsExtensions` exposes `sinceLabel()`, `monthTrend()`, `monthTrendClass()` etc. as Qute template extensions over `SubjectStats`.
-- **UI text must use correct singular/plural** — never "1 days". `time/Durations.plural(count, unit)` is the ONE rule; `count(n, unit)` renders
-  "1 day"/"5 days". `SubjectStatsExtensions` exposes it to templates via `totalDaysUnit()` etc., and words every streak/gap through `Durations.label`.
-  Apply to any new pluralised count.
+- `SubjectStatsExtensions` exposes `lastLabel()`, `latestLabel()`, `monthTrend()`, `monthTrendClass()` etc. as Qute template extensions over
+  `SubjectStats`.
+- **UI text must use correct singular/plural** — never "1 days". A Java call can never be locale-aware (see `web/AppMessages`' class Javadoc), so
+  pluralisation is resolved entirely inside a `@Message` value's own `{#if count == 1}...{#else}...{/if}` — e.g. `AppMessages#duration(long, long,
+  long)` for a calendar duration, `#importActionsCount(int)`/`#importLogsCount(int)`/`#importNotesCount(int)` for the data-import preview's counts.
+  `time/Durations` itself only MEASURES a span (`days(span)`, `breakdown(span)` → `time/DurationParts`); it holds no English words and composes no
+  text. Apply the same "raw count in, `{#if}`-branching `@Message` out" shape to any new pluralised count.
 - **A run of days that is shown to a user as a duration is carried as a `time/DaySpan` (half-open `[start, endExclusive)`), never as a bare day count.**
-  `time/Durations` is the only place one is measured (`days(span)`) or worded (`label(span)` — "412 days" condenses to "1 year, 1 month, 17 days";
-  `exceedsOneMonth(span)` says whether it condensed). The month/year boundaries are **calendar**
+  `time/Durations.breakdown(span)` is the only place one is measured into its years/months/days components (`DurationParts`) — "412 days" becomes
+  `(1, 1, 17)`, worded as "1 year, 1 month, 17 days" only inside `AppMessages#duration`, never in Java. The month/year boundaries are **calendar**
   boundaries (a month counts only once the day-of-month is reached, so leap days are never lost), and that arithmetic depends on WHICH months the run
   covered — the same 31 days is "1 month" in one place in the calendar and "1 month, 3 days" in another. **A day count alone therefore cannot be rendered
   as a duration**: it could only be split against some arbitrary anchor, which makes a historical figure's label drift as "today" moves.
@@ -455,7 +458,8 @@ admin IP-lockout history follows the general value (no section of its own).
   gap (`SubjectStatsExtensions.currentGapSpan`). Both gap spans are framed as the **blank run** (the day after the last log, up to the next log — or
   tomorrow, for the still-open one), so the current gap measures identically to the longest gap it will eventually become. All four streak/gap tiles
   lead with the worded duration ("1 day", "1 month, 14 days" — never a bare number) and caption it with the run's own dates: "since {start}" while the
-  run is still going (current streak/gap), "{start} – {end}" once it is closed, and nothing at all for an empty run.
+  run is still going (current streak/gap), "{start} – {end}" once it is closed, and nothing at all for an empty run. `StatTile` carries the raw
+  `durationYears`/`durationMonths`/`durationDays` (dual-purpose per `key` — see its own Javadoc), never a pre-worded string.
 
 ### Update check (admin-only footer indicator)
 

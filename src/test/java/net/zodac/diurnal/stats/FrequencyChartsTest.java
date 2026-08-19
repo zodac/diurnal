@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import net.zodac.diurnal.user.Language;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
 
@@ -37,11 +38,11 @@ class FrequencyChartsTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 7, 23);
 
     private static FrequencyChart month(final Map<UUID, Map<Integer, Long>> counts, final LocalDate anchor, final @Nullable LocalDate earliest) {
-        return FrequencyCharts.build(List.of(RUNNING), FrequencyPeriod.MONTH, anchor, counts, TODAY, earliest);
+        return FrequencyCharts.build(List.of(RUNNING), FrequencyPeriod.MONTH, anchor, counts, TODAY, earliest, Language.ENGLISH_GB);
     }
 
     private static FrequencyChart year(final Map<UUID, Map<Integer, Long>> counts, final LocalDate anchor, final @Nullable LocalDate earliest) {
-        return FrequencyCharts.build(List.of(RUNNING), FrequencyPeriod.YEAR, anchor, counts, TODAY, earliest);
+        return FrequencyCharts.build(List.of(RUNNING), FrequencyPeriod.YEAR, anchor, counts, TODAY, earliest, Language.ENGLISH_GB);
     }
 
     private static Map<UUID, Map<Integer, Long>> running(final Map<Integer, Long> counts) {
@@ -212,7 +213,7 @@ class FrequencyChartsTest {
     @Test
     void build_comparedAction_isSecondSeriesAndIsRemovable() {
         final FrequencyChart chart = FrequencyCharts.build(List.of(RUNNING, YOGA), FrequencyPeriod.MONTH, JULY_2026,
-            Map.of(RUNNING_ID, Map.of(1, 3L), YOGA_ID, Map.of(1, 5L)), TODAY, JULY_2026);
+            Map.of(RUNNING_ID, Map.of(1, 3L), YOGA_ID, Map.of(1, 5L)), TODAY, JULY_2026, Language.ENGLISH_GB);
         assertThat(chart.series().stream().map(FrequencySeries::subjectName).toList())
             .as("the legend should keep the order the comparison was built in")
             .containsExactly("Running", "Yoga");
@@ -230,7 +231,7 @@ class FrequencyChartsTest {
     @Test
     void build_everyColumnCarriesOneBarPerStatSubject() {
         final FrequencyChart chart = FrequencyCharts.build(List.of(RUNNING, YOGA), FrequencyPeriod.MONTH, JULY_2026,
-            Map.of(RUNNING_ID, Map.of(1, 3L)), TODAY, JULY_2026);
+            Map.of(RUNNING_ID, Map.of(1, 3L)), TODAY, JULY_2026, Language.ENGLISH_GB);
         assertThat(chart.slots())
             .as("every column must carry a bar for every action, so the groups stay aligned across the axis")
             .allMatch(slot -> slot.bars().size() == 2);
@@ -247,7 +248,7 @@ class FrequencyChartsTest {
         // The whole point of charting two actions together is comparing them, so a bar twice the height
         // of another must mean twice the count - which only holds if both scale against the same peak.
         final FrequencyChart chart = FrequencyCharts.build(List.of(RUNNING, YOGA), FrequencyPeriod.MONTH, JULY_2026,
-            Map.of(RUNNING_ID, Map.of(1, 5L), YOGA_ID, Map.of(1, 10L)), TODAY, JULY_2026);
+            Map.of(RUNNING_ID, Map.of(1, 5L), YOGA_ID, Map.of(1, 10L)), TODAY, JULY_2026, Language.ENGLISH_GB);
         assertThat(chart.slots().getFirst().bars().getFirst().heightPercent())
             .as("half the chart's peak should draw at half height")
             .isEqualTo(50);
@@ -259,7 +260,7 @@ class FrequencyChartsTest {
     @Test
     void build_comparedActionCanSetTheChartPeak() {
         final FrequencyChart chart = FrequencyCharts.build(List.of(RUNNING, YOGA), FrequencyPeriod.MONTH, JULY_2026,
-            Map.of(RUNNING_ID, Map.of(1, 2L), YOGA_ID, Map.of(4, 9L)), TODAY, JULY_2026);
+            Map.of(RUNNING_ID, Map.of(1, 2L), YOGA_ID, Map.of(4, 9L)), TODAY, JULY_2026, Language.ENGLISH_GB);
         assertThat(chart.peak())
             .as("the peak spans every charted action, not just the first")
             .isEqualTo(9L);

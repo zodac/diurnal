@@ -117,13 +117,14 @@ public class LogWebResource {
         final User user = currentUser.get();
         final boolean future = LogGuards.isFuture(date, user, clock);
         final var page = future ? null : getActions(user.id, date, 1, "", PageSizes.forSection(user, PageSection.DASHBOARD));
+        final Locale locale = locale(user);
 
         return dayPanelTemplate
             .data("date", date)
-            .data("dateLabel", DayLabels.spelledOut(date))
+            .data("dateLabel", DayLabels.spelledOut(date, locale))
             .data("future", future)
             .data("page", page)
-            .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale(user));
+            .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale);
     }
 
     /**
@@ -191,7 +192,7 @@ public class LogWebResource {
             final var page = future ? null : paginate(all, countsByDate.getOrDefault(date, Map.of()), 1, "", dayPageSize);
             panels.put(date.toString(), dayPanelTemplate
                 .data("date", date)
-                .data("dateLabel", DayLabels.spelledOut(date))
+                .data("dateLabel", DayLabels.spelledOut(date, locale))
                 .data("future", future)
                 .data("page", page)
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)

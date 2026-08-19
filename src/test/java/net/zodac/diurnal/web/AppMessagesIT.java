@@ -87,6 +87,88 @@ class AppMessagesIT extends IntegrationTestBase {
     }
 
     @Test
+    void duration_allZero_isPlainZeroDays() {
+        assertThat(appMessages.duration(0, 0, 0))
+            .as("an empty span reads '0 days', not an empty string")
+            .isEqualTo("0 days");
+    }
+
+    @Test
+    void duration_daysOnly_isSingularAware() {
+        assertThat(appMessages.duration(0, 0, 1))
+            .as("a lone day is singular")
+            .isEqualTo("1 day");
+        assertThat(appMessages.duration(0, 0, 5))
+            .as("unexpected value")
+            .isEqualTo("5 days");
+    }
+
+    @Test
+    void duration_monthsOnly_omitsZeroComponents() {
+        assertThat(appMessages.duration(0, 1, 0))
+            .as("a lone month is singular, with no trailing ', 0 days'")
+            .isEqualTo("1 month");
+    }
+
+    @Test
+    void duration_yearsOnly_omitsZeroComponents() {
+        assertThat(appMessages.duration(2, 0, 0))
+            .as("unexpected value")
+            .isEqualTo("2 years");
+    }
+
+    @Test
+    void duration_monthsAndDays_areCommaSeparated() {
+        assertThat(appMessages.duration(0, 1, 14))
+            .as("unexpected value")
+            .isEqualTo("1 month, 14 days");
+    }
+
+    @Test
+    void duration_yearsAndDays_skipTheMissingMonthSeparator() {
+        assertThat(appMessages.duration(1, 0, 3))
+            .as("years and days must not carry a stray double separator for the skipped months component")
+            .isEqualTo("1 year, 3 days");
+    }
+
+    @Test
+    void duration_everyComponent_isFullyComposed() {
+        assertThat(appMessages.duration(1, 1, 17))
+            .as("the documented worked example from CLAUDE.md's day-span notes")
+            .isEqualTo("1 year, 1 month, 17 days");
+    }
+
+    @Test
+    void importCounts_pluraliseEveryFigure() {
+        assertThat(appMessages.importActionsCount(1))
+            .as("no preview may ever read '1 actions'")
+            .isEqualTo("1 action");
+        assertThat(appMessages.importLogsCount(1))
+            .as("unexpected value")
+            .isEqualTo("1 day count");
+        assertThat(appMessages.importNotesCount(1))
+            .as("unexpected value")
+            .isEqualTo("1 note");
+
+        assertThat(appMessages.importActionsCount(12))
+            .as("unexpected value")
+            .isEqualTo("12 actions");
+        assertThat(appMessages.importLogsCount(340))
+            .as("unexpected value")
+            .isEqualTo("340 day counts");
+        assertThat(appMessages.importNotesCount(88))
+            .as("unexpected value")
+            .isEqualTo("88 notes");
+    }
+
+    @Test
+    void importReplacedSummary_wordsEverythingTheAccountHoldsAsOnePhrase() {
+        assertThat(appMessages.importReplacedSummary(4, 120, 1))
+            .as("the preview names what is about to be removed, in the user's own terms")
+            .isEqualTo("4 actions, 120 day counts and 1 note");
+    }
+
+    @Test
     void messageNamespace_fallsBackToDefaultContent_forALocaleWithNoOwnPropertiesFile() {
         // en-US is an offered Language with no messages_en-US.properties of its own - this is the assumption the
         // whole "every offered language shares default content until Phase 1/5 differentiates it" design rests

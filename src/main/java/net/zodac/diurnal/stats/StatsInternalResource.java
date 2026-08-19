@@ -43,6 +43,7 @@ import java.util.UUID;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.Language;
 import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
@@ -175,10 +176,11 @@ public class StatsInternalResource {
     public Response chart(@PathParam("subjectId") final UUID subjectId, @QueryParam("compare") final List<UUID> compareIds,
         @QueryParam("period") final @Nullable String period, @QueryParam("at") final @Nullable String at) {
         final User user = currentUser.get();
-        return switch (statsService.frequency(user.id, subjectId, compareIds, period, at)) {
+        return switch (statsService.frequency(user.id, subjectId, compareIds, period, at, Language.fromValue(user.language))) {
             case FrequencyResult.Charted(final FrequencyChart chart) -> Response.ok(statsChartTemplate
                 .data("chart", chart)
                 .data("decimalPlaces", user.decimalPlaces)
+                .data("language", user.language)
                 .data("candidates", statsService.compareCandidates(user.id, chartedIds(chart), null))
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, java.util.Locale.forLanguageTag(user.language))).build();
             case final FrequencyResult.UnknownPeriod _, final FrequencyResult.UnknownWindow _, final FrequencyResult.TooManySubjects _,
@@ -234,6 +236,7 @@ public class StatsInternalResource {
         final User user = currentUser.get();
         return statsCardsTemplate
                 .data("decimalPlaces", user.decimalPlaces)
+                .data("language", user.language)
                 .data("statsFields", StatField.displayFields(user.statsFields))
                 .data("page", paginate(statsService.forAllSubjects(user.id), pageNum, PageSizes.forSection(user, PageSection.STATS)))
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, java.util.Locale.forLanguageTag(user.language));
