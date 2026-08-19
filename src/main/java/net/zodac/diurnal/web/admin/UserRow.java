@@ -21,6 +21,7 @@ import java.time.format.DateTimeFormatter;
 import java.util.UUID;
 import net.zodac.diurnal.auth.session.RecentActivity;
 import net.zodac.diurnal.user.User;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A single row in the admin users table, with timestamps pre-formatted for display.
@@ -35,13 +36,14 @@ import net.zodac.diurnal.user.User;
  * @param role the user's role
  * @param authSource the account's sign-in source(s) ({@code local} / {@code oidc} / {@code local+oidc})
  * @param createdLabel the formatted account-creation timestamp
- * @param lastLoginLabel the formatted last-login timestamp, or "Never"
+ * @param lastLoginLabel the formatted last-login timestamp, or {@code null} when the user has never logged in — a Java-side "Never" string
+ *     literal would be a Java call, which can never be locale-aware (see {@code AppMessages}' Javadoc); the template resolves the word instead
  * @param zoneLabel the id of the timezone the timestamps are rendered in (shown as a tooltip)
  * @param recentlyActive whether the user made an authenticated request within the active window (drives the "Recently active" dot)
  * @param secondsSinceLastRequest whole seconds since that last request, for the live tooltip counter (only meaningful when {@code recentlyActive})
  */
 public record UserRow(UUID id, String email, String displayName, String role, String authSource,
-    String createdLabel, String lastLoginLabel, String zoneLabel, boolean recentlyActive, long secondsSinceLastRequest) {
+    String createdLabel, @Nullable String lastLoginLabel, String zoneLabel, boolean recentlyActive, long secondsSinceLastRequest) {
 
     /**
      * Builds a row from a {@link User}, formatting its timestamps with {@code fmt}.
@@ -56,7 +58,7 @@ public record UserRow(UUID id, String email, String displayName, String role, St
         return new UserRow(
                 u.id, u.email, u.displayName, u.role, u.authSource(),
                 fmt.format(u.createdAt),
-                u.lastLoginAt != null ? fmt.format(u.lastLoginAt) : "Never",
+                u.lastLoginAt != null ? fmt.format(u.lastLoginAt) : null,
                 zoneLabel,
                 activity.recentlyActive(),
                 activity.secondsSinceLastRequest());

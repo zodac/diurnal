@@ -145,6 +145,39 @@ public enum Language {
     }
 
     /**
+     * The date-time pattern for a day spelled out WITHOUT its year (e.g. {@code "15 June"}, used by
+     * {@code SubjectStatsExtensions} for a stat tile's "latest" date once it falls outside the current year). Unlike
+     * {@link #locale()} feeding {@code DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)} for a full date, the JDK
+     * offers no localised STYLE for this shape (no year, abbreviated month) — {@code FormatStyle} only spans
+     * SHORT/MEDIUM/LONG/FULL, none of which drop a field — so each offered language gets an explicit, human-chosen
+     * pattern here rather than one derived from a formatter style.
+     *
+     * @return the day-plus-abbreviated-month pattern, for {@link java.time.format.DateTimeFormatter#ofPattern(String, Locale)}
+     */
+    public String dayMonthPattern() {
+        return switch (this) {
+            case ENGLISH_GB, SPANISH_SPAIN, SPANISH_LATIN_AMERICA, ARABIC -> "d MMM";
+            case ENGLISH_US -> "MMM d";
+            case JAPANESE -> "M月d日";
+        };
+    }
+
+    /**
+     * The date-time pattern for a month spelled out WITH its year but no day (e.g. {@code "June 2026"}, used by the frequency chart's month-window
+     * heading and its year-window slot captions, and by the Stats page's "best month" tile). Same rationale as {@link #dayMonthPattern()}: no
+     * {@link java.time.format.FormatStyle} offers this shape either, so each offered language gets an explicit pattern.
+     *
+     * @return the month-plus-year pattern, for {@link java.time.format.DateTimeFormatter#ofPattern(String, Locale)}
+     */
+    public String monthYearPattern() {
+        return switch (this) {
+            case ENGLISH_GB, ENGLISH_US, ARABIC -> "MMMM yyyy";
+            case SPANISH_SPAIN, SPANISH_LATIN_AMERICA -> "MMMM 'de' yyyy";
+            case JAPANESE -> "yyyy年M月";
+        };
+    }
+
+    /**
      * Whether the submitted value matches one of the offered options. Submissions with an unrecognised value are rejected by the caller
      * ({@code ProfileService}) rather than coerced.
      *
@@ -177,7 +210,7 @@ public enum Language {
             final List<Locale.LanguageRange> ranges = Locale.LanguageRange.parse(acceptLanguageHeader);
             final List<String> offeredValues = Arrays.stream(values()).map(Language::value).toList();
             final String matched = Locale.lookupTag(ranges, offeredValues);
-            return matched == null ? fromBaseLanguage(ranges) : byValue(matched);
+            return matched == null ? fromBaseLanguage(ranges) : fromValue(matched);
         } catch (final IllegalArgumentException e) {
             // A malformed header (invalid language-range syntax) is treated the same as an absent one.
             return DEFAULT;
@@ -198,7 +231,15 @@ public enum Language {
         return DEFAULT;
     }
 
-    private static Language byValue(final String value) {
+    /**
+     * Resolves a language from its stored/submitted {@link #value()}, defaulting to {@link #DEFAULT} for any unrecognised value — the same
+     * lenient-fallback shape as {@code Role#fromStorageValue}, used where a caller already has a plain {@code User.language} string and needs the
+     * enum's own behaviour (its {@link #locale()}, {@link #dayMonthPattern()}, {@link #monthYearPattern()}) rather than re-deriving it.
+     *
+     * @param value the stored value to resolve (can be {@code null})
+     * @return the matching language, or {@link #DEFAULT} if none matches
+     */
+    public static Language fromValue(final @Nullable String value) {
         return Arrays.stream(values()).filter(option -> option.value.equals(value)).findFirst().orElse(DEFAULT);
     }
 }

@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import net.zodac.diurnal.time.DaySpan;
+import net.zodac.diurnal.time.DurationParts;
 import net.zodac.diurnal.time.Durations;
 import org.junit.jupiter.api.Test;
 
@@ -276,12 +277,12 @@ class StatsServiceTest {
         assertThat(asSeenInMarch)
             .as("a historical run's dates cannot depend on when they are read")
             .isEqualTo(asSeenInFebruary);
-        assertThat(Durations.label(asSeenInMarch))
+        assertThat(Durations.breakdown(asSeenInMarch))
             .as("unexpected value")
-            .isEqualTo(Durations.label(asSeenInFebruary));
-        assertThat(Durations.label(asSeenInMarch))
+            .isEqualTo(Durations.breakdown(asSeenInFebruary));
+        assertThat(Durations.breakdown(asSeenInMarch))
             .as("unexpected value")
-            .isEqualTo("1 month");
+            .isEqualTo(new DurationParts(0L, 1L, 0L));
     }
 
     @Test

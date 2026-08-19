@@ -18,6 +18,7 @@
 package net.zodac.diurnal.stats;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import net.zodac.diurnal.time.DaySpan;
 import net.zodac.diurnal.time.Durations;
 import org.jspecify.annotations.Nullable;
@@ -59,7 +60,10 @@ public record SubjectStats(
     long      thisYearCount,
     long      lastYearCount,
     // High scores
-    String    bestMonthLabel,
+    // bestMonth is the raw month, not a pre-formatted label: "June 2026" is a WORD (the month name), and a plain
+    // Java call can never be locale-aware (see AppMessages' own class Javadoc) - each surface formats it itself
+    // (the API in English, the web template via SubjectStatsExtensions, per the viewing user's language).
+    @Nullable YearMonth bestMonth,
     long      bestMonthCount,
     String    bestYearLabel,
     long      bestYearCount,

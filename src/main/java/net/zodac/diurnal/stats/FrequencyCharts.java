@@ -19,11 +19,13 @@ package net.zodac.diurnal.stats;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import net.zodac.diurnal.user.Language;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -47,9 +49,6 @@ final class FrequencyCharts {
     private static final int MIN_VISIBLE_PERCENT = 3;
     private static final double PERCENT_SCALE = 100.0;
     private static final int EDGE_SLOTS = 4;
-    private static final DateTimeFormatter DAY_FULL = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
-    private static final DateTimeFormatter MONTH_FULL = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
-    private static final DateTimeFormatter MONTH_ABBR = DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH);
 
     private FrequencyCharts() {
 
@@ -66,10 +65,11 @@ final class FrequencyCharts {
      * @param today the current day, which bounds how far forward the chart may be stepped
      * @param earliest the earliest day any charted subject has an entry, which bounds how far back it may be stepped, or {@code null} when none
      *     of them has any
+     * @param language the language to word the chart's month/year labels in
      * @return the assembled chart
      */
     static FrequencyChart build(final List<StatSubject> charted, final FrequencyPeriod period, final LocalDate anchor,
-        final Map<UUID, Map<Integer, Long>> countsByAction, final LocalDate today, final @Nullable LocalDate earliest) {
+        final Map<UUID, Map<Integer, Long>> countsByAction, final LocalDate today, final @Nullable LocalDate earliest, final Language language) {
         final int slots = slotCount(period, anchor);
 
         long total = 0L;
@@ -90,8 +90,8 @@ final class FrequencyCharts {
                 final long count = countsByAction.getOrDefault(subject.id(), Map.of()).getOrDefault(slot, 0L);
                 bars.add(new FrequencyBar(subject.name(), subject.colour(), count, heightPercent(count, peak)));
             }
-            columns.add(new FrequencySlot(shortLabel(period, anchor, slot), fullLabel(period, anchor, slot), tipAlign(slot, slots),
-                List.copyOf(bars)));
+            columns.add(new FrequencySlot(shortLabel(period, anchor, slot, language), fullLabel(period, anchor, slot, language),
+                tipAlign(slot, slots), List.copyOf(bars)));
         }
 
         final int chartedCount = charted.size();
@@ -107,7 +107,7 @@ final class FrequencyCharts {
         return new FrequencyChart(
             period,
             FrequencyKeys.key(period, anchor),
-            FrequencyKeys.label(period, anchor),
+            FrequencyKeys.label(period, anchor, language),
             List.copyOf(series),
             List.copyOf(columns),
             total,
@@ -167,17 +167,17 @@ final class FrequencyCharts {
         };
     }
 
-    private static String shortLabel(final FrequencyPeriod period, final LocalDate anchor, final int slot) {
+    private static String shortLabel(final FrequencyPeriod period, final LocalDate anchor, final int slot, final Language language) {
         return switch (period) {
             case MONTH -> String.valueOf(slot);
-            case YEAR -> anchor.withMonth(slot).format(MONTH_ABBR);
+            case YEAR -> anchor.withMonth(slot).getMonth().getDisplayName(TextStyle.SHORT, language.locale());
         };
     }
 
-    private static String fullLabel(final FrequencyPeriod period, final LocalDate anchor, final int slot) {
+    private static String fullLabel(final FrequencyPeriod period, final LocalDate anchor, final int slot, final Language language) {
         return switch (period) {
-            case MONTH -> anchor.withDayOfMonth(slot).format(DAY_FULL);
-            case YEAR -> anchor.withMonth(slot).format(MONTH_FULL);
+            case MONTH -> anchor.withDayOfMonth(slot).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(language.locale()));
+            case YEAR -> anchor.withMonth(slot).format(DateTimeFormatter.ofPattern(language.monthYearPattern(), language.locale()));
         };
     }
 

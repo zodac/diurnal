@@ -240,7 +240,7 @@ window.Diurnal = window.Diurnal || {};
         noteCount.hidden = !live
         if (!live) {return}
         const length = noteLength()
-        noteCount.textContent = `${length.toLocaleString()  } / ${  NOTE_MAX.toLocaleString()}`
+        noteCount.textContent = `${length.toLocaleString(window.Diurnal.lang)  } / ${  NOTE_MAX.toLocaleString(window.Diurnal.lang)}`
         noteCount.classList.toggle('note-count-over', noteIsOverLimit())
     }
 

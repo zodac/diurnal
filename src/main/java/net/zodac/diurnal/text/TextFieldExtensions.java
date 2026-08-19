@@ -24,7 +24,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-import net.zodac.diurnal.time.Durations;
 
 /**
  * The derived logic of a {@link TextField}: how a submitted value is normalised, how a length failure is worded, and how the field's bounds are
@@ -131,7 +130,8 @@ public final class TextFieldExtensions {
         final String bounds = field.minLength() > 1
             ? ("between " + field.minLength() + " and " + field.maxLength())
             : ("at most " + field.maxLength());
-        return field.label() + " must be " + bounds + ' ' + Durations.plural(field.maxLength(), LENGTH_UNIT) + '.';
+        final String unit = field.maxLength() == 1 ? LENGTH_UNIT : (LENGTH_UNIT + "s");
+        return field.label() + " must be " + bounds + ' ' + unit + '.';
     }
 
     /**

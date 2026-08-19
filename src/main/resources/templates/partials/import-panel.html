@@ -27,11 +27,11 @@
          is an informed one rather than a formality. !}
     <div class="rounded-lg border border-line bg-surface-muted p-3">
         <p class="text-sm text-ink">
-            {msg:importArchiveHolds(summary.actionsLabel, summary.logsLabel, summary.notesLabel)}
+            {msg:importArchiveHolds(msg:importActionsCount(summary.actions), msg:importLogsCount(summary.logs), msg:importNotesCount(summary.notes))}
         </p>
         {#if summary.replacesExistingData}
         <p class="help-text mt-1">
-            {msg:importRemovesExisting(summary.replacedLabel)}
+            {msg:importRemovesExisting(msg:importReplacedSummary(summary.replacedActions, summary.replacedLogs, summary.replacedNotes))}
         </p>
         {#else}
         <p class="help-text mt-1">
@@ -49,7 +49,7 @@
 
     {#else if state == 'applied'}
     {#include partials/banner variant='success' cls=''
-        message=msg:importAppliedSummary(summary.actionsLabel, summary.logsLabel, summary.notesLabel) /}
+        message=msg:importAppliedSummary(msg:importActionsCount(summary.actions), msg:importLogsCount(summary.logs), msg:importNotesCount(summary.notes)) /}
 
     {#else if state == 'rejected'}
     {! An empty message means the generic Rejected-import refusal; a non-empty one is a Malformed archive's

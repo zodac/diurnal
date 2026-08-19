@@ -1,0 +1,18 @@
+{!
+  The frequency chart's per-column hover bubble: the slot spelled out, followed by what each charted
+  action logged in it ("3 July 2026: 4 times"; two or more actions put the slot on its own line with
+  one line per action beneath, via the chart's `white-space: pre-line` tooltip rule). Params:
+    slot  — the FrequencySlot to describe
+    align — see partials/tooltip
+
+  A DEDICATED partial rather than a `text=` param to the shared partials/tooltip (every other tooltip
+  in the app): this one embeds a translated "N times" PER charted action, which needs a `{#for}` loop
+  over slot.bars - something FrequencySlotExtensions#tooltip (a @TemplateExtension, i.e. a plain Java
+  call) could never produce, since a Java call is always English regardless of the viewer's language
+  (see AppMessages' own class Javadoc). Duplicates partials/tooltip's span markup deliberately rather
+  than bending that partial's text-only contract for this one caller.
+!}
+<span aria-hidden="true"
+      class="app-tooltip w-max max-w-[16rem] bottom-full mb-1.5{#if align == 'left'} left-0{#else if align == 'right'} right-0{#else} left-1/2 -translate-x-1/2{/if}">{#if slot.bars.size == 1}{slot.fullLabel}: {#if slot.bars[0].count == 1}{msg:statSubTimeSingular}{#else}{msg:statSubTimesPlural(slot.bars[0].count)}{/if}{#else}{slot.fullLabel}
+{#for bar in slot.bars}{bar.subjectName}: {#if bar.count == 1}{msg:statSubTimeSingular}{#else}{msg:statSubTimesPlural(bar.count)}{/if}{#if bar_hasNext}
+{/if}{/for}{/if}</span>

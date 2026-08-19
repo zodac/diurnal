@@ -43,8 +43,11 @@
                 <div id="calendar-wrap" class="relative d-cal-{calendarView}"
                      style="--note-colour: {noteColour}; --note-colour-on-brand: {noteColourOnBrand}">
                     {#include partials/calendar-toolbar /}
+                    {! Sunday-first column order is fixed regardless of locale (the grid layout is a Phase 3
+                         concern, not Phase 2's); only the weekday WORDS follow the viewer's language, via
+                         DayLabels.weekdayAbbreviations. !}
                     <div class="d-min-dow-header">
-                        <span>Sun</span><span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span>
+                        {#for day in weekdayLabels}<span>{day}</span>{/for}
                     </div>
                     <div id="d-min-grid" class="d-min-grid d-cal-{calendarView}"></div>
                 </div>

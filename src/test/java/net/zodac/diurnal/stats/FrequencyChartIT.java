@@ -39,8 +39,8 @@ import org.junit.jupiter.api.Test;
  * Integration tests for the per-action frequency chart on BOTH surfaces: the Stats page's HTMX fragment
  * ({@code GET /internal/stats/chart/{actionId}}) and its public API twin ({@code GET /api/v1/stats/{actionId}/frequency}), plus the picker feeding
  * the fragment's "Compare to..." control. Both chart surfaces translate the same
- * {@link StatsService#frequency(UUID, UUID, java.util.List, String, String)} result, so the cases here pin that neither of them accepts a window, or
- * a set of actions, that the other rejects.
+ * {@link StatsService#frequency(UUID, UUID, java.util.List, String, String, net.zodac.diurnal.user.Language)} result, so the cases here pin that
+ * neither of them accepts a window, or a set of actions, that the other rejects.
  */
 @QuarkusTest
 @TestSecurity(user = "freq-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)

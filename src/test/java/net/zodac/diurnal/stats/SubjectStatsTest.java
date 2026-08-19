@@ -20,9 +20,11 @@ package net.zodac.diurnal.stats;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.time.DaySpan;
+import net.zodac.diurnal.user.Language;
 import org.assertj.core.groups.Tuple;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
@@ -37,11 +39,11 @@ class SubjectStatsTest {
         final int currentStreak, final int longestStreak,
         final long thisMonth, final long lastMonth,
         final long thisYear, final long lastYear,
-        final String bestMonthLabel, final long bestMonthCount,
+        @Nullable final YearMonth bestMonth, final long bestMonthCount,
         final String bestYearLabel, final long bestYearCount) {
         return statsG(totalDays, totalCount, first, last, currentStreak, longestStreak, 0,
                 thisMonth, lastMonth, thisYear, lastYear,
-                bestMonthLabel, bestMonthCount, bestYearLabel, bestYearCount);
+                bestMonth, bestMonthCount, bestYearLabel, bestYearCount);
     }
 
     private static SubjectStats statsG(
@@ -51,14 +53,14 @@ class SubjectStatsTest {
         final int longestGap,
         final long thisMonth, final long lastMonth,
         final long thisYear, final long lastYear,
-        final String bestMonthLabel, final long bestMonthCount,
+        @Nullable final YearMonth bestMonth, final long bestMonthCount,
         final String bestYearLabel, final long bestYearCount) {
         return new SubjectStats(
             StatSubject.of(new Action()), totalDays, totalCount, first, last,
                 span(currentStreak), span(longestStreak), span(longestGap),
                 thisMonth, lastMonth,
                 thisYear, lastYear,
-                bestMonthLabel, bestMonthCount,
+                bestMonth, bestMonthCount,
                 bestYearLabel, bestYearCount,
                 TODAY
         );
@@ -74,7 +76,7 @@ class SubjectStatsTest {
 
     @Test
     void hasData_zeroTotalDays_returnsFalse() {
-        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
+        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
         assertThat(SubjectStatsExtensions.hasData(subjectStats))
             .as("expected condition to be false")
             .isFalse();
@@ -82,7 +84,7 @@ class SubjectStatsTest {
 
     @Test
     void hasData_oneDayLogged_returnsTrue() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY, TODAY, 1, 1, 1L, 0L, 1L, 0L, "June 2025", 1L, "2025", 1L);
+        final SubjectStats subjectStats = stats(1, 1L, TODAY, TODAY, 1, 1, 1L, 0L, 1L, 0L, YearMonth.of(2025, 6), 1L, "2025", 1L);
         assertThat(SubjectStatsExtensions.hasData(subjectStats))
             .as("expected condition to be true")
             .isTrue();
@@ -91,18 +93,21 @@ class SubjectStatsTest {
     // ── latestLabel ─────────────────────────────────────────────────────────────
 
     @Test
-    void latestLabel_nullLastPerformed_returnsNever() {
-        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.latestLabel(subjectStats))
+    void latestLabel_nullLastPerformed_returnsEmpty() {
+        // The Java side never returns the WORD "Never" - the template resolves it, keyed on tile.subDaysAgo == -1
+        // (see SubjectStatsExtensions' class Javadoc / partials/stat-tile-row.html), so an unset date is an empty
+        // string here, not English text.
+        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.latestLabel(subjectStats, Language.ENGLISH_GB))
             .as("unexpected value")
-            .isEqualTo("Never");
+            .isEmpty();
     }
 
     @Test
     void latestLabel_currentYear_omitsYearAndComma() {
         final LocalDate sameYear = LocalDate.of(TODAY.getYear(), 3, 10);
-        final SubjectStats subjectStats = stats(1, 1L, sameYear, sameYear, 0, 1, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.latestLabel(subjectStats))
+        final SubjectStats subjectStats = stats(1, 1L, sameYear, sameYear, 0, 1, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.latestLabel(subjectStats, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("10 Mar");
     }
@@ -110,8 +115,8 @@ class SubjectStatsTest {
     @Test
     void latestLabel_previousYear_includesYear() {
         final LocalDate priorYear = LocalDate.of(TODAY.getYear() - 1, 12, 25);
-        final SubjectStats subjectStats = stats(1, 1L, priorYear, priorYear, 0, 1, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.latestLabel(subjectStats))
+        final SubjectStats subjectStats = stats(1, 1L, priorYear, priorYear, 0, 1, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.latestLabel(subjectStats, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("25 December " + (TODAY.getYear() - 1));
     }
@@ -119,17 +124,17 @@ class SubjectStatsTest {
     // ── firstLabel / sinceFirstLabel ────────────────────────────────────────────
 
     @Test
-    void firstLabel_neverPerformed_returnsNever() {
-        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.firstLabel(subjectStats))
+    void firstLabel_neverPerformed_returnsEmpty() {
+        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.firstLabel(subjectStats, Language.ENGLISH_GB))
             .as("unexpected value")
-            .isEqualTo("Never");
+            .isEmpty();
     }
 
     @Test
     void firstLabel_isTheFullWidthDate() {
-        final SubjectStats subjectStats = stats(2, 2L, LocalDate.of(2024, 9, 3), TODAY, 1, 1, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.firstLabel(subjectStats))
+        final SubjectStats subjectStats = stats(2, 2L, LocalDate.of(2024, 9, 3), TODAY, 1, 1, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.firstLabel(subjectStats, Language.ENGLISH_GB))
             .as("the month is spelled out; the front-end shortens it only if it does not fit")
             .isEqualTo("3 September 2024");
     }
@@ -138,7 +143,7 @@ class SubjectStatsTest {
 
     @Test
     void performedThisMonth_zeroThisMonth_returnsFalse() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(40L), TODAY.minusDays(40L), 0, 1, 0L, 3L, 1L, 0L, "—", 0L, "—", 0L);
+        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(40L), TODAY.minusDays(40L), 0, 1, 0L, 3L, 1L, 0L, null, 0L, "—", 0L);
         assertThat(SubjectStatsExtensions.performedThisMonth(subjectStats))
             .as("expected condition to be false")
             .isFalse();
@@ -146,7 +151,7 @@ class SubjectStatsTest {
 
     @Test
     void performedThisMonth_positiveThisMonth_returnsTrue() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY, TODAY, 1, 1, 2L, 0L, 2L, 0L, "—", 0L, "—", 0L);
+        final SubjectStats subjectStats = stats(1, 1L, TODAY, TODAY, 1, 1, 2L, 0L, 2L, 0L, null, 0L, "—", 0L);
         assertThat(SubjectStatsExtensions.performedThisMonth(subjectStats))
             .as("expected condition to be true")
             .isTrue();
@@ -157,16 +162,16 @@ class SubjectStatsTest {
     @Test
     void weeklyDayAverage_nullFirstPerformed_returnsPlainZero() {
         // A zero average is simplified to a plain "0" (no trailing decimals) regardless of preference.
-        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 1))
+        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 1, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("0");
     }
 
     @Test
     void weeklyDayAverage_zeroAverage_ignoresDecimalPlaces() {
-        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 3))
+        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 3, Language.ENGLISH_GB))
             .as("a zero average is always plain '0'")
             .isEqualTo("0");
     }
@@ -174,8 +179,8 @@ class SubjectStatsTest {
     @Test
     void weeklyDayAverage_oneOccurrenceInOneWeek_returnsOnePointZero() {
         // first = today-7, span = 1 week, totalDays=1 → 1/1 = 1.0
-        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(7L), TODAY, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 1))
+        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(7L), TODAY, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 1, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("1.0");
     }
@@ -184,8 +189,8 @@ class SubjectStatsTest {
     void weeklyDayAverage_sevenOccurrencesInOneWeek_returnsSevenPointZero() {
         // first = today-7, span = 1 week, totalDays=7 → 7/1 = 7.0
         // WEEKS.between(today-7, today) = 1; 7 days / 1 week = 7.0
-        final SubjectStats subjectStats = stats(7, 7L, TODAY.minusDays(7L), TODAY, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 1))
+        final SubjectStats subjectStats = stats(7, 7L, TODAY.minusDays(7L), TODAY, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 1, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("7.0");
     }
@@ -193,8 +198,8 @@ class SubjectStatsTest {
     @Test
     void weeklyDayAverage_sevenOccurrencesInTwoWeeks_returnsThreePointFive() {
         // first = today-14, span = 2 weeks, totalDays=7 → 7/2 = 3.5
-        final SubjectStats subjectStats = stats(7, 7L, TODAY.minusDays(14L), TODAY, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 1))
+        final SubjectStats subjectStats = stats(7, 7L, TODAY.minusDays(14L), TODAY, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 1, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("3.5");
     }
@@ -202,8 +207,8 @@ class SubjectStatsTest {
     @Test
     void weeklyDayAverage_twoDecimalPlaces_rendersTwoDecimals() {
         // first = today-14, span = 2 weeks, totalDays=7 → 7/2 = 3.5 → "3.50" at 2 places
-        final SubjectStats subjectStats = stats(7, 7L, TODAY.minusDays(14L), TODAY, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 2))
+        final SubjectStats subjectStats = stats(7, 7L, TODAY.minusDays(14L), TODAY, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 2, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("3.50");
     }
@@ -211,24 +216,46 @@ class SubjectStatsTest {
     @Test
     void weeklyDayAverage_zeroDecimalPlaces_roundsToWholeNumber() {
         // first = today-14, span = 2 weeks, totalDays=7 → 3.5 → "4" rounded to 0 places
-        final SubjectStats subjectStats = stats(7, 7L, TODAY.minusDays(14L), TODAY, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 0))
+        final SubjectStats subjectStats = stats(7, 7L, TODAY.minusDays(14L), TODAY, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 0, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("4");
     }
 
     @Test
+    void weeklyDayAverage_exactHalf_roundsHalfUpNotHalfEven() {
+        // first = today-14, span = 2 weeks, totalDays=5 → 2.5 at 0 dp. HALF_EVEN (NumberFormat's own default)
+        // would round this to the nearer EVEN digit, "2" - the formatter must be pinned to HALF_UP (matching the
+        // old String.format("%.0f", ...) behaviour) so this reads "3" instead.
+        final SubjectStats subjectStats = stats(5, 5L, TODAY.minusDays(14L), TODAY, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 0, Language.ENGLISH_GB))
+            .as("2.5 must round up to 3, not down to the nearer even digit 2")
+            .isEqualTo("3");
+    }
+
+    @Test
+    void weeklyDayAverage_fourFigureAverage_isNotLocaleGrouped() {
+        // first = today (0 elapsed weeks, floored to 1), totalDays=1500 → average is the total itself: 1500.
+        // NumberFormat groups by default ("1,500"); the old String.format("%.0f", ...) never did, and matching
+        // that exactly (rather than gaining thousands-grouping as a side effect of this phase) is the point.
+        final SubjectStats subjectStats = stats(1500, 1500L, TODAY, TODAY, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 0, Language.ENGLISH_GB))
+            .as("a four-figure average must not be locale-grouped")
+            .isEqualTo("1500");
+    }
+
+    @Test
     void monthlyDayAverage_threeDaysOverThreeMonths_isOnePerMonth() {
-        final SubjectStats subjectStats = stats(3, 12L, TODAY.minusMonths(3L), TODAY, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.monthlyDayAverage(subjectStats, 1))
+        final SubjectStats subjectStats = stats(3, 12L, TODAY.minusMonths(3L), TODAY, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.monthlyDayAverage(subjectStats, 1, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("1.0");
     }
 
     @Test
     void monthlyDayAverage_nullFirstPerformed_returnsPlainZero() {
-        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.monthlyDayAverage(subjectStats, 2))
+        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.monthlyDayAverage(subjectStats, 2, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("0");
     }
@@ -237,35 +264,35 @@ class SubjectStatsTest {
     void weeklyCountAverage_countsEveryRepeat_notJustActiveDays() {
         // 3 active days but 12 logged occurrences over 2 weeks: the DAY average is 1.5, the COUNT
         // average is 6.0 — the two stats must never collapse into one figure.
-        final SubjectStats subjectStats = stats(3, 12L, TODAY.minusWeeks(2L), TODAY, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 1))
+        final SubjectStats subjectStats = stats(3, 12L, TODAY.minusWeeks(2L), TODAY, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 1, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("1.5");
-        assertThat(SubjectStatsExtensions.weeklyCountAverage(subjectStats, 1))
+        assertThat(SubjectStatsExtensions.weeklyCountAverage(subjectStats, 1, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("6.0");
     }
 
     @Test
     void weeklyCountAverage_nullFirstPerformed_returnsPlainZero() {
-        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.weeklyCountAverage(subjectStats, 1))
+        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.weeklyCountAverage(subjectStats, 1, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("0");
     }
 
     @Test
     void monthlyCountAverage_countsEveryRepeat_notJustActiveDays() {
-        final SubjectStats subjectStats = stats(3, 12L, TODAY.minusMonths(3L), TODAY, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.monthlyCountAverage(subjectStats, 1))
+        final SubjectStats subjectStats = stats(3, 12L, TODAY.minusMonths(3L), TODAY, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.monthlyCountAverage(subjectStats, 1, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("4.0");
     }
 
     @Test
     void monthlyCountAverage_nullFirstPerformed_returnsPlainZero() {
-        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.monthlyCountAverage(subjectStats, 1))
+        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.monthlyCountAverage(subjectStats, 1, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("0");
     }
@@ -274,11 +301,11 @@ class SubjectStatsTest {
     void averages_spanShorterThanOnePeriod_dividesByOne() {
         // First performed yesterday: zero elapsed weeks/months, floored at one, so the average is the
         // total itself rather than a division by zero.
-        final SubjectStats subjectStats = stats(2, 5L, TODAY.minusDays(1L), TODAY, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 1))
+        final SubjectStats subjectStats = stats(2, 5L, TODAY.minusDays(1L), TODAY, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 1, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("2.0");
-        assertThat(SubjectStatsExtensions.monthlyCountAverage(subjectStats, 1))
+        assertThat(SubjectStatsExtensions.monthlyCountAverage(subjectStats, 1, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("5.0");
     }
@@ -287,7 +314,7 @@ class SubjectStatsTest {
 
     @Test
     void currentGap_neverPerformed_isZero() {
-        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
+        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
         assertThat(SubjectStatsExtensions.currentGap(subjectStats))
             .as("unexpected value")
             .isZero();
@@ -295,7 +322,7 @@ class SubjectStatsTest {
 
     @Test
     void currentGap_performedToday_isZero() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY, TODAY, 1, 1, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
+        final SubjectStats subjectStats = stats(1, 1L, TODAY, TODAY, 1, 1, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
         assertThat(SubjectStatsExtensions.currentGap(subjectStats))
             .as("unexpected value")
             .isZero();
@@ -303,7 +330,7 @@ class SubjectStatsTest {
 
     @Test
     void currentGap_performedEarlier_isTheElapsedDays() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(12L), TODAY.minusDays(12L), 0, 1, 0L, 0L, 0L, 0L, "—", 0L, "—", 0L);
+        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(12L), TODAY.minusDays(12L), 0, 1, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
         assertThat(SubjectStatsExtensions.currentGap(subjectStats))
             .as("unexpected value")
             .isEqualTo(12);
@@ -313,7 +340,7 @@ class SubjectStatsTest {
 
     @Test
     void monthTrend_bothZero_returnsDash() {
-        final SubjectStats subjectStats = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, null, 0, "—", 0);
         assertThat(SubjectStatsExtensions.monthTrend(subjectStats))
             .as("unexpected value")
             .isEqualTo("—");
@@ -321,7 +348,7 @@ class SubjectStatsTest {
 
     @Test
     void monthTrend_previousZeroCurrentPositive_returnsPositive() {
-        final SubjectStats subjectStats = stats(1, 5, TODAY, TODAY, 0, 0, 5, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(1, 5, TODAY, TODAY, 0, 0, 5, 0, 0, 0, null, 0, "—", 0);
         assertThat(SubjectStatsExtensions.monthTrend(subjectStats))
             .as("unexpected value")
             .isEqualTo("+5");
@@ -332,7 +359,7 @@ class SubjectStatsTest {
 
     @Test
     void monthTrend_equal_returnsEquals() {
-        final SubjectStats subjectStats = stats(2, 4, TODAY, TODAY, 0, 0, 3, 3, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(2, 4, TODAY, TODAY, 0, 0, 3, 3, 0, 0, null, 0, "—", 0);
         assertThat(SubjectStatsExtensions.monthTrend(subjectStats))
             .as("unexpected value")
             .isEqualTo("=");
@@ -343,7 +370,7 @@ class SubjectStatsTest {
 
     @Test
     void monthTrend_currentLessThanPrevious_returnsNegative() {
-        final SubjectStats subjectStats = stats(2, 4, TODAY, TODAY, 0, 0, 1, 3, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(2, 4, TODAY, TODAY, 0, 0, 1, 3, 0, 0, null, 0, "—", 0);
         assertThat(SubjectStatsExtensions.monthTrend(subjectStats))
             .as("unexpected value")
             .isEqualTo("-2");
@@ -354,7 +381,7 @@ class SubjectStatsTest {
 
     @Test
     void monthTrend_currentGreaterThanPrevious_returnsPositive() {
-        final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 5, 2, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 5, 2, 0, 0, null, 0, "—", 0);
         assertThat(SubjectStatsExtensions.monthTrend(subjectStats))
             .as("unexpected value")
             .isEqualTo("+3");
@@ -367,7 +394,7 @@ class SubjectStatsTest {
 
     @Test
     void yearTrend_bothZero_returnsDash() {
-        final SubjectStats subjectStats = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, null, 0, "—", 0);
         assertThat(SubjectStatsExtensions.yearTrend(subjectStats))
             .as("unexpected value")
             .isEqualTo("—");
@@ -375,7 +402,7 @@ class SubjectStatsTest {
 
     @Test
     void yearTrend_currentGreater_returnsPositive() {
-        final SubjectStats subjectStats = stats(1, 10, TODAY, TODAY, 0, 0, 0, 0, 10, 4, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(1, 10, TODAY, TODAY, 0, 0, 0, 0, 10, 4, null, 0, "—", 0);
         assertThat(SubjectStatsExtensions.yearTrend(subjectStats))
             .as("unexpected value")
             .isEqualTo("+6");
@@ -386,7 +413,7 @@ class SubjectStatsTest {
 
     @Test
     void yearTrend_currentLess_returnsNegative() {
-        final SubjectStats subjectStats = stats(1, 5, TODAY, TODAY, 0, 0, 0, 0, 3, 8, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(1, 5, TODAY, TODAY, 0, 0, 0, 0, 3, 8, null, 0, "—", 0);
         assertThat(SubjectStatsExtensions.yearTrend(subjectStats))
             .as("unexpected value")
             .isEqualTo("-5");
@@ -399,7 +426,7 @@ class SubjectStatsTest {
 
     @Test
     void thisMonthContext_formatIsCorrect() {
-        final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 5, 2, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 5, 2, 0, 0, null, 0, "—", 0);
         assertThat(SubjectStatsExtensions.thisMonthContext(subjectStats))
             .as("unexpected value")
             .isEqualTo("5 this month");
@@ -415,10 +442,10 @@ class SubjectStatsTest {
 
     @Test
     void tiles_rendersInGivenFieldOrder() {
-        final SubjectStats subjectStats = stats(1, 3, TODAY, TODAY, 4, 6, 5, 2, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(1, 3, TODAY, TODAY, 4, 6, 5, 2, 0, 0, null, 0, "—", 0);
 
         final List<StatTile> tiles = SubjectStatsExtensions.tiles(
-            subjectStats, List.of(shown(StatField.TOTAL_COUNT), shown(StatField.CURRENT_STREAK)), 1);
+            subjectStats, List.of(shown(StatField.TOTAL_COUNT), shown(StatField.CURRENT_STREAK)), 1, "en-GB");
 
         assertThat(tiles)
             .as("tiles render in the supplied field order")
@@ -434,10 +461,10 @@ class SubjectStatsTest {
 
     @Test
     void tiles_renamedStat_keepsItsFigureUnderTheUsersCaption() {
-        final SubjectStats subjectStats = stats(1, 3, TODAY, TODAY, 4, 6, 5, 2, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(1, 3, TODAY, TODAY, 4, 6, 5, 2, 0, 0, null, 0, "—", 0);
 
         final StatTile tile = SubjectStatsExtensions
-            .tiles(subjectStats, List.of(new DisplayStat(StatField.TOTAL_COUNT, "Times done")), 1)
+            .tiles(subjectStats, List.of(new DisplayStat(StatField.TOTAL_COUNT, "Times done")), 1, "en-GB")
             .getFirst();
 
         assertThat(tile.label())
@@ -456,9 +483,9 @@ class SubjectStatsTest {
 
     @Test
     void tiles_numericTile_carriesValueUnitAndDefaultClass() {
-        final SubjectStats subjectStats = stats(1, 3, TODAY, TODAY, 1, 6, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(1, 3, TODAY, TODAY, 1, 6, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.TOTAL_DAYS)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.TOTAL_DAYS)), 1, "en-GB").getFirst();
 
         assertThat(tile.value())
             .as("total days value")
@@ -480,9 +507,9 @@ class SubjectStatsTest {
     @Test
     void tiles_weeklyDayAverage_honoursDecimalPlaces() {
         // 3 distinct days over exactly 2 weeks → 1.5 per week; rendered to 2 dp.
-        final SubjectStats subjectStats = statsG(3, 3, TODAY.minusWeeks(2), TODAY, 0, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = statsG(3, 3, TODAY.minusWeeks(2), TODAY, 0, 0, 0, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.WEEKLY_DAY_AVERAGE)), 2).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.WEEKLY_DAY_AVERAGE)), 2, "en-GB").getFirst();
 
         assertThat(tile.value())
             .as("weekly average uses the passed decimal-place count")
@@ -493,13 +520,18 @@ class SubjectStatsTest {
     void tiles_durationUnderOneMonth_stillWordsItsUnit() {
         // The whole point of the duration tiles: a short run reads "5 days", never a bare "5" with the
         // unit demoted to the sub-caption, so it matches the condensed form of a longer run beside it.
-        final SubjectStats subjectStats = stats(5, 5, TODAY.minusDays(4), TODAY, 5, 5, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(5, 5, TODAY.minusDays(4), TODAY, 5, 5, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.CURRENT_STREAK)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.CURRENT_STREAK)), 1, "en-GB").getFirst();
 
         assertThat(tile.value())
-            .as("value carries the count and its unit")
-            .isEqualTo("5 days");
+            .as("value is resolved template-side (AppMessages#duration); the raw breakdown is what Java hands over")
+            .isEmpty();
+        assertThat(tile.durationYears()).as("unexpected value").isZero();
+        assertThat(tile.durationMonths()).as("unexpected value").isZero();
+        assertThat(tile.durationDays())
+            .as("the raw breakdown carries the count and unit the template words")
+            .isEqualTo(5L);
         assertThat(tile.date())
             .as("a worded duration is not locale-grouped as a figure")
             .isTrue();
@@ -510,33 +542,37 @@ class SubjectStatsTest {
 
     @Test
     void tiles_durationOfOneDay_isSingular() {
-        final SubjectStats subjectStats = stats(1, 1, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(1, 1, TODAY, TODAY, 1, 1, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.CURRENT_STREAK)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.CURRENT_STREAK)), 1, "en-GB").getFirst();
 
-        assertThat(tile.value())
-            .as("a one-day run reads '1 day', never a bare '1'")
-            .isEqualTo("1 day");
+        assertThat(tile.durationDays())
+            .as("a one-day run's breakdown is a bare 1 - AppMessages#duration is what reads '1 day', never a bare '1'")
+            .isEqualTo(1L);
     }
 
     @Test
     void tiles_durationOverOneMonth_condenses() {
         // TODAY is 15 June 2025, so a 45-day streak reaches back to 1 May → "1 month, 14 days".
-        final SubjectStats subjectStats = stats(45, 45, TODAY.minusDays(44), TODAY, 45, 45, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(45, 45, TODAY.minusDays(44), TODAY, 45, 45, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.CURRENT_STREAK)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.CURRENT_STREAK)), 1, "en-GB").getFirst();
 
-        assertThat(tile.value())
-            .as("value is the condensed duration")
-            .isEqualTo("1 month, 14 days");
+        assertThat(tile.durationYears()).as("unexpected value").isZero();
+        assertThat(tile.durationMonths())
+            .as("the condensed breakdown's month component")
+            .isEqualTo(1L);
+        assertThat(tile.durationDays())
+            .as("the condensed breakdown's day component")
+            .isEqualTo(14L);
     }
 
     @Test
     void tiles_ongoingDuration_subCaptionsTheStartDateOnly() {
         // The test spans end today, so this streak began on 10 June 2025 - and, being current, has no end.
-        final SubjectStats subjectStats = stats(5, 5, TODAY.minusDays(4), TODAY, 5, 5, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(5, 5, TODAY.minusDays(4), TODAY, 5, 5, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.CURRENT_STREAK)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.CURRENT_STREAK)), 1, "en-GB").getFirst();
 
         assertThat(tile.sub())
             .as("a still-running streak's sub carries only the raw start date - the template adds the translated 'since'")
@@ -545,9 +581,9 @@ class SubjectStatsTest {
 
     @Test
     void tiles_closedDuration_subCaptionsBothEndsOfTheRun() {
-        final SubjectStats subjectStats = stats(6, 6, TODAY.minusDays(5), TODAY, 0, 6, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(6, 6, TODAY.minusDays(5), TODAY, 0, 6, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LONGEST_STREAK)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LONGEST_STREAK)), 1, "en-GB").getFirst();
 
         assertThat(tile.sub())
             .as("a completed run shows the dates it covered")
@@ -556,9 +592,9 @@ class SubjectStatsTest {
 
     @Test
     void tiles_closedDurationOfOneDay_subCaptionsTheSingleDate() {
-        final SubjectStats subjectStats = stats(1, 1, TODAY.minusDays(1), TODAY.minusDays(1), 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(1, 1, TODAY.minusDays(1), TODAY.minusDays(1), 0, 1, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LONGEST_STREAK)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LONGEST_STREAK)), 1, "en-GB").getFirst();
 
         assertThat(tile.sub())
             .as("a one-day run names that day once, not as a range of it to itself")
@@ -567,13 +603,15 @@ class SubjectStatsTest {
 
     @Test
     void tiles_emptyDuration_hasNoSubCaption() {
-        final SubjectStats subjectStats = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(0, 0, null, null, 0, 0, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.CURRENT_STREAK)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.CURRENT_STREAK)), 1, "en-GB").getFirst();
 
-        assertThat(tile.value())
-            .as("an empty run still words its unit")
-            .isEqualTo("0 days");
+        assertThat(tile.durationYears()).as("unexpected value").isZero();
+        assertThat(tile.durationMonths()).as("unexpected value").isZero();
+        assertThat(tile.durationDays())
+            .as("an empty run's breakdown is a bare 0 - AppMessages#duration is what reads '0 days'")
+            .isZero();
         assertThat(tile.sub())
             .as("an empty run has no dates to caption")
             .isEmpty();
@@ -581,16 +619,16 @@ class SubjectStatsTest {
 
     @Test
     void tiles_currentGap_isTheSpanSinceLastPerformed() {
-        final SubjectStats subjectStats = stats(2, 2, TODAY.minusDays(9), TODAY.minusDays(9), 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(2, 2, TODAY.minusDays(9), TODAY.minusDays(9), 0, 1, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.CURRENT_GAP)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.CURRENT_GAP)), 1, "en-GB").getFirst();
 
         assertThat(tile.label())
             .as("unexpected value")
             .isEqualTo("Current gap");
-        assertThat(tile.value())
+        assertThat(tile.durationDays())
             .as("nine days have elapsed since the action was last performed")
-            .isEqualTo("9 days");
+            .isEqualTo(9L);
         assertThat(tile.sub())
             .as("the blank run starts the day after the action was last performed, and is still open - the raw start date only, "
                 + "since the template adds the translated 'since'")
@@ -599,13 +637,13 @@ class SubjectStatsTest {
 
     @Test
     void tiles_longestGap_subCaptionsTheBlankRunsDates() {
-        final SubjectStats subjectStats = statsG(2, 2, TODAY.minusDays(20), TODAY, 0, 1, 4, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = statsG(2, 2, TODAY.minusDays(20), TODAY, 0, 1, 4, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LONGEST_GAP)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LONGEST_GAP)), 1, "en-GB").getFirst();
 
-        assertThat(tile.value())
+        assertThat(tile.durationDays())
             .as("unexpected value")
-            .isEqualTo("4 days");
+            .isEqualTo(4L);
         assertThat(tile.sub())
             .as("a past gap is a closed run, so both of its ends are shown")
             .isEqualTo("11 June 2025 – 14 June 2025");
@@ -613,9 +651,9 @@ class SubjectStatsTest {
 
     @Test
     void tiles_bestMonth_leadsWithTheMonthAndSubsTheCount() {
-        final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 0, 0, 0, 0, "June 2025", 21, "2025", 203);
+        final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 0, 0, 0, 0, YearMonth.of(2025, 6), 21, "2025", 203);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.BEST_MONTH)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.BEST_MONTH)), 1, "en-GB").getFirst();
 
         assertThat(tile.value())
             .as("the month is the headline, not the count")
@@ -630,9 +668,9 @@ class SubjectStatsTest {
 
     @Test
     void tiles_bestYear_leadsWithTheYearAndSubsTheCount() {
-        final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 0, 0, 0, 0, "June 2025", 21, "2025", 1);
+        final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 0, 0, 0, 0, YearMonth.of(2025, 6), 21, "2025", 1);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.BEST_YEAR)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.BEST_YEAR)), 1, "en-GB").getFirst();
 
         assertThat(tile.value())
             .as("the year is the headline, not the count")
@@ -644,9 +682,9 @@ class SubjectStatsTest {
 
     @Test
     void tiles_firstPerformed_isDateTileWithElapsedSub() {
-        final SubjectStats subjectStats = stats(2, 4, TODAY.minusDays(3), TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(2, 4, TODAY.minusDays(3), TODAY, 0, 0, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.FIRST_PERFORMED)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.FIRST_PERFORMED)), 1, "en-GB").getFirst();
 
         assertThat(tile.label())
             .as("unexpected value")
@@ -660,31 +698,33 @@ class SubjectStatsTest {
         assertThat(tile.subDaysAgo())
             .as("the raw elapsed day count, for the template to compose its translated '<elapsed> ago' caption")
             .isEqualTo(3);
-        assertThat(tile.subElapsed())
-            .as("the elapsed run, condensed (still English pending Phase 2)")
-            .isEqualTo("3 days");
+        assertThat(tile.durationYears()).as("unexpected value").isZero();
+        assertThat(tile.durationMonths()).as("unexpected value").isZero();
+        assertThat(tile.durationDays())
+            .as("the raw elapsed breakdown, for the template to compose its translated duration phrase")
+            .isEqualTo(3L);
     }
 
     @Test
     void tiles_lastPerformed_twoDaysAgo_isTheLowerBoundaryForElapsedText() {
         // The boundary between "Yesterday" (a fixed word) and an elapsed-duration phrase is exactly 2 days.
-        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(2L), TODAY.minusDays(2L), 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(2L), TODAY.minusDays(2L), 0, 1, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LAST_PERFORMED)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LAST_PERFORMED)), 1, "en-GB").getFirst();
 
         assertThat(tile.subDaysAgo())
             .as("unexpected value")
             .isEqualTo(2);
-        assertThat(tile.subElapsed())
-            .as("two days ago is already worded as an elapsed duration, not the fixed 'Yesterday'")
-            .isEqualTo("2 days");
+        assertThat(tile.durationDays())
+            .as("two days ago is already carrying an elapsed breakdown, not the fixed 'Yesterday'")
+            .isEqualTo(2L);
     }
 
     @Test
     void tiles_firstPerformed_neverPerformed_hasNoDaysAgo() {
-        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(0, 0L, null, null, 0, 0, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.FIRST_PERFORMED)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.FIRST_PERFORMED)), 1, "en-GB").getFirst();
 
         assertThat(tile.subDaysAgo())
             .as("-1 signals 'never performed' - the template renders the dash placeholder, no translated word applies")
@@ -693,9 +733,9 @@ class SubjectStatsTest {
 
     @Test
     void tiles_lastPerformed_isDateTileWithSinceSub() {
-        final SubjectStats subjectStats = stats(2, 4, TODAY.minusDays(3), TODAY.minusDays(3), 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(2, 4, TODAY.minusDays(3), TODAY.minusDays(3), 0, 0, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LAST_PERFORMED)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LAST_PERFORMED)), 1, "en-GB").getFirst();
 
         assertThat(tile.date())
             .as("last-performed renders with the smaller date styling")
@@ -706,9 +746,9 @@ class SubjectStatsTest {
         assertThat(tile.subDaysAgo())
             .as("the raw elapsed day count")
             .isEqualTo(3);
-        assertThat(tile.subElapsed())
-            .as("the elapsed run, condensed (still English pending Phase 2)")
-            .isEqualTo("3 days");
+        assertThat(tile.durationDays())
+            .as("the raw elapsed breakdown, for the template to compose its translated duration phrase")
+            .isEqualTo(3L);
         assertThat(tile.subNum())
             .as("the relative label carries a day count")
             .isTrue();
@@ -716,37 +756,37 @@ class SubjectStatsTest {
 
     @Test
     void tiles_lastPerformed_today_isZeroDaysAgo() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY, TODAY, 1, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(1, 1L, TODAY, TODAY, 1, 1, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LAST_PERFORMED)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LAST_PERFORMED)), 1, "en-GB").getFirst();
 
         assertThat(tile.subDaysAgo())
             .as("0 signals 'today' - the template resolves its own translated word rather than an elapsed-duration phrase")
             .isZero();
-        assertThat(tile.subElapsed())
-            .as("no elapsed text is needed for today/yesterday")
-            .isEmpty();
+        assertThat(tile.durationDays())
+            .as("no elapsed breakdown is needed for today/yesterday")
+            .isZero();
     }
 
     @Test
     void tiles_lastPerformed_yesterday_isOneDayAgo() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(1L), TODAY.minusDays(1L), 0, 1, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(1L), TODAY.minusDays(1L), 0, 1, 0, 0, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LAST_PERFORMED)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.LAST_PERFORMED)), 1, "en-GB").getFirst();
 
         assertThat(tile.subDaysAgo())
             .as("1 signals 'yesterday' - the template resolves its own translated word rather than an elapsed-duration phrase")
             .isEqualTo(1);
-        assertThat(tile.subElapsed())
-            .as("no elapsed text is needed for today/yesterday")
-            .isEmpty();
+        assertThat(tile.durationDays())
+            .as("no elapsed breakdown is needed for today/yesterday")
+            .isZero();
     }
 
     @Test
     void tiles_trendTile_carriesTrendColourClass() {
-        final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 5, 2, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 5, 2, 0, 0, null, 0, "—", 0);
 
-        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.VS_LAST_MONTH)), 1).getFirst();
+        final StatTile tile = SubjectStatsExtensions.tiles(subjectStats, List.of(shown(StatField.VS_LAST_MONTH)), 1, "en-GB").getFirst();
 
         assertThat(tile.value())
             .as("upward month trend")
@@ -767,9 +807,9 @@ class SubjectStatsTest {
 
     @Test
     void tiles_emptyFieldList_rendersNoTiles() {
-        final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 0, 0, 0, 0, "—", 0, "—", 0);
+        final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 0, 0, 0, 0, null, 0, "—", 0);
 
-        assertThat(SubjectStatsExtensions.tiles(subjectStats, List.of(), 1))
+        assertThat(SubjectStatsExtensions.tiles(subjectStats, List.of(), 1, "en-GB"))
             .as("no selected fields → no tiles")
             .isEmpty();
     }

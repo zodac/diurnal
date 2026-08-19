@@ -23,38 +23,11 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link ImportSummaryExtensions}: the preview's wording, and in particular that every figure pluralises.
+ * Unit tests for {@link ImportSummaryExtensions}. The preview's WORDED figures (pluralisation, the "replaced" phrase) moved to
+ * {@code AppMessages#importActionsCount}/{@code #importLogsCount}/{@code #importNotesCount}/{@code #importReplacedSummary} - a Java call can
+ * never be locale-aware, so that wording is tested via {@code web.AppMessagesIT} instead; this class keeps only the one predicate left here.
  */
 class ImportSummaryExtensionsTest {
-
-    @Test
-    void labels_pluraliseEveryFigure() {
-        final ImportSummary importSummarySingle = new ImportSummary(1, 1, 1, 0, 0, 0);
-
-        final List<String> singular = List.of(
-            ImportSummaryExtensions.actionsLabel(importSummarySingle),
-            ImportSummaryExtensions.logsLabel(importSummarySingle),
-            ImportSummaryExtensions.notesLabel(importSummarySingle));
-        assertThat(singular)
-            .as("no preview may ever read '1 actions'")
-            .containsExactlyElementsOf(List.of("1 action", "1 day count", "1 note"));
-
-        final ImportSummary importSummaryMany = new ImportSummary(12, 340, 88, 0, 0, 0);
-        final List<String> plural = List.of(
-            ImportSummaryExtensions.actionsLabel(importSummaryMany),
-            ImportSummaryExtensions.logsLabel(importSummaryMany),
-            ImportSummaryExtensions.notesLabel(importSummaryMany));
-        assertThat(plural)
-            .as("and the plural forms must survive the shared rule's plain '+s'")
-            .containsExactlyElementsOf(List.of("12 actions", "340 day counts", "88 notes"));
-    }
-
-    @Test
-    void replacedLabel_wordsEverythingTheAccountHoldsAsOnePhrase() {
-        assertThat(ImportSummaryExtensions.replacedLabel(new ImportSummary(0, 0, 0, 4, 120, 1)))
-            .as("the preview names what is about to be removed, in the user's own terms")
-            .isEqualTo("4 actions, 120 day counts and 1 note");
-    }
 
     @Test
     void replacesExistingData_isFalseOnlyWhenTheAccountIsCompletelyEmpty() {

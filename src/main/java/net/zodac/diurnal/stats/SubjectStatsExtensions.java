@@ -18,13 +18,19 @@
 package net.zodac.diurnal.stats;
 
 import io.quarkus.qute.TemplateExtension;
+import java.math.RoundingMode;
+import java.text.NumberFormat;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Locale;
 import net.zodac.diurnal.time.DaySpan;
+import net.zodac.diurnal.time.DurationParts;
 import net.zodac.diurnal.time.Durations;
+import net.zodac.diurnal.user.Language;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -42,8 +48,8 @@ public final class SubjectStatsExtensions {
 
     // Dates render at FULL width (the month spelled out); the front-end shortens "June" -> "Jun" -> and the
     // year to two digits only when the rendered label does not fit its tile - see Diurnal.fitFigures in app.js.
-    private static final DateTimeFormatter DATE_FMT  = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.ENGLISH);
-    private static final DateTimeFormatter DATE_FMT_NO_YEAR = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH);
+    // Built per-call from the caller's Language rather than held as a static constant, since the pattern/locale
+    // now varies by viewer - see dateFmt/dateFmtNoYear below.
     private static final double ZERO = 0.0;
     private static final String RANGE_SEPARATOR = " – ";
 
@@ -81,17 +87,22 @@ public final class SubjectStatsExtensions {
      * which tiles are rendered, in what order, and (when the user has renamed a stat) under which caption.
      *
      * <p>
-     * Called from {@code partials/stats-cards} as {@code {s.tiles(statsFields, decimalPlaces)}}.
+     * Called from {@code partials/stats-cards} as {@code {s.tiles(statsFields, decimalPlaces, language)}}.
      *
      * @param stats the statistics to render
      * @param fields the ordered stats the user has chosen to display, each with its caption
      * @param decimalPlaces the user's decimal-place preference (for the averages)
+     * @param language the viewing user's stored {@code User.language} value, for every date/number a tile carries - a raw {@code String} (rather
+     *     than a {@link Language} or {@link Locale}) because that is what every template already has in scope (the same value rendered into
+     *     {@code <html lang>}), resolved once here via {@link Language#fromValue(String)}
      * @return the ordered tiles to render
      */
     @TemplateExtension
-    public static List<StatTile> tiles(final SubjectStats stats, final List<DisplayStat> fields, final int decimalPlaces) {
+    public static List<StatTile> tiles(final SubjectStats stats, final List<DisplayStat> fields, final int decimalPlaces,
+        final String language) {
+        final Language lang = Language.fromValue(language);
         return fields.stream()
-                .map(displayed -> tile(stats, displayed, decimalPlaces))
+                .map(displayed -> tile(stats, displayed, decimalPlaces, lang))
                 .toList();
     }
 
@@ -99,7 +110,7 @@ public final class SubjectStatsExtensions {
     // over the same enum, which must either carry an unreachable `default -> throw` (a mutant no test can kill, and PITest is held at 100%) or a
     // reachable one that silently renders the next field added as whichever case it absorbed. The flat table is the safer form.
     @SuppressWarnings("OverlyLongMethod")
-    private static StatTile tile(final SubjectStats stats, final DisplayStat displayed, final int decimalPlaces) {
+    private static StatTile tile(final SubjectStats stats, final DisplayStat displayed, final int decimalPlaces, final Language lang) {
         final String label = displayed.label();
         final String key = displayed.field().key();
         // A rename is "the user's own text" the moment it differs from the catalogue's own default wording (the
@@ -108,34 +119,41 @@ public final class SubjectStatsExtensions {
         // so the actual translation lookup happens template-side, keyed on this StatTile's key).
         final boolean labelIsCustom = !label.equals(displayed.field().label());
         return switch (displayed.field()) {
-            case CURRENT_STREAK -> durationTile(key, label, labelIsCustom, stats.currentStreak(), true);
-            case LONGEST_STREAK -> durationTile(key, label, labelIsCustom, stats.longestStreak(), false);
-            case CURRENT_GAP    -> durationTile(key, label, labelIsCustom, currentGapSpan(stats), true);
-            case LONGEST_GAP    -> durationTile(key, label, labelIsCustom, stats.longestGap(), false);
+            case CURRENT_STREAK -> durationTile(key, label, labelIsCustom, stats.currentStreak(), true, lang);
+            case LONGEST_STREAK -> durationTile(key, label, labelIsCustom, stats.longestStreak(), false, lang);
+            case CURRENT_GAP    -> durationTile(key, label, labelIsCustom, currentGapSpan(stats), true, lang);
+            case LONGEST_GAP    -> durationTile(key, label, labelIsCustom, stats.longestGap(), false, lang);
             case TOTAL_DAYS     -> numeric(key, label, labelIsCustom, Integer.toString(stats.totalDays()), stats.totalDays());
             case TOTAL_COUNT    -> numeric(key, label, labelIsCustom, Long.toString(stats.totalCount()), 0L);
-            case WEEKLY_DAY_AVERAGE    -> numeric(key, label, labelIsCustom, weeklyDayAverage(stats, decimalPlaces), 0L);
-            case MONTHLY_DAY_AVERAGE   -> numeric(key, label, labelIsCustom, monthlyDayAverage(stats, decimalPlaces), 0L);
-            case WEEKLY_COUNT_AVERAGE  -> numeric(key, label, labelIsCustom, weeklyCountAverage(stats, decimalPlaces), 0L);
-            case MONTHLY_COUNT_AVERAGE -> numeric(key, label, labelIsCustom, monthlyCountAverage(stats, decimalPlaces), 0L);
+            case WEEKLY_DAY_AVERAGE    -> numeric(key, label, labelIsCustom, weeklyDayAverage(stats, decimalPlaces, lang), 0L);
+            case MONTHLY_DAY_AVERAGE   -> numeric(key, label, labelIsCustom, monthlyDayAverage(stats, decimalPlaces, lang), 0L);
+            case WEEKLY_COUNT_AVERAGE  -> numeric(key, label, labelIsCustom, weeklyCountAverage(stats, decimalPlaces, lang), 0L);
+            case MONTHLY_COUNT_AVERAGE -> numeric(key, label, labelIsCustom, monthlyCountAverage(stats, decimalPlaces, lang), 0L);
             case FIRST_PERFORMED ->
-                sinceTile(key, label, labelIsCustom, firstLabel(stats),
+                sinceTile(key, label, labelIsCustom, firstLabel(stats, lang),
                     stats.firstPerformed() == null ? null : new DaySpan(stats.firstPerformed(), stats.today()));
             case LAST_PERFORMED ->
-                sinceTile(key, label, labelIsCustom, lastLabel(stats), stats.lastPerformed() == null ? null : currentGapSpan(stats));
+                sinceTile(key, label, labelIsCustom, lastLabel(stats, lang), stats.lastPerformed() == null ? null : currentGapSpan(stats));
             case VS_LAST_MONTH  ->
                 trendTile(key, label, labelIsCustom, monthTrend(stats), monthTrendClass(stats), stats.thisMonthCount(), stats.lastMonthCount());
             case VS_LAST_YEAR   ->
                 trendTile(key, label, labelIsCustom, yearTrend(stats), yearTrendClass(stats), stats.thisYearCount(), stats.lastYearCount());
             // The high scores lead with WHEN the record was set; the count itself is the secondary caption.
-            case BEST_MONTH     -> recordTile(key, label, labelIsCustom, stats.bestMonthLabel(), stats.bestMonthCount());
+            case BEST_MONTH     -> recordTile(key, label, labelIsCustom, bestMonthLabel(stats.bestMonth(), lang), stats.bestMonthCount());
             case BEST_YEAR      -> recordTile(key, label, labelIsCustom, stats.bestYearLabel(), stats.bestYearCount());
         };
     }
 
+    // The one place SubjectStats.bestMonth() (a raw YearMonth, never a pre-formatted word - see that field's own
+    // Javadoc) becomes text for the web surface; StatsApiResource carries the identical rule for the API's own,
+    // always-English composer.
+    private static String bestMonthLabel(final @Nullable YearMonth month, final Language lang) {
+        return month == null ? "—" : month.format(DateTimeFormatter.ofPattern(lang.monthYearPattern(), lang.locale()));
+    }
+
     private static StatTile numeric(final String key, final String label, final boolean labelIsCustom, final String value,
         final long subCount1) {
-        return new StatTile(key, label, labelIsCustom, value, "", false, "text-ink", false, subCount1, 0L, 0, "");
+        return new StatTile(key, label, labelIsCustom, value, "", false, "text-ink", false, subCount1, 0L, 0, 0L, 0L, 0L);
     }
 
     // FIRST_PERFORMED / LAST_PERFORMED: the sub-caption is "Today"/"Yesterday"/"<elapsed> ago", or a dash when
@@ -144,25 +162,27 @@ public final class SubjectStatsExtensions {
     // English default; see AppMessages' own class Javadoc). -1 (never performed) rather than a boolean-plus-count
     // pair, since every legitimate day count is >= 0. LAST_PERFORMED's caller passes the SAME span as the
     // CURRENT_GAP tile (currentGapSpan, shifted a day from the naive first/today range) so the two report
-    // identically for the same distance.
+    // identically for the same distance. The elapsed duration (subDaysAgo >= 2) is carried as a raw breakdown, the
+    // same durationYears/Months/Days fields the duration tiles use for their own value - see StatTile's Javadoc.
     private static StatTile sinceTile(final String key, final String label, final boolean labelIsCustom, final String value,
         final @Nullable DaySpan span) {
         if (span == null) {
-            return new StatTile(key, label, labelIsCustom, value, "", true, "text-ink", true, 0L, 0L, -1, "");
+            return new StatTile(key, label, labelIsCustom, value, "", true, "text-ink", true, 0L, 0L, -1, 0L, 0L, 0L);
         }
         final int daysAgo = Durations.days(span);
-        final String elapsed = daysAgo >= 2 ? Durations.label(span) : "";
-        return new StatTile(key, label, labelIsCustom, value, "", true, "text-ink", true, 0L, 0L, daysAgo, elapsed);
+        final DurationParts elapsed = daysAgo >= 2 ? Durations.breakdown(span) : new DurationParts(0L, 0L, 0L);
+        return new StatTile(key, label, labelIsCustom, value, "", true, "text-ink", true, 0L, 0L, daysAgo,
+            elapsed.years(), elapsed.months(), elapsed.days());
     }
 
     private static StatTile recordTile(final String key, final String label, final boolean labelIsCustom, final String value,
         final long subCount1) {
-        return new StatTile(key, label, labelIsCustom, value, "", true, "text-ink", true, subCount1, 0L, 0, "");
+        return new StatTile(key, label, labelIsCustom, value, "", true, "text-ink", true, subCount1, 0L, 0, 0L, 0L, 0L);
     }
 
     private static StatTile trendTile(final String key, final String label, final boolean labelIsCustom, final String value,
         final String valueClass, final long subCount1, final long subCount2) {
-        return new StatTile(key, label, labelIsCustom, value, "", true, valueClass, false, subCount1, subCount2, 0, "");
+        return new StatTile(key, label, labelIsCustom, value, "", true, valueClass, false, subCount1, subCount2, 0, 0L, 0L, 0L);
     }
 
     // Every duration tile leads with the figure AND its unit ("1 day", "5 days", "1 year, 2 months, 3 days"),
@@ -172,24 +192,41 @@ public final class SubjectStatsExtensions {
     // date to show, a one-day run needs only the single date, and an empty run has none. Only the still-going
     // case needs a translated word ("since") in front of the date - a closed range is dates and a punctuation
     // separator, neither of which is English-specific - so only that word moves to the template; see
-    // partials/stats-cards.html's {#switch tile.key}.
+    // partials/stats-cards.html's {#switch tile.key}. The value itself is "" - its words ("1 year, 2 months") can
+    // only be resolved template-side (AppMessages#duration), so the raw breakdown travels instead.
     private static StatTile durationTile(final String key, final String label, final boolean labelIsCustom, final DaySpan span,
-        final boolean ongoing) {
-        return new StatTile(key, label, labelIsCustom, Durations.label(span), rangeLabel(span, ongoing), false, "text-ink", true, 0L, 0L, 0, "");
+        final boolean ongoing, final Language lang) {
+        final DurationParts parts = Durations.breakdown(span);
+        return new StatTile(key, label, labelIsCustom, "", rangeLabel(span, ongoing, lang), false, "text-ink", true, 0L, 0L, 0,
+            parts.years(), parts.months(), parts.days());
     }
 
-    private static String rangeLabel(final DaySpan span, final boolean ongoing) {
+    private static String rangeLabel(final DaySpan span, final boolean ongoing, final Language lang) {
         if (Durations.days(span) == 0) {
             return "";
         }
 
-        final String start = span.start().format(DATE_FMT);
+        final DateTimeFormatter dateFmt = dateFmt(lang);
+        final String start = span.start().format(dateFmt);
         if (ongoing) {
             return start;
         }
 
         final LocalDate lastDay = span.endExclusive().minusDays(1L);
-        return lastDay.equals(span.start()) ? start : (start + RANGE_SEPARATOR + lastDay.format(DATE_FMT));
+        return lastDay.equals(span.start()) ? start : (start + RANGE_SEPARATOR + lastDay.format(dateFmt));
+    }
+
+    // The full-width date shape ("15 June 2026" / "June 15, 2026") - FormatStyle.LONG matches the field ORDER (not
+    // just vocabulary) every offered Language expects, verified against the old fixed "d MMMM yyyy" pattern's
+    // English output before this replaced it.
+    private static DateTimeFormatter dateFmt(final Language lang) {
+        return DateTimeFormatter.ofLocalizedDate(FormatStyle.LONG).withLocale(lang.locale());
+    }
+
+    // The day-plus-abbreviated-month, no-year shape ("15 Jun") - no FormatStyle offers this, see
+    // Language#dayMonthPattern's own Javadoc.
+    private static DateTimeFormatter dateFmtNoYear(final Language lang) {
+        return DateTimeFormatter.ofPattern(lang.dayMonthPattern(), lang.locale());
     }
 
     // ── Date labels ───────────────────────────────────────────────────────
@@ -197,43 +234,49 @@ public final class SubjectStatsExtensions {
     // year) only when the label does not fit its tile, so a wide viewport always sees the whole date.
 
     /**
-     * The last-performed date formatted for display at full width ({@code "15 June 2026"}), or "Never" if the action was never logged.
+     * The last-performed date formatted for display at full width ({@code "15 June 2026"}), or {@code ""} if the action was never logged - never
+     * the WORD "Never", since a Java call can never be locale-aware (see {@code AppMessages}' class Javadoc); the template resolves that word
+     * itself, keyed on the owning tile's {@code subDaysAgo == -1} (see {@code partials/stat-tile-row.html}).
      *
      * @param stats the statistics to inspect
-     * @return the formatted last-performed date, or "Never"
+     * @param lang the language to word the date in
+     * @return the formatted last-performed date, or {@code ""}
      */
     @TemplateExtension
-    public static String lastLabel(final SubjectStats stats) {
-        return stats.lastPerformed() == null ? "Never" : stats.lastPerformed().format(DATE_FMT);
+    public static String lastLabel(final SubjectStats stats, final Language lang) {
+        return stats.lastPerformed() == null ? "" : stats.lastPerformed().format(dateFmt(lang));
     }
 
     /**
-     * The first-performed date formatted for display at full width ({@code "15 June 2026"}), or "Never" if the action was never logged.
+     * The first-performed date formatted for display at full width ({@code "15 June 2026"}), or {@code ""} if the action was never logged - see
+     * {@link #lastLabel(SubjectStats, Language)} for why not the word "Never".
      *
      * @param stats the statistics to inspect
-     * @return the formatted first-performed date, or "Never"
+     * @param lang the language to word the date in
+     * @return the formatted first-performed date, or {@code ""}
      */
     @TemplateExtension
-    public static String firstLabel(final SubjectStats stats) {
-        return stats.firstPerformed() == null ? "Never" : stats.firstPerformed().format(DATE_FMT);
+    public static String firstLabel(final SubjectStats stats, final Language lang) {
+        return stats.firstPerformed() == null ? "" : stats.firstPerformed().format(dateFmt(lang));
     }
 
     /**
-     * The last-performed date for the dashboard "Latest" label: "Never" if never logged, "d MMM" (no year) when it falls in the current year, and the
-     * full "d MMMM yyyy" only for an earlier year.
+     * The last-performed date for the dashboard "Latest" label: {@code ""} if never logged (see
+     * {@link #lastLabel(SubjectStats, Language)}), the day-plus-month-only shape when it falls in the current year, and the full date otherwise.
      *
      * @param stats the statistics to inspect
+     * @param lang the language to word the date in
      * @return the formatted "Latest" label
      */
     @TemplateExtension
-    public static String latestLabel(final SubjectStats stats) {
+    public static String latestLabel(final SubjectStats stats, final Language lang) {
         final LocalDate lastPerformed = stats.lastPerformed();
         if (lastPerformed == null) {
-            return "Never";
+            return "";
         }
         return lastPerformed.getYear() == stats.today().getYear()
-                ? lastPerformed.format(DATE_FMT_NO_YEAR)
-                : lastPerformed.format(DATE_FMT);
+                ? lastPerformed.format(dateFmtNoYear(lang))
+                : lastPerformed.format(dateFmt(lang));
     }
 
     // ── Averages ──────────────────────────────────────────────────────────
@@ -249,11 +292,12 @@ public final class SubjectStatsExtensions {
      *
      * @param stats the statistics to inspect
      * @param decimalPlaces the number of decimal places to render (the user's preference)
+     * @param lang the language to render the decimal separator in
      * @return the average active days per week, as a display string
      */
     @TemplateExtension
-    public static String weeklyDayAverage(final SubjectStats stats, final int decimalPlaces) {
-        return average(stats, stats.totalDays(), ChronoUnit.WEEKS, decimalPlaces);
+    public static String weeklyDayAverage(final SubjectStats stats, final int decimalPlaces, final Language lang) {
+        return average(stats, stats.totalDays(), ChronoUnit.WEEKS, decimalPlaces, lang);
     }
 
     /**
@@ -261,11 +305,12 @@ public final class SubjectStatsExtensions {
      *
      * @param stats the statistics to inspect
      * @param decimalPlaces the number of decimal places to render (the user's preference)
+     * @param lang the language to render the decimal separator in
      * @return the average active days per month, as a display string
      */
     @TemplateExtension
-    public static String monthlyDayAverage(final SubjectStats stats, final int decimalPlaces) {
-        return average(stats, stats.totalDays(), ChronoUnit.MONTHS, decimalPlaces);
+    public static String monthlyDayAverage(final SubjectStats stats, final int decimalPlaces, final Language lang) {
+        return average(stats, stats.totalDays(), ChronoUnit.MONTHS, decimalPlaces, lang);
     }
 
     /**
@@ -274,11 +319,12 @@ public final class SubjectStatsExtensions {
      *
      * @param stats the statistics to inspect
      * @param decimalPlaces the number of decimal places to render (the user's preference)
+     * @param lang the language to render the decimal separator in
      * @return the average count per week, as a display string
      */
     @TemplateExtension
-    public static String weeklyCountAverage(final SubjectStats stats, final int decimalPlaces) {
-        return average(stats, stats.totalCount(), ChronoUnit.WEEKS, decimalPlaces);
+    public static String weeklyCountAverage(final SubjectStats stats, final int decimalPlaces, final Language lang) {
+        return average(stats, stats.totalCount(), ChronoUnit.WEEKS, decimalPlaces, lang);
     }
 
     /**
@@ -287,29 +333,40 @@ public final class SubjectStatsExtensions {
      *
      * @param stats the statistics to inspect
      * @param decimalPlaces the number of decimal places to render (the user's preference)
+     * @param lang the language to render the decimal separator in
      * @return the average count per month, as a display string
      */
     @TemplateExtension
-    public static String monthlyCountAverage(final SubjectStats stats, final int decimalPlaces) {
-        return average(stats, stats.totalCount(), ChronoUnit.MONTHS, decimalPlaces);
+    public static String monthlyCountAverage(final SubjectStats stats, final int decimalPlaces, final Language lang) {
+        return average(stats, stats.totalCount(), ChronoUnit.MONTHS, decimalPlaces, lang);
     }
 
-    private static String average(final SubjectStats stats, final long total, final ChronoUnit unit, final int decimalPlaces) {
+    private static String average(final SubjectStats stats, final long total, final ChronoUnit unit, final int decimalPlaces,
+        final Language lang) {
         final LocalDate firstPerformed = stats.firstPerformed();
         if (firstPerformed == null) {
-            return formatDecimal(0.0, decimalPlaces);
+            return formatDecimal(0.0, decimalPlaces, lang);
         }
         final long periods = Math.max(1L, unit.between(firstPerformed, stats.today()));
-        return formatDecimal((double) total / periods, decimalPlaces);
+        return formatDecimal((double) total / periods, decimalPlaces, lang);
     }
 
-    private static String formatDecimal(final double value, final int decimalPlaces) {
+    private static String formatDecimal(final double value, final int decimalPlaces, final Language lang) {
         if (value == ZERO) {
             return "0";
         }
 
-        final String format = "%." + decimalPlaces + "f";
-        return String.format(Locale.ENGLISH, format, value);
+        final NumberFormat format = NumberFormat.getNumberInstance(lang.locale());
+        format.setMinimumFractionDigits(decimalPlaces);
+        format.setMaximumFractionDigits(decimalPlaces);
+        // The old "%.<n>f" never grouped digits either - a four-figure average is not realistic, but matching the
+        // prior behaviour exactly (rather than gaining thousands-grouping as a side effect of this change) is the
+        // point of this whole phase. Same reasoning for the rounding mode: NumberFormat defaults to HALF_EVEN,
+        // but Formatter's "%f" (the old implementation) is HALF_UP - pinned explicitly so a value like 2.5 keeps
+        // rounding to "3" at zero decimal places, not silently becoming "2".
+        format.setGroupingUsed(false);
+        format.setRoundingMode(RoundingMode.HALF_UP);
+        return format.format(value);
     }
 
     // ── Streak/gap durations ──────────────────────────────────────────────

@@ -23,7 +23,7 @@
         {#include partials/tooltip-text text=u.createdLabel tip=msg:zoneTooltip(u.zoneLabel) /}
     </td>
     <td class="dt-cell dt-cell-muted">
-        {#if u.lastLoginLabel == 'Never'}
+        {#if !u.lastLoginLabel}
         {msg:neverLoggedIn}
         {#else}
         {#include partials/tooltip-text text=u.lastLoginLabel tip=msg:zoneTooltip(u.zoneLabel) /}

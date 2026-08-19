@@ -53,8 +53,8 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * <strong>Adding a new stat:</strong> any newly-computed statistic that should be user-visible on the Stats page MUST be registered here as a new
- * constant AND given a tile mapping in {@link SubjectStatsExtensions#tiles(SubjectStats, List, int)} — otherwise it will never appear in the
- * picker or on the page.
+ * constant AND given a tile mapping in {@link SubjectStatsExtensions#tiles(SubjectStats, List, int, String)} — otherwise it will never appear in
+ * the picker or on the page.
  */
 public enum StatField {
 

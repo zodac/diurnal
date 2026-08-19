@@ -2486,7 +2486,9 @@ public interface AppMessages {
     String authSourceLocalOidc();
 
     /**
-     * The "Last Login" column's placeholder for an account that has never signed in.
+     * The placeholder for something that has never happened: the admin "Last Login" column for an account that has
+     * never signed in, and a Stats-page "First performed"/"Last performed" tile for a subject with no logged data
+     * at all.
      *
      * @return the default (English) text
      */
@@ -2724,6 +2726,51 @@ public interface AppMessages {
      */
     @Message("Imported {actionsLabel}, {logsLabel} and {notesLabel}.")
     String importAppliedSummary(String actionsLabel, String logsLabel, String notesLabel);
+
+    /**
+     * A count of actions, singular-aware ({@code "1 action"} / {@code "3 actions"}) - one of the three figures {@link #importArchiveHolds(String,
+     * String, String)}/{@link #importAppliedSummary(String, String, String)} embed. A raw count rather than a Java-composed word, since a Java
+     * call can never be locale-aware (see this interface's own class Javadoc) - {@code transfer.ImportSummary} carries the number only.
+     *
+     * @param count the action count
+     * @return the default (English) text
+     */
+    @Message("{#if count == 1}1 action{#else}{count} actions{/if}")
+    String importActionsCount(int count);
+
+    /**
+     * A count of day-count log entries, singular-aware ({@code "1 day count"} / {@code "340 day counts"}) - see {@link #importActionsCount(int)}
+     * for why a raw count rather than a Java-composed word.
+     *
+     * @param count the day-count entry count
+     * @return the default (English) text
+     */
+    @Message("{#if count == 1}1 day count{#else}{count} day counts{/if}")
+    String importLogsCount(int count);
+
+    /**
+     * A count of day notes, singular-aware ({@code "1 note"} / {@code "88 notes"}) - see {@link #importActionsCount(int)} for why a raw count
+     * rather than a Java-composed word.
+     *
+     * @param count the note count
+     * @return the default (English) text
+     */
+    @Message("{#if count == 1}1 note{#else}{count} notes{/if}")
+    String importNotesCount(int count);
+
+    /**
+     * Everything the account holds right now, worded as one phrase ({@code "4 actions, 120 day counts and 30 notes"}) - what
+     * {@link #importRemovesExisting(String)} embeds. One atomic entry (not three counts joined in a template) so a translator controls the whole
+     * sentence's word order and conjunction placement, not just each count's plural form.
+     *
+     * @param actions the account's current action count
+     * @param logs the account's current day-count entry count
+     * @param notes the account's current note count
+     * @return the default (English) text
+     */
+    @Message("{#if actions == 1}1 action{#else}{actions} actions{/if}, {#if logs == 1}1 day count{#else}{logs} day counts{/if} and "
+        + "{#if notes == 1}1 note{#else}{notes} notes{/if}")
+    String importReplacedSummary(int actions, int logs, int notes);
 
     /**
      * The generic refusal banner for a {@code Rejected} import (one or more rows failed validation) - as opposed to a {@code Malformed} archive
@@ -3211,4 +3258,22 @@ public interface AppMessages {
      */
     @Message("Top actions on {date}")
     String topActionsOn(String date);
+
+    /**
+     * A calendar duration, condensed to its non-zero years/months/days components ({@code "1 year, 1 month, 17 days"}), singular-aware per
+     * component, comma-separated, and {@code "0 days"} when every component is zero. Whole-sentence composition (word order, separator, per-unit
+     * plural form) lives entirely in this ONE entry's {@code {#if}} logic rather than being assembled from smaller pieces in Java or in a
+     * template's own control flow - {@code time/Durations#breakdown} only measures the calendar span into raw components (a Java call can never be
+     * locale-aware; see this interface's own class Javadoc), so a translator has the whole grammar in one place to reorder or repunctuate as their
+     * language needs.
+     *
+     * @param years the whole years in the span
+     * @param months the whole months remaining after the years (always {@code < 12})
+     * @param days the whole days remaining after the months (always less than a calendar month)
+     * @return the default (English) text
+     */
+    @Message("{#if years > 0}{#if years == 1}1 year{#else}{years} years{/if}{#if months > 0 || days > 0}, {/if}{/if}"
+        + "{#if months > 0}{#if months == 1}1 month{#else}{months} months{/if}{#if days > 0}, {/if}{/if}"
+        + "{#if days > 0 || (years == 0 && months == 0)}{#if days == 1}1 day{#else}{days} days{/if}{/if}")
+    String duration(long years, long months, long days);
 }

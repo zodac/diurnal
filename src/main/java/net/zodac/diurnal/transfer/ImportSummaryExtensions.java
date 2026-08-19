@@ -18,71 +18,21 @@
 package net.zodac.diurnal.transfer;
 
 import io.quarkus.qute.TemplateExtension;
-import net.zodac.diurnal.time.Durations;
 
 /**
- * The derived, template-facing wording over an {@link ImportSummary} - kept out of the record itself, which holds data only (see the
+ * The derived, template-facing predicate over an {@link ImportSummary} - kept out of the record itself, which holds data only (see the
  * data-record/extensions split in {@code CLAUDE.md}).
  *
  * <p>
- * Every figure is worded through {@link Durations#count(long, String)}, the project's one pluralisation rule, so a preview never reads "1 actions".
- * The unit words are chosen to survive that rule's plain {@code +"s"}: a log entry is called a "day count", which pluralises, where "entry" would
- * not.
+ * The summary's WORDED figures ({@code "3 actions"}, {@code "4 actions, 120 day counts and 30 notes"}) are no longer computed here: a Java call
+ * can never be locale-aware (see {@code AppMessages}' own class Javadoc), so {@code partials/import-panel.html} resolves them itself, straight
+ * from the record's raw counts, via {@code AppMessages#importActionsCount}/{@code #importLogsCount}/{@code #importNotesCount}/
+ * {@code #importReplacedSummary}.
  */
 public final class ImportSummaryExtensions {
 
-    private static final String ACTION_UNIT = "action";
-    private static final String LOG_UNIT = "day count";
-    private static final String NOTE_UNIT = "note";
-
     private ImportSummaryExtensions() {
 
-    }
-
-    /**
-     * The incoming actions, worded.
-     *
-     * @param summary the summary
-     * @return for example {@code "1 action"} or {@code "12 actions"}
-     */
-    @TemplateExtension
-    public static String actionsLabel(final ImportSummary summary) {
-        return Durations.count(summary.actions(), ACTION_UNIT);
-    }
-
-    /**
-     * The incoming day counts, worded.
-     *
-     * @param summary the summary
-     * @return for example {@code "1 day count"} or {@code "340 day counts"}
-     */
-    @TemplateExtension
-    public static String logsLabel(final ImportSummary summary) {
-        return Durations.count(summary.logs(), LOG_UNIT);
-    }
-
-    /**
-     * The incoming day notes, worded.
-     *
-     * @param summary the summary
-     * @return for example {@code "1 note"} or {@code "88 notes"}
-     */
-    @TemplateExtension
-    public static String notesLabel(final ImportSummary summary) {
-        return Durations.count(summary.notes(), NOTE_UNIT);
-    }
-
-    /**
-     * Everything the account holds right now, worded as one phrase - what the import is about to remove.
-     *
-     * @param summary the summary
-     * @return for example {@code "4 actions, 120 day counts and 30 notes"}
-     */
-    @TemplateExtension
-    public static String replacedLabel(final ImportSummary summary) {
-        return Durations.count(summary.replacedActions(), ACTION_UNIT)
-            + ", " + Durations.count(summary.replacedLogs(), LOG_UNIT)
-            + " and " + Durations.count(summary.replacedNotes(), NOTE_UNIT);
     }
 
     /**
