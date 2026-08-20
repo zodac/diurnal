@@ -18,6 +18,18 @@ export interface TestUser {
 export async function setupTestUser(page: Page, user: TestUser): Promise<void> {
     await registerUser(user)
     await loginAs(page, user)
+    await pinLanguage(page, "en-GB")
+}
+
+/**
+ * Force the logged-in user's language preference explicitly, via the same `PATCH /api/v1/users/me`
+ * call smoke.spec.ts's non-English test uses. `User.language` already defaults to "en-GB" at the
+ * entity level, so this is belt-and-braces rather than a fix for an observed failure - but Phase 6 of
+ * I18N.md deliberately wants every literal-English E2E assertion pinned on purpose, not resting on an
+ * entity default nobody asserts against staying "en-GB" forever.
+ */
+export async function pinLanguage(page: Page, language: string): Promise<void> {
+    await page.request.patch("/api/v1/users/me", { data: { preferences: { language } } })
 }
 
 /**

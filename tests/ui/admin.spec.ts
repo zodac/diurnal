@@ -1,5 +1,5 @@
 import type { TestUser } from "../helpers/fixtures"
-import { test, expect, registerUser, loginAs } from "../helpers/fixtures"
+import { test, expect, registerUser, loginAs, pinLanguage } from "../helpers/fixtures"
 import { ensureSoleAdmin, ensureNotAdmin } from "../helpers/db"
 import type { Page, Request } from "@playwright/test"
 
@@ -27,6 +27,7 @@ async function loginAsAdmin(page: Page): Promise<void> {
     await registerUser(ADMIN)
     await ensureSoleAdmin(ADMIN.email)
     await loginAs(page, ADMIN)
+    await pinLanguage(page, "en-GB")
     const widened = await page.request.patch("/api/v1/users/me", {
         data: { preferences: { pageSizes: [{ section: "users", pageSize: 100 }] } },
     })
@@ -52,6 +53,7 @@ async function loginAsNonAdmin(page: Page): Promise<void> {
     await registerUser(NON_ADMIN)
     await ensureNotAdmin(NON_ADMIN.email)
     await loginAs(page, NON_ADMIN)
+    await pinLanguage(page, "en-GB")
 }
 
 test.describe("Admin access control", () => {

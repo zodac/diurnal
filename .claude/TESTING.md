@@ -23,6 +23,26 @@ login does not trigger a re-hash).
 Qodana gate reports any member that could be narrower). Unit tests pass a fixed `today` directly. Surefire/failsafe pin
 `-Duser.timezone=UTC`. E2E specs use UTC date APIs (`setUTCDate`/`getUTCDate`/`toISOString`) and `timezoneId: 'UTC'` in Playwright.
 
+**Deterministic language:** `playwright.config.ts` pins `locale: "en-GB"` (the app default — `Language.DEFAULT`/`quarkus.default-locale`), which
+Playwright turns into the `Accept-Language` header every logged-out page render negotiates against (`Language.fromAcceptLanguageHeader`).
+`fixtures.ts`'s `setupTestUser`/`pinLanguage` additionally force the persisted `User.language` to `"en-GB"` via `PATCH /api/v1/users/me` after
+login, since a LOGGED-IN page reads that stored preference and ignores the header entirely — belt-and-braces alongside the entity column's own
+`en-GB` default, so every literal-English assertion elsewhere in the suite (`admin.spec.ts`, `auth.spec.ts`, `actions.spec.ts`, `stats.spec.ts`,
+`data-transfer.spec.ts`, ...) passes on purpose rather than by accident of an unstated default. Mind the British spelling this pin implies
+(`"authorised"`, `"colour"`, ...) — an assertion written against the American `en-US` override will fail even though the string exists, just
+under the other locale. `tests/ui/i18n.spec.ts` is the one spec that deliberately looks elsewhere: a smoke-level pass per offered language
+(`en-GB`/`en-US`/`es-ES`/`ar-SA`/`ja-JP`), overriding the pin per `describe` block with `test.use({ locale })`, asserting `<html lang>`/`<html
+dir>` and one real translated string on both the logged-out (`Accept-Language`) and logged-in (`User.language`) negotiation paths. It is excluded
+from the `mobile-chrome` project's duplicate pass (`playwright.config.ts`'s `testIgnore`) alongside the other behaviour-only specs, for the same
+reason they are. A missing translation key never surfaces as broken text to check for — Quarkus's `@MessageBundle` silently falls back to the
+English default (`AppMessagesIT`), guarded at the unit tier by `AppMessageCoverageTest` (every offered locale's `.properties` file carries
+exactly the full key set) — so there is nothing further for the E2E tier to assert there. Translated strings running 15-30% longer than their
+English source (commonly Spanish) is a real risk for fixed-width UI, but not one an automated assertion catches well; it was instead swept
+manually with real screenshots per language at both a desktop and a 390px mobile viewport (`Settings > Appearance`, the Settings "Action stats"
+picker, the Actions table, the dashboard calendar toolbar) — see I18N.md's Phase 6 notes for what that pass found and why the one place text
+truncates (the Settings stats-picker row caption on mobile) is a pre-existing, tooltip-mitigated design already present in English, not a
+translation-specific regression.
+
 **Tier hygiene (`run-e2e.sh` / `run-smoke.sh` / `run-perf.sh`):** each runner owns its own resources and cleans up in BOTH directions. On the way out,
 an `EXIT` + `INT`/`TERM`/`HUP` trap tears the stack down on success, on failure and on interruption (the signal traps matter: the `java` step signals a
 tier when a sibling fails first, and an `EXIT`-only trap would be skipped). On the way IN, each runner also sweeps what a run killed *outright* left
