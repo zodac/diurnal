@@ -227,9 +227,11 @@ test.describe("Authentication", () => {
     })
 
     test("login page with ?error=oidc shows unauthorized OIDC error banner", async ({ page }) => {
-        // Simulates the redirect from quarkus.oidc.authentication.error-path after IdP denies access
+        // Simulates the redirect from quarkus.oidc.authentication.error-path after IdP denies access.
+        // "authorised" (not "-ized") because the suite's pinned language is en-GB (playwright.config.ts) -
+        // AppMessages#oidcUnauthorized only spells it "authorized" in the en-US override.
         await page.goto("/login?error=oidc")
-        await expect(page.locator("body")).toContainText(/not authorized/i)
+        await expect(page.locator("body")).toContainText(/not authorised/i)
     })
 
     test("messy OIDC error URL is cleaned up to standard error=oidc", async ({ page }) => {
@@ -237,7 +239,7 @@ test.describe("Authentication", () => {
         // producing a double-? URL. The server detects this and redirects to the clean form.
         await page.goto("/login?error=oidc%3Ferror%3Daccess_denied%26error_description%3DFoo")
         await expect(page).toHaveURL(/\/login\?error=oidc$/)
-        await expect(page.locator("body")).toContainText(/not authorized/i)
+        await expect(page.locator("body")).toContainText(/not authorised/i)
     })
 })
 

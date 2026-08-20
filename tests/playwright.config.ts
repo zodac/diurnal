@@ -36,6 +36,17 @@ export default defineConfig({
         // Pin the browser clock to UTC so the page's notion of "today" (the calendar's today marker,
         // any client-side date math) matches the UTC server, regardless of the host timezone.
         timezoneId: "UTC",
+        // Pin the negotiated language explicitly (this is Phase 6 of I18N.md) rather than relying on it
+        // being the unstated default. Playwright derives the `Accept-Language` header from this, which is
+        // what every logged-out page render negotiates against (Language.fromAcceptLanguageHeader); every
+        // logged-in page instead reads the persisted User.language, which fixtures.ts sets to this same
+        // "en-GB" explicitly post-registration - see its own comment. Without this pin, the literal-English
+        // assertions across the suite (admin.spec.ts, cursor.spec.ts, actions.spec.ts, stats.spec.ts,
+        // data-transfer.spec.ts, ...) would only pass because en-GB happens to be both the app default and
+        // whatever the host Chromium's own default locale is - true today, not guaranteed. Specs that
+        // deliberately exercise another language (tests/ui/i18n.spec.ts) override this per-test via
+        // `test.use({ locale: ... })` / the API preference call, same pattern smoke.spec.ts already uses.
+        locale: "en-GB",
         // Follow redirects (e.g. form auth) automatically
         extraHTTPHeaders: {},
     },
@@ -56,7 +67,7 @@ export default defineConfig({
             name: "mobile-chrome",
             use: { ...devices["Galaxy S24"] },
             testIgnore: process.env.PW_MOBILE_ALL === undefined
-                ? ["auth.spec.ts", "stats.spec.ts", "not-found.spec.ts"]
+                ? ["auth.spec.ts", "stats.spec.ts", "not-found.spec.ts", "i18n.spec.ts"]
                 : [],
         },
     ],
