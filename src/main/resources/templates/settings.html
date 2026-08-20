@@ -346,7 +346,7 @@
                     {#include partials/select-field id="timezone" label=msg:timezoneLabel endpoint="/internal/settings" border=true}
                         {#options}
                         {#for choice in timezoneChoices}
-                        <option value="{choice.value}" {#if choice.selected}selected{/if}>{choice.label}</option>
+                        <option value="{choice.value}" {#if choice.selected}selected{/if}>{#include partials/timezone-option value=choice.value offsetParen=choice.offsetParen /}</option>
                         {/for}
                         {/options}
                     {/include}
@@ -535,11 +535,20 @@
                             <p class="help-text mt-0.5">
                                 {msg:importHelpPrefix} <strong class="text-ink">{msg:importHelpEmphasis}</strong> {msg:importHelpSuffix}
                             </p>
-                            {! .file-input gives the browser's own "Choose file" button the same brand
-                                 surface as the Export button above (see app.css). !}
-                            <input type="file" id="data-import-file" accept=".zip,application/zip"
-                                   aria-label="{msg:chooseExportArchiveToImport}"
-                                   class="file-input mt-3 block w-full text-sm text-ink-muted">
+                            {! The native file input's OWN button text ("Choose File"/"No file chosen") is
+                                 drawn from the browser's UI locale, not this page's `lang` - no HTML/CSS
+                                 attribute can make it follow the viewer's chosen language (see msg:chooseFile's
+                                 own Javadoc). Visually hidden (`sr-only`, the same hidden-control-plus-styled-
+                                 label pattern the theme/preview pickers already use) behind a real, translated
+                                 label + a filename span settings.js keeps in sync with the selection. !}
+                            <div class="mt-3 flex items-center gap-3 min-w-0">
+                                <input type="file" id="data-import-file" accept=".zip,application/zip"
+                                       aria-label="{msg:chooseExportArchiveToImport}"
+                                       class="sr-only peer">
+                                <label for="data-import-file"
+                                       class="btn-primary text-xs px-3 py-1.5 shrink-0 whitespace-nowrap cursor-pointer">{msg:chooseFile}</label>
+                                <span id="data-import-filename" class="help-text truncate">{msg:noFileChosen}</span>
+                            </div>
                             {#include partials/import-panel /}
                         </div>
                     </div>

@@ -130,4 +130,43 @@ test.describe("deployment smoke", () => {
         await page.reload()
         await expect(page.locator(`.d-min-cell[data-date="${today}"] .d-full-event`)).toHaveCount(1, { timeout: 5000 })
     })
+
+    test("a non-English language renders real CLDR text, not an English/Latin fallback", async ({ page }) => {
+        // A real regression, found via a user report against exactly this image: the Dockerfile's jlink
+        // invocation omitted `jdk.localedata` (a MODULE the JDK ships as functionally required for any
+        // non-English locale, despite the name reading as "extra"). Every AppMessages bundle string still
+        // rendered correctly (pure Java properties, no JDK locale data involved), but everything sourced
+        // from java.time/java.text CLDR data — weekday/month names, timezone display names — silently fell
+        // back to English/a bare Latin id no matter what the account's `language` preference said, ONLY in
+        // the packaged jlinked runtime (never in dev mode or `mvn test`, both of which run a full,
+        // non-jlinked JDK — exactly why this needed the deployment-smoke tier, per this file's own header
+        // comment about "missing jlink modules"). Confirmed against a real build: without jdk.localedata,
+        // Sunday's Arabic weekday name fell back to the English abbreviation "Sun" and Pacific/Auckland's
+        // timezone label fell back to the bare exemplar city "Auckland" in Latin script; both render
+        // correctly once the module (trimmed to just the offered languages via --include-locales) is present.
+        const user = {
+            email: `${RUN}_ar@example.com`,
+            password: "smoke_password123",
+            displayName: "Deployment Smoke AR",
+        }
+        await registerUser(user)
+        await loginAs(page, user)
+
+        await page.request.patch("/api/v1/users/me", { data: { preferences: { language: "ar-SA" } } })
+        await page.goto("/")
+
+        // The dashboard's weekday column header (DayLabels.weekdayAbbreviations) - Sunday must read as
+        // its real Arabic name, never the English "Sun" a locale-data-less JDK falls back to.
+        const weekdayHeader = page.locator(".d-min-dow-header")
+        await expect(weekdayHeader).toContainText("الأحد")
+        await expect(weekdayHeader).not.toContainText("Sun")
+
+        // The Settings timezone picker's label (AppMessages#timezoneAuckland, a segment-translated
+        // "Pacific/Auckland", not a CLDR zone display name - see timezone-option.html's own comment)
+        // must render in Arabic script, never the bare Latin IANA id a locale-data-less JDK falls back to.
+        await page.goto("/settings")
+        const aucklandOption = page.locator('#timezone option[value="Pacific/Auckland"]')
+        await expect(aucklandOption).toHaveText(/باسيفيك\/أوكلاند/)
+        await expect(aucklandOption).not.toHaveText(/Auckland/)
+    })
 })

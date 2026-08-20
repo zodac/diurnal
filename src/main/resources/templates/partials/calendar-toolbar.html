@@ -4,10 +4,9 @@
    (›  ») at the END edge, and the month/year title + jump-to-month glyph sit centred between them
    (`justify-content: space-between` with equal-width side groups keeps the centre group dead-centre) —
    plain flexbox, so the whole row mirrors under dir="rtl" with no class changes here. The glyphs
-   themselves need help, though: dir="rtl" mirrors LAYOUT, never GLYPH CONTENT, so a flipped « would
-   otherwise still point the wrong way once it lands on the visual right. Each is wrapped in a
-   `.cal-chevron` span (app.css: `rtl:scale-x-[-1]`) — a horizontally-flipped « renders as a
-   correct-looking » and vice versa, so the same markup is correct in both directions with no {#if}.
+   themselves stay STATIC regardless of direction (product decision — see `.cal-chevron` in app.css):
+   the button each sits in still moves to the opposite visual edge under dir="rtl" like every other
+   toolbar element, but the «/‹/›/» character itself is never mirrored.
    dashboard.html wires the stable button ids to the shared grid engine (buildGridCalendar) that draws
    every style — full, minimal and stacked. The "Today" action lives at the bottom of
    the month/year picker popup (#cal-pop), NOT in the toolbar row. The popup is positioned absolutely
@@ -36,7 +35,7 @@
            change/Enter). The ‹ › steppers still nudge it. Changing the year only repaints the picker's
            month grid; navigation happens when a month is picked. !}
         <input type="text" inputmode="numeric" maxlength="4"
-               class="cal-pop-year inline-num-input w-14 h-7 text-ink"
+               class="cal-pop-year js-num-input inline-num-input w-14 h-7 text-ink"
                aria-label="{msg:jumpToYear}">
         <button type="button" data-y="1" class="cal-nav-btn group relative" aria-label="{msg:nextYear}"><span class="cal-chevron">›</span>{#include partials/tooltip text=msg:nextYear pos="bottom" align="right" /}</button>
     </div>

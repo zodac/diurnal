@@ -84,6 +84,14 @@ class AppInfoTest {
     }
 
     @Test
+    void tagline_returnsTheFixedBrandCopy() {
+        final AppInfo appInfo = appInfoWith("https://diurnal.example.com/repo", "", "app.css");
+        assertThat(appInfo.getTagline())
+            .as("the tagline is fixed brand copy, deliberately never translated - see getTagline()'s own Javadoc")
+            .isEqualTo("Make every day count");
+    }
+
+    @Test
     void repositoryUrl_returnsInjectedValue() {
         final AppInfo appInfo = appInfoWith("https://diurnal.example.com/repo", "", "app.css");
         assertThat(appInfo.getRepositoryUrl())

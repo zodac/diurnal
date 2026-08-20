@@ -42,7 +42,7 @@ public final class LockoutMessages {
      * "Too many failed attempts. Please try again in 42 seconds.". The API always renders this in English — see
      * {@code net.zodac.diurnal.web.AppMessages}'s class Javadoc on why a direct Java call can never be locale-aware; the web surface instead passes
      * {@link #retrySeconds(Duration)} as template data and lets {@code login.html}/{@code register.html} resolve the translated sentence themselves
-     * via {@code {msg:lockoutRetrySingular/Plural}}.
+     * via {@code {msg:lockoutRetry(lockoutSeconds)}}.
      *
      * @param remaining how much of the lockout is left
      * @return the user-facing lockout message, in English

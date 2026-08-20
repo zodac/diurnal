@@ -52,23 +52,16 @@ class LanguageTest {
     }
 
     @Test
-    void spanishSpain_hasExpectedMetadata() {
-        assertThat(Language.SPANISH_SPAIN.value())
+    void spanish_hasExpectedMetadata() {
+        // A single entry (a SPANISH_LATIN_AMERICA / es-419 sibling was offered and translated for one session,
+        // then deliberately removed - see .claude/I18N.md's Phase 5 notes), so the label is the bare autonym with
+        // no "(Spain)" qualifier - there is no other Spanish entry left to disambiguate against.
+        assertThat(Language.SPANISH.value())
             .as("unexpected value")
             .isEqualTo("es-ES");
-        assertThat(Language.SPANISH_SPAIN.label())
+        assertThat(Language.SPANISH.label())
             .as("unexpected label")
-            .isEqualTo("Español (España)");
-    }
-
-    @Test
-    void spanishLatinAmerica_hasExpectedMetadata() {
-        assertThat(Language.SPANISH_LATIN_AMERICA.value())
-            .as("unexpected value")
-            .isEqualTo("es-419");
-        assertThat(Language.SPANISH_LATIN_AMERICA.label())
-            .as("unexpected label")
-            .isEqualTo("Español (Latinoamérica)");
+            .isEqualTo("Español");
     }
 
     @Test
@@ -97,10 +90,32 @@ class LanguageTest {
     void locale_matchesValue() {
         assertThat(Language.ENGLISH_GB.locale()).isEqualTo(Locale.forLanguageTag("en-GB"));
         assertThat(Language.ENGLISH_US.locale()).isEqualTo(Locale.forLanguageTag("en-US"));
-        assertThat(Language.SPANISH_SPAIN.locale()).isEqualTo(Locale.forLanguageTag("es-ES"));
-        assertThat(Language.SPANISH_LATIN_AMERICA.locale()).isEqualTo(Locale.forLanguageTag("es-419"));
+        assertThat(Language.SPANISH.locale()).isEqualTo(Locale.forLanguageTag("es-ES"));
         assertThat(Language.ARABIC.locale()).isEqualTo(Locale.forLanguageTag("ar-SA"));
         assertThat(Language.JAPANESE.locale()).isEqualTo(Locale.forLanguageTag("ja-JP"));
+    }
+
+    // ── localizeDigits ──────────────────────────────────────────────────────
+
+    @Test
+    void localizeDigits_arabic_transcodesEveryDigitIncludingBothBoundaries() {
+        assertThat(Language.ARABIC.localizeDigits("0123456789"))
+            .as("every ASCII digit 0-9, including both boundary digits, must transcode to its Arabic-Indic glyph")
+            .isEqualTo("٠١٢٣٤٥٦٧٨٩");
+    }
+
+    @Test
+    void localizeDigits_arabic_leavesNonDigitNeighboursOfTheBoundariesUntouched() {
+        assertThat(Language.ARABIC.localizeDigits("/0" + "9:"))
+            .as("the characters immediately outside the '0'-'9' range ('/' and ':') must be left as-is")
+            .isEqualTo("/٠٩:");
+    }
+
+    @Test
+    void localizeDigits_english_isNoOp() {
+        assertThat(Language.ENGLISH_GB.localizeDigits("UTC+0123456789"))
+            .as("a Latin-digit language's own digits are already what it renders, so this must be a no-op")
+            .isEqualTo("UTC+0123456789");
     }
 
     // ── DEFAULT ─────────────────────────────────────────────────────────────
@@ -115,7 +130,7 @@ class LanguageTest {
     // ── isValid ─────────────────────────────────────────────────────────────
 
     @ParameterizedTest
-    @ValueSource(strings = {"en-GB", "en-US", "es-ES", "es-419", "ar-SA", "ja-JP"})
+    @ValueSource(strings = {"en-GB", "en-US", "es-ES", "ar-SA", "ja-JP"})
     void isValid_offeredValue_returnsTrue(final String value) {
         assertThat(Language.isValid(value))
             .as("expected an offered language value to be accepted")
@@ -124,11 +139,13 @@ class LanguageTest {
 
     @ParameterizedTest
     @NullSource
-    @ValueSource(strings = {"fr", "de", "", "EN-GB", "En-us", "english", " en-GB ", "en", "en-CA", "es", "ar", "ja", "es-MX", "ar-EG"})
+    @ValueSource(strings = {"fr", "de", "", "EN-GB", "En-us", "english", " en-GB ", "en", "en-CA", "es", "ar", "ja", "es-MX", "ar-EG", "es-419"})
     void isValid_unknownValue_returnsFalse(final String value) {
         assertThat(Language.isValid(value))
-            .as("expected an unrecognised language value to be rejected, never coerced - including every bare macro-language code, which is no "
-                + "longer offered now that every language is region-qualified")
+            .as("expected an unrecognised language value to be rejected, never coerced - including every bare macro-language code (no longer "
+                + "offered now that every language is region-qualified) and es-419 specifically, once an offered value in its own right and "
+                + "deliberately removed again (see .claude/I18N.md's Phase 5 notes) - an account stuck on the old value is migrated away by "
+                + "V35__remove_spanish_latin_america.sql, but this proves a submission of it is rejected outright, never silently accepted")
             .isFalse();
     }
 
@@ -154,7 +171,6 @@ class LanguageTest {
     @ParameterizedTest
     @CsvSource({
         "es-ES, es-ES",
-        "es-419, es-419",
         "ar-SA, ar-SA",
         "ja-JP, ja-JP",
         "en-GB, en-GB",
@@ -173,8 +189,9 @@ class LanguageTest {
         // A real, common country code of an offered language that we don't carry a specific region for -
         // every one of these must resolve to the SAME language, never jump to an unrelated one (see
         // Language.BASE_LANGUAGE_FALLBACK's Javadoc for why this matters in practice).
-        "es-MX, es-ES",   // Mexican Spanish - neither es-ES nor es-419 literally, falls to the project's default Spanish entry
+        "es-MX, es-ES",   // Mexican Spanish - not es-ES literally, falls to the project's one Spanish entry
         "es-AR, es-ES",   // Argentinian Spanish - same
+        "es-419, es-ES",  // the former SPANISH_LATIN_AMERICA value itself, now just another uncarried Spanish region
         "ar-EG, ar-SA",   // Egyptian Arabic - the only offered Arabic entry
         "en-CA, en-GB",   // Canadian English - falls to the base-language default (== the global DEFAULT here)
         "en-AU, en-GB",   // Australian English - same
@@ -227,7 +244,7 @@ class LanguageTest {
     void fromAcceptLanguageHeader_honoursQualityOrdering() {
         assertThat(Language.fromAcceptLanguageHeader("fr;q=0.9,es-ES;q=0.5"))
             .as("expected the highest-quality OFFERED language to win even when a higher-quality unoffered one is listed first")
-            .isEqualTo(Language.SPANISH_SPAIN);
+            .isEqualTo(Language.SPANISH);
     }
 
     @Test
@@ -245,15 +262,5 @@ class LanguageTest {
         assertThat(Language.fromAcceptLanguageHeader("en-GB;q=0.4,en-US;q=0.9"))
             .as("expected the higher-quality English variant to win the other way round too")
             .isEqualTo(Language.ENGLISH_US);
-    }
-
-    @Test
-    void fromAcceptLanguageHeader_distinguishesSpanishVariantsByQuality() {
-        assertThat(Language.fromAcceptLanguageHeader("es-419;q=0.4,es-ES;q=0.9"))
-            .as("expected the higher-quality Spanish variant to win, proving es-ES and es-419 are matched as distinct languages")
-            .isEqualTo(Language.SPANISH_SPAIN);
-        assertThat(Language.fromAcceptLanguageHeader("es-ES;q=0.4,es-419;q=0.9"))
-            .as("expected the higher-quality Spanish variant to win the other way round too")
-            .isEqualTo(Language.SPANISH_LATIN_AMERICA);
     }
 }

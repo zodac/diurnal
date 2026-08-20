@@ -101,6 +101,11 @@ public final class UserSettings {
         "America/Denver",
         "America/Los_Angeles");
 
+    // Left-to-Right Isolate / Pop Directional Isolate (U+2066/U+2069) - see #offsetParen's own comment for why
+    // these plain Unicode characters, not markup, are the fix here.
+    private static final char LEFT_TO_RIGHT_ISOLATE = '\u2066';
+    private static final char POP_DIRECTIONAL_ISOLATE = '\u2069';
+
     private UserSettings() {
 
     }
@@ -175,43 +180,60 @@ public final class UserSettings {
     }
 
     /**
-     * A single option in the timezone picker: form {@code value}, display {@code label}, pre-selected flag.
+     * A single option in the timezone picker: form {@code value}, the bidi-isolated {@code "(UTC+N)"} suffix (or bare {@code "UTC"} for the UTC
+     * zone itself - see {@link #offsetParen}), pre-selected flag. The zone's own CITY/REGION name is deliberately NOT a component here - unlike the
+     * offset, it is translated content (one of the 14 {@code AppMessages#timezone*} entries), which a plain Java call can never resolve in the
+     * viewer's own language (see that class's own class Javadoc on why a `@MessageBundle` lookup is always English outside a `TemplateInstance`) -
+     * {@code partials/timezone-option.html} resolves it template-side, switching on {@link #value}.
      */
-    public record TimezoneChoice(String value, String label, boolean selected) {
+    public record TimezoneChoice(String value, String offsetParen, boolean selected) {
     }
 
     /**
      * Builds the timezone picker options, ordered by their current UTC offset (most behind → most ahead) and evaluated at {@code now} (so the offsets
-     * reflect the current DST state). Every curated zone is offered with its own id as the form value. The option matching the user's stored timezone
-     * is pre-selected; when the user has no override (null), the server default zone is selected instead, so a new user's initial value mirrors the
-     * server default.
+     * reflect the current DST state). Every curated zone is offered with its own id as the form value - a technical token like a colour hex or an
+     * OIDC provider name, never shown or translated. The option matching the user's stored timezone is pre-selected; when the user has no override
+     * (null), the server default zone is selected instead, so a new user's initial value mirrors the server default.
      *
      * @param serverZone the server default zone, used as the initial selection when the user has no override
      * @param now the instant at which UTC offsets are evaluated
      * @param selectedTimezone the user's stored timezone (null = inheriting the server default)
+     * @param language the language to word each option's offset suffix in
      */
-    public static List<TimezoneChoice> timezoneChoices(final ZoneId serverZone, final Instant now, @Nullable final String selectedTimezone) {
+    public static List<TimezoneChoice> timezoneChoices(final ZoneId serverZone, final Instant now, @Nullable final String selectedTimezone,
+        final Language language) {
         final String effectiveZone = selectedTimezone == null ? serverZone.getId() : selectedTimezone;
         return TIMEZONE_OPTIONS.stream()
                 .map(ZoneId::of)
                 .sorted(Comparator
                         .comparingInt((ZoneId zone) -> zone.getRules().getOffset(now).getTotalSeconds())
                         .thenComparing(ZoneId::getId))
-                .map(zone -> new TimezoneChoice(zone.getId(), zoneLabel(zone, now), zone.getId().equals(effectiveZone)))
+                .map(zone -> new TimezoneChoice(zone.getId(), offsetParen(zone, now, language), zone.getId().equals(effectiveZone)))
                 .toList();
     }
 
-    private static String zoneLabel(final ZoneId zone, final Instant now) {
-        final String id = zone.getId();
-        final String offset = utcOffsetLabel(zone.getRules().getOffset(now));
-        // The UTC zone's id already is its offset label — don't render the redundant "UTC (UTC)".
-        return id.equals(offset) ? id : (id + " (" + offset + ")");
+    // The UTC zone's offset word IS its own identity - no parenthetical needed, matching the pre-CLDR
+    // behaviour this whole feature started from. Every other zone gets its offset wrapped in explicit
+    // bidi-isolate characters, not a <span> - an <option>'s content is TEXT ONLY (a browser strips/ignores
+    // any markup placed inside one), so the CSS-based isolation the rest of the app uses (.js-phrase/
+    // .js-digits) is structurally unavailable here. Without it, a real bug: an Arabic-language
+    // "توقيت نيوزيلندا (UTC+١٢)" rendered as "توقيت نيوزيلندا (١٢+UTC)" - the RTL paragraph reordered the
+    // embedded Latin/digit run's OWN internal characters (not just its position), moving "UTC" after the
+    // sign and digits instead of before them. LRI/PDI mark the parenthetical as one isolated LEFT-to-right
+    // unit: it still gets placed at the correct point in the surrounding RTL sentence, but reads
+    // "(UTC+١٢)" left-to-right internally, exactly as typed.
+    private static String offsetParen(final ZoneId zone, final Instant now, final Language language) {
+        final String offset = utcOffsetLabel(zone.getRules().getOffset(now), language);
+        return "UTC".equals(zone.getId()) ? offset : (LEFT_TO_RIGHT_ISOLATE + "(" + offset + ")" + POP_DIRECTIONAL_ISOLATE);
     }
 
     /**
-     * Formats an offset as {@code "UTC"}, {@code "UTC+12"}, {@code "UTC-8"}, or {@code "UTC+5:30"}.
+     * Formats an offset as {@code "UTC"}, {@code "UTC+12"}, {@code "UTC-8"}, or {@code "UTC+5:30"}, with every digit in {@code language}'s own
+     * glyphs (e.g. Eastern Arabic-Indic under {@link Language#ARABIC}) - the "UTC" word itself is tied to a formal ISO 8601 offset NOTATION and
+     * stays as literal Latin letters in every language (see {@code AppMessages}' own Javadoc on its timezone entries for why this is narrower than,
+     * and not the same call as, {@code authSourceOidc()}/{@code apiNavLink()} getting a phonetic-initialism translation).
      */
-    static String utcOffsetLabel(final ZoneOffset offset) {
+    static String utcOffsetLabel(final ZoneOffset offset, final Language language) {
         final int totalSeconds = offset.getTotalSeconds();
         // The sign is carried by the "UTC+"/"UTC-" prefix below, so the magnitude is what gets split into its hour and minute parts.
         final Duration magnitude = Duration.ofSeconds(totalSeconds).abs();
@@ -221,10 +243,10 @@ public final class UserSettings {
         // Zero falls through to the plain "UTC" label; keeping the sign checks reachable for 0 means
         // the boundary (> 0 / < 0) is testable rather than an equivalent mutant.
         if (totalSeconds > 0) {
-            return "UTC+" + body;
+            return language.localizeDigits("UTC+" + body);
         }
         if (totalSeconds < 0) {
-            return "UTC-" + body;
+            return language.localizeDigits("UTC-" + body);
         }
         return "UTC";
     }

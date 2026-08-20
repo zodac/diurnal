@@ -65,7 +65,13 @@
     <ul class="mt-2 space-y-1 text-xs text-ink-muted max-h-48 overflow-y-auto">
         {#for problem in problems}
         <li>
-            <span class="font-medium text-ink js-digits js-phrase">{problem.file}{#if problem.line > 0}{msg:atLine(problem.line)}{/if}</span>
+            {! The member filename (actions.csv/logs.csv/notes.csv - the transfer.TransferFiles
+                 catalogue, always plain ASCII, never translated - see CLAUDE.md's TRANSFER.md
+                 cross-reference) is set off in its own `.import-file-chip` rather than sitting as bare
+                 Latin text loose among Arabic prose, where it reads as an odd, unexplained fragment
+                 rather than a deliberate technical filename. js-digits/js-phrase still cover the whole
+                 span (the "at line N" suffix is the only thing here with digits or translated words). !}
+            <span class="font-medium text-ink js-digits js-phrase"><span class="import-file-chip">{problem.file}</span>{#if problem.line > 0}{msg:atLine(problem.line)}{/if}</span>
             &mdash; {problem.reason}
         </li>
         {/for}

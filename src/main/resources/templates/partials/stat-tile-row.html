@@ -52,47 +52,23 @@
 
     {#is 'total-days'}
         {#if tile.labelIsCustom}
-            {#if tile.subCount1 == 1}
-                {#let label=tile.label sub=msg:statSubUniqueDaySingular}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
-            {#else}
-                {#let label=tile.label sub=msg:statSubUniqueDaysPlural}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
-            {/if}
+            {#let label=tile.label sub=msg:statSubUniqueDays(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
         {#else}
-            {#if tile.subCount1 == 1}
-                {#let label=msg:statFieldLabelTotalDays sub=msg:statSubUniqueDaySingular}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
-            {#else}
-                {#let label=msg:statFieldLabelTotalDays sub=msg:statSubUniqueDaysPlural}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
-            {/if}
+            {#let label=msg:statFieldLabelTotalDays sub=msg:statSubUniqueDays(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
         {/if}
 
     {#is 'best-month'}
         {#if tile.labelIsCustom}
-            {#if tile.subCount1 == 1}
-                {#let label=tile.label sub=msg:statSubTimeSingular}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
-            {#else}
-                {#let label=tile.label sub=msg:statSubTimesPlural(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
-            {/if}
+            {#let label=tile.label sub=msg:statSubTimes(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
         {#else}
-            {#if tile.subCount1 == 1}
-                {#let label=msg:statFieldLabelBestMonth sub=msg:statSubTimeSingular}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
-            {#else}
-                {#let label=msg:statFieldLabelBestMonth sub=msg:statSubTimesPlural(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
-            {/if}
+            {#let label=msg:statFieldLabelBestMonth sub=msg:statSubTimes(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
         {/if}
 
     {#is 'best-year'}
         {#if tile.labelIsCustom}
-            {#if tile.subCount1 == 1}
-                {#let label=tile.label sub=msg:statSubTimeSingular}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
-            {#else}
-                {#let label=tile.label sub=msg:statSubTimesPlural(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
-            {/if}
+            {#let label=tile.label sub=msg:statSubTimes(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
         {#else}
-            {#if tile.subCount1 == 1}
-                {#let label=msg:statFieldLabelBestYear sub=msg:statSubTimeSingular}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
-            {#else}
-                {#let label=msg:statFieldLabelBestYear sub=msg:statSubTimesPlural(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
-            {/if}
+            {#let label=msg:statFieldLabelBestYear sub=msg:statSubTimes(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
         {/if}
 
     {#is 'vs-last-month'}

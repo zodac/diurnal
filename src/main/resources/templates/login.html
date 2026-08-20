@@ -13,7 +13,7 @@
 {#include partials/centered-card}
 
     <h1 class="mb-5">
-        <img src="/img/{inject:appInfo.image('wordmark-readme.svg')}" alt="Diurnal — {msg:tagline}" fetchpriority="high" class="w-full max-w-[260px] h-auto mx-auto" width="6314" height="2340">
+        <img src="/img/{inject:appInfo.image('wordmark-readme.svg')}" alt="Diurnal — {inject:appInfo.tagline}" fetchpriority="high" class="w-full max-w-[260px] h-auto mx-auto" width="6314" height="2340">
     </h1>
     <p class="text-sm text-ink-muted mb-6 text-center">{msg:loginSubtitle}</p>
 
@@ -33,11 +33,7 @@
     {/if}
 
     {#if locked}
-        {#if lockoutSeconds == 1}
-        {#include partials/banner variant='error' cls='mb-4' message=msg:lockoutRetrySingular(lockoutSeconds) /}
-        {#else}
-        {#include partials/banner variant='error' cls='mb-4' message=msg:lockoutRetryPlural(lockoutSeconds) /}
-        {/if}
+    {#include partials/banner variant='error' cls='mb-4' message=msg:lockoutRetry(lockoutSeconds) /}
     {/if}
 
     {! novalidate + data-validate: the shared client-side validator (app.js) surfaces

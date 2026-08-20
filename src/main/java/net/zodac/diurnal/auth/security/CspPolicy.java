@@ -43,7 +43,7 @@ final class CspPolicy {
 
     private static final Pattern OPENAPI_DOCUMENT_PATH = Pattern.compile(OpenApiDocsPaths.OPENAPI_DOCUMENT_PATH_REGEX);
 
-    private static final String FOUC_SCRIPT_HASH = "'sha256-FrocmHnvJ7Cl9URbeSTrrNKwamK9J3x65RITJL4Ll4Y='";
+    private static final String FOUC_SCRIPT_HASH = "'sha256-LJhM/IrAmUji8dDjkrpcwwb/aY7F8OLUR7/OlkAdcOM='";
 
     private static final String FOUC_STYLE_HASH = "'sha256-WHwC8VvEmvZsRHoS2m0MfUQCxGI/3W3YZCHd4BgZ9B4='";
 

@@ -9,6 +9,12 @@
    `language` just for this. !}
 <html lang="{language}" dir="{language:dir(language)}" data-theme="{theme}"
       data-i18n-unsaved-changes="{msg:unsavedChanges}" data-i18n-saved="{msg:saved}" data-i18n-inactive="{msg:inactive}"
+      data-i18n-missing-required-fields-prefix="{msg:missingRequiredFieldsPrefix}" data-i18n-this-field-fallback="{msg:thisFieldFallback}"
+      data-i18n-email-shape-invalid="{msg:emailShapeInvalid}" data-i18n-invalid-credentials="{msg:invalidCredentials}"
+      data-i18n-something-went-wrong="{msg:somethingWentWrongTryAgain}" data-i18n-could-not-save-preference="{msg:couldNotSavePreference}"
+      data-i18n-file-could-not-be-read="{msg:fileCouldNotBeRead}" data-i18n-saving="{msg:savingEllipsis}"
+      data-i18n-could-not-save-note="{msg:couldNotSaveNote}" data-i18n-password-blank="{msg:passwordBlank}"
+      data-i18n-password-mismatch="{msg:passwordMismatch}"
       {#if font == 'dyslexic'} class="font-dyslexic"{#else if font != 'standard'} class="font-nova"{/if}>
 <head>
     <meta charset="UTF-8">
@@ -31,7 +37,9 @@
         same rules now live in app.css instead.
     !}
     <meta name="htmx-config" content='{"allowEval":false,"includeIndicatorStyles":false}'>
-    <title>Diurnal – {msg:tagline}</title>
+    {! The tagline is brand copy, not UI chrome - like the "Diurnal" name itself, it stays in English
+         in every language (see AppInfo#getTagline). !}
+    <title>Diurnal – {inject:appInfo.tagline}</title>
     {!
         Favicons: the single-letter "d" mark. favicon.svg is generated from the brand font by
         scripts/generate-brand.py; the rasters are rendered from it by scripts/generate-favicons.cjs.
@@ -71,7 +79,18 @@
         window.Diurnal.i18n = {
             unsavedChanges: document.documentElement.dataset.i18nUnsavedChanges,
             saved: document.documentElement.dataset.i18nSaved,
-            inactive: document.documentElement.dataset.i18nInactive
+            inactive: document.documentElement.dataset.i18nInactive,
+            missingRequiredFieldsPrefix: document.documentElement.dataset.i18nMissingRequiredFieldsPrefix,
+            thisFieldFallback: document.documentElement.dataset.i18nThisFieldFallback,
+            emailShapeInvalid: document.documentElement.dataset.i18nEmailShapeInvalid,
+            invalidCredentials: document.documentElement.dataset.i18nInvalidCredentials,
+            somethingWentWrong: document.documentElement.dataset.i18nSomethingWentWrong,
+            couldNotSavePreference: document.documentElement.dataset.i18nCouldNotSavePreference,
+            fileCouldNotBeRead: document.documentElement.dataset.i18nFileCouldNotBeRead,
+            saving: document.documentElement.dataset.i18nSaving,
+            couldNotSaveNote: document.documentElement.dataset.i18nCouldNotSaveNote,
+            passwordBlank: document.documentElement.dataset.i18nPasswordBlank,
+            passwordMismatch: document.documentElement.dataset.i18nPasswordMismatch
         };
         window.Diurnal.applyTheme = function (theme, opts) {
             opts = opts || {};

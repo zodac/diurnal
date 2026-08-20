@@ -22,6 +22,6 @@
      paragraph separator), so a multi-action tooltip's lines each get their own correct direction
      independently, including when `bar.subjectName` is itself an arbitrary user-typed action name. !}
 <span aria-hidden="true"
-      class="app-tooltip js-digits js-phrase w-max max-w-[16rem] bottom-full mb-1.5{#if align == 'left'} start-0{#else if align == 'right'} end-0{#else} start-1/2 app-tooltip-center{/if}">{#if slot.bars.size == 1}{slot.fullLabel}: {#if slot.bars[0].count == 1}{msg:statSubTimeSingular}{#else}{msg:statSubTimesPlural(slot.bars[0].count)}{/if}{#else}{slot.fullLabel}
-{#for bar in slot.bars}{bar.subjectName}: {#if bar.count == 1}{msg:statSubTimeSingular}{#else}{msg:statSubTimesPlural(bar.count)}{/if}{#if bar_hasNext}
+      class="app-tooltip js-digits js-phrase w-max max-w-[16rem] bottom-full mb-1.5{#if align == 'left'} start-0{#else if align == 'right'} end-0{#else} start-1/2 app-tooltip-center{/if}">{#if slot.bars.size == 1}{slot.fullLabel}: {msg:statSubTimes(slot.bars[0].count)}{#else}{slot.fullLabel}
+{#for bar in slot.bars}{bar.subjectName}: {msg:statSubTimes(bar.count)}{#if bar_hasNext}
 {/if}{/for}{/if}</span>

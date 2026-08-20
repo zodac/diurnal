@@ -140,7 +140,7 @@ test.describe("Authentication", () => {
         await page.locator("form[data-validate]").evaluate((form) => (form as HTMLFormElement).requestSubmit())
 
         await expect(page).toHaveURL(/\/register$/)
-        await expect(page.locator("[data-form-errors]")).toContainText(/please fill in the following field/i)
+        await expect(page.locator("[data-form-errors]")).toContainText(/please fill in the required fields/i)
     })
 
     test("login submit button is disabled until both fields are filled", async ({ page }) => {
@@ -169,7 +169,7 @@ test.describe("Authentication", () => {
 
         await expect(page).toHaveURL(/\/login$/)
         const errors = page.locator("[data-form-errors]")
-        await expect(errors).toContainText(/please fill in the following field/i)
+        await expect(errors).toContainText(/please fill in the required fields/i)
         await expect(errors).toContainText("Email")
         await expect(errors).toContainText("Password")
     })

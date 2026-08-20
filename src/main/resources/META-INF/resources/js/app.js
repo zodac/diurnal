@@ -268,7 +268,7 @@ document.addEventListener('click', function (e) {
         })
     }
     function labelOf(field) {
-        return field.getAttribute('data-field-label') || field.name || 'This field'
+        return field.getAttribute('data-field-label') || field.name || window.Diurnal.i18n.thisFieldFallback
     }
 
     document.addEventListener('submit', function (e) {
@@ -285,8 +285,8 @@ document.addEventListener('click', function (e) {
                 missing.push(labelOf(field))
                 firstInvalid = firstInvalid || field
             } else if (field.type === 'email' && field.value.indexOf('@') === -1) {
-                if (errors.indexOf('Email must contain an @ symbol.') === -1) {
-                    errors.push('Email must contain an @ symbol.')
+                if (errors.indexOf(window.Diurnal.i18n.emailShapeInvalid) === -1) {
+                    errors.push(window.Diurnal.i18n.emailShapeInvalid)
                 }
                 firstInvalid = firstInvalid || field
             }
@@ -307,8 +307,10 @@ document.addEventListener('click', function (e) {
 
         let html = ''
         if (missing.length > 0) {
-            const noun = missing.length === 1 ? 'field' : 'fields'
-            html += window.Diurnal.bannerHtml(`Please fill in the following ${  noun  }:` +
+            // Deliberately count-independent wording ("the required fields", not "field"/"fields") - see
+            // AppMessages#missingRequiredFieldsPrefix's own Javadoc for why this client-side pre-check can't
+            // replicate every offered language's plural grammar the way the server-rendered banner does.
+            html += window.Diurnal.bannerHtml(`${  window.Diurnal.i18n.missingRequiredFieldsPrefix  }` +
                     `<ul class="list-disc list-inside mt-1">${
                     missing.map(function (m) { return `<li>${  escapeHtml(m)  }</li>` }).join('')
                     }</ul>`)
@@ -475,13 +477,13 @@ document.addEventListener('click', function (e) {
                 if (retryAfter > 0) {
                     window.Diurnal.startLockoutCountdown(form, slot, submitBtn, retryAfter)
                 } else {
-                    showError('Invalid email or password.')
+                    showError(window.Diurnal.i18n.invalidCredentials)
                 }
             } else {
                 window.location.assign(resp.url)   // session cookie already set — load the landing page
             }
         }).catch(function () {
-            showError('Something went wrong. Please try again.')
+            showError(window.Diurnal.i18n.somethingWentWrong)
         })
     })
 
@@ -531,7 +533,7 @@ document.addEventListener('click', function (e) {
                 showErrors(fresh ? fresh.innerHTML : '')
             })
         }).catch(function () {
-            showErrors(window.Diurnal.bannerHtml('Something went wrong. Please try again.'))
+            showErrors(window.Diurnal.bannerHtml(window.Diurnal.i18n.somethingWentWrong))
         })
     })
 })();
@@ -653,7 +655,10 @@ document.addEventListener('click', function (e) {
 // `type="text" inputmode="numeric"` field (never `type="number"` - that value is spec-constrained to
 // ASCII digits and cannot hold e.g. Eastern Arabic-Indic ones) whose VALUE should show this language's
 // own digit glyphs while the request that actually leaves the browser carries plain Latin ones. The
-// day panel's per-action count field (partials/day-action-item.html) is the one user today; settings.js's
+// day panel's per-action count field (partials/day-action-item.html) and the calendar's month/year jump
+// popup (partials/calendar-toolbar.html's `.cal-pop-year`, wired by hand in dashboard.js's own
+// renderPicker/commitYear rather than through this file's own change-listener since it never leaves the
+// browser as a request) are today's users; settings.js's
 // wireNumericPref is the fuller version of this same pattern (presets/stepper), kept separate there since
 // it also owns pill-highlighting/clamping this generic version has no notion of.
 (function () {

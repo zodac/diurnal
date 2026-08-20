@@ -96,6 +96,21 @@ RUN apt-get update && apt-get install -yqq --no-install-recommends \
 #   java.instrument                    – bytecode instrumentation agents
 #   jdk.unsupported                    – sun.misc.Unsafe (Netty, Hibernate, et al.)
 #   jdk.zipfs                          – zip filesystem provider used when opening nested jars
+#   jdk.localedata                     – CLDR data for every non-English offered Language (see below)
+#
+# jdk.localedata is NOT optional despite the name suggesting "extra" data: without it, java.base falls
+# back to the JDK's built-in root/English-only locale data for EVERYTHING CLDR-backed - ZoneId/DayOfWeek/
+# Month#getDisplayName, DateTimeFormatter.ofLocalizedDate, NumberFormat/DecimalStyle - so `ar-SA`/`es-ES`/
+# `ja-JP` would render month/weekday names, timezone labels and decimal separators in ENGLISH no matter
+# what the app's own AppMessages bundle (pure Java properties, unaffected by this - which is exactly why
+# this was invisible in every dev-mode/`mvn test` run, which always use a full, non-jlinked JDK) says
+# `user.language` is - confirmed empirically by jlinking this exact module list with and without
+# jdk.localedata and diffing `ZoneId.of("Pacific/Auckland").getDisplayName(TextStyle.FULL, ar-SA)`:
+# "Auckland" (the bare exemplar city name, Latin script, silently derived from the zone id) without it,
+# "توقيت نيوزيلندا" with it. --include-locales trims the module to only the four offered languages'
+# CLDR data (~0.5 MB added, confirmed by du - the full, untrimmed module would have cost ~11 MB, in line
+# with this file's existing size-consciousness around java.desktop below) rather than the ~700-locale
+# default. Re-trim this list if Language ever offers a new base language.
 #
 # java.desktop is deliberately ABSENT, and is worth ~11MB of the final image (by far the largest single
 # module — every other module above costs <=1MB combined, measured by jlinking each in isolation). It
@@ -127,7 +142,8 @@ RUN jlink --compress=zip-9 \
         --no-man-pages \
         --strip-debug \
         --add-options="--enable-native-access=ALL-UNNAMED" \
-        --add-modules java.base,java.logging,java.xml,java.sql,java.rmi,java.naming,java.management,java.net.http,jdk.naming.dns,java.security.jgss,java.security.sasl,jdk.crypto.cryptoki,jdk.crypto.ec,java.instrument,jdk.unsupported,jdk.management,jdk.zipfs \
+        --add-modules java.base,java.logging,java.xml,java.sql,java.rmi,java.naming,java.management,java.net.http,jdk.naming.dns,java.security.jgss,java.security.sasl,jdk.crypto.cryptoki,jdk.crypto.ec,java.instrument,jdk.unsupported,jdk.management,jdk.zipfs,jdk.localedata \
+        --include-locales=en,es,ar,ja \
         --output /opt/jdk \
     && strip -p --strip-unneeded /opt/jdk/lib/server/libjvm.so
 

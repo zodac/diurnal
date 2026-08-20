@@ -57,17 +57,14 @@ public enum Language {
     ENGLISH_US("en-US", "English (US)"),
 
     /**
-     * Spanish (Spain) — region-qualified like English, for the same reason (see {@link #ENGLISH_GB}) and so every
-     * offered language carries an explicit region with no ambiguity about which convention a contributor is writing
-     * in when they add translated content (see {@code .claude/I18N.md}).
+     * Spanish. Offered as a SINGLE entry, unlike English (see {@link #ENGLISH_GB}) — a {@code SPANISH_LATIN_AMERICA}
+     * ({@code es-419}) variant was offered and translated for one session, then deliberately removed again (a real,
+     * reversed product decision, not an oversight — see {@code .claude/I18N.md}'s Phase 5 notes) in favour of one
+     * simple "Spanish" choice. Still region-qualified internally ({@code es-ES}, not bare {@code es}) for the same
+     * date/number-formatting-precision reason every other entry is (see {@link #ENGLISH_GB}) — only the Settings
+     * dropdown's LABEL is unqualified, since there is no sibling Spanish entry left to disambiguate against.
      */
-    SPANISH_SPAIN("es-ES", "Español (España)"),
-
-    /**
-     * Spanish (Latin America). {@code es-419} is the standard BCP-47/UN M49 tag for this — used by Netflix, Google
-     * and others — covering the region rather than one specific country.
-     */
-    SPANISH_LATIN_AMERICA("es-419", "Español (Latinoamérica)"),
+    SPANISH("es-ES", "Español"),
 
     /**
      * Arabic (Saudi Arabia). Region-qualified for consistency with every other offered language even though only
@@ -96,18 +93,16 @@ public enum Language {
     /**
      * The offered language returned by {@link #fromAcceptLanguageHeader(String)} for a request naming a base
      * language this app offers, but a SPECIFIC region we don't carry — e.g. a browser sending {@code es-MX}
-     * (Mexican Spanish, one of many real Latin-American country codes) matches neither {@link #SPANISH_SPAIN} nor
-     * {@link #SPANISH_LATIN_AMERICA} under strict RFC 4647 lookup, since {@code es-419} is a CONTENT-classification
-     * tag platforms use to LABEL a Latin-American-Spanish translation, not one a browser reports as the user's own
-     * preference. Without this, every offered language being region-qualified (rather than one of them staying a
-     * bare fallback, e.g. plain {@code es}) would mean the large majority of that language's real-world speakers -
-     * whose browser reports a country we don't carry - silently see a DIFFERENT LANGUAGE instead of merely the
-     * "wrong" regional flavour of their own. {@link #SPANISH_SPAIN} is the Spanish entry here — the project's
-     * chosen default Spanish variant (see {@code .claude/I18N.md}) — deliberately independent of the enum's
-     * declaration order, which only controls the Settings dropdown's display order.
+     * (Mexican Spanish) matches {@link #SPANISH} under neither an exact nor an RFC 4647 truncated lookup (only
+     * {@code es-ES}/bare {@code es} would; {@code es-MX} is simply a different tag). Without this, every offered
+     * language being region-qualified (rather than one of them staying a bare fallback, e.g. plain {@code es})
+     * would mean a real-world speaker whose browser reports a country we don't carry would silently see a
+     * DIFFERENT LANGUAGE instead of merely the "wrong" regional flavour of their own — still true for
+     * {@link #SPANISH} even now that it is the only offered Spanish entry, since a specific unmatched region still
+     * fails strict lookup regardless of how many Spanish variants are offered. Deliberately independent of the
+     * enum's declaration order, which only controls the Settings dropdown's display order.
      */
-    private static final Map<String, Language> BASE_LANGUAGE_FALLBACK =
-        Map.of("en", ENGLISH_GB, "es", SPANISH_SPAIN, "ar", ARABIC, "ja", JAPANESE);
+    private static final Map<String, Language> BASE_LANGUAGE_FALLBACK = Map.of("en", ENGLISH_GB, "es", SPANISH, "ar", ARABIC, "ja", JAPANESE);
 
     private final String value;
     private final String label;
@@ -169,7 +164,7 @@ public enum Language {
      */
     public String dayMonthPattern() {
         return switch (this) {
-            case ENGLISH_GB, SPANISH_SPAIN, SPANISH_LATIN_AMERICA, ARABIC -> "d MMM";
+            case ENGLISH_GB, SPANISH, ARABIC -> "d MMM";
             case ENGLISH_US -> "MMM d";
             case JAPANESE -> "M月d日";
         };
@@ -185,7 +180,7 @@ public enum Language {
     public String monthYearPattern() {
         return switch (this) {
             case ENGLISH_GB, ENGLISH_US, ARABIC -> "MMMM yyyy";
-            case SPANISH_SPAIN, SPANISH_LATIN_AMERICA -> "MMMM 'de' yyyy";
+            case SPANISH -> "MMMM 'de' yyyy";
             case JAPANESE -> "yyyy年M月";
         };
     }
@@ -203,6 +198,28 @@ public enum Language {
      */
     public DateTimeFormatter localizeNumerals(final DateTimeFormatter formatter) {
         return formatter.withDecimalStyle(DecimalStyle.of(locale()));
+    }
+
+    /**
+     * Transcodes every plain ASCII digit in an already-built {@code String} to this language's own digit glyphs (e.g. Eastern Arabic-Indic under
+     * {@link #ARABIC}). For a value that never passes through {@link DateTimeFormatter}/{@link java.text.NumberFormat} in the first place - a
+     * hand-built string like the timezone picker's {@code "UTC+5:30"} offset - so it still ends up with this language's digits rather than plain
+     * ASCII, the same way {@link #localizeNumerals(DateTimeFormatter)} does for a date field. Unicode defines each decimal digit block as ten
+     * consecutive code points starting at its own zero, the same assumption {@link DecimalStyle#getZeroDigit()} itself relies on, so shifting each
+     * ASCII digit by the offset from {@code '0'} to this language's zero digit is a faithful transcode. A no-op under a Latin-digit language.
+     *
+     * @param text the text to transcode
+     * @return the text, with every ASCII digit replaced by this language's own digit glyph
+     */
+    @SuppressWarnings({"CharUsedInArithmeticContext", "CharacterComparison"}) // codepoint arithmetic IS the transcode - see this method's own Javadoc
+    public String localizeDigits(final String text) {
+        final char zeroDigit = DecimalStyle.of(locale()).getZeroDigit();
+        final char shift = (char) (zeroDigit - '0');
+        final StringBuilder result = new StringBuilder(text.length());
+        for (final char c : text.toCharArray()) {
+            result.append(c >= '0' && c <= '9' ? (char) (c + shift) : c);
+        }
+        return result.toString();
     }
 
     /**
