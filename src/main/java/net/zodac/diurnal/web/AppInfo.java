@@ -40,6 +40,7 @@ public class AppInfo {
 
     private static final int YEAR_LENGTH = 4;
     private static final String FALLBACK_YEAR = "2026";
+    private static final String TAGLINE = "Make every day count";
 
     private final ApplicationVersion applicationVersion;
     private final AppConfig appConfig;
@@ -72,6 +73,18 @@ public class AppInfo {
      */
     public String getVersion() {
         return applicationVersion.release();
+    }
+
+    /**
+     * The application's tagline, shown in the page {@code <title>}, the login wordmark's {@code alt} text, and the navbar logo tooltip. Deliberately
+     * NOT translated - like the "Diurnal" name itself, it is brand copy rather than UI chrome, so it stays in English regardless of the viewer's
+     * {@code language} (see {@code .claude/I18N.md}'s Phase 1 slice 3, which originally routed this through the message bundle, and this feedback's
+     * reversal of that choice).
+     *
+     * @return the tagline
+     */
+    public String getTagline() {
+        return TAGLINE;
     }
 
     /**

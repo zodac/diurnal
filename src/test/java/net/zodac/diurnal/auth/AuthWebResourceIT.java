@@ -98,7 +98,7 @@ class AuthWebResourceIT extends IntegrationTestBase {
     void loginPage_withOidcErrorParam_showsOidcErrorBanner() {
         given().queryParam("error", "oidc").get("/login")
                 .then().statusCode(OK)
-                .body(containsString("not authorized"));
+                .body(containsString("not authorised"));
     }
 
     @Test

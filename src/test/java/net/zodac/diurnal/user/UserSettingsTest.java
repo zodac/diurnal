@@ -219,28 +219,43 @@ class UserSettingsTest {
 
     @Test
     void utcOffsetLabel_formatsWholeAndHalfHourOffsets() {
-        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.UTC))
+        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.UTC, Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("UTC");
-        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.ofHours(12)))
+        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.ofHours(12), Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("UTC+12");
-        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.ofHours(-8)))
+        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.ofHours(-8), Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("UTC-8");
-        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.ofHoursMinutes(5, 30)))
+        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.ofHoursMinutes(5, 30), Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("UTC+5:30");
-        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.ofHoursMinutes(-3, -30)))
+        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.ofHoursMinutes(-3, -30), Language.ENGLISH_GB))
             .as("unexpected value")
             .isEqualTo("UTC-3:30");
+    }
+
+    @Test
+    void utcOffsetLabel_arabicUsesItsOwnDigitGlyphsButKeepsTheUtcWord() {
+        // "UTC" is an international abbreviation, kept as-is in every language (like "OIDC"/"API") - only the
+        // digits following it switch to Eastern Arabic-Indic glyphs.
+        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.ofHoursMinutes(5, 30), Language.ARABIC))
+            .as("unexpected value")
+            .isEqualTo("UTC+٥:٣٠");
+        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.ofHours(-8), Language.ARABIC))
+            .as("unexpected value")
+            .isEqualTo("UTC-٨");
+        assertThat(UserSettings.utcOffsetLabel(ZoneOffset.UTC, Language.ARABIC))
+            .as("the zero offset has no digits to transcode")
+            .isEqualTo("UTC");
     }
 
     // ── Timezone picker choices ─────────────────────────────────────────────────
 
     @Test
     void timezoneChoices_offersEveryCuratedZoneWithItsOwnIdAsValue() {
-        final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, null);
+        final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, null, Language.ENGLISH_GB);
 
         assertThat(choices.size())
             .as("unexpected value")
@@ -256,7 +271,7 @@ class UserSettingsTest {
 
     @Test
     void timezoneChoices_sortedByUtcOffsetAscending() {
-        final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, null);
+        final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, null, Language.ENGLISH_GB);
 
         int prev = Integer.MIN_VALUE;
         for (final var choice : choices) {
@@ -273,18 +288,30 @@ class UserSettingsTest {
     }
 
     @Test
-    void timezoneChoices_utcLabelHasNoRedundantOffset() {
-        final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, null);
+    void timezoneChoices_offsetParenIsBareUtcForTheUtcZone_neverAnEmptyParenthetical() {
+        final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, null, Language.ENGLISH_GB);
 
         final var utc = choices.stream().filter(choice -> "UTC".equals(choice.value())).findFirst().orElseThrow();
-        assertThat(utc.label())
-            .as("unexpected value")
+        assertThat(utc.offsetParen())
+            .as("the UTC zone has no city/country of its own, so its offsetParen is the bare word - no redundant \"(UTC)\", "
+                + "and no isolate characters needed for a run with no digits")
             .isEqualTo("UTC");
     }
 
     @Test
+    void timezoneChoices_offsetParenIsBidiIsolatedAndLocalizedUnderArabic() {
+        final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, null, Language.ARABIC);
+
+        final var london = choices.stream().filter(choice -> "Europe/London".equals(choice.value())).findFirst().orElseThrow();
+        assertThat(london.offsetParen())
+            .as("unexpected value - wrapped in LRI/PDI bidi-isolate characters (see #offsetParen's own comment) so it reads left-to-right "
+                + "inside an RTL sentence, with the offset digit itself localized (London is UTC+1/BST in June)")
+            .isEqualTo("\u2066(UTC+١)\u2069");
+    }
+
+    @Test
     void timezoneChoices_serverDefaultSelectedWhenUserInherits() {
-        final var choices = UserSettings.timezoneChoices(ZoneId.of("Pacific/Auckland"), NOW, null);
+        final var choices = UserSettings.timezoneChoices(ZoneId.of("Pacific/Auckland"), NOW, null, Language.ENGLISH_GB);
 
         final var selected = choices.stream().filter(UserSettings.TimezoneChoice::selected).toList();
         assertThat(selected.size())
@@ -293,14 +320,14 @@ class UserSettingsTest {
         assertThat(selected.getFirst().value())
             .as("server default selected when user inherits")
             .isEqualTo("Pacific/Auckland");
-        assertThat(selected.getFirst().label())
+        assertThat(selected.getFirst().offsetParen())
             .as("unexpected value")
-            .isEqualTo("Pacific/Auckland (UTC+12)");
+            .isEqualTo("\u2066(UTC+12)\u2069");
     }
 
     @Test
     void timezoneChoices_userOverrideMarksMatchingEntrySelected() {
-        final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, "Asia/Tokyo");
+        final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, "Asia/Tokyo", Language.ENGLISH_GB);
 
         final var selected = choices.stream().filter(UserSettings.TimezoneChoice::selected).toList();
         assertThat(selected.size())
@@ -309,9 +336,9 @@ class UserSettingsTest {
         assertThat(selected.getFirst().value())
             .as("user override selected")
             .isEqualTo("Asia/Tokyo");
-        assertThat(selected.getFirst().label())
+        assertThat(selected.getFirst().offsetParen())
             .as("unexpected value")
-            .isEqualTo("Asia/Tokyo (UTC+9)");
+            .isEqualTo("\u2066(UTC+9)\u2069");
         // The server default is NOT selected when the user has an override.
         assertThat(choices.stream().filter(choice -> "UTC".equals(choice.value())).noneMatch(UserSettings.TimezoneChoice::selected))
             .as("server default not selected when user has override")

@@ -34,7 +34,7 @@
              {#if missingFields.size == 0 && errors.size == 0 && !duplicateEmail && lockoutSeconds == 0}hidden{/if}>
             {#if missingFields.size > 0}
             <div class="banner banner-error">
-                {msg:missingFieldsPrefix} {#if missingFields.size == 1}{msg:missingFieldSingular}{#else}{msg:missingFieldsPlural}{/if}:
+                {msg:missingFieldsPrefix} {msg:missingFieldWord(missingFields.size)}:
                 <ul class="list-disc list-inside mt-1">
                     {#for field in missingFields}
                     <li>{#switch field}{#is 'email'}{msg:fieldEmail}{#is 'displayName'}{msg:fieldDisplayName}{#is 'password'}{msg:fieldPassword}{#is 'confirmPassword'}{msg:fieldConfirmPassword}{/switch}</li>
@@ -46,11 +46,7 @@
             {#include partials/banner variant='error' message=msg:emailAlreadyRegistered /}
             {/if}
             {#if lockoutSeconds > 0}
-                {#if lockoutSeconds == 1}
-                {#include partials/banner variant='error' message=msg:lockoutRetrySingular(lockoutSeconds) /}
-                {#else}
-                {#include partials/banner variant='error' message=msg:lockoutRetryPlural(lockoutSeconds) /}
-                {/if}
+            {#include partials/banner variant='error' message=msg:lockoutRetry(lockoutSeconds) /}
             {/if}
             {#for message in errors}
             {#include partials/banner variant='error' message=message /}

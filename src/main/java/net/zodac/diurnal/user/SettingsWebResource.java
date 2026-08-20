@@ -462,6 +462,6 @@ public class SettingsWebResource {
                 .data("showNoteCounter", user.showNoteCounter)
                 .data("statsFieldChoices", StatField.choices(user.statsFields))
                 .data("timezoneChoices",
-                        UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone));
+                        UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone, Language.fromValue(user.language)));
     }
 }

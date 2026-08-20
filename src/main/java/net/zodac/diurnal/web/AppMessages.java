@@ -30,10 +30,17 @@ import io.quarkus.qute.i18n.MessageBundle;
  * <p>
  * Each method's {@link Message @Message} value is the DEFAULT (English) text — Quarkus resolves it whenever no
  * more specific locale variant matches the current render's locale (see below), so English needs no separate
- * {@code messages_en-GB.properties} file. A translated language is added as a sibling
- * {@code messages_<locale>.properties} file under {@code src/main/resources/messages/} (Quarkus auto-discovers it
- * by matching this interface's simple name — {@code messages_es-ES.properties}, {@code messages_ar-SA.properties},
- * {@code messages_ja-JP.properties}), with one {@code methodName=translated text} line per entry here.
+ * {@code msg_en-GB.properties} file. A translated language is added as a sibling {@code msg_<locale>.properties}
+ * file under {@code src/main/resources/messages/} (Quarkus auto-discovers it by matching the bundle's NAME, which
+ * for an unqualified top-level {@code @MessageBundle} interface like this one defaults to
+ * {@link MessageBundle#DEFAULT_NAME} — the literal string {@code "msg"}, the same token the {@code {msg:...}}
+ * template namespace uses, NOT this interface's simple name ({@code AppMessages}) and NOT the word "messages" —
+ * e.g. {@code msg_ar-SA.properties}), with one {@code methodName=translated text} line per entry here. (A real,
+ * wrongly-named {@code messages_es-ES.properties}
+ * silently found NO matching bundle and fell back to English with no build-time or startup error — see Phase 5 of
+ * {@code .claude/I18N.md} for how this was caught: only a runtime render assertion against the real translated text
+ * revealed it, since every check before that point — the build, the resource being copied to {@code target/classes},
+ * even the CDI bean's registration — stays green regardless of whether any locale actually matched the file.)
  *
  * <p>
  * Deliberately UNQUALIFIED ({@link MessageBundle @MessageBundle} with no name): the "one bundle per language"
@@ -123,23 +130,17 @@ public interface AppMessages {
     String invalidCredentials();
 
     /**
-     * The lockout banner (login/register) when exactly one second remains — shared wording, deliberately not naming which flow tripped the shared
-     * per-IP counter (see {@code LockoutMessages}'s class Javadoc).
-     *
-     * @param seconds always {@code 1}, passed through rather than hardcoded so the sentence stays a single template
-     * @return the default (English) text
-     */
-    @Message("Too many failed attempts. Please try again in {seconds} second.")
-    String lockoutRetrySingular(long seconds);
-
-    /**
-     * The lockout banner (login/register) when more than one second remains.
+     * The lockout banner (login/register), singular-aware — shared wording, deliberately not naming which flow tripped the shared per-IP counter
+     * (see {@code LockoutMessages}'s class Javadoc). One entry with the plural choice embedded (rather than the earlier singular/plural method
+     * pair selected by the template) so a language needing more than English's two-way split — see {@link ArabicPlural} — can express its full
+     * grammar here instead of being limited to whichever form the template happened to pick.
      *
      * @param seconds the whole seconds remaining, never translated
      * @return the default (English) text
      */
-    @Message("Too many failed attempts. Please try again in {seconds} seconds.")
-    String lockoutRetryPlural(long seconds);
+    @Message("{#if seconds == 1}Too many failed attempts. Please try again in 1 second.{#else}Too many failed attempts. Please try again in "
+        + "{seconds} seconds.{/if}")
+    String lockoutRetry(long seconds);
 
     /**
      * The login/registration submit button shared caption ("Sign in" — the login button, and the "Already have an
@@ -197,7 +198,7 @@ public interface AppMessages {
      *
      * @return the default (English) text
      */
-    @Message("You are not authorized to access this application. Contact your administrator.")
+    @Message("You are not authorised to access this application. Contact your administrator.")
     String oidcUnauthorized();
 
     // ── OIDC connect/denial banners (partials/oidc-messages.html) ────────────
@@ -343,22 +344,88 @@ public interface AppMessages {
     String missingFieldsPrefix();
 
     /**
-     * The singular form of "field" in the missing-fields banner (exactly one field missing).
+     * The word "field"/"fields" in the missing-fields banner, singular-aware on the number of missing fields even though that number is never
+     * itself displayed — Arabic's dual/plural noun forms still have to agree with it. One entry with the plural choice embedded (see
+     * {@link #lockoutRetry(long)} for why this replaced an earlier singular/plural method pair selected by the template).
      *
+     * @param count the number of missing fields
      * @return the default (English) text
      */
-    @Message("field")
-    String missingFieldSingular();
+    @Message("{#if count == 1}field{#else}fields{/if}")
+    String missingFieldWord(int count);
 
     /**
-     * The plural form of "fields" in the missing-fields banner (more than one field missing). English-only
-     * two-form pluralisation for now — see {@code .claude/I18N.md} Phase 2 for the CLDR-aware replacement every
-     * pluralised count eventually needs.
+     * The CLIENT-SIDE (JavaScript) pre-submit missing-fields banner intro, read via {@code window.Diurnal.i18n} (see {@code layout.html}'s
+     * {@code data-i18n-*} bootstrap) rather than {@link #missingFieldsPrefix()}/{@link #missingFieldWord(int)} - those need the exact missing
+     * COUNT to pick the right CLDR plural form, which client-side JS has no locale-aware grammar engine to replicate correctly for every offered
+     * language. Deliberately count-INDEPENDENT wording instead ("the required fields", not "field"/"fields") so one static, pre-rendered string
+     * covers every case with no plural logic needed at all - the SERVER-rendered banner (the same one a real submission always gets checked
+     * against) is what carries the fully correct grammar; this client-side one is only a same-page UX head start before that authoritative
+     * round-trip, per {@code app.js}'s own comment on the validation handler.
      *
      * @return the default (English) text
      */
-    @Message("fields")
-    String missingFieldsPlural();
+    @Message("Please fill in the required fields:")
+    String missingRequiredFieldsPrefix();
+
+    /**
+     * The client-side missing-fields banner's fallback label for a required field with no {@code data-field-label} attribute and no {@code name}
+     * (see {@code partials/form-field.html}'s own {@code data-field-label} on every field it renders - this fallback exists only for a field
+     * outside that shared partial, so it should rarely if ever actually render). Read via {@code window.Diurnal.i18n}, same as
+     * {@link #missingRequiredFieldsPrefix()}.
+     *
+     * @return the default (English) text
+     */
+    @Message("This field")
+    String thisFieldFallback();
+
+    /**
+     * The generic client-side network-failure fallback (a {@code fetch} that never reached the server at all - a dropped connection, not a
+     * rejected request), read via {@code window.Diurnal.i18n} same as {@link #missingRequiredFieldsPrefix()}. Reused across the login/register
+     * cards, the Settings account cards and the data-import preview, since none of them has anything more specific to say about a request that
+     * never got a response.
+     *
+     * @return the default (English) text
+     */
+    @Message("Something went wrong. Please try again.")
+    String somethingWentWrongTryAgain();
+
+    /**
+     * The Settings preferences card's fallback status when a preference PATCH fails with no response body to show instead. Read via
+     * {@code window.Diurnal.i18n}, same as {@link #missingRequiredFieldsPrefix()}.
+     *
+     * @return the default (English) text
+     */
+    @Message("Could not save")
+    String couldNotSavePreference();
+
+    /**
+     * The data-import preview's fallback when the chosen file itself cannot be read back out of the browser (not a server rejection - the
+     * {@code fetch} never happens). Read via {@code window.Diurnal.i18n}, same as {@link #missingRequiredFieldsPrefix()}.
+     *
+     * @return the default (English) text
+     */
+    @Message("That file could not be read.")
+    String fileCouldNotBeRead();
+
+    /**
+     * The note box's status line while a save is in flight. Read via {@code window.Diurnal.i18n}, same as
+     * {@link #missingRequiredFieldsPrefix()}.
+     *
+     * @return the default (English) text
+     */
+    @Message("Saving...")
+    String savingEllipsis();
+
+    /**
+     * The note box's fallback status when a save fails with no usable error message to show instead (a network-level failure - a rejected save
+     * already carries a translated message via {@code NotesInternalResource}). Read via {@code window.Diurnal.i18n}, same as
+     * {@link #missingRequiredFieldsPrefix()}.
+     *
+     * @return the default (English) text
+     */
+    @Message("Could not save the note.")
+    String couldNotSaveNote();
 
     /**
      * The register form's submit button.
@@ -962,6 +1029,142 @@ public interface AppMessages {
     @Message("Timezone")
     String timezoneLabel();
 
+    // ── Timezone picker — curated zone display names (user/UserSettings.TIMEZONE_OPTIONS) ─────
+    //
+    // The FORM VALUE (the id itself) is never shown regardless of language - a technical token, like a
+    // colour hex. The DEFAULT (English) text of every entry below is deliberately the bare IANA id
+    // unchanged (e.g. "Pacific/Auckland") - a LATIN-SCRIPT language reads that id directly just fine, so
+    // it stays exactly what a technical picker like this has always shown, undoing an earlier round's
+    // "City, Country" natural-language rewrite (which obscured the IANA structure a viewer might actually
+    // want to correlate against, and which nothing asked for in English to begin with). A NON-Latin-script
+    // language earns its own override instead: translate every IANA PATH SEGMENT independently and rejoin
+    // them with the same "/" the id itself uses (e.g. "باسيفيك/أوكلاند") - a direct, structure-preserving
+    // mapping, not the metazone name java.time's CLDR data would give ("New Zealand Time") or a natural
+    // "City, Country" phrase. A city segment in a non-Latin script should generally use whatever native
+    // rendering that language's own software/media convention already uses for the place (which may be a
+    // dedicated word, not a phonetic transliteration, for a well-known city) - not a single blanket rule
+    // applied mechanically to every entry. "UTC"
+    // itself is not one of these entries - kept as the bare, untranslated international abbreviation in
+    // every language, Latin letters and all. Deliberately NOT given the same phonetic-initialism treatment
+    // authSourceOidc/apiNavLink get (see their own Javadoc) - "UTC" is tied to a formal ISO 8601 offset
+    // NOTATION ("UTC+03:00"), not just a spoken piece of jargon, and the real-world convention major
+    // localized software already follows keeps that notation's own abbreviation as literal Latin letters
+    // even in a fully Arabic-localized timezone picker (checked directly: Windows, Google and Apple all
+    // do this) - a narrower, notation-specific reason "OIDC"/"API" don't share. Resolved directly in
+    // partials/timezone-option.html rather than through a dedicated entry.
+
+    /**
+     * Pacific/Auckland's curated timezone-picker label.
+     *
+     * @return the default (English) text
+     */
+    @Message("Pacific/Auckland")
+    String timezoneAuckland();
+
+    /**
+     * Australia/Sydney's curated timezone-picker label.
+     *
+     * @return the default (English) text
+     */
+    @Message("Australia/Sydney")
+    String timezoneSydney();
+
+    /**
+     * Asia/Tokyo's curated timezone-picker label.
+     *
+     * @return the default (English) text
+     */
+    @Message("Asia/Tokyo")
+    String timezoneTokyo();
+
+    /**
+     * Asia/Shanghai's curated timezone-picker label.
+     *
+     * @return the default (English) text
+     */
+    @Message("Asia/Shanghai")
+    String timezoneShanghai();
+
+    /**
+     * Asia/Kolkata's curated timezone-picker label.
+     *
+     * @return the default (English) text
+     */
+    @Message("Asia/Kolkata")
+    String timezoneKolkata();
+
+    /**
+     * Asia/Dubai's curated timezone-picker label.
+     *
+     * @return the default (English) text
+     */
+    @Message("Asia/Dubai")
+    String timezoneDubai();
+
+    /**
+     * Europe/Berlin's curated timezone-picker label.
+     *
+     * @return the default (English) text
+     */
+    @Message("Europe/Berlin")
+    String timezoneBerlin();
+
+    /**
+     * Europe/Paris's curated timezone-picker label.
+     *
+     * @return the default (English) text
+     */
+    @Message("Europe/Paris")
+    String timezoneParis();
+
+    /**
+     * Europe/London's curated timezone-picker label.
+     *
+     * @return the default (English) text
+     */
+    @Message("Europe/London")
+    String timezoneLondon();
+
+    /**
+     * America/Sao_Paulo's curated timezone-picker label.
+     *
+     * @return the default (English) text
+     */
+    @Message("America/Sao_Paulo")
+    String timezoneSaoPaulo();
+
+    /**
+     * America/New_York's curated timezone-picker label.
+     *
+     * @return the default (English) text
+     */
+    @Message("America/New_York")
+    String timezoneNewYork();
+
+    /**
+     * America/Chicago's curated timezone-picker label.
+     *
+     * @return the default (English) text
+     */
+    @Message("America/Chicago")
+    String timezoneChicago();
+
+    /**
+     * America/Denver's curated timezone-picker label.
+     *
+     * @return the default (English) text
+     */
+    @Message("America/Denver")
+    String timezoneDenver();
+
+    /**
+     * America/Los_Angeles's curated timezone-picker label.
+     *
+     * @return the default (English) text
+     */
+    @Message("America/Los_Angeles")
+    String timezoneLosAngeles();
+
     /**
      * Language label.
      *
@@ -1160,6 +1363,25 @@ public interface AppMessages {
      */
     @Message("Choose an export archive to import")
     String chooseExportArchiveToImport();
+
+    /**
+     * The import file picker's own button label. A custom-styled label over a visually-hidden native
+     * {@code <input type="file">}, rather than the browser's own file-input button, whose text is drawn from the
+     * BROWSER's own UI locale (not this page's {@code lang}) and so cannot be made to follow the viewer's chosen
+     * language through HTML/CSS alone.
+     *
+     * @return the default (English) text
+     */
+    @Message("Choose file")
+    String chooseFile();
+
+    /**
+     * The import file picker's placeholder before any file has been selected.
+     *
+     * @return the default (English) text
+     */
+    @Message("No file chosen")
+    String noFileChosen();
 
     // ── Settings — Appearance card ───────────────────────────────────────────
 
@@ -1790,37 +2012,24 @@ public interface AppMessages {
     String statSubCountPerMonth();
 
     /**
-     * The "Total unique days" tile's sub-caption when the total is exactly one.
+     * The "Total unique days" tile's sub-caption, singular-aware on {@code StatTile#subCount1}. One entry with the plural choice embedded (see
+     * {@link #lockoutRetry(long)} for why this replaced an earlier singular/plural method pair selected by the template).
      *
+     * @param count the day count, never translated
      * @return the default (English) text
      */
-    @Message("unique day")
-    String statSubUniqueDaySingular();
+    @Message("{#if count == 1}unique day{#else}unique days{/if}")
+    String statSubUniqueDays(long count);
 
     /**
-     * The "Total unique days" tile's sub-caption when the total is not exactly one.
-     *
-     * @return the default (English) text
-     */
-    @Message("unique days")
-    String statSubUniqueDaysPlural();
-
-    /**
-     * The "Best month"/"Best year" tiles' sub-caption when the record count is exactly one.
-     *
-     * @return the default (English) text
-     */
-    @Message("1 time")
-    String statSubTimeSingular();
-
-    /**
-     * The "Best month"/"Best year" tiles' sub-caption when the record count is not exactly one.
+     * The "Best month"/"Best year" tiles' sub-caption, singular-aware on {@code StatTile#subCount1}. One entry with the plural choice embedded
+     * (see {@link #lockoutRetry(long)} for why this replaced an earlier singular/plural method pair selected by the template).
      *
      * @param count the record count, never translated
      * @return the default (English) text
      */
-    @Message("{count} times")
-    String statSubTimesPlural(long count);
+    @Message("{#if count == 1}1 time{#else}{count} times{/if}")
+    String statSubTimes(long count);
 
     /**
      * The "Change from last month" tile's sub-caption.
@@ -1935,6 +2144,16 @@ public interface AppMessages {
      */
     @Message("Next preview")
     String nextPreview();
+
+    /**
+     * The "(!)" info button's {@code aria-label} on a Settings preview tile (partials/preview-option.html) - opens that option's full-size
+     * screenshot in the lightbox.
+     *
+     * @param title the option's own translated title (e.g. "Dark theme"), substituted into the sentence
+     * @return the default (English) text
+     */
+    @Message("View {title} preview full size")
+    String viewPreviewFullSize(String title);
 
     // ── Dashboard (dashboard.html) ───────────────────────────────────────────
 
@@ -2143,14 +2362,6 @@ public interface AppMessages {
     @Message("JavaScript is required for {appName} to work. You can still sign in and read your pages, but logging actions, the calendar, and "
         + "saving settings will not work until it is enabled.")
     String noJsWarning(String appName);
-
-    /**
-     * The application's tagline, shown in the page {@code <title>}, the login wordmark's {@code alt} text, and the navbar logo tooltip.
-     *
-     * @return the default (English) text
-     */
-    @Message("Make every day count")
-    String tagline();
 
     // ── Navbar / account (account-links.html) ────────────────────────────────
 
@@ -2470,7 +2681,11 @@ public interface AppMessages {
     String authSourceLocal();
 
     /**
-     * The "Sign-in" column's label for an account that only signs in via OIDC.
+     * The "Sign-in" column's label for an account that only signs in via OIDC. Unlike a brand name (which stays untranslated everywhere - see
+     * {@code .claude/I18N.md}'s Phase 5 notes), an initialism is unreadable to a viewer who doesn't already know Latin letter names, so a
+     * non-Latin-script language transliterates it phonetically instead - spelling out the letter names the same way real tech writing in that
+     * script already renders other foreign initialisms (USB, PDF) - while a Latin-script language, where the initialism is already directly
+     * readable, keeps it as-is (same as English). See the relevant {@code msg_<locale>.properties} file for the actual rendered text.
      *
      * @return the default (English) text
      */
@@ -2478,7 +2693,8 @@ public interface AppMessages {
     String authSourceOidc();
 
     /**
-     * The "Sign-in" column's label for an account that can sign in both ways.
+     * The "Sign-in" column's label for an account that can sign in both ways. The "OIDC" half gets the same phonetic-initialism transliteration as
+     * {@link #authSourceOidc()} in a non-Latin-script language - see that method's own Javadoc.
      *
      * @return the default (English) text
      */
@@ -3041,7 +3257,8 @@ public interface AppMessages {
     String manageUsersTooltip();
 
     /**
-     * Api nav link.
+     * The navbar link to the admin-only Swagger API docs page. Phonetically transliterated in a non-Latin-script language rather than kept as the
+     * bare Latin initialism - see {@link #authSourceOidc()}'s Javadoc for the reasoning.
      *
      * @return the default (English) text
      */

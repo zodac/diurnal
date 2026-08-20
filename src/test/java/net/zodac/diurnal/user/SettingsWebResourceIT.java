@@ -47,7 +47,7 @@ class SettingsWebResourceIT extends IntegrationTestBase {
                 // Timezone picker renders every curated zone alphabetically, each labelled with its
                 // current UTC offset. A new user (no override) defaults to the server zone (UTC in
                 // the test profile), so its own option is pre-selected.
-                .body(containsString("<option value=\"UTC\" selected>UTC</option>"))
-                .body(containsString("Pacific/Auckland (UTC+12)"));
+                .body(containsString("<option value=\"UTC\" selected>UTC"))
+                .body(containsString("Pacific/Auckland \u2066(UTC+12)\u2069"));
     }
 }

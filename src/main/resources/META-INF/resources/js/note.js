@@ -284,7 +284,7 @@ window.Diurnal = window.Diurnal || {};
             const dateStr = noteDate
             const content = noteInput.value
             noteSaveBtn.disabled = true
-            setNoteStatus('Saving...')
+            setNoteStatus(window.Diurnal.i18n.saving)
             // JSON, not a form body: a note runs to thousands of characters and Quarkus caps a form
             // attribute at 2KB (413, before the request reaches the resource). fetch rather than htmx
             // keeps an expected 422 off the console. See NotesInternalResource.
@@ -314,7 +314,7 @@ window.Diurnal = window.Diurnal || {};
                 if (noteDate !== dateStr) {return}
                 setNoteStatus('')
                 if (noteError) {
-                    noteError.innerHTML = window.Diurnal.bannerHtml(err && err.message ? err.message : 'Could not save the note.')
+                    noteError.innerHTML = window.Diurnal.bannerHtml(err && err.message ? err.message : window.Diurnal.i18n.couldNotSaveNote)
                 }
                 refreshNoteState()
             })

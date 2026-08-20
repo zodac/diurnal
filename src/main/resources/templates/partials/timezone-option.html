@@ -1,0 +1,30 @@
+{!
+  A single <option>'s text for the Settings timezone picker. Switches on the zone's own IANA id (never
+  shown itself - a technical token, like a colour hex) to resolve its translated "City, Country" label
+  (AppMessages#timezoneAuckland etc.) - a plain Java call on UserSettings/TimezoneChoice can never
+  resolve translated content (see that record's own Javadoc), so this has to happen here, template-side,
+  the same "third bucket" treatment Theme/Font/CalendarView/StatField labels already get.
+
+  UTC has no curated-city entry - it has no city/country of its own, and its offsetParen is already the
+  bare, untranslated word "UTC" (see UserSettings#offsetParen), so this one arm prints nothing extra.
+
+  Params: value (the zone id), offsetParen (UserSettings.TimezoneChoice#offsetParen - already bidi-isolated
+  and either "(UTC+N)" or, for UTC only, the bare word).
+!}
+{#switch value}
+  {#is 'UTC'}{offsetParen}
+  {#is 'Pacific/Auckland'}{msg:timezoneAuckland} {offsetParen}
+  {#is 'Australia/Sydney'}{msg:timezoneSydney} {offsetParen}
+  {#is 'Asia/Tokyo'}{msg:timezoneTokyo} {offsetParen}
+  {#is 'Asia/Shanghai'}{msg:timezoneShanghai} {offsetParen}
+  {#is 'Asia/Kolkata'}{msg:timezoneKolkata} {offsetParen}
+  {#is 'Asia/Dubai'}{msg:timezoneDubai} {offsetParen}
+  {#is 'Europe/Berlin'}{msg:timezoneBerlin} {offsetParen}
+  {#is 'Europe/Paris'}{msg:timezoneParis} {offsetParen}
+  {#is 'Europe/London'}{msg:timezoneLondon} {offsetParen}
+  {#is 'America/Sao_Paulo'}{msg:timezoneSaoPaulo} {offsetParen}
+  {#is 'America/New_York'}{msg:timezoneNewYork} {offsetParen}
+  {#is 'America/Chicago'}{msg:timezoneChicago} {offsetParen}
+  {#is 'America/Denver'}{msg:timezoneDenver} {offsetParen}
+  {#is 'America/Los_Angeles'}{msg:timezoneLosAngeles} {offsetParen}
+{/switch}

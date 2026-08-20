@@ -486,6 +486,34 @@
      alone (isolate) for content that is ONLY ever digits with no surrounding words (a version number, a
      bare count in an input) - `.js-phrase` is for anything a translator's sentence could wrap around. */
   .js-phrase { unicode-bidi: plaintext; }
+  /* `unicode-bidi: plaintext` above governs glyph/word ORDER within a phrase - it does NOT, and must
+     not be relied on to, decide which edge of its OWN box the phrase docks to. Content-sniffed
+     direction (the Unicode Bidi Algorithm's P2/P3 first-strong-character rule, which `plaintext`
+     invokes) leaks into `text-align: start`'s default resolution too, and a phrase that happens to
+     contain NO strongly-directional character at all - a bare localized number with no accompanying
+     word, e.g. a stat tile's "Best year" value ("٢٠٢٦", digits only - Arabic-Indic digits are Unicode
+     bidi type AN, not a STRONG type, so P2/P3 finds nothing) - has its embedding level fall back to
+     LTR even on an Arabic page, left-aligning that one value while every worded sibling tile (whose
+     text DOES start with a real letter) correctly resolves RTL and right-aligns. A real, reported bug:
+     the whole point of `.js-digits`/`.js-phrase` being applied uniformly across every stat-tile value
+     (regardless of whether a given tile happens to render bare digits or a worded phrase) is that no
+     template code needs to know in advance which shape a value will take - so alignment must not be
+     the one thing left to guess it. Forced explicitly here instead, keyed on the ambient page
+     language via the `dir` attribute (never guessed from this element's own content), so every value
+     in a section aligns identically regardless of whether ITS OWN content happens to carry a strong
+     character. Safe for a worded phrase too: its OWN glyphs still order left-to-right or right-to-left
+     correctly per `plaintext` above, this only decides which edge that (correctly-ordered) block
+     docks to - exactly how a stray English word sits within Arabic prose in properly composed RTL
+     text. Written against `:dir()`, not a `[dir=rtl]`/`[dir=ltr]` attribute-selector PAIR - the exact
+     same reasoning as `.app-tooltip-center` above: a competing pair of plain attribute selectors would
+     match ANY ancestor's `dir`, not the nearest one, so both could match at once inside a `dir="ltr"`-
+     pinned region (the navbar) still under `<html dir="rtl">`, with source order silently picking the
+     wrong one. `:dir()` resolves nearest-ancestor-based like `direction` inheritance, and (load-bearing
+     here) reads the actual HTML `dir` ancestry only - it is NOT affected by this element's own
+     `unicode-bidi: plaintext` auto-detection above, which is exactly what keeps alignment tied to the
+     ambient page language instead of this element's own content. */
+  .js-phrase:dir(rtl) { text-align: right; }
+  .js-phrase:dir(ltr) { text-align: left; }
 
   /* A COMPETING ltr:/rtl: Tailwind variant PAIR (one rule per direction, e.g. a centering transform
      that must shift the opposite way depending on direction) breaks once the app has NESTED, CONFLICTING
@@ -505,7 +533,7 @@
      wrong side ("shifted right too much"). The fix is these TWO classes below, written against the
      native `:dir()` pseudo-class directly instead of Tailwind's `ltr:`/`rtl:` prefix - `:dir()` has no
      `[dir=X] *`-style fallback, so it is immune to this. A SINGLE-direction override (no competing
-     opposite-direction rule - `.cal-chevron`'s `[dir="rtl"] { transform: scaleX(-1) }`, or
+     opposite-direction rule - `.chart-nav-glyph`'s `[dir="rtl"] { transform: scaleX(-1) }`, or
      `rtl:scale-x-[-1]` on the settings preview-modal chevrons) is NOT affected by this bug: there is
      nothing for source order to arbitrate between, so the plain ancestor-attribute selector matching
      correctly (some ancestor has the target dir, regardless of a farther conflicting one) is enough. Only
@@ -671,18 +699,6 @@
   /* Disabled state (e.g. the Sign in button during a lockout countdown): visibly greyed and inert —
      pointer-events-none also suppresses the brand hover so it can't look live. */
   .btn-primary:disabled { @apply opacity-50 cursor-not-allowed pointer-events-none; }
-  /* The native file input's own button (Settings → Data import). It carries the SAME brand surface as
-     .btn-primary because it is the same kind of action, sitting a few pixels from the Export button —
-     a browser-default grey beside it reads as broken rather than as deliberately neutral. It cannot
-     simply BE .btn-primary: ::file-selector-button is a shadow pseudo-element, reachable only through
-     a selector of its own, so the surface is re-applied here rather than in the template (which would
-     be exactly the hand-kept duplicate the .btn-primary note above warns about). */
-  .file-input::file-selector-button {
-    @apply me-3 inline-flex items-center justify-center rounded-lg border-0 px-3 py-1.5
-           text-xs font-medium bg-brand text-on-brand cursor-pointer transition-colors;
-  }
-  .file-input:hover::file-selector-button { @apply bg-brand-hover; }
-  .file-input:active::file-selector-button { @apply bg-brand-strong; }
   /* Circular icon button (modal close + gallery prev/next). One responsive size (≈0.8x on mobile →
      full on sm:) so every preview button scales by the same factor across viewports; glyph in step. */
   .icon-btn-primary { @apply rounded-full w-8 h-8 sm:w-10 sm:h-10; }
@@ -1157,6 +1173,17 @@
            Both properties are re-set: the tint carries the signal, the text keeps the row's own colour. */
         .note-mark { background-color: var(--color-mark-bg); color: inherit; border-radius: .125rem; padding: 0 .0625rem; }
 
+        /* An import-refusal reason names the archive member it came from (partials/import-panel.html) -
+           always one of the fixed, ASCII, never-translated CSV filenames from transfer.TransferFiles
+           (actions.csv/logs.csv/notes.csv). Set off from the surrounding translated sentence with a
+           small monospace chip, the same reasoning `.note-mark` sets a search match apart from its row -
+           without it, the filename is bare Latin text sitting loose among Arabic prose with nothing
+           marking it as a deliberate technical token rather than a stray, unexplained fragment. */
+        .import-file-chip {
+            font-family: ui-monospace, monospace; font-size: .8em; background-color: var(--color-surface-muted);
+            border-radius: .1875rem; padding: .0625rem .3125rem;
+        }
+
         /* Empty state + pagination footer. All colours are tokens that flip in dark mode. */
         .dt-empty { padding: 2rem 1rem; text-align: center; color: var(--color-text-muted); }
         .dt-pagination { padding: .75rem 1rem; border-top: 1px solid var(--color-border); display: flex;
@@ -1244,13 +1271,13 @@
   /* Match the text buttons' total height: their content box is 1.2em (line-height) tall, so reserve
      that here too (the square 1em glyph alone would leave this button ~2px shorter). */
   .cal-toolbar-glyph { width: 1em; height: 1.2em; }
-  /* Wraps the toolbar's «/‹/›/» characters (calendar-toolbar.html) — dir="rtl" mirrors LAYOUT, never
-     glyph content, so a bare « would still point the wrong way once flexbox moves it to the visual
-     right. A horizontally-flipped « renders as a correct-looking » and vice versa, so this one rule
-     mirrors all four glyphs correctly with no {#if} character-swapping. inline-block so the transform
-     has a box to act on (a bare inline text node ignores `transform`). */
+  /* Wraps the toolbar's «/‹/›/» characters (calendar-toolbar.html). Deliberately STATIC in every
+     direction (product decision, reversing this class's original Phase 3 mirroring behaviour) — the
+     Dashboard's navigation glyphs stay the same shape regardless of language, even though flexbox
+     still mirrors the LAYOUT (which side of the toolbar each button sits on) under dir="rtl". Kept as
+     its own class (rather than folded into a plain inline glyph) so a future direction-aware treatment
+     has one place to reapply it. */
   .cal-chevron { display: inline-block; }
-  [dir="rtl"] .cal-chevron { transform: scaleX(-1); }
   /* The "Today" action sits at the bottom of the month/year picker popup (#cal-pop) — the same shared
      primary brand button (surface from app.css), separated from the month grid above it. Only its
      full-width geometry differs from the toolbar buttons. */

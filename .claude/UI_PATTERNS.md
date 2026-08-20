@@ -196,10 +196,14 @@ left|...` in `frontend/css/app.css` before landing.
     settings.html preview-modal chevrons (no dedicated class, fixed inline at the call site). **Not every
     chevron is directional** — `settings.html`'s disclosure-toggle chevron rotates 90° on expand and encodes no
     forward/back meaning, so it stays unmirrored; check what a glyph MEANS before mirroring it.
-  - A literal Unicode character (no SVG involved): wrap it and transform the wrapper — see
-    `partials/calendar-toolbar.html`. A horizontally-flipped « renders as a correct-looking » (and the reverse),
-    so `rtl:scale-x-[-1]` mirrors these exactly like an SVG icon would, with no `{#if}`-based character-swapping
-    needed.
+  - A literal Unicode character (no SVG involved): wrap it and transform the wrapper. A horizontally-flipped «
+    renders as a correct-looking » (and the reverse), so `rtl:scale-x-[-1]` mirrors these exactly like an SVG icon
+    would, with no `{#if}`-based character-swapping needed.
+  - **Exception, by explicit product decision, not oversight**: `partials/calendar-toolbar.html`'s `.cal-chevron`
+    glyphs (the Dashboard's «/‹/›/» navigation) are deliberately left UNMIRRORED — the button each sits in still
+    moves to the opposite visual edge under `dir="rtl"` like every other toolbar element, but the character itself
+    stays static in every language (reversed from this class's original Phase 3 behaviour). Don't treat this as
+    the template to copy for a new directional glyph; the two bullets above are still the default.
 - **A `transform`/`cursor` value has no logical form** — unlike `left`/`margin`/`border`, CSS offers no
   direction-relative keyword for `scaleX()`'s sign or a diagonal-resize cursor (`nwse-resize` vs `nesw-resize`).
   These need an explicit `[dir="rtl"] .foo { ... }` override (or Tailwind's `rtl:` variant) rather than a logical
@@ -349,7 +353,7 @@ left|...` in `frontend/css/app.css` before landing.
     tooltip's own correctly-resolved `:dir(ltr)`, shifting it a full 100% of its own width to the wrong side.
     **The fix is `.app-tooltip-center`/`.toggle-thumb` (app.css) — hand-written rules against the native
     `:dir()` pseudo-class directly, which has no such fallback clause and is immune.** A SINGLE-direction
-    override (no competing opposite-direction rule — `.cal-chevron`, the settings preview-modal's
+    override (no competing opposite-direction rule — `.chart-nav-glyph`, the settings preview-modal's
     `rtl:scale-x-[-1]`) is NOT affected: there is nothing for source order to arbitrate between. **Before adding
     a new competing `ltr:`/`rtl:` PAIR anywhere in a `dir="ltr"`-pinned region (or anywhere it could ever end up
     nested under one), use `:dir()` directly instead of Tailwind's prefix** — see app.css's own comment on

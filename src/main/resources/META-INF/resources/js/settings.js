@@ -270,7 +270,7 @@ document.getElementById('account-form').addEventListener('htmx:afterRequest', fu
                 showAccountStatus(body || 'Current password is incorrect', true)
             })
         }).catch(function () {
-            showAccountStatus('Something went wrong. Please try again.', true)
+            showAccountStatus(window.Diurnal.i18n.somethingWentWrong, true)
         })
     })
 
@@ -280,7 +280,7 @@ document.getElementById('account-form').addEventListener('htmx:afterRequest', fu
         event.preventDefault()
         const value = document.getElementById('newPassword').value
         if (value.length === 0) {
-            showAccountStatus('Password cannot be empty', true)
+            showAccountStatus(window.Diurnal.i18n.passwordBlank, true)
             return false
         }
         document.getElementById('pendingPassword').value = value
@@ -309,14 +309,14 @@ document.getElementById('account-form').addEventListener('htmx:afterRequest', fu
                 return undefined
             }
             return resp.text().then(function (body) {
-                const msg = body || 'Passwords do not match'
+                const msg = body || window.Diurnal.i18n.passwordMismatch
                 showAccountStatus(msg, true)
                 if (/current password/i.test(msg)) {
                     showCurrentStep()
                 }
             })
         }).catch(function () {
-            showAccountStatus('Something went wrong. Please try again.', true)
+            showAccountStatus(window.Diurnal.i18n.somethingWentWrong, true)
         })
     })
 })()
@@ -335,7 +335,7 @@ document.getElementById('prefs-form').addEventListener('htmx:afterRequest', func
     if (e.detail.successful) {
         flashStatus(indicator, window.Diurnal.i18n.saved, false)
     } else {
-        flashStatus(indicator, e.detail.xhr.responseText || 'Could not save', true)
+        flashStatus(indicator, e.detail.xhr.responseText || window.Diurnal.i18n.couldNotSavePreference, true)
     }
 })
 
@@ -1058,12 +1058,27 @@ if (oidcConnectArm) {
     const fileInput = document.getElementById('data-import-file')
     if (!fileInput) {return}
 
+    // Server-rendered in the viewer's own language (msg:noFileChosen) - captured once, before any
+    // selection, so resetting the picker never has to guess the translated text back out of thin air.
+    const filenameSpan = document.getElementById('data-import-filename')
+    const noFileChosenLabel = filenameSpan ? filenameSpan.textContent : ''
+
+    function resetFilenameLabel() {
+        if (filenameSpan) {filenameSpan.textContent = noFileChosenLabel}
+    }
+
     // The panel is replaced wholesale on every response, so it is looked up per use rather than held.
     function panel() {return document.getElementById('import-panel')}
 
     function showPanel(html) {
         const current = panel()
-        if (current) {current.outerHTML = html}
+        if (!current) {return}
+        current.outerHTML = html
+        // A raw outerHTML swap, not an htmx one - htmx:afterSwap never fires here, so the digit-
+        // localization DOM pass (.js-digits, e.g. the import summary's embedded action/log/note
+        // counts) has to be re-run by hand, the same as every other plain-fetch swap in this
+        // codebase (dashboard.js's day panel/stats-summary card, stats.js's chart modal).
+        window.Diurnal.localizeDigitsIn(panel())
     }
 
     function failed(message) {
@@ -1083,16 +1098,22 @@ if (oidcConnectArm) {
             .then(window.Diurnal.requireSession)
             .then(function (resp) {return resp.text()})
             .then(showPanel)
-            .catch(function () {failed('Something went wrong. Please try again.')})
+            .catch(function () {failed(window.Diurnal.i18n.somethingWentWrong)})
     }
 
     fileInput.addEventListener('change', function () {
         const file = fileInput.files && fileInput.files[0]
-        if (!file) {return}
+        if (!file) {
+            resetFilenameLabel()
+            return
+        }
+        // The filename itself is the user's own OS-supplied text (like a zone id), never translated -
+        // only the surrounding "Choose file"/"No file chosen" chrome is a bundle entry.
+        if (filenameSpan) {filenameSpan.textContent = file.name}
         file.arrayBuffer().then(function (bytes) {
             pending = bytes
             return post('/internal/data/import/preview')
-        }).catch(function () {failed('That file could not be read.')})
+        }).catch(function () {failed(window.Diurnal.i18n.fileCouldNotBeRead)})
     })
 
     // Delegated: the Import/Cancel buttons only exist once a preview has been rendered into the panel.
@@ -1103,10 +1124,12 @@ if (oidcConnectArm) {
             post('/internal/data/import').then(function () {
                 pending = null
                 fileInput.value = ''
+                resetFilenameLabel()
             })
         } else if (e.target.id === 'data-import-cancel') {
             pending = null
             fileInput.value = ''
+            resetFilenameLabel()
             showPanel('<div id="import-panel" class="mt-3"></div>')
         }
     })

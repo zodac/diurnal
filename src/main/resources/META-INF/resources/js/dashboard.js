@@ -1062,7 +1062,10 @@ document.addEventListener('DOMContentLoaded', function () {
     })
 
     function renderPicker() {
-        yearLabel.value = pickerYear
+        // .js-num-input (app.js) only auto-localizes a field's value ONCE (idempotent, so an htmx swap
+        // never re-shows stale digits) - this direct `.value =` assignment runs on every open/nav/commit,
+        // so it must localize explicitly, the same way the day panel's manually-swapped innerHTML does.
+        yearLabel.value = window.Diurnal.localizeDigits(String(pickerYear))
         const v = cal.currentView()
         monthButtons.forEach(function (b, i) {
             const isToday    = (pickerYear === todayYear && i === todayMonth) // solid "today" fill
@@ -1085,7 +1088,9 @@ document.addEventListener('DOMContentLoaded', function () {
     // the input to the clamped value, so a bad/blank entry silently reverts. Editing the year only
     // moves the picker; the calendar navigates when a month is clicked.
     function commitYear() {
-        const y = parseInt(yearLabel.value, 10)
+        // yearLabel.value may hold this language's own digit glyphs (typed, or left over from
+        // renderPicker's own display) - parseInt only ever understands plain Latin ones.
+        const y = parseInt(window.Diurnal.delocalizeDigits(yearLabel.value), 10)
         if (!isNaN(y)) { pickerYear = Math.max(1, Math.min(9999, y)) }
         renderPicker()
     }

@@ -101,7 +101,15 @@
                      exactly as the server does, and over-typing is allowed so the user can see how far over
                      they are and edit back down; Save is what refuses. !}
                 <label for="note-input" class="sr-only">{msg:noteForSelectedDay}</label>
-                <textarea id="note-input" class="form-input note-input" aria-describedby="note-count"
+                {! dir="auto" (not a fixed dir="rtl" inherited from #note-panel): the note's OWN text is
+                     arbitrary user content that may be written in either direction regardless of the
+                     viewer's own language - the same bug shape the notes-list snippet has (see
+                     partials/notes-list.html's own comment), but this is an EDITABLE control, where the
+                     browser's native per-field direction detection (caret placement, arrow-key
+                     navigation included) is the right mechanism, not a CSS-only unicode-bidi rule. Without
+                     it, an all-English note's trailing punctuation visually migrates to the front of the
+                     sentence while the page is RTL. !}
+                <textarea id="note-input" class="form-input note-input" aria-describedby="note-count" dir="auto"
                           placeholder="{msg:noteInputPlaceholder}">{noteContent}</textarea>
 
                 <div id="note-error" class="mt-2 empty:hidden"></div>

@@ -30,7 +30,14 @@
             <td class="dt-cell dt-text-inset whitespace-nowrap">
                 <a href="/?date={row.date}" class="note-row-link">{row.dayLabel}</a>
             </td>
-            <td class="dt-cell note-snippet">
+            {! js-phrase (unicode-bidi: plaintext, app.css): the note's OWN text is arbitrary user
+                 content, which may be written in either direction regardless of the viewer's own
+                 language - without this, a trailing period on an all-English note read inside an
+                 RTL (Arabic) page visually migrates to the front of the sentence, since the cell
+                 otherwise inherits the page's RTL base direction. Never js-digits alongside it: a
+                 note's own digits are the user's exact text and must never be transcoded (see
+                 NOTES.md's "must never be translated"). !}
+            <td class="dt-cell note-snippet js-phrase">
                 {#for part in row.snippet}{#if part.highlighted}<mark class="note-mark">{part.text}</mark>{#else}{part.text}{/if}{/for}
             </td>
         </tr>

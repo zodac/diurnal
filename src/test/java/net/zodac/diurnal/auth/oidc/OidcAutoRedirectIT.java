@@ -64,7 +64,7 @@ class OidcAutoRedirectIT extends IntegrationTestBase {
                 .get("/login?error=oidc")
                 .then()
                 .statusCode(OK)
-                .body(containsString("not authorized"));
+                .body(containsString("not authorised"));
     }
 
     @Test

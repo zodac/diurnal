@@ -361,7 +361,7 @@ public class UserResource {
         @Schema(examples = "nova", description = "The UI font family: 'nova', 'standard' or 'dyslexic'; anything else is rejected.")
         @Nullable String font,
         @Schema(examples = "en-GB",
-        description = "The UI language: 'en-GB', 'en-US', 'es-ES', 'es-419', 'ar-SA' or 'ja-JP'; anything else is rejected.")
+        description = "The UI language, as a BCP-47 tag matching one of the currently offered languages; anything else is rejected.")
         @Nullable String language,
         @Schema(examples = "full", description = "Dashboard calendar layout: 'full', 'minimal' or 'stacked'; anything else is rejected.")
         @Nullable String calendarView,
