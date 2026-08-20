@@ -144,12 +144,17 @@ public enum Language {
     /**
      * This language's writing direction, for {@code <html dir="...">} ({@code .claude/I18N.md}'s Phase 3). The
      * single source of truth for which offered languages are RTL, so a future RTL addition (Hebrew, Urdu, ...)
-     * needs no template change - only a new {@code case} here.
+     * needs no template change - only a new {@code case} here. An exhaustive switch rather than a plain equality
+     * check, deliberately: adding a new constant without also updating this method now fails the BUILD (a missing
+     * switch arm), rather than silently defaulting a new RTL language to {@code "ltr"} at runtime.
      *
      * @return {@code "rtl"} for a right-to-left language, otherwise {@code "ltr"}
      */
     public String dir() {
-        return this == ARABIC ? "rtl" : "ltr";
+        return switch (this) {
+            case ARABIC -> "rtl";
+            case ENGLISH_GB, ENGLISH_US, SPANISH, JAPANESE -> "ltr";
+        };
     }
 
     /**

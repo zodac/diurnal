@@ -1,0 +1,31 @@
+# Starter CrowdIn CLI configuration for the web.AppMessages bundle (.claude/I18N.md's "Translation tooling"
+# section) - NOT yet wired to a live CrowdIn project. Lives here rather than at the repo root, alongside
+# qodana.yaml/.grype.yaml/sonar.properties, per this directory's own README - "found" only because
+# lint_and_tests.sh (or, for this file, a hand-run `crowdin` CLI) is told the exact path; nothing here is
+# discovered by convention. Before this does anything:
+#   1. Create the CrowdIn project and note its identifier.
+#   2. Set the CROWDIN_PROJECT_ID / CROWDIN_PERSONAL_TOKEN environment variables (or add a
+#      "project_id"/"api_token" pair here - NEVER commit a real token).
+#   3. Confirm the target locale codes CrowdIn assigns for this project actually match the four keys under
+#      languages_mapping below (CrowdIn's default code for a language does not always match the region-qualified
+#      BCP 47 tag this app stores as Language.value() - e.g. CrowdIn's default Japanese code is "ja", not "ja-JP") -
+#      adjust the right-hand side, not the file names, if they differ.
+#   4. Wire `crowdin upload sources` / `crowdin download` into CI (or run manually) after
+#      scripts/generate-source-messages.sh regenerates the source file below.
+#
+# base_path anchors the repo-root-relative "/..." paths below to the repo root rather than to this file's own
+# directory (CrowdIn CLI's default) - the same class of relative-path problem this directory's README already
+# flags for qodana.yaml's imports:/exclude:, just solved with CrowdIn's own base_path key instead.
+
+"base_path": ".."
+
+"files":
+  - "source": "/translations/msg_en-GB.properties"
+    "translation": "/src/main/resources/messages/msg_%locale%.properties"
+    "type": "properties"
+    "languages_mapping":
+      "locale":
+        "es-ES": "es-ES"
+        "ar-SA": "ar-SA"
+        "ja-JP": "ja-JP"
+        "en-US": "en-US"
