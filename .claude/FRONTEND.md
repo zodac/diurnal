@@ -257,6 +257,17 @@ Webfonts served as `woff2` from `src/main/resources/META-INF/resources/fonts/`, 
 italic, used as both body and display face). Master files live outside `src/` in `assets/Nova/` (`.ttf`) and `assets/OpenDyslexic/` (`.otf` +
 `OFL.txt`); the served `woff2` are generated from them (Nova via the curated masters, OpenDyslexic via fontTools `TTFont(otf).flavor='woff2'`).
 
+**Noto Sans Arabic / Noto Sans JP are a fourth, different kind of font in this file: a script-coverage FALLBACK, not a `Font` setting option.**
+Nova/Standard/OpenDyslexic are all Latin-only, so under an Arabic or Japanese `language` (or an Arabic/Japanese day NOTE typed by an
+English-language account — notes are free text, independent of the UI language) nothing in the `Font` picker can render that script at all. Per
+[`I18N.md`](I18N.md) Phase 4, both are appended to the END of every `--font-body`/`--font-display` stack (`:root`, `.font-nova`, `.font-dyslexic`)
+rather than becoming a 4th `Font` option or being gated behind `language` — `unicode-range` already makes fetching conditional on a character
+actually needing the font, so this works identically regardless of the account's own language. Master files live in `assets/NotoSansArabic/` and
+`assets/NotoSansJP/` (each with its own `OFL.txt`), **subsetted** (unlike Nova/OpenDyslexic's masters, kept as-shipped) from the upstream variable
+fonts by `scripts/generate-noto-fonts.py` — Arabic to the Arabic Unicode block (a few hundred KB total), Japanese to the JIS X 0208 "common-use
+kanji + kana" cutoff (~1.1 MB per weight) rather than the full >20,000-glyph CJK repertoire, since the upstream variable font alone is ~9.5 MB.
+Neither script offers a real italic in this family, so there is no oblique `@font-face` pair for either (unlike Nova/OpenDyslexic).
+
 Font family is indirect via `--font-body`/`--font-display` CSS variables. The **Font setting** is the `Font` enum (`nova`|`standard`|`dyslexic`,
 default `nova`; column `users.font` is `VARCHAR(16)`, no CHECK, migration V13, so new values need no migration) — the single source of truth for the
 picker, each constant carrying its value + label + preview metadata (see the picker-enum note below). `SettingsWebResource.updateFont` coerces the submitted

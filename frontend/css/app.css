@@ -104,6 +104,63 @@
   src: url('/fonts/OpenDyslexic-BoldItalic.woff2') format('woff2');
 }
 
+/*
+ * Noto Sans Arabic / Noto Sans JP — script-coverage FALLBACKS, not a Font-setting option.
+ *
+ * Nova, the system stack and OpenDyslexic are all Latin-only, so under an Arabic or Japanese
+ * `language` there is nothing in any of the three Font choices that can render the UI text (or an
+ * Arabic/Japanese day NOTE, regardless of the account's language). Per I18N.md Phase 4, these two
+ * are appended to the END of every `--font-body`/`--font-display` stack below (see the `:root`,
+ * `.font-nova` and `.font-dyslexic` declarations further down) rather than becoming a 4th Font
+ * option or being gated behind the resolved `language` — `unicode-range` already makes fetching
+ * conditional on a character actually needing them, so this works identically for an Arabic/
+ * Japanese account AND for, say, an English-language account whose user typed a Japanese note.
+ *
+ * Subsetted from the upstream variable fonts by scripts/generate-noto-fonts.py (masters + OFL
+ * licence in assets/NotoSansArabic/, assets/NotoSansJP/) — Arabic to the same script-block
+ * repertoire Google's own font-analysis pipeline curates (a few hundred KB); Japanese to the
+ * JIS X 0208 "common-use kanji + kana" cutoff (~1.1 MB), not the full >20,000-glyph CJK
+ * repertoire, per Phase 4's size-vs-coverage tradeoff.
+ *
+ * NOTE: `unicode-range` here is deliberately a few broad script BLOCKS, narrower than the actual
+ * subsetted repertoire (see the script's own docstring) — simpler to read than an exact,
+ * ~4000-run listing, at the cost of occasionally matching this font for a rare glyph it does not
+ * itself contain (falls through to the next font in the stack exactly as if this one were never
+ * matched, per the CSS Fonts spec's per-character fallback).
+ */
+@font-face {
+  font-family: 'Noto Sans Arabic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFF;
+  src: url('/fonts/NotoSansArabic-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Noto Sans Arabic';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  unicode-range: U+0600-06FF, U+0750-077F, U+FB50-FDFF, U+FE70-FEFF;
+  src: url('/fonts/NotoSansArabic-Bold.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Noto Sans JP';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  unicode-range: U+3000-30FF, U+4E00-9FFF, U+FF00-FFEF;
+  src: url('/fonts/NotoSansJP-Regular.woff2') format('woff2');
+}
+@font-face {
+  font-family: 'Noto Sans JP';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  unicode-range: U+3000-30FF, U+4E00-9FFF, U+FF00-FFEF;
+  src: url('/fonts/NotoSansJP-Bold.woff2') format('woff2');
+}
+
 
 /*
  * Colour tokens — the single source of truth for the palette.
@@ -133,7 +190,8 @@
      * re-pointing these two variables. Tailwind's `font-sans`/`font-display` resolve to them (see
      * tailwind.config.js), so body copy + headings follow whichever theme is active.
      */
-    --font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    --font-body: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial,
+      'Noto Sans Arabic', 'Noto Sans JP', sans-serif;
     --font-display: var(--font-body);
 
     /* @generated:brand (light) — computed from assets/wordmark.svg by scripts/generate-brand.py; do not hand-edit (edit the wordmark + run `npm --prefix frontend run brand`). */
@@ -275,8 +333,9 @@
    * variants are independent of (and coexist with) the `.dark` class on the same element.
    */
   .font-nova {
-    --font-body: 'Nova Flat', ui-sans-serif, system-ui, sans-serif;
-    --font-display: 'Nova Round', 'Nova Flat', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'Nova Flat', ui-sans-serif, system-ui, 'Noto Sans Arabic', 'Noto Sans JP', sans-serif;
+    --font-display: 'Nova Round', 'Nova Flat', ui-sans-serif, system-ui,
+      'Noto Sans Arabic', 'Noto Sans JP', sans-serif;
   }
 
   /*
@@ -286,8 +345,8 @@
    * (and coexisting with) `.dark`.
    */
   .font-dyslexic {
-    --font-body: 'OpenDyslexic', ui-sans-serif, system-ui, sans-serif;
-    --font-display: 'OpenDyslexic', ui-sans-serif, system-ui, sans-serif;
+    --font-body: 'OpenDyslexic', ui-sans-serif, system-ui, 'Noto Sans Arabic', 'Noto Sans JP', sans-serif;
+    --font-display: 'OpenDyslexic', ui-sans-serif, system-ui, 'Noto Sans Arabic', 'Noto Sans JP', sans-serif;
   }
 
   /*
