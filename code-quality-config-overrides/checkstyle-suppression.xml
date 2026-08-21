@@ -1,0 +1,26 @@
+<?xml version="1.0"?>
+<!DOCTYPE suppressions PUBLIC "-//Puppy Crawl//DTD Suppressions 1.1//EN" "http://www.puppycrawl.com/dtds/suppressions_1_1.dtd">
+
+<!--
+    This project's Checkstyle suppressions, layered ON TOP OF the submodule's shared
+    code-quality-config/java/checkstyle-suppression.xml - which still applies in full, so its entries (generated
+    `gen/` sources, AbbreviationAsWordInName on *IT classes) are deliberately NOT repeated here. The shared
+    checkstyle.xml declares a second, optional SuppressionFilter for exactly this purpose, and pom.xml names this
+    file through parent-pom's <checkstyle-project-suppression-file> property.
+-->
+<suppressions>
+    <!-- Integration tests are named *IT by convention, so suppress just that rule for those files -->
+    <suppress files="IT\.java$"
+              checks="AbbreviationAsWordInName"/>
+
+    <!-- The Quarkus @MessageBundle interface (the i18n message catalogue) is a declarative list of translated-text
+         accessors, closer to an enum's constants than to a class doing work: Javadoc plus one-line @Message/accessor
+         pairs, growing linearly with the number of translated strings the app shows. MethodCount's 100-method limit
+         and FileLength's 2,000-line limit both exist to catch a type carrying too many RESPONSIBILITIES or too much
+         logic, and it carries neither - splitting it would only scatter one catalogue across arbitrary files, against
+         the "one bundle" decision in .claude/I18N.md. Suppressed for that file alone, not codebase-wide. -->
+    <suppress files="AppMessages\.java$"
+              checks="MethodCount"/>
+    <suppress files="AppMessages\.java$"
+              checks="FileLength"/>
+</suppressions>
