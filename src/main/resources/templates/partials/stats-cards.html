@@ -8,16 +8,22 @@
         {! Action header. The trailing chart button opens the shared graph dialog in stats.html; it
              carries the action's id and name so the dialog is titled before its first fetch returns.
              `min-w-0` on the name lets `truncate` actually bite, so a long name shortens instead of
-             squeezing the button off the card. !}
+             squeezing the button off the card.
+
+             `actionName.or(...)` is how the ONE subject that is app chrome rather than user data gets a
+             translated name: the extension yields the action's own (never-translated) name, or null for
+             the notes subject, which then falls back to the bundle entry. See StatSubjectExtensions. !}
+        {#let subjectName=s.subject.actionName.or(msg:statSubjectNotes)}
         <div class="flex items-center gap-2">
             <span class="swatch swatch-md" style="background-color: {s.subject.colour}"></span>
-            <h3 class="card-title truncate min-w-0">{s.subject.name}</h3>
+            <h3 class="card-title truncate min-w-0">{subjectName}</h3>
             <button type="button" class="chart-open-btn group relative" data-chart-subject="{s.subject.id}"
-                    data-chart-name="{s.subject.name}" aria-label="{msg:showFrequencyGraphFor(s.subject.name)}">
+                    data-chart-name="{subjectName}" aria-label="{msg:showFrequencyGraphFor(subjectName)}">
                 {#include partials/icon name='chart-bar' cls='chart-open-glyph' /}
                 {#include partials/tooltip text=msg:frequencyGraphTooltip align="right" /}
             </button>
         </div>
+        {/let}
 
         {! Tiles: a single flat grid rendered in the user's chosen order (the "Action stats"
              setting). The backend always computes every statistic; statsFields only selects which

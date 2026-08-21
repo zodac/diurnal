@@ -68,6 +68,14 @@ public class SettingsWebResource {
 
     private static final Logger LOGGER = LogManager.getLogger(SettingsWebResource.class);
 
+    // Tells the settings client WHICH of the two 422s the password-change flow can answer with it just got, so it knows
+    // whether to send the user back to step 1 (a wrong current password cannot be corrected from the confirm step) or
+    // leave them on it (a simple mismatch can). The body alone cannot say: it is a TRANSLATED sentence, so the client
+    // used to match it against the English /current password/i and silently stopped working in every other language.
+    private static final String PASSWORD_ERROR_HEADER = "X-Password-Error";
+
+    private static final String CURRENT_PASSWORD_ERROR_KIND = "current";
+
     private final Template settingsTemplate;
     private final Template oidcMessagesTemplate;
     private final Template passwordRejectionTemplate;
@@ -322,7 +330,12 @@ public class SettingsWebResource {
      * match (body a translated {@link PasswordChangeService#CURRENT_PASSWORD_ERROR}), when the new password is empty or the two copies do not
      * match (body {@code PasswordChangeService.NEW_PASSWORD_ERROR}), or when it is the password already stored (body
      * {@code PasswordChangeService.NEW_PASSWORD_UNCHANGED_ERROR}). {@code 403} for an account holding no password (OIDC-only), and
-     * {@code 200} once the new hash is persisted. The response body drives which step the client returns the user to.
+     * {@code 200} once the new hash is persisted.
+     *
+     * <p>
+     * Which step the client returns the user to is driven by the {@code X-Password-Error} header, NOT by the body: a wrong current password cannot be
+     * corrected from the confirm step, so it sends the user back to step 1, while a mismatch is fixed in place. The body is a translated sentence and
+     * so can never be matched on - doing that is a bug this endpoint's client shipped once, working in English only.
      */
     @POST
     @Path("internal/settings/password")
@@ -343,8 +356,10 @@ public class SettingsWebResource {
         return switch (result) {
             case final PasswordChangeResult.Success _ -> Response.ok().build();
             case final PasswordChangeResult.NotLocalAccount _ -> Response.status(Response.Status.FORBIDDEN).build();
+            // The kind header, not the body's wording, is what tells settings.js to send the user back to step 1 - see its own comment above.
             case final PasswordChangeResult.WrongCurrentPassword _ ->
-                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(currentPasswordIncorrectBanner(locale(user))).build();
+                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(currentPasswordIncorrectBanner(locale(user)))
+                    .header(PASSWORD_ERROR_HEADER, CURRENT_PASSWORD_ERROR_KIND).build();
             case final PasswordChangeResult.InvalidNewPassword invalid ->
                 Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(passwordRejectionBanner(invalid.reason(), locale(user))).build();
         };
@@ -392,8 +407,11 @@ public class SettingsWebResource {
         return switch (passwordChangeService.verify(user, currentPassword, ClientAddress.of(routingContext))) {
             case final PasswordChangeResult.Success _ -> Response.noContent().build();
             case final PasswordChangeResult.NotLocalAccount _ -> Response.status(Response.Status.FORBIDDEN).build();
+            // Carries the same kind header as updatePassword's matching branch, so the marker means one thing on both endpoints
+            // even though this client only reads the status here (there is no second 422 shape to tell apart at step 1).
             case final PasswordChangeResult.WrongCurrentPassword _ ->
-                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(currentPasswordIncorrectBanner(locale(user))).build();
+                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(currentPasswordIncorrectBanner(locale(user)))
+                    .header(PASSWORD_ERROR_HEADER, CURRENT_PASSWORD_ERROR_KIND).build();
             case final PasswordChangeResult.InvalidNewPassword _ -> Response.status(HttpStatus.UNPROCESSABLE_ENTITY).build();
         };
     }

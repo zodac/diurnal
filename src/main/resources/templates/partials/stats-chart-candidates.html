@@ -19,7 +19,8 @@
     <li>
         <button type="button" class="chart-candidate" data-chart-add="{candidate.id}">
             <span class="swatch swatch-sm" style="background-color: {candidate.colour}"></span>
-            <span class="truncate">{candidate.name}</span>
+            {! See partials/stats-cards.html: the notes subject is the one candidate whose name is translated. !}
+            <span class="truncate">{candidate.actionName.or(msg:statSubjectNotes)}</span>
         </button>
     </li>
     {/for}

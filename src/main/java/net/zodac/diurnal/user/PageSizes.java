@@ -141,7 +141,7 @@ public final class PageSizes {
         final List<Row> rows = new ArrayList<>();
         for (final PageSection section : PageSection.values()) {
             if (!section.adminOnly() || user.isAdmin()) {
-                rows.add(new Row(section.key(), section.label(), overrideFor(user.pageSizes, section)));
+                rows.add(new Row(section.key(), overrideFor(user.pageSizes, section)));
             }
         }
         return rows;
@@ -163,12 +163,13 @@ public final class PageSizes {
     }
 
     /**
-     * One row of the Settings page's per-section overrides panel.
+     * One row of the Settings page's per-section overrides panel. Carries no display label: the row's visible name is translated, which a Java call
+     * can never be (see {@code AppMessages}' class Javadoc), so {@code settings.html} resolves it from {@link #key} through the bundle's own
+     * {@code pageSection*} entries.
      *
-     * @param key   the section's stable key, posted back with the row's value
-     * @param label the row's visible label
+     * @param key   the section's stable key, posted back with the row's value and switched on to resolve its translated name
      * @param value the user's override for the section, or {@code null} when it follows the general preference
      */
-    public record Row(String key, String label, @Nullable Integer value) {
+    public record Row(String key, @Nullable Integer value) {
     }
 }

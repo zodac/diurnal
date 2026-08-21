@@ -20,8 +20,13 @@
     {#else}
     <h3 class="card-title">{title}</h3>
     {/if}
+    {! `.js-phrase` (app.css, `unicode-bidi: plaintext`) is CSS-only, so unlike the `.js-digits` JS pass it keeps
+         working across the raw `textContent =` writes settings.js makes here — which is what this slot always
+         gets, since it carries not just the green "Saved" but every preference REJECTION, and those mix
+         translated words with an embedded bound ("between 2 and 50 characters"). settings.js's flashStatus
+         localizes that string's digits before writing it; this class gives the phrase its own base direction. !}
     <span {#if statusId}id="{statusId}"{#else}data-saved{/if}
-          class="text-xs text-success opacity-0 transition-opacity duration-300">
+          class="text-xs text-success opacity-0 transition-opacity duration-300 js-phrase">
         {msg:saved}
     </span>
 </div>

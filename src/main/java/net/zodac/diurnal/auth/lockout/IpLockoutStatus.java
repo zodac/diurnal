@@ -22,29 +22,33 @@ import java.time.Instant;
 /**
  * The display status of an {@link IpLockout} history row, derived from its fields at read time. Kept a pure enum (not logic inside the record) so the
  * three-way branching in {@link #of(IpLockout, Instant)} is unit-testable at full PIT strength — PIT cannot mutate logic held in a record class.
+ *
+ * <p>
+ * There is deliberately no display label here. The word the admin table shows is app chrome and has to be translated, and a Java-side
+ * {@code AppMessages} call is always English (see that interface's own class Javadoc) - {@code partials/admin-ip-lockout-row.html} switches on the
+ * constant itself and resolves an {@code AppMessages#lockoutStatus*} entry instead. The API surface publishes {@link #name()}, which is
+ * machine-readable and correctly stays untranslated.
  */
 public enum IpLockoutStatus {
 
     /**
      * The lockout is still in force (not manually unlocked and not yet expired).
      */
-    ACTIVE("Active", "text-danger"),
+    ACTIVE("text-danger"),
 
     /**
      * The lockout was manually cleared by an administrator before it would have expired.
      */
-    UNLOCKED("Unlocked", "text-success"),
+    UNLOCKED("text-success"),
 
     /**
      * The lockout ran its full course and expired on its own.
      */
-    EXPIRED("Expired", "text-ink-muted");
+    EXPIRED("text-ink-muted");
 
-    private final String label;
     private final String badgeClass;
 
-    IpLockoutStatus(final String label, final String badgeClass) {
-        this.label = label;
+    IpLockoutStatus(final String badgeClass) {
         this.badgeClass = badgeClass;
     }
 
@@ -71,15 +75,6 @@ public enum IpLockoutStatus {
      */
     public boolean active() {
         return this == ACTIVE;
-    }
-
-    /**
-     * The human-readable status label shown in the admin lockout table.
-     *
-     * @return the label
-     */
-    public String label() {
-        return label;
     }
 
     /**

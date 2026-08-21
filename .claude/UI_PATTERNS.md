@@ -153,10 +153,24 @@ evidence:
 - `partials/banner.html` ↔ the Java banner HTML in `HtmxResponses.conflictBanner(...)` ↔ the JS
   `Diurnal.bannerHtml(...)` helper: three surfaces render the same `.banner banner-error` markup
   (Qute, Java, JS) and cannot share code across languages — each language now builds it in exactly
-  one place; keep the three byte-identical.
+  one place; keep the three byte-identical. **A FOURTH copy is hand-written in `register.html`** (its
+  missing-fields body is a `<ul>`, not a string, so it cannot go through the partial) — it carries the
+  same `js-digits js-phrase` pair by hand, and is the one to check when that pair changes.
 - `register.html`'s server-rendered missing-fields banner ↔ the `data-validate` banner built in
-  `app.js`: both render `Please fill in the following field(s): <ul>…`; the two paths must look
-  identical.
+  `app.js`: the two look the same and fill the same slot, but their wording deliberately DIFFERS by one
+  entry — the server knows the exact count and uses the plural-aware `missingFieldsIntro(count)`, while
+  the client cannot replicate every language's CLDR grammar and uses the count-independent
+  `missingRequiredFieldsPrefix` instead. Keep the markup and the field list identical; do not "fix" the
+  intro to match (see both `@Message` methods' own Javadoc).
+- `layout.html`'s `data-i18n-lockout-retry-countdown` ↔ `app.js`'s `LOCKOUT_CLOCK_TOKEN`: the message
+  travels through a `data-*` attribute, which can only carry text, so the live `m:ss` clock's position
+  in the sentence is marked by a literal `%CLOCK%` the JS swaps for the countdown element. Both spell
+  that token out; they must agree, or the banner renders with no clock.
+- `layout.html`'s inline FOUC `<script>` ↔ `auth.security.CspPolicy#FOUC_SCRIPT_HASH`: the strict CSP pins
+  that block's SHA-256, so **editing the script means updating the constant in the same change** — an
+  unmatched hash makes the browser refuse to run it and every page loads unthemed. `SecurityHeadersFilterIT`
+  computes the real hash and fails with the correct value, so this is caught, but only at the `*IT` tier.
+  (The same holds for the inline `<style>` and `FOUC_STYLE_HASH`.)
 - `actions.js`'s hardcoded `#actions-empty-row` HTML ↔ the same row in `partials/actions-list.html`.
 - `settings.js` `newStepValid()` ↔ `app.js`'s password-popover `met()`: the minLength/maxLength
   token checks are duplicated on purpose (no cross-file dependency, so a stale cached `app.js`

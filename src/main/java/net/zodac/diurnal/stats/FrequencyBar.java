@@ -17,6 +17,8 @@
 
 package net.zodac.diurnal.stats;
 
+import java.util.UUID;
+
 /**
  * One drawn bar of the frequency graph: what a single charted action logged in a single slot of the window. A pure data carrier for the
  * {@code partials/stats-chart} template — the drawn height is pre-computed by {@link FrequencyCharts}.
@@ -25,10 +27,12 @@ package net.zodac.diurnal.stats;
  * Heights are scaled against the tallest bar of the WHOLE chart, not per action, so two actions charted together are directly comparable: a bar twice
  * the height of another means twice the count, whichever action it belongs to.
  *
+ * @param subjectId the charted subject's identifier, carried so the hover bubble can tell the notes subject (whose name is translated) from an
+ *                  action (whose name is the user's own text and is not) - see {@link FrequencySubjectExtensions}
  * @param subjectName the charted subject's name, named in the column's hover bubble
  * @param subjectColour the charted subject's display colour, which the bar is drawn in
  * @param count the summed count the action logged in the slot
  * @param heightPercent the bar's height as a percentage of the chart's tallest bar ({@code 0} when nothing was logged)
  */
-public record FrequencyBar(String subjectName, String subjectColour, long count, int heightPercent) {
+public record FrequencyBar(UUID subjectId, String subjectName, String subjectColour, long count, int heightPercent) {
 }

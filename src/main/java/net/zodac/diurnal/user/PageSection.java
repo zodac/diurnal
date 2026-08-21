@@ -26,72 +26,67 @@ import org.jspecify.annotations.Nullable;
  * per-section overrides.
  *
  * <p>
- * Each constant pairs a stable {@link #key()} (persisted in {@code users.page_sizes}, posted by the settings form and sent through
- * {@code PATCH /api/v1/users/me}) with the {@link #label()} the Settings row shows. A section the user has NOT overridden falls back to their general
- * {@code pageSize} preference, so this catalogue never needs a default of its own - see {@link PageSizes}.
+ * Each constant is a stable {@link #key()} - persisted in {@code users.page_sizes}, posted by the settings form, sent through
+ * {@code PATCH /api/v1/users/me}, and the value {@code settings.html} switches on to resolve the row's translated name. A section the user has NOT
+ * overridden falls back to their general {@code pageSize} preference, so this catalogue never needs a default of its own - see {@link PageSizes}.
+ *
+ * <p>
+ * There is deliberately NO display label here. The name a Settings row shows is app chrome, so it has to be translated, and a Java-side
+ * {@code AppMessages} call is always English (see that interface's own class Javadoc) - the words live as {@code AppMessages#pageSection*} entries
+ * resolved template-side against this key instead, the same "third bucket" treatment {@code Theme}/{@code Font}/{@code StatField} labels get.
  *
  * <p>
  * Declaration order is both the Settings display order and the canonical order the overrides are stored in, so two users who picked the same values
  * hold byte-identical JSON regardless of the order they clicked them in.
  *
  * <p>
- * <strong>Adding a new paginated view:</strong> add a constant here and read its size with {@link PageSizes#forSection(User, PageSection)} at the
- * list's one pagination site. The Settings row and the API field follow automatically (the template loops these values), so no template, DTO or
- * migration change is needed.
+ * <strong>Adding a new paginated view:</strong> add a constant here, add its {@code AppMessages#pageSection*} entry plus a {@code {#is}} arm in
+ * {@code settings.html}'s section switch, and read its size with {@link PageSizes#forSection(User, PageSection)} at the list's one pagination site.
+ * The Settings row and the API field follow automatically (the template loops these values), so no DTO or migration change is needed.
  */
 public enum PageSection {
 
     /**
      * The dashboard's day panel, listing the selected day's actions.
      */
-    DASHBOARD("dashboard", "Dashboard", false),
+    DASHBOARD("dashboard", false),
 
     /**
      * The {@code /actions} page (and its API twin).
      */
-    ACTIONS("actions", "Actions", false),
+    ACTIONS("actions", false),
 
     /**
      * The {@code /notes} page's search results.
      */
-    NOTES("notes", "Notes", false),
+    NOTES("notes", false),
 
     /**
      * The {@code /stats} page's per-subject cards (and its API twin).
      */
-    STATS("stats", "Statistics", false),
+    STATS("stats", false),
 
     /**
      * The admin console's account list. Administrator-only, so only an administrator is offered the row.
      */
-    USERS("users", "Users", true);
+    USERS("users", true);
 
     private final String key;
-    private final String label;
     private final boolean adminOnly;
 
-    PageSection(final String key, final String label, final boolean adminOnly) {
+    PageSection(final String key, final boolean adminOnly) {
         this.key = key;
-        this.label = label;
         this.adminOnly = adminOnly;
     }
 
     /**
-     * The stable key the override is stored and submitted under.
+     * The stable key the override is stored and submitted under, and the value {@code settings.html} switches on to resolve the row's translated
+     * name.
      *
      * @return the section key
      */
     public String key() {
         return key;
-    }
-
-    /**
-     * The human-readable name of the list, as the Settings row labels it.
-     *
-     * @return the section label
-     */
-    public String label() {
-        return label;
     }
 
     /**
