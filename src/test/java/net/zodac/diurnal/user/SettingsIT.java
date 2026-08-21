@@ -141,7 +141,8 @@ class SettingsIT extends IntegrationTestBase {
                 .formParam("newPassword", "new_secret_123")
                 .formParam("confirmPassword", "new_secret_123")
                 .post("/internal/settings/password")
-                .then().statusCode(UNPROCESSABLE_ENTITY);
+                .then().statusCode(UNPROCESSABLE_ENTITY)
+                .body(containsString("Current password is incorrect"));
 
         runInTx(() -> assertThat(argon2Matches(User.findByEmail(PRIMARY).orElseThrow().passwordHash))
             .as("old password must be unchanged when the current password is wrong")
@@ -219,7 +220,8 @@ class SettingsIT extends IntegrationTestBase {
     void verifyCurrentPassword_wrong_returns422() {
         given().formParam("currentPassword", "not_the_current_password")
                 .post("/internal/settings/password/verify")
-                .then().statusCode(UNPROCESSABLE_ENTITY);
+                .then().statusCode(UNPROCESSABLE_ENTITY)
+                .body(containsString("Current password is incorrect"));
     }
 
     @Test

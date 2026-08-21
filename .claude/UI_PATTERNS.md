@@ -163,7 +163,7 @@ evidence:
   can't break the settings gate); both mirror `text.TextConstraint.type`, which
   `TextFieldExtensions.constraints(...)` emits.
 
-## 7. RTL & logical properties (`.claude/I18N.md` Phase 3)
+## 7. RTL & logical properties (see [`I18N.md`](I18N.md)'s "Right-to-left support")
 
 `<html dir>` varies by language (`user/Language#dir()`, Arabic is the one offered RTL language today) — so **any
 new physical-direction utility class or CSS property is a bug**, not just a style nit, and is picked up by grepping
@@ -202,7 +202,7 @@ left|...` in `frontend/css/app.css` before landing.
   - **Exception, by explicit product decision, not oversight**: `partials/calendar-toolbar.html`'s `.cal-chevron`
     glyphs (the Dashboard's «/‹/›/» navigation) are deliberately left UNMIRRORED — the button each sits in still
     moves to the opposite visual edge under `dir="rtl"` like every other toolbar element, but the character itself
-    stays static in every language (reversed from this class's original Phase 3 behaviour). Don't treat this as
+    stays static in every language (reversed from this class's original auto-mirrored behaviour). Don't treat this as
     the template to copy for a new directional glyph; the two bullets above are still the default.
 - **A `transform`/`cursor` value has no logical form** — unlike `left`/`margin`/`border`, CSS offers no
   direction-relative keyword for `scaleX()`'s sign or a diagonal-resize cursor (`nwse-resize` vs `nesw-resize`).
@@ -227,7 +227,7 @@ left|...` in `frontend/css/app.css` before landing.
   `getComputedStyle(document.documentElement).direction`) branch. See `note.js`'s `noteMaxWidth()`/resize-drag
   math for a real example of each shape, and `dashboard.js`'s month/year popup positioning for a real example of
   the geometry-based kind needing no change at all.
-- **`dir="rtl"` mirrors LAYOUT only — it has no bearing on which digit GLYPHS a number renders as.** Arabic
+- **`dir="rtl"` mirrors LAYOUT only — it has no bearing on which digit GLYPHS a number/digit renders as.** Arabic
   (`ar-SA`) uses Eastern Arabic-Indic digits (`١٢٣`), which is a separate, orthogonal axis from direction. A
   number the server or client renders as a bare `String`/`Number#toString()` always stays Latin-digit — it needs
   an explicit localization pass:
@@ -282,14 +282,14 @@ left|...` in `frontend/css/app.css` before landing.
   - **A PHRASE that mixes translatable WORDS with an embedded number needs a DIFFERENT fix again — `.js-phrase`
     (`unicode-bidi: plaintext`), not `.js-digits`' `isolate`.** `isolate` only protects a number from its
     surroundings; it does nothing about the WORDS around it reordering against each other and against the
-    number. Confirmed for real: "Page 1 of 2" (still-English — Phase 5 hasn't shipped translations) rendered
+    number. Confirmed for real: "Page 1 of 2" rendered
     as "2 of 1 Page" under `dir="rtl"` with no direction pinned on the phrase — every word/number is its own
     bidi run, and an RTL paragraph places the first logical run on the right and works leftward, backwards for
     Latin-script text. `unicode-bidi: plaintext` fixes this WITHOUT hardcoding a direction (unlike the footer's
     `dir="ltr"` pin): it resolves the phrase's own base direction from its first STRONGLY-directional character
     (a digit is direction-neutral and gets skipped) — so "Page 1 of 2" resolves LTR (first strong char "P") and
     a genuinely Arabic phrase this same class also covers (a Java-formatted date embedded in an English "since
-    {date}" caption) resolves RTL from its own Arabic letters, unaffected. **This needs no Phase 5 revisit** —
+    {date}" caption) resolves RTL from its own Arabic letters, unaffected. **This needed no later revisit** —
     the heuristic keeps adapting once English message-bundle wording becomes real Arabic. Applied to
     `partials/stat-tile.html`/`stat-tile-compact.html` (value+sub, unconditionally), `partials/pagination.html`,
     `partials/tooltip.html`/`frequency-slot-tooltip.html`, the frequency chart's caption, and — the broadest
@@ -311,7 +311,7 @@ left|...` in `frontend/css/app.css` before landing.
   was a deliberate per-element product call (asked of the user, not inferred), not a default to copy elsewhere
   without the same judgment call.
 - **The app's STRUCTURAL layout (which panel/column sits where) is a SEPARATE decision from the footer's above,
-  and a bigger one: it is now deliberately PINNED, not mirrored** — a considered reversal of Phase 3's original
+  and a bigger one: it is now deliberately PINNED, not mirrored** — a considered reversal of the original
   "let CSS Grid/Flexbox auto-mirror" approach, made after the auto-mirroring shipped and was reviewed for real
   (asked of the user, not inferred). The navbar (`partials/navbar.html`), Settings' two-column layout
   (`settings.html`'s `#prefs-form`) and the dashboard's 2x2 panel grid (`dashboard.html`) are all app WORKSPACE
@@ -336,7 +336,7 @@ left|...` in `frontend/css/app.css` before landing.
     property (`right`), and `note.js`'s matching `document.documentElement.dir === 'rtl'` branches (the
     `sideBySide` check, the resize-drag sign) were removed entirely, back to their original always-physical
     form. **Check every internal `inset-inline-*`/logical-property/`[dir="rtl"]` rule inside a region before
-    pinning it** — anything reasoned about "moves with `dir`" during Phase 3 needs re-deriving once its
+    pinning it** — anything reasoned about "moves with `dir`" during the original auto-mirroring design needs re-deriving once its
     container stops moving.
   - Verified with real-browser screenshots (not just DOM text — see the bidi lesson above) comparing `en-GB`
     and `ar-SA` side by side: navbar, Settings' cards and the dashboard's four panels are pixel-identical in
@@ -351,7 +351,7 @@ left|...` in `frontend/css/app.css` before landing.
     competing pair match at once, and CSS source order — not proximity — silently wins. Confirmed for real: a
     tooltip's centering pair, nested in the pinned navbar, always resolved to the RTL half regardless of the
     tooltip's own correctly-resolved `:dir(ltr)`, shifting it a full 100% of its own width to the wrong side.
-    **The fix is `.app-tooltip-center`/`.toggle-thumb` (app.css) — hand-written rules against the native
+    **The fix is `.app-tooltip-center`/`.toggle-thumb` (app.css) — handwritten rules against the native
     `:dir()` pseudo-class directly, which has no such fallback clause and is immune.** A SINGLE-direction
     override (no competing opposite-direction rule — `.chart-nav-glyph`, the settings preview-modal's
     `rtl:scale-x-[-1]`) is NOT affected: there is nothing for source order to arbitrate between. **Before adding

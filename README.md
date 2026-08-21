@@ -17,6 +17,7 @@
     - [Calendar Views](#calendar-views)
     - [Statistics and Streaks](#statistics-and-streaks)
     - [Themes and Fonts](#themes-and-fonts)
+    - [Languages](#languages)
 - [Deployment](#deployment)
 - [Environment Variables](#environment-variables)
     - [Required](#required)
@@ -150,6 +151,25 @@ of the wrong theme on load.
 |                                             Dark                                              |                                              Light                                              |
 |:---------------------------------------------------------------------------------------------:|:-----------------------------------------------------------------------------------------------:|
 | <img src="docs/screenshots/dashboard-dark.webp" alt="The dashboard in dark mode" width="400"> | <img src="docs/screenshots/dashboard-light.webp" alt="The dashboard in light mode" width="400"> |
+
+### Languages
+
+Diurnal can be used in a choice of languages, each with its own translated text, correctly-formatted dates and numbers. Before you sign in, the app
+picks a language from your browser; once signed in, you can instead choose your own from **Settings**.
+
+<!-- markdownlint-disable MD033 -- centered screenshots: intentional inline HTML -->
+<p align="center">
+  <img src="docs/screenshots/language-dropdown-dark.webp" alt="The Settings language picker, open, showing the offered languages by their own name" height="180">
+</p>
+<!-- markdownlint-enable MD033 -->
+
+Right-to-left languages, like Arabic, mirror the layout to match:
+
+<!-- markdownlint-disable MD033 -- centered screenshot: intentional inline HTML -->
+<p align="center">
+  <img src="docs/screenshots/dashboard-arabic-dark.webp" alt="The dashboard shown in Arabic, mirrored right-to-left" width="600">
+</p>
+<!-- markdownlint-enable MD033 -->
 
 ## Deployment
 
@@ -462,8 +482,8 @@ order, and each can be disabled and re-ordered. The **Last performed** statistic
 
 ### Note Preferences
 
-- **Note colour**: The colour days with a note are marked in on the calendar, and the colour of the Notes statistics. Any colour - picked,
-  randomised, or reset to the default
+- **Note colour**: The colour days with a note are marked in on the calendar, and the colour of the Notes statistics. Any colour - picked, randomised,
+  or reset to the default
 - **Character count**: Whether the note box on the dashboard shows a note's length against its limit - `1,234 / 10,000`, for example. Turning it off
   does not change the limit, and the count still appears if a note goes over it - otherwise there would be nothing explaining why **Save** is
   unavailable
@@ -491,8 +511,8 @@ Limits are counted in **characters as a reader counts them**, not bytes: an acce
 | Email          | 3-254 characters, and must contain an `@`                               |
 | Password       | 1-128 characters                                                        |
 
-\* The note limit is the only one here a deployment can change ([`NOTE_MAX_LENGTH`](#note-configuration)); every other limit is fixed.
-Lowering it leaves notes you have already written untouched - see [Note Configuration](#note-configuration).
+\* The note limit is the only one here a deployment can change ([`NOTE_MAX_LENGTH`](#note-configuration)); every other limit is fixed. Lowering it
+leaves notes you have already written untouched - see [Note Configuration](#note-configuration).
 
 ### Accepted Characters
 

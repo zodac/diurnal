@@ -176,8 +176,8 @@ the two cannot disagree.
 > `ACTION_NAME`, `DISPLAY_NAME`, `STAT_NAME`, `EMAIL`, `PASSWORD`, `NOTE` are all the user's own words (or
 > identifying/secret data that was never prose), stored and read back exactly as typed — none of the six is ever
 > a candidate for automatic translation, transliteration or "correction" just because a viewer's language
-> setting changed. See the fuller statement in [`I18N.md`](I18N.md)'s Phase 5, and `NOTE`'s own privacy-angle
-> invariant in [`NOTES.md`](NOTES.md).
+> setting changed. See the fuller statement in [`I18N.md`](I18N.md)'s "What is and isn't translated" section, and
+> `NOTE`'s own privacy-angle invariant in [`NOTES.md`](NOTES.md).
 
 > **`NOTE` is the one entry whose bound is not fixed at compile time.** A deployment may set its own through
 > `NOTE_MAX_LENGTH` (`config/NotesConfig`), and the field the application validates against is built from that by
@@ -256,42 +256,33 @@ Two rules are the only places a locale could rub, and both are a one-line change
   reaches six marks on one letter (dagesh + two vowel points + meteg + two cantillation marks). Modern Arabic,
   Hebrew, Thai and Devanagari never exceed four. Raise the constant if a script needs more.
 
-### Deferred: `dir="auto"` on user-content elements
+### `dir="auto"` on user-content elements — partially done
 
-**Decided 2026-08-05: not done yet, to be picked up as the first step of the l10n work.** It is written down here
-because it is the other half of the bidi decision above - that rule rejects the characters a user would otherwise
-paste in to fix a name's direction, on the grounds that the RENDERER should be deciding direction instead. Until
-this exists, nothing is.
+This is the other half of the bidi decision above: that rule rejects the characters a user would otherwise paste
+in to fix a name's direction, on the grounds that the RENDERER should be deciding direction instead, not literal
+control characters embedded in the text. `dir="auto"` (the browser deriving direction from a value's own first
+strong character) is that renderer-side half. It is about user DATA, not the interface locale, so it is correct
+regardless of the UI's own language, and a no-op for any value whose first strong character is already LTR.
 
-What it is: `dir="auto"` tells the browser to derive direction from the value's own first strong character, so an
-Arabic or Hebrew name renders correctly inside the English LTR page. It is about user DATA, not the interface
-locale, so it is correct even if the UI stays English forever - and it is a **no-op for every value in the database
-today**, since it changes nothing when the first strong character is LTR.
+**Currently applied to exactly one element**: the note-writing `<textarea>` (`#note-input`, `dashboard.html`) —
+the one case that's also *editable*, where the browser's own mechanism additionally gets caret placement and
+arrow-key navigation right, which no CSS technique can. **Not applied** to the other read-only leaf elements a
+user's own free text renders into — the name cell in `partials/action-row.html`, the day-panel rows
+(`partials/day-action-item.html`, `partials/day-action-item-confirm-delete.html`), `partials/admin-user-row.html`,
+the navbar display name, or the stat captions in `stats.html`/`partials/stats-summary.html` — this was planned
+alongside the note-box work but never carried out; see [`I18N.md`](I18N.md)'s "Known limitations" for the current
+status. The one thing to get right if it's picked up: **granularity** — it must go on the leaf element holding
+ONLY the user's value, never a row/card wrapper that also holds buttons and labels, or an RTL value would flip the
+surrounding chrome too, the spoofing-adjacent behaviour the bidi rule above exists to prevent.
 
-Where it goes: the leaf element holding ONLY the user's value - the name cell in `partials/action-row.html`, the
-day-panel rows (`partials/day-action-item.html`, `partials/day-action-item-confirm-delete.html`),
-`partials/admin-user-row.html`, the navbar display name, and the stat captions in `stats.html` /
-`partials/stats-summary.html`.
+### The rest of the i18n/l10n work
 
-The one thing to get right: **granularity**. It must NOT go on a row or card wrapper that also holds buttons and
-labels - an RTL value would then flip the surrounding chrome, which is the spoofing-adjacent behaviour the bidi
-rule exists to prevent. On the leaf element it reorders the value and nothing else.
-
-What it does NOT do: give an RTL *interface*. That needs `dir` on `<html>` plus CSS logical properties, and
-`frontend/css/app.css` currently uses **zero** of `margin-inline`/`padding-inline`/`inset-inline`/`text-align:
-start` - it is entirely physical-direction. That conversion is page-chrome work and belongs with the rest of the
-l10n effort. The split is clean: `dir="auto"` handles user data, logical properties handle chrome, and neither
-creates rework for the other.
-
-### The rest of the outstanding i18n work
-
-Most of it lives outside this package, and some of it is already done — see `.claude/I18N.md` for the current
-phase. `dir` is still hard-coded `ltr` (Phase 3); the display-name bound of 50 was sized against the Latin navbar
-(CJK glyphs are about twice as wide, Phase 4/5 territory); a translated rejection message needed whole message
-templates rather than the `label + ' ' + requirement` concatenation this note originally flagged, and Phase 1
-built exactly that (`partials/text-failure-message.html`, one atomic sentence per (field, failure-shape) pair -
-see I18N.md's Phase 1 slice 7). Pluralisation is likewise no longer a bare English "+s": `web/AppMessages`
-entries branch on the CLDR category they need entirely inside their own `{#if}` (Phase 2) - see I18N.md.
+Everything else this note originally flagged as outstanding — an RTL `<html dir>` and CSS logical properties for
+page chrome, whole translated-sentence rejection messages rather than a `label + ' ' + requirement` concatenation,
+and CLDR-aware pluralisation rather than a bare English "+s" — is now built; see [`I18N.md`](I18N.md) for how each
+works (its "Right-to-left support", "What is and isn't translated" and "Locale-aware formatting" sections
+respectively). `partials/text-failure-message.html` is the shared partial that produces the whole-sentence
+rejection messages this note originally called for.
 
 ## Flow
 

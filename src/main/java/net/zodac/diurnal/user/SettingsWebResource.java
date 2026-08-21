@@ -319,8 +319,8 @@ public class SettingsWebResource {
      * Changes the current (local) user's password. To defend against a hijacked session silently taking over the account, the caller must prove
      * knowledge of the existing password: the flow first asks for the {@code currentPassword}, then the new password entered and re-entered to
      * confirm ({@code newPassword} + {@code confirmPassword}). All three values arrive here. Returns {@code 422} when the current password does not
-     * match (body {@link PasswordChangeService#CURRENT_PASSWORD_ERROR}), when the new password is empty or the two copies do not match (body
-     * {@code PasswordChangeService.NEW_PASSWORD_ERROR}), or when it is the password already stored (body
+     * match (body a translated {@link PasswordChangeService#CURRENT_PASSWORD_ERROR}), when the new password is empty or the two copies do not
+     * match (body {@code PasswordChangeService.NEW_PASSWORD_ERROR}), or when it is the password already stored (body
      * {@code PasswordChangeService.NEW_PASSWORD_UNCHANGED_ERROR}). {@code 403} for an account holding no password (OIDC-only), and
      * {@code 200} once the new hash is persisted. The response body drives which step the client returns the user to.
      */
@@ -344,10 +344,17 @@ public class SettingsWebResource {
             case final PasswordChangeResult.Success _ -> Response.ok().build();
             case final PasswordChangeResult.NotLocalAccount _ -> Response.status(Response.Status.FORBIDDEN).build();
             case final PasswordChangeResult.WrongCurrentPassword _ ->
-                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
+                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(currentPasswordIncorrectBanner(locale(user))).build();
             case final PasswordChangeResult.InvalidNewPassword invalid ->
                 Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(passwordRejectionBanner(invalid.reason(), locale(user))).build();
         };
+    }
+
+    // WrongCurrentPassword is a PasswordChangeResult, not a PasswordRejection - resolved through the same
+    // kind-keyed partial as passwordRejectionBanner below, but kept as its own method since it has no
+    // PasswordRejection instance to switch on.
+    private String currentPasswordIncorrectBanner(final Locale locale) {
+        return passwordRejectionTemplate.data("kind", "currentIncorrect").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
     }
 
     private String passwordRejectionBanner(final PasswordRejection rejection, final Locale locale) {
@@ -364,7 +371,7 @@ public class SettingsWebResource {
     /**
      * Verifies the current (local) user's existing password without changing anything, so the settings client can confirm step 1 of the
      * password-change flow before asking for the new password. Returns {@code 204} when it matches, {@code 422} when it does not (or is empty, body
-     * {@link PasswordChangeService#CURRENT_PASSWORD_ERROR}), and {@code 403} for an account holding no password (OIDC-only).
+     * a translated {@link PasswordChangeService#CURRENT_PASSWORD_ERROR}), and {@code 403} for an account holding no password (OIDC-only).
      * This is a UX aid only — {@link #updatePassword} re-verifies the current password authoritatively on the mutating request.
      *
      * <p>
@@ -381,11 +388,12 @@ public class SettingsWebResource {
     @Consumes(MediaType.APPLICATION_FORM_URLENCODED)
     public Response verifyCurrentPassword(@FormParam("currentPassword") final String currentPassword,
         @Context @Nullable final RoutingContext routingContext) {
-        return switch (passwordChangeService.verify(currentUser.get(), currentPassword, ClientAddress.of(routingContext))) {
+        final User user = currentUser.get();
+        return switch (passwordChangeService.verify(user, currentPassword, ClientAddress.of(routingContext))) {
             case final PasswordChangeResult.Success _ -> Response.noContent().build();
             case final PasswordChangeResult.NotLocalAccount _ -> Response.status(Response.Status.FORBIDDEN).build();
             case final PasswordChangeResult.WrongCurrentPassword _ ->
-                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(PasswordChangeService.CURRENT_PASSWORD_ERROR).build();
+                Response.status(HttpStatus.UNPROCESSABLE_ENTITY).entity(currentPasswordIncorrectBanner(locale(user))).build();
             case final PasswordChangeResult.InvalidNewPassword _ -> Response.status(HttpStatus.UNPROCESSABLE_ENTITY).build();
         };
     }

@@ -36,11 +36,15 @@
  *   Same base name in both, so one config key maps to the pair. See writeShot/tilePreviewWidth for the
  *   sizing, and note the rule that every derived width must divide the capture exactly.
  *
- * `documentation` — 15 WebP files in docs/screenshots/, all captured dark / Full / Nova unless noted:
+ * `documentation` — 17 WebP files in docs/screenshots/, all captured dark / Full / Nova unless noted:
  *   dashboard-{system,dark,light}.webp             — dashboard banner + theme pair (system = light/dark split)
  *   dashboard-mobile.webp                          — dashboard at a phone viewport (minimal calendar), same light/dark
  *                                                    diagonal split as -system (viewport-only shots, not fullPage)
  *   cal-{full,minimal,stacked}-dark.webp           — the three calendar styles, all framed as #calendar-wrap
+ *   dashboard-arabic-dark.webp                     — the whole dashboard page again, in Arabic (RTL demonstration
+ *                                                    for the README's Languages section, full-page like dashboard-dark)
+ *   language-dropdown-dark.webp                    — the Settings language picker, OPEN (clip capture of the
+ *                                                    native <select> popup, English selected)
  *   {actions,stats,admin,settings}-dark.webp       — the four page screenshots
  *   stats-graph-dark.webp                          — the Stats page's frequency-graph modal, three actions
  *                                                    compared over one month (element shot of the dialog panel)
@@ -450,13 +454,15 @@ async function seedNotes(ctx) {
 
 // ── Screenshot capture ───────────────────────────────────────────────────────────────────────────
 
-async function setPrefs(ctx, theme, calendarView, font = 'nova') {
+async function setPrefs(ctx, theme, calendarView, font = 'nova', language = 'en-GB') {
   // Preferences are updated in one shot via the consolidated PATCH /internal/settings endpoint (a
   // form-encoded body; returns 204). Only the fields this script cares about are sent — the resource
-  // treats absent fields as "keep".
+  // treats absent fields as "keep". `language` defaults to 'en-GB' so every call site resets it back —
+  // only the Arabic RTL shot passes a different one, and every shot after it must not silently inherit
+  // that switch.
   const res = await ctx.request.fetch(`${BASE}/internal/settings`, {
     method: 'PATCH',
-    form: { theme, font, calendarView, pageSize: '10', timezone: 'UTC' },
+    form: { theme, font, calendarView, language, pageSize: '10', timezone: 'UTC' },
   })
   if (!res.ok()) {throw new Error(`setPrefs failed: ${res.status()}`)}
 }
@@ -501,7 +507,10 @@ async function openDashboard(ctx, calendarView) {
 // only a search-effort one — and it beat both the plain -lossless default and -m 6 on every image
 // measured here (settings-dark 289,940 -> 216,670; page-standard-full-dark 84,582 -> 81,864).
 let _cwebpReady = false
-function pngToLosslessWebp(pngBuf, resizeWidth) {
+// `crop` (optional {x,y,w,h}, PNG pixel coordinates) uses cwebp's OWN `-crop` flag rather than a
+// separate image-cropping dependency — see shotLanguageDropdown for why a Playwright-level `clip`
+// can't be used instead for that one shot.
+function pngToLosslessWebp(pngBuf, resizeWidth, crop) {
   if (!_cwebpReady) {
     try { execFileSync('cwebp', ['-version'], { stdio: 'ignore' }) }
     catch {
@@ -513,10 +522,13 @@ function pngToLosslessWebp(pngBuf, resizeWidth) {
   }
   const tmp = path.join(os.tmpdir(), `diurnal-preview-${process.pid}-${Date.now()}.png`)
   fs.writeFileSync(tmp, pngBuf)
+  // -crop runs BEFORE -resize (cwebp's own order), so a resizeWidth alongside a crop would scale the
+  // CROPPED region — not used together today, but correct if it ever is.
+  const cropArgs = crop ? ['-crop', String(crop.x), String(crop.y), String(crop.w), String(crop.h)] : []
   // -resize W 0: scale to W, height derived from the aspect ratio. -o -: write WebP to stdout.
   const resize = resizeWidth ? ['-resize', String(resizeWidth), '0'] : []
   try {
-    return execFileSync('cwebp', ['-z', '9', '-quiet', ...resize, tmp, '-o', '-'], { maxBuffer: 50 * 1024 * 1024 })
+    return execFileSync('cwebp', ['-z', '9', '-quiet', ...cropArgs, ...resize, tmp, '-o', '-'], { maxBuffer: 50 * 1024 * 1024 })
   } finally {
     fs.unlinkSync(tmp)
   }
@@ -563,10 +575,11 @@ function tilePreviewWidth(width) {
 const FULL_SUBDIR = 'full'
 
 // Write one screenshot. Documentation shots stay a single file; an in-app preview becomes the tile
-// thumbnail plus its lightbox image (see the sizing rules above).
-function writeShot(dir, file, pngBuf) {
+// thumbnail plus its lightbox image (see the sizing rules above). `crop` (optional, SHOTS-only — an
+// in-app preview never needs one) is a PNG-pixel {x,y,w,h} rectangle, see pngToLosslessWebp.
+function writeShot(dir, file, pngBuf, crop) {
   if (dir !== OUT) {
-    fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf))
+    fs.writeFileSync(path.join(dir, file), pngToLosslessWebp(pngBuf, undefined, crop))
     console.log('wrote', file)
     return
   }
@@ -880,6 +893,53 @@ async function shotNotesStatsCard(ctx, dir, file) {
   await page.close()
 }
 
+// The Settings language picker, OPEN — a plain native <select>, so the option list is the BROWSER's own
+// popup, not app markup: no locator can reach into it. Modern headless Chromium renders that popup
+// in-page (an older build wouldn't), and because the dark theme sets `color-scheme: dark` on `<html>`
+// (`layout.html`'s `applyTheme`), the native popup itself renders dark-themed too — matching the rest of
+// the gallery rather than looking like a stray unstyled light control.
+//
+// Two things had to be found empirically, not assumed, to get a real capture of it at all:
+//   - It needs its OWN context at deviceScaleFactor 1 — under the scaled DPR every other shot here uses,
+//     the popup silently fails to paint (the CLOSED control still renders fine either way, so nothing
+//     errors, the popup is just absent from the pixels). A lower-DPI capture of a small cropped UI
+//     control is not a visible quality loss the way it would be for a full-page shot.
+//   - `page.screenshot({ clip })` ALSO silently fails to include the popup, DPR aside — a plain,
+//     un-clipped screenshot captures it correctly. So this crops afterwards instead, via cwebp's own
+//     `-crop` (pngToLosslessWebp), on the box the control had before it was clicked.
+async function shotLanguageDropdown(browser, dir, file) {
+  const dsf1Ctx = await browser.newContext({ viewport: { width: VW, height: VH }, timezoneId: 'UTC' })
+  await login(dsf1Ctx)
+  const page = await dsf1Ctx.newPage()
+  await page.goto(`${BASE}/settings`, { waitUntil: 'load' })
+  const select = page.locator('#language')
+  // `block: 'start'` (not scrollIntoViewIfNeeded's nearest-edge default) so the control lands near the
+  // TOP of the viewport, leaving room below it for the popup to paint within the viewport bounds.
+  await select.evaluate(el => el.scrollIntoView({ block: 'start' }))
+  const box = await select.boundingBox()
+  await select.click()
+  await page.waitForTimeout(300) // let the native popup paint
+  const pngBuf = await page.screenshot() // NOT clip — see the function comment above
+  writeShot(dir, file, pngBuf, { x: box.x, y: box.y, w: Math.max(box.width, 205), h: box.height + 175 })
+  await dsf1Ctx.close()
+}
+
+// The WHOLE dashboard page, in Arabic — the README's one RTL demonstration. A full-page shot (like
+// dashboard-{dark,light}), not just the calendar element, so it also shows the navbar/day-panel/stats
+// summary alongside the calendar: the navbar stays pinned LTR by design while the calendar/day-panel
+// content mirrors, which only reads clearly with both in the same frame. Weekday order, day-of-month
+// digits (Eastern Arabic-Indic) and text alignment all mirror; the calendar toolbar's own «‹›» chevrons
+// deliberately do NOT (see `.claude/I18N.md`'s "Right-to-left support") — real, current behaviour, not a
+// shot artefact. Resets the language back to English afterwards, since every shot after this one in the
+// sequence assumes it.
+async function shotArabicDashboard(ctx, dir, file) {
+  await setPrefs(ctx, 'dark', 'full', 'nova', 'ar-SA')
+  const page = await openDashboard(ctx, 'full')
+  await shotFullPage(page, dir, file)
+  await page.close()
+  await setPrefs(ctx, 'dark', 'full', 'nova')
+}
+
 async function captureDocsScreenshots(ctx, browser) {
   // Nova, full, light → the light dashboard; store PNG for the system composite.
   await setPrefs(ctx, 'light', 'full', 'nova')
@@ -910,6 +970,13 @@ async function captureDocsScreenshots(ctx, browser) {
   const stkPage = await openDashboard(ctx, 'stacked')
   await shotCalendar(stkPage, SHOTS, 'cal-stacked-dark.webp')
   await stkPage.close()
+
+  // The two shots the README's Languages section pairs: the whole dashboard in Arabic (RTL
+  // demonstration) and the Settings language picker showing its options. shotArabicDashboard resets the
+  // language back to English on its way out, so shotLanguageDropdown (and everything after it) renders
+  // in English.
+  await shotArabicDashboard(ctx, SHOTS, 'dashboard-arabic-dark.webp')
+  await shotLanguageDropdown(browser, SHOTS, 'language-dropdown-dark.webp')
 
   // The four page screenshots (dark / Full / Nova). setPrefs pins theme/font/calendar; the demo user
   // never customises statsFields, so the Stats page renders every tile in its default order.
