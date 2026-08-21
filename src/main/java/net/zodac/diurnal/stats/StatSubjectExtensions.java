@@ -18,6 +18,7 @@
 package net.zodac.diurnal.stats;
 
 import io.quarkus.qute.TemplateExtension;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Derived predicates over a {@link StatSubject}, held here rather than on the record because PITest cannot hot-swap mutants into a record class, so
@@ -28,6 +29,26 @@ public final class StatSubjectExtensions {
 
     private StatSubjectExtensions() {
 
+    }
+
+    /**
+     * The subject's name when it is one of the user's actions, and {@code null} for the notes subject - so a template can write
+     * {@code {s.subject.actionName.or(msg:statSubjectNotes)}} and get the user's own untranslated action name in the first case and the translated
+     * word in the second.
+     *
+     * <p>
+     * The asymmetry is the point, and is the reason this is not simply {@code StatSubject#name()}: an action's name is the user's own text, which is
+     * never translated, while the notes subject's name is app chrome, which always is. Only a template can resolve the translated half (a Java-side
+     * {@code AppMessages} call is always English - see that interface's own class Javadoc), so the Java half's job is limited to saying which of the
+     * two a given subject is. {@code StatSubject#name()} keeps the English word for the public API, whose JSON stays English throughout.
+     *
+     * @param subject the subject to inspect
+     * @return the action's name, or {@code null} when the subject is the notes subject
+     */
+    @TemplateExtension
+    @Nullable
+    public static String actionName(final StatSubject subject) {
+        return notes(subject) ? null : subject.name();
     }
 
     /**

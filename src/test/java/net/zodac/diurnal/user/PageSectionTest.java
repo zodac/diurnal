@@ -64,14 +64,6 @@ class PageSectionTest {
             .isEmpty();
     }
 
-    @ParameterizedTest
-    @EnumSource(PageSection.class)
-    void label_isPopulated(final PageSection section) {
-        assertThat(section.label())
-            .as("every section needs a label for its Settings row")
-            .isNotBlank();
-    }
-
     @Test
     void adminOnly_isSetForTheAdminConsoleListOnly() {
         assertThat(Arrays.stream(PageSection.values()).filter(PageSection::adminOnly).toList())

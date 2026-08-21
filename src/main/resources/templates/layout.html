@@ -15,6 +15,11 @@
       data-i18n-file-could-not-be-read="{msg:fileCouldNotBeRead}" data-i18n-saving="{msg:savingEllipsis}"
       data-i18n-could-not-save-note="{msg:couldNotSaveNote}" data-i18n-password-blank="{msg:passwordBlank}"
       data-i18n-password-mismatch="{msg:passwordMismatch}"
+      {! The lockout banner's live m:ss clock is an element, and a data-* attribute can only carry text - so the
+           message travels with a `%CLOCK%` token marking where the clock belongs in THIS language's word order,
+           and app.js swaps the token for the countdown span. The token is a keep-in-sync pair with app.js's
+           LOCKOUT_CLOCK_TOKEN (UI_PATTERNS.md section 6). !}
+      data-i18n-lockout-retry-countdown="{msg:lockoutRetryCountdown('%CLOCK%')}"
       {#if font == 'dyslexic'} class="font-dyslexic"{#else if font != 'standard'} class="font-nova"{/if}>
 <head>
     <meta charset="UTF-8">
@@ -67,6 +72,13 @@
         `.dark` class, syncs the color-scheme meta, and manages the FOUC background override.
         opts.transition cross-fades (settings only); opts.resetBody clears the inline body colours
         the FOUC override leaves behind. Then it runs once immediately to set the initial theme.
+
+        EDITING THE BLOCK BELOW CHANGES ITS SHA-256, and the strict CSP pins that hash
+        (auth.security.CspPolicy#FOUC_SCRIPT_HASH) — this is the ONE bare inline <script> in the app, and an
+        unmatched hash means the browser refuses to run it, so every page loads unthemed. Update the constant
+        in the same change; SecurityHeadersFilterIT computes the real hash and fails with the correct value if
+        you forget. A Qute comment out here is safe (it is stripped before the hash is taken); one inside the
+        script tag is not.
     !}
     <script>
         window.Diurnal = window.Diurnal || {};
@@ -90,7 +102,8 @@
             saving: document.documentElement.dataset.i18nSaving,
             couldNotSaveNote: document.documentElement.dataset.i18nCouldNotSaveNote,
             passwordBlank: document.documentElement.dataset.i18nPasswordBlank,
-            passwordMismatch: document.documentElement.dataset.i18nPasswordMismatch
+            passwordMismatch: document.documentElement.dataset.i18nPasswordMismatch,
+            lockoutRetryCountdown: document.documentElement.dataset.i18nLockoutRetryCountdown
         };
         window.Diurnal.applyTheme = function (theme, opts) {
             opts = opts || {};

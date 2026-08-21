@@ -19,7 +19,14 @@
 // ONE implementation behind the Account card's #account-status line and every [data-saved] card
 // indicator, so their timing/colours can never drift apart.
 function flashStatus(el, message, isError) {
-    el.textContent = message
+    // A raw `textContent =` write is one of the "plain fetch, no htmx swap" paths, so none of app.js's
+    // htmx:afterSwap passes see it — and `.js-digits` could not help even if the span carried it, since
+    // localizeDigitsIn marks an element `data-digits-done` and never walks it twice. So the digits are
+    // localized on the STRING here, exactly as Diurnal.bannerHtml does for the same reason. It matters:
+    // these messages are the preference rejections, and several quote their bound ("must be between 2 and
+    // 50 characters"), which otherwise showed Latin digits beside a card of Eastern Arabic-Indic ones.
+    // The bidi half is `.js-phrase` in partials/card-header.html, which is CSS-only and survives the write.
+    el.textContent = window.Diurnal.localizeDigits(message)
     el.classList.toggle('text-success', !isError)
     el.classList.toggle('text-danger', isError)
     el.classList.add('opacity-100')
@@ -267,7 +274,8 @@ document.getElementById('account-form').addEventListener('htmx:afterRequest', fu
                 return undefined
             }
             return resp.text().then(function (body) {
-                showAccountStatus(body || 'Current password is incorrect', true)
+                // The server always sends a translated sentence here; the fallback only covers an empty body.
+                showAccountStatus(body || window.Diurnal.i18n.somethingWentWrong, true)
             })
         }).catch(function () {
             showAccountStatus(window.Diurnal.i18n.somethingWentWrong, true)
@@ -298,8 +306,12 @@ document.getElementById('account-form').addEventListener('htmx:afterRequest', fu
     // Step 3 result: the final POST is fetch()-submitted too (same rationale as step 1 — keep the 422 a
     // wrong current password / mismatch returns off the console). On success (200) return to the read
     // view and flash "Saved". On failure show the server's message in red; a wrong CURRENT password can't
-    // be fixed from the confirm step, so send the user back to step 1 (matched by the server's "current
-    // password" wording). A simple mismatch is corrected in place, so the confirm field is left untouched.
+    // be fixed from the confirm step, so send the user back to step 1. A simple mismatch is corrected in
+    // place, so the confirm field is left untouched.
+    //
+    // WHICH of the two it was comes off the X-Password-Error header (SettingsWebResource), never off the
+    // message text: the body is a translated sentence, so the /current password/i match this used to do
+    // only ever fired in English and silently stranded every other language's users on the confirm step.
     passwordEls.confirm.addEventListener('submit', function (e) {
         e.preventDefault()
         window.Diurnal.postForm(passwordEls.confirm, 'text/plain').then(function (resp) {
@@ -308,10 +320,10 @@ document.getElementById('account-form').addEventListener('htmx:afterRequest', fu
                 showAccountStatus(window.Diurnal.i18n.saved, false)
                 return undefined
             }
+            const wrongCurrentPassword = resp.headers.get('X-Password-Error') === 'current'
             return resp.text().then(function (body) {
-                const msg = body || window.Diurnal.i18n.passwordMismatch
-                showAccountStatus(msg, true)
-                if (/current password/i.test(msg)) {
+                showAccountStatus(body || window.Diurnal.i18n.passwordMismatch, true)
+                if (wrongCurrentPassword) {
                     showCurrentStep()
                 }
             })

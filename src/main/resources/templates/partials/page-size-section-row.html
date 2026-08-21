@@ -1,0 +1,77 @@
+{!
+  One row of the Settings page's per-section page-size panel: the section's translated name, the preset pills
+  (including the diamond "follow the general value" pill) and the fine-tune stepper.
+
+  Extracted out of settings.html's {#for row in pageSizeSections} loop for the same reason
+  partials/stats-field-row.html was extracted from its own loop: the row's NAME is translated content keyed on a
+  stable enum key, and a {#let} cannot hold a {#switch}, so the caller has to resolve the word and pass it in.
+  See I18N.md's "third bucket" notes and user/PageSection's own Javadoc.
+
+  Params (all required):
+    row     — the PageSizes.Row (key, value); `value` is null when the section follows the general preference
+    label   — the CALLER-resolved, translated name of this section (AppMessages#pageSection*)
+    isFirst — true for the first row in the panel, which takes no top divider (the disclosure toggle sits above it)
+    general — the user's general page-size preference, shown as the placeholder an empty override inherits
+    options — the preset page sizes offered as pills
+!}
+{! The pills sit beside the label WHEN THEY FIT and drop to a line of their own when they do not, with no
+     breakpoint deciding it: the wrapper is `flex-wrap` and the pill box is one unwrappable, unshrinkable item, so
+     the browser measures the actual label and moves the whole box down only if it has to. `ms-auto` end-aligns it
+     either way. These rows need that where the two above do not, because they carry the extra clear pill — even
+     with that pill down to an em dash, a long label (or a translation) can still take the group past the ~311px a
+     375px phone gives the card. A media query would have had to guess that threshold per label; this measures it. !}
+{! The divider separates one section row from the next, so the FIRST row does not get one: above it is the
+     disclosure toggle that opened this panel, which the toggle's own row already sits under. !}
+<div class="py-3{#if !isFirst} border-t border-line-subtle{/if}">
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+        {! This label is the input's accessible name through the plain `for`/`id` pair below — deliberately NOT
+             duplicated into an aria-label on the field, which would override the visible text with a separately
+             worded string (and, when that string was a translated frame with the English section name substituted
+             into it, with a half-translated one). !}
+        <label id="page-size-{row.key}-label" for="page-size-{row.key}"
+               class="block text-sm text-ink-muted">{label}</label>
+        <div id="page-size-{row.key}-presets" class="ms-auto flex shrink-0 gap-1.5">
+            {! The follow-the-general-value pill. A glyph rather than the word "Default": at ~31px against the
+                 word's 70px it is what buys the pills their place beside the label. The glyph is a WHITE DIAMOND,
+                 arrived at by elimination - an em dash sat directly above this row's stepper `−` and the two read
+                 as the same control; an empty set (∅) fixed that but reads as a slashed ZERO in a row of page
+                 sizes; a dotted/plain square says "empty" best of all but is what a MISSING glyph looks like, and
+                 U+2B1A is not covered on every phone. A diamond is angular (no minus, no digit), is covered
+                 everywhere a page size is read, and is the convention design tools use for "this value is bound to
+                 another". The icon catalogue's `circle-slash` was the other candidate, but that one is the 403
+                 page's glyph and would carry "forbidden" over with it.
+                 A symbol is not an accessible name and not self-explanatory, so the pill carries BOTH an aria-label
+                 and the shared tooltip (`group relative` is the host contract of partials/tooltip) - the word is
+                 one hover or long-press away, never gone. !}
+            <button type="button" class="num-pref-pill group relative" data-num-pref-clear
+                    aria-pressed="false" aria-label="{msg:defaultLabel}">&#x25C7;{#include partials/tooltip text=msg:defaultLabel pos="bottom" /}</button>
+            {#for option in options}
+            <button type="button" class="num-pref-pill js-digits" data-value="{option}" aria-pressed="false">{option}</button>
+            {/for}
+        </div>
+    </div>
+    <div class="mt-2 flex justify-end">
+        {! The stepper is a labelled GROUP rather than two buttons carrying the section name in their own accessible
+             names. Its two generic captions ("Fewer items per page" / "More items per page") are the SAME entries
+             the general page-size row above uses, and the group's name supplies the section context a screen reader
+             needs to tell one row's buttons from another's — so nothing here has to splice a section name into a
+             translated sentence, which is what the shape this replaced did (see AppMessages' per-section section). !}
+        <div role="group" aria-labelledby="page-size-{row.key}-label" class="num-pref-stepper shrink-0">
+            <button type="button" id="page-size-{row.key}-minus" class="num-pref-stepper-btn"
+                    aria-label="{msg:fewerItemsPerPage}">
+                {#include partials/icon name='minus' cls='w-3.5 h-3.5' /}
+            </button>
+            <input type="hidden" name="pageSizeSection" value="{row.key}">
+            {! type="text", not "number" - see partials/num-pref-row.html's matching field for why
+                 (wireNumericPref displays this language's own digit glyphs here, which type="number" cannot
+                 hold). !}
+            <input type="text" id="page-size-{row.key}" name="pageSizeValue"
+                   value="{row.value.or('')}" placeholder="{general}" inputmode="numeric"
+                   data-page-size-section class="num-pref-value">
+            <button type="button" id="page-size-{row.key}-plus" class="num-pref-stepper-btn"
+                    aria-label="{msg:moreItemsPerPage}">
+                {#include partials/icon name='plus' cls='w-3.5 h-3.5' /}
+            </button>
+        </div>
+    </div>
+</div>

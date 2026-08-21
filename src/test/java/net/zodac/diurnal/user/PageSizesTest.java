@@ -232,12 +232,12 @@ class PageSizesTest {
     }
 
     @Test
-    void rows_carryTheStoredOverrideAndTheSectionLabel() {
+    void rows_carryTheStoredOverride() {
         final User user = user(5, List.of(new PageSizePref("actions", 25)));
 
         final List<PageSizes.Row> expected = List.of(
-            new PageSizes.Row("actions", PageSection.ACTIONS.label(), 25),
-            new PageSizes.Row("notes", PageSection.NOTES.label(), null));
+            new PageSizes.Row("actions", 25),
+            new PageSizes.Row("notes", null));
         assertThat(PageSizes.rows(user))
             .as("a row shows its own override, or nothing when it follows the general preference")
             .containsAll(expected);

@@ -390,19 +390,27 @@ document.addEventListener('click', function (e) {
         }
     }
 
+    // The placeholder AppMessages#lockoutRetryCountdown carries in place of the live clock, so the sentence
+    // can be worded in each language with the clock wherever that language actually puts it (it is not always
+    // last). layout.html renders the message with this exact token; keep the two in step.
+    const LOCKOUT_CLOCK_TOKEN = '%CLOCK%'
+
     // Show the live mm:ss countdown banner and keep the submit button greyed + inert until the
     // server-provided expiry. The lead text is neutral ("Too many failed attempts.") so it reads the same
     // on the login and registration cards — they share ONE per-IP lockout counter, so naming either flow
-    // would be misleading — and matches the server's no-JS banner and API message. data-hold-disabled
-    // tells the data-disable-until-complete handler to keep its hands off, so typing during a lockout
-    // can't re-enable the greyed-out button.
+    // would be misleading — and matches the server's no-JS banner and API message. It is TRANSLATED, read off
+    // window.Diurnal.i18n: login and register are the two pages whose language is negotiated per request from
+    // Accept-Language, so a hardcoded English literal here showed English to every non-English visitor who
+    // tripped the lockout, on the one page the server's own banner had already been translated for.
+    // data-hold-disabled tells the data-disable-until-complete handler to keep its hands off, so typing during
+    // a lockout can't re-enable the greyed-out button.
     window.Diurnal.startLockoutCountdown = function (form, slot, submitBtn, seconds) {
         const total = Math.floor(seconds)
         if (!(total > 0) || !slot) { window.Diurnal.clearLockout(form, slot, submitBtn); return }
         if (timers.has(form)) { clearInterval(timers.get(form)); timers.delete(form) }
         if (submitBtn) { submitBtn.setAttribute('data-hold-disabled', ''); submitBtn.disabled = true }
         slot.innerHTML = window.Diurnal.bannerHtml(
-            'Too many failed attempts. Please try again in <span data-lockout-clock></span>.')
+            window.Diurnal.i18n.lockoutRetryCountdown.replace(LOCKOUT_CLOCK_TOKEN, '<span data-lockout-clock></span>'))
         slot.hidden = false
         const clock = slot.querySelector('[data-lockout-clock]')
         const endTime = Date.now() + total * 1000
@@ -570,8 +578,18 @@ document.addEventListener('click', function (e) {
         for (let d = 0; d <= 9; d += 1) { glyphs[d] = nf.format(d) }
         return glyphs
     })()
+    // A `#rrggbb` colour is a TECHNICAL TOKEN, not a number a reader counts with — the same category as an IANA
+    // timezone id or a CSV column header, both of which this app already refuses to translate. Transcoding one
+    // would produce "#١٦a٣٤a": not a colour, not copy-pasteable, and wrong in a message whose whole job is to show
+    // the user what a valid colour looks like (profileInvalidNoteColour / importInvalidColour both carry a worked
+    // example). The alternation tries the hex branch FIRST at each position, so a `#` swallows its whole run before
+    // any digit inside it can match; a lone digit is the only other thing that matches, which is what the length
+    // check tells apart. `\b` keeps it strict — "#5" is not a colour and still localizes.
+    const HEX_COLOUR_OR_DIGIT = /#[0-9a-fA-F]{3,8}\b|\d/g
     window.Diurnal.localizeDigits = function (text) {
-        return String(text).replace(/\d/g, function (digit) { return DIGIT_GLYPHS[digit] })
+        return String(text).replace(HEX_COLOUR_OR_DIGIT, function (token) {
+            return token.length === 1 ? DIGIT_GLYPHS[token] : token
+        })
     }
     // The reverse transcode, for an EDITABLE field that displays this language's own digit glyphs
     // (a Settings numeric stepper) but must submit/parse plain Latin digits underneath — see

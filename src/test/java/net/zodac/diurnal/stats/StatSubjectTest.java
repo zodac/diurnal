@@ -78,4 +78,27 @@ class StatSubjectTest {
             .as("an action must never be mistaken for the notes subject")
             .isFalse();
     }
+
+    // actionName is the half of that same split a TEMPLATE consumes: it answers with the user's own name for an action and
+    // null for the notes subject, so `{s.subject.actionName.or(msg:statSubjectNotes)}` translates exactly the one of the two
+    // that is app chrome. Null is the contract, not an accident - `.or(...)` is what it feeds.
+
+    @Test
+    void actionName_forAnAction_isTheUsersOwnName() {
+        final Action action = new Action();
+        action.id = UUID.randomUUID();
+        action.name = "Morning run";
+        action.colour = "#6366f1";
+
+        assertThat(StatSubjectExtensions.actionName(StatSubject.of(action)))
+            .as("an action's name is the user's own text and is passed straight through, never translated")
+            .isEqualTo("Morning run");
+    }
+
+    @Test
+    void actionName_forNotes_isNullSoTheTemplateCanFallBackToTheTranslatedWord() {
+        assertThat(StatSubjectExtensions.actionName(StatSubject.notes(UserSettings.DEFAULT_NOTE_COLOUR)))
+            .as("the notes subject yields null, which is what makes the template's .or(msg:statSubjectNotes) fire")
+            .isNull();
+    }
 }

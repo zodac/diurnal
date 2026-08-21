@@ -25,7 +25,8 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Unit tests for {@link IpLockoutStatus#of(IpLockout, Instant)}, pinning the three-way derivation (a manual unlock wins, otherwise active before the
- * expiry and expired at/after it) and the constant labels/badge classes each status carries.
+ * expiry and expired at/after it) and the badge class each status carries. The user-facing WORD is not here: it is translated, so it lives in the
+ * message bundle and is resolved template-side ({@code TemplateSwitchCoverageTest} is what guards its completeness).
  */
 class IpLockoutStatusTest {
 
@@ -71,19 +72,6 @@ class IpLockoutStatusTest {
         assertThat(IpLockoutStatus.of(lockout(NOW.minusSeconds(60), NOW.minusSeconds(90)), NOW))
                 .as("A manual unlock must win even once the window would otherwise have expired")
                 .isEqualTo(IpLockoutStatus.UNLOCKED);
-    }
-
-    @Test
-    void eachStatus_carriesItsLabel() {
-        assertThat(IpLockoutStatus.ACTIVE.label())
-                .as("unexpected ACTIVE label")
-                .isEqualTo("Active");
-        assertThat(IpLockoutStatus.UNLOCKED.label())
-                .as("unexpected UNLOCKED label")
-                .isEqualTo("Unlocked");
-        assertThat(IpLockoutStatus.EXPIRED.label())
-                .as("unexpected EXPIRED label")
-                .isEqualTo("Expired");
     }
 
     @Test

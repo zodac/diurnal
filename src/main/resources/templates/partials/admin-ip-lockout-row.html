@@ -15,7 +15,10 @@
         {#include partials/tooltip-text text=row.lockedUntilLabel tip=row.zoneTooltip /}
     </td>
     <td class="dt-cell">
-        <span class="{row.status.badgeClass}">{row.status.label}</span>
+        {! The status WORD is resolved here rather than read off IpLockoutStatus: a Java-side AppMessages call is
+             always English (see .claude/I18N.md's "third bucket" notes), so the enum carries only its badge class
+             and the template picks the sentence. The API twin publishes the constant's own name() instead. !}
+        <span class="{row.status.badgeClass}">{#switch row.status}{#is ACTIVE}{msg:lockoutStatusActive}{#is UNLOCKED}{msg:lockoutStatusUnlocked}{#is EXPIRED}{msg:lockoutStatusExpired}{/switch}</span>
     </td>
     <td class="dt-cell dt-cell-actions">
         {#if row.status.active}

@@ -49,19 +49,24 @@
 
     {! Legend: one chip per charted action, in the order they were added. The first is the action the
          graph was opened from and carries no remove control (dropping it would leave nothing to chart);
-         the rest do. The chips double as the colour key for the grouped bars. !}
+         the rest do. The chips double as the colour key for the grouped bars.
+
+         `actionName.or(...)` gives the notes subject its translated name while leaving an action's own
+         (never-translated) name alone - see FrequencySubjectExtensions. !}
     <div class="chart-legend">
         {#for series in chart.series}
+        {#let seriesName=series.actionName.or(msg:statSubjectNotes)}
         <span class="chart-chip">
             <span class="swatch swatch-sm" style="background-color: {series.subjectColour}"></span>
-            <span class="truncate">{series.subjectName}</span>
+            <span class="truncate">{seriesName}</span>
             {#if series.removable}
             <button type="button" class="chart-chip-remove" data-chart-remove="{series.subjectId}"
-                    aria-label="{msg:stopComparing(series.subjectName)}">
+                    aria-label="{msg:stopComparing(seriesName)}">
                 {#include partials/icon name='close' cls='chart-chip-glyph' /}
             </button>
             {/if}
         </span>
+        {/let}
         {/for}
 
         {#if chart.canCompare}

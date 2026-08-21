@@ -88,7 +88,7 @@ final class FrequencyCharts {
             final List<FrequencyBar> bars = new ArrayList<>(charted.size());
             for (final StatSubject subject : charted) {
                 final long count = countsByAction.getOrDefault(subject.id(), Map.of()).getOrDefault(slot, 0L);
-                bars.add(new FrequencyBar(subject.name(), subject.colour(), count, heightPercent(count, peak)));
+                bars.add(new FrequencyBar(subject.id(), subject.name(), subject.colour(), count, heightPercent(count, peak)));
             }
             columns.add(new FrequencySlot(shortLabel(period, anchor, slot, language), fullLabel(period, anchor, slot, language),
                 tipAlign(slot, slots), List.copyOf(bars)));

@@ -143,6 +143,21 @@ public interface AppMessages {
     String lockoutRetry(long seconds);
 
     /**
+     * The CLIENT-SIDE (JavaScript) lockout banner, whose remaining time is a LIVE {@code m:ss} clock ticking down in its own {@code <span>} rather
+     * than the fixed whole-seconds count {@link #lockoutRetry(long)} states once. Read via {@code window.Diurnal.i18n} (see {@code layout.html}'s
+     * {@code data-i18n-*} bootstrap), which can only carry a plain string - so the clock's position inside the sentence travels as a {@code clock}
+     * placeholder that {@code app.js} swaps for the live span. The placeholder is what makes this translatable at all: the clock does not sit at
+     * the end of the sentence in every language, so a "lead text plus appended clock" split could not be worded correctly in all of them.
+     * Deliberately count-INDEPENDENT (no plural branching), for the same reason {@link #missingRequiredFieldsPrefix()} is - the count changes every
+     * second here, and re-deriving each language's CLDR plural form on every tick is exactly the locale-aware grammar client-side JS cannot do.
+     *
+     * @param clock the placeholder the client replaces with the live countdown element
+     * @return the default (English) text
+     */
+    @Message("Too many failed attempts. Please try again in {clock}.")
+    String lockoutRetryCountdown(String clock);
+
+    /**
      * The login/registration submit button shared caption ("Sign in" — the login button, and the "Already have an
      * account? Sign in" link on the register page).
      *
@@ -336,27 +351,25 @@ public interface AppMessages {
     String backToSignIn();
 
     /**
-     * The prefix of the "missing required fields" banner, before the field list.
+     * The server-rendered "missing required fields" banner's whole intro sentence, up to and including the colon that introduces the field list,
+     * singular-aware on the number of missing fields even though that number is never itself displayed - Arabic's dual/plural noun forms still have
+     * to agree with it.
      *
-     * @return the default (English) text
-     */
-    @Message("Please fill in the following")
-    String missingFieldsPrefix();
-
-    /**
-     * The word "field"/"fields" in the missing-fields banner, singular-aware on the number of missing fields even though that number is never
-     * itself displayed — Arabic's dual/plural noun forms still have to agree with it. One entry with the plural choice embedded (see
-     * {@link #lockoutRetry(long)} for why this replaced an earlier singular/plural method pair selected by the template).
+     * <p>
+     * ONE entry carrying the whole sentence, not a {@code prefix + noun} pair the template joins: a verb-final language has no "prefix" to put a bare
+     * noun after, so Japanese could only translate the prefix as a complete sentence, after which the noun was still appended to it — rendering
+     * {@code "次の項目を入力してください 項目:"}. This is the same atomic-sentence rule the text-validation rejections below follow, applied to the
+     * one place a sentence was still being composed from two entries.
      *
      * @param count the number of missing fields
      * @return the default (English) text
      */
-    @Message("{#if count == 1}field{#else}fields{/if}")
-    String missingFieldWord(int count);
+    @Message("{#if count == 1}Please fill in the following field:{#else}Please fill in the following fields:{/if}")
+    String missingFieldsIntro(int count);
 
     /**
      * The CLIENT-SIDE (JavaScript) pre-submit missing-fields banner intro, read via {@code window.Diurnal.i18n} (see {@code layout.html}'s
-     * {@code data-i18n-*} bootstrap) rather than {@link #missingFieldsPrefix()}/{@link #missingFieldWord(int)} - those need the exact missing
+     * {@code data-i18n-*} bootstrap) rather than {@link #missingFieldsIntro(int)} - that one needs the exact missing
      * COUNT to pick the right CLDR plural form, which client-side JS has no locale-aware grammar engine to replicate correctly for every offered
      * language. Deliberately count-INDEPENDENT wording instead ("the required fields", not "field"/"fields") so one static, pre-rendered string
      * covers every case with no plural logic needed at all - the SERVER-rendered banner (the same one a real submission always gets checked
@@ -1265,32 +1278,55 @@ public interface AppMessages {
     @Message("Default")
     String defaultLabel();
 
-    /**
-     * The per-section page-size stepper's decrement aria-label.
-     *
-     * @param section the page section's label (e.g. "Actions", "Notes")
-     * @return the default (English) text
-     */
-    @Message("Fewer items per page for {section}")
-    String fewerItemsPerPageFor(String section);
+    // ── Settings — per-section page sizes ─────────────────────────────────────
+    // One entry per user.PageSection constant, resolved by a {#switch row.key} in settings.html rather than read off the
+    // enum: a Java-side label can never be locale-aware (see this interface's own class Javadoc), and these words are app
+    // chrome, not user data. An earlier design instead substituted the enum's English label into a translated frame
+    // ("Fewer items per page for {section}"), which shipped a half-translated aria-label in every non-English language and
+    // could not fix grammatical agreement in any of them - the same reason the text-validation rejections below are whole
+    // sentences rather than a {field} {requirement} composition. The visible row label IS the input's accessible name (a
+    // plain <label for>), and the stepper buttons take their section context from the group that wraps them, so the three
+    // substituting entries this replaced are gone rather than translated.
 
     /**
-     * The per-section page-size stepper's increment aria-label.
+     * The dashboard day-panel's row in the per-section page-size panel.
      *
-     * @param section the page section's label (e.g. "Actions", "Notes")
      * @return the default (English) text
      */
-    @Message("More items per page for {section}")
-    String moreItemsPerPageFor(String section);
+    @Message("Dashboard")
+    String pageSectionDashboard();
 
     /**
-     * The per-section page-size input's aria-label.
+     * The actions page's row in the per-section page-size panel.
      *
-     * @param section the page section's label (e.g. "Actions", "Notes")
      * @return the default (English) text
      */
-    @Message("Items per page for {section}")
-    String itemsPerPageFor(String section);
+    @Message("Actions")
+    String pageSectionActions();
+
+    /**
+     * The notes page's row in the per-section page-size panel.
+     *
+     * @return the default (English) text
+     */
+    @Message("Notes")
+    String pageSectionNotes();
+
+    /**
+     * The stats page's row in the per-section page-size panel.
+     *
+     * @return the default (English) text
+     */
+    @Message("Statistics")
+    String pageSectionStats();
+
+    /**
+     * The admin account list's row in the per-section page-size panel; offered to an administrator only.
+     *
+     * @return the default (English) text
+     */
+    @Message("Users")
+    String pageSectionUsers();
 
     // ── Settings — Data card ──────────────────────────────────────────────────
 
@@ -2515,6 +2551,36 @@ public interface AppMessages {
     @Message("IP addresses locked out of login and registration.")
     String ipLockoutsSubtitle();
 
+    // One entry per auth.lockout.IpLockoutStatus constant, resolved by a {#switch row.status} in partials/admin-ip-lockout-row.html
+    // rather than read off the enum, for the same reason as the page-section names above. Deliberately NOT sharing #active() with
+    // the admin users list: that one says a person is currently ONLINE, this one says a lockout is still IN FORCE - one English word
+    // covering two unrelated senses, which several offered languages do not (Arabic reads the presence sense as "نشط" and this one as
+    // "ساري"). The API surface stays on the enum's own name() (ACTIVE/UNLOCKED/EXPIRED), which is machine-readable and untranslated.
+
+    /**
+     * An IP-lockout history row that is still in force.
+     *
+     * @return the default (English) text
+     */
+    @Message("Active")
+    String lockoutStatusActive();
+
+    /**
+     * An IP-lockout history row that an administrator cleared before it would have expired.
+     *
+     * @return the default (English) text
+     */
+    @Message("Unlocked")
+    String lockoutStatusUnlocked();
+
+    /**
+     * An IP-lockout history row that ran its full course.
+     *
+     * @return the default (English) text
+     */
+    @Message("Expired")
+    String lockoutStatusExpired();
+
     // ── Admin users list ──────────────────────────────────────────────────────
 
     /**
@@ -3377,9 +3443,21 @@ public interface AppMessages {
     // ── Stats cards / chart ───────────────────────────────────────────────────
 
     /**
+     * The display name of the notes {@code StatSubject} - the one subject that is app chrome rather than user data, so it is the one whose name is
+     * translated. An action's name is the user's own text and is never translated (see this interface's class Javadoc and {@code NOTES.md}), which is
+     * why every render site tells the two apart with {@code StatSubjectExtensions#actionName}/{@code FrequencySubjectExtensions#actionName} and falls
+     * back to this entry, rather than reading a name off the record. The record still carries the English {@code StatSubject#name} for the public
+     * API, which stays English like every other JSON response.
+     *
+     * @return the default (English) text
+     */
+    @Message("Notes")
+    String statSubjectNotes();
+
+    /**
      * A stats card's "open frequency graph" button aria-label.
      *
-     * @param subjectName the action or subject's name
+     * @param subjectName the action or subject's name - a user-supplied action name, or the already-translated {@link #statSubjectNotes()}
      * @return the default (English) text
      */
     @Message("Show frequency graph for {subjectName}")
