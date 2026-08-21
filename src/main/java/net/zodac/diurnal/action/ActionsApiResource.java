@@ -36,6 +36,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
@@ -123,7 +124,8 @@ public class ActionsApiResource {
             return EntityTags.withPrivateValidator(notModified, tag).build();
         }
 
-        final ActionsInternalResource.PaginatedActions page = ActionsInternalResource.getActions(user.id, pageNum, searchTerm, pageSize);
+        final ActionsInternalResource.PaginatedActions page =
+            ActionsInternalResource.getActions(user.id, pageNum, searchTerm, pageSize, Locale.forLanguageTag(user.language));
         // Surface input policy: the API rejects an out-of-range page (the web UI clamps it into range) so a
         // page number is never silently changed to some other page.
         if (pageNum < 1 || pageNum > Math.max(1, page.totalPages())) {

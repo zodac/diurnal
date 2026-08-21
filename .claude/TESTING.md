@@ -39,7 +39,7 @@ English default (`AppMessagesIT`), guarded at the unit tier by `AppMessageCovera
 exactly the full key set) — so there is nothing further for the E2E tier to assert there. Translated strings running 15-30% longer than their
 English source (commonly Spanish) is a real risk for fixed-width UI, but not one an automated assertion catches well; it was instead swept
 manually with real screenshots per language at both a desktop and a 390px mobile viewport (`Settings > Appearance`, the Settings "Action stats"
-picker, the Actions table, the dashboard calendar toolbar) — see I18N.md's Phase 6 notes for what that pass found and why the one place text
+picker, the Actions table, the dashboard calendar toolbar) — see [`I18N.md`](I18N.md)'s "Test coverage" section for what that pass found and why the one place text
 truncates (the Settings stats-picker row caption on mobile) is a pre-existing, tooltip-mitigated design already present in English, not a
 translation-specific regression.
 

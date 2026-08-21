@@ -8,7 +8,8 @@
 > **Deep-reference docs (read the matching one before that kind of work):** authentication, sessions, OIDC & CSP
 > live in [`AUTH.md`](AUTH.md); the front-end build/assets/CSS/calendar in [`FRONTEND.md`](FRONTEND.md); the test tiers &
 > conventions in [`TESTING.md`](TESTING.md); the shared free-text validation pipeline in
-> [`TEXT_INPUT.md`](TEXT_INPUT.md).
+> [`TEXT_INPUT.md`](TEXT_INPUT.md); languages, message bundles, locale-aware formatting, RTL and fonts in
+> [`I18N.md`](I18N.md).
 
 > **The per-user data export/import** (the ZIP of CSVs, the replace-everything import and its preview, the Settings
 > "Data" card) is documented in [`TRANSFER.md`](TRANSFER.md) — the file format, the decisions taken *with the rejected

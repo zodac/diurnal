@@ -514,9 +514,20 @@ public interface AppMessages {
 
     // ── Password-change rejections (partials/password-rejection.html) ────────
     // The two PasswordRejection causes that are not the shared text-validation
-    // pipeline (TooLong instead resolves through the pipeline section below). Matches
-    // PasswordChangeService#message's English default text exactly (no trailing period), so the API
-    // and web defaults stay byte-identical.
+    // pipeline (TooLong instead resolves through the pipeline section below), plus WrongCurrentPassword - a sibling
+    // PasswordChangeResult case, not a PasswordRejection, but resolved through the same kind-keyed partial since the
+    // shape (pick a translated sentence by a short key) is identical. Matches PasswordChangeService#message/
+    // #CURRENT_PASSWORD_ERROR's English default text exactly (no trailing period), so the API and web defaults stay
+    // byte-identical.
+
+    /**
+     * The web banner for an incorrect current password on the password-change flow's first step. The API surface stays English by design
+     * ({@link net.zodac.diurnal.auth.PasswordChangeService#CURRENT_PASSWORD_ERROR}, see that constant's own Javadoc).
+     *
+     * @return the default (English) text
+     */
+    @Message("Current password is incorrect")
+    String passwordCurrentIncorrect();
 
     /**
      * The web banner for a new-password confirmation mismatch (or an absent new password, reported the same way).

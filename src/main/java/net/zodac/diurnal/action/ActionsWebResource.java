@@ -75,7 +75,8 @@ public class ActionsWebResource {
     @Produces(MediaType.TEXT_HTML)
     public TemplateInstance actionsPage() {
         final User user = currentUser.get();
-        final var page = ActionsInternalResource.getActions(user.id, 1, "", PageSizes.forSection(user, PageSection.ACTIONS));
+        final var page = ActionsInternalResource.getActions(user.id, 1, "", PageSizes.forSection(user, PageSection.ACTIONS),
+            Locale.forLanguageTag(user.language));
         return actionsTemplate
                 .data("displayName", user.displayName)
                 .data("email", user.email)

@@ -31,16 +31,19 @@ public final class HtmxResponses {
 
     /**
      * Builds a {@code 409 Conflict} response carrying an in-page error banner for an HTMX request. The body mirrors
-     * {@code templates/partials/banner.html} (the {@code .banner*} styling defined once in {@code app.css}) so HTMX error banners match the
-     * login/register pages, and the {@code HX-Retarget}/{@code HX-Reswap} headers route the swap into the page's error slot — the client opts the
-     * non-2xx swap in via its {@code htmx:beforeSwap} listener (see {@code actions.js}/{@code admin-users.js}).
+     * {@code templates/partials/banner.html} (the {@code .banner*} styling defined once in {@code app.css}, and the same unconditional
+     * {@code js-digits js-phrase} pair that partial carries — a translated message here can just as easily embed a count or another
+     * language's own digits as one rendered by Qute, so this hand-built copy needs the identical client-side digit-localization/bidi-ordering
+     * passes) so HTMX error banners match the login/register pages, and the {@code HX-Retarget}/{@code HX-Reswap} headers route the swap into
+     * the page's error slot — the client opts the non-2xx swap in via its {@code htmx:beforeSwap} listener (see
+     * {@code actions.js}/{@code admin-users.js}).
      *
      * @param targetSelector the CSS selector of the page's error slot (e.g. {@code #action-error}), sent as {@code HX-Retarget}
      * @param message the banner text; callers pass fixed literals or values already safe to render as HTML
      * @return the {@code 409} {@link Response} with the banner HTML entity and retarget headers
      */
     public static Response conflictBanner(final String targetSelector, final String message) {
-        final String html = "<div class=\"banner banner-error\">" + message + "</div>";
+        final String html = "<div class=\"banner banner-error js-digits js-phrase\">" + message + "</div>";
         return Response.status(Response.Status.CONFLICT)
                 .entity(html)
                 .header("HX-Retarget", targetSelector)

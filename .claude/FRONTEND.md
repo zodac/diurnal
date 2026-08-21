@@ -260,7 +260,7 @@ italic, used as both body and display face). Master files live outside `src/` in
 **Noto Sans Arabic / Noto Sans JP are a fourth, different kind of font in this file: a script-coverage FALLBACK, not a `Font` setting option.**
 Nova/Standard/OpenDyslexic are all Latin-only, so under an Arabic or Japanese `language` (or an Arabic/Japanese day NOTE typed by an
 English-language account — notes are free text, independent of the UI language) nothing in the `Font` picker can render that script at all. Per
-[`I18N.md`](I18N.md) Phase 4, both are appended to the END of every `--font-body`/`--font-display` stack (`:root`, `.font-nova`, `.font-dyslexic`)
+[`I18N.md`](I18N.md)'s "Fonts" section, both are appended to the END of every `--font-body`/`--font-display` stack (`:root`, `.font-nova`, `.font-dyslexic`)
 rather than becoming a 4th `Font` option or being gated behind `language` — `unicode-range` already makes fetching conditional on a character
 actually needing the font, so this works identically regardless of the account's own language. Master files live in `assets/NotoSansArabic/` and
 `assets/NotoSansJP/` (each with its own `OFL.txt`), **subsetted** (unlike Nova/OpenDyslexic's masters, kept as-shipped) from the upstream variable
@@ -559,11 +559,12 @@ compare picker's search box arrives inside the fragment and would otherwise neve
 - **Hover is per COLUMN, not per bar** (`partials/frequency-slot-tooltip.html`): at 31 days × 3 actions a bar is a
   couple of pixels wide. One action reads `3 July 2026: 4 times`; two or more list each action on its own line,
   which the `white-space: pre-line` rule on `.chart-col > .app-tooltip` renders. This is a TEMPLATE, not a
-  `FrequencySlotExtensions` Java extension (which was deleted in I18N.md's Phase 2) — it embeds a translated
-  "N times" per bar via `{#for}` + `{msg:statSubTimeSingular}`/`{msg:statSubTimesPlural}`, something a Java call can
-  never produce (a Java call is always English; see `AppMessages`' class Javadoc), so a lone entry correctly reads
-  "1 time" in every offered language, not just English's "+s" rule. The shared 500ms tooltip dwell delay is dropped
-  here so hovering along the axis feels live.
+  `FrequencySlotExtensions` Java extension (deleted — see [`I18N.md`](I18N.md)'s "Message bundles") — it embeds a
+  translated "N times" per bar via `{#for}` + `{msg:statSubTimes}` (the count's own CLDR plural form is embedded
+  inside that one entry, not a separate singular/plural method pair), something a Java call can never produce (a
+  Java call is always English; see `AppMessages`' class Javadoc), so a lone entry correctly reads "1 time" in
+  every offered language, not just English's "+s" rule. The shared 500ms tooltip dwell delay is dropped here so
+  hovering along the axis feels live.
 - **Compare picker**: `Compare to...` reveals `#chart-compare-panel`, whose search box reuses
   `partials/search-input.html` to HTMX-swap **only** `#chart-candidate-list` (so the box keeps focus/caret across a
   keystroke). It offers the user's actions that have **≥1 logged entry**, are not already charted, and match the

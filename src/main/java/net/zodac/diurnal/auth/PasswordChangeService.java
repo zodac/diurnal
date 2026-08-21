@@ -55,7 +55,9 @@ import org.jspecify.annotations.Nullable;
 public class PasswordChangeService {
 
     /**
-     * User-facing rejection message when the submitted current password does not match the stored hash.
+     * User-facing rejection message when the submitted current password does not match the stored hash. What the API resource still calls
+     * directly (it stays English by design, the same policy {@link #message(PasswordRejection)} documents); the web resource instead resolves a
+     * translated sentence via {@code partials/password-rejection.html}'s {@code currentIncorrect} kind.
      */
     public static final String CURRENT_PASSWORD_ERROR = "Current password is incorrect";
 

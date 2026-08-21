@@ -42,8 +42,9 @@ class HtmxResponsesTest {
     void conflictBanner_wrapsMessageInBannerMarkup() {
         try (final Response response = HtmxResponses.conflictBanner("#admin-error", "Cannot delete the last administrator.")) {
             assertThat(response.getEntity())
-                    .as("The entity must be the message wrapped in the shared .banner markup (mirrors partials/banner.html)")
-                    .isEqualTo("<div class=\"banner banner-error\">Cannot delete the last administrator.</div>");
+                    .as("The entity must be the message wrapped in the shared .banner markup, including the js-digits js-phrase pair "
+                            + "partials/banner.html also carries unconditionally")
+                    .isEqualTo("<div class=\"banner banner-error js-digits js-phrase\">Cannot delete the last administrator.</div>");
         }
     }
 

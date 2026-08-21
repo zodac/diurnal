@@ -36,6 +36,7 @@ import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.user.Role;
+import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -85,6 +86,25 @@ class ActionsApiResourceIT extends IntegrationTestBase {
                 .body("items[1].name", equalTo("Zumba"))
                 .body("totalCount", equalTo(2))
                 .body("totalPages", equalTo(1));
+    }
+
+    @Test
+    void list_collatesByTheUsersLanguage_notPlainCodepointOrder() {
+        // Plain String/codepoint order puts "Ñoño" after "Oveja" ('Ñ' = U+00D1 = 209 > 'O' = U+004F = 79); Spanish
+        // collation places Ñ immediately after N and before O, so a Spanish-language user must see the opposite
+        // order - proving ActionsInternalResource.getActions collates by the VIEWING USER's language rather than
+        // relying on Action.findByUser's plain SQL "order by name asc".
+        runInTx(() -> {
+            newAction(primaryId, "Ñoño");
+            newAction(primaryId, "Oveja");
+            User.<User>findById(primaryId).language = "es-ES";
+        });
+
+        given().get("/api/v1/actions")
+                .then().statusCode(OK)
+                .body("items.size()", equalTo(2))
+                .body("items[0].name", equalTo("Ñoño"))
+                .body("items[1].name", equalTo("Oveja"));
     }
 
     @Test
