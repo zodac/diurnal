@@ -10,7 +10,8 @@ dotfiles at the repo root" reason rather than because it overrides anything code
 
 Nothing here is found by convention. Each tool is pointed at its file explicitly — Grype with `-c`, Qodana with
 `--config`, SonarQube by having its properties read out and passed as `-D`s (all three by
-[lint_and_tests.sh](../.github/scripts/lint_and_tests.sh)), CrowdIn with `--config` on a hand-run `crowdin` CLI
+[lint_and_tests.sh](../.github/scripts/lint_and_tests.sh)), Checkstyle by the
+`<checkstyle-project-suppression-file>` property in `pom.xml`, CrowdIn with `--config` on a hand-run `crowdin` CLI
 invocation (not yet wired into the gate) — so a scan/sync run by hand must do the same.
 
 Relative paths *inside* these files are mostly repo-root-relative, with one exception worth knowing before editing
@@ -31,6 +32,19 @@ rules.
   first of the two `-c` files, so its scalars win.
 
 ### Java
+
+#### [Checkstyle](https://checkstyle.org/)
+
+- [checkstyle-suppression.xml](./checkstyle-suppression.xml) — the files/rules this project exempts, **on top of**
+  the submodule's shared suppressions rather than instead of them: the shared `checkstyle.xml` declares a second,
+  optional `SuppressionFilter` for a project-supplied file, both filters apply, and the shared entries (generated
+  `gen/` sources, `AbbreviationAsWordInName` on `*IT`) are therefore deliberately not repeated here. All the project
+  does is name the file, in one `<checkstyle-project-suppression-file>` property in `pom.xml` (parent-pom ≥ 1.0.20
+  declares that property and passes it to Checkstyle as `checkstyle.project.suppression.file`). Two things to know
+  before editing the shared side: a suppressions file cannot include another (Checkstyle's XML loader also refuses
+  external entities), which is why the hook is a second *filter* rather than an import; and the filter's
+  `optional="true"` is what makes an unset property harmless, so a project that names a file which does not exist
+  gets **silently zero** project suppressions rather than an error.
 
 #### [Qodana](https://www.jetbrains.com/qodana/)
 

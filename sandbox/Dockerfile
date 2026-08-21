@@ -156,7 +156,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
         docker-ce-cli="5:29.7.2-1~debian.13~trixie" \
         containerd.io="2.3.3-1~debian.13~trixie" \
         docker-buildx-plugin="0.36.1-1~debian.13~trixie" \
-        docker-compose-plugin="5.4.0-1~debian.13~trixie"
+        docker-compose-plugin="5.5.0-1~debian.13~trixie"
 # END DEBIAN PACKAGES
 
 # ── JDK 26 / Maven / Node (copied from the toolchain stages above) ───────────
