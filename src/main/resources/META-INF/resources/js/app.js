@@ -355,6 +355,10 @@ document.addEventListener('click', function (e) {
             btn.disabled = !window.Diurnal.requiredFilled(form) || passwordsMismatched(form)
         }
     }
+    // Exposed for the one thing the two listeners cannot see: a form CLEARED from JavaScript.
+    // form.reset() fires no input/change event, so the button would stay live over the emptied
+    // fields until the next keystroke — see the successful-add reset in actions.js.
+    window.Diurnal.syncSubmitLock = sync
     document.querySelectorAll('form[data-disable-until-complete]').forEach(function (form) {
         sync(form)   // reflect the server-rendered state (blank fields → disabled) on first paint
         form.addEventListener('input', function () { sync(form) })

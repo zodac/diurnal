@@ -34,6 +34,10 @@ document.getElementById('new-action-form').addEventListener('htmx:afterRequest',
     if (event.detail.xhr.status === 200) {
         document.getElementById('action-error').innerHTML = ''
         this.reset()
+        // The form is data-disable-until-complete, and reset() leaves the name field empty without
+        // firing an input event — so the lock has to be re-applied by hand, or Add would stay live
+        // over the blank field that was just cleared.
+        window.Diurnal.syncSubmitLock(this)
         const picker = this.querySelector('input[type="color"]')
         if (picker) {window.Diurnal.suggestColourInto(picker, '/internal/actions/random-colour', true)}
         const er = document.getElementById('actions-empty-row')

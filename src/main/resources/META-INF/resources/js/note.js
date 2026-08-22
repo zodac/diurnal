@@ -160,12 +160,18 @@ window.Diurnal = window.Diurnal || {};
     }
 
     // Paint the box for a day: its draft if it has one, otherwise what the server holds.
-    function showNote(dateStr) {
+    //
+    // `keepStatus` leaves the status line exactly as it is, for the one caller that repaints LATE (see
+    // loadNote below). Everywhere else the line is re-derived here, which is what clears "Unsaved changes"
+    // on an Undo and carries it across a date change.
+    function showNote(dateStr, keepStatus) {
         if (!noteInput || noteDate !== dateStr) {return}
         const draft = noteDrafts[dateStr]
         noteInput.value = draft === undefined ? (noteSaved[dateStr] || '') : draft
         refreshNoteState()
-        setNoteStatus(noteIsDirty() ? window.Diurnal.i18n.unsavedChanges : '', 'brand')
+        if (!keepStatus) {
+            setNoteStatus(noteIsDirty() ? window.Diurnal.i18n.unsavedChanges : '', 'brand')
+        }
     }
 
     function loadNote(dateStr) {
@@ -176,7 +182,15 @@ window.Diurnal = window.Diurnal || {};
         if (noteSaved[dateStr] === undefined) {
             // The month's notes ride the calendar's cache, so this is a no-op read for any month already
             // resident (the visible one and its neighbours) and one range request otherwise.
-            cal.ensureNotes(dateStr).then(function () { showNote(dateStr) }).catch(function () {})
+            //
+            // It can nevertheless land LONG after the day was selected: this read waits on whatever request
+            // is already in flight for the month, which at page load is the calendar's own +/-2-month warm-up.
+            // By then the user may have typed in the box and even saved it, so this repaint must not touch
+            // the status line - it would wipe the "Saved" acknowledgement (or the "Unsaved changes" line)
+            // that their own action put there moments earlier. The CONTENT is safe to write unconditionally:
+            // a draft wins over the merged value, and the merge never overwrites a note the save already
+            // stored, so this only ever fills in a box the user has not touched.
+            cal.ensureNotes(dateStr).then(function () { showNote(dateStr, true) }).catch(function () {})
         }
     }
 
