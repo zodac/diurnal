@@ -949,6 +949,13 @@ run_java() {
         overall_exit_code=1
         return
     fi
+    # Same reasoning, one step further out: the scan cannot analyse anything without the parent POM, so
+    # ask whether it can get one BEFORE a container starts. Seconds here against ~6 minutes of scanning
+    # that ends in thousands of false findings (see qodana_parent_guard).
+    if [[ "${run_qodana}" == true ]] && ! qodana_parent_guard; then
+        overall_exit_code=1
+        return
+    fi
     # The java step is the whole JVM-side gate, in four tiers - each of them also a SUBSTEP, so any subset
     # of them can be selected on its own (`java:qodana`, `java:mvn,java:e2e`):
     #   1. mvn clean install -Dall — unit tests + *IT + the full inherited lint suite. Drives the CSS
@@ -1347,6 +1354,69 @@ run_markdown() {
 # convention. A missing overrides directory is the opposite and just as misleading: nothing teaches the
 # community image what CDI or JAX-RS instantiate, and 238 framework-managed declarations report as unused,
 # none of them real.
+# The mirror the scan's Maven resolves through. NOT Maven Central, and not a choice this script makes -
+# it is baked into the linter image, and is named in every `.lastUpdated` marker the scan leaves behind
+# (`https\://cache-redirector.jetbrains.com/maven-central/.error=`), which is where this was read from.
+QODANA_MAVEN_MIRROR="https://cache-redirector.jetbrains.com/maven-central"
+
+# An artifact that has been on Central for years and must therefore be on any working mirror. Used only to
+# tell "our artifact is missing" apart from "this URL is no longer the mirror, or the network is down" -
+# see the fail-open below.
+QODANA_MIRROR_CONTROL="junit/junit/4.13.2/junit-4.13.2.pom"
+
+# Fails the run in seconds when the scan could not possibly succeed, instead of after ~6 minutes of it
+# analysing a project with no classpath.
+#
+# EVERYTHING hangs off the parent POM: without it Maven cannot build an effective POM, so the module has
+# no dependencies, so nothing on the classpath resolves, so no annotated code looks reachable. Measured on
+# 2026-08-21, when net.zodac:parent-pom:1.1.0 was 200 on Central and 404 on the mirror: 3,984 findings,
+# 2,003 of them `unused` on ordinary @Test methods, every one false, and no error anywhere.
+#
+# The local repositories are checked FIRST and the network only if both miss, which is what keeps this
+# honest: qodana_prepare seeds ~/.m2's `net.zodac` artifacts into the scan's repository, so a parent the
+# mirror has never heard of is perfectly fine as long as it is on this machine - and failing on a 404 for
+# an artifact the scan is never going to ask for would be a false alarm.
+#
+# It FAILS OPEN on anything that is not a clear 404 for our artifact: a SNAPSHOT parent (never mirrored,
+# resolved locally by definition), no curl, a timeout, or a control probe that also fails - the last one
+# meaning the mirror moved or the network is down, neither of which is this project's problem to report.
+# The cost of a false negative is the old behaviour (qodana_resolution_guard still catches it after the
+# scan); the cost of a false positive is a red build nobody can act on.
+qodana_parent_guard() {
+    local parent group artifact version
+    parent="$(awk '/<parent>/{inside=1} inside{print} /<\/parent>/{inside=0}' pom.xml 2>/dev/null || true)"
+    group="$(sed -n 's:.*<groupId>\(.*\)</groupId>.*:\1:p' <<< "${parent}" | head -1)"
+    artifact="$(sed -n 's:.*<artifactId>\(.*\)</artifactId>.*:\1:p' <<< "${parent}" | head -1)"
+    version="$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' <<< "${parent}" | head -1)"
+    [[ -n "${group}" && -n "${artifact}" && -n "${version}" ]] || return 0
+    [[ "${version}" == *-SNAPSHOT ]] && return 0
+
+    local path="${group//.//}/${artifact}/${version}/${artifact}-${version}.pom"
+    [[ -f "${QODANA_WORK_DIR}/cache/.m2/${path}" ]] && return 0
+    [[ -f "${HOME}/.m2/repository/${path}" ]] && return 0
+    command -v curl >/dev/null 2>&1 || return 0
+
+    local status control
+    status="$(curl -sL -o /dev/null -w "%{http_code}" --max-time 10 "${QODANA_MAVEN_MIRROR}/${path}" 2>/dev/null || true)"
+    [[ "${status}" == "404" ]] || return 0
+    control="$(curl -sL -o /dev/null -w "%{http_code}" --max-time 10 "${QODANA_MAVEN_MIRROR}/${QODANA_MIRROR_CONTROL}" 2>/dev/null || true)"
+    if [[ "${control}" != "200" ]]; then
+        echo "⚠️  Could not check the Qodana mirror for ${group}:${artifact}:${version} (control probe answered '${control}')."
+        echo "   Continuing - the scan's own resolution guard reports it afterwards if it really is missing."
+        return 0
+    fi
+
+    echo "❌ Qodana cannot run: its Maven mirror has no ${YELLOW}${group}:${artifact}:${version}${RESET} (404), and neither"
+    echo "   local repository holds a copy to seed from."
+    echo "   The scan resolves through JetBrains' cache-redirector, not Maven Central, and a just-published"
+    echo "   release is 404 there for a while after Central has it. Without the parent POM there is no"
+    echo "   effective POM, no classpath, and the scan reports THOUSANDS of false 'unused' findings rather"
+    echo "   than failing - so it is stopped here instead, before it starts."
+    echo "   Fix it by building the project once (${YELLOW}mvn -N validate${RESET} is enough) so ~/.m2 holds the parent and"
+    echo "   the scan can be seeded from it, or wait for the mirror to catch up."
+    return 1
+}
+
 qodana_config_guard() {
     if [[ ! -f "${QODANA_CONFIG_FILE}" ]]; then
         echo "❌ Qodana's configuration is missing - expected ${YELLOW}${QODANA_CONFIG_FILE}${RESET}"
@@ -1479,6 +1549,31 @@ qodana_prepare() {
         echo "   Cleared ${stale_markers} cached Maven resolution failure(s) so the scan re-attempts them"
     fi
 
+    # Seed this organisation's OWN artifacts from the host repository, so the scan never has to ask the
+    # mirror for one. The parent POM is the artifact the whole module model hangs from - without it there
+    # is no effective POM, so no dependencies, so no classpath - and it is also the one most likely to be
+    # missing upstream, because a `net.zodac` release reaches Maven Central hours before JetBrains'
+    # cache-redirector mirrors it. Measured on 2026-08-21: parent-pom 1.1.0 was 200 on Central and 404 on
+    # the redirector, and the scan that followed reported 3,984 findings, every one of them false. A jar
+    # from any other groupId has been on Central long enough to be mirrored; this is the young one.
+    #
+    # `_remote.repositories` has to go with it. Maven records the repository id an artifact was cached
+    # from, and the enhanced local repository manager treats a file whose recorded id is not among the
+    # request's repositories as ABSENT - so a plain copy from ~/.m2 (id `central`) is ignored by a scan
+    # resolving from `maven-central`, which re-fetches it and hits the same 404. Measured: with the file
+    # copied the run failed exactly as before and rewrote the marker; without it, the run passed with 0
+    # findings. Stripping it makes the artifact read as locally installed, which is what it now is.
+    #
+    # Nothing here fails the run: an absent host repository (a machine that has never built the project)
+    # just means the scan resolves the way it always did, and qodana_resolution_guard reports it clearly
+    # if that then 404s.
+    local host_artifacts="${HOME}/.m2/repository/net/zodac"
+    if [[ -d "${host_artifacts}" ]]; then
+        mkdir -p "${QODANA_WORK_DIR}/cache/.m2/net"
+        cp -R "${host_artifacts}" "${QODANA_WORK_DIR}/cache/.m2/net/" 2>/dev/null || true
+        find "${QODANA_WORK_DIR}/cache/.m2/net/zodac" \( -name "_remote.repositories" -o -name "*.lastUpdated" \) -delete 2>/dev/null || true
+    fi
+
     mkdir -p "${QODANA_IDEA_DIR}"
     cp -R "${QODANA_OVERRIDES_DIR}/." "${QODANA_IDEA_DIR}/"
 
@@ -1527,6 +1622,61 @@ qodana_stop_container() {
     fi
 }
 
+# The half of the classpath question that idea.log cannot answer, and the reason it is asked FIRST.
+#
+# The guard below reads `... were not resolved`, which the IDE prints per LIBRARY it could not attach - a
+# line that only exists once the Maven project itself imported. When the failure is the PARENT POM, nothing
+# imports at all: the effective POM cannot be built, the module has no dependencies to fail to attach, and
+# idea.log says nothing about any of it. Measured here on 2026-08-21: net.zodac:parent-pom:1.1.0 answered
+# 404 from the mirror (published to Maven Central, not yet mirrored by JetBrains' cache-redirector, which
+# still served 1.0.19 happily), and the scan reported 3,984 findings - 2,003 of them `unused` on ordinary
+# @Test methods, because with no classpath there is no JUnit and nothing looks reachable. Every one was
+# false, the run exited "successfully" as far as the scan was concerned, and the ONLY on-disk trace was
+# the marker this reads.
+#
+# Maven writes one `<artifact>.lastUpdated` per failed resolution, and qodana_prepare deletes every marker
+# before the container starts - so a marker present afterwards was written by THIS run and by nothing else.
+# That makes it a signal no failure mode can dodge: it does not care whether the artifact was a parent, a
+# BOM or a jar, or whether the project imported far enough to log anything.
+#
+# The marker's own body distinguishes the two cases the reader has to act on differently: an EMPTY `.error=`
+# is a 404 (the mirror does not have it - a fresh release it has not picked up, or a version that never
+# existed), while a populated one is a transport failure (5xx, timeout) where re-running is usually enough.
+qodana_resolution_guard() {
+    local repository="${QODANA_WORK_DIR}/cache/.m2"
+    [[ -d "${repository}" ]] || return 0
+
+    local markers=()
+    mapfile -t markers < <(find "${repository}" -name "*.lastUpdated" -type f 2>/dev/null | sort || true)
+    [[ "${#markers[@]}" -gt 0 ]] || return 0
+
+    echo "   ${RED}The scan could not resolve ${#markers[@]} artifact(s), so it ran with NO usable classpath.${RESET}"
+    echo "   Its findings are NOT trustworthy and must not be fixed or suppressed - with the dependencies"
+    echo "   missing, ordinary annotated code stops looking reachable and is reported as 'unused'."
+    echo "   Failed to resolve:"
+
+    local marker artifact detail
+    for marker in "${markers[@]:0:5}"; do
+        artifact="${marker#"${repository}/"}"
+        artifact="${artifact%.lastUpdated}"
+        # An empty `.error=` is the resolver's way of recording "not found"; anything after it is a real error.
+        if grep -q "\.error=$" "${marker}" 2>/dev/null; then
+            detail="404 - the mirror does not have it"
+        else
+            detail="$(grep -m1 -o "\.error=.*" "${marker}" 2>/dev/null | cut -c8-80 || true)"
+            detail="${detail:-transport failure}"
+        fi
+        echo "     ${artifact} (${detail})"
+    done
+
+    echo "   The scan resolves through JetBrains' cache-redirector, NOT Maven Central, and the two are not"
+    echo "   always in step: a just-published release is 404 there for a while after Central has it."
+    echo "   A 404 will NOT fix itself on a re-run - seed the artifact into ${YELLOW}.qodana/cache/.m2${RESET} from a"
+    echo "   complete ~/.m2 (dropping its _remote.repositories, or the resolver re-fetches it anyway), or"
+    echo "   wait for the mirror. A transport failure usually does: markers are cleared before every run."
+    return 1
+}
+
 # Answers the question every other message here assumes: were the project's dependencies actually on the
 # classpath the scan analysed? Returns 0 when they were, and when they were not, explains it and returns 1.
 #
@@ -1544,6 +1694,8 @@ qodana_stop_container() {
 # line per library it could not attach. idea.log is APPENDED to across runs, so only the last run counts -
 # hence the offset to its final start-up banner rather than a grep over the whole file.
 qodana_dependency_guard() {
+    qodana_resolution_guard || return 1
+
     local log="${QODANA_WORK_DIR}/results/log/idea.log"
     [[ -f "${log}" ]] || return 0
 
