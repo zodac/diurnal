@@ -210,11 +210,26 @@ test.describe("Stats page", () => {
         await expect(page.locator(".chart-chip")).toHaveCount(1)
         await expect(page.locator(".chart-plot .chart-col").first().locator(".chart-bar")).toHaveCount(1)
 
-        // The period toggle re-fetches the fragment as a year of months. Done last, and left there: the
-        // toggle re-anchors a year onto its January, which for this user is an empty window.
+        // The period toggle re-fetches the fragment as a year of months, re-anchored onto the year the
+        // shown month sat in.
         await page.locator('button[data-chart-period="year"]').click()
         await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-period", "year")
         await expect(page.locator(".chart-plot .chart-col")).toHaveCount(12)
+
+        // Flipping back lands on the month that was showing, NOT that year's January: every month window
+        // visited is remembered against its year (stats.js `monthsShown`), so the toggle round-trips.
+        await page.locator('button[data-chart-period="month"]').click()
+        await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-at", shownAt ?? "")
+
+        // The same round trip from a window that is not the current month, so the assertion above cannot
+        // be satisfied by a January fallback that happens to match a run in January.
+        await page.locator("button[data-chart-at]").first().click()
+        await expect(page.locator(".chart-wrap")).not.toHaveAttribute("data-chart-shown-at", shownAt ?? "")
+        const stepped = await page.locator(".chart-wrap").getAttribute("data-chart-shown-at")
+        await page.locator('button[data-chart-period="year"]').click()
+        await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-period", "year")
+        await page.locator('button[data-chart-period="month"]').click()
+        await expect(page.locator(".chart-wrap")).toHaveAttribute("data-chart-shown-at", stepped ?? "")
 
         // Escape closes the dialog.
         await page.keyboard.press("Escape")

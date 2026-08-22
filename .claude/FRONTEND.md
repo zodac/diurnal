@@ -562,6 +562,15 @@ so its delegated `closest(...)` lookups can't mistake the wrapper for a control)
 `innerHTML` write, it re-runs `Diurnal.formatNumbers`/`fitFigures` **and `htmx.process(body)`** by hand — the
 compare picker's search box arrives inside the fragment and would otherwise never be bound.
 
+- **The period toggle re-anchors the window rather than resetting it** (`stats.js` `reanchor`): March 2025 → `Year`
+  lands on 2025, and back on `Month` returns to **March** 2025. That return needs the one piece of state the file
+  keeps besides `subjectId` — `monthsShown`, the last month window drawn for each year, recorded off every swap that
+  lands on a month and cleared on each opening (a dialog always opens on the current month, so a month remembered
+  from an earlier chart is not where this one was left). It is history, not selection: only windows the user actually
+  visited go in, and each is only ever replayed onto its **own** year, so the toggle can never reach a window the
+  navigation buttons refuse to step to (a month after today). A year never seen in month view still falls back to its
+  January.
+
 - **Every slot of the window is drawn, including the empty ones**, so the axis stays evenly spaced and a blank run
   reads as a trough. A month's 31 ticks are too many to label, so CSS captions only every fifth
   (`[data-chart-shown-period="month"] .chart-col:not(:nth-child(5n+1)) .chart-tick`).

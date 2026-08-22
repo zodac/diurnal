@@ -12,7 +12,9 @@
  * There is deliberately no client-side copy of the current selection beyond `subjectId`: the period,
  * the window and the compared actions are all read back off the rendered fragment (the server echoes
  * them onto .chart-wrap as data-chart-shown-*), so every control continues from what is actually on
- * screen and the server stays the single authority on what a valid selection is.
+ * screen and the server stays the single authority on what a valid selection is. The ONE exception is
+ * `monthsShown` below, which is history rather than selection — the month windows already visited, so
+ * flipping to a year and back returns to the month the user was on rather than that year's January.
  */
 
 const modal = document.getElementById('stats-chart-modal')
@@ -20,6 +22,12 @@ const body = document.getElementById('stats-chart-body')
 const title = document.getElementById('stats-chart-title')
 
 let subjectId = null
+
+// The last month window shown for each year, keyed by its four-digit year ('2025' -> '2025-03'), fed
+// by every swap that lands on a month. Only windows the user actually looked at are ever recorded, and
+// each is only ever restored onto its OWN year, so replaying one can never reach a window the chart's
+// navigation refuses to step to (a month after today).
+const monthsShown = new Map()
 
 function currentWrap() {
     return body.querySelector('.chart-wrap')
@@ -62,12 +70,27 @@ function load(period, at, compare) {
             window.Diurnal.localizeDigitsIn(body)
             window.Diurnal.fitFigures(body)
             window.htmx.process(body)
+            rememberMonth()
         })
+}
+
+// Records the month window just drawn against its year, so a later flip back from that year can return
+// to it. Read off the rendered fragment rather than the requested arguments, since the first open sends
+// neither and it is the server that decides which month that is.
+function rememberMonth() {
+    const wrap = currentWrap()
+    if (wrap && wrap.dataset.chartShownPeriod === 'month') {
+        const at = wrap.dataset.chartShownAt
+        monthsShown.set(at.slice(0, 4), at)
+    }
 }
 
 function open(button) {
     subjectId = button.dataset.chartSubject
     title.textContent = button.dataset.chartName
+    // Each opening starts its own history: the dialog always opens on the current month, so a month
+    // remembered from a chart looked at earlier is not where this one was left.
+    monthsShown.clear()
     body.innerHTML = ''
     modal.classList.remove('hidden')
     load(null, null, [])
@@ -106,11 +129,13 @@ document.addEventListener('keydown', function (event) {
 
 // Translates the window currently on screen into the equivalent window of the period being switched
 // to, so a flip stays where the user was looking: March 2025 → Year lands on 2025, and 2025 → Month
-// lands on January 2025. A key that is already the right shape is kept as-is.
+// lands back on March 2025 — the month last shown for THAT year (`monthsShown`), which is what makes
+// flipping the toggle back and forth a no-op. A year never visited in month view has no remembered
+// month and falls back to its January. A key that is already the right shape is kept as-is.
 function reanchor(period, shownAt) {
     if (!shownAt) {return null}
     if (period === 'year') {return shownAt.slice(0, 4)}
-    return shownAt.length === 4 ? `${shownAt}-01` : shownAt
+    return shownAt.length === 4 ? monthsShown.get(shownAt) || `${shownAt}-01` : shownAt
 }
 
 // Every control lives inside the swapped fragment, so they are all delegated off the stable body
