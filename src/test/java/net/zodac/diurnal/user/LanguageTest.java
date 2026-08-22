@@ -19,6 +19,8 @@ package net.zodac.diurnal.user;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -28,6 +30,10 @@ import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
 class LanguageTest {
+
+    // 15 June 2026: a date whose day-of-month and month are both two digits wide in every offered language, so a rendered pattern's field ORDER is
+    // unambiguous from its output alone
+    private static final LocalDate SAMPLE_DATE = LocalDate.of(2026, 6, 15);
 
     // ── Constant metadata ───────────────────────────────────────────────────
 
@@ -93,6 +99,92 @@ class LanguageTest {
         assertThat(Language.SPANISH.locale()).isEqualTo(Locale.forLanguageTag("es-ES"));
         assertThat(Language.ARABIC.locale()).isEqualTo(Locale.forLanguageTag("ar-SA"));
         assertThat(Language.JAPANESE.locale()).isEqualTo(Locale.forLanguageTag("ja-JP"));
+    }
+
+    // ── dayMonthPattern / monthYearPattern ──────────────────────────────────
+    // Neither pattern is written out per language any more - both are resolved from a CLDR skeleton (see Language#dayMonthPattern for the why), so
+    // nothing in src/main states what a language's date shape actually IS. These four tests are that statement: the first pair pins the resolved
+    // pattern and the second pins what it renders, so a CLDR revision arriving with a JDK upgrade fails the build here rather than quietly
+    // reshaping every date on the Stats page. A deliberate CLDR change is then a one-line update with a visible diff.
+
+    @Test
+    void dayMonthPattern_dropsTheYearAndTakesEachLanguagesOwnFieldOrder() {
+        assertThat(Language.ENGLISH_GB.dayMonthPattern())
+            .as("unexpected pattern")
+            .isEqualTo("d MMM");
+        assertThat(Language.ENGLISH_US.dayMonthPattern())
+            .as("en-US is month-first, and gets that from its region alone - no arm states it")
+            .isEqualTo("MMM d");
+        assertThat(Language.SPANISH.dayMonthPattern())
+            .as("unexpected pattern")
+            .isEqualTo("d MMM");
+        assertThat(Language.ARABIC.dayMonthPattern())
+            .as("unexpected pattern")
+            .isEqualTo("d MMM");
+        assertThat(Language.JAPANESE.dayMonthPattern())
+            .as("Japanese carries its own field separators as pattern literals, not just a different order")
+            .isEqualTo("M月d日");
+    }
+
+    @Test
+    void monthYearPattern_dropsTheDayAndKeepsEachLanguagesOwnLiterals() {
+        assertThat(Language.ENGLISH_GB.monthYearPattern())
+            .as("unexpected pattern")
+            .isEqualTo("MMMM y");
+        assertThat(Language.ENGLISH_US.monthYearPattern())
+            .as("unexpected pattern")
+            .isEqualTo("MMMM y");
+        assertThat(Language.SPANISH.monthYearPattern())
+            .as("Spanish joins the two fields with a 'de' literal, which CLDR supplies already quoted")
+            .isEqualTo("MMMM 'de' y");
+        assertThat(Language.ARABIC.monthYearPattern())
+            .as("unexpected pattern")
+            .isEqualTo("MMMM y");
+        assertThat(Language.JAPANESE.monthYearPattern())
+            .as("unexpected pattern")
+            .isEqualTo("y年M月");
+    }
+
+    @Test
+    void dayMonthPattern_rendersTheAbbreviatedMonthInThisLanguagesOwnScriptAndDigits() {
+        assertThat(render(Language.ENGLISH_GB, Language.ENGLISH_GB.dayMonthPattern()))
+            .as("unexpected rendering")
+            .isEqualTo("15 Jun");
+        assertThat(render(Language.ENGLISH_US, Language.ENGLISH_US.dayMonthPattern()))
+            .as("unexpected rendering")
+            .isEqualTo("Jun 15");
+        assertThat(render(Language.SPANISH, Language.SPANISH.dayMonthPattern()))
+            .as("unexpected rendering")
+            .isEqualTo("15 jun");
+        assertThat(render(Language.ARABIC, Language.ARABIC.dayMonthPattern()))
+            .as("the day must carry Arabic-Indic digit glyphs, which come from localizeNumerals rather than from the pattern")
+            .isEqualTo("١٥ يونيو");
+        assertThat(render(Language.JAPANESE, Language.JAPANESE.dayMonthPattern()))
+            .as("unexpected rendering")
+            .isEqualTo("6月15日");
+    }
+
+    @Test
+    void monthYearPattern_rendersTheFullYearDespiteCldrsSingleLetterYearField() {
+        assertThat(render(Language.ENGLISH_GB, Language.ENGLISH_GB.monthYearPattern()))
+            .as("CLDR's `y` must still render all four digits - it is the year at its natural width, not a one-digit field")
+            .isEqualTo("June 2026");
+        assertThat(render(Language.ENGLISH_US, Language.ENGLISH_US.monthYearPattern()))
+            .as("unexpected rendering")
+            .isEqualTo("June 2026");
+        assertThat(render(Language.SPANISH, Language.SPANISH.monthYearPattern()))
+            .as("unexpected rendering")
+            .isEqualTo("junio de 2026");
+        assertThat(render(Language.ARABIC, Language.ARABIC.monthYearPattern()))
+            .as("unexpected rendering")
+            .isEqualTo("يونيو ٢٠٢٦");
+        assertThat(render(Language.JAPANESE, Language.JAPANESE.monthYearPattern()))
+            .as("unexpected rendering")
+            .isEqualTo("2026年6月");
+    }
+
+    private static String render(final Language language, final String pattern) {
+        return SAMPLE_DATE.format(language.localizeNumerals(DateTimeFormatter.ofPattern(pattern, language.locale())));
     }
 
     // ── localizeDigits ──────────────────────────────────────────────────────
