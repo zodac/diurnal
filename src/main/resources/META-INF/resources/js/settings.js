@@ -799,7 +799,11 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
 //     row's CUSTOM name (blank = the built-in one, which is the input's placeholder). Committing
 //     copies it into the row's hidden `statsLabel` and dispatches a `change` there, so a rename
 //     saves through the very same PATCH; emptying the field restores the built-in name. Nothing in
-//     the editor toggles or reorders the row.
+//     the editor toggles or reorders the row, and while the editor is OPEN the row's two OTHER
+//     gestures are frozen until the rename is saved or cancelled: a click anywhere on it (or space on
+//     its checkbox) no longer toggles it, and a drag from its handle no longer reorders it — so a
+//     press meant for the editor cannot flip or move the stat. Both are shown as frozen: the checkbox
+//     and the handle fade (see .settings-field-edit in app.css).
 //   • Tooltip — the description shows on hover (desktop, pure CSS via `group-hover`) or on a
 //     LONG press of the text (touch, adding `.tip-open`). A long press opens the tooltip WITHOUT
 //     toggling or reordering.
@@ -887,11 +891,13 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
         row.classList.toggle('settings-field-edit', editing)
     }
 
+    function isEditing(row) { return !inputOf(row).classList.contains('hidden') }
+
     function closeEditor(row) { setEditing(row, false) }
 
     function closeEditors() {
         list.querySelectorAll('.stats-field-row').forEach(function (row) {
-            if (!inputOf(row).classList.contains('hidden')) {closeEditor(row)}
+            if (isEditing(row)) {closeEditor(row)}
         })
     }
 
@@ -931,6 +937,10 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
         if (handle) {
             const row = handle.closest('.stats-field-row')
             if (!row) {return}
+            // Frozen while renamed: no reorder either (see the click handler). preventDefault keeps the
+            // press from reaching the compatibility mousedown, so the caret stays in the editor and its
+            // Save/Cancel (revealed by `:focus-within`) do not vanish under a press that did nothing.
+            if (isEditing(row)) { e.preventDefault(); return }
             e.preventDefault()
             dragged = row
             moved = false
@@ -1001,11 +1011,16 @@ document.querySelectorAll('#prefs-form .preview-img').forEach(function (el) {
         const cancelBtn = e.target.closest('.stats-field-cancel-btn')
         if (cancelBtn) { closeEditor(cancelBtn.closest('.stats-field-row')); return }
         if (e.target.closest('.stats-field-input')) {return} // clicking in the editor never toggles the row
+        const row = e.target.closest('.stats-field-row')
+        if (!row) {return}
+        // A row being renamed is frozen shown/hidden until the edit is saved or cancelled: the whole row is
+        // a toggle target, so a click aimed at the editor that lands a pixel outside it would otherwise flip
+        // the stat mid-rename (and PATCH it). preventDefault covers the keyboard case, where the click comes
+        // from space on the focused checkbox and would toggle it natively.
+        if (isEditing(row)) { e.preventDefault(); return }
         if (e.detail === 0) {return}                       // keyboard (space) → native toggle
         if (e.target.closest('.stats-field-handle')) {return}
         if (suppressClick) { suppressClick = false; return }
-        const row = e.target.closest('.stats-field-row')
-        if (!row) {return}
         const checkbox = row.querySelector('input[type="checkbox"]')
         if (!checkbox || checkbox.disabled) {return}      // mandatory ("Always shown")
         checkbox.checked = !checkbox.checked

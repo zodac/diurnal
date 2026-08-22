@@ -490,7 +490,17 @@ Edit/Save and Delete/Cancel in the same two slots). The caption and the editor a
 `.stats-field-caption` carries the input's border/padding (transparent) and both share a `line-height`, so the text keeps the same
 pixel and the row the same height. `.stats-field-actions` reserves the width of *both* edit-mode buttons and packs from the **left**
 (overriding `.dt-actions`' right-alignment and its 3.5rem per-button minimum), so **Save renders exactly where Rename was** and
-Cancel merely appears beside it. `tests/ui/settings.spec.ts` measures both modes relative to the row and fails on any shift.
+Cancel merely appears beside it. `tests/ui/settings-stats-picker.spec.ts` (the picker's own spec — settings.spec.ts is at its
+max-lines cap) measures both modes relative to the row and fails on any shift.
+
+**A row being renamed can be neither shown/hidden nor reordered until the edit is saved or cancelled.** The whole row is a toggle
+target and its handle a drag target, so a press aimed at the editor that lands a pixel outside it would otherwise flip the stat — and
+save that — or move it, behind the user's back. While its editor is open the row swallows the toggle click, and `preventDefault`s it
+so the keyboard path (space on the focused checkbox, which toggles natively) is frozen too; the checkbox is deliberately NOT
+`disabled`, since a disabled box posts no `statsEnabled` and committing the rename would then switch the stat off. A press on the
+handle starts no drag, and is likewise `preventDefault`ed — otherwise the compatibility `mousedown` blurs the editor, and Save/Cancel
+(revealed by `:focus-within`) vanish under a press that did nothing. **Both frozen controls fade** to `.4` and the row drops its
+`cursor-pointer`/`cursor-grab` (`.settings-field-edit` in app.css), so the two gestures read as off rather than broken.
 
 **Renaming a stat** stores the user's wording against the key, and only ever affects the caption (the Stats page, the dashboard
 summary strip and the picker row). The row's hidden `statsLabel` holds the **custom** name, never the rendered caption — posting the

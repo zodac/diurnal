@@ -1110,6 +1110,14 @@
            server-rendered initial state needs no script at all. Mandatory rows are always checked, so
            they never dim. */
         .stats-field-row:has(input[name="statsEnabled"]:not(:checked)) .stats-field-caption { opacity: .5; }
+        /* A row being renamed can be neither shown/hidden nor reordered until the edit is saved or
+           cancelled (settings.js swallows the toggle click and refuses the drag), so it stops
+           advertising either: the row drops its pointer cursor, and the two controls those gestures
+           belong to — the checkbox and the drag handle — fade to the usual disabled weight. */
+        .stats-field-row.settings-field-edit { cursor: default; }
+        .settings-field-edit .stats-field-handle { cursor: default; }
+        .settings-field-edit .stats-field-handle,
+        .settings-field-edit input[name="statsEnabled"] { opacity: .4; }
         /* Reordering slides the rows the dragged one displaces into their new slots: settings.js gives
            each the inverse offset with transitions off, then clears it — this is the transition that
            carries it home. It also eases the dragged row the last few pixels into its slot on drop. */
