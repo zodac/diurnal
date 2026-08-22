@@ -24,7 +24,7 @@
                 <span class="swatch swatch-sm" style="background-color: {s.subject.colour}"></span>
                 {! The notes subject's name is app chrome and is translated; an action's is the user's own
                      text and never is - see partials/stats-cards.html and StatSubjectExtensions. !}
-                <span class="text-sm font-medium text-ink truncate">{s.subject.actionName.or(msg:statSubjectNotes)}</span>
+                <span class="text-sm font-medium text-ink truncate" data-tip-full>{s.subject.actionName.or(msg:statSubjectNotes)}</span>
             </div>
             {! Mirrors the Stats page: the tiles shown are the user's top three enabled "Action
                stats" (summaryFields), in their chosen order. The backend always computes every

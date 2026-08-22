@@ -37,7 +37,7 @@
                  otherwise inherits the page's RTL base direction. Never js-digits alongside it: a
                  note's own digits are the user's exact text and must never be transcoded (see
                  NOTES.md's "must never be translated"). !}
-            <td class="dt-cell note-snippet js-phrase">
+            <td class="dt-cell note-snippet js-phrase" data-tip-full>
                 {#for part in row.snippet}{#if part.highlighted}<mark class="note-mark">{part.text}</mark>{#else}{part.text}{/if}{/for}
             </td>
         </tr>

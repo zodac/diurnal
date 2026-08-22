@@ -57,7 +57,8 @@ into `microprofile-config.properties` (read by `AssetsConfig`/`AppInfo`). All ar
 
 - `htmx.min.js` (`AppInfo.jsFile`) — **vendored** from npm by `scripts/vendor-assets.cjs` (`.gitignored` build artifact).
 - `app.js` (`AppInfo.jsAppFile`) — the shared per-page behaviour extracted from `layout.html` (dt edit/confirm toggles,
-  form validation + AJAX submit, locale number grouping, the tooltip long-press, the password-requirements popover, the
+  form validation + AJAX submit, locale number grouping, the tooltip long-press, the truncated-text tooltips
+  (`data-tip-full`, below), the password-requirements popover, the
   delegated `htmx:configRequest` search-filter listener, the mobile-menu toggle, the delegated
   `[data-random-colour]` suggestion handler + the `Diurnal.suggestColourInto(input, url, keep)` helper behind it, which
   `actions.js` reuses to re-randomise the new-action picker after each add). A **committed** handwritten file.
@@ -598,6 +599,38 @@ still too wide at its shortest step **wraps** rather than being clipped. Because
 the window restores the full text. `Diurnal.MONTHS_FULL`/`MONTHS_ABBR` and this ladder are the one place the project abbreviates a
 month — the calendar toolbar's own title fitting (`setCalTitle`/`fitCalTitle` in `dashboard.js`) reads the same tables; it keeps its
 own measurement because it fits against the **toolbar's** overflow, not the title's own box.
+
+### Truncated-text tooltips (`data-tip-full`)
+
+The other half of the fitting story: where `data-fit` **shortens** a figure so it fits, a plain `truncate` **clips** a
+string the app cannot shorten (a user's action name, note, display name, uploaded filename). The full string is still in
+the DOM — assistive tech reads all of it — so the gap is purely visual, and `data-tip-full` closes it: app.js reveals the
+whole string in one shared floating bubble on hover (after the `--tooltip-delay` dwell, timed in JS so the touch
+long-press can skip it) or on long-press, and only **while the element is genuinely clipped**, measured live per reveal
+(`scrollWidth`/`scrollHeight` vs the client box). A string that fits shows nothing.
+
+- **One bubble, `position: fixed` on `<body>`** (`.app-tooltip-float`), not a child of the host like
+  `partials/tooltip.html`'s. A truncating element is `overflow: hidden` by definition, so a nested bubble would be
+  clipped by the very box that cut the text off; `fixed` also clears every stacking context (so it works for the
+  truncated titles inside `.modal-overlay`, z-index 60) and lets every handler be **delegated off `document`** — which
+  is why this needs no re-wiring after an HTMX swap, a bare `innerHTML` write (see the three manual-swap call sites) or
+  a calendar re-render, unlike `fitFigures`/`formatNumbers`.
+- **The bubble wraps with `overflow-wrap: anywhere`, which is load-bearing.** What it shows is user text with no
+  guaranteed spaces: a max-length action name typed as one unbroken run shipped once with the border stranded at the
+  20rem cap while the text ran straight off the page. Normal wrapping has nowhere to break such a string, and the
+  20rem/viewport cap bounds the BOX, not its content — so any future bubble sized this way needs the same rule.
+- Placement is above the host and centred, flipping below when there is no room, then clamped into the viewport. The
+  bubble is measured from a fixed leading offset first, because a `fixed` box shrink-to-fits against the space left of
+  it — measuring it where it will finally sit would let its own position change its width.
+- `Diurnal.showTruncationTip(el)` / `Diurnal.hideTruncationTip()` are the seams; the touch path is the **existing**
+  global long-press handler, which falls through to a `[data-tip-full]` marker when the pressed element has no
+  `.app-tooltip` child of its own (one gesture implementation, two kinds of tooltip). It swallows the resulting click
+  only if a bubble actually opened.
+- Marked today: the Stats cards/summary/legend/chart-title/compare-picker subject names, the day panel's action rows
+  (both states), the shared data-table delete-confirm label, the notes list's snippet cell, and Settings' display name +
+  import filename. `dashboard.js`'s `fitFullEvents` is the one caller that passes its own text
+  (`data-tip-full="name ×N"`) rather than being measured — in a tight cell it hides the event name outright, so the row
+  has nothing left to measure. See `.claude/UI_PATTERNS.md` §4 for when to mark a new element.
 
 ### Expired sessions on the dashboard (`requireSession`)
 

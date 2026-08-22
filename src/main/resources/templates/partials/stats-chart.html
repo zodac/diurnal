@@ -58,7 +58,7 @@
         {#let seriesName=series.actionName.or(msg:statSubjectNotes)}
         <span class="chart-chip">
             <span class="swatch swatch-sm" style="background-color: {series.subjectColour}"></span>
-            <span class="truncate">{seriesName}</span>
+            <span class="truncate" data-tip-full>{seriesName}</span>
             {#if series.removable}
             <button type="button" class="chart-chip-remove" data-chart-remove="{series.subjectId}"
                     aria-label="{msg:stopComparing(seriesName)}">

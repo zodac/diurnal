@@ -972,6 +972,148 @@ document.addEventListener('click', function (e) {
     document.body.addEventListener('htmx:afterSwap', function (e) { window.Diurnal.startActivityCounters(e.target) })
 })();
 
+// ── Truncated-text tooltips (`data-tip-full`) ─────────────────────────────────
+// A string the layout had to cut short (`truncate`, or a hand-written `text-overflow: ellipsis`) is
+// still in the DOM in full — a screen reader reads all of it, but a sighted user gets "Morning run
+// at th…". Every element marked `data-tip-full` reveals its whole string in the shared themed bubble
+// while it is hovered (or long-pressed, via the handler below), and reveals NOTHING when the string
+// happens to fit: repeating text the user can already read is noise, so the check is a live
+// measurement, not a template-time guess.
+//
+// The bubble is ONE `position: fixed` element on <body>, NOT a per-host child the way
+// partials/tooltip.html's is — that partial is still the right thing for a tooltip whose text is
+// known up front (an icon button's label). This one cannot use it: a truncating element is
+// `overflow: hidden` BY DEFINITION, so a bubble nested inside it would be clipped by the very box
+// that cut the text off, and one nested in its PARENT would have to survive whatever flex/grid/table
+// layout the string sits in (these hosts range from a table cell to a calendar event row). Being
+// fixed also lifts it over every stacking context, which is what lets it serve the truncated titles
+// INSIDE `.modal-overlay` (the stats frequency graph). And because there is a single bubble, the
+// handlers are DELEGATED off `document` — nothing needs re-wiring after an HTMX swap, a plain
+// `innerHTML` write or a calendar re-render, so a marker is safe to put on server- and
+// client-rendered text alike.
+//
+// Two modes, chosen by whether the attribute carries a value:
+//   • `data-tip-full` (empty)       — measured here: the bubble opens only while the element
+//                                     overflows its own box, and shows the element's own text.
+//   • `data-tip-full="<full text>"` — the caller already measured and KNOWS it clipped the string, so
+//                                     it passes the text instead. dashboard.js's calendar fit routine
+//                                     is the case: in a tight cell it hides the event name outright,
+//                                     leaving nothing in the row for an overflow check to find.
+(function () {
+    const OVERFLOW_TOLERANCE = 1   // sub-pixel layout noise, as in the figure fitter above
+    const VIEWPORT_MARGIN = 8      // the gap the bubble keeps from the viewport edge
+    const HOST_GAP = 6             // the gap between the host's box and the bubble
+    const FALLBACK_DELAY_MS = 500
+
+    // The hover dwell is a CSS token (`--tooltip-delay`), read once here so this path and the
+    // `.group:hover > .app-tooltip` rule it mirrors cannot drift apart. It is timed in JS rather than
+    // as a `transition-delay` because the touch path must NOT wait: a long press has already dwelled.
+    const HOVER_DELAY_MS = (function () {
+        const raw = getComputedStyle(document.documentElement).getPropertyValue('--tooltip-delay').trim()
+        const value = parseFloat(raw)
+        if (!Number.isFinite(value)) { return FALLBACK_DELAY_MS }
+        return raw.endsWith('ms') ? value : value * 1000
+    })()
+
+    let bubble = null
+    let openFor = null
+    let pendingFor = null
+    let hoverTimer = null
+
+    function ensureBubble() {
+        if (!bubble) {
+            bubble = document.createElement('span')
+            // `.js-phrase` (unicode-bidi: plaintext): the string is usually the user's OWN text — an
+            // action name, a note, a filename — which may read in either direction whatever the page's
+            // language is. No `.js-digits`: this is the same text the page shows, so its digits are
+            // already in whatever glyphs the user typed and must not be transcoded.
+            bubble.className = 'app-tooltip app-tooltip-float js-phrase'
+            bubble.setAttribute('aria-hidden', 'true')   // decorative: the full string is in the DOM already
+            document.body.appendChild(bubble)
+        }
+        return bubble
+    }
+
+    // Clipped = the box cannot show all of its own content. Height as well as width, so a line-clamped
+    // host would need nothing new here.
+    function isClipped(el) {
+        if (el.dataset.tipFull) { return true }   // the caller asserted it — see the header comment
+        return el.scrollWidth > el.clientWidth + OVERFLOW_TOLERANCE
+            || el.scrollHeight > el.clientHeight + OVERFLOW_TOLERANCE
+    }
+
+    // Above the host and centred on it, or below when there is no room above; then clamped so the
+    // bubble can never hang off (and widen) the page. Measured AFTER the text is set, from a known
+    // leading offset: a fixed box shrink-to-fits against the space LEFT of it, so measuring where it
+    // will finally sit would let its own position change its width. The final `left` always leaves at
+    // least the measured width available, so the placement below cannot re-wrap it.
+    function place(el) {
+        const host = el.getBoundingClientRect()
+        bubble.style.left = `${VIEWPORT_MARGIN}px`
+        bubble.style.top = '0px'
+        const tip = bubble.getBoundingClientRect()
+        const rightmost = Math.max(window.innerWidth - tip.width - VIEWPORT_MARGIN, VIEWPORT_MARGIN)
+        const centred = host.left + (host.width - tip.width) / 2
+        const above = host.top - tip.height - HOST_GAP
+        bubble.style.left = `${Math.min(Math.max(centred, VIEWPORT_MARGIN), rightmost)}px`
+        bubble.style.top = `${above >= VIEWPORT_MARGIN ? above : host.bottom + HOST_GAP}px`
+    }
+
+    // Opens the bubble immediately, and reports whether it opened — the touch handler below uses the
+    // answer to decide whether the long press was a tooltip gesture (and so swallows its click).
+    window.Diurnal.showTruncationTip = function (el) {
+        const text = el.dataset.tipFull || el.textContent.trim()
+        if (!text || !isClipped(el)) { return false }
+        ensureBubble().textContent = text
+        place(el)
+        bubble.classList.add('tip-open')
+        openFor = el
+        pendingFor = null
+        return true
+    }
+
+    window.Diurnal.hideTruncationTip = function () {
+        window.clearTimeout(hoverTimer)
+        if (bubble) { bubble.classList.remove('tip-open') }
+        openFor = null
+        pendingFor = null
+    }
+
+    function hostOf(target) {
+        return target && target.closest ? target.closest('[data-tip-full]') : null
+    }
+
+    // Hover, on a pointer that HAS hover — the same gate as the CSS reveal rule, and for the same
+    // reason: a phone applies a sticky `:hover` to whatever was last touched, which would leave this
+    // bubble open under the finger with no gesture handler involved to clear it.
+    if (window.matchMedia('(hover: hover)').matches) {
+        document.addEventListener('mouseover', function (e) {
+            const el = hostOf(e.target)
+            // Crossing between a host's OWN children (the calendar row's dot/name/count, the `<mark>` in a
+            // note snippet) is not a new hover: restarting the dwell there would let a bubble never open
+            // while the pointer drifts across the pieces of one string.
+            if (el && (el === openFor || el === pendingFor)) { return }
+            if (!el && !openFor && !pendingFor) { return }   // ordinary content, with nothing open or pending
+            window.Diurnal.hideTruncationTip()
+            if (el) {
+                pendingFor = el
+                hoverTimer = window.setTimeout(function () { window.Diurnal.showTruncationTip(el) }, HOVER_DELAY_MS)
+            }
+        })
+        document.addEventListener('mouseout', function (e) {
+            if (openFor && !openFor.contains(e.relatedTarget)) { window.Diurnal.hideTruncationTip() }
+        })
+    }
+
+    // A fixed bubble does not travel with its host, and the host itself can go away underneath it (an
+    // HTMX swap, a day-panel re-render, a page-size change). Every one of those is a reason to close
+    // rather than to re-place: the pointer's next move re-opens it against whatever is there now.
+    document.addEventListener('scroll', function () { window.Diurnal.hideTruncationTip() }, { capture: true, passive: true })
+    document.addEventListener('pointerdown', function () { window.Diurnal.hideTruncationTip() }, true)
+    window.addEventListener('resize', function () { window.Diurnal.hideTruncationTip() })
+    document.body.addEventListener('htmx:beforeSwap', function () { window.Diurnal.hideTruncationTip() })
+})();
+
 // ── Global tooltip long-press (touch) ─────────────────────────────────────────
 // Desktop reveals `.app-tooltip` on hover (CSS). Touch has no hover, so a LONG press on any tooltip
 // host — an element with a direct-child `.app-tooltip` (see partials/tooltip.html) — opens it by
@@ -979,6 +1121,11 @@ document.addEventListener('click', function (e) {
 // otherwise fire (navigation, htmx, opening the colour picker…). A press elsewhere dismisses it.
 // The Action-stats picker manages its OWN hosts (they also drag/toggle), so #stats-fields-list is
 // skipped here. Mouse is left to hover.
+//
+// The truncated-text tooltips above are the second kind of host this serves: they have no child
+// bubble to key on (there is one shared floating bubble), so a press falls through to their
+// `[data-tip-full]` marker and opens that bubble instead. One gesture, two kinds of tooltip — rather
+// than a second long-press implementation with its own threshold, scroll-cancel and click-swallow.
 (function () {
     const LONG_PRESS_MS = 500
     let timer = null
@@ -996,6 +1143,7 @@ document.addEventListener('click', function (e) {
     }
     function closeTip() {
         if (openHost) { openHost.classList.remove('tip-open'); openHost = null }
+        window.Diurnal.hideTruncationTip()
     }
 
     document.addEventListener('pointerdown', function (e) {
@@ -1004,13 +1152,22 @@ document.addEventListener('click', function (e) {
         if (openHost && !openHost.contains(e.target)) {closeTip()}   // tap outside dismisses
         if (e.target.closest('#stats-fields-list')) {return}  // handled by the stats-picker script
         const host = hostOf(e.target)
-        if (!host) {return}
+        // Only one of the two can apply: a `[data-tip-full]` string that ALSO sits inside a bubble host
+        // (the picker's captions do, and are excluded above) would otherwise open two tooltips at once.
+        const truncated = host ? null : (e.target.closest && e.target.closest('[data-tip-full]'))
+        if (!host && !truncated) {return}
         timer = setTimeout(function () {
             timer = null
-            suppressClick = true
             closeTip()
-            host.classList.add('tip-open')
-            openHost = host
+            if (host) {
+                suppressClick = true
+                host.classList.add('tip-open')
+                openHost = host
+                return
+            }
+            // A string that turned out to FIT opens nothing — and then the press was never a tooltip
+            // gesture, so the click it fires (selecting a day, opening the graph) must go through.
+            suppressClick = window.Diurnal.showTruncationTip(truncated)
         }, LONG_PRESS_MS)
     }, true)
 

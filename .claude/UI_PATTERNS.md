@@ -115,7 +115,23 @@ decorative (`aria-hidden`) — the host control carries the accessible name. The
 - Message banners use `.banner .banner-{error|success|warning}` via `partials/banner.html` — never
   hand-rolled alert divs (Java-built HTMX error HTML uses the same classes).
 - Tooltips are always `partials/tooltip.html` on a `group relative` host with an `aria-label` —
-  never `title=`.
+  never `title=`. That partial is for text known at render time (an icon button's label).
+- **A string that the layout may TRUNCATE gets the other kind: mark it `data-tip-full` and add
+  nothing else.** One shared floating bubble (`.app-tooltip-float`, positioned by app.js) then shows
+  the whole string on hover / long-press — but only while the element is actually clipped, measured
+  live, so a string that fits reveals nothing. It is a separate mechanism because a truncating
+  element is `overflow: hidden` by definition, which would clip a bubble nested inside it the way
+  `partials/tooltip.html`'s is; being `position: fixed` also lets it show for truncated text inside a
+  `.modal-overlay`, and lets the handlers be delegated (nothing to re-wire after an HTMX swap, a bare
+  `innerHTML` write or a calendar re-render). The bubble is `aria-hidden` and the host needs no
+  `aria-label`: the full string is already in the DOM, so assistive tech never saw the truncation.
+  **Mark every new truncating element that carries dynamic text** (a user's own action name, note,
+  display name, filename). Two exceptions, both deliberate: an element that already hosts a
+  `partials/tooltip.html` bubble of its own (`partials/stats-field-row.html`'s caption, whose
+  long-press shows the stat's DESCRIPTION — two tooltips on one host would fight), and one whose
+  clipping JS has already decided for itself, which passes the text instead of being measured
+  (`data-tip-full="<full text>"` — `dashboard.js`'s `fitFullEvents`, which in a tight calendar cell
+  hides the event name outright, leaving nothing to measure).
 - **Template comments are always Qute `{! … !}`** (stripped at render time) — never HTML
   `<!-- … -->`, which ships its bytes to the client in every response (pages are `no-cache`, so
   that's every navigation; partials rendered by the month back-fill would ship them ~30× per
