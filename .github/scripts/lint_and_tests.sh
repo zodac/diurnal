@@ -1382,16 +1382,25 @@ QODANA_MIRROR_CONTROL="junit/junit/4.13.2/junit-4.13.2.pom"
 # meaning the mirror moved or the network is down, neither of which is this project's problem to report.
 # The cost of a false negative is the old behaviour (qodana_resolution_guard still catches it after the
 # scan); the cost of a false positive is a red build nobody can act on.
-qodana_parent_guard() {
+# The parent POM's path inside a Maven repository, derived from this project's own pom.xml, or empty when
+# there is no parent to find one for. Shared by the two guards that care about it, since they ask the same
+# question of different places - one of the mirror before the scan, one of the marker files after it.
+qodana_parent_pom_path() {
     local parent group artifact version
     parent="$(awk '/<parent>/{inside=1} inside{print} /<\/parent>/{inside=0}' pom.xml 2>/dev/null || true)"
     group="$(sed -n 's:.*<groupId>\(.*\)</groupId>.*:\1:p' <<< "${parent}" | head -1)"
     artifact="$(sed -n 's:.*<artifactId>\(.*\)</artifactId>.*:\1:p' <<< "${parent}" | head -1)"
     version="$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' <<< "${parent}" | head -1)"
     [[ -n "${group}" && -n "${artifact}" && -n "${version}" ]] || return 0
-    [[ "${version}" == *-SNAPSHOT ]] && return 0
+    echo "${group//.//}/${artifact}/${version}/${artifact}-${version}.pom"
+}
 
-    local path="${group//.//}/${artifact}/${version}/${artifact}-${version}.pom"
+qodana_parent_guard() {
+    local path
+    path="$(qodana_parent_pom_path)"
+    [[ -n "${path}" ]] || return 0
+    [[ "${path}" == *-SNAPSHOT.pom ]] && return 0
+
     [[ -f "${QODANA_WORK_DIR}/cache/.m2/${path}" ]] && return 0
     [[ -f "${HOME}/.m2/repository/${path}" ]] && return 0
     command -v curl >/dev/null 2>&1 || return 0
@@ -1401,12 +1410,12 @@ qodana_parent_guard() {
     [[ "${status}" == "404" ]] || return 0
     control="$(curl -sL -o /dev/null -w "%{http_code}" --max-time 10 "${QODANA_MAVEN_MIRROR}/${QODANA_MIRROR_CONTROL}" 2>/dev/null || true)"
     if [[ "${control}" != "200" ]]; then
-        echo "⚠️  Could not check the Qodana mirror for ${group}:${artifact}:${version} (control probe answered '${control}')."
+        echo "⚠️  Could not check the Qodana mirror for ${path} (control probe answered '${control}')."
         echo "   Continuing - the scan's own resolution guard reports it afterwards if it really is missing."
         return 0
     fi
 
-    echo "❌ Qodana cannot run: its Maven mirror has no ${YELLOW}${group}:${artifact}:${version}${RESET} (404), and neither"
+    echo "❌ Qodana cannot run: its Maven mirror has no ${YELLOW}${path}${RESET} (404), and neither"
     echo "   local repository holds a copy to seed from."
     echo "   The scan resolves through JetBrains' cache-redirector, not Maven Central, and a just-published"
     echo "   release is 404 there for a while after Central has it. Without the parent POM there is no"
@@ -1649,6 +1658,32 @@ qodana_resolution_guard() {
     local markers=()
     mapfile -t markers < <(find "${repository}" -name "*.lastUpdated" -type f 2>/dev/null | sort || true)
     [[ "${#markers[@]}" -gt 0 ]] || return 0
+
+    # Which marker it is decides whether this is fatal, and getting that wrong costs a green build. The
+    # PARENT POM is structurally fatal: without it there is no effective POM, so no dependencies, so no
+    # classpath, and nothing else reports it (see the note above). Anything else is not this check's to
+    # judge - a LIBRARY that fails to attach is reported by the IDE itself and caught by the idea.log
+    # guard below, and an artifact that is neither is usually a build-time one the analysis never reads.
+    # Measured in CI on 2026-08-22: org.apache.maven.shared:maven-dependency-tree - a dependency of the
+    # dependency-plugin, not of this project - failed to transfer while the scan itself completed happily
+    # with a full classpath and ZERO findings, and an earlier version of this guard failed that build.
+    local parent_marker=""
+    local parent_path
+    parent_path="$(qodana_parent_pom_path)"
+    [[ -n "${parent_path}" ]] && parent_marker="${repository}/${parent_path}.lastUpdated"
+
+    if [[ -z "${parent_marker}" || ! -f "${parent_marker}" ]]; then
+        echo "   ⚠️  ${#markers[@]} artifact(s) did not resolve during the scan. The parent POM did, so the module"
+        echo "      model and the classpath are intact and the findings above stand; these are reported only"
+        echo "      because an unresolved artifact is worth knowing about:"
+        local stray
+        for stray in "${markers[@]:0:5}"; do
+            stray="${stray#"${repository}/"}"
+            echo "        ${stray%.lastUpdated}"
+        done
+        echo "      Markers are cleared before every run, so a transient failure clears itself on the next one."
+        return 0
+    fi
 
     echo "   ${RED}The scan could not resolve ${#markers[@]} artifact(s), so it ran with NO usable classpath.${RESET}"
     echo "   Its findings are NOT trustworthy and must not be fixed or suppressed - with the dependencies"
