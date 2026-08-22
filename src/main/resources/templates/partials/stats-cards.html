@@ -16,7 +16,7 @@
         {#let subjectName=s.subject.actionName.or(msg:statSubjectNotes)}
         <div class="flex items-center gap-2">
             <span class="swatch swatch-md" style="background-color: {s.subject.colour}"></span>
-            <h3 class="card-title truncate min-w-0">{subjectName}</h3>
+            <h3 class="card-title truncate min-w-0" data-tip-full>{subjectName}</h3>
             <button type="button" class="chart-open-btn group relative" data-chart-subject="{s.subject.id}"
                     data-chart-name="{subjectName}" aria-label="{msg:showFrequencyGraphFor(subjectName)}">
                 {#include partials/icon name='chart-bar' cls='chart-open-glyph' /}

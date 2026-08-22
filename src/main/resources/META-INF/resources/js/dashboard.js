@@ -819,8 +819,15 @@ document.addEventListener('DOMContentLoaded', function () {
                 const nameW  = nameStr  ? ink.measureText(nameStr,  cs, FULL_FONT_PX) : 0
                 const countW = countStr ? ink.measureText(countStr, cs, FULL_FONT_PX) : 0
                 if (nameW + countW + ((nameStr && countStr) ? GAP : 0) <= textRegionFull) {
-                    return // whole "name ×N" fits — nothing to trim
+                    delete ev.dataset.tipFull    // whole "name ×N" fits — nothing to trim, nothing to explain
+                    return
                 }
+                // Past this point the row cannot show its label in full, however it degrades below — so
+                // hand the whole label to the hover/long-press tooltip (`data-tip-full`, app.js). This
+                // routine ASSERTS the clipping rather than leaving it to be measured, because two of the
+                // three degradations hide the name outright: there would be nothing left in the row for a
+                // measurement to catch. Idempotent with the branch above, since re-fitting re-decides.
+                ev.dataset.tipFull = countStr ? `${nameStr} ${countStr}` : nameStr
                 if (nameStr && textRegionFull - (countStr ? countW + GAP : 0) >= ellipsisW) {
                     return // room for an ellipsised name beside the count — CSS handles the truncation
                 }

@@ -584,6 +584,35 @@
     }
   }
 
+  /* The ONE floating copy of that bubble: a single element on <body>, moved to whichever truncated
+     string (`data-tip-full`, see app.js) the pointer is over. It cannot be a child of its host the way
+     partials/tooltip.html's is — a truncating element is `overflow: hidden` by definition, so a nested
+     bubble would be clipped by the very box that cut the text off. `fixed` also lifts it clear of every
+     stacking context, which is what lets it serve the truncated titles inside `.modal-overlay`
+     (z-index 60) — hence the z-index here, the highest in the app.
+     JS owns the position and the `.tip-open` toggle, and TIMES THE DWELL ITSELF rather than taking a
+     `transition-delay` here: the delay exists to suppress incidental hover tooltips, and a long press
+     (the touch path, which opens this same bubble) is not one — it has already dwelled. */
+  .app-tooltip-float {
+    position: fixed;
+    z-index: 70;
+    /* The host is typically a single-line, `white-space: nowrap` box — that is WHY its text truncated —
+       so the bubble has to re-assert normal wrapping to lay the full string out over several lines.
+       Capped to the viewport as well as to 20rem, so a long string can never widen the page. */
+    max-width: min(20rem, calc(100vw - 1rem));
+    white-space: normal;
+    /* Load-bearing, not a nicety: the strings this shows are USER text with no guaranteed spaces, and a
+       max-length action name typed as one unbroken run ("Wwww…", 100 characters) has nowhere for normal
+       wrapping to break it. Without this the box stayed at its 20rem cap while the text ran straight out
+       of it and off the page — the border visibly not enclosing its own content. `anywhere` rather than
+       `break-word` so the break also counts towards the bubble's intrinsic width, which is what the
+       shrink-to-fit sizing above is measured from. Reported for real; see the E2E case that pins it. */
+    overflow-wrap: anywhere;
+  }
+  .app-tooltip-float.tip-open {
+    @apply opacity-100 visible;
+  }
+
   /* Password-requirements popover: same floating look as `.app-tooltip`, but revealed by FOCUS of the
      associated password field (its JS handler toggles `.pw-open`) rather than hover/long-press, and its
      rows recolour live as the user types (green = met, red = unmet). Deliberately NOT `.app-tooltip`, so
