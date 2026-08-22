@@ -17,7 +17,9 @@
 
 package net.zodac.diurnal.user;
 
+import java.time.chrono.IsoChronology;
 import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DecimalStyle;
 import java.util.Arrays;
 import java.util.List;
@@ -106,10 +108,19 @@ public enum Language {
 
     private final String value;
     private final String label;
+    private final String dayMonthPattern;
+    private final String monthYearPattern;
 
     Language(final String value, final String label) {
         this.value = value;
         this.label = label;
+
+        // Both patterns are resolved ONCE per constant rather than per call: the result is constant for a language, while the CLDR lookup behind
+        // it is not free (~700ns, measured), and a stats page asks for one per tile. See #dayMonthPattern()/#monthYearPattern() for what the two
+        // skeletons below are and why neither shape can come from a FormatStyle.
+        final Locale locale = Locale.forLanguageTag(value);
+        dayMonthPattern = DateTimeFormatterBuilder.getLocalizedDateTimePattern("MMMd", IsoChronology.INSTANCE, locale);
+        monthYearPattern = DateTimeFormatterBuilder.getLocalizedDateTimePattern("yMMMM", IsoChronology.INSTANCE, locale);
     }
 
     /**
@@ -158,36 +169,40 @@ public enum Language {
     }
 
     /**
-     * The date-time pattern for a day spelled out WITHOUT its year (e.g. {@code "15 June"}, used by
-     * {@code SubjectStatsExtensions} for a stat tile's "latest" date once it falls outside the current year). Unlike
-     * {@link #locale()} feeding {@code DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)} for a full date, the JDK
-     * offers no localised STYLE for this shape (no year, abbreviated month) — {@code FormatStyle} only spans
-     * SHORT/MEDIUM/LONG/FULL, none of which drop a field — so each offered language gets an explicit, human-chosen
-     * pattern here rather than one derived from a formatter style.
+     * The date-time pattern for a day spelled out WITHOUT its year (e.g. {@code "15 June"}, used by {@code SubjectStatsExtensions} for a stat tile's
+     * "latest" date once it falls outside the current year). Unlike {@link #locale()} feeding
+     * {@code DateTimeFormatter.ofLocalizedDate(FormatStyle.FULL)} for a full date, the JDK offers no localised STYLE for this shape (no year,
+     * abbreviated month) — {@code FormatStyle} only spans SHORT/MEDIUM/LONG/FULL, none of which drop a field.
      *
-     * @return the day-plus-abbreviated-month pattern, for {@link java.time.format.DateTimeFormatter#ofPattern(String, Locale)}
+     * <p>
+     * It is instead resolved from the CLDR SKELETON {@code "MMMd"} — a request for a set of FIELDS rather than a literal pattern, which CLDR answers
+     * with this language's own field order, separators and literals ({@link DateTimeFormatterBuilder}'s skeleton-aware
+     * {@code getLocalizedDateTimePattern}, Java 19+). This method used to carry an exhaustive switch of hand-written patterns instead, one arm per
+     * language; CLDR returns exactly what every one of those arms said ({@code "d MMM"} for {@code en-GB}/{@code es-ES}/{@code ar-SA},
+     * {@code "MMM d"} for {@code en-US}, {@code "M月d日"} for {@code ja-JP}), so a new offered language now gets a correct pattern with no arm to
+     * add — and cannot be handed a wrong one by hand. {@code LanguageTest} pins the resolved pattern per language, so a CLDR revision that reshapes
+     * one fails the build rather than quietly changing the UI.
+     *
+     * @return the day-plus-abbreviated-month pattern, for {@link DateTimeFormatter#ofPattern(String, Locale)}
      */
     public String dayMonthPattern() {
-        return switch (this) {
-            case ENGLISH_GB, SPANISH, ARABIC -> "d MMM";
-            case ENGLISH_US -> "MMM d";
-            case JAPANESE -> "M月d日";
-        };
+        return dayMonthPattern;
     }
 
     /**
      * The date-time pattern for a month spelled out WITH its year but no day (e.g. {@code "June 2026"}, used by the frequency chart's month-window
      * heading and its year-window slot captions, and by the Stats page's "best month" tile). Same rationale as {@link #dayMonthPattern()}: no
-     * {@link java.time.format.FormatStyle} offers this shape either, so each offered language gets an explicit pattern.
+     * {@link java.time.format.FormatStyle} offers this shape either, so this one is resolved from the CLDR skeleton {@code "yMMMM"}.
      *
-     * @return the month-plus-year pattern, for {@link java.time.format.DateTimeFormatter#ofPattern(String, Locale)}
+     * <p>
+     * CLDR returns what the hand-written arms this replaced said, with one cosmetic difference: the year field comes back as {@code y} rather than
+     * the arms' {@code yyyy}. The two render identically for any year of four digits (which is every year this app ever formats — a stat's date
+     * comes from a stored log), so no rendered string changes; {@code y} is simply CLDR's own spelling of "the year, at its natural width".
+     *
+     * @return the month-plus-year pattern, for {@link DateTimeFormatter#ofPattern(String, Locale)}
      */
     public String monthYearPattern() {
-        return switch (this) {
-            case ENGLISH_GB, ENGLISH_US, ARABIC -> "MMMM yyyy";
-            case SPANISH -> "MMMM 'de' yyyy";
-            case JAPANESE -> "yyyy年M月";
-        };
+        return monthYearPattern;
     }
 
     /**
