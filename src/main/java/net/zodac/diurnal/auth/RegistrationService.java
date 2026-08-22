@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import net.zodac.diurnal.auth.lockout.IpLockoutService;
 import net.zodac.diurnal.auth.lockout.IpThrottle;
+import net.zodac.diurnal.http.NotUiFacing;
 import net.zodac.diurnal.note.NoteKeys;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
@@ -245,6 +246,7 @@ public class RegistrationService {
      * @param field the blank field
      * @return the default (English) label
      */
+    @NotUiFacing(reason = "names the blank fields in the /api/v1 400 body; the form's own banner is msg:missingFieldsIntro")
     public static String label(final RegistrationResult.RequiredField field) {
         return switch (field) {
             case EMAIL -> "Email";
@@ -261,6 +263,7 @@ public class RegistrationService {
      * @param error the rejection cause
      * @return the default (English) message
      */
+    @NotUiFacing(reason = "the /api/v1 400 body; the register form renders partials/text-failure-message.html and its own bundle entries")
     public static String message(final RegistrationError error) {
         return switch (error) {
             case final RegistrationError.FieldError fieldError -> TextOutcomeExtensions.message(fieldError.failure());

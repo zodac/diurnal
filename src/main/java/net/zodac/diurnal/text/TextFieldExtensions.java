@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import net.zodac.diurnal.http.NotUiFacing;
 
 /**
  * The derived logic of a {@link TextField}: how a submitted value is normalised, how a length failure is worded, and how the field's bounds are
@@ -126,6 +127,7 @@ public final class TextFieldExtensions {
      * @param field the field specification
      * @return the rejection message
      */
+    @NotUiFacing(reason = "reached only through TextOutcomeExtensions.message, so it goes to the /api/v1 400 body; hence the hardcoded plural 's'")
     public static String lengthMessage(final TextField field) {
         final String bounds = field.minLength() > 1
             ? ("between " + field.minLength() + " and " + field.maxLength())

@@ -24,6 +24,7 @@ import jakarta.transaction.Transactional;
 import java.util.UUID;
 import net.zodac.diurnal.auth.lockout.IpThrottle;
 import net.zodac.diurnal.auth.session.SessionStore;
+import net.zodac.diurnal.http.NotUiFacing;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
@@ -194,6 +195,7 @@ public class PasswordChangeService {
      * @param rejection the rejection cause
      * @return the message, in English
      */
+    @NotUiFacing(reason = "the /api/v1 400 body; the Settings password card renders partials/text-failure-message.html and its own entries")
     public static String message(final PasswordRejection rejection) {
         return switch (rejection) {
             case final PasswordRejection.Mismatch _ -> "Passwords do not match";

@@ -184,3 +184,13 @@ docker volume rm diurnal-sandbox-claude diurnal-sandbox-docker diurnal-sandbox-p
   via `-e` if you want zero exposure.
 - `--dangerously-skip-permissions` is scoped to this sandbox only — it's the
   entrypoint default here and is never passed to Claude on your host.
+- `gh` (the GitHub CLI) is in the image, but **unauthenticated by design, and stays
+  that way**. Credentials are entered by hand in the session that needs them and are
+  never persisted: nothing mounts `~/.config/gh`, so a `gh auth login` lives on the
+  writable layer and dies with `--rm`, and no `GH_TOKEN` is forwarded into the
+  container. **That is the policy, not a gap** — a session running with
+  `--dangerously-skip-permissions` is not somewhere a GitHub credential should be
+  sitting when nobody is watching. Do not "fix" it with a named volume for
+  `~/.config/gh` or an `-e GH_TOKEN` passthrough in `sandbox.sh`. Re-authenticating
+  each session is the cost, and it is the intended one. Unauthenticated `gh` still
+  reads public repos.
