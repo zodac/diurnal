@@ -410,13 +410,21 @@
    * transparent track so it blends into whatever surface it sits on (page canvas, cards, the
    * Settings panels). Declared on `html` so the standard `scrollbar-*` properties inherit to every
    * scroll container; the `::-webkit-scrollbar` block is global for Blink/WebKit, which ignore the
-   * standard properties. `scrollbar-gutter: stable` reserves the track so content doesn't shift
-   * when a scrollbar appears/disappears.
+   * standard properties.
+   *
+   * Deliberately NO `scrollbar-gutter: stable` on the root. It reserves the 12px track on EVERY page,
+   * scrolling or not, and that reserved band sits inside the root scroll container's padding box — so
+   * the full-bleed navbar and footer (partials/navbar.html, partials/footer.html) stop short of the
+   * window edge and the gutter shows through as a canvas-coloured stripe down the right of both bars.
+   * On a page that fits the viewport there is no scrollbar to justify it, which looks like a rendering
+   * fault. The shift it was buying (content moving by half a scrollbar width when navigating between a
+   * page that scrolls and one that doesn't) is the lesser of the two, and is how browsers behave by
+   * default everywhere else. Note `scrollbar-gutter` does not inherit, so this only ever affected the
+   * root — the app's inner scroll containers (note box, day panel) were never given a gutter.
    */
   html {
     scrollbar-width: thin;
     scrollbar-color: var(--color-text-faint) transparent;
-    scrollbar-gutter: stable;
   }
 
   ::-webkit-scrollbar {
