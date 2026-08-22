@@ -22,6 +22,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import net.zodac.diurnal.colour.Colours;
+import net.zodac.diurnal.http.NotUiFacing;
 import net.zodac.diurnal.stats.StatField;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
@@ -303,6 +304,7 @@ public class ProfileService {
      * @param rejection the rejection cause
      * @return the message, in English
      */
+    @NotUiFacing(reason = "the /api/v1 400 body; the Settings page renders partials/profile-rejection.html instead")
     public static String message(final ProfileRejection rejection) {
         return switch (rejection) {
             case final ProfileRejection.InvalidTheme invalid -> "Theme must be one of: " + invalid.allowedValues() + ".";

@@ -248,6 +248,16 @@ RUN --mount=type=cache,target=/home/dev/.npm,uid=${UID},gid=${GID},sharing=locke
 #
 # sudo provides the runtime `sudo` binary; /etc/sudoers.d/dev is already written above.
 #
+# gh is the GitHub CLI, so a session can read the CI run it just triggered (`gh run view --log-failed`)
+# rather than asking someone to paste the log in. Debian's own package, not GitHub's apt repo: the repo
+# would cost a keyring + sources step and a volatile pin for a tool nothing builds against, and the
+# Docker engine above is the deliberate exception (its binaries are musl-linked, so apt is the only
+# portable path). The tradeoff is that trixie ships a version behind upstream, which reads runs, PRs and
+# logs perfectly well - swap in the upstream repo if a session ever needs a genuinely new subcommand.
+# It ships NO credentials, and nothing persists any: a `gh auth login` is entered per session and dies
+# with the container. Deliberate - see the README's Notes before adding a token passthrough or a volume
+# for ~/.config/gh, because that is a policy decision that has already been taken the other way.
+#
 # Chromium's own shared-library deps are NOT listed here (the package names drift
 # across Debian releases); they are installed just below via the version-proof
 # `playwright install-deps chromium`, which resolves the correct set itself.
@@ -257,6 +267,7 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
     apt-get update && apt-get install -yqq --no-install-recommends \
         bash="5.2.37-2+b9" \
         fontconfig="2.15.0-2.3" \
+        gh="2.46.0-3" \
         git="1:2.47.3-0+deb13u1" \
         imagemagick="8:7.1.1.43+dfsg1-1+deb13u11" \
         iproute2="6.15.0-1" \

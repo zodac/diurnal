@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.http.NotUiFacing;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.note.NoteField;
@@ -200,6 +201,7 @@ public class ImportService {
     // PITest is held at 100%) or a reachable one that silently absorbs the next variant added. The flat table is the safer form (see
     // SubjectStatsExtensions.tile for the identical precedent).
     @SuppressWarnings({"OverlyLongMethod", "OverlyCoupledMethod"})
+    @NotUiFacing(reason = "the /api/v1 import-rejection body; the Settings panel renders partials/import-reason.html instead")
     public static String message(final ImportReason reason) {
         return switch (reason) {
             case final ImportReason.NotZipArchive _ -> "The uploaded file is not a ZIP archive.";

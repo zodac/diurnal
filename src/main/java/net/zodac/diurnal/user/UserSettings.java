@@ -24,6 +24,7 @@ import java.time.ZoneOffset;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import net.zodac.diurnal.http.NotUiFacing;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -51,7 +52,9 @@ public final class UserSettings {
     public static final List<Integer> PAGE_SIZE_OPTIONS = List.of(5, 10, 25, 50);
     private static final int MIN_PAGE_SIZE = 1;
     private static final int MAX_PAGE_SIZE = 100;
-    // User-facing rejection message when an out-of-range or non-numeric page size is submitted.
+
+    // Rejection message when an out-of-range or non-numeric page size is submitted.
+    @NotUiFacing(reason = "reaches only the /api/v1 400 body through ProfileService.message(); the Settings row has its own bundle entry")
     public static final String PAGE_SIZE_RANGE_MESSAGE =
         "Items per page must be a whole number between " + MIN_PAGE_SIZE + " and " + MAX_PAGE_SIZE + ".";
 
@@ -65,8 +68,10 @@ public final class UserSettings {
     // The colour a user's day notes are shown in, until they pick their own: green-600, the shade the notes
     // marker and the Stats page's Notes swatch were fixed at before the colour became a preference.
     public static final String DEFAULT_NOTE_COLOUR = "#16a34a";
-    // User-facing rejection message when a malformed note colour is submitted. Named as the setting the user
-    // sees, and worded to show the accepted shape (the same #rrggbb form an action's colour takes).
+
+    // Rejection message when a malformed note colour is submitted. Named as the setting the user sees, and
+    // worded to show the accepted shape (the same #rrggbb form an action's colour takes).
+    @NotUiFacing(reason = "reaches only the /api/v1 400 body through ProfileService.message(); the Settings card has its own bundle entry")
     public static final String NOTE_COLOUR_MESSAGE = "Note colour must be a hex value, e.g. " + DEFAULT_NOTE_COLOUR + ".";
 
     // Number of decimal places used to render fractional stats (e.g. the weekly average).
@@ -77,7 +82,9 @@ public final class UserSettings {
     // decimals is noise on a stat averaged over days, so the Settings row offers these as pills only
     // (no stepper, no free entry) and anything else is rejected.
     public static final List<Integer> DECIMAL_PLACES_OPTIONS = List.of(0, 1, 2);
-    // User-facing rejection message when an out-of-range or non-numeric decimal-place count is submitted.
+
+    // Rejection message when an out-of-range or non-numeric decimal-place count is submitted.
+    @NotUiFacing(reason = "reaches only the /api/v1 400 body through ProfileService.message(); the Settings row has its own bundle entry")
     public static final String DECIMAL_PLACES_RANGE_MESSAGE =
         "Decimal places must be a whole number between " + MIN_DECIMAL_PLACES + " and " + MAX_DECIMAL_PLACES + ".";
 

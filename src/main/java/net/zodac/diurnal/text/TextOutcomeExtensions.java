@@ -18,6 +18,7 @@
 package net.zodac.diurnal.text;
 
 import io.quarkus.qute.TemplateExtension;
+import net.zodac.diurnal.http.NotUiFacing;
 
 /**
  * The wording of a {@link TextOutcome.Failure}, generated from the field it was checked against so no rejection message is hand-written per surface.
@@ -44,6 +45,7 @@ public final class TextOutcomeExtensions {
      * @param failure the rejection
      * @return the message
      */
+    @NotUiFacing(reason = "the /api/v1 400 body's wording; a page renders partials/text-failure-message.html from shapeKey() instead")
     public static String message(final TextOutcome.Failure failure) {
         return switch (failure) {
             case final TextOutcome.Blank blank -> blank.field().label() + " cannot be empty.";
