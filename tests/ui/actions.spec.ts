@@ -43,6 +43,33 @@ test.describe("Actions page", () => {
         await expect(page.locator("#action-list")).toContainText("Running")
     })
 
+    // Add is inert until the name field holds a non-blank value (data-disable-until-complete), so an empty
+    // submission - and with it the browser's own "Please fill in this field" bubble, which is what a click
+    // on a live-but-doomed button raised - can never be reached. Whitespace does not count (the shared
+    // controller trims), and the lock goes back on after a successful add, which clears the field from
+    // JavaScript and so fires no input event of its own.
+    test("the add button is disabled until the name field holds a non-blank value", async ({ authenticatedPage: page }) => {
+        const name = unique("Locked")
+        await page.goto("/actions")
+        await page.waitForFunction(() => typeof (window as {htmx?: unknown}).htmx !== "undefined")
+        const add = page.locator('#new-action-form button[type="submit"]')
+        const field = page.locator('#new-action-form input[name="name"]')
+
+        await expect(add).toBeDisabled()
+        await field.fill("   ")
+        await expect(add).toBeDisabled()
+        await field.fill(name)
+        await expect(add).toBeEnabled()
+
+        await Promise.all([
+            page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
+            add.click(),
+        ])
+        await expect(page.locator("#action-list")).toContainText(name)
+        await expect(field).toHaveValue("")
+        await expect(add).toBeDisabled()
+    })
+
     // The form is served with a suggestion already in the picker, so a new action is distinguishable on the
     // calendar even from a user who never touches the control. #64748b is the neutral slate that used to be
     // the initial value (ActionValidation.DEFAULT_COLOUR) - nothing is created in it any more.

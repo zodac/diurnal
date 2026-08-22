@@ -16,10 +16,19 @@
         {! Add action form !}
         <div class="card p-4 mb-6">
             <h3 class="card-title mb-3">{msg:newActionCardTitle}</h3>
+            {! data-disable-until-complete (the shared controller in /js/app.js, as on the login/register
+                 cards) keeps Add inert until the name field holds a non-blank value, so an empty add can
+                 never be fired - and the browser's own "Please fill in this field" bubble, which is what
+                 a click on a live-but-doomed button used to raise, is never reached. A disabled default
+                 button also suppresses implicit submission, so Enter in the name field is covered too.
+                 `required` stays: it is what the controller reads, and it keeps the native validation as
+                 the fallback with scripting off. /js/actions.js re-locks the button after each add,
+                 since form.reset() fires no input event. !}
             <form id="new-action-form"
                   hx-post="/internal/actions"
                   hx-target="#actions-tbody"
                   hx-swap="afterbegin"
+                  data-disable-until-complete
                   class="flex items-center gap-3">
                 {! Pre-randomised, not the neutral slate: the picker opens on a colour unlike everything the user
                      already uses, so adding an action without touching it still yields a distinguishable calendar
