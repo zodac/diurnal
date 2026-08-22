@@ -85,8 +85,17 @@ remove_existing() {
 # Stop the container THIS launcher started, identified by the id docker wrote to the cidfile — never by
 # name. Because remove_existing hands the name from an outgoing sandbox to an incoming one, a name-based
 # teardown would let a departing launcher stop the container that replaced it.
+#
+# The path is a GLOBAL, set by run(). An EXIT trap fires in whatever scope the shell is in when it leaves:
+# on the signal paths that is still inside run() (the INT/TERM trap's `exit`), but on a normal return it is
+# the top level, where a `local` of run()'s is long out of scope — under `set -u` the trap body then dies
+# with "cidfile: unbound variable" before it can stop anything or clean the file up.
+CIDFILE=""
 stop_own() {
   local cidfile="$1" cid=""
+  if [[ -z "${cidfile}" ]]; then
+    return 0
+  fi
   if [[ -s "${cidfile}" ]]; then
     cid="$(<"${cidfile}")"
   fi
@@ -135,10 +144,9 @@ run() {
   #
   # The container is identified for teardown by the id docker writes to --cidfile (see stop_own), not by
   # name. `mktemp -u` because docker refuses to start if the cidfile already exists.
-  local cidfile
-  cidfile="$(mktemp -u "${TMPDIR:-/tmp}/${CONTAINER}.cid.XXXXXX")"
+  CIDFILE="$(mktemp -u "${TMPDIR:-/tmp}/${CONTAINER}.cid.XXXXXX")"
   exec 3<&0
-  trap 'stop_own "${cidfile}"' EXIT
+  trap 'stop_own "${CIDFILE}"' EXIT
   trap 'exit' INT TERM HUP
 
   # Publish the in-sandbox dev server (it runs on container :8081, e.g. scripts/dev-up.sh) to host
@@ -153,7 +161,7 @@ run() {
   # Dockerfile's user-creation block).
   docker run "${tty[@]}" --rm \
     --name "${CONTAINER}" \
-    --cidfile "${cidfile}" \
+    --cidfile "${CIDFILE}" \
     --privileged \
     --hostname diurnal-sandbox \
     -v "${PROJECT_DIR}":/work \
