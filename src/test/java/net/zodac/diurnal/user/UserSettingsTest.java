@@ -96,9 +96,9 @@ class UserSettingsTest {
 
     @Test
     void pageSizeOptions_containsExactlyFourValues() {
-        assertThat(UserSettings.PAGE_SIZE_OPTIONS.size())
+        assertThat(UserSettings.PAGE_SIZE_OPTIONS)
             .as("unexpected value")
-            .isEqualTo(4);
+            .hasSize(4);
     }
 
     @Test
@@ -175,9 +175,9 @@ class UserSettingsTest {
 
     @Test
     void decimalPlacesOptions_containsExactlyThreeValues() {
-        assertThat(UserSettings.DECIMAL_PLACES_OPTIONS.size())
+        assertThat(UserSettings.DECIMAL_PLACES_OPTIONS)
             .as("unexpected value")
-            .isEqualTo(3);
+            .hasSize(3);
     }
 
     @Test
@@ -257,9 +257,9 @@ class UserSettingsTest {
     void timezoneChoices_offersEveryCuratedZoneWithItsOwnIdAsValue() {
         final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, null, Language.ENGLISH_GB);
 
-        assertThat(choices.size())
+        assertThat(choices)
             .as("unexpected value")
-            .isEqualTo(UserSettings.TIMEZONE_OPTIONS.size());
+            .hasSameSizeAs(UserSettings.TIMEZONE_OPTIONS);
         // No "inherit" sentinel entry: every option's value is a real zone id from the curated list.
         assertThat(choices.stream().noneMatch(choice -> choice.value().isEmpty()))
             .as("no empty-value entry expected")
@@ -276,9 +276,9 @@ class UserSettingsTest {
         int prev = Integer.MIN_VALUE;
         for (final var choice : choices) {
             final int offset = ZoneId.of(choice.value()).getRules().getOffset(NOW).getTotalSeconds();
-            assertThat(offset >= prev)
+            assertThat(offset)
                 .as("choices must be sorted by ascending UTC offset")
-                .isTrue();
+                .isGreaterThanOrEqualTo(prev);
             prev = offset;
         }
         // Most-behind option (America/Los_Angeles, PDT UTC-7 in June) sorts first.
@@ -314,9 +314,9 @@ class UserSettingsTest {
         final var choices = UserSettings.timezoneChoices(ZoneId.of("Pacific/Auckland"), NOW, null, Language.ENGLISH_GB);
 
         final var selected = choices.stream().filter(UserSettings.TimezoneChoice::selected).toList();
-        assertThat(selected.size())
+        assertThat(selected)
             .as("exactly one option selected")
-            .isEqualTo(1);
+            .hasSize(1);
         assertThat(selected.getFirst().value())
             .as("server default selected when user inherits")
             .isEqualTo("Pacific/Auckland");
@@ -330,9 +330,9 @@ class UserSettingsTest {
         final var choices = UserSettings.timezoneChoices(ZoneId.of("UTC"), NOW, "Asia/Tokyo", Language.ENGLISH_GB);
 
         final var selected = choices.stream().filter(UserSettings.TimezoneChoice::selected).toList();
-        assertThat(selected.size())
+        assertThat(selected)
             .as("exactly one option selected")
-            .isEqualTo(1);
+            .hasSize(1);
         assertThat(selected.getFirst().value())
             .as("user override selected")
             .isEqualTo("Asia/Tokyo");

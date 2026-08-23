@@ -53,6 +53,7 @@ import net.zodac.diurnal.http.ClientAddress;
 import net.zodac.diurnal.http.HttpStatus;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.stats.StatField;
+import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.time.AppClock;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -69,7 +70,7 @@ public class SettingsWebResource {
     private static final Logger LOGGER = LogManager.getLogger(SettingsWebResource.class);
 
     // Tells the settings client WHICH of the two 422s the password-change flow can answer with it just got, so it knows
-    // whether to send the user back to step 1 (a wrong current password cannot be corrected from the confirm step) or
+    // whether to send the user back to step 1 (a wrong current password cannot be corrected from the confirmation step) or
     // leave them on it (a simple mismatch can). The body alone cannot say: it is a TRANSLATED sentence, so the client
     // used to match it against the English /current password/i and silently stopped working in every other language.
     private static final String PASSWORD_ERROR_HEADER = "X-Password-Error";
@@ -227,28 +228,18 @@ public class SettingsWebResource {
     }
 
     private String profileRejectionBanner(final ProfileRejection rejection, final Locale locale) {
-        return switch (rejection) {
-            case final ProfileRejection.InvalidTextField invalid ->
-                textFailureMessageTemplate.data("failure", invalid.failure()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ProfileRejection.InvalidTheme invalid -> profileRejectionTemplate.data("kind", "theme", "allowedValues",
-                invalid.allowedValues()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ProfileRejection.InvalidFont invalid -> profileRejectionTemplate.data("kind", "font", "allowedValues",
-                invalid.allowedValues()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ProfileRejection.InvalidLanguage invalid -> profileRejectionTemplate.data("kind", "language", "allowedValues",
-                invalid.allowedValues()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ProfileRejection.InvalidCalendarView invalid -> profileRejectionTemplate.data("kind", "calendarView", "allowedValues",
-                invalid.allowedValues()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ProfileRejection.InvalidNoteColour _ ->
-                profileRejectionTemplate.data("kind", "noteColour").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ProfileRejection.InvalidTimezone _ ->
-                profileRejectionTemplate.data("kind", "timezone").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ProfileRejection.InvalidWeekStart invalid -> profileRejectionTemplate.data("kind", "weekStart", "allowedValues",
-                invalid.allowedValues()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ProfileRejection.InvalidPageSize _ ->
-                profileRejectionTemplate.data("kind", "pageSize").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ProfileRejection.InvalidDecimalPlaces _ ->
-                profileRejectionTemplate.data("kind", "decimalPlaces").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-        };
+        if (rejection instanceof ProfileRejection.InvalidTextField(final TextOutcome.Failure failure)) {
+            return textFailureMessageTemplate
+                .data("failure", failure)
+                .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)
+                .render();
+        }
+
+        final ProfileRejection.ProfileRejectionBanner banner = rejection.banner();
+        return profileRejectionTemplate
+            .data("kind", banner.kind(), "allowedValues", banner.allowedValues())
+            .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)
+            .render();
     }
 
     private ProfileResult applyAppearance(final User user, final ProfileResult current, final @Nullable String theme, final @Nullable String font,
@@ -342,8 +333,8 @@ public class SettingsWebResource {
      *
      * <p>
      * Which step the client returns the user to is driven by the {@code X-Password-Error} header, NOT by the body: a wrong current password cannot be
-     * corrected from the confirm step, so it sends the user back to step 1, while a mismatch is fixed in place. The body is a translated sentence and
-     * so can never be matched on - doing that is a bug this endpoint's client shipped once, working in English only.
+     * corrected from the confirmation step, so it sends the user back to step 1, while a mismatch is fixed in place. The body is a translated
+     * sentence and so can never be matched on - doing that is a bug this endpoint's client shipped once, working in English only.
      */
     @POST
     @Path("internal/settings/password")

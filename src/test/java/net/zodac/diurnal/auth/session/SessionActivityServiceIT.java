@@ -66,12 +66,12 @@ class SessionActivityServiceIT extends IntegrationTestBase {
 
         final Map<UUID, RecentActivity> byUser = sessionActivityService.recentActivityByUser(List.of(active.id, inactive.id, noSessions.id), NOW);
 
-        assertThat(byUser.get(active.id))
+        assertThat(byUser)
                 .as("A user whose newest session was used 2 minutes ago must be recently active with 120 seconds elapsed")
-                .isEqualTo(new RecentActivity(true, 120L));
-        assertThat(byUser.get(inactive.id))
+                .containsEntry(active.id, new RecentActivity(true, 120L));
+        assertThat(byUser)
                 .as("A user whose newest session was used 10 minutes ago must be inactive")
-                .isEqualTo(RecentActivity.INACTIVE);
+                .containsEntry(inactive.id, RecentActivity.INACTIVE);
         assertThat(byUser)
                 .as("A user with no sessions must be absent from the result map")
                 .doesNotContainKey(noSessions.id);
@@ -85,9 +85,9 @@ class SessionActivityServiceIT extends IntegrationTestBase {
 
         final Map<UUID, RecentActivity> byUser = sessionActivityService.recentActivityByUser(List.of(multiSession.id), NOW);
 
-        assertThat(byUser.get(multiSession.id))
+        assertThat(byUser)
                 .as("Presence must come from the newest session across a user's devices (used 60 seconds ago)")
-                .isEqualTo(new RecentActivity(true, 60L));
+                .containsEntry(multiSession.id, new RecentActivity(true, 60L));
     }
 
     @Test

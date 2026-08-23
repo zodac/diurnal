@@ -189,7 +189,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    void create_absentColour_takesASuggestedColour() {
+    void create_absentColour_takesSuggestedColour() {
         final String colour = given().contentType(ContentType.JSON)
             .body("{\"name\":\"No Colour\"}")
             .post("/api/v1/actions")
@@ -296,7 +296,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
 
     @Test
     void get_unknownAction_returns404() {
-        given().get("/api/v1/actions/" + UUID.randomUUID())
+        given().get("/api/v1/actions/9999")
                 .then().statusCode(NOT_FOUND);
     }
 

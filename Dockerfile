@@ -71,7 +71,7 @@ COPY --from=css /css/src/main/resources/META-INF/resources/js/ \
 RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -Dcss.build.skip=true -q
 
 # ── Stage 4: build a minimal custom JRE with jlink ───────────────────────────
-FROM eclipse-temurin:26.0.1_8-jdk AS jre
+FROM eclipse-temurin:26.0.2_10-jdk AS jre
 
 # BEGIN UBUNTU PACKAGES
 RUN apt-get update && apt-get install -yqq --no-install-recommends \

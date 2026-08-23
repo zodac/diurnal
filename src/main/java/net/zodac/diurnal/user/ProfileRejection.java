@@ -18,6 +18,8 @@
 package net.zodac.diurnal.user;
 
 import net.zodac.diurnal.text.TextOutcome;
+import net.zodac.diurnal.text.TextOutcomeExtensions;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Why a {@link ProfileService} preference update was rejected - ten distinct causes across ten different methods that used to share one opaque,
@@ -36,13 +38,46 @@ public sealed interface ProfileRejection
     ProfileRejection.InvalidDecimalPlaces, ProfileRejection.InvalidTextField {
 
     /**
+     * Returns the English reason this profile update was rejected.
+     *
+     * @return the rejection reason
+     */
+    String rejectionReason();
+
+    /**
+     * Returns the data required to render the profile rejection banner.
+     *
+     * @return the profile rejection banner
+     */
+    ProfileRejectionBanner banner();
+
+    /**
+     * Data required to render a profile rejection banner.
+     *
+     * @param kind          the template kind
+     * @param allowedValues the allowed values, or {@code null} when the rejection has no allowed-values list
+     */
+    record ProfileRejectionBanner(String kind, @Nullable String allowedValues) {
+
+    }
+
+    /**
      * An unrecognised theme value.
      *
      * @param allowedValues the theme's own storage values, comma-joined - not translated (a technical enumeration token, like a timezone id, not a
-     *     display word)
+     *                      display word)
      */
     record InvalidTheme(String allowedValues) implements ProfileRejection {
 
+        @Override
+        public String rejectionReason() {
+            return "Theme must be one of: " + allowedValues + ".";
+        }
+
+        @Override
+        public ProfileRejectionBanner banner() {
+            return new ProfileRejectionBanner("theme", allowedValues);
+        }
     }
 
     /**
@@ -52,6 +87,15 @@ public sealed interface ProfileRejection
      */
     record InvalidFont(String allowedValues) implements ProfileRejection {
 
+        @Override
+        public String rejectionReason() {
+            return "Font must be one of: " + allowedValues + ".";
+        }
+
+        @Override
+        public ProfileRejectionBanner banner() {
+            return new ProfileRejectionBanner("font", allowedValues);
+        }
     }
 
     /**
@@ -61,6 +105,15 @@ public sealed interface ProfileRejection
      */
     record InvalidLanguage(String allowedValues) implements ProfileRejection {
 
+        @Override
+        public String rejectionReason() {
+            return "Language must be one of: " + allowedValues + ".";
+        }
+
+        @Override
+        public ProfileRejectionBanner banner() {
+            return new ProfileRejectionBanner("language", allowedValues);
+        }
     }
 
     /**
@@ -70,6 +123,15 @@ public sealed interface ProfileRejection
      */
     record InvalidCalendarView(String allowedValues) implements ProfileRejection {
 
+        @Override
+        public String rejectionReason() {
+            return "Calendar style must be one of: " + allowedValues + ".";
+        }
+
+        @Override
+        public ProfileRejectionBanner banner() {
+            return new ProfileRejectionBanner("calendarView", allowedValues);
+        }
     }
 
     /**
@@ -77,6 +139,15 @@ public sealed interface ProfileRejection
      */
     record InvalidNoteColour() implements ProfileRejection {
 
+        @Override
+        public String rejectionReason() {
+            return UserSettings.NOTE_COLOUR_MESSAGE;
+        }
+
+        @Override
+        public ProfileRejectionBanner banner() {
+            return new ProfileRejectionBanner("noteColour", null);
+        }
     }
 
     /**
@@ -84,6 +155,15 @@ public sealed interface ProfileRejection
      */
     record InvalidTimezone() implements ProfileRejection {
 
+        @Override
+        public String rejectionReason() {
+            return "Timezone must be one of the offered timezone options.";
+        }
+
+        @Override
+        public ProfileRejectionBanner banner() {
+            return new ProfileRejectionBanner("timezone", null);
+        }
     }
 
     /**
@@ -93,6 +173,15 @@ public sealed interface ProfileRejection
      */
     record InvalidWeekStart(String allowedValues) implements ProfileRejection {
 
+        @Override
+        public String rejectionReason() {
+            return "Week start must be one of: " + allowedValues + ".";
+        }
+
+        @Override
+        public ProfileRejectionBanner banner() {
+            return new ProfileRejectionBanner("weekStart", allowedValues);
+        }
     }
 
     /**
@@ -100,6 +189,15 @@ public sealed interface ProfileRejection
      */
     record InvalidPageSize() implements ProfileRejection {
 
+        @Override
+        public String rejectionReason() {
+            return UserSettings.PAGE_SIZE_RANGE_MESSAGE;
+        }
+
+        @Override
+        public ProfileRejectionBanner banner() {
+            return new ProfileRejectionBanner("pageSize", null);
+        }
     }
 
     /**
@@ -107,6 +205,15 @@ public sealed interface ProfileRejection
      */
     record InvalidDecimalPlaces() implements ProfileRejection {
 
+        @Override
+        public String rejectionReason() {
+            return UserSettings.DECIMAL_PLACES_RANGE_MESSAGE;
+        }
+
+        @Override
+        public ProfileRejectionBanner banner() {
+            return new ProfileRejectionBanner("decimalPlaces", null);
+        }
     }
 
     /**
@@ -116,5 +223,14 @@ public sealed interface ProfileRejection
      */
     record InvalidTextField(TextOutcome.Failure failure) implements ProfileRejection {
 
+        @Override
+        public String rejectionReason() {
+            return TextOutcomeExtensions.message(failure);
+        }
+
+        @Override
+        public ProfileRejectionBanner banner() {
+            return new ProfileRejectionBanner("textField", null);
+        }
     }
 }

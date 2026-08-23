@@ -33,7 +33,7 @@ import java.util.List;
  * cannot hot-swap mutants into a record, so logic held here would silently escape the mutation gate).
  *
  * @param key           the field's stable identifier, unrelated to {@code label} and never translated - lets a translated rejection message be
- *                      resolved by key (field + failure shape + rule id) rather than composed from {@code label} at render time, the same role
+ *                      resolved by key (field + failure shape + rule id) rather than created from {@code label} at render time, the same role
  *                      {@code StatField#key()}/{@code Theme#value()} play for their own catalogues
  * @param label         the human name of the field; ENGLISH ONLY - the source `TextOutcomeExtensions.message()`/API surfaces read directly, never
  *                      translated (see {@code AppMessages}' own class Javadoc on why a Java call cannot be locale-aware)

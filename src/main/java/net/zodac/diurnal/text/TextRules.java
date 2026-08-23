@@ -59,7 +59,7 @@ public final class TextRules { // NOPMD: DataClass - a catalogue of rule constan
     public static final TextRule EMAIL_SHAPE = new TextRule("emailShape", value -> value.contains("@"), "must contain an @ symbol.");
 
     /**
-     * A value may not carry a character that renders as nothing, or that changes how the characters around it are laid out. Four families qualify:
+     * A value may not carry a character that renders as nothing, or that changes how the surrounding characters are laid out. These families qualify:
      *
      * <ul>
      *     <li>the format, control, surrogate and private-use categories - the zero-width space, the byte-order mark, the soft hyphen, the word

@@ -231,10 +231,7 @@ class NotUiFacingTest {
 
         for (final String line : readLines(sourceFile)) {
             final String stripped = line.strip();
-            if (inBlockComment) {
-                inBlockComment = !stripped.endsWith("*/");
-                code.add("");
-            } else if (stripped.startsWith("/*")) {
+            if (inBlockComment || stripped.startsWith("/*")) {
                 inBlockComment = !stripped.endsWith("*/");
                 code.add("");
             } else {

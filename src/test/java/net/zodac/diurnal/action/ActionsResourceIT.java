@@ -327,7 +327,7 @@ class ActionsResourceIT extends IntegrationTestBase {
         final long logCount = net.zodac.diurnal.log.ActionLog.count("actionId = ?1", holder[0].id);
         assertThat(logCount)
             .as("unexpected value")
-            .isEqualTo(0L);
+            .isZero();
     }
 
     @Test
@@ -368,7 +368,7 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void viewItem_unknownId_returns404() {
-        given().get("/internal/actions/" + UUID.randomUUID())
+        given().get("/internal/actions/9999")
             .then().statusCode(Response.Status.NOT_FOUND.getStatusCode());
     }
 

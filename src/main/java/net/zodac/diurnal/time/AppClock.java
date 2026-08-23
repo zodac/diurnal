@@ -106,9 +106,7 @@ public class AppClock {
         }
     }
 
-    // ── Test seam ─────────────────────────────────────────────────────────────
-    // Only tests call these. They let an @QuarkusTest freeze time on the shared bean;
-    // production code never mutates the clock.
+    // TODO: Only tests call these two
 
     /**
      * Freeze time to a fixed clock (test-only).

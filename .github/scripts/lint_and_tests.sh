@@ -172,7 +172,7 @@ ESLINT_NODE_IMAGE="node:26.7.0-alpine"
 # different rule sets - and a new minor release could turn the gate red with no change to this repo. The
 # two @typescript-eslint packages share one pin because they are released in lockstep. All are bumped by
 # .github/scripts/update_dependency_versions.sh, like every other pin in this file.
-ESLINT_VERSION="10.8.1"
+ESLINT_VERSION="10.9.0"
 ESLINT_JS_VERSION="10.0.1"
 TYPESCRIPT_ESLINT_VERSION="8.67.0"
 ESLINT_GLOBALS_VERSION="17.11.0"

@@ -237,9 +237,9 @@ class AdminWebResourceIT extends IntegrationTestBase {
         given().post("/internal/admin/users/" + userId + "/delete")
                 .then().statusCode(OK);
 
-        runInTx(() -> assertThat(User.findByEmail("user@lt.test").isPresent())
+        runInTx(() -> assertThat(User.findByEmail("user@lt.test"))
             .as("expected condition to be false")
-            .isFalse());
+            .isNotPresent());
     }
 
     @Test

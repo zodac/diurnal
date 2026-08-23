@@ -52,7 +52,7 @@
 #   Maven   — pure Java + shell under /usr/share/maven; the image's own JDK is unused.
 #   Node 26 — installed under /usr/local; the prebuilt binaries are glibc-portable
 #             (the -trixie tag matches this base's glibc exactly).
-FROM eclipse-temurin:26.0.1_8-jdk AS jdk
+FROM eclipse-temurin:26.0.2_10-jdk AS jdk
 FROM maven:3.9.16-eclipse-temurin-26 AS maven
 FROM node:26.7.0-trixie AS node
 

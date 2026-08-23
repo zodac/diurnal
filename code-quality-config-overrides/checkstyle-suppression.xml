@@ -9,10 +9,6 @@
     file through parent-pom's <checkstyle-project-suppression-file> property.
 -->
 <suppressions>
-    <!-- Integration tests are named *IT by convention, so suppress just that rule for those files -->
-    <suppress files="IT\.java$"
-              checks="AbbreviationAsWordInName"/>
-
     <!-- The Quarkus @MessageBundle interface (the i18n message catalogue) is a declarative list of translated-text
          accessors, closer to an enum's constants than to a class doing work: Javadoc plus one-line @Message/accessor
          pairs, growing linearly with the number of translated strings the app shows. MethodCount's 100-method limit

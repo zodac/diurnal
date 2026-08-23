@@ -71,7 +71,7 @@ final class ArchiveParser {
      * @param noteField the configured day-note field, whose length bound every note row must satisfy
      */
     ArchiveParser(final Map<String, String> members, final LocalDate today, final TextField noteField) {
-        this.members = members;
+        this.members = Map.copyOf(members);
         this.today = today;
         this.noteField = noteField;
     }
