@@ -130,7 +130,7 @@ surgical HTMX count updates.
 ### Dashboard calendar (hand-rolled, no library)
 
 All three calendar styles (`full`/`minimal`/`stacked`, the `CalendarView` enum, default `full`) are drawn by **one** vanilla-JS engine,
-`buildGridCalendar()` in `dashboard.html` — a shared 7×6 / 42-cell, Sunday-first month grid with its own month cache, LRU eviction and idle prefetch (
+`buildGridCalendar()` in `dashboard.html` — a shared 7×6 / 42-cell month grid with its own month cache, LRU eviction and idle prefetch (
 `±2` months). There is no FullCalendar (or any) calendar library. `calendarView` only changes (a) which feed `fetchMonth` reads — `full` →
 `/api/v1/logs/events`, others → `/internal/logs/minimal-events`, both normalised into a uniform `dayData[date] = [{colour, label}]` — and (b) how
 `renderGrid` paints each cell: `full` = bordered cell with top-right day number + an uncapped event list (`.d-full-*`); `minimal` = centred date
@@ -138,6 +138,12 @@ circle + dots (`.d-min-dot`); `stacked` = circle + bars (`.d-stk-bar`). Every ce
 `.d-min-selected`/`.d-min-other`; the active style is mirrored onto `#calendar-wrap` and `#d-min-grid` as `.d-cal-{view}` so the `full` look is
 CSS-scoped. The shared chrome (toolbar, jump picker, day-panel load, the verb-gated `htmx:afterRequest` → `cal.refresh()`) drives a 4-method adapter (
 `currentView`/`goToMonth`/`setHighlight`/`refresh`). **When the dashboard calendar appearance changes, regenerate the settings previews** (see below).
+
+**Which day the grid starts on is the user's "Week starts on" preference** (`user/WeekStart`, `NULL` = follow their language's CLDR convention — see
+[`I18N.md`](I18N.md)). The server resolves it **once** per dashboard render: the column header's words come from `DayLabels.weekdayAbbreviations(locale,
+firstDay)` (rotated, not just worded), and the very same day rides `#dashboard-main`'s `data-week-start` as a browser `Date#getDay()` index, which
+`renderGrid` subtracts to size the leading run of previous-month cells. **Never re-derive the first day in JS** — one resolution feeding both halves is
+what stops the header and the cells from drifting a column apart.
 
 ### Dashboard layout & the note box
 

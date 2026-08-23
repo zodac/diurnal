@@ -325,6 +325,61 @@ class SurfaceParityIT extends IntegrationTestBase {
     }
 
     @Test
+    void weekStart_appliedIdenticallyOnBothSurfaces_andUnrecognisedDayRejectedByBoth() {
+        // One rule (ProfileService.updateWeekStart): both surfaces store an offered day verbatim, both read a BLANK value as the explicit
+        // "follow my language" reset (stored as null, never a sentinel day), and both reject an unrecognised day rather than coercing it.
+        given().formParam("weekStart", "saturday")
+                .patch("/internal/settings")
+                .then().statusCode(NO_CONTENT);
+        runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().weekStart)
+            .as("the web form stores the picked day")
+            .isEqualTo("saturday"));
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"weekStart":"wednesday"}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(OK);
+        runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().weekStart)
+            .as("the API stores the picked day the very same way")
+            .isEqualTo("wednesday"));
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"weekStart":""}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(OK);
+        runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().weekStart)
+            .as("a blank value is the follow-the-language reset on the API")
+            .isNull());
+
+        given().formParam("weekStart", "friday").patch("/internal/settings");
+        given().formParam("weekStart", "")
+                .patch("/internal/settings")
+                .then().statusCode(NO_CONTENT);
+        runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().weekStart)
+            .as("and it is the same reset on the web form")
+            .isNull());
+
+        given().contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"weekStart":"someday"}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(BAD_REQUEST);
+
+        given().formParam("weekStart", "someday")
+                .patch("/internal/settings")
+                .then().statusCode(UNPROCESSABLE_ENTITY);
+
+        runInTx(() -> assertThat(net.zodac.diurnal.user.User.findByEmail(PRIMARY).orElseThrow().weekStart)
+            .as("an unrecognised day must be rejected by BOTH surfaces, keeping the previous value")
+            .isNull());
+    }
+
+    @Test
     void statFieldRename_appliedIdenticallyOnBothSurfaces() {
         // Renaming a stat is one shared rule (ProfileService.updateStatsFields): both surfaces normalise
         // the name the same way, and both REJECT an over-long one rather than truncating it.

@@ -95,7 +95,7 @@ public class UserResource {
         summary = "Get the current user",
         description = "Returns the authenticated user's profile: ID, email, display name, role, and a "
         + "nested preferences object (theme, font, language, pageSize, showStatsSummary, decimalPlaces, "
-        + "calendarView, statsFields, timezone)."
+        + "calendarView, statsFields, timezone, weekStart)."
     )
     @SecurityRequirement(name = "BearerAuth")
     @APIResponse(responseCode = "200", description = "The authenticated user's profile.",
@@ -128,8 +128,8 @@ public class UserResource {
     /**
      * Partially updates the current user's display name and/or preferences: only the fields present in the body change (PATCH semantics). Every
      * submitted value is validated and an unrecognised one is rejected with a {@code 400} (never silently coerced to a default) — the display name,
-     * enum-backed preferences, timezone, page size and decimal places alike; the one deliberate exception is a blank timezone, the explicit
-     * "follow the server default" reset.
+     * enum-backed preferences, timezone, page size and decimal places alike; the two deliberate exceptions are a blank timezone and a blank week
+     * start, the explicit "follow the server default"/"follow the account's language" resets.
      *
      * @param request the fields to change
      * @return the updated profile
@@ -142,7 +142,7 @@ public class UserResource {
         summary = "Update the current user",
         description = "Partially updates the display name and/or preferences: absent fields keep their current value, and any submitted value that "
         + "is not recognised is rejected with a 400 naming the allowed values — nothing is ever silently changed. A blank timezone explicitly "
-        + "resets it to the server default.")
+        + "resets it to the server default, and a blank weekStart resets it to the account's language.")
     @SecurityRequirement(name = "BearerAuth")
     @APIResponse(responseCode = "200", description = "The updated profile.",
         content = @Content(mediaType = MediaType.APPLICATION_JSON, schema = @Schema(implementation = UserDto.class)))
@@ -269,6 +269,12 @@ public class UserResource {
         }
         if (preferences.timezone() != null) {
             result = profileService.updateTimezone(user, preferences.timezone());
+            if (result instanceof ProfileResult.Invalid) {
+                return result;
+            }
+        }
+        if (preferences.weekStart() != null) {
+            result = profileService.updateWeekStart(user, preferences.weekStart());
         }
         return result;
     }
@@ -348,6 +354,7 @@ public class UserResource {
      * @param noteColour       the {@code #rrggbb} colour the user's day notes are shown in; anything else is rejected
      * @param showNoteCounter  whether the dashboard note box shows its character counter
      * @param timezone         the IANA timezone override; blank resets to the server default, unrecognised values are rejected
+     * @param weekStart        the day the calendar's week starts on; blank resets to the account's language, unrecognised values are rejected
      * @param pageSize         the rows per page in list views; rejected when out of range
      * @param pageSizes        the FULL set of per-section page-size overrides; a section left out follows {@code pageSize}
      * @param decimalPlaces    the decimal places for fractional stats; rejected when out of range
@@ -374,6 +381,10 @@ public class UserResource {
         @Schema(examples = "Europe/London",
         description = "IANA timezone override from the offered options; blank resets to the server default, anything else is rejected.")
         @Nullable String timezone,
+        @Schema(examples = "monday",
+        description = "The day the dashboard calendar's week starts on ('monday' through 'sunday'); blank resets to the account's language, "
+        + "anything else is rejected.")
+        @Nullable String weekStart,
         @Schema(examples = "25", description = "Number of rows displayed per page in list views (1-100); rejected when out of range.")
         @Nullable Integer pageSize,
         @Schema(description = "The FULL set of per-section page-size overrides ('dashboard', 'actions', 'notes', 'stats', 'users'): a section left "

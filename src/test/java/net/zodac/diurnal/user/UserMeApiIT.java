@@ -177,6 +177,39 @@ class UserMeApiIT extends IntegrationTestBase {
     }
 
     @Test
+    void patchMe_unrecognisedWeekStart_isRejected() {
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"weekStart":"someday"}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(BAD_REQUEST)
+                .body("message", containsString("Week start must be one of"));
+    }
+
+    @Test
+    void patchMe_blankWeekStart_resetsToTheAccountsLanguage() {
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"weekStart":"saturday"}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(OK)
+                .body("preferences.weekStart", equalTo("saturday"));
+
+        given().header("Authorization", "Bearer " + token())
+                .contentType(ContentType.JSON)
+                .body("""
+                        {"preferences":{"weekStart":""}}
+                        """)
+                .patch("/api/v1/users/me")
+                .then().statusCode(OK)
+                .body("preferences.weekStart", nullValue());
+    }
+
+    @Test
     void patchMe_outOfRangePageSize_isRejected() {
         given().header("Authorization", "Bearer " + token())
                 .contentType(ContentType.JSON)

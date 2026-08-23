@@ -168,6 +168,7 @@ public class SettingsWebResource {
      * @param calendarView     the new dashboard calendar style, when submitted
      * @param noteColour       the new day-notes colour, when submitted
      * @param timezone         the new IANA timezone, when submitted
+     * @param weekStart        the new first day of the calendar's week (blank = follow the account's language), when submitted
      * @param pageSize         the new list page size, when submitted
      * @param pageSizeSection  every per-section page-size row's section key, when the overrides panel is submitted
      * @param pageSizeValue    each of those rows' page size (blank = follow {@code pageSize}), in the same order as {@code pageSizeSection}
@@ -192,6 +193,7 @@ public class SettingsWebResource {
         @FormParam("calendarView") @Nullable final String calendarView,
         @FormParam("noteColour") @Nullable final String noteColour,
         @FormParam("timezone") @Nullable final String timezone,
+        @FormParam("weekStart") @Nullable final String weekStart,
         @FormParam("pageSize") @Nullable final String pageSize,
         @FormParam("pageSizeSection") @Nullable final List<String> pageSizeSection,
         @FormParam("pageSizeValue") @Nullable final List<String> pageSizeValue,
@@ -210,7 +212,7 @@ public class SettingsWebResource {
         if (displayName != null) {
             result = profileService.updateDisplayName(user, displayName);
         }
-        result = applyAppearance(user, result, theme, font, language, calendarView, noteColour, timezone);
+        result = applyAppearance(user, result, theme, font, language, calendarView, noteColour, timezone, weekStart);
         result = applyPaging(user, result, pageSize, pageSizeSection, pageSizeValue, decimalPlaces);
         result = applyToggles(user, result, showStatsSummary, showNoteCounter);
         result = applyStatsFields(user, result, statsOrder, statsEnabled, statsLabel);
@@ -240,6 +242,8 @@ public class SettingsWebResource {
                 profileRejectionTemplate.data("kind", "noteColour").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
             case final ProfileRejection.InvalidTimezone _ ->
                 profileRejectionTemplate.data("kind", "timezone").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+            case final ProfileRejection.InvalidWeekStart invalid -> profileRejectionTemplate.data("kind", "weekStart", "allowedValues",
+                invalid.allowedValues()).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
             case final ProfileRejection.InvalidPageSize _ ->
                 profileRejectionTemplate.data("kind", "pageSize").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
             case final ProfileRejection.InvalidDecimalPlaces _ ->
@@ -248,7 +252,8 @@ public class SettingsWebResource {
     }
 
     private ProfileResult applyAppearance(final User user, final ProfileResult current, final @Nullable String theme, final @Nullable String font,
-        final @Nullable String language, final @Nullable String calendarView, final @Nullable String noteColour, final @Nullable String timezone) {
+        final @Nullable String language, final @Nullable String calendarView, final @Nullable String noteColour, final @Nullable String timezone,
+        final @Nullable String weekStart) {
         ProfileResult result = current;
         if (theme != null && stillValid(result)) {
             result = profileService.updateTheme(user, theme);
@@ -267,6 +272,9 @@ public class SettingsWebResource {
         }
         if (timezone != null && stillValid(result)) {
             result = profileService.updateTimezone(user, timezone);
+        }
+        if (weekStart != null && stillValid(result)) {
+            result = profileService.updateWeekStart(user, weekStart);
         }
         return result;
     }
@@ -488,6 +496,11 @@ public class SettingsWebResource {
                 .data("showNoteCounter", user.showNoteCounter)
                 .data("statsFieldChoices", StatField.choices(user.statsFields))
                 .data("timezoneChoices",
-                        UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone, Language.fromValue(user.language)));
+                        UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone, Language.fromValue(user.language)))
+                .data("weekStartChoices", WeekStart.choices(user.weekStart, locale))
+                // The "Automatic" option is selected precisely when no offered day is: an account following its language holds
+                // null (and a hand-edited unrecognised value resolves to the language too, so it reads as automatic here as well).
+                .data("weekStartIsAutomatic", !WeekStart.isValid(user.weekStart))
+                .data("automaticWeekStartDay", WeekStart.automatic(locale).dayName(locale));
     }
 }

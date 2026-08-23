@@ -138,6 +138,14 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     @Nullable
     public List<StatFieldPref> statsFields;
 
+    // The day the dashboard calendar's week starts on. NULL = follow the account's language (the
+    // locale's own CLDR convention), so the automatic state has one representation and needed no
+    // backfill; resolved by WeekStart.resolve(...).
+    @Preference
+    @Column(name = "week_start")
+    @Nullable
+    public String weekStart;
+
     // Per-user timezone override (IANA id). NULL = use the server default (app.timezone),
     // so "today" / streak / future-log boundaries follow the user's own clock.
     @Preference

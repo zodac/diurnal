@@ -25,6 +25,7 @@ import java.time.format.FormatStyle;
 import java.time.format.TextStyle;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.IntStream;
 
 /**
  * The one place a calendar day is spelled out for the UI. Both dashboard panes that name the selected day - the day-logger panel and the
@@ -56,21 +57,22 @@ public final class DayLabels {
     }
 
     /**
-     * The seven weekday abbreviations for the dashboard calendar's column header, in Sunday-first order ({@code Sun}, {@code Mon}, ...,
-     * {@code Sat} for {@code en-GB}) - the calendar GRID itself stays Sunday-first regardless of locale (a layout concern, not a vocabulary one;
-     * see {@code .claude/I18N.md}'s Phase 3), so only the WORDS follow the locale here, never the column order.
+     * The seven weekday abbreviations for the dashboard calendar's column header, worded in the given locale and rotated to start on
+     * {@code firstDay} (e.g. {@code Mon}, {@code Tue}, ..., {@code Sun} for {@code en-GB} starting on Monday). The WORDS follow the locale; the
+     * ORDER follows the viewer's own "Week starts on" preference, which defaults to the locale's convention but is theirs to override - see
+     * {@code user/WeekStart}, and {@code .claude/I18N.md} for why the column order was fixed at Sunday until that setting existed.
      *
-     * @param locale the locale to word the weekdays in
-     * @return the seven abbreviated weekday names, Sunday first
+     * <p>
+     * The grid the header sits above is drawn by {@code dashboard.js} from the same resolved day (as its browser day index), so the labels and the
+     * cells cannot disagree about which column is which.
+     *
+     * @param locale   the locale to word the weekdays in
+     * @param firstDay the day the week starts on
+     * @return the seven abbreviated weekday names, {@code firstDay} first
      */
-    public static List<String> weekdayAbbreviations(final Locale locale) {
-        return List.of(
-            DayOfWeek.SUNDAY.getDisplayName(TextStyle.SHORT, locale),
-            DayOfWeek.MONDAY.getDisplayName(TextStyle.SHORT, locale),
-            DayOfWeek.TUESDAY.getDisplayName(TextStyle.SHORT, locale),
-            DayOfWeek.WEDNESDAY.getDisplayName(TextStyle.SHORT, locale),
-            DayOfWeek.THURSDAY.getDisplayName(TextStyle.SHORT, locale),
-            DayOfWeek.FRIDAY.getDisplayName(TextStyle.SHORT, locale),
-            DayOfWeek.SATURDAY.getDisplayName(TextStyle.SHORT, locale));
+    public static List<String> weekdayAbbreviations(final Locale locale, final DayOfWeek firstDay) {
+        return IntStream.range(0, DayOfWeek.values().length)
+            .mapToObj(offset -> firstDay.plus(offset).getDisplayName(TextStyle.SHORT, locale))
+            .toList();
     }
 }
