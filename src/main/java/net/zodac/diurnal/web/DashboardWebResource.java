@@ -39,6 +39,7 @@ import net.zodac.diurnal.time.DayLabels;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
+import net.zodac.diurnal.user.WeekStart;
 
 /**
  * Serves the application's home page. The dashboard is the one page that belongs to no single feature - it composes the calendar, the day's note
@@ -88,6 +89,9 @@ public class DashboardWebResource {
         // The initially selected day's note is rendered inline, the same way the stats summary card is:
         // dashboard.js seeds its client-side cache from it, so opening the dashboard costs no request.
         final Note note = Note.findEntry(user.id, today);
+        // The one resolution of "which day does this user's week start on?" per render: the header's column WORDS and the
+        // grid's own cell offset (data-week-start, read by dashboard.js) both come from it, so they cannot disagree.
+        final WeekStart weekStart = WeekStart.resolve(user.weekStart, locale);
         return StatsSummary.render(dashboardTemplate, user, today, statsService)
                 .data("noteContent", note == null ? "" : noteService.readContent(note).orElse(""))
                 .data("email", user.email)
@@ -96,7 +100,8 @@ public class DashboardWebResource {
                 .data("font", user.font)
                 .data("language", user.language)
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)
-                .data("weekdayLabels", DayLabels.weekdayAbbreviations(locale))
+                .data("weekdayLabels", DayLabels.weekdayAbbreviations(locale, weekStart.dayOfWeek()))
+                .data("weekStartIndex", weekStart.browserIndex())
                 .data("isAdmin", user.isAdmin())
                 .data("calendarView", user.calendarView)
                 .data("today", today.toString())

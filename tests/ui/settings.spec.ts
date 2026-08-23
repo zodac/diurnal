@@ -435,6 +435,40 @@ test.describe("Settings page", () => {
         await expect(page.locator('input[name="calendarView"][value="full"]')).toBeChecked()
     })
 
+    // The week-start preference moves BOTH halves of the calendar: the column header (rendered server-side by
+    // DayLabels.weekdayAbbreviations) and the grid's own leading-cell offset (dashboard.js, off data-week-start).
+    // Asserting the first cell's actual date is what catches the two drifting apart — a header alone would still
+    // read correctly while every cell sat one column out.
+    test("week start: picking a day re-anchors the calendar, and Automatic follows the language", async ({ authenticatedPage: page }) => {
+        const firstColumn = page.locator(".d-min-dow-header span").first()
+        const firstCellDay = async (): Promise<number> => {
+            const date = await page.locator(".d-min-cell").first().getAttribute("data-date")
+            return new Date(`${date}T00:00:00Z`).getUTCDay()
+        }
+
+        // The suite's account is pinned to en-GB, whose CLDR convention is Monday — so the untouched
+        // preference is Automatic, and the calendar starts on Monday without anything being chosen.
+        await page.goto("/settings")
+        await expect(page.locator("#weekStart")).toHaveValue("")
+        await expect(page.locator('#weekStart option[value=""]')).toHaveText("Automatic (Monday)")
+        await page.goto("/")
+        await expect(firstColumn).toHaveText("Mon")
+        expect(await firstCellDay()).toBe(1)
+
+        await page.goto("/settings")
+        await waitForSave(page, page.locator("#weekStart").selectOption("sunday"))
+        await page.goto("/")
+        await expect(firstColumn).toHaveText("Sun")
+        expect(await firstCellDay()).toBe(0)
+
+        // Back to Automatic (the blank option), so the shared account leaves this test as it found it.
+        await page.goto("/settings")
+        await waitForSave(page, page.locator("#weekStart").selectOption(""))
+        await page.goto("/")
+        await expect(firstColumn).toHaveText("Mon")
+        expect(await firstCellDay()).toBe(1)
+    })
+
     test("clicking a preview tile info button opens the full-size dashboard preview", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
         await expect(page.locator("#preview-modal")).toBeHidden()

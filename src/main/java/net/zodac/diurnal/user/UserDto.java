@@ -56,6 +56,7 @@ public record UserDto(
      * @param showNoteCounter whether the dashboard note box shows its character counter
      * @param statsFields the ordered "Action stats" arrangement (key + enabled + optional custom name per stat), or {@code null} if never customised
      * @param timezone the user's IANA timezone override, or {@code null} to follow the server default
+     * @param weekStart the day the dashboard calendar's week starts on, or {@code null} to follow the account's language
      */
     @Schema(description = "A user's display and behaviour preferences.")
     public record Preferences(
@@ -79,7 +80,10 @@ public record UserDto(
         @Schema(description = "The ordered 'Action stats' arrangement (key + enabled + optional custom name per stat); null if never customised.")
         @Nullable List<StatFieldPref> statsFields,
         @Schema(examples = "Europe/London", description = "IANA timezone override; null means the server default is used.")
-        @Nullable String timezone) {
+        @Nullable String timezone,
+        @Schema(examples = "monday", description = "The day the dashboard calendar's week starts on ('monday' through 'sunday'); null means the "
+        + "account's language decides it.")
+        @Nullable String weekStart) {
     }
 
     /**
@@ -104,6 +108,7 @@ public record UserDto(
                         user.noteColour,
                         user.showNoteCounter,
                         user.statsFields,
-                        user.timezone));
+                        user.timezone,
+                        user.weekStart));
     }
 }

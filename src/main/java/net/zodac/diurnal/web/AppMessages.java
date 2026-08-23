@@ -618,6 +618,15 @@ public interface AppMessages {
     String profileInvalidTimezone();
 
     /**
+     * An unrecognised week-start value.
+     *
+     * @param allowedValues the week start's own storage values, comma-joined, never translated
+     * @return the default (English) text
+     */
+    @Message("Week start must be one of: {allowedValues}.")
+    String profileInvalidWeekStart(String allowedValues);
+
+    /**
      * A page size (general or per-section) outside the accepted range.
      *
      * @return the default (English) text
@@ -1196,6 +1205,24 @@ public interface AppMessages {
      */
     @Message("Language")
     String languageLabel();
+
+    /**
+     * Week-start label.
+     *
+     * @return the default (English) text
+     */
+    @Message("Week starts on")
+    String weekStartLabel();
+
+    /**
+     * The week-start picker's automatic option, naming the day the account's language currently resolves to (e.g. "Automatic (Monday)"). The day
+     * itself is CLDR data resolved from the viewer's own locale ({@code user/WeekStart#dayName}), so only the wrapper around it is translated here.
+     *
+     * @param day the resolved day's name, already in the viewer's language
+     * @return the default (English) text
+     */
+    @Message("Automatic ({day})")
+    String weekStartAutomatic(String day);
 
     /**
      * Statistics summary label.

@@ -6,11 +6,13 @@
     {! Navigation !}
     {#include partials/navbar active='dashboard' /}
 
-    {! Main content. data-today/data-calendar-view are the two server-injected values the calendar
-         engine needs (the app's UTC "today" and the user's chosen calendar style); dashboard.js reads
-         them off this element's dataset instead of an inline bootstrap script, so the engine stays a
-         fully static, content-hashed file. !}
-    <main id="dashboard-main" class="page-container px-4 py-8" data-today="{today}" data-calendar-view="{calendarView}">
+    {! Main content. data-today/data-calendar-view/data-week-start are the three server-injected values
+         the calendar engine needs (the app's UTC "today", the user's chosen calendar style and the day
+         their week starts on, as a browser day index where 0 = Sunday); dashboard.js reads them off this
+         element's dataset instead of an inline bootstrap script, so the engine stays a fully static,
+         content-hashed file. !}
+    <main id="dashboard-main" class="page-container px-4 py-8" data-today="{today}" data-calendar-view="{calendarView}"
+          data-week-start="{weekStartIndex}">
         {! ONE grid holds all four panels, placed EXPLICITLY into a 2x2 arrangement at lg+:
                  row 1: calendar (cols 1-2)   |  day logger (col 3)
                  row 2: stats summary (1-2)   |  note box    (col 3)
@@ -32,7 +34,7 @@
              app's own workspace layout, not reading content, so it does not mirror the way a translated
              sentence does. Each panel below re-asserts the PAGE's real direction (`language:dir`), so
              everything INSIDE a panel - including the calendar's own day grid, which is a separate,
-             deliberate decision to keep mirroring (see the "Sunday-first" note below) - behaves exactly
+             deliberate decision to keep mirroring (see the weekday-header note below) - behaves exactly
              as it did before; only the four panels' OUTER positions are frozen. See
              .claude/UI_PATTERNS.md section 7. !}
         <div dir="ltr" class="grid gap-4 lg:grid-cols-3 mb-6 min-w-0">
@@ -53,9 +55,10 @@
                 <div id="calendar-wrap" class="relative d-cal-{calendarView}"
                      style="--note-colour: {noteColour}; --note-colour-on-brand: {noteColourOnBrand}">
                     {#include partials/calendar-toolbar /}
-                    {! Sunday-first column order is fixed regardless of locale (the grid layout is a Phase 3
-                         concern, not Phase 2's); only the weekday WORDS follow the viewer's language, via
-                         DayLabels.weekdayAbbreviations. !}
+                    {! Both the column ORDER and the weekday WORDS come from the server: DayLabels.weekdayAbbreviations
+                         words them in the viewer's language and rotates them to their "Week starts on" setting (which
+                         defaults to the language's own convention - see user/WeekStart). The grid below is offset by the
+                         same resolved day via data-week-start, so header and cells cannot drift apart. !}
                     <div class="d-min-dow-header">
                         {#for day in weekdayLabels}<span>{day}</span>{/for}
                     </div>

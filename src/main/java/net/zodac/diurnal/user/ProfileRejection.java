@@ -20,7 +20,7 @@ package net.zodac.diurnal.user;
 import net.zodac.diurnal.text.TextOutcome;
 
 /**
- * Why a {@link ProfileService} preference update was rejected - nine distinct causes across nine different methods that used to share one opaque,
+ * Why a {@link ProfileService} preference update was rejected - ten distinct causes across ten different methods that used to share one opaque,
  * English-only {@code String} on {@code ProfileResult.Invalid}. Carried structured so the API resource can still word it in English (unchanged,
  * {@link ProfileService#message(ProfileRejection)}) while the web resource resolves a translated sentence, the same split every other
  * {@code *Result} in this pass uses.
@@ -32,8 +32,8 @@ import net.zodac.diurnal.text.TextOutcome;
  */
 public sealed interface ProfileRejection
     permits ProfileRejection.InvalidTheme, ProfileRejection.InvalidFont, ProfileRejection.InvalidLanguage, ProfileRejection.InvalidCalendarView,
-    ProfileRejection.InvalidNoteColour, ProfileRejection.InvalidTimezone, ProfileRejection.InvalidPageSize, ProfileRejection.InvalidDecimalPlaces,
-    ProfileRejection.InvalidTextField {
+    ProfileRejection.InvalidNoteColour, ProfileRejection.InvalidTimezone, ProfileRejection.InvalidWeekStart, ProfileRejection.InvalidPageSize,
+    ProfileRejection.InvalidDecimalPlaces, ProfileRejection.InvalidTextField {
 
     /**
      * An unrecognised theme value.
@@ -83,6 +83,15 @@ public sealed interface ProfileRejection
      * A timezone that is not one of the offered options.
      */
     record InvalidTimezone() implements ProfileRejection {
+
+    }
+
+    /**
+     * A week-start day that is not one of the offered options.
+     *
+     * @param allowedValues the week start's own storage values, comma-joined - never translated, see {@link InvalidTheme}
+     */
+    record InvalidWeekStart(String allowedValues) implements ProfileRejection {
 
     }
 

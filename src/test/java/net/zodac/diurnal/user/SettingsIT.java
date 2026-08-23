@@ -813,6 +813,47 @@ class SettingsIT extends IntegrationTestBase {
             .isEqualTo("UTC"));
     }
 
+    // ── PATCH /settings/week-start ────────────────────────────────────────────────
+
+    @Test
+    void updateWeekStart_offeredDay_persists() {
+        given().formParam("weekStart", "saturday")
+                .patch("/internal/settings")
+                .then().statusCode(NO_CONTENT);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().weekStart)
+            .as("unexpected value")
+            .isEqualTo("saturday"));
+    }
+
+    @Test
+    void updateWeekStart_blank_clearsToTheLanguagesConvention() {
+        // First pick a day, then submit blank ("Automatic") to confirm it clears back to null.
+        given().formParam("weekStart", "sunday").patch("/internal/settings").then().statusCode(NO_CONTENT);
+
+        given().formParam("weekStart", "")
+                .patch("/internal/settings")
+                .then().statusCode(NO_CONTENT);
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().weekStart)
+            .as("expected null - following the account's language has no sentinel day")
+            .isNull());
+    }
+
+    @Test
+    void updateWeekStart_unrecognisedDay_isRejectedKeepingCurrentValue() {
+        given().formParam("weekStart", "sunday").patch("/internal/settings");
+
+        given().formParam("weekStart", "someday")
+                .patch("/internal/settings")
+                .then().statusCode(UNPROCESSABLE_ENTITY)
+                .body(containsString("Week start must be one of"));
+
+        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().weekStart)
+            .as("an unrecognised day must be rejected, keeping the previous value")
+            .isEqualTo("sunday"));
+    }
+
     // ── PATCH /settings/stats-fields ─────────────────────────────────────────────
 
     @Test

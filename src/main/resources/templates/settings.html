@@ -366,6 +366,21 @@
                         {/options}
                     {/include}
 
+                    {! Week starts on. The blank-valued first option is "Automatic": it posts an empty value, which is the
+                         explicit "follow my language" reset (exactly as a blank timezone resets to the server default), so the
+                         automatic state is stored as NULL and never as a sentinel day. Its label names the day the language
+                         currently resolves to, so the choice being made is visible before it is made. Each day option's own
+                         WORD is CLDR data (WeekStart.dayName), not a bundle entry — only the "Automatic (…)" wrapper around it
+                         is translated. !}
+                    {#include partials/select-field id="weekStart" label=msg:weekStartLabel endpoint="/internal/settings" border=true}
+                        {#options}
+                        <option value="" {#if weekStartIsAutomatic}selected{/if}>{msg:weekStartAutomatic(automaticWeekStartDay)}</option>
+                        {#for choice in weekStartChoices}
+                        <option value="{choice.value}" {#if choice.selected}selected{/if}>{choice.dayName}</option>
+                        {/for}
+                        {/options}
+                    {/include}
+
                     {! Show stats summary. A toggle switch: the hidden "false" input always posts, and
                          the checkbox posts an additional "true" only when ticked, so the endpoint reads
                          the setting as on iff the posted values contain "true". hx-include scopes the

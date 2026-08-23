@@ -104,6 +104,33 @@ class DashboardWebResourceIT extends IntegrationTestBase {
     }
 
 
+    // ── Week start ────────────────────────────────────────────────────────────
+
+    @Test
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
+    void dashboard_noWeekStartPreference_followsTheAccountsLanguage() {
+        // The seeded account is en-GB, whose CLDR convention is Monday: the column header leads with Monday
+        // and the grid is handed Monday's browser day index (1), so the header and the cells agree.
+        given().get("/")
+                .then().statusCode(OK)
+                .body(containsString("data-week-start=\"1\""))
+                .body(containsString("<span>Mon</span><span>Tue</span>"));
+    }
+
+    @Test
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
+    void dashboard_weekStartPreference_overridesTheLanguagesConvention() {
+        runInTx(() -> {
+            final User user = User.findByEmail("web-it@lt.test").orElseThrow();
+            user.weekStart = "saturday";
+        });
+
+        given().get("/")
+                .then().statusCode(OK)
+                .body(containsString("data-week-start=\"6\""))
+                .body(containsString("<span>Sat</span><span>Sun</span><span>Mon</span>"));
+    }
+
     // ── 404 page ──────────────────────────────────────────────────────────────
 
     @Test

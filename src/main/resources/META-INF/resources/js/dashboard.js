@@ -4,16 +4,21 @@
  *
  * Served as /js/dashboard.<hash>.js in production (hashed + `immutable` in the Dockerfile, baked
  * into AppInfo.jsDashboardFile) and /js/dashboard.js in dev. Loaded only on the dashboard, as a
- * classic script at the end of <body>. The two server-injected values it needs — the app's UTC
- * "today" and the user's calendar style — arrive via the #dashboard-main element's data-today /
- * data-calendar-view attributes (dashboard.html), so this file carries no inline bootstrap and
- * stays a fully static, content-hashed script. Because this is a plain .js file (not a Qute
- * template) the historic `{`-escaping caveats no longer apply here.
+ * classic script at the end of <body>. The three server-injected values it needs — the app's UTC
+ * "today", the user's calendar style and the day their week starts on — arrive via the #dashboard-main
+ * element's data-today / data-calendar-view / data-week-start attributes (dashboard.html), so this
+ * file carries no inline bootstrap and stays a fully static, content-hashed script. Because this is a
+ * plain .js file (not a Qute template) the historic `{`-escaping caveats no longer apply here.
  */
 document.addEventListener('DOMContentLoaded', function () {
     const _cfg = document.getElementById('dashboard-main').dataset
     const today = _cfg.today
     const calendarView = _cfg.calendarView
+    // The day the user's week starts on, already resolved server-side (their "Week starts on" setting, or
+    // their language's own convention when they have not set one) and handed over in the browser's own
+    // Date#getDay() numbering, 0 = Sunday. The column header above the grid is rotated by the SAME resolved
+    // day (DayLabels.weekdayAbbreviations), so nothing here re-derives it.
+    const weekStartIndex = parseInt(_cfg.weekStart, 10) || 0
     // The real "today" month, parsed once — the jump popup marks the month containing today with the
     // calendar's solid "today" highlight (distinct from the merely-viewed month, which gets the
     // selected-day ring). Shared by every calendar style's picker.
@@ -841,7 +846,9 @@ document.addEventListener('DOMContentLoaded', function () {
         function renderGrid() {
             setCalTitle(titleEl, viewYear, viewMonth)
             grid.innerHTML = ''
-            const firstDow = new Date(viewYear, viewMonth, 1).getDay() // 0 = Sunday
+            // How many leading cells the month needs: the distance from the user's first day of the week to
+            // the weekday the 1st falls on (+7 % 7 keeps it non-negative when the month starts BEFORE that day).
+            const firstDow = (new Date(viewYear, viewMonth, 1).getDay() - weekStartIndex + 7) % 7
 
             for (let i = 0; i < 42; i++) {
                 // JS Date constructor handles month overflow correctly for cells outside the current month.

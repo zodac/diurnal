@@ -33,15 +33,16 @@ import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The single owner of every profile and preference update — display name, theme, font, calendar view, note colour, timezone, page size, decimal
- * places, stats-summary toggle and the "Action stats" arrangement — shared by the Settings page's HTMX endpoints
+ * The single owner of every profile and preference update — display name, theme, font, calendar view, note colour, timezone, week start, page size,
+ * decimal places, stats-summary toggle and the "Action stats" arrangement — shared by the Settings page's HTMX endpoints
  * ({@code SettingsWebResource}) and the REST API's {@code PATCH /api/v1/users/me} ({@code UserResource}), so a rule added or changed here applies to
  * both surfaces by construction (the
  * {@code AuthenticationService} pattern). The resources only translate the returned {@link ProfileResult} into their medium.
  *
  * <p>
  * Every submitted value is validated and an unrecognised one is <em>rejected</em> (never silently coerced) so the client keeps the previous value;
- * the one deliberate special case is a blank timezone, the explicit "follow the server default" reset. Every rule delegates to the single validators
+ * the two deliberate special cases are a blank timezone and a blank week start, the explicit "follow the server default"/"follow the account's
+ * language" resets. Every rule delegates to the single validators
  * on {@link UserSettings}, the picker enums and {@link StatField}. Free-text values (the display name) go through the shared
  * {@link TextValidation} pipeline, so they obey the same blank/length/content rules as every other text input in the app.
  *
@@ -162,6 +163,24 @@ public class ProfileService {
             return new ProfileResult.Invalid(new ProfileRejection.InvalidTimezone());
         }
         return applySetting(user, "Timezone", timezone, () -> user.timezone = timezone);
+    }
+
+    /**
+     * Updates the day the dashboard calendar's week starts on, rejecting an unrecognised day. A blank submission is the explicit "follow the
+     * account's language" reset (stored as {@code null}), the same shape a blank timezone takes.
+     *
+     * @param user      the acting user
+     * @param weekStart the submitted week-start value, or blank to follow the account's language
+     * @return the outcome
+     */
+    public ProfileResult updateWeekStart(final User user, final @Nullable String weekStart) {
+        if (weekStart == null || weekStart.isBlank()) {
+            return applySetting(user, "Week start", null, () -> user.weekStart = null); // NOPMD: NullAssignment - null IS the follow-the-locale state
+        }
+        if (!WeekStart.isValid(weekStart)) {
+            return new ProfileResult.Invalid(new ProfileRejection.InvalidWeekStart(allowedWeekStartValues()));
+        }
+        return applySetting(user, "Week start", weekStart, () -> user.weekStart = weekStart);
     }
 
     /**
@@ -292,6 +311,10 @@ public class ProfileService {
         return java.util.Arrays.stream(Language.values()).map(Language::value).collect(java.util.stream.Collectors.joining(", "));
     }
 
+    private static String allowedWeekStartValues() {
+        return java.util.Arrays.stream(WeekStart.values()).map(WeekStart::value).collect(java.util.stream.Collectors.joining(", "));
+    }
+
     private static ProfileResult applyPageSizes(final User user, final @Nullable List<PageSizePref> overrides) {
         return applySetting(user, "Page sizes", PageSizes.describe(overrides), () -> user.pageSizes = overrides);
     }
@@ -313,6 +336,7 @@ public class ProfileService {
             case final ProfileRejection.InvalidCalendarView invalid -> "Calendar style must be one of: " + invalid.allowedValues() + ".";
             case final ProfileRejection.InvalidNoteColour _ -> UserSettings.NOTE_COLOUR_MESSAGE;
             case final ProfileRejection.InvalidTimezone _ -> "Timezone must be one of the offered timezone options.";
+            case final ProfileRejection.InvalidWeekStart invalid -> "Week start must be one of: " + invalid.allowedValues() + ".";
             case final ProfileRejection.InvalidPageSize _ -> UserSettings.PAGE_SIZE_RANGE_MESSAGE;
             case final ProfileRejection.InvalidDecimalPlaces _ -> UserSettings.DECIMAL_PLACES_RANGE_MESSAGE;
             case final ProfileRejection.InvalidTextField invalid -> TextOutcomeExtensions.message(invalid.failure());
