@@ -21,7 +21,7 @@ import io.quarkus.qute.TemplateExtension;
 import net.zodac.diurnal.http.NotUiFacing;
 
 /**
- * The wording of a {@link TextOutcome.Failure}, generated from the field it was checked against so no rejection message is hand-written per surface.
+ * The wording of a {@link TextOutcome.Failure}, generated from the field it was checked against so no rejection message is handwritten per surface.
  *
  * <p>
  * A message never quotes the submitted value: one of the fields validated here is a password, and the messages reach banners, JSON bodies and (for

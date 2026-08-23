@@ -322,7 +322,7 @@ class LogsApiWriteIT extends IntegrationTestBase {
 
     @Test
     void delete_unknownAction_returns404() {
-        given().delete("/api/v1/logs/" + TODAY + "/" + UUID.randomUUID())
+        given().delete("/api/v1/logs/" + TODAY + "/9999")
                 .then().statusCode(NOT_FOUND);
     }
 

@@ -25,6 +25,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -105,6 +107,8 @@ public enum Language {
      * enum's declaration order, which only controls the Settings dropdown's display order.
      */
     private static final Map<String, Language> BASE_LANGUAGE_FALLBACK = Map.of("en", ENGLISH_GB, "es", SPANISH, "ar", ARABIC, "ja", JAPANESE);
+
+    private static final Logger LOGGER = LogManager.getLogger(Language.class);
 
     private final String value;
     private final String label;
@@ -277,7 +281,8 @@ public enum Language {
             final String matched = Locale.lookupTag(ranges, offeredValues);
             return matched == null ? fromBaseLanguage(ranges) : fromValue(matched);
         } catch (final IllegalArgumentException e) {
-            // A malformed header (invalid language-range syntax) is treated the same as an absent one.
+            LOGGER.trace("Invalid language header: {}", acceptLanguageHeader, e);
+            // A malformed header (invalid language-range syntax) is treated the same as an absent one
             return DEFAULT;
         }
     }

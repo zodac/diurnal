@@ -20,6 +20,10 @@ package net.zodac.diurnal.transfer;
 import static io.restassured.RestAssured.given;
 import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
 import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.transfer.TransferFiles.ACTIONS_FILE;
+import static net.zodac.diurnal.transfer.TransferFiles.ALL_FILES;
+import static net.zodac.diurnal.transfer.TransferFiles.LOGS_FILE;
+import static net.zodac.diurnal.transfer.TransferFiles.NOTES_FILE;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
@@ -74,18 +78,18 @@ class TransferApiResourceIT extends IntegrationTestBase {
 
         final Map<String, String> members = unpack(exportArchive());
 
-        assertThat(members.keySet())
+        assertThat(members)
             .as("a complete export always holds all three members")
-            .containsExactlyInAnyOrderElementsOf(TransferFiles.ALL_FILES);
-        assertThat(members.get(TransferFiles.ACTIONS_FILE))
+            .containsOnlyKeys(ALL_FILES);
+        assertThat(members)
             .as("actions are written name-then-colour, ordered by name")
-            .isEqualTo("﻿name,colour\r\nReading,#0ea5e9\r\nRunning,#e11d48\r\n");
-        assertThat(members.get(TransferFiles.LOGS_FILE))
+            .containsEntry(ACTIONS_FILE, "﻿name,colour\r\nReading,#0ea5e9\r\nRunning,#e11d48\r\n");
+        assertThat(members)
             .as("a log names its action rather than pointing at an internal identifier, ordered by date then action")
-            .isEqualTo("﻿date,action,count\r\n2026-06-13,Running,2\r\n2026-06-14,Reading,1\r\n2026-06-14,Running,5\r\n");
-        assertThat(members.get(TransferFiles.NOTES_FILE))
+            .containsEntry(LOGS_FILE, "﻿date,action,count\r\n2026-06-13,Running,2\r\n2026-06-14,Reading,1\r\n2026-06-14,Running,5\r\n");
+        assertThat(members)
             .as("note content is written in the clear, quoted where it holds a line break")
-            .isEqualTo("﻿date,content\r\n2026-06-13,\"Line one\nLine two\"\r\n2026-06-14,\"A note, with a comma\"\r\n");
+            .containsEntry(NOTES_FILE, "﻿date,content\r\n2026-06-13,\"Line one\nLine two\"\r\n2026-06-14,\"A note, with a comma\"\r\n");
     }
 
     @Test
@@ -149,7 +153,7 @@ class TransferApiResourceIT extends IntegrationTestBase {
             .post(IMPORT_PATH)
             .then().statusCode(BAD_REQUEST)
             .body("problems.size()", Matchers.is(1))
-            .body("problems[0].file", Matchers.equalTo(TransferFiles.LOGS_FILE))
+            .body("problems[0].file", Matchers.equalTo(LOGS_FILE))
             .body("problems[0].line", Matchers.is(3));
 
         // The deletes run before the inserts, so a rejection reached part-way through would leave an emptied account behind if the transaction did
@@ -193,7 +197,7 @@ class TransferApiResourceIT extends IntegrationTestBase {
     @Test
     void importData_refusesAnIncompleteArchive() {
         given().contentType(APPLICATION_ZIP)
-            .body(TransferArchive.pack(Map.of(TransferFiles.ACTIONS_FILE, "name,colour\r\n"), Instant.now()))
+            .body(TransferArchive.pack(Map.of(ACTIONS_FILE, "name,colour\r\n"), Instant.now()))
             .post(IMPORT_PATH)
             .then().statusCode(BAD_REQUEST)
             .body("totalProblems", Matchers.is(2))
@@ -279,9 +283,9 @@ class TransferApiResourceIT extends IntegrationTestBase {
 
     private static byte[] archiveOf(final String actions, final String logs, final String notes) {
         return TransferArchive.pack(Map.of(
-            TransferFiles.ACTIONS_FILE, actions,
-            TransferFiles.LOGS_FILE, logs,
-            TransferFiles.NOTES_FILE, notes), Instant.now());
+            ACTIONS_FILE, actions,
+            LOGS_FILE, logs,
+            NOTES_FILE, notes), Instant.now());
     }
 
     private static Map<String, String> unpack(final byte[] archive) {

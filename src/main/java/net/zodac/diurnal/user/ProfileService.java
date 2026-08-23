@@ -26,7 +26,6 @@ import net.zodac.diurnal.http.NotUiFacing;
 import net.zodac.diurnal.stats.StatField;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
-import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.text.TextValidation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -329,18 +328,7 @@ public class ProfileService {
      */
     @NotUiFacing(reason = "the /api/v1 400 body; the Settings page renders partials/profile-rejection.html instead")
     public static String message(final ProfileRejection rejection) {
-        return switch (rejection) {
-            case final ProfileRejection.InvalidTheme invalid -> "Theme must be one of: " + invalid.allowedValues() + ".";
-            case final ProfileRejection.InvalidFont invalid -> "Font must be one of: " + invalid.allowedValues() + ".";
-            case final ProfileRejection.InvalidLanguage invalid -> "Language must be one of: " + invalid.allowedValues() + ".";
-            case final ProfileRejection.InvalidCalendarView invalid -> "Calendar style must be one of: " + invalid.allowedValues() + ".";
-            case final ProfileRejection.InvalidNoteColour _ -> UserSettings.NOTE_COLOUR_MESSAGE;
-            case final ProfileRejection.InvalidTimezone _ -> "Timezone must be one of the offered timezone options.";
-            case final ProfileRejection.InvalidWeekStart invalid -> "Week start must be one of: " + invalid.allowedValues() + ".";
-            case final ProfileRejection.InvalidPageSize _ -> UserSettings.PAGE_SIZE_RANGE_MESSAGE;
-            case final ProfileRejection.InvalidDecimalPlaces _ -> UserSettings.DECIMAL_PLACES_RANGE_MESSAGE;
-            case final ProfileRejection.InvalidTextField invalid -> TextOutcomeExtensions.message(invalid.failure());
-        };
+        return rejection.rejectionReason();
     }
 
     private static ProfileResult applySetting(final User user, final String settingName, final @Nullable Object newValue, final Runnable mutation) {

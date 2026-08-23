@@ -23,7 +23,6 @@ import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.auth.oidc.OidcConfig;
 import net.zodac.diurnal.user.Role;
@@ -63,22 +62,22 @@ class RoleAssignerIT extends IntegrationTestBase {
 
     @Test
     void roleFromOidcGroups_nullList_returnsEmpty() {
-        assertThat(roleAssigner.roleFromOidcGroups(null).isEmpty())
+        assertThat(roleAssigner.roleFromOidcGroups(null))
             .as("expected condition to be true")
-            .isTrue();
+            .isEmpty();
     }
 
     @Test
     void roleFromOidcGroups_emptyList_returnsEmpty() {
-        assertThat(roleAssigner.roleFromOidcGroups(List.of()).isEmpty())
+        assertThat(roleAssigner.roleFromOidcGroups(List.of()))
             .as("expected condition to be true")
-            .isTrue();
+            .isEmpty();
     }
 
     @Test
     void roleFromOidcGroups_groupNotInAnyConfiguredGroup_returnsEmpty() {
         // A random UUID can't match any configured group name
-        assertThat(roleAssigner.roleFromOidcGroups(List.of("no-such-group-" + UUID.randomUUID())))
+        assertThat(roleAssigner.roleFromOidcGroups(List.of("no-such-group-9999")))
             .as("expected no matching role")
             .isEmpty();
     }
@@ -94,9 +93,9 @@ class RoleAssignerIT extends IntegrationTestBase {
                 .isEqualTo(Optional.of(Role.ADMIN.storageValue()));
         } else {
             // No admin group configured — even a group literally named "admin" returns empty
-            assertThat(roleAssigner.roleFromOidcGroups(List.of("admin")).isEmpty())
+            assertThat(roleAssigner.roleFromOidcGroups(List.of("admin")))
                 .as("expected condition to be true")
-                .isTrue();
+                .isEmpty();
         }
     }
 
@@ -108,9 +107,9 @@ class RoleAssignerIT extends IntegrationTestBase {
                 .as("unexpected value")
                 .isEqualTo(Optional.of(Role.USER.storageValue()));
         } else {
-            assertThat(roleAssigner.roleFromOidcGroups(List.of("users")).isEmpty())
+            assertThat(roleAssigner.roleFromOidcGroups(List.of("users")))
                 .as("expected condition to be true")
-                .isTrue();
+                .isEmpty();
         }
     }
 

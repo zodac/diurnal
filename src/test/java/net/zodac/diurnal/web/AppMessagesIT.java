@@ -47,10 +47,10 @@ import org.junit.jupiter.api.Test;
 class AppMessagesIT extends IntegrationTestBase {
 
     @Inject
-    AppMessages appMessages;
+    private AppMessages appMessages;
 
     @Inject
-    Engine engine;
+    private Engine engine;
 
     private static final Map<Class<?>, Object> DUMMY_VALUES_BY_TYPE = Map.of(
         int.class, 5,
@@ -73,7 +73,7 @@ class AppMessagesIT extends IntegrationTestBase {
     }
 
     @Test
-    void messageNamespace_resolvesInARenderedTemplate() {
+    void messageNamespace_resolvesInRenderedTemplate() {
         final String rendered = engine.parse("{msg:accessDenied}").instance()
             .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag("en-GB"))
             .render();
@@ -85,7 +85,7 @@ class AppMessagesIT extends IntegrationTestBase {
     }
 
     @Test
-    void messageNamespace_resolvesAParameterisedEntryInARenderedTemplate() {
+    void messageNamespace_resolvesParameterisedEntryInRenderedTemplate() {
         // The syntax every parameterised bundle entry is called with from a template (see login.html's
         // {msg:loginWithProvider(oidcProviderName)}), exercised directly rather than only relying on the app
         // build (which validates the template compiles, not that the substitution renders correctly).
@@ -182,7 +182,7 @@ class AppMessagesIT extends IntegrationTestBase {
     }
 
     @Test
-    void messageNamespace_fallsBackToDefaultContent_forAKeyWithNoLocaleOverride() {
+    void messageNamespace_fallsBackToDefaultContent_forKeyWithNoLocaleOverride() {
         // msg_en-US.properties exists (Phase 5's en-US slice - a sparse spelling-only diff against the en-GB
         // default, see that file's own header comment) but does NOT carry every key - accessDenied has no US-
         // vs-UK spelling difference, so it is deliberately absent from that file. This is the assumption the
@@ -227,7 +227,7 @@ class AppMessagesIT extends IntegrationTestBase {
     }
 
     @Test
-    void messageNamespace_resolvesAParameterisedEntryInSpanish() {
+    void messageNamespace_resolvesParameterisedEntryInSpanish() {
         final String rendered = engine.parse("{msg:loginWithProvider(name)}")
             .data("name", "Authelia")
             .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag("es-ES"))
@@ -269,7 +269,7 @@ class AppMessagesIT extends IntegrationTestBase {
     }
 
     @Test
-    void messageNamespace_resolvesAParameterisedEntryInArabic() {
+    void messageNamespace_resolvesParameterisedEntryInArabic() {
         final String rendered = engine.parse("{msg:loginWithProvider(name)}")
             .data("name", "Authelia")
             .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag("ar-SA"))
@@ -331,7 +331,7 @@ class AppMessagesIT extends IntegrationTestBase {
     }
 
     @Test
-    void messageNamespace_resolvesAParameterisedEntryInJapanese() {
+    void messageNamespace_resolvesParameterisedEntryInJapanese() {
         final String rendered = engine.parse("{msg:loginWithProvider(name)}")
             .data("name", "Authelia")
             .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag("ja-JP"))

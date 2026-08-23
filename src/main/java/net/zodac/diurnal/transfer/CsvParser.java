@@ -60,7 +60,8 @@ final class CsvParser {
      * @return the parsed records, or the reason the document could not be read
      */
     CsvOutcome parse() {
-        while (index < content.length()) {
+        final int contentLength = content.length();
+        while (index < contentLength) {
             if (inQuotes) {
                 insideQuotedField();
             } else {
