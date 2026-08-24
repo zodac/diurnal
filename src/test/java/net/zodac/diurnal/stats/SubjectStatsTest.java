@@ -177,6 +177,16 @@ class SubjectStatsTest {
     }
 
     @Test
+    void weeklyDayAverage_zeroTotalWithFirstPerformed_returnsPlainZero() {
+        // The plain "0" is decided on the whole numbers going in, so it holds for a zero total even when the
+        // subject has a first-performed date to measure a span against.
+        final SubjectStats subjectStats = stats(0, 0L, TODAY.minusDays(14L), TODAY, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);
+        assertThat(SubjectStatsExtensions.weeklyDayAverage(subjectStats, 2, Language.ENGLISH_GB))
+            .as("a zero total is always plain '0'")
+            .isEqualTo("0");
+    }
+
+    @Test
     void weeklyDayAverage_oneOccurrenceInOneWeek_returnsOnePointZero() {
         // first = today-7, span = 1 week, totalDays=1 → 1/1 = 1.0
         final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(7L), TODAY, 0, 0, 0L, 0L, 0L, 0L, null, 0L, "—", 0L);

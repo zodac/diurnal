@@ -512,7 +512,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
 
     @Test
     void delete_unknownAction_returns404() {
-        given().delete("/api/v1/actions/" + UUID.randomUUID())
+        given().delete("/api/v1/actions/81d92e7a-6589-4050-984d-98234bcece64")
                 .then().statusCode(NOT_FOUND);
     }
 

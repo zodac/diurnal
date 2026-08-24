@@ -41,6 +41,12 @@ import io.quarkus.qute.TemplateExtension;
 @SuppressWarnings("OverloadedMethodsWithSameNumberOfParameters")
 public final class ArabicPlural {
 
+    private static final long DUAL_COUNT = 2L;
+    private static final long FEW_LOWER_BOUND = 3L;
+    private static final long FEW_UPPER_BOUND = 10L;
+    private static final long MANY_LOWER_BOUND = 11L;
+    private static final long PLURAL_MODULUS = 100L;
+
     private ArabicPlural() {
 
     }
@@ -63,7 +69,6 @@ public final class ArabicPlural {
      * @return one of {@code "zero"}, {@code "one"}, {@code "two"}, {@code "few"}, {@code "many"}, {@code "other"}
      */
     @TemplateExtension
-    @SuppressWarnings("MagicNumber") // the CLDR "ar" rule's own boundaries, already cited by the class Javadoc
     public static String arabicPluralCategory(final long count) {
         if (count == 0) {
             return "zero";
@@ -71,15 +76,15 @@ public final class ArabicPlural {
         if (count == 1) {
             return "one";
         }
-        if (count == 2) { // NOPMD: AvoidLiteralsInIfCondition - the CLDR ar rule genuinely singles out exactly two (dual)
+        if (count == DUAL_COUNT) {
             return "two";
         }
 
-        final long lastTwoDigits = count % 100;
-        if (lastTwoDigits >= 3 && lastTwoDigits <= 10) {
+        final long lastTwoDigits = count % PLURAL_MODULUS;
+        if (lastTwoDigits >= FEW_LOWER_BOUND && lastTwoDigits <= FEW_UPPER_BOUND) {
             return "few";
         }
-        if (lastTwoDigits >= 11) { // NOPMD: AvoidLiteralsInIfCondition - the CLDR ar rule's own "many" lower bound
+        if (lastTwoDigits >= MANY_LOWER_BOUND) {
             return "many";
         }
         return "other";

@@ -17,7 +17,6 @@
 
 package net.zodac.diurnal.note;
 
-import io.quarkus.hibernate.orm.panache.Panache;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -33,6 +32,8 @@ import java.util.UUID;
 import net.zodac.diurnal.http.ChangeSignature;
 import net.zodac.diurnal.log.DailyActionTotal;
 import net.zodac.diurnal.log.MonthlyActionTotal;
+import net.zodac.diurnal.persistence.JpqlQuery;
+import net.zodac.diurnal.persistence.SqlQuery;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -128,9 +129,9 @@ public class Note extends PanacheEntityBase {
      * @return the user's whole-history {@link ChangeSignature} (count {@code 0}, {@code null} timestamp when they have no notes)
      */
     public static ChangeSignature version(final UUID userId) {
-        return Panache.getEntityManager().createQuery(NoteQueries.ALL_VERSION_JPQL, ChangeSignature.class)
-            .setParameter("userId", userId)
-            .getSingleResult();
+        return JpqlQuery.of(NoteQueries.ALL_VERSION_JPQL, ChangeSignature.class)
+            .bind(NoteQueries.USER_ID, userId)
+            .singleResult();
     }
 
     /**
@@ -145,13 +146,11 @@ public class Note extends PanacheEntityBase {
      * @return the range's {@link ChangeSignature} (count {@code 0}, {@code null} timestamp when the range is empty)
      */
     public static ChangeSignature rangeVersion(final UUID userId, final LocalDate start, final LocalDate end) {
-        // NB: never hold Panache.getEntityManager() in a local — it is a container-managed
-        // EntityManager that must NOT be closed, but PMD's CloseResource rule would demand it.
-        return Panache.getEntityManager().createQuery(NoteQueries.RANGE_VERSION_JPQL, ChangeSignature.class)
-            .setParameter("userId", userId)
-            .setParameter("from", start)
-            .setParameter("to", end)
-            .getSingleResult();
+        return JpqlQuery.of(NoteQueries.RANGE_VERSION_JPQL, ChangeSignature.class)
+            .bind(NoteQueries.USER_ID, userId)
+            .bind(NoteQueries.FROM, start)
+            .bind(NoteQueries.TO, end)
+            .singleResult();
     }
 
     /**
@@ -164,10 +163,10 @@ public class Note extends PanacheEntityBase {
      * @return one {@link MonthlyActionTotal} per calendar month that has at least one note
      */
     public static List<MonthlyActionTotal> monthlyTotals(final UUID userId, final UUID subjectId) {
-        return Panache.getEntityManager().createQuery(NoteQueries.MONTHLY_TOTALS_JPQL, MonthlyActionTotal.class)
-            .setParameter("subjectId", subjectId)
-            .setParameter("userId", userId)
-            .getResultList();
+        return JpqlQuery.of(NoteQueries.MONTHLY_TOTALS_JPQL, MonthlyActionTotal.class)
+            .bind(NoteQueries.SUBJECT_ID, subjectId)
+            .bind(NoteQueries.USER_ID, userId)
+            .resultList();
     }
 
     /**
@@ -178,9 +177,9 @@ public class Note extends PanacheEntityBase {
      * @return the dates that have a note, ascending
      */
     public static List<LocalDate> datesFor(final UUID userId) {
-        return Panache.getEntityManager().createQuery(NoteQueries.NOTE_DATES_JPQL, LocalDate.class)
-            .setParameter("userId", userId)
-            .getResultList();
+        return JpqlQuery.of(NoteQueries.NOTE_DATES_JPQL, LocalDate.class)
+            .bind(NoteQueries.USER_ID, userId)
+            .resultList();
     }
 
     /**
@@ -194,12 +193,12 @@ public class Note extends PanacheEntityBase {
      * @return one {@link DailyActionTotal} per day in the window that has a note
      */
     public static List<DailyActionTotal> dailyTotals(final UUID userId, final UUID subjectId, final LocalDate from, final LocalDate to) {
-        return Panache.getEntityManager().createQuery(NoteQueries.DAILY_TOTALS_JPQL, DailyActionTotal.class)
-            .setParameter("subjectId", subjectId)
-            .setParameter("userId", userId)
-            .setParameter("from", from)
-            .setParameter("to", to)
-            .getResultList();
+        return JpqlQuery.of(NoteQueries.DAILY_TOTALS_JPQL, DailyActionTotal.class)
+            .bind(NoteQueries.SUBJECT_ID, subjectId)
+            .bind(NoteQueries.USER_ID, userId)
+            .bind(NoteQueries.FROM, from)
+            .bind(NoteQueries.TO, to)
+            .resultList();
     }
 
     // ── Mutations ─────────────────────────────────────────────────────────
@@ -215,12 +214,12 @@ public class Note extends PanacheEntityBase {
      * @param contentEncrypted the sealed note content (the normalised value, encrypted under the owner's data key)
      */
     public static void upsert(final UUID userId, final LocalDate date, final byte[] contentEncrypted) {
-        Panache.getEntityManager().createNativeQuery(NoteQueries.UPSERT_SQL)
-            .setParameter("id", UUID.randomUUID())
-            .setParameter("userId", userId)
-            .setParameter("date", date)
-            .setParameter("contentEncrypted", contentEncrypted)
-            .setParameter("now", Instant.now())
+        SqlQuery.of(NoteQueries.UPSERT_SQL)
+            .bind(NoteQueries.ID, UUID.randomUUID())
+            .bind(NoteQueries.USER_ID, userId)
+            .bind(NoteQueries.DATE, date)
+            .bind(NoteQueries.CONTENT_ENCRYPTED, contentEncrypted)
+            .bind(NoteQueries.NOW, Instant.now())
             .executeUpdate();
     }
 

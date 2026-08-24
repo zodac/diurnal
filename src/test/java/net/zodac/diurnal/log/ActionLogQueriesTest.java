@@ -17,79 +17,91 @@
 
 package net.zodac.diurnal.log;
 
+import static net.zodac.diurnal.log.ActionLogQueries.ACTION_ID;
+import static net.zodac.diurnal.log.ActionLogQueries.ACTION_IDS;
+import static net.zodac.diurnal.log.ActionLogQueries.COUNT;
+import static net.zodac.diurnal.log.ActionLogQueries.DATE;
+import static net.zodac.diurnal.log.ActionLogQueries.DELTA;
+import static net.zodac.diurnal.log.ActionLogQueries.FROM;
+import static net.zodac.diurnal.log.ActionLogQueries.ID;
+import static net.zodac.diurnal.log.ActionLogQueries.MAX;
+import static net.zodac.diurnal.log.ActionLogQueries.NEW_COUNT;
+import static net.zodac.diurnal.log.ActionLogQueries.NOW;
+import static net.zodac.diurnal.log.ActionLogQueries.TO;
+import static net.zodac.diurnal.log.ActionLogQueries.USER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import net.zodac.diurnal.SqlParameters;
+import net.zodac.diurnal.persistence.QueryParameter;
 import org.junit.jupiter.api.Test;
 
 /**
  * Pins each of {@link ActionLogQueries}' hand-written queries to the exact {@code :named}-parameter set the corresponding {@link ActionLog} method
- * binds. Because those
- * queries are untyped SQL/JPQL text bound by name, a mistyped or orphaned placeholder is otherwise only caught when the query is first executed
- * against the database; asserting the extracted parameter surface here fails such a slip at unit speed and forces any deliberate parameter change to
- * be mirrored in both the query text and the {@code setParameter} calls.
+ * binds. Because those queries are untyped SQL/JPQL text, a placeholder that no {@link net.zodac.diurnal.persistence.QueryParameter} declares - or a
+ * declared parameter that no query holds - is otherwise only caught when the query is first executed against the database. The bindings themselves
+ * are compile-checked against those declarations, so this is the half of the pair that Java cannot see: the {@code :name} text inside each query.
  */
 class ActionLogQueriesTest {
 
     @Test
     void rangeVersionJpql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.RANGE_VERSION_JPQL, List.of("userId", "from", "to"));
+        assertParameters(ActionLogQueries.RANGE_VERSION_JPQL, List.of(USER_ID, FROM, TO));
     }
 
     @Test
     void monthlyTotalsJpql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.MONTHLY_TOTALS_JPQL, List.of("userId", "actionIds"));
+        assertParameters(ActionLogQueries.MONTHLY_TOTALS_JPQL, List.of(USER_ID, ACTION_IDS));
     }
 
     @Test
     void dailyTotalsJpql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.DAILY_TOTALS_JPQL, List.of("userId", "actionIds", "from", "to"));
+        assertParameters(ActionLogQueries.DAILY_TOTALS_JPQL, List.of(USER_ID, ACTION_IDS, FROM, TO));
     }
 
     @Test
     void loggedActionIdsJpql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.LOGGED_ACTION_IDS_JPQL, List.of("userId"));
+        assertParameters(ActionLogQueries.LOGGED_ACTION_IDS_JPQL, List.of(USER_ID));
     }
 
     @Test
     void distinctDatesJpql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.DISTINCT_DATES_JPQL, List.of("userId", "actionIds"));
+        assertParameters(ActionLogQueries.DISTINCT_DATES_JPQL, List.of(USER_ID, ACTION_IDS));
     }
 
     @Test
     void incrementUpsertSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.INCREMENT_UPSERT_SQL, List.of("id", "userId", "actionId", "date", "delta", "max", "now"));
+        assertParameters(ActionLogQueries.INCREMENT_UPSERT_SQL, List.of(ID, USER_ID, ACTION_ID, DATE, DELTA, MAX, NOW));
     }
 
     @Test
     void selectCountSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.SELECT_COUNT_SQL, List.of("userId", "actionId", "date"));
+        assertParameters(ActionLogQueries.SELECT_COUNT_SQL, List.of(USER_ID, ACTION_ID, DATE));
     }
 
     @Test
     void setCountUpsertSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.SET_COUNT_UPSERT_SQL, List.of("id", "userId", "actionId", "date", "count", "now"));
+        assertParameters(ActionLogQueries.SET_COUNT_UPSERT_SQL, List.of(ID, USER_ID, ACTION_ID, DATE, COUNT, NOW));
     }
 
     @Test
     void selectForUpdateSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.SELECT_FOR_UPDATE_SQL, List.of("userId", "actionId", "date"));
+        assertParameters(ActionLogQueries.SELECT_FOR_UPDATE_SQL, List.of(USER_ID, ACTION_ID, DATE));
     }
 
     @Test
     void deleteEntrySql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.DELETE_ENTRY_SQL, List.of("userId", "actionId", "date"));
+        assertParameters(ActionLogQueries.DELETE_ENTRY_SQL, List.of(USER_ID, ACTION_ID, DATE));
     }
 
     @Test
     void decrementUpdateSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.DECREMENT_UPDATE_SQL, List.of("newCount", "now", "userId", "actionId", "date"));
+        assertParameters(ActionLogQueries.DECREMENT_UPDATE_SQL, List.of(NEW_COUNT, NOW, USER_ID, ACTION_ID, DATE));
     }
 
-    private static void assertParameters(final String query, final List<String> expected) {
+    private static void assertParameters(final String query, final List<QueryParameter<?>> expected) {
         assertThat(SqlParameters.names(query))
-            .as("the query's :named-parameter set must match exactly what the method binds")
-            .containsExactlyInAnyOrderElementsOf(expected);
+            .as("the query's :named-parameter set must match exactly the parameters declared for it")
+            .containsExactlyInAnyOrderElementsOf(expected.stream().map(QueryParameter::name).toList());
     }
 }

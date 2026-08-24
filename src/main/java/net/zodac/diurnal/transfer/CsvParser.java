@@ -84,44 +84,61 @@ final class CsvParser {
 
     private void insideQuotedField() {
         final char current = content.charAt(index);
-        if (current == Csv.QUOTE) {
-            if (nextIs(Csv.QUOTE)) {
-                field.append(Csv.QUOTE);
-                index += 2;
-            } else {
-                inQuotes = false;
+        switch (current) {
+            case Csv.QUOTE -> {
+                if (nextIs(Csv.QUOTE)) {
+                    field.append(Csv.QUOTE);
+                    index += 2;
+                } else {
+                    inQuotes = false;
+                    index++;
+                }
+            }
+            // A line break inside quotes is part of the value, and is normalised to a single line feed whichever form it arrived in.
+            case Csv.CARRIAGE_RETURN, Csv.LINE_FEED -> {
+                field.append(Csv.LINE_FEED);
+                consumeLineBreak(current);
+            }
+            default -> {
+                field.append(current);
                 index++;
             }
-        } else if (current == Csv.CARRIAGE_RETURN || current == Csv.LINE_FEED) {
-            field.append(Csv.LINE_FEED);
-            consumeLineBreak(current);
-        } else {
-            field.append(current);
-            index++;
         }
     }
 
     private void outsideQuotedField() {
         final char current = content.charAt(index);
-        if (current == Csv.QUOTE && atFieldStart) {
-            inQuotes = true;
-            atFieldStart = false;
-            recordOpen = true;
-            index++;
-        } else if (current == Csv.DELIMITER) {
-            endField();
-            recordOpen = true;
-            index++;
-        } else if (current == Csv.CARRIAGE_RETURN || current == Csv.LINE_FEED) {
-            endRecord();
-            consumeLineBreak(current);
-            recordLine = line;
-        } else {
-            field.append(current);
-            atFieldStart = false;
-            recordOpen = true;
-            index++;
+        switch (current) {
+            // Only a quote in the FIRST position of a field opens a quoted value; anywhere else it is just a character of the value.
+            case Csv.QUOTE -> {
+                if (atFieldStart) {
+                    inQuotes = true;
+                    atFieldStart = false;
+                    recordOpen = true;
+                    index++;
+                } else {
+                    appendLiteral(current);
+                }
+            }
+            case Csv.DELIMITER -> {
+                endField();
+                recordOpen = true;
+                index++;
+            }
+            case Csv.CARRIAGE_RETURN, Csv.LINE_FEED -> {
+                endRecord();
+                consumeLineBreak(current);
+                recordLine = line;
+            }
+            default -> appendLiteral(current);
         }
+    }
+
+    private void appendLiteral(final char current) {
+        field.append(current);
+        atFieldStart = false;
+        recordOpen = true;
+        index++;
     }
 
     private void consumeLineBreak(final char current) {

@@ -79,16 +79,10 @@ class TransferApiResourceIT extends IntegrationTestBase {
         final Map<String, String> members = unpack(exportArchive());
 
         assertThat(members)
-            .as("a complete export always holds all three members")
-            .containsOnlyKeys(ALL_FILES);
-        assertThat(members)
-            .as("actions are written name-then-colour, ordered by name")
-            .containsEntry(ACTIONS_FILE, "﻿name,colour\r\nReading,#0ea5e9\r\nRunning,#e11d48\r\n");
-        assertThat(members)
-            .as("a log names its action rather than pointing at an internal identifier, ordered by date then action")
-            .containsEntry(LOGS_FILE, "﻿date,action,count\r\n2026-06-13,Running,2\r\n2026-06-14,Reading,1\r\n2026-06-14,Running,5\r\n");
-        assertThat(members)
-            .as("note content is written in the clear, quoted where it holds a line break")
+            .as("a complete export always holds all three members in the correct structure")
+            .containsOnlyKeys(ALL_FILES)
+            .containsEntry(ACTIONS_FILE, "﻿name,colour\r\nReading,#0ea5e9\r\nRunning,#e11d48\r\n")
+            .containsEntry(LOGS_FILE, "﻿date,action,count\r\n2026-06-13,Running,2\r\n2026-06-14,Reading,1\r\n2026-06-14,Running,5\r\n")
             .containsEntry(NOTES_FILE, "﻿date,content\r\n2026-06-13,\"Line one\nLine two\"\r\n2026-06-14,\"A note, with a comma\"\r\n");
     }
 

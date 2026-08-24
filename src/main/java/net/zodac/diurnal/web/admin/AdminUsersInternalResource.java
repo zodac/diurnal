@@ -67,6 +67,8 @@ import net.zodac.diurnal.web.HtmxResponses;
 @RollbackOnErrorStatus
 public class AdminUsersInternalResource {
 
+    private static final String ERROR_BANNER_TARGET = "#admin-error";
+
     private final Template adminUsersListTemplate;
     private final Template adminUserRowTemplate;
     private final Template confirmDeleteRowTemplate;
@@ -137,7 +139,7 @@ public class AdminUsersInternalResource {
         final Locale locale = locale(currentUser.get());
         final User target = adminUserService.find(id);
         if (target == null) {
-            return HtmxResponses.conflictBanner("#admin-error", messageBanner("userNotFound", locale));
+            return HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("userNotFound", locale));
         }
         return Response.ok(adminUserRowTemplate.data("u", singleRow(target)).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
     }
@@ -155,7 +157,7 @@ public class AdminUsersInternalResource {
         final Locale locale = locale(currentUser.get());
         final User target = adminUserService.find(id);
         if (target == null) {
-            return HtmxResponses.conflictBanner("#admin-error", messageBanner("userNotFound", locale));
+            return HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("userNotFound", locale));
         }
         // Admin delete re-renders the whole list (innerHTML), so the confirmation row's destructive
         // POST targets #admin-users-list; Cancel restores just this row from /internal/admin/users/{id}.
@@ -187,9 +189,9 @@ public class AdminUsersInternalResource {
     public Response changeRole(@PathParam("id") final UUID id, @FormParam("role") final String role) {
         final Locale locale = locale(currentUser.get());
         return switch (adminUserService.changeRole(identity.getPrincipal().getName(), id, role)) {
-            case final AdminUserResult.InvalidRole _ -> HtmxResponses.conflictBanner("#admin-error", messageBanner("invalidRole", locale));
-            case final AdminUserResult.NotFound _ -> HtmxResponses.conflictBanner("#admin-error", messageBanner("userNotFound", locale));
-            case final AdminUserResult.LastAdmin _ -> HtmxResponses.conflictBanner("#admin-error", messageBanner("lastAdminRemove", locale));
+            case final AdminUserResult.InvalidRole _ -> HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("invalidRole", locale));
+            case final AdminUserResult.NotFound _ -> HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("userNotFound", locale));
+            case final AdminUserResult.LastAdmin _ -> HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("lastAdminRemove", locale));
             // Re-render just this row (outerHTML) so the surrounding rows don't repaint — the edited row
             // swaps straight from its edit state to a fresh view state, with no whole-list flash.
             case final AdminUserResult.Success success -> Response.ok(
@@ -210,9 +212,9 @@ public class AdminUsersInternalResource {
     public Response deleteUser(@PathParam("id") final UUID id) {
         final Locale locale = locale(currentUser.get());
         return switch (adminUserService.deleteUser(identity.getPrincipal().getName(), id)) {
-            case final AdminUserResult.NotFound _ -> HtmxResponses.conflictBanner("#admin-error", messageBanner("userNotFound", locale));
-            case final AdminUserResult.LastAdmin _ -> HtmxResponses.conflictBanner("#admin-error", messageBanner("lastAdminDelete", locale));
-            case final AdminUserResult.InvalidRole _ -> HtmxResponses.conflictBanner("#admin-error", messageBanner("invalidRole", locale));
+            case final AdminUserResult.NotFound _ -> HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("userNotFound", locale));
+            case final AdminUserResult.LastAdmin _ -> HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("lastAdminDelete", locale));
+            case final AdminUserResult.InvalidRole _ -> HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("invalidRole", locale));
             case final AdminUserResult.Success _ -> Response.ok(
                 adminUsersListTemplate.data("page", pageRows(firstPage())).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
         };
