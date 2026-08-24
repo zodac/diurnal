@@ -182,8 +182,14 @@ docker volume rm diurnal-sandbox-claude diurnal-sandbox-docker diurnal-sandbox-p
 - `~/git/diurnal/.env` and `secrets/` are inside the mounted tree, so the sandbox
   *can* read them. Fine for a local dev DB; move them out of the tree and inject
   via `-e` if you want zero exposure.
-- `--dangerously-skip-permissions` is scoped to this sandbox only — it's the
-  entrypoint default here and is never passed to Claude on your host.
+- Permission prompts are off by default, scoped to this sandbox only — never on
+  your host. Two layers, because the flag alone does not cover every entry point:
+  the entrypoint starts its no-command `claude` with
+  `--dangerously-skip-permissions`, and `launch.sh` asserts
+  `permissions.defaultMode = "bypassPermissions"` in the settings.json on the
+  persisted config volume, so a `shell` session that runs claude by hand gets the
+  same default. Flip that key to `"default"` (or `"auto"`) if you ever want a
+  session to prompt.
 - `gh` (the GitHub CLI) is in the image, but **unauthenticated by design, and stays
   that way**. Credentials are entered by hand in the session that needs them and are
   never persisted: nothing mounts `~/.config/gh`, so a `gh auth login` lives on the
