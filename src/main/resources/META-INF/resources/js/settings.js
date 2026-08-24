@@ -1094,6 +1094,13 @@ if (oidcConnectArm) {
         if (filenameSpan) {filenameSpan.textContent = noFileChosenLabel}
     }
 
+    // The upload bound and its translated refusal, both server-rendered onto the input (see the note
+    // beside them in settings.html). A body over the bound is refused by the HTTP layer itself with an
+    // EMPTY 413 that never reaches the application, so the size is checked HERE, before the file is
+    // read - otherwise a gigabyte is pulled into the tab only to post something the server will not read.
+    const maxUploadBytes = Number(fileInput.dataset.maxUploadBytes)
+    const tooLargeMessage = fileInput.dataset.tooLargeMessage
+
     // The panel is replaced wholesale on every response, so it is looked up per use rather than held.
     function panel() {return document.getElementById('import-panel')}
 
@@ -1116,6 +1123,15 @@ if (oidcConnectArm) {
     // confirmation, and dropped as soon as either finishes.
     let pending = null
 
+    // 200 and 422 are the only two answers whose BODY is a rendered panel - a refused archive is an
+    // expected outcome the app words itself (TransferInternalResource). Every other status is answered
+    // by something that is not a panel at all, and the HTTP layer's own 413 carries no body whatsoever:
+    // swapping that in replaced #import-panel with nothing, silently deleting the element and leaving
+    // the card permanently inert with no banner and no way back short of a reload. Anything unexpected
+    // therefore becomes a banner instead of a swap.
+    const REFUSED = 422
+    const TOO_LARGE = 413
+
     function post(url) {
         return fetch(url, {
             method: 'POST',
@@ -1123,8 +1139,13 @@ if (oidcConnectArm) {
             headers: {'Content-Type': 'application/zip', 'Accept': 'text/html'}
         })
             .then(window.Diurnal.requireSession)
-            .then(function (resp) {return resp.text()})
-            .then(showPanel)
+            .then(function (resp) {
+                if (resp.ok || resp.status === REFUSED) {
+                    return resp.text().then(showPanel)
+                }
+                failed(resp.status === TOO_LARGE ? tooLargeMessage : window.Diurnal.i18n.somethingWentWrong)
+                return undefined
+            })
             .catch(function () {failed(window.Diurnal.i18n.somethingWentWrong)})
     }
 
@@ -1137,6 +1158,11 @@ if (oidcConnectArm) {
         // The filename itself is the user's own OS-supplied text (like a zone id), never translated -
         // only the surrounding "Choose file"/"No file chosen" chrome is a bundle entry.
         if (filenameSpan) {filenameSpan.textContent = file.name}
+        if (maxUploadBytes > 0 && file.size > maxUploadBytes) {
+            pending = null
+            failed(tooLargeMessage)
+            return
+        }
         file.arrayBuffer().then(function (bytes) {
             pending = bytes
             return post('/internal/data/import/preview')

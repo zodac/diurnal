@@ -243,11 +243,12 @@ sensible default.
 
 ### Application
 
-| Variable       | Default | Description                                                                                         |
-|----------------|---------|-----------------------------------------------------------------------------------------------------|
-| `TZ`           | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                                        |
-| `LOG_LEVEL`    | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                    |
-| `DB_LOG_LEVEL` | `WARN`  | Set to `TRACE` to log every SQL statement + bound parameters (verbose; may expose parameter values) |
+| Variable           | Default | Description                                                                                         |
+|--------------------|---------|-----------------------------------------------------------------------------------------------------|
+| `TZ`               | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                                        |
+| `LOG_LEVEL`        | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                    |
+| `DB_LOG_LEVEL`     | `WARN`  | Set to `TRACE` to log every SQL statement + bound parameters (verbose; may expose parameter values) |
+| `MAX_UPLOAD_SIZE`  | `100M`  | Largest request body accepted, in binary units (`100M`, `512K`, `1G`), also for import/export       |
 
 ### Note Configuration
 
