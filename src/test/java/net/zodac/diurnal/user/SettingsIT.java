@@ -34,6 +34,8 @@ import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.stats.StatField;
 import org.jspecify.annotations.Nullable;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 @QuarkusTest
 @TestSecurity(user = "settings-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
@@ -467,42 +469,19 @@ class SettingsIT extends IntegrationTestBase {
             .isEqualTo(25));
     }
 
-    @Test
-    void updatePageSize_belowRange_rejectedAndValueUnchanged() {
+    // Below the range, negative and non-numeric are one rule (UserSettings.parsePageSize parses and range-checks in
+    // a single pass), so they are one test over the three shapes a rejected value arrives in.
+    @ParameterizedTest
+    @ValueSource(strings = {"0", "-1", "lots"})
+    void updatePageSize_invalidValue_rejectedAndValueUnchanged(final String pageSize) {
         given().formParam("pageSize", "25").patch("/internal/settings");
 
-        given().formParam("pageSize", "0")
+        given().formParam("pageSize", pageSize)
                 .patch("/internal/settings")
                 .then().statusCode(UNPROCESSABLE_ENTITY);
 
         runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
             .as("a rejected value must not change the stored page size")
-            .isEqualTo(25));
-    }
-
-    @Test
-    void updatePageSize_negative_rejectedAndValueUnchanged() {
-        given().formParam("pageSize", "25").patch("/internal/settings");
-
-        given().formParam("pageSize", "-1")
-                .patch("/internal/settings")
-                .then().statusCode(UNPROCESSABLE_ENTITY);
-
-        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
-            .as("a negative value must not change the stored page size")
-            .isEqualTo(25));
-    }
-
-    @Test
-    void updatePageSize_nonNumeric_rejectedAndValueUnchanged() {
-        given().formParam("pageSize", "25").patch("/internal/settings");
-
-        given().formParam("pageSize", "lots")
-                .patch("/internal/settings")
-                .then().statusCode(UNPROCESSABLE_ENTITY);
-
-        runInTx(() -> assertThat(User.findByEmail(PRIMARY).orElseThrow().pageSize)
-            .as("a non-numeric value must not change the stored page size")
             .isEqualTo(25));
     }
 

@@ -17,53 +17,62 @@
 
 package net.zodac.diurnal.note;
 
+import static net.zodac.diurnal.note.NoteQueries.CONTENT_ENCRYPTED;
+import static net.zodac.diurnal.note.NoteQueries.DATE;
+import static net.zodac.diurnal.note.NoteQueries.FROM;
+import static net.zodac.diurnal.note.NoteQueries.ID;
+import static net.zodac.diurnal.note.NoteQueries.NOW;
+import static net.zodac.diurnal.note.NoteQueries.SUBJECT_ID;
+import static net.zodac.diurnal.note.NoteQueries.TO;
+import static net.zodac.diurnal.note.NoteQueries.USER_ID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import net.zodac.diurnal.SqlParameters;
+import net.zodac.diurnal.persistence.QueryParameter;
 import org.junit.jupiter.api.Test;
 
 /**
  * Pins each of {@link NoteQueries}' hand-written queries to the exact {@code :named}-parameter set the corresponding {@link Note} method binds.
- * Because those queries are untyped SQL/JPQL text bound by name, a mistyped or orphaned placeholder is otherwise only caught when the query is first
- * executed against the database; asserting the extracted parameter surface here fails such a slip at unit speed and forces any deliberate parameter
- * change to be mirrored in both the query text and the {@code setParameter} calls.
+ * Because those queries are untyped SQL/JPQL text, a placeholder that no {@link net.zodac.diurnal.persistence.QueryParameter} declares - or a
+ * declared parameter that no query holds - is otherwise only caught when the query is first executed against the database. The bindings themselves
+ * are compile-checked against those declarations, so this is the half of the pair that Java cannot see: the {@code :name} text inside each query.
  */
 class NoteQueriesTest {
 
     @Test
     void rangeVersionJpql_bindsExpectedParameters() {
-        assertParameters(NoteQueries.RANGE_VERSION_JPQL, List.of("userId", "from", "to"));
+        assertParameters(NoteQueries.RANGE_VERSION_JPQL, List.of(USER_ID, FROM, TO));
     }
 
     @Test
     void allVersionJpql_bindsExpectedParameters() {
-        assertParameters(NoteQueries.ALL_VERSION_JPQL, List.of("userId"));
+        assertParameters(NoteQueries.ALL_VERSION_JPQL, List.of(USER_ID));
     }
 
     @Test
     void upsertSql_bindsExpectedParameters() {
-        assertParameters(NoteQueries.UPSERT_SQL, List.of("id", "userId", "date", "contentEncrypted", "now"));
+        assertParameters(NoteQueries.UPSERT_SQL, List.of(ID, USER_ID, DATE, CONTENT_ENCRYPTED, NOW));
     }
 
     @Test
     void monthlyTotalsJpql_bindsExpectedParameters() {
-        assertParameters(NoteQueries.MONTHLY_TOTALS_JPQL, List.of("subjectId", "userId"));
+        assertParameters(NoteQueries.MONTHLY_TOTALS_JPQL, List.of(SUBJECT_ID, USER_ID));
     }
 
     @Test
     void noteDatesJpql_bindsExpectedParameters() {
-        assertParameters(NoteQueries.NOTE_DATES_JPQL, List.of("userId"));
+        assertParameters(NoteQueries.NOTE_DATES_JPQL, List.of(USER_ID));
     }
 
     @Test
     void dailyTotalsJpql_bindsExpectedParameters() {
-        assertParameters(NoteQueries.DAILY_TOTALS_JPQL, List.of("subjectId", "userId", "from", "to"));
+        assertParameters(NoteQueries.DAILY_TOTALS_JPQL, List.of(SUBJECT_ID, USER_ID, FROM, TO));
     }
 
-    private static void assertParameters(final String query, final List<String> expected) {
+    private static void assertParameters(final String query, final List<QueryParameter<?>> expected) {
         assertThat(SqlParameters.names(query))
-            .as("the query's named parameters must match exactly the set the Note method binds")
-            .containsExactlyInAnyOrderElementsOf(expected);
+            .as("the query's named parameters must match exactly the parameters declared for it")
+            .containsExactlyInAnyOrderElementsOf(expected.stream().map(QueryParameter::name).toList());
     }
 }

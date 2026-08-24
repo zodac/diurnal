@@ -382,7 +382,7 @@ class ActionsResourceIT extends IntegrationTestBase {
 
     @Test
     void confirmDelete_unknownId_returns404() {
-        given().get("/internal/actions/" + UUID.randomUUID() + "/confirm-delete")
+        given().get("/internal/actions/81d92e7a-6589-4050-984d-98234bcece64/confirm-delete")
             .then().statusCode(Response.Status.NOT_FOUND.getStatusCode());
     }
 

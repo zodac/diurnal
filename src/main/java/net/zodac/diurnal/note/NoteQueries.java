@@ -17,6 +17,11 @@
 
 package net.zodac.diurnal.note;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.UUID;
+import net.zodac.diurnal.persistence.QueryParameter;
+
 /**
  * The handwritten SQL and JPQL queries backing {@link Note}'s static finder and mutation methods, held here as named constants to keep the entity
  * itself readable — the {@code ActionLogQueries} pattern. Each query binds its parameters by name ({@code :name} placeholders), and
@@ -98,6 +103,18 @@ final class NoteQueries {
             VALUES (:id, :userId, :date, :contentEncrypted, :now, :now)
             ON CONFLICT ON CONSTRAINT notes_unique
             DO UPDATE SET content_encrypted = EXCLUDED.content_encrypted, updated_at = :now""";
+
+    // The named parameters the queries above declare, as typed tokens: every binding goes through one of these rather than a bare string, so a
+    // misspelled name - or a value of the wrong type for it - is a compile error instead of a failure on first execution. The placeholders inside
+    // the query text stay textual (no Java type can reach them), which is what NoteQueriesTest is for.
+    static final QueryParameter<UUID> USER_ID = QueryParameter.of("userId");
+    static final QueryParameter<UUID> SUBJECT_ID = QueryParameter.of("subjectId");
+    static final QueryParameter<UUID> ID = QueryParameter.of("id");
+    static final QueryParameter<LocalDate> DATE = QueryParameter.of("date");
+    static final QueryParameter<LocalDate> FROM = QueryParameter.of("from");
+    static final QueryParameter<LocalDate> TO = QueryParameter.of("to");
+    static final QueryParameter<byte[]> CONTENT_ENCRYPTED = QueryParameter.of("contentEncrypted");
+    static final QueryParameter<Instant> NOW = QueryParameter.of("now");
 
     private NoteQueries() {
 

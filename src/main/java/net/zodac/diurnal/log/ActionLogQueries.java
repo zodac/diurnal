@@ -17,6 +17,12 @@
 
 package net.zodac.diurnal.log;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.Collection;
+import java.util.UUID;
+import net.zodac.diurnal.persistence.QueryParameter;
+
 /**
  * The handwritten SQL and JPQL queries backing {@link ActionLog}'s static finder and mutation methods, held here as named constants to keep the
  * entity itself readable. Each query binds its parameters by name ({@code :name} placeholders), and {@code ActionLogQueriesTest} pins every
@@ -134,6 +140,22 @@ final class ActionLogQueries {
             UPDATE action_logs
             SET count = :newCount, updated_at = :now
             WHERE user_id = :userId AND action_id = :actionId AND log_date = :date""";
+
+    // The named parameters the queries above declare, as typed tokens: every binding goes through one of these rather than a bare string, so a
+    // misspelled name - or a value of the wrong type for it - is a compile error instead of a failure on first execution. The placeholders inside
+    // the query text stay textual (no Java type can reach them), which is what ActionLogQueriesTest is for.
+    static final QueryParameter<UUID> USER_ID = QueryParameter.of("userId");
+    static final QueryParameter<UUID> ACTION_ID = QueryParameter.of("actionId");
+    static final QueryParameter<Collection<UUID>> ACTION_IDS = QueryParameter.of("actionIds");
+    static final QueryParameter<UUID> ID = QueryParameter.of("id");
+    static final QueryParameter<LocalDate> DATE = QueryParameter.of("date");
+    static final QueryParameter<LocalDate> FROM = QueryParameter.of("from");
+    static final QueryParameter<LocalDate> TO = QueryParameter.of("to");
+    static final QueryParameter<Integer> COUNT = QueryParameter.of("count");
+    static final QueryParameter<Integer> NEW_COUNT = QueryParameter.of("newCount");
+    static final QueryParameter<Integer> DELTA = QueryParameter.of("delta");
+    static final QueryParameter<Integer> MAX = QueryParameter.of("max");
+    static final QueryParameter<Instant> NOW = QueryParameter.of("now");
 
     private ActionLogQueries() {
 

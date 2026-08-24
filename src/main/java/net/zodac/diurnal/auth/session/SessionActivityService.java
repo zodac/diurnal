@@ -17,7 +17,6 @@
 
 package net.zodac.diurnal.auth.session;
 
-import io.quarkus.hibernate.orm.panache.Panache;
 import jakarta.enterprise.context.ApplicationScoped;
 import java.time.Duration;
 import java.time.Instant;
@@ -26,6 +25,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import net.zodac.diurnal.persistence.JpqlQuery;
+import net.zodac.diurnal.persistence.QueryParameter;
 import org.jspecify.annotations.Nullable;
 
 /**
@@ -50,6 +51,7 @@ public class SessionActivityService {
     // matching client-side value (which flips a dot green -> grey once the live counter crosses it) is
     // ACTIVE_WINDOW_MS in app.js - keep the two in step.
     private static final Duration ACTIVE_WINDOW = Duration.ofMinutes(5L);
+    private static final QueryParameter<Collection<UUID>> USER_IDS = QueryParameter.of("userIds");
 
     /**
      * Resolves the recent-activity presence for each of the given users at {@code now}. Users with no sessions (never logged in, or fully logged out)
@@ -66,15 +68,13 @@ public class SessionActivityService {
             return Map.of();
         }
 
-        // Inline (never held in a local): Panache.getEntityManager() is a container-managed proxy.
-        final List<UserLastSeen> rows = Panache.getEntityManager()
-            .createQuery("""
+        final List<UserLastSeen> rows = JpqlQuery.of("""
                     SELECT new net.zodac.diurnal.auth.session.UserLastSeen(s.user.id, MAX(s.lastUsedAt))
                     FROM Session s
                     WHERE s.user.id IN :userIds
                     GROUP BY s.user.id""", UserLastSeen.class)
-            .setParameter("userIds", userIds)
-            .getResultList();
+            .bind(USER_IDS, userIds)
+            .resultList();
 
         final Map<UUID, RecentActivity> byUser = new HashMap<>();
         for (final UserLastSeen row : rows) {

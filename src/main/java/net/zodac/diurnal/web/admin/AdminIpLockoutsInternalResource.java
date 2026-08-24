@@ -65,6 +65,8 @@ import net.zodac.diurnal.web.HtmxResponses;
 @RollbackOnErrorStatus
 public class AdminIpLockoutsInternalResource {
 
+    private static final String ERROR_BANNER_TARGET = "#admin-error";
+
     private final Template adminIpLockoutsTableTemplate;
     private final Template adminIpLockoutRowTemplate;
     private final Template confirmDeleteRowTemplate;
@@ -144,7 +146,7 @@ public class AdminIpLockoutsInternalResource {
         final Locale locale = locale(currentUser.get());
         final IpLockout lockout = ipLockoutService.find(id);
         if (lockout == null) {
-            return HtmxResponses.conflictBanner("#admin-error", messageBanner("lockoutNotFound", locale));
+            return HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("lockoutNotFound", locale));
         }
         // Unlock re-renders the whole table (innerHTML), so the confirm row's destructive POST targets #ip-lockouts-table; Cancel restores just this
         // row from /internal/admin/ip-lockouts/{id}/row. The unlock itself is keyed by IP (it clears the in-memory enforcement entry for the IP).
@@ -179,7 +181,7 @@ public class AdminIpLockoutsInternalResource {
         final Locale locale = locale(actor);
         final IpLockout lockout = ipLockoutService.find(id);
         if (lockout == null) {
-            return HtmxResponses.conflictBanner("#admin-error", messageBanner("lockoutNotFound", locale));
+            return HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("lockoutNotFound", locale));
         }
         final ZoneId zone = clock.zoneFor(actor.timezone);
         return Response.ok(adminIpLockoutRowTemplate.data("row", singleRow(lockout, zone, clock.now()))
@@ -202,7 +204,7 @@ public class AdminIpLockoutsInternalResource {
         }
         final Locale locale = locale(currentUser.get());
         return switch (ipLockoutService.unlock(identity.getPrincipal().getName(), ip, clock.now())) {
-            case final IpUnlockResult.NotLocked _ -> HtmxResponses.conflictBanner("#admin-error", messageBanner("ipNotLocked", locale));
+            case final IpUnlockResult.NotLocked _ -> HtmxResponses.conflictBanner(ERROR_BANNER_TARGET, messageBanner("ipNotLocked", locale));
             case final IpUnlockResult.Success _ -> {
                 final User actor = currentUser.get();
                 final ZoneId zone = clock.zoneFor(actor.timezone);

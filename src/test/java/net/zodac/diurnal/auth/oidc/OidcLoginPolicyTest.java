@@ -18,8 +18,13 @@
 package net.zodac.diurnal.auth.oidc;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.params.provider.Arguments.arguments;
 
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 
 /**
  * Unit tests for {@link OidcLoginPolicy#decide(OidcLoginFacts)}: every branch of the OIDC sign-in decision — the first-run bootstrap guard, the
@@ -44,20 +49,22 @@ class OidcLoginPolicyTest {
             .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.EMAIL_MISSING));
     }
 
-    @Test
-    void decide_groupCheckEnabledAndNotInGroup_denies() {
-        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, true, false, true, false, false, false));
+    @ParameterizedTest(name = "groupCheckEnabled={0}, linkedAccountFound={1}")
+    @MethodSource("groupMembershipCases")
+    void decide_configuredGroupMembership(final boolean groupCheckEnabled, final boolean linkedAccountFound, final OidcLoginDecision expected) {
+        final OidcLoginDecision decision =
+            OidcLoginPolicy.decide(facts(false, true, false, groupCheckEnabled, false, linkedAccountFound, false, false, true));
         assertThat(decision)
-            .as("With group mapping configured, a user in no configured group must be refused — even one already linked")
-            .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.NOT_IN_GROUP));
+            .as("Membership of a configured group is required only where group mapping is configured")
+            .isEqualTo(expected);
     }
 
-    @Test
-    void decide_groupCheckDisabled_doesNotRequireGroup() {
-        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, false, false, false, false, false, true));
-        assertThat(decision)
-            .as("Without group mapping configured, no group membership is required")
-            .isEqualTo(new OidcLoginDecision.ProvisionNew());
+    private static Stream<Arguments> groupMembershipCases() {
+        return Stream.of(
+            // With group mapping configured, a user in no configured group is refused — even one already linked.
+            arguments(true, true, new OidcLoginDecision.Deny(OidcDenialReason.NOT_IN_GROUP)),
+            // Without it, no group membership is required at all.
+            arguments(false, false, new OidcLoginDecision.ProvisionNew()));
     }
 
     @Test
@@ -100,19 +107,13 @@ class OidcLoginPolicyTest {
             .isEqualTo(new OidcLoginDecision.Deny(OidcDenialReason.EMAIL_UNVERIFIED));
     }
 
+    // An ABSENT email_verified claim is resolved to true before the facts are gathered (OidcUserProvisioner), so it
+    // arrives here as this same case rather than a third state - there is nothing separate to assert at this layer.
     @Test
     void decide_emailVerifiedTrue_provisions() {
         final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, false, false, false, false, false, true));
         assertThat(decision)
-            .as("A verified email provisions a new account")
-            .isEqualTo(new OidcLoginDecision.ProvisionNew());
-    }
-
-    @Test
-    void decide_emailVerifiedAbsent_provisions() {
-        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, true, false, false, false, false, false, false, true));
-        assertThat(decision)
-            .as("A provider that does not emit email_verified may still provision - absent arrives here as true")
+            .as("A verified (or unstated) email provisions a new account")
             .isEqualTo(new OidcLoginDecision.ProvisionNew());
     }
 
@@ -120,15 +121,7 @@ class OidcLoginPolicyTest {
     void decide_emailCollisionWithPasswordAuthDisabled_adoptsTheAccount() {
         final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, false, false, false, false, false, false, true, true));
         assertThat(decision)
-            .as("With password auth disabled the IdP is the sole authority, so a verified email adopts the unlinked local account")
-            .isEqualTo(new OidcLoginDecision.AdoptByEmail());
-    }
-
-    @Test
-    void decide_emailCollisionWithPasswordAuthDisabled_absentVerifiedClaim_adopts() {
-        final OidcLoginDecision decision = OidcLoginPolicy.decide(facts(false, false, false, false, false, false, false, true, true));
-        assertThat(decision)
-            .as("A provider that does not emit email_verified may still adopt - absent arrives here as true")
+            .as("With password auth disabled the IdP is the sole authority, so a verified (or unstated) email adopts the unlinked local account")
             .isEqualTo(new OidcLoginDecision.AdoptByEmail());
     }
 

@@ -17,7 +17,6 @@
 
 package net.zodac.diurnal.log;
 
-import io.quarkus.hibernate.orm.panache.Panache;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -35,6 +34,8 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import net.zodac.diurnal.http.ChangeSignature;
+import net.zodac.diurnal.persistence.JpqlQuery;
+import net.zodac.diurnal.persistence.SqlQuery;
 
 /**
  * A per-day tally of how many times an {@link net.zodac.diurnal.action.Action} was performed.
@@ -110,11 +111,11 @@ public class ActionLog extends PanacheEntityBase {
      * @return the range's {@link ChangeSignature} (count {@code 0}, {@code null} timestamp when the range is empty)
      */
     public static ChangeSignature rangeVersion(final UUID userId, final LocalDate start, final LocalDate end) {
-        return Panache.getEntityManager().createQuery(ActionLogQueries.RANGE_VERSION_JPQL, ChangeSignature.class)
-            .setParameter("userId", userId)
-            .setParameter("from", start)
-            .setParameter("to", end)
-            .getSingleResult();
+        return JpqlQuery.of(ActionLogQueries.RANGE_VERSION_JPQL, ChangeSignature.class)
+            .bind(ActionLogQueries.USER_ID, userId)
+            .bind(ActionLogQueries.FROM, start)
+            .bind(ActionLogQueries.TO, end)
+            .singleResult();
     }
 
     /**
@@ -126,12 +127,10 @@ public class ActionLog extends PanacheEntityBase {
      * @return one {@link MonthlyActionTotal} per {@code (action, calendar-month)} that has at least one log entry
      */
     public static List<MonthlyActionTotal> monthlyTotalsForActions(final UUID userId, final Collection<UUID> actionIds) {
-        // NB: never hold Panache.getEntityManager() in a local — it is a container-managed
-        // EntityManager that must NOT be closed, but PMD's CloseResource rule would demand it.
-        return Panache.getEntityManager().createQuery(ActionLogQueries.MONTHLY_TOTALS_JPQL, MonthlyActionTotal.class)
-            .setParameter("userId", userId)
-            .setParameter("actionIds", actionIds)
-            .getResultList();
+        return JpqlQuery.of(ActionLogQueries.MONTHLY_TOTALS_JPQL, MonthlyActionTotal.class)
+            .bind(ActionLogQueries.USER_ID, userId)
+            .bind(ActionLogQueries.ACTION_IDS, actionIds)
+            .resultList();
     }
 
     /**
@@ -147,12 +146,12 @@ public class ActionLog extends PanacheEntityBase {
      */
     public static List<DailyActionTotal> dailyTotalsForActions(final UUID userId, final Collection<UUID> actionIds, final LocalDate from,
         final LocalDate to) {
-        return Panache.getEntityManager().createQuery(ActionLogQueries.DAILY_TOTALS_JPQL, DailyActionTotal.class)
-            .setParameter("userId", userId)
-            .setParameter("actionIds", actionIds)
-            .setParameter("from", from)
-            .setParameter("to", to)
-            .getResultList();
+        return JpqlQuery.of(ActionLogQueries.DAILY_TOTALS_JPQL, DailyActionTotal.class)
+            .bind(ActionLogQueries.USER_ID, userId)
+            .bind(ActionLogQueries.ACTION_IDS, actionIds)
+            .bind(ActionLogQueries.FROM, from)
+            .bind(ActionLogQueries.TO, to)
+            .resultList();
     }
 
     /**
@@ -163,9 +162,9 @@ public class ActionLog extends PanacheEntityBase {
      * @return the distinct logged action ids, in no particular order
      */
     public static Set<UUID> loggedActionIds(final UUID userId) {
-        return Set.copyOf(Panache.getEntityManager().createQuery(ActionLogQueries.LOGGED_ACTION_IDS_JPQL, UUID.class)
-            .setParameter("userId", userId)
-            .getResultList());
+        return Set.copyOf(JpqlQuery.of(ActionLogQueries.LOGGED_ACTION_IDS_JPQL, UUID.class)
+            .bind(ActionLogQueries.USER_ID, userId)
+            .resultList());
     }
 
     /**
@@ -177,10 +176,10 @@ public class ActionLog extends PanacheEntityBase {
      * @return one {@link ActionPerformedDate} per {@code (action, logged-day)}, ascending within each action
      */
     public static List<ActionPerformedDate> distinctDatesForActions(final UUID userId, final Collection<UUID> actionIds) {
-        return Panache.getEntityManager().createQuery(ActionLogQueries.DISTINCT_DATES_JPQL, ActionPerformedDate.class)
-            .setParameter("userId", userId)
-            .setParameter("actionIds", actionIds)
-            .getResultList();
+        return JpqlQuery.of(ActionLogQueries.DISTINCT_DATES_JPQL, ActionPerformedDate.class)
+            .bind(ActionLogQueries.USER_ID, userId)
+            .bind(ActionLogQueries.ACTION_IDS, actionIds)
+            .resultList();
     }
 
     /**
@@ -236,23 +235,21 @@ public class ActionLog extends PanacheEntityBase {
      * @return the resulting count after the increment
      */
     public static int incrementCount(final UUID userId, final UUID actionId, final LocalDate date, final int delta) {
-        // NB: never hold Panache.getEntityManager() in a local — it is a container-managed
-        // EntityManager that must NOT be closed, but PMD's CloseResource rule would demand it.
-        Panache.getEntityManager().createNativeQuery(ActionLogQueries.INCREMENT_UPSERT_SQL)
-            .setParameter("id", UUID.randomUUID())
-            .setParameter("userId", userId)
-            .setParameter("actionId", actionId)
-            .setParameter("date", date)
-            .setParameter("delta", delta)
-            .setParameter("max", MAX_DAILY_COUNT)
-            .setParameter("now", Instant.now())
+        SqlQuery.of(ActionLogQueries.INCREMENT_UPSERT_SQL)
+            .bind(ActionLogQueries.ID, UUID.randomUUID())
+            .bind(ActionLogQueries.USER_ID, userId)
+            .bind(ActionLogQueries.ACTION_ID, actionId)
+            .bind(ActionLogQueries.DATE, date)
+            .bind(ActionLogQueries.DELTA, delta)
+            .bind(ActionLogQueries.MAX, MAX_DAILY_COUNT)
+            .bind(ActionLogQueries.NOW, Instant.now())
             .executeUpdate();
 
-        final Object current = Panache.getEntityManager().createNativeQuery(ActionLogQueries.SELECT_COUNT_SQL)
-            .setParameter("userId", userId)
-            .setParameter("actionId", actionId)
-            .setParameter("date", date)
-            .getSingleResult();
+        final Object current = SqlQuery.of(ActionLogQueries.SELECT_COUNT_SQL)
+            .bind(ActionLogQueries.USER_ID, userId)
+            .bind(ActionLogQueries.ACTION_ID, actionId)
+            .bind(ActionLogQueries.DATE, date)
+            .singleResult();
         return ((Number) current).intValue();
     }
 
@@ -268,13 +265,13 @@ public class ActionLog extends PanacheEntityBase {
      * @param count the exact count to store (must be {@code >= 1})
      */
     public static void setCount(final UUID userId, final UUID actionId, final LocalDate date, final int count) {
-        Panache.getEntityManager().createNativeQuery(ActionLogQueries.SET_COUNT_UPSERT_SQL)
-            .setParameter("id", UUID.randomUUID())
-            .setParameter("userId", userId)
-            .setParameter("actionId", actionId)
-            .setParameter("date", date)
-            .setParameter("count", count)
-            .setParameter("now", Instant.now())
+        SqlQuery.of(ActionLogQueries.SET_COUNT_UPSERT_SQL)
+            .bind(ActionLogQueries.ID, UUID.randomUUID())
+            .bind(ActionLogQueries.USER_ID, userId)
+            .bind(ActionLogQueries.ACTION_ID, actionId)
+            .bind(ActionLogQueries.DATE, date)
+            .bind(ActionLogQueries.COUNT, count)
+            .bind(ActionLogQueries.NOW, Instant.now())
             .executeUpdate();
     }
 
@@ -299,11 +296,11 @@ public class ActionLog extends PanacheEntityBase {
      * @return the resulting count after the decrement, or {@code 0} if the row was removed or absent
      */
     public static int decrementCount(final UUID userId, final UUID actionId, final LocalDate date, final int delta) {
-        final List<?> locked = Panache.getEntityManager().createNativeQuery(ActionLogQueries.SELECT_FOR_UPDATE_SQL)
-            .setParameter("userId", userId)
-            .setParameter("actionId", actionId)
-            .setParameter("date", date)
-            .getResultList();
+        final List<?> locked = SqlQuery.of(ActionLogQueries.SELECT_FOR_UPDATE_SQL)
+            .bind(ActionLogQueries.USER_ID, userId)
+            .bind(ActionLogQueries.ACTION_ID, actionId)
+            .bind(ActionLogQueries.DATE, date)
+            .resultList();
 
         if (locked.isEmpty()) {
             // No row to decrement. A concurrent increment may create one after this — that is a
@@ -315,20 +312,20 @@ public class ActionLog extends PanacheEntityBase {
 
         if (newCount <= 0) {
             // We still hold the FOR UPDATE lock, so no increment can raise the count before we delete.
-            Panache.getEntityManager().createNativeQuery(ActionLogQueries.DELETE_ENTRY_SQL)
-                .setParameter("userId", userId)
-                .setParameter("actionId", actionId)
-                .setParameter("date", date)
+            SqlQuery.of(ActionLogQueries.DELETE_ENTRY_SQL)
+                .bind(ActionLogQueries.USER_ID, userId)
+                .bind(ActionLogQueries.ACTION_ID, actionId)
+                .bind(ActionLogQueries.DATE, date)
                 .executeUpdate();
             return 0;
         }
 
-        Panache.getEntityManager().createNativeQuery(ActionLogQueries.DECREMENT_UPDATE_SQL)
-            .setParameter("newCount", newCount)
-            .setParameter("userId", userId)
-            .setParameter("actionId", actionId)
-            .setParameter("date", date)
-            .setParameter("now", Instant.now())
+        SqlQuery.of(ActionLogQueries.DECREMENT_UPDATE_SQL)
+            .bind(ActionLogQueries.NEW_COUNT, newCount)
+            .bind(ActionLogQueries.USER_ID, userId)
+            .bind(ActionLogQueries.ACTION_ID, actionId)
+            .bind(ActionLogQueries.DATE, date)
+            .bind(ActionLogQueries.NOW, Instant.now())
             .executeUpdate();
         return newCount;
     }

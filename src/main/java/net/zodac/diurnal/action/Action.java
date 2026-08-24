@@ -17,7 +17,6 @@
 
 package net.zodac.diurnal.action;
 
-import io.quarkus.hibernate.orm.panache.Panache;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -33,6 +32,8 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import net.zodac.diurnal.http.ChangeSignature;
+import net.zodac.diurnal.persistence.JpqlQuery;
+import net.zodac.diurnal.persistence.QueryParameter;
 
 /**
  * A user-defined habit that can be tracked day-to-day; hard-deleted (along with its logs) when removed.
@@ -40,6 +41,8 @@ import net.zodac.diurnal.http.ChangeSignature;
 @Entity
 @Table(name = "actions")
 public class Action extends PanacheEntityBase {
+
+    private static final QueryParameter<UUID> USER_ID = QueryParameter.of("userId");
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
@@ -99,10 +102,9 @@ public class Action extends PanacheEntityBase {
      * @return the user's distinct action colours
      */
     public static List<String> distinctColours(final UUID userId) {
-        return Panache.getEntityManager()
-            .createQuery("SELECT DISTINCT a.colour FROM Action a WHERE a.userId = :userId", String.class)
-            .setParameter("userId", userId)
-            .getResultList();
+        return JpqlQuery.of("SELECT DISTINCT a.colour FROM Action a WHERE a.userId = :userId", String.class)
+            .bind(USER_ID, userId)
+            .resultList();
     }
 
     /**
@@ -114,15 +116,12 @@ public class Action extends PanacheEntityBase {
      * @return the user's actions {@link ChangeSignature} that changes on any create, update or delete of the user's actions
      */
     public static ChangeSignature userVersion(final UUID userId) {
-        // NB: never hold Panache.getEntityManager() in a local — it is a container-managed
-        // EntityManager that must NOT be closed, but PMD's CloseResource rule would demand it.
-        return Panache.getEntityManager()
-            .createQuery("""
+        return JpqlQuery.of("""
                     SELECT new net.zodac.diurnal.http.ChangeSignature(COUNT(a), MAX(a.updatedAt))
                     FROM Action a
                     WHERE a.userId = :userId""", ChangeSignature.class)
-            .setParameter("userId", userId)
-            .getSingleResult();
+            .bind(USER_ID, userId)
+            .singleResult();
     }
 
     /**

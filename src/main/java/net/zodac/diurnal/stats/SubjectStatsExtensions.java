@@ -50,7 +50,6 @@ public final class SubjectStatsExtensions {
     // year to two digits only when the rendered label does not fit its tile - see Diurnal.fitFigures in app.js.
     // Built per-call from the caller's Language rather than held as a static constant, since the pattern/locale
     // now varies by viewer - see dateFmt/dateFmtNoYear below.
-    private static final double ZERO = 0.0;
     private static final String RANGE_SEPARATOR = " – ";
 
     private SubjectStatsExtensions() {
@@ -344,18 +343,16 @@ public final class SubjectStatsExtensions {
     private static String average(final SubjectStats stats, final long total, final ChronoUnit unit, final int decimalPlaces,
         final Language lang) {
         final LocalDate firstPerformed = stats.firstPerformed();
-        if (firstPerformed == null) {
-            return formatDecimal(0.0, decimalPlaces, lang);
+        // A zero average is always the plain "0", never "0.00" - decided on the whole numbers going in (nothing has been
+        // performed, or nothing has been counted), so no floating-point value is ever compared for equality.
+        if (firstPerformed == null || total == 0L) {
+            return "0";
         }
         final long periods = Math.max(1L, unit.between(firstPerformed, stats.today()));
         return formatDecimal((double) total / periods, decimalPlaces, lang);
     }
 
     private static String formatDecimal(final double value, final int decimalPlaces, final Language lang) {
-        if (value == ZERO) {
-            return "0";
-        }
-
         final NumberFormat format = NumberFormat.getNumberInstance(lang.locale());
         format.setMinimumFractionDigits(decimalPlaces);
         format.setMaximumFractionDigits(decimalPlaces);

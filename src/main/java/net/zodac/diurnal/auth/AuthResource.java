@@ -176,7 +176,7 @@ public class AuthResource {
             final String fields = invalid.missingFields().stream().map(RegistrationService::label).collect(Collectors.joining(", "));
             parts.add("Missing required fields: " + fields);
         }
-        invalid.errors().stream().map(RegistrationService::message).forEach(parts::add);
+        parts.addAll(invalid.errors().stream().map(RegistrationService::message).toList());
         return String.join(" ", parts);
     }
 
