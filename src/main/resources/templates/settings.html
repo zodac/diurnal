@@ -522,8 +522,15 @@
                                  label pattern the theme/preview pickers already use) behind a real, translated
                                  label + a filename span settings.js keeps in sync with the selection. !}
                             <div class="mt-3 flex items-center gap-3 min-w-0">
+                                {! The upload bound and its already-translated refusal ride the input itself rather than the global
+                                     layout i18n block - both belong to this one card, and the message needs a page-specific parameter
+                                     (the limit) that the layout's parameterless data-i18n-* attributes cannot carry. A file over this
+                                     size is refused by the HTTP layer with an EMPTY 413 that no application code ever sees, so
+                                     settings.js has to answer it before the file is read. !}
                                 <input type="file" id="data-import-file" accept=".zip,application/zip"
                                        aria-label="{msg:chooseExportArchiveToImport}"
+                                       data-max-upload-bytes="{importMaxUploadBytes}"
+                                       data-too-large-message="{msg:importFileTooLarge(importMaxUploadMegabytes)}"
                                        class="sr-only peer">
                                 <label for="data-import-file"
                                        class="btn-primary text-xs px-3 py-1.5 shrink-0 whitespace-nowrap cursor-pointer">{msg:chooseFile}</label>

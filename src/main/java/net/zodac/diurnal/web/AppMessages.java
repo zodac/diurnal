@@ -3102,6 +3102,16 @@ public interface AppMessages {
     String importRejectedGeneric();
 
     /**
+     * The refusal for a chosen file that is bigger than the HTTP layer will accept as a request body. Worded and shown by {@code settings.js} BEFORE
+     * the file is read, because a body over that bound is answered by an empty {@code 413} that no application code ever sees.
+     *
+     * @param maxMegabytes the largest accepted upload in whole megabytes, never translated
+     * @return the default (English) text
+     */
+    @Message("That file is too large to import - the most that can be uploaded is {maxMegabytes} MB.")
+    String importFileTooLarge(long maxMegabytes);
+
+    /**
      * Import action.
      *
      * @return the default (English) text

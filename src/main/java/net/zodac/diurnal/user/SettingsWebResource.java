@@ -51,6 +51,7 @@ import net.zodac.diurnal.auth.session.SessionCookies;
 import net.zodac.diurnal.auth.session.SessionStore;
 import net.zodac.diurnal.http.ClientAddress;
 import net.zodac.diurnal.http.HttpStatus;
+import net.zodac.diurnal.http.QuarkusHttpLimitsConfig;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.stats.StatField;
 import net.zodac.diurnal.text.TextOutcome;
@@ -88,6 +89,7 @@ public class SettingsWebResource {
     private final PasswordChangeService passwordChangeService;
     private final SessionStore sessionStore;
     private final SessionCookies sessionCookies;
+    private final QuarkusHttpLimitsConfig httpLimitsConfig;
     private final QuarkusOidcConfig quarkusOidcConfig;
     private final OidcConfig oidcConfig;
 
@@ -106,6 +108,7 @@ public class SettingsWebResource {
      * @param passwordChangeService the shared password-change service
      * @param sessionStore the session store used to revoke session tokens
      * @param sessionCookies the shared session-cookie builder
+     * @param httpLimitsConfig the framework-owned {@code quarkus.http.limits.*} keys the page reads (the data card's upload bound)
      * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys the page reads (tenant-enabled, the IdP base URL)
      * @param oidcConfig the application OIDC policy settings
      */
@@ -118,7 +121,8 @@ public class SettingsWebResource {
         @Location("partials/text-failure-message") final Template textFailureMessageTemplate,
         final CurrentUser currentUser, final AppClock clock,
         final ProfileService profileService, final PasswordChangeService passwordChangeService, final SessionStore sessionStore,
-        final SessionCookies sessionCookies, final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig) {
+        final SessionCookies sessionCookies, final QuarkusHttpLimitsConfig httpLimitsConfig, final QuarkusOidcConfig quarkusOidcConfig,
+        final OidcConfig oidcConfig) {
         this.settingsTemplate = settingsTemplate;
         this.oidcMessagesTemplate = oidcMessagesTemplate;
         this.passwordRejectionTemplate = passwordRejectionTemplate;
@@ -130,6 +134,7 @@ public class SettingsWebResource {
         this.passwordChangeService = passwordChangeService;
         this.sessionStore = sessionStore;
         this.sessionCookies = sessionCookies;
+        this.httpLimitsConfig = httpLimitsConfig;
         this.quarkusOidcConfig = quarkusOidcConfig;
         this.oidcConfig = oidcConfig;
     }
@@ -489,6 +494,10 @@ public class SettingsWebResource {
                 .data("timezoneChoices",
                         UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone, Language.fromValue(user.language)))
                 .data("weekStartChoices", WeekStart.choices(user.weekStart, locale))
+                // The Data card's import bound, checked by settings.js against the chosen file BEFORE it is read: a body over this size is
+                // refused by the HTTP layer with an empty 413 that never reaches TransferInternalResource, so the page has to word it itself.
+                .data("importMaxUploadBytes", httpLimitsConfig.maxBodySize().asLongValue())
+                .data("importMaxUploadMegabytes", httpLimitsConfig.maxBodySizeMegabytes())
                 // The "Automatic" option is selected precisely when no offered day is: an account following its language holds
                 // null (and a hand-edited unrecognised value resolves to the language too, so it reads as automatic here as well).
                 .data("weekStartIsAutomatic", !WeekStart.isValid(user.weekStart))

@@ -31,6 +31,7 @@ services:
       # encrypted in an unbounded one - so it sizes the responses the app builds, not the storage.
       # Lowering it keeps notes already written above it; they just cannot be re-saved unedited.
       NOTE_MAX_LENGTH: ${NOTE_MAX_LENGTH:-10000}
+      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-100M}
       TZ: ${TZ:-UTC}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       # DB query tracing. Independent of LOG_LEVEL (which only covers net.zodac.diurnal): set to TRACE

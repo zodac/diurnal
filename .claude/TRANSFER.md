@@ -159,6 +159,20 @@ the attacker-reachable parser it is:
 - `ImportParser` caps the problems it reports (`MAX_REPORTED_PROBLEMS`) while still telling the user the true
   total. It deliberately does **not** cap rows: the decompressed-byte limits above are the real bound, and a
   second row-count limit would only add a branch no test could reach without building 32 MB of fixtures.
+- **Before any of that, the HTTP layer caps the request body itself** (`quarkus.http.limits.max-body-size`,
+  deployment-configurable through `MAX_UPLOAD_SIZE`, default 100 MB), so an enormous upload never reaches
+  `TransferArchive` at all. That refusal is **an empty `413` with no body**,
+  which no application code sees and so cannot word: swapping it into the Settings card used to replace
+  `#import-panel` with nothing, silently deleting the panel and leaving the card inert. The card therefore reads
+  the bound from `http/QuarkusHttpLimitsConfig` (rendered onto the file input as `data-max-upload-bytes` plus an
+  already-translated `data-too-large-message`) and refuses an oversized file **before reading it**, so a gigabyte
+  is never pulled into the tab to post something the server will not read. `settings.js` also treats any status
+  other than `200`/`422` as a banner rather than a swap — those two are the only answers whose body is a rendered
+  panel. This is not one of `unpack`'s limits and has no `ImportReason`; it is the request never arriving.
+  Because the bound is a deployment's own choice, the message names the configured value rather than a constant,
+  and setting it BELOW `MAX_ARCHIVE_BYTES` is coherent rather than a misconfiguration to guard against: imports
+  are simply refused earlier, by that banner instead of by `unpack`. So there is deliberately no startup range
+  check on it, unlike `NOTE_MAX_LENGTH`.
 
 The three limits are also reachable through a package-private `TransferArchive.unpack` overload that takes them
 explicitly, purely so a test can sit on each boundary exactly. The production path passes the constants.
