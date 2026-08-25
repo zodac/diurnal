@@ -238,6 +238,6 @@ bytes the preview was computed from.
 | `ImportParserTest`               | every validation rule, the future-note/future-log asymmetry, the problem cap, and that content is never quoted |
 | `ImportSummaryExtensionsTest`    | the preview's wording, and that every figure pluralises                                                        |
 | `TransferApiResourceIT`          | export shape, export→import→export identity, replace, rollback on refusal, cross-account isolation             |
-| `TransferInternalResourceIT`     | the Settings panel's refusal rows: the bold file names, the chipped header row, and single-escaped upload text  |
+| `TransferInternalResourceIT`     | the Settings panel's refusal rows: bold file names, a chip per header column name, single-escaped upload text   |
 | `SurfaceParityIT`                | the same archive through both surfaces leaves the same database state                                          |
 | `tests/ui/data-transfer.spec.ts` | the card end to end: export downloads, preview, confirm, cancel, and a refusal shown in place                  |

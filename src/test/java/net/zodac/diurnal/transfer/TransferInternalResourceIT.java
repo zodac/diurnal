@@ -20,7 +20,6 @@ package net.zodac.diurnal.transfer;
 import static io.restassured.RestAssured.given;
 import static net.zodac.diurnal.http.HttpStatusCodes.UNPROCESSABLE_ENTITY;
 import static net.zodac.diurnal.transfer.TransferFiles.ACTIONS_FILE;
-import static net.zodac.diurnal.transfer.TransferFiles.ACTIONS_HEADER;
 import static net.zodac.diurnal.transfer.TransferFiles.LOGS_FILE;
 import static net.zodac.diurnal.transfer.TransferFiles.NOTES_FILE;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -90,15 +89,15 @@ class TransferInternalResourceIT extends IntegrationTestBase {
     }
 
     @Test
-    void importData_wrongHeader_chipsTheHeaderRowTheFileHasToMatch() {
+    void importData_wrongHeader_chipsEachColumnNameButNotTheCommasBetweenThem() {
         final String panel = importPanel(archiveOf(
             "name,color\r\n",
             "date,action,count\r\n",
             "date,content\r\n"));
 
         assertThat(panel)
-            .as("the header row is a comma-joined list, so it is chipped rather than bolded - and the chip has to survive as markup")
-            .contains("The header row must be exactly <code>" + String.join(",", ACTIONS_HEADER) + "</code>.");
+            .as("a chip marks one column name, so the commas separating them stay plain sentence text - and the chips have to survive as markup")
+            .contains("The header row must be exactly <code>name</code>, <code>colour</code>.");
     }
 
     private static String importPanel(final byte[] archive) {

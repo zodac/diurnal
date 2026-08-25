@@ -359,7 +359,7 @@ public interface AppMessages {
      * ONE entry carrying the whole sentence, not a {@code prefix + noun} pair the template joins: a verb-final language has no "prefix" to put a bare
      * noun after, so Japanese could only translate the prefix as a complete sentence, after which the noun was still appended to it — rendering
      * {@code "次の項目を入力してください 項目:"}. This is the same atomic-sentence rule the text-validation rejections below follow, applied to the
-     * one place a sentence was still being composed from two entries.
+     * one place a sentence was still being composed of two entries.
      *
      * @param count the number of missing fields
      * @return the default (English) text
@@ -2990,7 +2990,7 @@ public interface AppMessages {
     String releaseNotesTooltip();
 
     /**
-     * View source on github.
+     * View source on GitHub.
      *
      * @return the default (English) text
      */
@@ -3206,27 +3206,29 @@ public interface AppMessages {
      * A member held no rows at all, not even the header.
      *
      * <p>
-     * The header row is a comma-joined list, so it is set in a {@code <code>} chip rather than bolded like a lone file name: bold alone leaves
-     * {@code name,colour} reading as two words of the sentence, and the chip is what shows where the value starts and stops. Rendered {@code .raw}
-     * for the same reason {@link #importMissingMember(String)} is, and safe for the same reason - the value is the {@code TransferFiles} constant
-     * for that member, never anything out of the upload.
+     * The header row is a list of column names rather than one word, so it arrives <strong>already marked up</strong> - each name set in its own
+     * {@code <code>} chip, the separating commas left as plain sentence text - and this entry must not wrap it in anything further. A chip per name
+     * is what shows where each column name starts and stops; one chip around the whole list would set the commas in monospace too and read as a
+     * single opaque value. Rendered {@code .raw} for the same reason {@link #importMissingMember(String)} is, and safe for the same reason - the
+     * names are {@code TransferFiles} constants, never anything out of the upload.
      *
-     * @param header the expected header row, comma-joined, never translated
+     * @param header the expected header's column names, already chipped and comma-separated by {@code TransferInternalResource}, never translated
      * @return the default (English) text
      */
-    @Message("The file is empty - it must start with the header row <code>{header}</code>.")
+    @Message("The file is empty - it must start with the header row {header}.")
     String importEmptyFile(String header);
 
     /**
      * A member's first row is not the expected header.
      *
      * <p>
-     * The header row is chipped rather than bolded, and rendered {@code .raw} - see {@link #importEmptyFile(String)}, which words the same value.
+     * The column names arrive already chipped, and the entry is rendered {@code .raw} - see {@link #importEmptyFile(String)}, which words the same
+     * value.
      *
-     * @param header the expected header row, comma-joined, never translated
+     * @param header the expected header's column names, already chipped and comma-separated, never translated
      * @return the default (English) text
      */
-    @Message("The header row must be exactly <code>{header}</code>.")
+    @Message("The header row must be exactly {header}.")
     String importWrongHeader(String header);
 
     /**

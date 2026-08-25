@@ -132,15 +132,14 @@ final class ArchiveParser {
 
     private Optional<List<CsvRow>> headerAndDataRows(final String file, final List<String> header, final List<CsvRow> parsedRows) {
         final List<CsvRow> rows = new ArrayList<>(parsedRows);
-        final String joinedHeader = String.join(",", header);
         if (rows.isEmpty()) {
-            addProblem(file, HEADER_LINE, new ImportReason.EmptyFile(joinedHeader));
+            addProblem(file, HEADER_LINE, new ImportReason.EmptyFile(header));
             return Optional.empty();
         }
 
         final CsvRow headerRow = rows.removeFirst();
         if (!matchesHeader(headerRow.fields(), header)) {
-            addProblem(file, headerRow.line(), new ImportReason.WrongHeader(joinedHeader));
+            addProblem(file, headerRow.line(), new ImportReason.WrongHeader(header));
             return Optional.empty();
         }
 

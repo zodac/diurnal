@@ -31,6 +31,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 import net.zodac.diurnal.http.HttpStatus;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.user.CurrentUser;
@@ -57,6 +58,15 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * A refusal answers {@code 422} here where the API answers {@code 400}: the same per-surface split every other text input in the app uses. The body
  * is the same rendered panel in every case, so the card simply replaces its contents with whatever comes back.
+ *
+ * <p>
+ * The two header-row refusals ({@link ImportReason.EmptyFile}/{@link ImportReason.WrongHeader}) are the one place this resource composes markup
+ * rather than leaving it to a template: their column names have to be substituted into a translated sentence as a single value, and Qute cannot
+ * build one out of a loop on the way into a {@code msg:} expression. Each name is set in its own {@code <code>} chip and the separating commas are
+ * left as plain sentence text, so a chip marks exactly one column name rather than running the whole list together - and the separator stays the
+ * ASCII comma in every language, because chips and commas together spell the literal header row the file has to carry (see .claude/I18N.md on the
+ * CSV format being a never-translated cross-language contract). The names are {@link TransferFiles} constants, never anything from the upload, which
+ * is what keeps the composed markup safe to hand to a {@code .raw} entry.
  */
 @Path("/internal/data")
 @RolesAllowed(Role.Values.USER_INTERNAL_VALUE)
@@ -183,9 +193,10 @@ public class TransferInternalResource {
                 importReasonTemplate.data("kind", "csvUnreadable").setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
             case final ImportReason.MissingMember missing -> importReasonTemplate.data("kind", "missingMember", "file", missing.file())
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.EmptyFile empty -> importReasonTemplate.data("kind", "emptyFile", "header", empty.header())
+            case final ImportReason.EmptyFile empty -> importReasonTemplate.data("kind", "emptyFile", "header", chippedColumns(empty.columns()))
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
-            case final ImportReason.WrongHeader wrongHeader -> importReasonTemplate.data("kind", "wrongHeader", "header", wrongHeader.header())
+            case final ImportReason.WrongHeader wrongHeader -> importReasonTemplate
+                .data("kind", "wrongHeader", "header", chippedColumns(wrongHeader.columns()))
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
             case final ImportReason.WrongColumnCount wrongCount -> importReasonTemplate
                 .data("kind", "wrongColumnCount", "expected", wrongCount.expected(), "actual", wrongCount.actual())
@@ -212,6 +223,12 @@ public class TransferInternalResource {
             case final ImportReason.InvalidDate invalidDate -> importReasonTemplate.data("kind", "invalidDate", "raw", invalidDate.raw())
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
         };
+    }
+
+    private static String chippedColumns(final List<String> columns) {
+        return columns.stream()
+            .map(column -> "<code>" + column + "</code>")
+            .collect(Collectors.joining(", "));
     }
 
     /**

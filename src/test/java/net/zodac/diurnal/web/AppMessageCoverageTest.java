@@ -65,6 +65,9 @@ class AppMessageCoverageTest {
     // plural form without printing the number, which is correct usage and must not read as a dropped parameter.
     private static final Pattern DERIVED_EXPRESSION = Pattern.compile("\\{(?<name>[A-Za-z_]\\w*)\\.");
 
+    // The two import refusals whose `{header}` arrives as already-composed markup rather than as plain text.
+    private static final List<String> CHIPPED_HEADER_KEYS = List.of("importEmptyFile", "importWrongHeader");
+
     /**
      * The locales every test below runs against: each offered {@link Language} except the default, whose content is the {@code @Message} annotations
      * themselves rather than a file. Derived from the enum so a newly offered language is covered without a second list to remember.
@@ -134,6 +137,43 @@ class AppMessageCoverageTest {
         while (matcher.find()) {
             names.add(matcher.group("name"));
         }
+    }
+
+    @Test
+    void theChippedHeaderRefusals_leaveTheColumnChipsToTheResourceThatComposesThem() {
+        // importEmptyFile/importWrongHeader are handed a header row ALREADY marked up - one <code> chip per column
+        // name, plain commas between (TransferInternalResource.chippedColumns) - because how many names there are is
+        // a property of the CSV member, not of the language. A bundle that wraps {header} in a <code> of its own
+        // would chip the whole list in that ONE language, setting the separating commas in monospace too: exactly
+        // the per-language drift that composing the chips outside the bundles exists to make impossible. Nothing
+        // else can see it - these arms render `.raw`, so the stray tags would not even show up as escaped text, and
+        // TransferInternalResourceIT renders only the default language.
+        final List<String> wrapped = new ArrayList<>();
+
+        for (final String key : CHIPPED_HEADER_KEYS) {
+            for (final String locale : translatedLocales().toList()) {
+                if (propertiesIn(locale).getProperty(key, "").contains("<code>")) {
+                    wrapped.add(key + " in msg_" + locale + ".properties");
+                }
+            }
+            if (defaultWording(key).contains("<code>")) {
+                wrapped.add(key + " in its @Message default");
+            }
+        }
+
+        assertThat(wrapped)
+            .as("a header row's column names are chipped by TransferInternalResource, so no wording may wrap {header} in a <code> of its own")
+            .isEmpty();
+    }
+
+    private static String defaultWording(final String key) {
+        for (final Method method : AppMessages.class.getDeclaredMethods()) {
+            final Message message = method.getAnnotation(Message.class);
+            if (message != null && method.getName().equals(key)) {
+                return message.value();
+            }
+        }
+        throw new AssertionError("AppMessages declares no @Message method named '" + key + '\'');
     }
 
     @Test
