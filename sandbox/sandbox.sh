@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
-# Launch the isolated diurnal sandbox.
+# Launch the isolated project sandbox (every docker name is derived from the project directory).
 #
 #   ./sandbox.sh build          # (re)build the image
 #   ./sandbox.sh                # start an interactive Claude session in the sandbox
 #   ./sandbox.sh shell          # drop into a bash shell instead of Claude
 #   ./sandbox.sh run <cmd...>   # run an arbitrary command in the sandbox
 #   ./sandbox.sh stop           # stop & remove a running sandbox (one-click teardown)
+#   ./sandbox.sh prune          # reclaim disk in the nested docker (build cache, images, volumes)
 #
 # A launch REPLACES any sandbox that is already running (they cannot coexist — same name, same port,
-# same ~/.claude volume), stopping it only once the new image has been built.
+# same ~/.claude volume), stopping it only once the new image has been built. Every docker name is derived
+# from the project directory (see SLUG below), so a DIFFERENT project's sandbox shares none of that state.
 #
 # Only the project directory is mounted from the host. No $HOME, no SSH keys,
 # no other projects, and NOT the host Docker socket. The sandbox runs its own
@@ -16,11 +18,31 @@
 # Playwright) lives and dies inside this disposable container.
 set -euo pipefail
 
-IMAGE="diurnal-sandbox"
-CONTAINER="diurnal-sandbox"
 # This script lives in <project>/sandbox/, so the project root is its parent dir.
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="${PROJECT_DIR:-$(dirname "${HERE}")}"
+# EVERY docker name below is DERIVED from the project directory, never hardcoded - the container, the
+# image, the hostname and all four volumes. This launcher gets copied into other repos, and a hardcoded
+# name travels with the copy: the copy mounts ITS OWN project at /work but attaches THE ORIGINAL
+# project's volumes, so two unrelated repos end up sharing one ~/.claude - one prompt history (visible
+# on the up-arrow), one memory directory, one set of transcripts offered by /resume, one allowedTools.
+# Nothing warns you, because the project KEY Claude derives from the mount point ("-work") is identical
+# for every project by construction. Deriving the names makes a copy self-scoping on its first launch.
+# Set SANDBOX_NAME to pin one explicitly (e.g. two checkouts of the SAME repo that must not share).
+SLUG="$(basename "${PROJECT_DIR}")"
+SLUG="${SLUG,,}"                     # docker image names must be lowercase
+SLUG="${SLUG//[^a-z0-9_.-]/-}"       # ... and hold only [a-z0-9_.-]
+[[ "${SLUG}" =~ ^[a-z0-9] ]] || SLUG="sandbox${SLUG}"  # ... and start alphanumeric
+NAME="${SANDBOX_NAME:-${SLUG}}-sandbox"
+IMAGE="${NAME}"
+CONTAINER="${NAME}"
+# Ports published to the HOST, space-separated `host:container` pairs - the other resource a copied
+# launcher would collide on (two sandboxes cannot both hold host :8071). Unlike the volume names this
+# one fails LOUDLY ("port is already allocated"), so it is a default rather than a derivation.
+# `SANDBOX_PORTS=` (empty) publishes nothing, which is the right setting for a project with no server.
+read -ra PUBLISH_PORTS <<< "${SANDBOX_PORTS-8071:8081}"
+PUBLISH=()
+for port in ${PUBLISH_PORTS+"${PUBLISH_PORTS[@]}"}; do PUBLISH+=(-p "${port}"); done
 # Git Bash on Windows resolves paths as /c/Users/... but Docker Desktop needs C:\Users\...
 if command -v cygpath &>/dev/null; then
   HERE="$(cygpath -w "${HERE}")"
@@ -151,6 +173,7 @@ run() {
 
   # Publish the in-sandbox dev server (it runs on container :8081, e.g. scripts/dev-up.sh) to host
   # :8071 — deliberately NOT host :8081, so the host's own 8081 stays free for host-native dev/tests.
+  # See SANDBOX_PORTS at the top to repoint or disable this.
   #
   # The Maven local repository gets a named volume for the same reason the Docker data dir and the
   # Playwright browser cache do: without one it lives in the container's writable layer, which --rm
@@ -163,15 +186,34 @@ run() {
     --name "${CONTAINER}" \
     --cidfile "${CIDFILE}" \
     --privileged \
-    --hostname diurnal-sandbox \
+    --hostname "${NAME}" \
     -v "${PROJECT_DIR}":/work \
-    -v diurnal-sandbox-docker:/var/lib/docker \
-    -v diurnal-sandbox-claude:/home/dev/.claude \
-    -v diurnal-sandbox-m2:/home/dev/.m2 \
-    -v diurnal-sandbox-pw:/home/dev/.cache/ms-playwright \
-    -p 8071:8081 \
+    -v "${NAME}-docker":/var/lib/docker \
+    -v "${NAME}-claude":/home/dev/.claude \
+    -v "${NAME}-m2":/home/dev/.m2 \
+    -v "${NAME}-pw":/home/dev/.cache/ms-playwright \
+    ${PUBLISH[@]+"${PUBLISH[@]}"} \
     "${IMAGE}" "$@" <&3 &
   wait $!
+}
+
+# Reclaim disk inside the NESTED docker daemon - the `-docker` volume, by far the largest of the four
+# (image layers and BuildKit cache from every gate run land there). The GC policy baked into the image
+# (`daemon.json`) caps the build cache on its own; this is the manual, immediate version, and it also
+# clears the images/containers/volumes that no policy covers.
+#
+# Prefers `docker exec` into a RUNNING sandbox so a live Claude session is never interrupted; only
+# starts a container when none is up. Runs as root inside, since `dev` is not in the container's
+# docker group.
+PRUNE_CMD='docker system df; docker builder prune -af --max-used-space=20GB; docker image prune -af --filter until=336h; docker container prune -f; docker volume prune -f; echo; docker system df'
+prune() {
+  if docker inspect "${CONTAINER}" >/dev/null 2>&1; then
+    echo "[sandbox] pruning inside the running ${CONTAINER} (session untouched)..."
+    docker exec -u root "${CONTAINER}" bash -c "${PRUNE_CMD}"
+  else
+    echo "[sandbox] no ${CONTAINER} running - starting one to prune..."
+    run sudo bash -c "${PRUNE_CMD}"
+  fi
 }
 
 stop() {
@@ -188,6 +230,7 @@ stop() {
 case "${1:-}" in
   build) build ;;
   stop)  stop ;;
+  prune) prune ;;
   shell) shift; run bash ;;
   run)   shift; run "$@" ;;
   "")    run ;;            # default: interactive claude (entrypoint default)
