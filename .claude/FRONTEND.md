@@ -334,6 +334,19 @@ Theme, Calendar style, and Font pickers show real dashboard screenshots (via `pa
 > present (fallback name), the file just 404s locally. The committed README shots live under `docs/screenshots/` instead (see
 > below).
 
+> **When the stage actually re-runs, and the opt-in cache.** Its layer-cache key is the *bytes* of the `previewbuild` fast-jar, and
+> Maven output is not reproducible (no `project.build.outputTimestamp`), so **any** edit under `src/main` - plus a `pom.xml`/`VERSION`
+> bump - pays the full Postgres + Chromium + app-boot regeneration, however unrelated to rendering it was. `src/test` is deliberately
+> **not** copied into either Maven stage (`maven.test.skip` defaults to true, so it is never compiled there), which is what keeps a
+> test-only edit from triggering all of that. Beyond it, `--build-arg PREVIEW_CACHE=true` keys the thumbnails on the inputs that can
+> change a pixel - the templates, message bundles, static web root, compiled `app.css`, the generator + its runner, and the pinned
+> Playwright version - stores them in a BuildKit cache mount and restores them on a hit, so an ordinary Java change reuses them.
+> **Default off, and for local iteration only**: the key excludes `src/main/java`, so a Java change that *does* alter the rendering
+> (a Qute `@TemplateExtension`, a new `StatField` tile, locale formatting, the generator's seed account) is invisible to it and
+> restores stale thumbnails. `publish.yml` passes no `PREVIEW_CACHE`, so a release always regenerates; cache mounts are never
+> exported to a registry cache, so it cannot leak into CI regardless. Fastest of all while iterating on something else entirely is
+> still `GENERATE_PREVIEWS=false`.
+
 **8 WebP files**, fixed per picker:
 
 - Theme: `page-nova-full-{system,light,dark}.webp`

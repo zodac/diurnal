@@ -222,8 +222,7 @@ It may later be linked to your OIDC provider, though I would suggest keeping it 
 
 ## Environment Variables
 
-Diurnal is configured entirely through environment variables on the `diurnal` container. Only `DB_PASSWORD` is required; everything else has a
-sensible default.
+Diurnal is configured entirely through environment variables on the `diurnal` container.
 
 ### Required
 
@@ -258,7 +257,6 @@ sealed under that key. The account keys are themselves stored only in encrypted 
 
 | Variable                        | Default | Description                                                                         |
 |---------------------------------|---------|-------------------------------------------------------------------------------------|
-| `NOTE_ENCRYPTION_KEY`           |         | **Required.** Base64, decoding to 32 bytes. Generate with `openssl rand -base64 32` |
 | `NOTE_ENCRYPTION_PREVIOUS_KEYS` |         | Comma-separated retired keys, set only while [rotating](#rotating-the-key)          |
 | `NOTE_MAX_LENGTH`               | `10000` | The longest note a user may save, in characters. Must be between `1` and `100000`   |
 
@@ -311,8 +309,8 @@ roughly **100–500 ms** on my hardware. For resource-constrained hardware, you 
 
 | Variable                           | Default | Description                                             |
 |------------------------------------|---------|---------------------------------------------------------|
-| `PASSWORD_HASH_ARGON2_MEMORY_KIB`  | `98304` | Memory cost in KiB (96 MiB)                             |
 | `PASSWORD_HASH_ARGON2_ITERATIONS`  | `3`     | Number of passes for hashing                            |
+| `PASSWORD_HASH_ARGON2_MEMORY_KIB`  | `98304` | Memory cost in KiB (96 MiB)                             |
 | `PASSWORD_HASH_ARGON2_PARALLELISM` | `4`     | Number of lanes; cuts latency at the cost of more cores |
 
 #### OIDC
@@ -322,17 +320,17 @@ OIDC is disabled by default. When enabled, users can sign in through your identi
 
 | Variable             | Default                  | Description                                                           |
 |----------------------|--------------------------|-----------------------------------------------------------------------|
-| `OIDC_ENABLED`       | `false`                  | Set to `true` to activate OIDC                                        |
-| `OIDC_ISSUER_URL`    |                          | Base URL of the OIDC provider (e.g. `https://auth.example.com`)       |
+| `OIDC_ADMIN_GROUP`   |                          | IdP group whose members are granted the `Administrator` role          |
+| `OIDC_AUTO_REDIRECT` | `false`                  | If `true`, `/login` redirects straight to the provider                |
 | `OIDC_CLIENT_ID`     | `diurnal`                | Client ID registered with the provider                                |
 | `OIDC_CLIENT_SECRET` |                          | Client secret for the registered client                               |
-| `OIDC_PROVIDER_NAME` | `your identity provider` | Name shown on the login button ("Log in with your identity provider") |
-| `OIDC_AUTO_REDIRECT` | `false`                  | If `true`, `/login` redirects straight to the provider                |
-| `OIDC_SCOPES`        | `email,profile,groups`   | Extra scopes requested with `openid` (use `email,profile` for Google) |
-| `OIDC_PKCE_ENABLED`  | `true`                   | PKCE on the code flow; disable only if the provider rejects it        |
-| `OIDC_ADMIN_GROUP`   |                          | IdP group whose members are granted the `Administrator` role          |
-| `OIDC_USER_GROUP`    |                          | IdP group whose members are granted the `User` role                   |
+| `OIDC_ENABLED`       | `false`                  | Set to `true` to activate OIDC                                        |
+| `OIDC_ISSUER_URL`    |                          | Base URL of the OIDC provider (e.g. `https://auth.example.com`)       |
 | `OIDC_LOGOUT_URL`    |                          | OIDC users are redirected here after logging out                      |
+| `OIDC_PKCE_ENABLED`  | `true`                   | PKCE on the code flow; disable only if the provider rejects it        |
+| `OIDC_PROVIDER_NAME` | `your identity provider` | Name shown on the login button ("Log in with your identity provider") |
+| `OIDC_SCOPES`        | `email,profile,groups`   | Extra scopes requested with `openid` (use `email,profile` for Google) |
+| `OIDC_USER_GROUP`    |                          | IdP group whose members are granted the `User` role                   |
 
 <!-- markdownlint-disable MD033 -- collapsible example: intentional <strong> inside <summary> -->
 <details>
