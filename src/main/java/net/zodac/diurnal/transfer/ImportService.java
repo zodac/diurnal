@@ -130,7 +130,7 @@ public class ImportService {
 
         return switch (ImportParser.parse(members, today, noteField.field())) {
             case final ParseOutcome.Rejected rejected -> {
-                LOGGER.debug("Import rejected for user {}: {} problem(s)", user.email, rejected.totalFound());
+                LOGGER.warn("Import rejected for user {}: {} problem(s)", user.email, rejected.totalFound());
                 yield new ImportResult.Rejected(rejected.problems(), rejected.totalFound());
             }
             case final ParseOutcome.Planned planned -> commitOrPreview(user, planned.plan(), commit);
@@ -210,8 +210,7 @@ public class ImportService {
             case final ImportReason.ArchiveUnreadable unreadable -> "The uploaded archive could not be read: " + unreadable.detail();
             case final ImportReason.CsvUnreadable _ ->
                 "The file could not be read - a quoted value is never closed - check for an unbalanced \" character.";
-            case final ImportReason.MissingMember missing -> "The archive does not contain " + missing.file() + ", which a complete export "
-                + "always has.";
+            case final ImportReason.MissingMember missing -> "The archive does not contain " + missing.file() + ".";
             case final ImportReason.EmptyFile empty -> "The file is empty - it must start with the header row " + empty.header() + ".";
             case final ImportReason.WrongHeader wrongHeader -> "The header row must be exactly " + wrongHeader.header() + ".";
             case final ImportReason.WrongColumnCount wrongCount ->

@@ -34,6 +34,7 @@ services:
       MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-100M}
       TZ: ${TZ:-UTC}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      EXPORT_CSV_BOM: "false"
       # DB query tracing. Independent of LOG_LEVEL (which only covers net.zodac.diurnal): set to TRACE
       # to log every SQL statement + bound parameters the app issues to Postgres. Leave at WARN (off)
       # in production — it is verbose and can surface parameter values in the logs.

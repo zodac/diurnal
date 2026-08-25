@@ -1218,13 +1218,19 @@
            Both properties are re-set: the tint carries the signal, the text keeps the row's own colour. */
         .note-mark { background-color: var(--color-mark-bg); color: inherit; border-radius: .125rem; padding: 0 .0625rem; }
 
-        /* An import-refusal reason names the archive member it came from (partials/import-panel.html) -
-           always one of the fixed, ASCII, never-translated CSV filenames from transfer.TransferFiles
-           (actions.csv/logs.csv/notes.csv). Set off from the surrounding translated sentence with a
-           small monospace chip, the same reasoning `.note-mark` sets a search match apart from its row -
-           without it, the filename is bare Latin text sitting loose among Arabic prose with nothing
-           marking it as a deliberate technical token rather than a stray, unexplained fragment. */
-        .import-file-chip {
+        /* An import-refusal row names the archive member it came from, and several refusal sentences name one
+           inside the sentence itself (partials/import-panel.html, partials/import-reason.html) - always one of
+           the fixed, ASCII, never-translated CSV filenames from transfer.TransferFiles. Both are plain <strong>
+           and need no rule here: a monospace tinted chip set the leading one apart from the bold ones for no
+           reason a reader could act on, so the two now read identically wherever a filename appears.
+
+           A header ROW is chipped rather than bolded, because it is a comma-joined list rather than one word:
+           `name,colour` in bold still reads as part of the surrounding sentence, and the chip is what shows
+           where the value the user has to match starts and stops - the same reasoning `.note-mark` sets a
+           search match apart from its row. It is the <code> a refusal's own wording carries (an @Message value
+           holds no class attribute - a translator must not have to preserve one), so the rule is scoped to the
+           refusal list rather than written on a class of its own. */
+        .import-problems code {
             font-family: ui-monospace, monospace; font-size: .8em; background-color: var(--color-surface-muted);
             border-radius: .1875rem; padding: .0625rem .3125rem;
         }

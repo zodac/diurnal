@@ -20,8 +20,9 @@ pins exactly that.
 
 ## The format
 
-A ZIP holding three CSV members. UTF-8 with a leading **byte-order mark**, **CRLF** record separators, RFC 4180
-quoting. The reader strips a BOM again and accepts CRLF, LF or a lone CR.
+A ZIP holding three CSV members. UTF-8 with a leading **byte-order mark** (unless `EXPORT_CSV_BOM=false` — see
+below), **CRLF** record separators, RFC 4180 quoting. The reader strips a BOM again — whatever was written, and
+whatever an editor has since added — and accepts CRLF, LF or a lone CR.
 
 | Member        | Header              | Notes                                      |
 |---------------|---------------------|--------------------------------------------|
@@ -43,8 +44,15 @@ another, and the import replaces everything, so a misread column is not a recove
 Each of these is small and each one is the difference between a file that opens in a spreadsheet and one that
 does not:
 
-- **The BOM.** Without it, Excel on Windows reads a UTF-8 CSV in the system code page and mangles every accent
-  and emoji in the file.
+- **The BOM**, and why it is the one part of the written form a deployment can change (`EXPORT_CSV_BOM`,
+  `transfer.csv-bom`, default `true` → `TransferConfig.csvByteOrderMark()`). Without it, Excel on Windows reads a
+  UTF-8 CSV in the system code page and mangles every accent and emoji in the file. With it, LibreOffice shows the
+  mark as a stray character in the first header cell unless its Text Import dialog is set to Unicode (UTF-8). Both
+  are real, neither is detectable from the server (an export is a download, not a negotiation), and the operator
+  knows which spreadsheet their users open — so this is the one detail here that is asked rather than decided.
+  **It is write-side only**: `Csv.parse` strips a leading mark either way, so archives exported under either
+  setting import identically and it is not a format version. `ExportService` reads it once per export, so an
+  archive can never hold two members written one way and the third the other.
 - **Quote-only-when-needed.** Quoting every field is equally correct and materially harder to read in a text
   editor, which is the other half of "editable".
 - **A line break inside a quoted field folds to a single `\n`** however it was written, which is exactly what
@@ -224,10 +232,12 @@ bytes the preview was computed from.
 
 | Tier                             | What it pins                                                                                                   |
 |----------------------------------|----------------------------------------------------------------------------------------------------------------|
-| `CsvTest`                        | RFC 4180 in both directions, BOM/CRLF, the one unparseable case, the awkward-value round trip                  |
+| `CsvTest`                        | RFC 4180 in both directions, BOM (written and omitted)/CRLF, the one unparseable case, the awkward round trip  |
+| `CsvBomDisabledIT`               | `EXPORT_CSV_BOM=false` reaches a real export, and what it writes still imports with its non-ASCII intact       |
 | `TransferArchiveTest`            | the round trip and every limit that makes unpacking an upload safe                                             |
 | `ImportParserTest`               | every validation rule, the future-note/future-log asymmetry, the problem cap, and that content is never quoted |
 | `ImportSummaryExtensionsTest`    | the preview's wording, and that every figure pluralises                                                        |
 | `TransferApiResourceIT`          | export shape, export→import→export identity, replace, rollback on refusal, cross-account isolation             |
+| `TransferInternalResourceIT`     | the Settings panel's refusal rows: the bold file names, the chipped header row, and single-escaped upload text  |
 | `SurfaceParityIT`                | the same archive through both surfaces leaves the same database state                                          |
 | `tests/ui/data-transfer.spec.ts` | the card end to end: export downloads, preview, confirm, cancel, and a refusal shown in place                  |
