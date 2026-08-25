@@ -136,6 +136,16 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked --mount=type=cache,t
         libatomic1="14.2.0-19"
 # END DEBIAN PACKAGES
 
+# ── Nested daemon config: keep the build cache from growing without limit ────
+# The `-docker` volume (/var/lib/docker) is by far the largest of the four persistent volumes - every
+# gate run leaves image layers and BuildKit cache behind, and nothing reclaims them by default. Left
+# alone it reaches tens of GB: measured 77GB on a two-month-old sandbox, 61GB of it build cache.
+# BuildKit's own GC is the fix, but it is off unless configured, so the policy is baked into the image
+# (rather than left to the host) - a copied sandbox inherits the bound with no setup.
+# `maxUsedSpace` keeps enough cache to make a re-run of the docker gate a cache hit while capping the
+# total; `keepDuration` drops anything untouched for a week. Reclaim the rest with `sandbox.sh prune`.
+COPY daemon.json /etc/docker/daemon.json
+
 # ── Docker engine + compose plugin (the nested daemon) ───────────────────────
 # The base is pinned to Debian, so the repo distro is hardcoded as `debian`; only the
 # release codename is derived (from /etc/os-release, via sed rather than a sourced shell

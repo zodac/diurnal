@@ -20,9 +20,22 @@ from the project root unless noted.
 - **Runs as a non-root user** (`dev`, matching your host UID 1000) so files
   written under `/work` stay owned by you. (Claude also refuses
   `--dangerously-skip-permissions` as root — another reason for the non-root user.)
-- `--privileged` grants privilege over the *container's* kernel view (needed for
-  the nested daemon), not over any host path. Isolation comes from not mounting
-  host files.
+- **What `--privileged` actually costs — read this before trusting the list above.**
+  The nested daemon needs it, and it is not free: the container holds
+  `CAP_SYS_ADMIN`, `CAP_SYS_MODULE` and `CAP_MKNOD`, and the host's raw block
+  devices (`/dev/nvme0n1p*`) are visible inside it. Root in here can therefore
+  `mount` the host disk and read/write **the entire host filesystem** - `~/.ssh`
+  included - regardless of what is or is not bind-mounted; loading a kernel module
+  is a second path. The `dev` user has passwordless `sudo`, so the non-root user
+  above does not gate any of that.
+  **So: the mount list is a guard against ACCIDENTS - a careless `rm -rf`, a
+  runaway test, Claude with `--dangerously-skip-permissions` - and it is a good
+  one. It is NOT a security boundary against deliberately hostile code**, which is
+  worth remembering now that `setup.sh` runs `npm install` for whatever project
+  this folder was copied into (a malicious `postinstall` inherits everything
+  above). Closing that gap means dropping `--privileged`, which in turn means a
+  runtime built for it - [`sysbox-runc`](https://github.com/nestybox/sysbox) runs
+  Docker-in-Docker unprivileged.
 
 ## Build
 
@@ -37,6 +50,7 @@ from the project root unless noted.
 ./sandbox/sandbox.sh shell      # a bash shell instead
 ./sandbox/sandbox.sh run <cmd>  # run an arbitrary command (e.g. ./sandbox/sandbox.sh run mvn -v)
 ./sandbox/sandbox.sh stop       # stop & remove a running sandbox (one-click teardown)
+./sandbox/sandbox.sh prune      # reclaim disk in the nested docker (see Persistence)
 ```
 
 **A launch replaces any sandbox that is already running.** Two of them cannot coexist — they share the
@@ -87,7 +101,8 @@ and vice versa.
 
 Add a second **Shell Script** config — **Name** `Claude Sandbox (Stop)`, same **Script path**, **Script
 options** `stop` — and leave "Execute in the terminal" **unticked** (it's a quick non-interactive
-command, no PTY needed). Running it does `docker stop diurnal-sandbox`, which trips the running
+command, no PTY needed). Running it does `docker stop diurnal-sandbox` (the container name, derived from the project
+directory), which trips the running
 launcher's teardown (below). This is the closest thing to a Stop button.
 
 ## Shutdown — how the container is torn down
@@ -118,14 +133,43 @@ sandbox or when something changed, otherwise it's a fast no-op:
 
 1. `git submodule update --init` — only if a submodule is uninitialised (linters
    need `code-quality-config`).
-2. `npm install` in `frontend/` — only if its `node_modules` is missing or `package-lock.json`
-   changed (tracked by a hash in the persistent state volume).
-3. `npx playwright install --with-deps chromium` — once per Playwright volume
-   (E2E browser + its OS libs).
+2. `npm install` — only in a directory that actually **has** a `package.json` (looked for in
+   `frontend/` then the project root, override with `SANDBOX_NPM_DIRS`), and only if its
+   `node_modules` is missing or `package-lock.json` changed (tracked by a hash in the persistent
+   state volume).
+3. `npx playwright install chromium` — only if the project **declares** Playwright (looked for in
+   `tests/` then the root, override with `SANDBOX_PW_DIRS`), once per Playwright volume.
+
+Steps 2 and 3 *detect* rather than assume, so this file survives being copy-pasted into a project
+with no Node side: it reports `(not applicable)` and runs nothing. That guard is load-bearing, not
+cosmetic — `npm --prefix frontend install` against a missing `frontend/` still **writes**
+`frontend/package-lock.json` before it errors, so an unguarded install would litter an unrelated
+project with a stray lockfile on its first open.
 
 Scripted `run <cmd>` invocations skip setup (no TTY) so they stay fast. After
 setup, everything works normally: `mvn clean install -Dall`, `scripts/dev-up.sh`,
 `docker compose -f docker-compose.dev.yml up -d diurnal-db-dev`, etc.
+
+## Reusing this sandbox in another project
+
+Copy the `sandbox/` folder in, and launch. Nothing needs renaming: the container, image, hostname and
+all four volumes are derived from the project directory's name (see *Persistence*), and the image is
+built from **this folder alone** — the `Dockerfile` `COPY`s only `entrypoint.sh`, `launch.sh` and
+`setup.sh`, never any project file — so the build context carries no assumption about the project.
+
+What the new project may want to set:
+
+| Variable           | Default         | When to change it                                                                                                |
+|--------------------|-----------------|------------------------------------------------------------------------------------------------------------------|
+| `SANDBOX_PORTS`    | `8071:8081`     | space-separated `host:container` pairs; **empty publishes nothing**. Two sandboxes cannot both hold host `:8071` |
+| `SANDBOX_NAME`     | the project dir | two checkouts of the *same* repo that must not share state                                                       |
+| `SANDBOX_NPM_DIRS` | `frontend .`    | the Node project lives somewhere else                                                                            |
+| `SANDBOX_PW_DIRS`  | `tests .`       | the Playwright suite lives somewhere else                                                                        |
+| `PROJECT_DIR`      | the parent dir  | the folder is not at `<project>/sandbox/`                                                                        |
+
+What is baked into the image regardless: **JDK 26, Maven, Node, Playwright's OS libs, Docker-in-Docker**
+and the Claude CLI. A project that needs none of the JVM half still works — it just carries a larger
+image than it needs, so trim the `COPY --from=jdk` / `--from=maven` stages if that matters.
 
 ## Persistence
 
@@ -135,7 +179,44 @@ Named volumes survive across runs (so you don't re-pull/re-download each time):
 |--------------------------|----------------------------------------------------------------------------|
 | `diurnal-sandbox-claude` | Claude auth, history **and** onboarding/terminal-setup state (`~/.claude`) |
 | `diurnal-sandbox-docker` | nested Docker images/layers (`/var/lib/docker`)                            |
+| `diurnal-sandbox-m2`     | the Maven repository (`~/.m2`)                                             |
 | `diurnal-sandbox-pw`     | Playwright browsers                                                        |
+
+### Disk usage — the `-docker` volume is the one that matters
+
+Measured on a two-month-old sandbox:
+
+| Volume                   | Size      | Bounded?                                                               |
+|--------------------------|-----------|------------------------------------------------------------------------|
+| `diurnal-sandbox-docker` | **77 GB** | **no** - 61 GB of it BuildKit cache, 21 GB images, from every gate run |
+| `diurnal-sandbox-m2`     | 598 MB    | grows slowly with dependency churn                                     |
+| `diurnal-sandbox-claude` | 279 MB    | yes - Claude prunes transcripts (and their side-car dirs) at 30 days   |
+| `diurnal-sandbox-pw`     | small     | yes - one browser build                                                |
+
+The image now ships `/etc/docker/daemon.json` with a BuildKit GC policy (`maxUsedSpace: 20GB`,
+`keepDuration: 168h`), so the build cache self-limits from here on — a copied sandbox inherits the
+bound with no setup. Images, stopped containers and dangling volumes are not covered by that policy;
+reclaim them (and force a cache sweep now) with:
+
+```bash
+./sandbox/sandbox.sh prune
+```
+
+It prefers `docker exec` into a running sandbox, so it will not interrupt a live Claude session.
+The trade-off is the obvious one: a pruned build cache makes the next `docker` gate run cold.
+
+Transcript retention on the `-claude` volume is Claude's own `cleanupPeriodDays` (default 30) — set it
+in `~/.claude/settings.json` inside the sandbox if a month of `/resume` history is more than you want.
+
+> **Those names are derived, not hardcoded.** `sandbox.sh` builds every docker name - container, image,
+> hostname and all four volumes - from the *project directory's* name: `<project>-sandbox[-claude|-docker|-m2|-pw]`.
+> This matters when you **copy this launcher into another repo**, which is the expected way to reuse it. A hardcoded
+> name travels with the copy, and the copy would then mount its own project at `/work` while attaching *these*
+> volumes - so both repos would share one `~/.claude`: one prompt history (the up-arrow shows the other project's
+> prompts), one memory directory, one set of transcripts offered by `/resume`. Nothing warns you, because the project
+> key Claude derives from the mount point (`-work`) is identical for every project. A copied launcher scopes itself on
+> its first launch instead. Set `SANDBOX_NAME` to pin a name explicitly - e.g. two checkouts of the *same* repo that
+> must not share state.
 
 > **Why login + terminal setup persist:** Claude Code normally splits its state between the
 > `~/.claude/` directory and a separate `~/.claude.json` file in the home root (onboarding /
@@ -174,8 +255,17 @@ Named volumes survive across runs (so you don't re-pull/re-download each time):
 Full reset (wipe all sandbox state):
 
 ```bash
-docker volume rm diurnal-sandbox-claude diurnal-sandbox-docker diurnal-sandbox-pw
+docker volume rm diurnal-sandbox-claude diurnal-sandbox-docker diurnal-sandbox-m2 diurnal-sandbox-pw
 ```
+
+> **This destroys Claude's memory directory, which is not in git.** Everything else on those volumes is
+> regenerable (images re-pull, `node_modules` reinstall, a login is re-entered), but
+> `<claude volume>/projects/-work/memory/` holds the accumulated `MEMORY.md` notes for this project and
+> exists nowhere else. Copy it out first if you mean to keep it:
+>
+> ```bash
+> ./sandbox/sandbox.sh run tar cf - -C /home/dev/.claude/projects/-work memory > claude-memory.tar
+> ```
 
 ## Notes
 

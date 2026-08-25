@@ -1,0 +1,10 @@
+{
+  "builder": {
+    "gc": {
+      "enabled": true,
+      "policy": [
+        { "keepDuration": "168h", "maxUsedSpace": "20GB" }
+      ]
+    }
+  }
+}
