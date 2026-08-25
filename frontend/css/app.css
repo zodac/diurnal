@@ -408,8 +408,10 @@
    * colour of faint text (gray-400 light / gray-500 dark — enough contrast over a white canvas),
    * darkening toward the muted-text colour on hover, over a
    * transparent track so it blends into whatever surface it sits on (page canvas, cards, the
-   * Settings panels). Declared on `html` so the standard `scrollbar-*` properties inherit to every
-   * scroll container; the `::-webkit-scrollbar` block is global for Blink/WebKit, which ignore the
+   * Settings panels). Declared on `html` so `scrollbar-color` inherits to every scroll container;
+   * `scrollbar-width` is the one `scrollbar-*` property that does NOT inherit, so a nested container
+   * that wants the same THIN bar (rather than the browser default width) has to repeat it - see
+   * `.combo-list`. The `::-webkit-scrollbar` block below is global for Blink/WebKit, which ignore the
    * standard properties.
    *
    * Deliberately NO `scrollbar-gutter: stable` on the root. It reserves the 12px track on EVERY page,
@@ -2024,6 +2026,169 @@
     text-align: center;
     color: var(--color-text-faint);
   }
+
+/* ── Dropdown listbox (every Settings dropdown) ───────────────────────────── */
+/* Lives here (un-layered, like the calendar/chart/note blocks above) because the dropdown is a
+   self-contained widget with its own namespace, and because several rules below must beat Tailwind's
+   layered utilities — the `.hidden`/`[hidden]` re-assertions, and the button's padding against
+   `.form-select`'s own `pe-8`. Every colour is a `var(--color-*)` token, so there are no `.dark` twins.
+
+   Why a hand-rolled listbox at all: a filter box cannot be placed inside a native <select>'s popup
+   (the browser owns that surface), so the searchable language picker means owning the list — and once
+   one dropdown on the page is this, ALL of them are (timezone, language, week start, via
+   partials/combo-field.html), rather than the page carrying two kinds of dropdown that look and behave
+   differently. Only the language row adds the filter box; the rest differ in nothing.
+
+   Direction: every offset here is LOGICAL (`inset-inline-end`, `padding-inline-*`), so the panel hangs
+   off the same edge of the row that the button sits on under both `dir`s. There is no competing
+   `ltr:`/`rtl:` Tailwind pair anywhere in the widget, which is what keeps it clear of the nested-`dir`
+   trap documented on `.app-tooltip-center` (this row sits inside the `dir="ltr"`-pinned #prefs-form). */
+.combo {
+  position: relative;
+  min-width: 0;
+}
+
+/* The closed control. `.form-select` (a layered component class) still paints its border, background,
+   focus ring and text — this only reshapes it into a flex row, since the glyph is ours rather than the
+   native select arrow that `pe-8` was leaving room for. */
+.combo-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-inline-end: 0.75rem;
+  text-align: start;
+}
+
+/* The current language, truncated rather than allowed to widen the row on a narrow screen — the same
+   bound `.form-select` puts on a long <option> (see its own note). */
+.combo-button-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.combo-button-glyph {
+  flex: none;
+  width: 1rem;
+  height: 1rem;
+  color: var(--color-text-faint);
+  transition: transform .15s ease;
+}
+
+/* Open state: the glyph points at the panel it opened, the way a disclosure chevron does. */
+.combo-button[aria-expanded="true"] .combo-button-glyph { transform: rotate(180deg); }
+
+/* The popup. Anchored to the row's END edge (the button's own), and sized from its content with the
+   button's width as the floor, so a long autonym-plus-English-name pair is never clipped while the
+   panel still cannot outgrow a phone-width card. */
+.combo-panel {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 0.25rem);
+  inset-inline-end: 0;
+  width: max-content;
+  min-width: 100%;
+  max-width: min(18rem, 65vw);
+  padding: 0.5rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-border);
+  background-color: var(--color-surface);
+  box-shadow: 0 10px 25px -5px rgb(0 0 0 / 0.25);
+}
+/* `.hidden` is a LAYERED Tailwind utility, so it is re-asserted here for anything this un-layered
+   block gives a `display` to — the same defensive pattern the `.dt-*`/`.modal-overlay` blocks use. */
+.combo-panel.hidden { display: none; }
+
+.combo-search {
+  width: 100%;
+  margin-bottom: 0.375rem;
+}
+
+/* One option's height, and with it the list's own bound. FIXED rather than derived from the content so
+   that "five rows, then it scrolls" holds in every language: a script with a taller line box (Japanese,
+   Arabic) would otherwise fit a different number of rows into the same list, and the cut-off would land
+   mid-row rather than between two. */
+:root {
+  --combo-row-h: 2.25rem;
+}
+
+/* Scrolls past five options - which is what keeps the timezone list (15 zones) inside the card, while
+   the shorter lists show whole and never grow a scrollbar at all.
+
+   The scrollbar itself is the app's own: the global `html { scrollbar-width: thin }` +
+   `::-webkit-scrollbar` block near the top of this file is the single definition, and a dropdown's
+   scrollbar must read as the same object as the page's rather than as a second style of scrollbar.
+   `scrollbar-color` (thumb/track) INHERITS from that block, so it is deliberately not restated here;
+   `scrollbar-width` does NOT inherit (unlike every other `scrollbar-*` property), so the page's own
+   `thin` has to be repeated to get the same bar rather than the browser's default-width one.
+
+   `scrollbar-gutter` is the one exception, and it is layout rather than theming: the panel is sized to
+   its widest option (`width: max-content`), so a scrollbar appearing afterwards would eat that width
+   from the labels. Reserving it up front is also why this container gets one where the note box and day
+   panel do not - see the global block's own note on why the ROOT deliberately has none. */
+.combo-list {
+  max-height: calc(5 * var(--combo-row-h));
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-gutter: stable;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.combo-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  height: var(--combo-row-h);
+  padding: 0 0.5rem;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+/* A long option (a timezone's city plus its offset) truncates instead of widening the panel past its
+   max-width or wrapping out of its fixed-height row. */
+.combo-option-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Filtered out. The `[hidden]` attribute's UA `display: none` would otherwise lose to the rule above. */
+.combo-option[hidden] { display: none; }
+
+/* The same fill for the hovered option and the keyboard-active one (aria-activedescendant), so a list
+   navigated with the arrow keys reads like the same list under a pointer. The ACTIVE one adds a ring:
+   with no filter box the list itself holds focus, and its active option is then the only visible focus
+   indicator - which is also why the list's own default outline is dropped below (an outline around the
+   whole list says nothing about where the keyboard is). */
+.combo-option:hover,
+.combo-option-active {
+  background-color: var(--color-surface-muted);
+}
+.combo-option-active { box-shadow: inset 0 0 0 1px var(--color-brand-ring); }
+.combo-list:focus { outline: none; }
+
+/* The tick sits in the layout at all times (only its visibility changes), so switching languages never
+   shifts a label sideways. */
+.combo-option-check {
+  flex: none;
+  width: 0.875rem;
+  height: 0.875rem;
+  color: var(--color-brand);
+  visibility: hidden;
+}
+.combo-option[aria-selected="true"] .combo-option-check { visibility: visible; }
+
+.combo-empty {
+  padding: 0.375rem 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--color-text-muted);
+}
+.combo-empty.hidden { display: none; }
 
 /* ── CSP style-src hardening: static inline `style=` attributes moved
    here so `style-src` can stay `'self'` with no hash/nonce. The admin API-docs iframe starts

@@ -197,6 +197,20 @@ public final class UserSettings {
     }
 
     /**
+     * The timezone the Settings picker shows as chosen: the account's own {@code timezone} when it has one, and the server's zone when it does not
+     * (a {@code null} column means "follow the server default", the same no-sentinel shape {@code week_start} uses). The one place that fallback is
+     * written down - {@link #timezoneChoices(ZoneId, Instant, String, Language)} marks its selected option with it, and the picker's hidden input
+     * carries it, so the two cannot disagree about which zone is current.
+     *
+     * @param serverZone the server's configured zone
+     * @param selectedTimezone the account's stored timezone (can be {@code null})
+     * @return the effective timezone id
+     */
+    public static String effectiveTimezone(final ZoneId serverZone, final @Nullable String selectedTimezone) {
+        return selectedTimezone == null ? serverZone.getId() : selectedTimezone;
+    }
+
+    /**
      * Builds the timezone picker options, ordered by their current UTC offset (most behind → most ahead) and evaluated at {@code now} (so the offsets
      * reflect the current DST state). Every curated zone is offered with its own id as the form value - a technical token like a colour hex or an
      * OIDC provider name, never shown or translated. The option matching the user's stored timezone is pre-selected; when the user has no override
@@ -209,7 +223,7 @@ public final class UserSettings {
      */
     public static List<TimezoneChoice> timezoneChoices(final ZoneId serverZone, final Instant now, @Nullable final String selectedTimezone,
         final Language language) {
-        final String effectiveZone = selectedTimezone == null ? serverZone.getId() : selectedTimezone;
+        final String effectiveZone = effectiveTimezone(serverZone, selectedTimezone);
         return TIMEZONE_OPTIONS.stream()
                 .map(ZoneId::of)
                 .sorted(Comparator

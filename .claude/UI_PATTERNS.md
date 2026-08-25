@@ -18,10 +18,12 @@ single-use markup speculatively — note it as a candidate and extract on the se
 - Qute is strict: default optional params with `.or(default)` (never elvis `?:` inside `{#let}`),
   and require callers to pass `""`/`false` explicitly for `{#if}`-tested attributes (see
   `partials/form-field.html`).
-- Blocks that vary per call site use `{#insert}` slots (see `partials/select-field.html`'s
-  `{#options}` block).
+- Blocks that vary per call site use `{#insert}` slots (see `partials/combo-field.html`'s
+  `{#selected}`/`{#options}` blocks).
 - Existing partials are the catalogue — reuse before writing new markup: `banner`, `form-field`,
-  `select-field`, `search-input` (optional `placeholder=`/`value=` params, both defaulted with
+  `combo-field`/`combo-option` (THE dropdown — see the rule below), `language-option-label` (one
+  language's name as BOTH the Settings language picker's closed button and its list write it — see
+  [`I18N.md`](I18N.md)), `search-input` (optional `placeholder=`/`value=` params, both defaulted with
   `.or(...)`; pass `value=` for a page whose search term rides the URL, as `/notes` does),
   `tooltip`, `stat-tile`, `pagination`, `dt-row-actions`,
   `dt-confirm-delete-row`, `preview-option`/`preview-thumb`, `eye-icons`, `password-constraints`,
@@ -29,7 +31,7 @@ single-use markup speculatively — note it as a candidate and extract on the se
   `colour-picker`/`random-colour-button` (the pair that make up a colour control - the new-action
   card, an action row's edit state and the Settings "Note colour" row each include both). That pair is
   the worked example of an optional `endpoint=` param: pass one and the picker auto-saves its own value
-  on change (`hx-patch`, no swap, exactly like `select-field`); leave it off and the colour is only
+  on change (`hx-patch`, no swap, exactly like `combo-field`); leave it off and the colour is only
   submitted with the surrounding form. The randomise button finds its input by walking up to the nearest
   `form`, `td` or `[data-colour-scope]` - mark a non-form host (a Settings row) with the last of those.
   The full-size geometry of the pair is the `.colour-picker-input` / `.colour-picker-btn` component
@@ -56,6 +58,15 @@ times**, or when it names a real design-system concept (button, card, field, bad
 - One-off layout tweaking (margins, flex direction, gaps) stays as inline utilities on the
   element; component classes carry the *identity* of the element, utilities carry its *placement*.
 - Rebuild with `npm --prefix frontend run css` after any class change, or the class gets purged.
+- **Every dropdown on the Settings page is `partials/combo-field.html`** — a button plus a
+  `role="listbox"` panel (`.combo-*` in `app.css`, `wireCombo()` in `settings.js`), never a native
+  `<select>`. It started with the language row, which needs a filter box inside its popup — a surface
+  the browser owns — and the whole page followed rather than carry two kinds of dropdown that look and
+  behave differently. `partials/select-field.html` was deleted in that change; do not reintroduce a
+  native `<select>` row beside these. The list **scrolls past five options**, so a long list (the
+  timezones) stays inside its card. Only the language row passes `search=true`; every other row differs
+  in nothing. The real field stays a named `<input type="hidden">` carrying the same `hx-patch` the
+  `<select>` had, so the save path is unchanged by the control's shape.
 - **Dialogs use `.modal-overlay`** — the shared overlay chrome (fixed, centred, dimmed; toggle `.hidden`
   and nothing else, since the class owns `display` in both states). Both the Settings preview lightbox
   and the Stats frequency graph use it; it is the worked example of the "real design-system concept at

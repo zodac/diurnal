@@ -1,11 +1,13 @@
 import type { Page } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
-import { establishNumericPref, waitForSave } from "../helpers/prefs"
+import { establishNumericPref, pickComboOption, waitForSave } from "../helpers/prefs"
+
+/* global getComputedStyle, document -- referenced inside the in-browser page.evaluate callbacks below */
 
 // Theme and calendar style are chosen from preview tiles backed by hidden radio inputs. Tests in
 // a spec share one user, so a value may already be selected; we check the radio and always dispatch
-// `change` so the htmx save fires regardless (mirroring how Playwright's selectOption behaved on the
-// old <select>). Page size is now preset pills + a number field, driven directly in each test.
+// `change` so the htmx save fires regardless. Page size is now preset pills + a number field, driven
+// directly in each test, and every dropdown is the hand-rolled listbox (see prefs.ts's pickComboOption).
 async function selectTile(page: Page, name: string, value: string): Promise<void> {
     await waitForSave(page, page.locator(`input[name="${name}"][value="${value}"]`).evaluate(
         (el: HTMLInputElement) => {
@@ -450,23 +452,129 @@ test.describe("Settings page", () => {
         // preference is Automatic, and the calendar starts on Monday without anything being chosen.
         await page.goto("/settings")
         await expect(page.locator("#weekStart")).toHaveValue("")
-        await expect(page.locator('#weekStart option[value=""]')).toHaveText("Automatic (Monday)")
+        await expect(page.locator("#weekStart-button")).toHaveText("Automatic (Monday)")
+        await expect(page.locator('#weekStart-list .combo-option[data-value=""]')).toHaveText("Automatic (Monday)")
         await page.goto("/")
         await expect(firstColumn).toHaveText("Mon")
         expect(await firstCellDay()).toBe(1)
 
         await page.goto("/settings")
-        await waitForSave(page, page.locator("#weekStart").selectOption("sunday"))
+        await pickComboOption(page, "weekStart", "sunday")
         await page.goto("/")
         await expect(firstColumn).toHaveText("Sun")
         expect(await firstCellDay()).toBe(0)
 
         // Back to Automatic (the blank option), so the shared account leaves this test as it found it.
         await page.goto("/settings")
-        await waitForSave(page, page.locator("#weekStart").selectOption(""))
+        await pickComboOption(page, "weekStart", "")
         await page.goto("/")
         await expect(firstColumn).toHaveText("Mon")
         expect(await firstCellDay()).toBe(1)
+    })
+
+    // Every dropdown on the page is the same listbox, so the "five rows then scroll" bound is asserted on
+    // the longest one (15 timezones) and its absence on a list that fits (the 5 languages). The scrollbar
+    // itself is checked through computed style rather than a screenshot ON PURPOSE: headless Chromium
+    // paints no scrollbar at all — verified against a deliberately red one — so a screenshot proves
+    // nothing here. It is asserted to equal the PAGE's own scrollbar rather than any literal colour:
+    // the panel must use the app's single scrollbar definition (app.css's `html` block), whatever that
+    // is and whichever theme is active, not a second style of scrollbar.
+    test("dropdowns: a list longer than five options scrolls, with the panel's own scrollbar", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+
+        await page.click("#timezone-button")
+        const timezone = await page.locator("#timezone-list").evaluate((el: HTMLElement) => ({
+            rows: el.querySelectorAll(".combo-option").length,
+            clientHeight: el.clientHeight,
+            scrollHeight: el.scrollHeight,
+            gutter: el.offsetWidth - el.clientWidth,
+            scrollbarColor: getComputedStyle(el).scrollbarColor,
+            scrollbarWidth: getComputedStyle(el).scrollbarWidth,
+            pageScrollbarColor: getComputedStyle(document.documentElement).scrollbarColor,
+            pageScrollbarWidth: getComputedStyle(document.documentElement).scrollbarWidth,
+        }))
+        expect(timezone.rows).toBeGreaterThan(5)
+        // Five rows of --combo-row-h (2.25rem = 36px), and more list below them.
+        expect(timezone.clientHeight).toBe(180)
+        expect(timezone.scrollHeight).toBeGreaterThan(timezone.clientHeight)
+        expect(timezone.scrollbarColor).toBe(timezone.pageScrollbarColor)
+        expect(timezone.scrollbarWidth).toBe(timezone.pageScrollbarWidth)
+        // A desktop scrollbar takes space, and `scrollbar-gutter: stable` reserves it up front so the panel
+        // (sized to its widest option) does not have it eaten later. A TOUCH device instead overlays the
+        // scrollbar - no gutter, and no custom colours honoured - which is the platform norm and not
+        // something the page should fight, so the reservation is asserted only where one exists.
+        if (test.info().project.name !== "mobile-chrome") {
+            expect(timezone.gutter).toBeGreaterThan(0)
+        }
+        await page.keyboard.press("Escape")
+
+        // Exactly five languages today, so that list shows whole and never scrolls.
+        await page.click("#language-button")
+        const language = await page.locator("#language-list").evaluate((el: HTMLElement) => ({
+            rows: el.querySelectorAll(".combo-option").length,
+            clientHeight: el.clientHeight,
+            scrollHeight: el.scrollHeight,
+        }))
+        expect(language.rows).toBe(5)
+        expect(language.scrollHeight).toBe(language.clientHeight)
+        await page.keyboard.press("Escape")
+    })
+
+    // The language picker is the one Settings dropdown with a filter box (every dropdown on the page is the same
+    // hand-rolled listbox; only this one passes `search`), so its filtering, its keyboard commit and — most of
+    // all — the fact that it still saves through the same PATCH the old <select> did are only covered here.
+    // Restores en-GB at the end: the spec shares one account, and every other test here asserts English wording.
+    test("language: the picker filters on either name and saves the pick", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        const shown = page.locator("#language-list .combo-option:visible")
+
+        await page.click("#language-button")
+        await expect(page.locator("#language-panel")).toBeVisible()
+        await expect(shown).toHaveCount(5)
+
+        // Alphabetical by the ENGLISH name (Language.pickerOrder), not the enum's declaration order — which is
+        // why Arabic leads a list whose default is English.
+        // Plain strings, not regexes: toHaveText only collapses an element's whitespace for a STRING expectation, and
+        // each option's markup wraps its label onto its own line.
+        await expect(shown).toHaveText([
+            "العربية (Arabic)",
+            "English (UK)",
+            "English (US)",
+            "日本語 (Japanese)",
+            "Español (Spanish)",
+        ])
+
+        // The ENGLISH name is a filter term, not just a label — "Spanish" appears nowhere else on the option.
+        await page.fill("#language-search", "spanish")
+        await expect(shown).toHaveCount(1)
+        await expect(shown.first()).toContainText("Español")
+
+        // ... and so is the autonym, with or without its accents (a keyboard without the ñ still gets there).
+        await page.fill("#language-search", "espanol")
+        await expect(shown).toHaveCount(1)
+        await expect(shown.first()).toContainText("Español")
+
+        // A non-Latin script matches as typed.
+        await page.fill("#language-search", "日本")
+        await expect(shown).toHaveCount(1)
+        await expect(shown.first()).toContainText("日本語")
+
+        await page.fill("#language-search", "zzz")
+        await expect(shown).toHaveCount(0)
+        await expect(page.locator("#language-no-matches")).toBeVisible()
+
+        // Enter commits the first (here, only) match: the value is saved and settings.js reloads the page into
+        // the new language, which is what makes `lang` the assertion that the PATCH really happened.
+        await page.fill("#language-search", "spanish")
+        await page.keyboard.press("Enter")
+        await expect(page.locator("html")).toHaveAttribute("lang", "es-ES")
+        await expect(page.locator("#language-button")).toContainText("Español")
+
+        // Back to English (UK) by clicking the option, so the shared account leaves this test as it found it.
+        await page.click("#language-button")
+        await page.locator("#language-option-en-GB").click()
+        await expect(page.locator("html")).toHaveAttribute("lang", "en-GB")
+        await expect(page.locator("#language-button")).toContainText("English (UK)")
     })
 
     test("clicking a preview tile info button opens the full-size dashboard preview", async ({ authenticatedPage: page }) => {

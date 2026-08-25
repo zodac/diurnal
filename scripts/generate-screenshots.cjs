@@ -43,8 +43,8 @@
  *   cal-{full,minimal,stacked}-dark.webp           — the three calendar styles, all framed as #calendar-wrap
  *   dashboard-arabic-dark.webp                     — the whole dashboard page again, in Arabic (RTL demonstration
  *                                                    for the README's Languages section, full-page like dashboard-dark)
- *   language-dropdown-dark.webp                    — the Settings language picker, OPEN (clip capture of the
- *                                                    native <select> popup, English selected)
+ *   language-dropdown-dark.webp                    — the Settings language picker, OPEN (crop capture of the
+ *                                                    filter box and option list, English selected)
  *   {actions,stats,admin,settings}-dark.webp       — the four page screenshots
  *   stats-graph-dark.webp                          — the Stats page's frequency-graph modal, three actions
  *                                                    compared over one month (element shot of the dialog panel)
@@ -893,34 +893,36 @@ async function shotNotesStatsCard(ctx, dir, file) {
   await page.close()
 }
 
-// The Settings language picker, OPEN — a plain native <select>, so the option list is the BROWSER's own
-// popup, not app markup: no locator can reach into it. Modern headless Chromium renders that popup
-// in-page (an older build wouldn't), and because the dark theme sets `color-scheme: dark` on `<html>`
-// (`layout.html`'s `applyTheme`), the native popup itself renders dark-themed too — matching the rest of
-// the gallery rather than looking like a stray unstyled light control.
+// The Settings language picker, OPEN — showing its filter box and both of every language's names.
 //
-// Two things had to be found empirically, not assumed, to get a real capture of it at all:
-//   - It needs its OWN context at deviceScaleFactor 1 — under the scaled DPR every other shot here uses,
-//     the popup silently fails to paint (the CLOSED control still renders fine either way, so nothing
-//     errors, the popup is just absent from the pixels). A lower-DPI capture of a small cropped UI
-//     control is not a visible quality loss the way it would be for a full-page shot.
-//   - `page.screenshot({ clip })` ALSO silently fails to include the popup, DPR aside — a plain,
-//     un-clipped screenshot captures it correctly. So this crops afterwards instead, via cwebp's own
-//     `-crop` (pngToLosslessWebp), on the box the control had before it was clicked.
+// It used to be a native <select>, whose option list is the BROWSER's own popup rather than app markup,
+// and that made this the fiddliest shot in the set: the popup only painted at deviceScaleFactor 1, and
+// only into an UN-clipped screenshot. Both workarounds are kept, because both are still the safe
+// choice and neither costs anything: the panel is now ordinary DOM (partials/combo-field.html), so it
+// would survive a clip and a scaled DPR, but a cropped capture of a small control loses nothing at
+// DPR 1 and the crop maths below is the same either way.
+//
+// The crop is the UNION of the closed button and the open panel, measured after opening: the panel is
+// absolutely positioned and hangs BELOW and (under LTR) to the START of the button, so neither box
+// alone contains the control as a reader sees it.
 async function shotLanguageDropdown(browser, dir, file) {
   const dsf1Ctx = await browser.newContext({ viewport: { width: VW, height: VH }, timezoneId: 'UTC' })
   await login(dsf1Ctx)
   const page = await dsf1Ctx.newPage()
   await page.goto(`${BASE}/settings`, { waitUntil: 'load' })
-  const select = page.locator('#language')
+  const button = page.locator('#language-button')
   // `block: 'start'` (not scrollIntoViewIfNeeded's nearest-edge default) so the control lands near the
-  // TOP of the viewport, leaving room below it for the popup to paint within the viewport bounds.
-  await select.evaluate(el => el.scrollIntoView({ block: 'start' }))
-  const box = await select.boundingBox()
-  await select.click()
-  await page.waitForTimeout(300) // let the native popup paint
+  // TOP of the viewport, leaving room below it for the panel to paint within the viewport bounds.
+  await button.evaluate(el => el.scrollIntoView({ block: 'start' }))
+  await button.click()
+  await page.waitForTimeout(300) // let the panel paint
+  const box = await button.boundingBox()
+  const panel = await page.locator('#language-panel').boundingBox()
   const pngBuf = await page.screenshot() // NOT clip — see the function comment above
-  writeShot(dir, file, pngBuf, { x: box.x, y: box.y, w: Math.max(box.width, 205), h: box.height + 175 })
+  const x = Math.floor(Math.min(box.x, panel.x))
+  const right = Math.ceil(Math.max(box.x + box.width, panel.x + panel.width))
+  const bottom = Math.ceil(panel.y + panel.height)
+  writeShot(dir, file, pngBuf, { x, y: Math.floor(box.y), w: right - x, h: bottom - Math.floor(box.y) })
   await dsf1Ctx.close()
 }
 

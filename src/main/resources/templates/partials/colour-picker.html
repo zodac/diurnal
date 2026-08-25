@@ -15,7 +15,7 @@
     id         — optional, default '': the input's id, for a visible <label for="…"> to point at
     name       — optional, default 'colour': the field name the endpoint reads as its @FormParam
     endpoint   — optional, default '': set it to make the input auto-save its OWN value on change
-                 (hx-patch, 204, no swap — the same shape as partials/select-field.html). Left empty
+                 (hx-patch, 204, no swap — the same shape as partials/combo-field.html). Left empty
                  on the action forms, whose colour is only submitted when their form is saved.
 !}
 {#let wrapperCls=wrapperCls.or('') dtEdit=dtEdit.or(false) form=form.or('') tipPos=tipPos.or('bottom')
