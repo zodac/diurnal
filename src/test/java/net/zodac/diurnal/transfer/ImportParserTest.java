@@ -95,7 +95,7 @@ class ImportParserTest {
     void parse_requiresTheExactHeaderRow() {
         assertThat(problems(ImportParser.parse(archive("name,color\r\nRunning,#e11d48\r\n", LOGS, NOTES), TODAY, NOTE_FIELD)))
             .as("guessing at a renamed column would let a file that means one thing be imported as another")
-            .containsExactly(new ImportProblem(TransferFiles.ACTIONS_FILE, 1, new ImportReason.WrongHeader("name,colour")));
+            .containsExactly(new ImportProblem(TransferFiles.ACTIONS_FILE, 1, new ImportReason.WrongHeader(TransferFiles.ACTIONS_HEADER)));
     }
 
     @Test
@@ -107,7 +107,7 @@ class ImportParserTest {
 
     @Test
     void parse_reportsAnEmptyMember() {
-        final ImportProblem expected = new ImportProblem(TransferFiles.ACTIONS_FILE, 1, new ImportReason.EmptyFile("name,colour"));
+        final ImportProblem expected = new ImportProblem(TransferFiles.ACTIONS_FILE, 1, new ImportReason.EmptyFile(TransferFiles.ACTIONS_HEADER));
         assertThat(problems(ImportParser.parse(archive("", LOGS, NOTES), TODAY, NOTE_FIELD)))
             .as("a member with no header at all is not a member of an export")
             .containsExactly(expected);

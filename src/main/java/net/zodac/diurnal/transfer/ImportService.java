@@ -211,8 +211,9 @@ public class ImportService {
             case final ImportReason.CsvUnreadable _ ->
                 "The file could not be read - a quoted value is never closed - check for an unbalanced \" character.";
             case final ImportReason.MissingMember missing -> "The archive does not contain " + missing.file() + ".";
-            case final ImportReason.EmptyFile empty -> "The file is empty - it must start with the header row " + empty.header() + ".";
-            case final ImportReason.WrongHeader wrongHeader -> "The header row must be exactly " + wrongHeader.header() + ".";
+            case final ImportReason.EmptyFile empty ->
+                "The file is empty - it must start with the header row " + String.join(",", empty.columns()) + ".";
+            case final ImportReason.WrongHeader wrongHeader -> "The header row must be exactly " + String.join(",", wrongHeader.columns()) + ".";
             case final ImportReason.WrongColumnCount wrongCount ->
                 "Expected " + wrongCount.expected() + " columns but found " + wrongCount.actual() + ".";
             case final ImportReason.InvalidTextField invalid -> TextOutcomeExtensions.message(invalid.failure());

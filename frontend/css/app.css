@@ -1224,12 +1224,13 @@
            and need no rule here: a monospace tinted chip set the leading one apart from the bold ones for no
            reason a reader could act on, so the two now read identically wherever a filename appears.
 
-           A header ROW is chipped rather than bolded, because it is a comma-joined list rather than one word:
-           `name,colour` in bold still reads as part of the surrounding sentence, and the chip is what shows
-           where the value the user has to match starts and stops - the same reasoning `.note-mark` sets a
-           search match apart from its row. It is the <code> a refusal's own wording carries (an @Message value
-           holds no class attribute - a translator must not have to preserve one), so the rule is scoped to the
-           refusal list rather than written on a class of its own. */
+           A header row's COLUMN NAMES are chipped rather than bolded, because a header is a list rather than one
+           word: `name` in bold still reads as part of the surrounding sentence, and the chip is what shows where
+           a name the user has to match starts and stops - the same reasoning `.note-mark` sets a search match
+           apart from its row. One chip per NAME, with the separating commas left outside them as plain sentence
+           text, so a chip never runs two column names together. It is the <code> a refusal's own wording carries
+           (an @Message value holds no class attribute - a translator must not have to preserve one), so the rule
+           is scoped to the refusal list rather than written on a class of its own. */
         .import-problems code {
             font-family: ui-monospace, monospace; font-size: .8em; background-color: var(--color-surface-muted);
             border-radius: .1875rem; padding: .0625rem .3125rem;

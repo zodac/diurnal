@@ -8,7 +8,8 @@
     maxEntries  — 'tooManyEntries' only, never translated
     detail      — 'archiveUnreadable' only, the underlying exception message, never translated
     file        — 'missingMember' only, never translated
-    header      — 'emptyFile' | 'wrongHeader' only, never translated
+    header      — 'emptyFile' | 'wrongHeader' only, never translated; already MARKED UP by
+                   TransferInternalResource.chippedColumns - one <code> chip per column name, plain commas between
     expected    — 'wrongColumnCount' only, never translated
     actual      — 'wrongColumnCount' only, never translated
     name        — 'duplicateAction' only, never translated
@@ -19,15 +20,22 @@
 
   Every arm is escaped as it renders, so an arm may embed the archive's own text (a name, a date, a raw cell) freely.
   The FOUR arms whose wording sets a piece of the file format apart are the exception and ask for `.raw`, or Qute
-  would render the markup in them as literal angle brackets: `missingMember`/`unknownAction` bold a CSV file name,
-  and `emptyFile`/`wrongHeader` chip a header row (a comma-joined list, which bold alone would leave reading as more
-  words of the sentence). Each is marked up inside the `@Message` value because the piece does not sit at the same
-  point in the sentence in every language — see .claude/I18N.md.
+  would render the markup as literal angle brackets: `missingMember`/`unknownAction` bold a CSV file name, and
+  `emptyFile`/`wrongHeader` chip each column name of a header row (a LIST rather than one word, which bold alone
+  would leave reading as more words of the sentence).
+
+  Where that markup is written differs between the two, and deliberately. A file name is bolded INSIDE the `@Message`
+  value, because the name does not sit at the same point in the sentence in every language. A header row's chips
+  cannot be: the number of column names is a property of the file, not of the language, so repeating the markup in
+  every bundle would ask five translators to keep a per-member chip count in step with TransferFiles. The resource
+  composes the chipped list instead and hands it in as one value, which is also what keeps the commas OUT of the
+  chips — a chip marks one column name, and the comma between two of them is ordinary sentence punctuation. See
+  .claude/I18N.md.
 
   `.raw` switches the escaping off for the WHOLE entry, including the parameters substituted into it, so an arm that
-  carries it must hand in nothing but fixed text: `file` and `header` are TransferFiles constants, and
-  `unknownAction`'s name comes out of the upload and is therefore escaped by hand on the way in (web.HtmlEscaping).
-  Do NOT copy `.raw` onto another arm without doing the same to every value it embeds.
+  carries it must hand in nothing but fixed text: `file` and every name inside `header` are TransferFiles constants,
+  and `unknownAction`'s name comes out of the upload and is therefore escaped by hand on the way in
+  (web.HtmlEscaping). Do NOT copy `.raw` onto another arm without doing the same to every value it embeds.
 !}
 {#switch kind}
     {#is 'notZipArchive'}{msg:importNotZipArchive}

@@ -18,6 +18,7 @@
 package net.zodac.diurnal.transfer;
 
 import java.time.LocalDate;
+import java.util.List;
 import net.zodac.diurnal.text.TextOutcome;
 import org.jspecify.annotations.Nullable;
 
@@ -95,19 +96,20 @@ public sealed interface ImportReason
     /**
      * A member held no rows at all, not even the header.
      *
-     * @param header the expected header row, comma-joined - a technical, never-translated column-name list, exactly as {@code ProfileRejection}'s
-     *     {@code allowedValues} is
+     * @param columns the expected header's column names, in order and unjoined - a technical, never-translated list, exactly as
+     *     {@code ProfileRejection}'s {@code allowedValues} is. Left unjoined so each surface separates them its own way: the API's body joins them
+     *     with plain commas, while the Settings panel sets each name in its own {@code <code>} chip
      */
-    record EmptyFile(String header) implements ImportReason {
+    record EmptyFile(List<String> columns) implements ImportReason {
 
     }
 
     /**
      * A member's first row is not the expected header.
      *
-     * @param header the expected header row, comma-joined - never translated, see {@link EmptyFile}
+     * @param columns the expected header's column names, in order and unjoined - never translated, see {@link EmptyFile}
      */
-    record WrongHeader(String header) implements ImportReason {
+    record WrongHeader(List<String> columns) implements ImportReason {
 
     }
 
