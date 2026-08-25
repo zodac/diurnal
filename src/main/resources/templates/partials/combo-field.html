@@ -1,0 +1,67 @@
+{!
+  A settings row: a label paired with a dropdown. EVERY dropdown on the Settings page is this one
+  control - a button plus a `role="listbox"` panel, hand-rolled rather than a native <select>, wired by
+  wireCombo() in settings.js and styled by the `.combo-*` block in app.css.
+
+  Why not a native <select>: the language picker needs a filter box inside its popup, and the browser
+  owns that surface. Rather than leave the page with two kinds of dropdown that look and behave
+  differently, all of them are this control and the filter box is the one thing that varies (`search`).
+  The list scrolls past five options - see `.combo-list` - so a long list (the timezones) never runs off
+  the card.
+
+  The FIELD is an <input type="hidden"> carrying the row's id/name and the auto-saving `hx-patch`, so
+  the value posts exactly as the <select> it replaced did: settings.js writes the picked value in and
+  fires `change`, and htmx sends the identical PATCH (204, no swap).
+
+  Params:
+    id       - the hidden input's id AND form field name (the PATCH endpoint reads this @FormParam)
+               and the prefix of every other id in the row                            (required)
+    label    - the visible field label                                                (required)
+    value    - the field's current value                                              (required)
+    endpoint - the hx-patch URL                                                       (required)
+    border   - true to add a bottom divider (between rows), false on the last row     (required)
+    search   - true to render the filter box above the list (the language row only)   (optional, default false)
+    searchLabel   - the filter box's placeholder AND its accessible name              (required when search=true)
+    noMatchesText - shown in place of the list when nothing matches what was typed    (required when search=true)
+  Blocks:
+    {#selected} - the current value's label, for the closed button. The same markup the matching option
+                  renders, so the button and the list can never word a value differently
+    {#options}  - the rows, each a partials/combo-option
+!}
+{#let search=search.or(false) searchLabel=searchLabel.or('') noMatchesText=noMatchesText.or('')}
+<div class="flex items-center justify-between py-4{#if border} border-b border-line{/if}">
+    <div class="shrink-0">
+        {! A <button> is a labelable element, so the row's <label> both names it and focuses it when clicked. The
+             button re-states that label plus its own text as its accessible name ("Language, English (UK)"). !}
+        <label id="{id}-label" for="{id}-button" class="block text-sm font-medium text-ink">{label}</label>
+    </div>
+    <div class="ms-4 flex items-center min-w-0">
+        <div id="{id}-picker" class="combo">
+            <input type="hidden" id="{id}" name="{id}" value="{value}"
+                   hx-patch="{endpoint}" hx-trigger="change" hx-swap="none">
+            <button type="button" id="{id}-button" class="form-select combo-button"
+                    aria-haspopup="listbox" aria-expanded="false" aria-controls="{id}-panel"
+                    aria-labelledby="{id}-label {id}-button">
+                <span id="{id}-button-label" class="combo-button-label">{#insert selected /}</span>
+                {#include partials/icon name='chevron-down' cls='combo-button-glyph' /}
+            </button>
+            <div id="{id}-panel" class="combo-panel hidden">
+                {#if search}
+                <input type="text" id="{id}-search" class="form-input combo-search" autocomplete="off"
+                       role="combobox" aria-expanded="true" aria-controls="{id}-list" aria-autocomplete="list"
+                       aria-label="{searchLabel}" placeholder="{searchLabel}">
+                {/if}
+                {! Without a filter box there is no input to hold the keyboard, so the list itself takes it
+                     (`tabindex="-1"`, focused on open): either way ONE element owns the arrow keys and carries
+                     aria-activedescendant. !}
+                <ul id="{id}-list" role="listbox" tabindex="-1" aria-labelledby="{id}-label" class="combo-list">
+                    {#insert options /}
+                </ul>
+                {#if search}
+                <p id="{id}-no-matches" class="combo-empty hidden">{noMatchesText}</p>
+                {/if}
+            </div>
+        </div>
+    </div>
+</div>
+{/let}

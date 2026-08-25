@@ -21,6 +21,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Arrays;
+import java.util.List;
 import java.util.Locale;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -45,6 +47,12 @@ class LanguageTest {
         assertThat(Language.ENGLISH_GB.label())
             .as("unexpected label")
             .isEqualTo("English (UK)");
+        assertThat(Language.ENGLISH_GB.englishLabel())
+            .as("unexpected English label")
+            .isEqualTo("English");
+        assertThat(Language.ENGLISH_GB.showsEnglishLabel())
+            .as("expected the autonym to already name the language in English, so the picker adds no bracketed second name")
+            .isFalse();
     }
 
     @Test
@@ -55,6 +63,12 @@ class LanguageTest {
         assertThat(Language.ENGLISH_US.label())
             .as("unexpected label")
             .isEqualTo("English (US)");
+        assertThat(Language.ENGLISH_US.englishLabel())
+            .as("unexpected English label")
+            .isEqualTo("English");
+        assertThat(Language.ENGLISH_US.showsEnglishLabel())
+            .as("expected the autonym to already name the language in English, so the picker adds no bracketed second name")
+            .isFalse();
     }
 
     @Test
@@ -68,6 +82,12 @@ class LanguageTest {
         assertThat(Language.SPANISH.label())
             .as("unexpected label")
             .isEqualTo("Español");
+        assertThat(Language.SPANISH.englishLabel())
+            .as("unexpected English label")
+            .isEqualTo("Spanish");
+        assertThat(Language.SPANISH.showsEnglishLabel())
+            .as("expected the picker to render the English name in brackets after the autonym")
+            .isTrue();
     }
 
     @Test
@@ -78,6 +98,12 @@ class LanguageTest {
         assertThat(Language.ARABIC.label())
             .as("unexpected label")
             .isEqualTo("العربية");
+        assertThat(Language.ARABIC.englishLabel())
+            .as("unexpected English label")
+            .isEqualTo("Arabic");
+        assertThat(Language.ARABIC.showsEnglishLabel())
+            .as("expected the picker to render the English name in brackets after the autonym")
+            .isTrue();
     }
 
     @Test
@@ -88,6 +114,52 @@ class LanguageTest {
         assertThat(Language.JAPANESE.label())
             .as("unexpected label")
             .isEqualTo("日本語");
+        assertThat(Language.JAPANESE.englishLabel())
+            .as("unexpected English label")
+            .isEqualTo("Japanese");
+        assertThat(Language.JAPANESE.showsEnglishLabel())
+            .as("expected the picker to render the English name in brackets after the autonym")
+            .isTrue();
+    }
+
+    @Test
+    void searchText_joinsBothNames() {
+        // The filter box matches on this, so an entry missing either name is a language findable by only one
+        // of the two names it is listed under. English needs no second name (see showsEnglishLabel) but still
+        // carries it here - it costs nothing, and keeps the string one rule rather than two.
+        assertThat(Language.SPANISH.searchText())
+            .as("unexpected search text")
+            .isEqualTo("Español Spanish");
+        assertThat(Language.ENGLISH_GB.searchText())
+            .as("unexpected search text")
+            .isEqualTo("English (UK) English");
+        assertThat(Language.ARABIC.searchText())
+            .as("unexpected search text")
+            .isEqualTo("العربية Arabic");
+    }
+
+    // ── pickerOrder ─────────────────────────────────────────────────────────
+
+    @Test
+    void pickerOrder_isAlphabeticalByEnglishName() {
+        // Deliberately NOT the declaration order (which leads with the two English entries): the Settings dropdown
+        // sorts itself, so a language added at the bottom of the enum still lands in its own alphabetical place.
+        final List<Language> expected = List.of(
+            Language.ARABIC,
+            Language.ENGLISH_GB,
+            Language.ENGLISH_US,
+            Language.JAPANESE,
+            Language.SPANISH);
+        assertThat(Language.pickerOrder())
+            .as("unexpected picker order")
+            .containsExactlyElementsOf(expected);
+    }
+
+    @Test
+    void pickerOrder_holdsEveryOfferedLanguage() {
+        assertThat(Language.pickerOrder())
+            .as("expected the picker to offer every language, so a new constant cannot be left out of the dropdown")
+            .containsExactlyInAnyOrderElementsOf(Arrays.asList(Language.values()));
     }
 
     // ── locale ──────────────────────────────────────────────────────────────

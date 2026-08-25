@@ -20,9 +20,11 @@ package net.zodac.diurnal.user;
 import static io.restassured.RestAssured.given;
 import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
+import io.restassured.response.ValidatableResponse;
 import net.zodac.diurnal.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 
@@ -44,10 +46,33 @@ class SettingsWebResourceIT extends IntegrationTestBase {
         given().get("/settings")
                 .then().statusCode(OK)
                 .body(containsString("web-it@lt.test"))
-                // Timezone picker renders every curated zone alphabetically, each labelled with its
-                // current UTC offset. A new user (no override) defaults to the server zone (UTC in
-                // the test profile), so its own option is pre-selected.
-                .body(containsString("<option value=\"UTC\" selected>UTC"))
+                // Timezone picker renders every curated zone by offset, each labelled with its current UTC offset. A new
+                // user (no override) defaults to the server zone (UTC in the test profile), so its own option is the
+                // pre-selected one - and the hidden field the dropdown posts carries that same resolved value, not the
+                // account's empty column.
+                .body(containsString("data-value=\"UTC\"\n    aria-selected=\"true\""))
+                .body(containsString("<input type=\"hidden\" id=\"timezone\" name=\"timezone\" value=\"UTC\""))
                 .body(containsString("Pacific/Auckland \u2066(UTC+12)\u2069"));
+    }
+
+    @Test
+    @TestSecurity(user = "web-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
+    void settingsPage_languagePicker_offersEveryLanguageUnderBothOfItsNames() {
+        final ValidatableResponse response = given().get("/settings")
+            .then().statusCode(OK);
+
+        // The language picker is the page's one non-native dropdown (it carries a filter box), so its options are
+        // <li>s rather than <option>s, each holding the language's autonym and - where that does not already say it
+        // in English - its English name too. `data-search` is what the filter box actually matches on, so it is
+        // asserted rather than the rendered label: a language reachable in the list but not in the search would be
+        // the failure this exists to catch.
+        for (final Language language : Language.values()) {
+            final String expected = "data-value=\"" + language.value() + "\" data-search=\"" + language.searchText() + '"';
+            response.body(containsString(expected));
+        }
+        response.body(containsString(">Español</bdi> <bdi lang=\"en\">(Spanish)</bdi>"))
+                // The two English entries name themselves in English already, so neither repeats it in brackets.
+                .body(containsString(">English (UK)</bdi>"))
+                .body(not(containsString("English (UK)</bdi> <bdi")));
     }
 }

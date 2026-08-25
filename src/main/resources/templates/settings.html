@@ -41,7 +41,7 @@
              unchanged.
 
              Each preference control saves ITSELF via its own PATCH endpoint (see the hx-patch on the
-             radiogroups below and on the two selects in partials/select-field): updating one setting
+             radiogroups below and on the dropdowns in partials/combo-field): updating one setting
              no longer touches the others, so there is no wrapper form and no shared/scoped trigger.
              This wrapper is just the layout container (and the delegation point for the "Saved"
              indicator in the script below).
@@ -343,25 +343,46 @@
                 <div id="settings-preferences" class="card p-4 order-last lg:order-none">
                     {#include partials/card-header title=msg:preferencesCardTitle /}
 
-                    {! Timezone !}
-                    {#include partials/select-field id="timezone" label=msg:timezoneLabel endpoint="/internal/settings" border=true}
+                    {! Timezone. Long enough that the list scrolls (see partials/combo-field); each option's
+                         "City, Country" wording is resolved template-side by partials/timezone-option, which is
+                         included TWICE - once per row and once for the closed button - so the two cannot drift. !}
+                    {#include partials/combo-field id="timezone" label=msg:timezoneLabel value=timezone endpoint="/internal/settings" border=true}
+                        {#selected}
+                        {#for choice in timezoneChoices}{#if choice.selected}{#include partials/timezone-option value=choice.value offsetParen=choice.offsetParen /}{/if}{/for}
+                        {/selected}
                         {#options}
                         {#for choice in timezoneChoices}
-                        <option value="{choice.value}" {#if choice.selected}selected{/if}>{#include partials/timezone-option value=choice.value offsetParen=choice.offsetParen /}</option>
+                        {#include partials/combo-option field="timezone" value=choice.value current=timezone}
+                            {#label}{#include partials/timezone-option value=choice.value offsetParen=choice.offsetParen /}{/label}
+                        {/include}
                         {/for}
                         {/options}
                     {/include}
 
-                    {! Language. A plain dropdown rather than a preview-tile picker (unlike Theme/Font/Calendar
-                         style): a flag or thumbnail is a poor fit for a language choice, since Spanish and Arabic
-                         are each spoken across many countries. Each option is labelled in its OWN language (its
-                         autonym) — see Language.label() — so a user can find their own before the rest of the UI
-                         has switched to it. Every offered option carries a full translation of the bundle
-                         (AppMessageCoverageTest enforces that); see .claude/I18N.md. !}
-                    {#include partials/select-field id="language" label=msg:languageLabel endpoint="/internal/settings" border=true}
+                    {! Language. The ONE dropdown with a filter box (`search`): a language a user cannot type is
+                         still reachable by its English name, and with five scripts in the list there is no
+                         ordering that reads alphabetically to everyone. Deliberately not a preview-tile picker
+                         (unlike Theme/Font/Calendar style) either: a flag or thumbnail is a poor fit for a language
+                         choice, since Spanish and Arabic are each spoken across many countries.
+                         Each option is labelled in its OWN language (its autonym) — see Language.label() — so a user
+                         can find their own before the rest of the UI has switched to it, with the language's English
+                         name beside it (Language.englishLabel()); data-search carries BOTH (Language.searchText),
+                         and settings.js normalises case and accents on either side, so "espanol" and "Spanish"
+                         both reach Español.
+                         The list is ordered by Language.pickerOrder() (alphabetical on the English name), NOT by the
+                         enum's declaration order. Every offered option carries a full translation of the bundle
+                         (AppMessageCoverageTest enforces that); see .claude/I18N.md.
+                         settings.js reloads the page once THIS field's PATCH succeeds (it reads #language and
+                         listens for its htmx:afterRequest) - `<html lang>`/`dir` and every server-formatted date on
+                         the page are resolved at render time, so nothing else would show the change. !}
+                    {#include partials/combo-field id="language" label=msg:languageLabel value=language endpoint="/internal/settings" border=true
+                        search=true searchLabel=msg:languageSearchPlaceholder noMatchesText=msg:languageSearchNoMatches}
+                        {#selected}{#include partials/language-option-label option=selectedLanguage /}{/selected}
                         {#options}
                         {#for option in languageOptions}
-                        <option value="{option.value}" {#if option.value == language}selected{/if}>{option.label}</option>
+                        {#include partials/combo-option field="language" value=option.value current=language search=option.searchText}
+                            {#label}{#include partials/language-option-label option=option /}{/label}
+                        {/include}
                         {/for}
                         {/options}
                     {/include}
@@ -372,11 +393,18 @@
                          currently resolves to, so the choice being made is visible before it is made. Each day option's own
                          WORD is CLDR data (WeekStart.dayName), not a bundle entry — only the "Automatic (…)" wrapper around it
                          is translated. !}
-                    {#include partials/select-field id="weekStart" label=msg:weekStartLabel endpoint="/internal/settings" border=true}
+                    {#include partials/combo-field id="weekStart" label=msg:weekStartLabel value=weekStart endpoint="/internal/settings" border=true}
+                        {#selected}
+                        {#if weekStartIsAutomatic}{msg:weekStartAutomatic(automaticWeekStartDay)}{#else}{#for choice in weekStartChoices}{#if choice.selected}{choice.dayName}{/if}{/for}{/if}
+                        {/selected}
                         {#options}
-                        <option value="" {#if weekStartIsAutomatic}selected{/if}>{msg:weekStartAutomatic(automaticWeekStartDay)}</option>
+                        {#include partials/combo-option field="weekStart" value="" current=weekStart}
+                            {#label}{msg:weekStartAutomatic(automaticWeekStartDay)}{/label}
+                        {/include}
                         {#for choice in weekStartChoices}
-                        <option value="{choice.value}" {#if choice.selected}selected{/if}>{choice.dayName}</option>
+                        {#include partials/combo-option field="weekStart" value=choice.value current=weekStart}
+                            {#label}{choice.dayName}{/label}
+                        {/include}
                         {/for}
                         {/options}
                     {/include}

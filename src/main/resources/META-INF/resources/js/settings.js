@@ -368,25 +368,228 @@ document.getElementById('prefs-form').addEventListener('change', function (e) {
     }
 })
 
+// ── Settings dropdowns: one hand-rolled listbox for all three ────────────
+// Every dropdown on this page (timezone, language, week start) is the SAME control — a button plus a
+// `role="listbox"` panel from partials/combo-field.html, styled by the `.combo-*` block in app.css.
+// Not a native <select>, because the language row needs a filter box inside its popup and the browser
+// owns that surface; rather than ship two kinds of dropdown that look and behave differently, all of
+// them are this one and the filter box is the single thing that varies.
+//
+// The FIELD stays an `<input type="hidden">` with the row's own name and the auto-saving hx-patch, so
+// each value posts exactly as its <select> did — choosing an option is only a matter of writing the
+// value and firing `change`, and htmx sends the identical PATCH.
+
+// Both sides of every text comparison are folded the same way: case, accents, and runs of whitespace
+// (an option's rendered text carries the markup's own indentation). "espanol" must reach "Español" —
+// a keyboard without the ñ is exactly the case the filter box exists for — and decomposing to NFD then
+// dropping the combining marks does that without a per-language table. It is a no-op for a script that
+// doesn't decompose (Arabic, Japanese), which are simply matched as typed.
+function comboKey(text) {
+    return text.normalize('NFD').replace(/\p{Diacritic}/gu, '').replace(/\s+/g, ' ').trim().toLowerCase()
+}
+
+// Wire one dropdown. `id` is the field's id, and every other element in the row is `${id}-*` (see the
+// partial). A row with no filter box simply has no `${id}-search`/`${id}-no-matches`, which is the only
+// thing the two shapes differ by.
+function wireCombo(id) {
+    const field = document.getElementById(id)
+    const button = document.getElementById(`${id}-button`)
+    const buttonLabel = document.getElementById(`${id}-button-label`)
+    const panel = document.getElementById(`${id}-panel`)
+    const list = document.getElementById(`${id}-list`)
+    const search = document.getElementById(`${id}-search`)
+    const noMatches = document.getElementById(`${id}-no-matches`)
+    const options = Array.from(list.querySelectorAll('.combo-option'))
+    // Where the keyboard lives while the panel is open: the filter box when there is one, the list
+    // itself (tabindex="-1") otherwise. Either way ONE element owns the keys and carries
+    // aria-activedescendant, so nothing below has to branch on which shape this row is.
+    const keyHost = search || list
+    // An option filters (and type-aheads) on its own rendered text unless the markup gave it something
+    // else to match — only the language row does, since "Spanish" appears nowhere in "Español".
+    const keyOf = (option) => comboKey(option.dataset.search || option.textContent)
+    let typed = ''
+    let typedTimer = null
+
+    // The keyboard's current option, mirrored to aria-activedescendant: focus stays on keyHost the whole
+    // time the panel is open (that is what keeps typing possible), so the ACTIVE option is the only thing
+    // assistive tech has to go on. Highlighted by the same class the :hover rule paints, so an arrow-key
+    // walk and a pointer hover read identically.
+    function setActive(option) {
+        options.forEach(function (o) { o.classList.toggle('combo-option-active', o === option) })
+        if (option) {
+            keyHost.setAttribute('aria-activedescendant', option.id)
+            option.scrollIntoView({ block: 'nearest' })
+        } else {
+            keyHost.removeAttribute('aria-activedescendant')
+        }
+    }
+
+    function selectedOption() {
+        return options.find(function (o) { return o.dataset.value === field.value }) || null
+    }
+
+    function visible() {
+        return options.filter(function (o) { return !o.hidden })
+    }
+
+    // Filter to the options matching what has been typed. Hides options rather than rebuilding the list,
+    // so every option keeps its identity — the `id` aria-activedescendant points at, and the listeners
+    // already bound. A no-op for a row without a filter box: nothing is ever hidden there.
+    function filter() {
+        if (!search) { return }
+        const term = comboKey(search.value)
+        let firstMatch = null
+        options.forEach(function (o) {
+            const matches = keyOf(o).includes(term)
+            o.hidden = !matches
+            if (matches && !firstMatch) { firstMatch = o }
+        })
+        noMatches.classList.toggle('hidden', firstMatch !== null)
+        // The active option follows the filter, so Enter always takes the first thing still on screen
+        // rather than whatever the arrow keys last landed on before the term changed.
+        setActive(firstMatch)
+    }
+
+    function isOpen() {
+        return !panel.classList.contains('hidden')
+    }
+
+    function open() {
+        panel.classList.remove('hidden')
+        button.setAttribute('aria-expanded', 'true')
+        if (search) {
+            // Every open starts from the unfiltered list, showing the whole catalogue — the box is a
+            // shortcut, never a gate, so a language is always reachable by scrolling alone.
+            search.value = ''
+            filter()
+        }
+        setActive(selectedOption())
+        keyHost.focus()
+    }
+
+    function close(refocus) {
+        if (!isOpen()) { return }
+        panel.classList.add('hidden')
+        button.setAttribute('aria-expanded', 'false')
+        // Focus goes back to the button for a keyboard/Escape close, but NOT for a click elsewhere on
+        // the page — stealing focus there would fight whatever was just clicked.
+        if (refocus) { button.focus() }
+    }
+
+    function choose(option) {
+        close(true)
+        // Re-picking the value already in force sends nothing at all: there is no state to save, and the
+        // language row would take the page through a reload for no change (see its handler below).
+        if (!option || option.dataset.value === field.value) { return }
+        options.forEach(function (o) { o.setAttribute('aria-selected', String(o === option)) })
+        // Server-rendered markup moved verbatim, so the closed button words the value exactly as the list
+        // did — no second copy of any option's wording in JS.
+        buttonLabel.innerHTML = option.querySelector('.combo-option-label').innerHTML
+        field.value = option.dataset.value
+        field.dispatchEvent(new Event('change', { bubbles: true }))
+    }
+
+    // Walk the visible options, wrapping at both ends: every list here is short enough that walking off
+    // one end and expecting the other is the natural gesture, and it matches the dashboard's month grid.
+    function step(delta) {
+        const shown = visible()
+        if (shown.length === 0) { return }
+        const position = shown.indexOf(list.querySelector('.combo-option-active'))
+        setActive(shown[(position + delta + shown.length) % shown.length])
+    }
+
+    // Type-ahead for a row with no filter box, exactly as a native <select> does it: letters jump to the
+    // first option starting with what was typed, and the buffer clears after a pause so a new word starts
+    // a new search. This is selection, not filtering — nothing is hidden, and no row grows a search box
+    // it was not given.
+    function typeAhead(key) {
+        clearTimeout(typedTimer)
+        typedTimer = setTimeout(function () { typed = '' }, 600)
+        typed += comboKey(key)
+        const match = options.find(function (o) { return keyOf(o).startsWith(typed) })
+        if (match) { setActive(match) }
+    }
+
+    button.addEventListener('click', function () {
+        if (isOpen()) { close(false) } else { open() }
+    })
+
+    // Either arrow opens the list from the keyboard, as a native <select> does.
+    button.addEventListener('keydown', function (e) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+            open()
+        }
+    })
+
+    if (search) { search.addEventListener('input', filter) }
+
+    keyHost.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') {
+            // A bare <input> in a form submits on Enter; here it commits the highlighted option instead.
+            e.preventDefault()
+            choose(list.querySelector('.combo-option-active'))
+            return
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault()
+            close(true)
+            return
+        }
+        if (e.key === 'Tab') {
+            close(false)
+            return
+        }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault()
+            step(e.key === 'ArrowDown' ? 1 : -1)
+            return
+        }
+        // A single printable character, with no modifier: the filter box wants it as text (its own `input`
+        // handler runs), a plain listbox uses it to jump.
+        if (!search && e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+            e.preventDefault()
+            typeAhead(e.key)
+        }
+    })
+
+    // Delegated, so the handler survives any future re-render of the list and costs one listener.
+    list.addEventListener('click', function (e) {
+        const option = e.target.closest('.combo-option')
+        if (option) { choose(option) }
+    })
+
+    document.addEventListener('click', function (e) {
+        if (!e.target.closest(`#${id}-picker`)) { close(false) }
+    })
+
+    document.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { close(true) }
+    })
+}
+
+wireCombo('timezone')
+wireCombo('language')
+wireCombo('weekStart')
+
 // Unlike theme/font above, the language picker can't be applied live: `<html lang>`/`dir` and
 // every locale-formatted date/number on the page (including this one) are resolved server-side at
 // render time, not by anything this fire-and-forget PATCH returns. Reload once the new value is
 // saved, so the effect is visible without a manual navigation.
 //
-// Guarded explicitly against a NO-OP reselect (picking the language already active) rather than
-// relying on the native <select> "change" suppression a real click would get: that suppression is a
-// property of genuine pointer/keyboard interaction with the browser's own dropdown UI, not of the
-// `change` event itself — anything that sets `.value` and dispatches the event programmatically
-// (as automated UI testing does) still fires it even when the value didn't move. Tracking the last
-// value ourselves makes the "only on an actual change" rule hold for every input method.
-const languageSelect = document.getElementById('language')
-let lastLanguage = languageSelect.value
-languageSelect.addEventListener('htmx:afterRequest', function (e) {
-    if (e.detail.successful && languageSelect.value !== lastLanguage) {
+// Guarded explicitly against a NO-OP save (a PATCH that didn't move the value) rather than relying on
+// the picker above never sending one: anything that sets `.value` and dispatches the event
+// programmatically — as automated UI testing does — reaches htmx directly, without passing through
+// the picker's own re-pick guard. Tracking the last value here makes the "only on an actual change"
+// rule hold for every input method.
+const languageField = document.getElementById('language')
+let lastLanguage = languageField.value
+languageField.addEventListener('htmx:afterRequest', function (e) {
+    if (e.detail.successful && languageField.value !== lastLanguage) {
         window.location.reload()
         return
     }
-    lastLanguage = languageSelect.value
+    lastLanguage = languageField.value
 })
 
 // ── Note colour: revert to the built-in default ──────────────────────────

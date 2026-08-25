@@ -165,7 +165,7 @@ test.describe("deployment smoke", () => {
         // "Pacific/Auckland", not a CLDR zone display name - see timezone-option.html's own comment)
         // must render in Arabic script, never the bare Latin IANA id a locale-data-less JDK falls back to.
         await page.goto("/settings")
-        const aucklandOption = page.locator('#timezone option[value="Pacific/Auckland"]')
+        const aucklandOption = page.locator('#timezone-list .combo-option[data-value="Pacific/Auckland"]')
         await expect(aucklandOption).toHaveText(/باسيفيك\/أوكلاند/)
         await expect(aucklandOption).not.toHaveText(/Auckland/)
     })

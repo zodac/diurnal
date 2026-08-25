@@ -1,0 +1,27 @@
+{!
+  One option inside a partials/combo-field listbox. Always rendered by a caller's {#options} block, so
+  every dropdown's rows carry the same role, id shape, tick and highlight behaviour.
+
+  The tick is rendered for EVERY option and only revealed for the selected one (CSS, off
+  aria-selected), so switching value never shifts a label sideways.
+
+  Params:
+    field    - the owning field's id, so the option's own id is unique per dropdown   (required)
+    value    - the option's value; written into the field's hidden input when picked  (required)
+    current  - the field's current value. Compared HERE rather than at each call site, so "which option
+               is selected" is one rule (and because Qute reads a bare `a == b` include parameter as
+               three parameters, not an expression)                                   (required)
+    search   - text the filter box matches this option on, when it must differ from the option's own
+               rendered text (the language picker's "autonym + English name", Language#searchText - it has
+               to be ONE value, since a quoted include parameter is taken literally and cannot interpolate).
+               Omit and the filter / type-ahead read the rendered text instead        (optional, default "")
+  Block:
+    {#label} - the option's visible content
+!}
+{#let search=search.or('')}
+<li id="{field}-option-{value}" role="option" class="combo-option" data-value="{value}"{#if search} data-search="{search}"{/if}
+    aria-selected="{value == current}">
+    <span class="combo-option-label">{#insert label /}</span>
+    {#include partials/icon name='check' cls='combo-option-check' /}
+</li>
+{/let}

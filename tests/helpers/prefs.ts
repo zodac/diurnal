@@ -27,3 +27,19 @@ export async function establishNumericPref(
         await waitForSave(page, click)
     }
 }
+
+// Pick a value from one of the Settings dropdowns. Every one of them is the hand-rolled listbox from
+// partials/combo-field.html rather than a native <select>, so `selectOption` cannot drive it: open the
+// button, then click the row. Picking the value ALREADY in force is a deliberate no-op that fires no
+// PATCH (settings.js `choose`), so — exactly as with the numeric presets above — only wait for a save
+// when the value actually changes.
+export async function pickComboOption(page: Page, fieldId: string, value: string): Promise<void> {
+    const alreadySet = (await page.locator(`#${fieldId}`).inputValue()) === value
+    await page.locator(`#${fieldId}-button`).click()
+    const click = page.locator(`#${fieldId}-list .combo-option[data-value="${value}"]`).click()
+    if (alreadySet) {
+        await click
+    } else {
+        await waitForSave(page, click)
+    }
+}

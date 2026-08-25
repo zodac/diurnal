@@ -6,9 +6,9 @@
   partials/eye-icons.html: its two glyphs form a stateful show/hide pair wired to
   data-eye-show/data-eye-hide toggling, so they stay in their own component partial.
   Params:
-    name — the icon (required): arrow-up-circle | calendar | chart-bar | chevron-left |
-           chevron-right | circle-slash | close | drag-handle | github | hamburger | info-circle |
-           minus | plus | shuffle | rotate-ccw | question-circle
+    name — the icon (required): arrow-up-circle | calendar | chart-bar | check | chevron-down |
+           chevron-left | chevron-right | circle-slash | close | drag-handle | github | hamburger |
+           info-circle | minus | plus | shuffle | rotate-ccw | question-circle
     cls  — optional class list for the <svg> (sizing/animation). Omit when the context sizes the
            glyph instead (e.g. the `.icon-chip svg` / `.icon-btn-primary svg` rules in app.css).
 !}
@@ -27,6 +27,14 @@
 <svg {#if cls}class="{cls}" {/if}aria-hidden="true" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
     <line x1="3" y1="21" x2="21" y2="21"/><line x1="7" y1="21" x2="7" y2="13"/>
     <line x1="12" y1="21" x2="12" y2="6"/><line x1="17" y1="21" x2="17" y2="16"/>
+</svg>
+{#is 'check'}
+<svg {#if cls}class="{cls}" {/if}aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+</svg>
+{#is 'chevron-down'}
+<svg {#if cls}class="{cls}" {/if}aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+    <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 8.25 7.5 7.5 7.5-7.5" />
 </svg>
 {#is 'chevron-left'}
 <svg {#if cls}class="{cls}" {/if}aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">

@@ -292,6 +292,23 @@ renders as the default without throwing. To add an option: add a constant (+ its
 class/preview WebP/JS branch) and it appears in the picker automatically — no template change. **Timezone is deliberately NOT an enum** (a curated
 `List<String>` of IANA ids ordered dynamically by offset via `UserSettings.timezoneChoices`).
 
+**No Settings dropdown is a native `<select>`** — timezone, language and week start are all `partials/combo-field.html`: a button plus a
+`role="listbox"` panel (the `.combo-*` block at the bottom of `app.css`, `wireCombo()` at the top of `settings.js`) over a hidden input that keeps the
+row's name and the same auto-saving `hx-patch`. It started with the language row, which needs a filter box inside its popup — a surface the browser
+owns — and the rest followed rather than leave the page with two kinds of dropdown; `partials/select-field.html` was deleted in that change.
+
+The list **caps at five rows and scrolls** (`--combo-row-h`), which is what keeps the 15-zone timezone list inside its card. That scrollbar is the
+app's ONE scrollbar (the `html` block at the top of `app.css`), not a second style: `scrollbar-color` inherits from it, and `scrollbar-width: thin` is
+repeated on `.combo-list` only because that property — alone among `scrollbar-*` — does not inherit. `scrollbar-gutter: stable` is the one genuine
+addition, and it is layout, not theming: the panel is `width: max-content`, so a scrollbar appearing later would eat it from the labels. A touch device
+overlays its scrollbars and honours neither, which is the platform norm. **Headless Chromium paints no scrollbar at all**, in either headless mode, so
+verify this through computed `scrollbar-color`/`scrollbar-width` (as `settings.spec.ts` does, against the page's own) or in a real browser — never from
+a screenshot.
+
+Only the language row passes `search=true`; every other row differs in nothing, and a row without the box keeps its keyboard usable through
+type-ahead (letters jump to the first matching option, exactly as a native `<select>` does — selection, not filtering). Full detail on the language
+row, and why its second name is English rather than the viewer's language, is in [`I18N.md`](I18N.md)'s "The Settings language picker".
+
 ### Brand assets
 
 No logo/icon mark — purely typographic. **`assets/wordmark.svg` is the single source of truth** (outside `src/`, not packaged by Maven).

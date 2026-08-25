@@ -1,0 +1,17 @@
+{!
+  One language's name as the Settings language picker writes it: the AUTONYM, plus — when the autonym
+  does not already say it — the language's English name in brackets ("Español (Spanish)", but plain
+  "English (UK)"). Rendered twice on the page, for the picker's closed button and for each option in
+  its list, so the two can never word a language differently.
+
+  Each half is its own <bdi> (= `unicode-bidi: isolate` + `dir="auto"`), which is what keeps a
+  mixed-script pair readable in BOTH directions: the autonym is resolved and laid out on its own
+  terms, while the line's base direction stays the page's — so an English page reads
+  "العربية (Arabic)" and never has the bracketed half reordered to the front. Each half also carries
+  its own `lang`, so a screen reader pronounces the autonym in its own language and the bracketed
+  name in English.
+
+  Params:
+    option — a user/Language constant (required)
+!}
+<bdi lang="{option.value}">{option.label}</bdi>{#if option.showsEnglishLabel} <bdi lang="en">({option.englishLabel})</bdi>{/if}

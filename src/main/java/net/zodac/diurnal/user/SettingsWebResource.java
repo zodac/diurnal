@@ -471,7 +471,10 @@ public class SettingsWebResource {
                 .data("theme", user.theme)
                 .data("font", user.font)
                 .data("language", user.language)
-                .data("languageOptions", Language.values())
+                // The picker's closed button words the current language exactly as its list words it (partials/language-option-label), so it
+                // needs the CONSTANT, not just the stored string every other part of the page renders.
+                .data("selectedLanguage", Language.fromValue(user.language))
+                .data("languageOptions", Language.pickerOrder())
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)
                 .data("isAdmin", user.isAdmin())
                 .data("pageSize", user.pageSize)
@@ -493,6 +496,10 @@ public class SettingsWebResource {
                 .data("statsFieldChoices", StatField.choices(user.statsFields))
                 .data("timezoneChoices",
                         UserSettings.timezoneChoices(clock.zone(), clock.now(), user.timezone, Language.fromValue(user.language)))
+                // The dropdowns' hidden inputs hold the CURRENT value, which for these two is not the stored column: a null timezone means the
+                // server's zone, and an absent (or unrecognised) week start means the blank-valued "Automatic" option.
+                .data("timezone", UserSettings.effectiveTimezone(clock.zone(), user.timezone))
+                .data("weekStart", WeekStart.isValid(user.weekStart) ? user.weekStart : "")
                 .data("weekStartChoices", WeekStart.choices(user.weekStart, locale))
                 // The Data card's import bound, checked by settings.js against the chosen file BEFORE it is read: a body over this size is
                 // refused by the HTTP layer with an empty 413 that never reaches TransferInternalResource, so the page has to word it itself.

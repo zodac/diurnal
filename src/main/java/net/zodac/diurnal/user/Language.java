@@ -22,6 +22,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DecimalStyle;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -35,13 +36,14 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * Unlike {@link Theme}/{@link Font}/{@link CalendarView}, this does NOT implement {@link PreviewOption}: a flag-icon or preview-tile picker is a
  * poor fit for a language choice (Spanish and Arabic are each spoken across many countries, so no single flag or thumbnail represents one), so the
- * Settings picker is a plain dropdown instead (see {@code partials/select-field.html}, the same partial the timezone picker uses). Each constant's
+ * Settings picker is a dropdown instead — and the only one on that page with a filter box, since nothing can be put inside a native
+ * {@code <select>}'s popup and every Settings dropdown is consequently the hand-rolled {@code partials/combo-field.html} listbox. Each constant's
  * {@link #label()} is the language's own AUTONYM ("Español", not "Spanish") — the standard convention, and the only way a user can find their own
- * language before the rest of the UI has switched to it.
+ * language before the rest of the UI has switched to it — with {@link #englishLabel()} beside it as the second name the filter also matches.
  *
  * <p>
- * <strong>Adding a new language:</strong> add a constant here; it appears in the Settings dropdown automatically (the template loops
- * {@link #values()}). Actually translating the UI into it is separate work — see {@code .claude/I18N.md}.
+ * <strong>Adding a new language:</strong> add a constant here; it appears in the Settings dropdown automatically, in its own alphabetical place
+ * (the template loops {@link #pickerOrder()}). Actually translating the UI into it is separate work — see {@code .claude/I18N.md}.
  */
 public enum Language {
 
@@ -104,14 +106,20 @@ public enum Language {
      * DIFFERENT LANGUAGE instead of merely the "wrong" regional flavour of their own — still true for
      * {@link #SPANISH} even now that it is the only offered Spanish entry, since a specific unmatched region still
      * fails strict lookup regardless of how many Spanish variants are offered. Deliberately independent of the
-     * enum's declaration order, which only controls the Settings dropdown's display order.
+     * enum's declaration order - which, since {@link #pickerOrder()} sorts the Settings dropdown for itself, no longer decides anything a user
+     * sees.
      */
     private static final Map<String, Language> BASE_LANGUAGE_FALLBACK = Map.of("en", ENGLISH_GB, "es", SPANISH, "ar", ARABIC, "ja", JAPANESE);
 
     private static final Logger LOGGER = LogManager.getLogger(Language.class);
 
+    private static final List<Language> PICKER_ORDER = Arrays.stream(values())
+        .sorted(Comparator.comparing(Language::englishLabel).thenComparing(Language::label))
+        .toList();
+
     private final String value;
     private final String label;
+    private final String englishLabel;
     private final String dayMonthPattern;
     private final String monthYearPattern;
 
@@ -123,6 +131,7 @@ public enum Language {
         // it is not free (~700ns, measured), and a stats page asks for one per tile. See #dayMonthPattern()/#monthYearPattern() for what the two
         // skeletons below are and why neither shape can come from a FormatStyle.
         final Locale locale = Locale.forLanguageTag(value);
+        englishLabel = locale.getDisplayLanguage(Locale.ENGLISH);
         dayMonthPattern = DateTimeFormatterBuilder.getLocalizedDateTimePattern("MMMd", IsoChronology.INSTANCE, locale);
         monthYearPattern = DateTimeFormatterBuilder.getLocalizedDateTimePattern("yMMMM", IsoChronology.INSTANCE, locale);
     }
@@ -144,6 +153,67 @@ public enum Language {
      */
     public String label() {
         return label;
+    }
+
+    /**
+     * The language's name in ENGLISH ("Spanish", not "Español") — the Settings picker's second name for a language, shown in brackets after the
+     * autonym (see {@link #showsEnglishLabel()}) and, either way, matched by its search box, so a user who cannot type (or read) a script can still
+     * find the language by the name they know it as. It is CLDR data ({@link Locale#getDisplayLanguage(Locale)} against {@link Locale#ENGLISH}),
+     * resolved once per constant like the two date patterns beside it, so a newly-offered language needs no hand-written second name and cannot be
+     * given a wrong one — {@code LanguageTest} pins the resolved value per language, exactly as it does for those patterns.
+     *
+     * <p>
+     * Deliberately English rather than the VIEWER's language: it is the second name a language is universally listed under, and the one an offered
+     * language's own {@code msg_*.properties} would otherwise have to carry five translations of for every language offered (25 entries today,
+     * growing quadratically), for a search alias.
+     *
+     * @return the language's English name
+     */
+    public String englishLabel() {
+        return englishLabel;
+    }
+
+    /**
+     * Whether the Settings picker renders {@link #englishLabel()} in brackets after this language's {@link #label()} ("Español (Spanish)"). False
+     * when the autonym already contains it, which is what keeps the two English entries reading "English (UK)"/"English (US)" rather than the
+     * redundant "English (UK) (English)".
+     *
+     * @return {@code true} when the autonym does not already name the language in English
+     */
+    public boolean showsEnglishLabel() {
+        return !label.contains(englishLabel);
+    }
+
+    /**
+     * What the Settings picker's filter box matches this language on: BOTH of its names, as one string ("Español Spanish"). Built here rather than
+     * in the template because a Qute include parameter cannot hold an interpolated string - a quoted value is taken literally - and because "the
+     * filter matches either name" is then one rule beside the two names it joins, rather than markup a new call site could word differently.
+     * Case and accents are folded by the filter itself (settings.js), on both sides, so nothing here has to.
+     *
+     * @return the language's two names, space-separated
+     */
+    public String searchText() {
+        return label + ' ' + englishLabel;
+    }
+
+    /**
+     * The offered languages in the order the Settings picker lists them: alphabetically by {@link #englishLabel()}, with {@link #label()} breaking
+     * the tie between two entries of the same language ("English (UK)" before "English (US)"). English is the ONE ordering every viewer can be
+     * given, whatever language they are reading in - sorting by autonym instead would put the list in a different, and for most viewers
+     * unreadable, sequence in each script, and there is no order that is alphabetical in five alphabets at once.
+     *
+     * <p>
+     * Ordering here rather than by declaration order deliberately: it is a rule a newly-added constant obeys automatically, where a hand-kept
+     * declaration order is a rule someone has to remember. The declaration order is consequently free to mean nothing user-visible.
+     *
+     * <p>
+     * A plain {@link String} comparison, not a {@link java.text.Collator}: every English language name is ASCII, so the natural order IS the
+     * alphabetical one, and a collator would only add a locale to choose.
+     *
+     * @return the offered languages, in the picker's display order
+     */
+    public static List<Language> pickerOrder() {
+        return PICKER_ORDER;
     }
 
     /**

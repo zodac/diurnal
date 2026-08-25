@@ -1207,6 +1207,22 @@ public interface AppMessages {
     String languageLabel();
 
     /**
+     * Language-picker filter box: its placeholder and its accessible name (one entry, since the box's own label IS the instruction).
+     *
+     * @return the default (English) text
+     */
+    @Message("Search languages…")
+    String languageSearchPlaceholder();
+
+    /**
+     * Language-picker filter box: shown in place of the list when nothing matches what was typed.
+     *
+     * @return the default (English) text
+     */
+    @Message("No languages found")
+    String languageSearchNoMatches();
+
+    /**
      * Week-start label.
      *
      * @return the default (English) text
