@@ -17,13 +17,73 @@
 #   /gen/app                — the previewbuild quarkus-app (quarkus-run.jar + lib/app/quarkus)
 #   /gen/scripts/…          — generate-screenshots.cjs
 #   /gen/tests/node_modules — playwright + pg (npm ci from the committed tests/ manifest)
+#   /gen/key                — the rendering inputs, copied in ONLY to be hashed (see the cache below)
 # Output: /gen/src/main/resources/META-INF/resources/img/settings/*.webp
+#
+# PREVIEW_CACHE=true (the Dockerfile build arg, default false, local iteration only) short-circuits all
+# of the above when a previous run's thumbnails for the same rendering inputs are still in the build
+# cache mount. Read the risk note beside the build arg in the Dockerfile before switching it on: the key
+# excludes src/main/java, so a Java change that alters the rendering restores stale thumbnails.
 set -euo pipefail
 
 APP_DIR=/gen/app
 GEN_DIR=/gen
 OUT_DIR="${GEN_DIR}/src/main/resources/META-INF/resources/img/settings"
+KEY_DIR="${GEN_DIR}/key"
+CACHE_DIR=/preview-cache
+PREVIEW_CACHE="${PREVIEW_CACHE:-false}"
 export PGDATA=/tmp/pgdata
+
+# Every expected output must exist before a set is shipped OR stored in the cache. Each preview is
+# written twice - the picker tile and, under full/, the lightbox image - so BOTH sets are checked:
+# shipping tiles without their full-size counterparts would leave every preview button broken.
+verify_outputs() {
+  local count full_count
+  count="$(find "${OUT_DIR}" -maxdepth 1 -name '*.webp' | wc -l)"
+  if [[ "${count}" -lt 8 ]]; then
+    echo "✗ expected 8 preview thumbnails in ${OUT_DIR}, found ${count}." >&2
+    return 1
+  fi
+  full_count="$(find "${OUT_DIR}/full" -maxdepth 1 -name '*.webp' 2>/dev/null | wc -l)"
+  if [[ "${full_count}" -lt 8 ]]; then
+    echo "✗ expected 8 full-size previews in ${OUT_DIR}/full, found ${full_count}." >&2
+    return 1
+  fi
+  echo "✓ ${count} preview thumbnails + ${full_count} full-size previews"
+}
+
+# On when the build arg says so AND the cache mount is actually there (it is absent for a hand-run of
+# this script outside the build, which then simply always generates). Resolved once into a flag rather
+# than a predicate function, which `set -e` would disable inside an `if` (SC2310).
+cache_enabled=false
+if [[ "${PREVIEW_CACHE}" == "true" && -d "${CACHE_DIR}" ]]; then
+  cache_enabled=true
+fi
+
+# The hash of every input that can change a pixel: the copied rendering inputs plus the generator, this
+# runner and the pinned Playwright version that paints them. Sorted before hashing so the digest does
+# not depend on directory order; the paths are fixed inside the stage, so including them is stable.
+cache_key() {
+  find "${KEY_DIR}" "${GEN_DIR}/scripts" "${GEN_DIR}/tests/package-lock.json" -type f -print0 \
+    | sort -z \
+    | xargs -0 sha256sum \
+    | sha256sum \
+    | cut -d' ' -f1
+}
+
+CACHE_ENTRY=""
+if [[ "${cache_enabled}" == "true" ]]; then
+  CACHE_KEY="$(cache_key)"
+  CACHE_ENTRY="${CACHE_DIR}/${CACHE_KEY}"
+  if [[ -d "${CACHE_ENTRY}" ]]; then
+    echo "→ Preview cache HIT (${CACHE_KEY:0:12}) - restoring, skipping Postgres/Chromium…"
+    mkdir -p "${OUT_DIR}"
+    cp -a "${CACHE_ENTRY}/." "${OUT_DIR}/"
+    verify_outputs
+    exit 0
+  fi
+  echo "→ Preview cache MISS (${CACHE_KEY:0:12}) - generating…"
+fi
 
 # ── Postgres (throwaway; official-image binaries via initdb/pg_ctl) ────────────────────────────────
 initdb_path="$(command -v initdb)"
@@ -87,17 +147,18 @@ echo "→ Generating the in-app preview thumbnails…"
 cd "${GEN_DIR}"
 PW_CHROMIUM_ARGS="--no-sandbox" BASE_URL="http://127.0.0.1:8080" node scripts/generate-screenshots.cjs app
 
-# Sanity-check the expected outputs exist so a silent capture failure fails the build here. Each preview
-# is written twice - the picker tile and, under full/, the lightbox image - so BOTH sets are checked:
-# shipping tiles without their full-size counterparts would leave every preview button broken.
-count="$(find "${OUT_DIR}" -maxdepth 1 -name '*.webp' | wc -l)"
-if [[ "${count}" -lt 8 ]]; then
-  echo "✗ expected 8 preview thumbnails in ${OUT_DIR}, found ${count}." >&2
-  exit 1
+# Sanity-check the expected outputs exist so a silent capture failure fails the build here.
+verify_outputs
+
+# Store the verified set for the next build with these same rendering inputs. Written to a temporary
+# directory and moved into place, so an interrupted build can never leave a half-populated entry that a
+# later run would restore as complete. Entries are ~1MB and are never pruned - `docker builder prune`
+# clears them along with the rest of the build cache.
+if [[ "${cache_enabled}" == "true" ]]; then
+  cache_tmp="${CACHE_DIR}/.tmp-$$"
+  rm -rf "${cache_tmp}" "${CACHE_ENTRY}"
+  mkdir -p "${cache_tmp}"
+  cp -a "${OUT_DIR}/." "${cache_tmp}/"
+  mv "${cache_tmp}" "${CACHE_ENTRY}"
+  echo "✓ cached the generated previews (${CACHE_KEY:0:12})"
 fi
-full_count="$(find "${OUT_DIR}/full" -maxdepth 1 -name '*.webp' 2>/dev/null | wc -l)"
-if [[ "${full_count}" -lt 8 ]]; then
-  echo "✗ expected 8 full-size previews in ${OUT_DIR}/full, found ${full_count}." >&2
-  exit 1
-fi
-echo "✓ generated ${count} preview thumbnails + ${full_count} full-size previews"

@@ -63,7 +63,11 @@ WORKDIR /pbuild
 COPY pom.xml .
 RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline -q
 COPY VERSION .
-COPY src ./src
+# src/main ONLY, never the whole of src/: `maven.test.skip` defaults to true (parent-pom's
+# `skip-tests`), so the test sources are not compiled by any image build - and copying them in made
+# every test-only edit invalidate this stage, rebuild the fast-jar and re-run the (Postgres + Chromium)
+# screenshots stage below for a change that cannot alter a pixel.
+COPY src/main ./src/main
 COPY --from=css /css/src/main/resources/META-INF/resources/css/app.css \
                 ./src/main/resources/META-INF/resources/css/app.css
 COPY --from=css /css/src/main/resources/META-INF/resources/js/ \
@@ -192,8 +196,35 @@ RUN cd /gen/tests \
 COPY scripts/generate-screenshots.cjs /gen/scripts/generate-screenshots.cjs
 COPY scripts/run-screenshot-build.sh /gen/scripts/run-screenshot-build.sh
 COPY --from=previewbuild /pbuild/target/quarkus-app /gen/app
+#
+# ── The opt-in preview cache (PREVIEW_CACHE, default false) ──────────────────
+# The layer cache alone re-runs this stage whenever the previewbuild fast-jar's BYTES change, which is
+# any edit under src/main plus a pom/VERSION bump - the jars are not reproducible, so an unrelated
+# backend change costs a full Postgres + Chromium + app-boot regeneration. PREVIEW_CACHE=true instead
+# keys the generated thumbnails on the inputs that can actually change a pixel (below), stores them in
+# a BuildKit cache mount and restores them on a hit, so an ordinary Java change reuses them.
+#
+# It is OPT-IN AND DEFAULT-OFF ON PURPOSE, for local iteration only. The key deliberately excludes
+# src/main/java, so a Java change that DOES change the rendering - a Qute @TemplateExtension, a new
+# StatField tile, a locale-formatting change, edited seed data in the generator's own account setup -
+# is invisible to it and silently restores stale thumbnails. A release build must never take that
+# risk: publish.yml passes no PREVIEW_CACHE, so it always regenerates. Cache mounts are also never
+# exported to a registry cache, so this has no effect in CI even if it were switched on there.
+#
+# The key covers everything the previews are rendered FROM: the templates, the message bundles, the
+# static web root (fonts, images, the committed scripts), the compiled stylesheet, the generator and
+# its runner, and the pinned Playwright/Chromium version that paints them (tests/package-lock.json,
+# copied above). /gen/key holds the copies that exist purely to be hashed - the app itself renders
+# from the fast-jar, not from these.
+ARG PREVIEW_CACHE=false
+COPY src/main/resources/templates /gen/key/templates
+COPY src/main/resources/messages /gen/key/messages
+COPY src/main/resources/META-INF/resources /gen/key/resources
+COPY --from=css /css/src/main/resources/META-INF/resources/css/app.css /gen/key/app.css
 # Boots pg + app, runs the generator (app mode) → /gen/src/main/resources/META-INF/resources/img/settings/*.webp
-RUN bash /gen/scripts/run-screenshot-build.sh
+# sharing=locked: two concurrent builds must not write the same cache entry at once.
+RUN --mount=type=cache,target=/preview-cache,sharing=locked \
+    PREVIEW_CACHE="${PREVIEW_CACHE}" bash /gen/scripts/run-screenshot-build.sh
 
 # ── Stage 6: select the previews source (real, or an empty dir) ──────────────
 # `previews` aliases the screenshots stage when GENERATE_PREVIEWS=true, or an empty directory when
@@ -216,7 +247,9 @@ RUN --mount=type=cache,target=/root/.m2 mvn dependency:go-offline -q
 # VERSION lives at the repo root (outside src), but the POM packages it onto the classpath so AppInfo
 # can read the release version for the footer at runtime — so it must be present in the build context.
 COPY VERSION .
-COPY src ./src
+# src/main ONLY - see the previewbuild stage: the test sources are never compiled here either, and
+# leaving them out keeps a test-only edit from rebuilding the shipped app.
+COPY src/main ./src/main
 # Drop the freshly-compiled stylesheet into the static web root so Quarkus bundles it
 # into quarkus-app and serves it at /css/app.css (overwriting any committed copy).
 COPY --from=css /css/src/main/resources/META-INF/resources/css/app.css \
