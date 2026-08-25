@@ -16,6 +16,18 @@
     actionName  — 'unknownAction' | 'duplicateLog' only, never translated
     raw         — 'nonNumericCount' | 'invalidDate' only, never translated
     max         — 'countOutOfRange' only, never translated
+
+  Every arm is escaped as it renders, so an arm may embed the archive's own text (a name, a date, a raw cell) freely.
+  The FOUR arms whose wording sets a piece of the file format apart are the exception and ask for `.raw`, or Qute
+  would render the markup in them as literal angle brackets: `missingMember`/`unknownAction` bold a CSV file name,
+  and `emptyFile`/`wrongHeader` chip a header row (a comma-joined list, which bold alone would leave reading as more
+  words of the sentence). Each is marked up inside the `@Message` value because the piece does not sit at the same
+  point in the sentence in every language — see .claude/I18N.md.
+
+  `.raw` switches the escaping off for the WHOLE entry, including the parameters substituted into it, so an arm that
+  carries it must hand in nothing but fixed text: `file` and `header` are TransferFiles constants, and
+  `unknownAction`'s name comes out of the upload and is therefore escaped by hand on the way in (web.HtmlEscaping).
+  Do NOT copy `.raw` onto another arm without doing the same to every value it embeds.
 !}
 {#switch kind}
     {#is 'notZipArchive'}{msg:importNotZipArchive}
@@ -23,14 +35,14 @@
     {#is 'archiveTooLarge'}{msg:importArchiveTooLarge}
     {#is 'archiveUnreadable'}{msg:importArchiveUnreadable(detail)}
     {#is 'csvUnreadable'}{msg:importCsvUnreadable}
-    {#is 'missingMember'}{msg:importMissingMember(file)}
-    {#is 'emptyFile'}{msg:importEmptyFile(header)}
-    {#is 'wrongHeader'}{msg:importWrongHeader(header)}
+    {#is 'missingMember'}{msg:importMissingMember(file).raw}
+    {#is 'emptyFile'}{msg:importEmptyFile(header).raw}
+    {#is 'wrongHeader'}{msg:importWrongHeader(header).raw}
     {#is 'wrongColumnCount'}{msg:importWrongColumnCount(expected, actual)}
     {#is 'invalidColour'}{msg:importInvalidColour}
     {#is 'duplicateAction'}{msg:importDuplicateAction(name)}
     {#is 'futureLog'}{msg:importFutureLog(date)}
-    {#is 'unknownAction'}{msg:importUnknownAction(actionName)}
+    {#is 'unknownAction'}{msg:importUnknownAction(actionName.escapeHtml).raw}
     {#is 'nonNumericCount'}{msg:importNonNumericCount(raw)}
     {#is 'countOutOfRange'}{msg:importCountOutOfRange(max)}
     {#is 'duplicateLog'}{msg:importDuplicateLog(actionName, date)}

@@ -152,8 +152,15 @@ public class TransferInternalResource {
 
     private List<ImportProblemView> translatedProblems(final List<ImportProblem> problems, final Locale locale) {
         return problems.stream()
-            .map(problem -> new ImportProblemView(problem.file(), problem.line(), importReasonBanner(problem.reason(), locale)))
+            .map(problem -> new ImportProblemView(memberName(problem), problem.line(), importReasonBanner(problem.reason(), locale)))
             .toList();
+    }
+
+    // A missing member is the one problem that belongs to no member: ArchiveParser files it against the archive itself, which the row would
+    // otherwise lead with as a literal, untranslated "archive" in front of a sentence that already names the absent file. An empty name is the
+    // row's own signal to lead with nothing at all - see partials/import-panel.html.
+    private static String memberName(final ImportProblem problem) {
+        return problem.reason() instanceof ImportReason.MissingMember ? "" : problem.file();
     }
 
     // One exhaustive arm per ImportReason variant, so its length/coupling is the size of the catalogue rather than complexity - see
@@ -211,7 +218,7 @@ public class TransferInternalResource {
      * One located problem, with its reason already resolved to translated text - {@code import-panel.html} reads this exactly as it read
      * {@link ImportProblem} before the reason became structured.
      *
-     * @param file   the archive member the problem is in, or the archive itself when a whole member is missing
+     * @param file   the archive member the problem is in, or empty when the problem is with the archive as a whole
      * @param line   the 1-based line, or {@code 0} when the problem is with the member as a whole rather than a row in it
      * @param reason the translated cause
      */

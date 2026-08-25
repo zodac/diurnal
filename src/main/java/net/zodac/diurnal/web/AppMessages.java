@@ -3098,7 +3098,7 @@ public interface AppMessages {
      *
      * @return the default (English) text
      */
-    @Message("The archive was refused, so nothing was changed.")
+    @Message("The archive is an invalid export")
     String importRejectedGeneric();
 
     /**
@@ -3188,28 +3188,45 @@ public interface AppMessages {
     /**
      * A complete export's member is missing from the uploaded archive.
      *
+     * <p>
+     * The {@code <strong>} around the file name is part of the sentence rather than markup the caller wraps around it: the name does not sit at the
+     * same point in the sentence in every language (Japanese puts it mid-sentence), so a prefix/suffix pair of entries could not be worded for all
+     * of them. Markup inside a bundle value survives only if the render site says so - Qute escapes the RESULT of a {@code msg:} expression like any
+     * other value - so this one entry is emitted raw twice: {@code partials/import-reason.html} marks its own arm {@code .raw}, and
+     * {@code partials/import-panel.html} renders the finished reason as markup. Safe only because {@code file} is one of the three fixed
+     * {@code TransferFiles} constants; see the notes in both templates before wording another entry this way.
+     *
      * @param file the missing member's name, never translated (a technical file name)
      * @return the default (English) text
      */
-    @Message("The archive does not contain {file}, which a complete export always has.")
+    @Message("The archive does not contain <strong>{file}</strong>.")
     String importMissingMember(String file);
 
     /**
      * A member held no rows at all, not even the header.
      *
+     * <p>
+     * The header row is a comma-joined list, so it is set in a {@code <code>} chip rather than bolded like a lone file name: bold alone leaves
+     * {@code name,colour} reading as two words of the sentence, and the chip is what shows where the value starts and stops. Rendered {@code .raw}
+     * for the same reason {@link #importMissingMember(String)} is, and safe for the same reason - the value is the {@code TransferFiles} constant
+     * for that member, never anything out of the upload.
+     *
      * @param header the expected header row, comma-joined, never translated
      * @return the default (English) text
      */
-    @Message("The file is empty - it must start with the header row {header}.")
+    @Message("The file is empty - it must start with the header row <code>{header}</code>.")
     String importEmptyFile(String header);
 
     /**
      * A member's first row is not the expected header.
      *
+     * <p>
+     * The header row is chipped rather than bolded, and rendered {@code .raw} - see {@link #importEmptyFile(String)}, which words the same value.
+     *
      * @param header the expected header row, comma-joined, never translated
      * @return the default (English) text
      */
-    @Message("The header row must be exactly {header}.")
+    @Message("The header row must be exactly <code>{header}</code>.")
     String importWrongHeader(String header);
 
     /**
@@ -3251,10 +3268,15 @@ public interface AppMessages {
     /**
      * A log row names an action that {@code actions.csv} does not define.
      *
+     * <p>
+     * The file name is bolded in the sentence, exactly as {@link #importMissingMember(String)} bolds its own - so this entry is rendered
+     * {@code .raw} too, and {@code partials/import-reason.html} hands it an {@code escapeHtml}-ed name because that switches off the escaping the
+     * uploaded text was relying on. See {@link HtmlEscaping}.
+     *
      * @param actionName the unresolved action name, never translated
      * @return the default (English) text
      */
-    @Message("No action named '{actionName}' is defined in actions.csv.")
+    @Message("No action named '{actionName}' is defined in <strong>actions.csv</strong>.")
     String importUnknownAction(String actionName);
 
     /**

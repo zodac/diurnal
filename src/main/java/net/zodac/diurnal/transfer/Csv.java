@@ -31,8 +31,10 @@ import java.util.List;
  * The written form is aimed squarely at <strong>opening the file in a spreadsheet</strong>, because that is what makes an export editable:
  *
  * <ul>
- *     <li>A UTF-8 <strong>byte-order mark</strong> leads the document. Without one, Excel on Windows reads a UTF-8 CSV in the system code page and
- *     mangles every accented character and emoji in it. The reader strips a BOM again, so a re-imported file is unaffected.</li>
+ *     <li>A UTF-8 <strong>byte-order mark</strong> leads the document, unless the deployment has turned it off ({@code EXPORT_CSV_BOM}, see
+ *     {@link TransferConfig#csvByteOrderMark()}). Without one, Excel on Windows reads a UTF-8 CSV in the system code page and mangles every accented
+ *     character and emoji in it; with one, a spreadsheet opening the file as anything but UTF-8 shows the mark as a stray leading character. The
+ *     reader strips a BOM again whatever was written, so a re-imported file is unaffected either way.</li>
  *     <li>Records are separated by <strong>CRLF</strong>, as the RFC specifies. The reader accepts CRLF, LF or a lone CR, since a file that has been
  *     through an editor on another platform is the ordinary case rather than the exception.</li>
  *     <li>A field is quoted only when it needs to be - it holds a quote, a comma or a line break, or has leading or trailing space that would
@@ -64,12 +66,22 @@ public final class Csv {
     /**
      * Writes a header row and its records as a CSV document.
      *
-     * @param header the header row
-     * @param rows   the records, in the order they should appear
-     * @return the CSV document, leading byte-order mark included
+     * <p>
+     * The byte-order mark is the caller's decision because it is the deployment's: see {@link TransferConfig#csvByteOrderMark()} for which
+     * spreadsheet each answer serves. It changes nothing about how the document is read back - {@link #parse(String)} strips a leading mark either
+     * way.
+     *
+     * @param header            the header row
+     * @param rows              the records, in the order they should appear
+     * @param withByteOrderMark whether to lead the document with a UTF-8 byte-order mark
+     * @return the CSV document
      */
-    public static String write(final List<String> header, final List<List<String>> rows) {
-        final StringBuilder document = new StringBuilder().append(BYTE_ORDER_MARK);
+    public static String write(final List<String> header, final List<List<String>> rows, final boolean withByteOrderMark) {
+        final StringBuilder document = new StringBuilder();
+        if (withByteOrderMark) {
+            document.append(BYTE_ORDER_MARK);
+        }
+
         appendRecord(document, header);
         for (final List<String> row : rows) {
             appendRecord(document, row);

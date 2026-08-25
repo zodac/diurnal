@@ -61,8 +61,10 @@
     {/if}
     {#if problems}
     {! Each problem names its member and line, because the user's only route forward is to correct
-         the file. A reason never quotes note content — see ImportProblem. !}
-    <ul class="mt-2 space-y-1 text-xs text-ink-muted max-h-48 overflow-y-auto">
+         the file. A reason never quotes note content — see ImportProblem. A problem about the archive
+         as a WHOLE (a missing member) has an empty `file` instead: it belongs to no member, and its
+         sentence already names the absent one — see TransferInternalResource#memberName. !}
+    <ul class="import-problems mt-2 space-y-1 text-xs text-ink-muted max-h-48 overflow-y-auto">
         {#for problem in problems}
         {! `js-digits`/`js-phrase` sit on the WHOLE row, not just its leading span: `{problem.reason}` is a
              translated sentence (partials/import-reason.html) and several of its arms embed a number - the
@@ -70,13 +72,20 @@
              span alone, the "at line N" suffix localized its digits and the reason beside it did not, so one
              Arabic row could read "...at line ٤ - the count must be between ١ and 999.". The member filename
              (actions.csv/logs.csv/notes.csv - the transfer.TransferFiles catalogue, always plain ASCII, never
-             translated - see CLAUDE.md's TRANSFER.md cross-reference) keeps its own `.import-file-chip` rather
-             than sitting as bare Latin text loose among Arabic prose, where it reads as an odd, unexplained
-             fragment rather than a deliberate technical filename; it holds no digits either way. A `#rrggbb`
-             example inside a reason survives the digit pass untouched - see Diurnal.localizeDigits. !}
+             translated - see CLAUDE.md's TRANSFER.md cross-reference) is BOLD, the same treatment a filename
+             named inside a reason gets, so the two read as one thing wherever they appear; it holds no digits
+             either way. A `#rrggbb` example inside a reason survives the digit pass untouched - see
+             Diurnal.localizeDigits.
+
+             `.raw` is safe here and required: the reason is not a value but ALREADY-RENDERED HTML from
+             partials/import-reason.html (or partials/text-failure-message.html), which escapes every arm as it
+             renders - the archive's own action names, dates and raw cell text all come out of it as escaped text,
+             and its two `.raw` arms embed nothing but a fixed CSV filename and an already-escaped name. Rendering
+             the reason as a value here instead escaped that output a second time, showing `&amp;` for an `&` in an
+             action name, and would print the `<strong>` around those filenames as literal angle brackets. !}
         <li class="js-digits js-phrase">
-            <span class="font-medium text-ink"><span class="import-file-chip">{problem.file}</span>{#if problem.line > 0}{msg:atLine(problem.line)}{/if}</span>
-            &mdash; {problem.reason}
+            {#if problem.file}<span class="text-ink"><strong>{problem.file}</strong>{#if problem.line > 0}{msg:atLine(problem.line)}{/if}</span>
+            &mdash; {/if}{problem.reason.raw}
         </li>
         {/for}
     </ul>
