@@ -49,9 +49,10 @@ public final class HtmlEscaping {
      */
     @TemplateExtension
     public static String escapeHtml(final String value) {
-        final StringBuilder escaped = new StringBuilder(value.length());
+        final int length = value.length();
+        final StringBuilder escaped = new StringBuilder(length);
 
-        for (int i = 0; i < value.length(); i++) {
+        for (int i = 0; i < length; i++) {
             final char character = value.charAt(i);
             switch (character) {
                 case '&' -> escaped.append("&amp;");

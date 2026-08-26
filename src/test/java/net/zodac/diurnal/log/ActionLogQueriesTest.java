@@ -99,7 +99,7 @@ class ActionLogQueriesTest {
         assertParameters(ActionLogQueries.DECREMENT_UPDATE_SQL, List.of(NEW_COUNT, NOW, USER_ID, ACTION_ID, DATE));
     }
 
-    private static void assertParameters(final String query, final List<QueryParameter<?>> expected) {
+    private static void assertParameters(final String query, final List<QueryParameter> expected) {
         assertThat(SqlParameters.names(query))
             .as("the query's :named-parameter set must match exactly the parameters declared for it")
             .containsExactlyInAnyOrderElementsOf(expected.stream().map(QueryParameter::name).toList());

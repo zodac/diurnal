@@ -255,7 +255,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @Test
     @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER_INTERNAL_VALUE, Role.Values.ADMIN_INTERNAL_VALUE})
     void deleteUser_notFound_returns409() {
-        given().post("/internal/admin/users/" + UUID.randomUUID() + "/delete")
+        given().post("/internal/admin/users/81d92e7a-6589-4050-984d-98234bcece64/delete")
                 .then().statusCode(CONFLICT)
                 .body(containsString("not found"));
     }

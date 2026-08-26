@@ -22,7 +22,7 @@ import jakarta.persistence.Query;
 import java.util.List;
 
 /**
- * One native SQL statement being prepared and run, with its named parameters bound through typed {@link QueryParameter} tokens rather than bare
+ * One native SQL statement being prepared and run, with the named parameters bound through typed {@link QueryParameter} tokens rather than bare
  * strings. The native counterpart of {@link JpqlQuery}, for the statements that cannot be expressed in JPQL at all - the
  * {@code INSERT ... ON CONFLICT DO UPDATE} upserts and the {@code SELECT ... FOR UPDATE} row locks.
  *
@@ -60,7 +60,7 @@ public final class SqlQuery {
      */
     // Returning `this` is the point: it is what makes a binding chain read like the setParameter chain it replaces, at every call site.
     @SuppressWarnings("ReturnOfThis")
-    public <T> SqlQuery bind(final QueryParameter<T> parameter, final T value) {
+    public <T> SqlQuery bind(final QueryParameter parameter, final T value) {
         query.setParameter(parameter.name(), value);
         return this;
     }

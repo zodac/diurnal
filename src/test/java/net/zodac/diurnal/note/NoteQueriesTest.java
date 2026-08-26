@@ -70,7 +70,7 @@ class NoteQueriesTest {
         assertParameters(NoteQueries.DAILY_TOTALS_JPQL, List.of(SUBJECT_ID, USER_ID, FROM, TO));
     }
 
-    private static void assertParameters(final String query, final List<QueryParameter<?>> expected) {
+    private static void assertParameters(final String query, final List<QueryParameter> expected) {
         assertThat(SqlParameters.names(query))
             .as("the query's named parameters must match exactly the parameters declared for it")
             .containsExactlyInAnyOrderElementsOf(expected.stream().map(QueryParameter::name).toList());

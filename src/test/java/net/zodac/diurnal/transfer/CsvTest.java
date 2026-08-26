@@ -31,8 +31,8 @@ class CsvTest {
     private static final String BOM = "﻿";
 
     @Test
-    void write_leadsWithByteOrderMarkAndSeparatesRecordsWithCrLf() {
-        final String document = Csv.write(List.of("date", "content"), List.of(List.of("2026-08-01", "ok")), true);
+    void writeWithByteOrderMark_leadsWithTheMarkAndSeparatesRecordsWithCrLf() {
+        final String document = Csv.writeWithByteOrderMark(List.of("date", "content"), List.of(List.of("2026-08-01", "ok")));
 
         assertThat(document)
             .as("a spreadsheet needs the BOM to read the file as UTF-8, and the RFC specifies CRLF")
@@ -40,9 +40,9 @@ class CsvTest {
     }
 
     @Test
-    void write_omitsTheByteOrderMarkWhenTheDeploymentAsksItTo() {
+    void write_omitsTheByteOrderMark() {
         // EXPORT_CSV_BOM=false, for a deployment whose users open the file in LibreOffice or a text tool rather than in Excel.
-        final String document = Csv.write(List.of("date", "content"), List.of(List.of("2026-08-01", "ok")), false);
+        final String document = Csv.write(List.of("date", "content"), List.of(List.of("2026-08-01", "ok")));
 
         assertThat(document)
             .as("only the mark is dropped - the record separator and the rest of the document are what they always were")
@@ -52,7 +52,7 @@ class CsvTest {
     @Test
     void parse_readsBackTheDocumentWrittenWithoutTheByteOrderMark() {
         // The setting is write-side only: what one deployment exports, another imports, whichever way each has it set.
-        final CsvOutcome outcome = Csv.parse(Csv.write(List.of("date", "content"), List.of(List.of("2026-08-01", "ok")), false));
+        final CsvOutcome outcome = Csv.parse(Csv.write(List.of("date", "content"), List.of(List.of("2026-08-01", "ok"))));
 
         final List<CsvRow> expected = List.of(
             new CsvRow(1, List.of("date", "content")),
@@ -63,7 +63,7 @@ class CsvTest {
     }
 
     @Test
-    void write_quotesOnlyTheFieldsThatNeedIt() {
+    void writeWithByteOrderMark_quotesOnlyTheFieldsThatNeedIt() {
         final List<List<String>> rows = List.of(List.of(
             "plain",
             "has,comma",
@@ -72,7 +72,7 @@ class CsvTest {
             " padded ",
             ""));
 
-        assertThat(Csv.write(List.of("a", "b", "c", "d", "e", "f"), rows, true))
+        assertThat(Csv.writeWithByteOrderMark(List.of("a", "b", "c", "d", "e", "f"), rows))
             .as("a quote doubles, and only a comma, quote, line break or edge whitespace forces quoting")
             .isEqualTo(BOM + "a,b,c,d,e,f\r\nplain,\"has,comma\",\"has\"\"quote\",\"has\nbreak\",\" padded \",\r\n");
     }
@@ -140,10 +140,10 @@ class CsvTest {
     }
 
     @Test
-    void write_quotesFieldWhoseVeryFirstCharacterIsSpecial() {
+    void writeWithByteOrderMark_quotesFieldWhoseVeryFirstCharacterIsSpecial() {
         final List<List<String>> rows = List.of(List.of("\"a", ",a", "\ra", "\na", " a", "a "));
 
-        assertThat(Csv.write(List.of("q", "d", "cr", "lf", "lead", "trail"), rows, true))
+        assertThat(Csv.writeWithByteOrderMark(List.of("q", "d", "cr", "lf", "lead", "trail"), rows))
             .as("a special character at position zero still forces quoting, or the field would break the record it starts")
             .isEqualTo(BOM + "q,d,cr,lf,lead,trail\r\n\"\"\"a\",\",a\",\"\ra\",\"\na\",\" a\",\"a \"\r\n");
     }
@@ -194,7 +194,7 @@ class CsvTest {
             List.of("2026-08-03", ""),
             List.of("2026-08-04", "emoji 🏃 and accents éè"));
 
-        final CsvOutcome outcome = Csv.parse(Csv.write(header, rows, true));
+        final CsvOutcome outcome = Csv.parse(Csv.writeWithByteOrderMark(header, rows));
 
         final List<CsvRow> expected = List.of(
             new CsvRow(1, header),

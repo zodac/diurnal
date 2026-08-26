@@ -32,9 +32,8 @@ package net.zodac.diurnal.persistence;
  * parameters declared for it here.
  *
  * @param name the parameter's name, without its leading colon
- * @param <T>  the type of value the parameter takes
  */
-public record QueryParameter<T>(String name) {
+public record QueryParameter(String name) {
 
     /**
      * Creates a {@link QueryParameter} for the named placeholder.
@@ -44,10 +43,10 @@ public record QueryParameter<T>(String name) {
      * @return the created {@link QueryParameter}
      * @throws IllegalArgumentException if {@code name} is blank
      */
-    public static <T> QueryParameter<T> of(final String name) {
+    public static <T> QueryParameter of(final String name) {
         if (name.isBlank()) {
             throw new IllegalArgumentException("Query parameter name must not be blank");
         }
-        return new QueryParameter<>(name);
+        return new QueryParameter(name);
     }
 }
