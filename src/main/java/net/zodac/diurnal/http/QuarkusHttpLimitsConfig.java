@@ -41,12 +41,6 @@ import io.smallrye.config.WithName;
 public interface QuarkusHttpLimitsConfig {
 
     /**
-     * The number of bytes in a megabyte, binary rather than decimal - the same sense {@link MemorySize} gives the {@code M} suffix, so a configured
-     * {@code 100M} states itself back to the user as {@code 100 MB}.
-     */
-    long BYTES_PER_MEGABYTE = 1024L * 1024L;
-
-    /**
      * The largest request body the HTTP layer will accept, driven by {@code quarkus.http.limits.max-body-size}. The default repeats Quarkus' own
      * ({@code 10240K}) so a deployment that has never set the key still gets a truthful bound rather than a zero.
      *
@@ -57,13 +51,12 @@ public interface QuarkusHttpLimitsConfig {
     MemorySize maxBodySize();
 
     /**
-     * {@link #maxBodySize()} rounded DOWN to whole megabytes, for the one place it is shown to a user (the data-import card's "file is too large"
-     * refusal). Rounding down keeps the stated bound one a file of that size actually clears, where rounding up would name a size the HTTP layer
-     * still refuses.
+     * {@link #maxBodySize()} rounded DOWN to whole megabytes (see {@link MemorySizes#wholeMegabytes(long)}), for the one place it is shown to
+     * a user: the data-import card's "file is too large" refusal.
      *
      * @return the maximum accepted request body in whole megabytes
      */
     default long maxBodySizeMegabytes() {
-        return maxBodySize().asLongValue() / BYTES_PER_MEGABYTE;
+        return MemorySizes.wholeMegabytes(maxBodySize().asLongValue());
     }
 }

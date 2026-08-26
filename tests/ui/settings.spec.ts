@@ -136,6 +136,26 @@ test.describe("Settings page", () => {
         await expect(page.locator("#decimalPlaces")).toHaveValue("2")
     })
 
+    // Regression: pages used to be served `Cache-Control: no-cache`, which lets the browser STORE the
+    // response — and a history navigation deliberately skips revalidation, so Back repainted the page
+    // exactly as it was BEFORE the save. The database was right, the page had shown the new value, and
+    // then Back silently contradicted both. Pages are `no-store` now (see application.properties), which
+    // is the only directive that makes every Back a real request.
+    test("a saved preference is still shown after navigating away and pressing Back", async ({ authenticatedPage: page }) => {
+        await page.goto("/settings")
+        await establishNumericPref(page, "decimalPlacesPresets", "decimalPlaces", "0")
+
+        // Re-load so the browser has a stored copy of /settings showing the OLD value to fall back on.
+        await page.goto("/settings")
+        await establishNumericPref(page, "decimalPlacesPresets", "decimalPlaces", "2")
+
+        await page.goto("/stats")
+        await page.goBack()
+
+        await expect(page.locator("#decimalPlaces")).toHaveValue("2")
+        await expect(page.locator("#decimalPlacesPresets .num-pref-pill-active")).toHaveAttribute("data-value", "2")
+    })
+
     test("decimal places offers a preset pill for every accepted value", async ({ authenticatedPage: page }) => {
         await page.goto("/settings")
         const values = await page.locator("#decimalPlacesPresets .num-pref-pill").evaluateAll(pills =>

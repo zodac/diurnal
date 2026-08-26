@@ -23,13 +23,16 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
 import io.quarkus.test.junit.QuarkusTest;
+import io.quarkus.test.security.TestSecurity;
 import net.zodac.diurnal.IntegrationTestBase;
+import net.zodac.diurnal.user.Role;
 import org.junit.jupiter.api.Test;
 
 /**
  * Verifies the HTTP cache-control strategy configured in {@code application.properties}: the content-hashed stylesheet, scripts and settings preview
- * thumbnails are cached immutably for a year, the remaining stable-URL img/font assets keep a seven-day ceiling, and dynamic HTML pages are marked
- * {@code no-cache} so a reverse proxy never serves a stale page pointing at an obsolete asset URL.
+ * thumbnails are cached immutably for a year, the remaining stable-URL img/font assets keep a seven-day ceiling, dynamic HTML pages are marked
+ * {@code no-store} so that no cache - including the browser's own, on a Back/Forward navigation - can ever repaint a page from before the user's last
+ * write, and the {@code /internal/} HTMX fragments stay {@code no-cache} so their ETags can still earn a {@code 304}.
  *
  * <p>
  * Runs under the {@code test} profile, which (unlike {@code dev}) does not relax these headers, so the production caching behaviour is exercised. The
@@ -115,9 +118,29 @@ class CacheHeadersIT extends IntegrationTestBase {
     }
 
     @Test
-    void htmlPage_isMarkedNoCache() {
+    void htmlPage_isMarkedNoStore() {
+        // `no-store`, NOT `no-cache`: a stored `no-cache` page is re-served WITHOUT revalidation by a history
+        // navigation (Chrome and Firefox both skip validation on Back/Forward), which repainted the page as it
+        // was BEFORE the user's last save - and, after a sign-out, repainted the whole signed-in page from the
+        // cache. Only `no-store` makes every Back a real request. See the filter's comment in
+        // application.properties.
         given().get("/login")
                 .then().statusCode(OK)
-                .header("Cache-Control", containsString("no-cache"));
+                .header("Cache-Control", containsString("no-store"));
+    }
+
+    @Test
+    @TestSecurity(user = "cache-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
+    void htmxFragment_staysNoCacheSoItsEtagCanStillEarnA304() {
+        // The /internal/ fragments deliberately did NOT follow the pages into `no-store`: nothing navigates back
+        // to one, and the validated feeds among them (this one, the notes range feed) need the browser to keep a
+        // stored copy for their ETag to revalidate against.
+        final String today = FIXED_TODAY.toString();
+
+        given().queryParam("start", today).queryParam("end", today)
+                .get("/internal/logs/minimal-events")
+                .then().statusCode(OK)
+                .header("Cache-Control", containsString("no-cache"))
+                .header("Cache-Control", not(containsString("no-store")));
     }
 }

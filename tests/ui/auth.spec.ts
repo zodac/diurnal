@@ -56,6 +56,23 @@ test.describe("Authentication", () => {
         await expect(page).toHaveURL(/\/login/)
     })
 
+    // Regression: pages were served `Cache-Control: no-cache`, which still lets the browser store them —
+    // and Back/Forward skips revalidation, so pressing Back after signing out repainted the whole
+    // signed-in page (display name, preferences, journal) out of the cache, with no session and no
+    // request the server could refuse. `no-store` (see application.properties) is what stops that.
+    test("back after logout re-fetches and lands on login, not the cached signed-in page", async ({ page }) => {
+        await setupTestUser(page, USER)
+        await page.goto("/settings")
+        await expect(page.locator("header")).toContainText(USER.displayName)
+
+        await logout(page)
+        await expect(page).toHaveURL(/\/login/)
+
+        await page.goBack()
+        await expect(page).toHaveURL(/\/login/)
+        await expect(page.locator("body")).not.toContainText(USER.displayName)
+    })
+
     test("register form with valid input logs straight in and lands on the dashboard", async ({ page }) => {
         const unique = `e2e-register-${Date.now()}@example.com`
         await page.goto("/register")

@@ -95,7 +95,7 @@ public class CalendarResource {
         final LocalDate endDate   = DateRanges.requireDate("end", end);
 
         // The same validator as the public events feed (see LogValidators). The Cache-Control here is supplied by the
-        // html-pages filter (no-cache); only the ETag is added.
+        // html-fragments filter (no-cache); only the ETag is added.
         final EntityTag tag = LogValidators.rangeValidator(userId, startDate, endDate);
         final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
         if (notModified != null) {
