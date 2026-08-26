@@ -97,7 +97,7 @@ public class NotesWebResource {
 
         final User user = currentUser.get();
         final List<Note> notes = Note.findByUser(user.id);
-        final List<NoteHit> hits = noteService.search(user.id, searchTerm, notes);
+        final List<NoteHit> hits = noteService.search(user, searchTerm, notes);
         final PaginatedNotes page =
             NotePages.of(hits, searchTerm.strip(), pageNum, PageSizes.forSection(user, PageSection.NOTES), Locale.forLanguageTag(user.language));
 

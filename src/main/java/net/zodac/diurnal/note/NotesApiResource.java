@@ -192,7 +192,7 @@ public class NotesApiResource {
         final List<Note> stored = window == null
             ? Note.findByUser(user.id).reversed()
             : Note.findByUserAndRange(user.id, window.start(), window.end());
-        final List<NoteDto> all = noteService.search(user.id, searchTerm, stored)
+        final List<NoteDto> all = noteService.search(user, searchTerm, stored)
             .stream()
             .map(hit -> new NoteDto(hit.date().toString(), hit.content()))
             .toList();

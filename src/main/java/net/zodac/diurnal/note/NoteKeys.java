@@ -25,6 +25,7 @@ import java.util.UUID;
 import net.zodac.diurnal.note.crypto.Aes256Gcm;
 import net.zodac.diurnal.note.crypto.DataKeyEnvelope;
 import net.zodac.diurnal.note.crypto.MasterKey;
+import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -191,11 +192,17 @@ public class NoteKeys {
     private Optional<byte[]> open(final UserNotesKey stored) {
         final Optional<byte[]> dataKey = DataKeyEnvelope.unwrap(stored.dekWrapped, masterKey(), stored.userId);
         if (dataKey.isEmpty()) {
-            // The account id only - never the key, and never a note. See the class Javadoc.
+            // The account only - never the key, and never a note. See the class Javadoc.
             LOGGER.error("NOTE_ENCRYPTION_KEY does not open the notes data key for account {} - their notes cannot be read. "
-                + "This is a configuration fault: the key differs from the one their data was written under.", stored.userId);
+                + "This is a configuration fault: the key differs from the one their data was written under.", emailOf(stored));
         }
         return dataKey;
+    }
+
+    private static String emailOf(final UserNotesKey stored) {
+        return User.<User>findByIdOptional(stored.userId)
+            .map(user -> user.email)
+            .orElse("unknown");
     }
 
     // Decoded per call rather than cached. It used to run per NOTE, which mattered when the dashboard warmed three

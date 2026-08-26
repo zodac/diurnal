@@ -145,23 +145,28 @@ public class NoteService {
      * its whole history newest-first, the public API passes a date range earliest-first. Only the matching RULE is shared, which is the part that
      * must not differ between the two surfaces; the selection and the ordering are each surface's own presentation.
      *
-     * @param userId the owning user, whose key opens every note
-     * @param query  the search term ({@code null} or blank keeps everything)
-     * @param notes  the stored notes to search, in the order the caller wants them back
+     * @param user  the owning user, whose key opens every note
+     * @param query the search term ({@code null} or blank keeps everything)
+     * @param notes the stored notes to search, in the order the caller wants them back
      * @return the matching notes, in the given order
      */
-    public List<NoteHit> search(final UUID userId, final @Nullable String query, final List<Note> notes) {
+    public List<NoteHit> search(final User user, final @Nullable String query, final List<Note> notes) {
         final String term = query == null ? "" : query.strip();
-        final List<NoteHit> hits = readContents(userId, notes)
+        final List<NoteHit> hits = readContents(user.id, notes)
             .entrySet()
             .stream()
             .filter(entry -> NoteSearch.matches(entry.getValue(), term))
             .map(entry -> new NoteHit(entry.getKey(), entry.getValue()))
             .toList();
 
-        // The COUNT only. Never the note, and never the SEARCH TERM either: a term is drawn from the writing it is
-        // meant to find, so logging "user searched for <name>" leaks the note as surely as logging the note would.
-        LOGGER.debug("Notes search matched {} of {} note(s) for user {}", hits.size(), notes.size(), userId);
+        // Nothing was searched for, so there is nothing to report: a blank box is the notes page browsing the whole
+        // journal, which every page load and every clearing of the box does. Logging it would turn plain reading into
+        // a stream of "matched 8 of 8" lines that say only that the user opened the page.
+        if (!term.isEmpty()) {
+            // The COUNT only. Never the note, and never the SEARCH TERM either: a term is drawn from the writing it is
+            // meant to find, so logging "user searched for <name>" leaks the note as surely as logging the note would.
+            LOGGER.debug("Notes search matched {} of {} note(s) for user {}", hits.size(), notes.size(), user.email);
+        }
         return hits;
     }
 

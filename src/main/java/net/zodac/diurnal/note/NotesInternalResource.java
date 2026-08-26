@@ -157,7 +157,7 @@ public class NotesInternalResource {
         @QueryParam("page") @DefaultValue("1") final int pageNum) {
 
         final User user = currentUser.get();
-        final List<NoteHit> hits = noteService.search(user.id, searchTerm, Note.findByUser(user.id));
+        final List<NoteHit> hits = noteService.search(user, searchTerm, Note.findByUser(user.id));
         final Locale locale = locale(user);
         final PaginatedNotes page = NotePages.of(hits, searchTerm.strip(), pageNum, PageSizes.forSection(user, PageSection.NOTES), locale);
         return Response.ok(notesListTemplate.data("page", page, "extraQuery", NotePages.extraQuery(searchTerm))

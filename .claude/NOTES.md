@@ -84,6 +84,12 @@ CREATE TABLE notes (
 returned, the single-day read logs present/absent, a delete request logs the request, and a rejected save logs the REASON
 (which is worded from the field and never quotes the value). `info` is reserved for the one destructive event —
 a note actually being removed — matching `LogService`'s own delete; a clear that removed nothing is `debug`.
+**A search logs its COUNT only when something was actually searched for**: a blank box is the notes page browsing the
+whole journal, which every page load and every clearing of the box does, so logging it would turn plain reading into a
+stream of `matched 8 of 8` lines saying only that the page was opened. **And every line names the account by its EMAIL,
+never by its id** — `NoteService.search` takes the `User` for that reason, and `NoteKeys` resolves the email beside its
+one `error` line rather than logging the `user_notes_keys` row's id. `LogsIdentifyUsersByEmailTest` fails any logging
+statement in the app that mentions a user id.
 
 > **A note's CONTENT must never reach the application log.** Not at `debug`, not in an exception message, not
 > truncated, not "just the first line" — a journal entry is the most private thing the app stores, and a log file is
