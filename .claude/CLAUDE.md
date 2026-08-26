@@ -30,6 +30,12 @@
 > `... already exists ? sign in locally ...`). Use a plain hyphen `-` instead. UI/template/OpenAPI strings are unaffected (browser-rendered UTF-8),
 > as are code comments and Javadoc.
 
+> **A log line names an account by its EMAIL, never by its `UUID`.** An id tells the operator reading the log nothing -
+> it cannot be matched against a support request or an authentication log, and tracing one line to the next costs a
+> database query per line. Where only an id is in hand, resolve the email beside the logging call (see `NoteKeys`),
+> never pass `something.userId`/`user.id` into the format arguments. `LogsIdentifyUsersByEmailTest` fails any logging
+> statement in `src/main/java` that mentions a user id.
+
 > **Never overwrite `RELEASE_NOTES.md` or `VERSION` unless explicitly asked.** These are hand-authored release
 artefacts owned by the maintainer — leave them untouched (even if they appear modified in the working tree) unless the
 request explicitly says to update them.
