@@ -38,7 +38,7 @@ The stable component CSS that used to live in the templates' inline `<style>` bl
 styling, the settings-field chrome, the theme-transition rules, the message banners (all from `layout.html`) and the
 dashboard calendar styling (`.d-*`, `.cal-*` from `dashboard.html`) — now lives at the **bottom of `app.css` as plain CSS
 (NOT inside `@layer`)**. It rides the compiled, content-hashed, `immutable` stylesheet instead of being re-transferred
-on every no-cache navigation. It is kept un-layered on purpose: exactly as it was inline (un-layered, after the linked
+on every uncached navigation. It is kept un-layered on purpose: exactly as it was inline (un-layered, after the linked
 sheet), so it still wins over Tailwind's layered utilities — which is why the defensive `[data-dt-view].hidden` /
 `[data-dt-edit].hidden` re-assertions are retained. Every colour is a `var(--color-*)` token, so no `.dark` twins are needed.
 
@@ -442,10 +442,35 @@ Two `quarkus.http.filter` rules cover every served static asset (`application.pr
   (browsers probe that fixed root path) and `/manifest.json`. Bounded so a re-brand propagates within a week.
 
 The two regexes are provably disjoint (`/img/*.svg`+`/img/settings/` vs `/img/*.png`), so they never fight over `Cache-Control`.
-`html-pages` (`no-cache`) and `swagger-ui-assets` are unchanged. Covered by `CacheHeadersIT` (immutable on css/js/svg/settings,
-7-day on `/img/*.png`), `AppInfoTest`/`AssetsConfigTest` (the map lookups, fallbacks and hyphenated-key binding). **To hash a new
-asset:** add a `bake` line to `scripts/hash-static-assets.sh` + wire its `AppInfo` reference; to add one that can't be hashed,
-ensure it falls under an `app-static` alternative.
+`swagger-ui-assets` is unchanged; the two dynamic filters are the subject of the next section. Covered by `CacheHeadersIT`
+(immutable on css/js/svg/settings, 7-day on `/img/*.png`), `AppInfoTest`/`AssetsConfigTest` (the map lookups, fallbacks and
+hyphenated-key binding). **To hash a new asset:** add a `bake` line to `scripts/hash-static-assets.sh` + wire its `AppInfo`
+reference; to add one that can't be hashed, ensure it falls under an `app-static` alternative.
+
+### Dynamic responses: pages are `no-store`, `/internal/` fragments are `no-cache`
+
+**A page route must never be `no-cache` — it is `no-store`, and the difference is a user-visible bug, not proxy tuning.**
+`no-cache` still lets the browser **store** the response and only obliges it to revalidate; a **history navigation
+(Back/Forward) deliberately skips that revalidation** — Chrome and Firefox both re-serve a stored page from the disk cache
+with no request at all. Two things followed from that, both reproduced against the packaged app before the fix:
+
+- a preference saved on `/settings` (and equally an action, a log or a note written anywhere) **reappeared at its old value
+  after navigating away and pressing Back** — the browser painted the body captured before the write, so the page
+  contradicted a database that had been updated correctly and a UI that had already shown the new value;
+- **pressing Back after signing out repainted the whole signed-in page** — display name, preferences, journal — out of the
+  cache, with no session and no server round-trip able to refuse it.
+
+`no-store` is the only directive that closes both, because it is the only one that stops the response being kept. It also
+opts pages out of the **back/forward cache** (the in-memory snapshot of the live DOM, which `no-cache` does *not* disable),
+so Back is always a real request — which is the point: for a page that is entirely per-user data, an instant Back is worth
+nothing if what it shows is wrong.
+
+The **`/internal/` HTMX fragments keep `no-cache`** (their own `html-fragments` filter, which is why the `html-pages`
+negative lookahead now excludes `internal/`). Nothing ever navigates *back* to a fragment, so the staleness above cannot
+arise, and the validated feeds among them — the dashboard's `minimal-events`/month feeds and the notes range feed — need the
+browser to keep a stored copy for their ETag (`http/EntityTags`) to revalidate against and earn a bodiless `304`. `no-store`
+there would silently delete that optimisation while every test still passed. Both halves are pinned by `CacheHeadersIT`, and
+the two user-visible symptoms by E2E regression tests in `tests/ui/settings.spec.ts` and `tests/ui/auth.spec.ts`.
 
 **Regenerate screenshots — `scripts/generate-screenshots.cjs <mode>`** (needs a live dev server; `scripts/dev-up.sh`
 first, `scripts/dev-teardown.sh` after). There are **two independent sets**, split by mode — pick the one you mean:

@@ -66,8 +66,8 @@ import org.jspecify.annotations.Nullable;
  * that holds the calendar's logged-action data. That is what paints the green day numbers and what lets the note box repaint instantly when the
  * selected day changes, so the note panel needs no per-day request of its own. It is {@link Compressed} and carries a weak ETag for the same reasons
  * as the calendar's other feeds: it is on the dashboard's hot loading path, a range of prose gzips heavily, and an unchanged range should cost a
- * {@code 304} rather than a re-send. The {@code Cache-Control} here is supplied by the {@code html-pages} filter ({@code no-cache}); only the ETag is
- * added.
+ * {@code 304} rather than a re-send. The {@code Cache-Control} here is supplied by the {@code html-fragments} filter ({@code no-cache}); only the
+ * ETag is added.
  *
  * <p>
  * The writes answer JSON rather than an HTML fragment, because the note card is rendered once with the page and never swapped — the browser only

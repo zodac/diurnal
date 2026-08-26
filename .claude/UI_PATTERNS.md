@@ -144,7 +144,7 @@ decorative (`aria-hidden`) — the host control carries the accessible name. The
   (`data-tip-full="<full text>"` — `dashboard.js`'s `fitFullEvents`, which in a tight calendar cell
   hides the event name outright, leaving nothing to measure).
 - **Template comments are always Qute `{! … !}`** (stripped at render time) — never HTML
-  `<!-- … -->`, which ships its bytes to the client in every response (pages are `no-cache`, so
+  `<!-- … -->`, which ships its bytes to the client in every response (pages are `no-store`, so
   that's every navigation; partials rendered by the month back-fill would ship them ~30× per
   response). A bonus: Qute does not parse `{` inside `{! … !}`, so prose like `{date}` is safe
   there. As of 2026-07-13 no template contains an HTML comment; keep it that way.
