@@ -76,7 +76,7 @@ public class ExportService {
      *
      * @param noteService     the shared notes service
      * @param clock           the application clock for date-boundary logic
-     * @param transferConfig  the archive-shape settings, read for the byte-order mark each CSV member is written with
+     * @param transferConfig  the archive-shape settings, read for which CSV writer each member is written with
      */
     @Inject
     public ExportService(final NoteService noteService, final AppClock clock, final TransferConfig transferConfig) {
@@ -98,13 +98,13 @@ public class ExportService {
             actionNames.put(action.id, action.name);
         }
 
-        // Read once for the whole archive rather than per member, so no export can go out with two of its three files written one way and the
-        // third the other.
-        final boolean withByteOrderMark = transferConfig.csvByteOrderMark();
+        // Which writer the deployment asks for is resolved once for the whole archive rather than per member, so no export can go out with two of
+        // its three files written one way and the third the other.
+        final CsvWriter csvWriter = transferConfig.csvByteOrderMark() ? Csv::writeWithByteOrderMark : Csv::write;
         final Map<String, String> members = Map.of(
-            TransferFiles.ACTIONS_FILE, actionsCsv(actions, withByteOrderMark),
-            TransferFiles.LOGS_FILE, logsCsv(user, actionNames, withByteOrderMark),
-            TransferFiles.NOTES_FILE, notesCsv(user, withByteOrderMark));
+            TransferFiles.ACTIONS_FILE, actionsCsv(actions, csvWriter),
+            TransferFiles.LOGS_FILE, logsCsv(user, actionNames, csvWriter),
+            TransferFiles.NOTES_FILE, notesCsv(user, csvWriter));
 
         // The COUNTS only, never a name or a note's content.
         LOGGER.info("Data exported for user {}", user.email);
@@ -128,15 +128,15 @@ public class ExportService {
         return FILE_NAME_PREFIX + FILE_NAME_TIMESTAMP.format(localNow) + FILE_NAME_SUFFIX;
     }
 
-    private static String actionsCsv(final List<Action> actions, final boolean withByteOrderMark) {
+    private static String actionsCsv(final List<Action> actions, final CsvWriter csvWriter) {
         final List<List<String>> rows = new ArrayList<>();
         for (final Action action : actions) {
             rows.add(List.of(action.name, action.colour));
         }
-        return Csv.write(TransferFiles.ACTIONS_HEADER, rows, withByteOrderMark);
+        return csvWriter.write(TransferFiles.ACTIONS_HEADER, rows);
     }
 
-    private static String logsCsv(final User user, final Map<UUID, String> actionNames, final boolean withByteOrderMark) {
+    private static String logsCsv(final User user, final Map<UUID, String> actionNames, final CsvWriter csvWriter) {
         final List<List<String>> rows = new ArrayList<>();
         for (final ActionLog entry : ActionLog.findByUser(user.id)) {
             final @Nullable String name = actionNames.get(entry.actionId);
@@ -150,10 +150,10 @@ public class ExportService {
         // Sorted by date then action name, which is the order someone reading the file in a spreadsheet expects - and, being derived from the
         // content rather than from row ids, is stable across two exports of the same data.
         rows.sort(Comparator.<List<String>, String>comparing(List::getFirst).thenComparing(row -> row.get(1)));
-        return Csv.write(TransferFiles.LOGS_HEADER, rows, withByteOrderMark);
+        return csvWriter.write(TransferFiles.LOGS_HEADER, rows);
     }
 
-    private String notesCsv(final User user, final boolean withByteOrderMark) {
+    private String notesCsv(final User user, final CsvWriter csvWriter) {
         final Map<LocalDate, String> contents = noteService.readContents(user.id, Note.findByUser(user.id));
 
         final List<List<String>> rows = new ArrayList<>();
@@ -164,6 +164,12 @@ public class ExportService {
         // Earliest first, where the notes page lists them newest first: a file is read top-down as a history, and this is also the order the logs
         // member is written in, so the two members of one archive do not disagree with each other.
         rows.sort(Comparator.comparing(List::getFirst));
-        return Csv.write(TransferFiles.NOTES_HEADER, rows, withByteOrderMark);
+        return csvWriter.write(TransferFiles.NOTES_HEADER, rows);
+    }
+
+    @FunctionalInterface
+    private interface CsvWriter {
+
+        String write(List<String> header, List<List<String>> rows);
     }
 }

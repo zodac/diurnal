@@ -48,6 +48,6 @@ class MemorySizesTest {
         // round a limit up into a megabyte no upload of that size would actually clear.
         assertThat(MemorySizes.wholeMegabytes(1_048_575L))
             .as("one byte short of a megabyte should convert to 0")
-            .isEqualTo(0L);
+            .isZero();
     }
 }

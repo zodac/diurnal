@@ -51,7 +51,7 @@ public class SessionActivityService {
     // matching client-side value (which flips a dot green -> grey once the live counter crosses it) is
     // ACTIVE_WINDOW_MS in app.js - keep the two in step.
     private static final Duration ACTIVE_WINDOW = Duration.ofMinutes(5L);
-    private static final QueryParameter<Collection<UUID>> USER_IDS = QueryParameter.of("userIds");
+    private static final QueryParameter USER_IDS = QueryParameter.of("userIds");
 
     /**
      * Resolves the recent-activity presence for each of the given users at {@code now}. Users with no sessions (never logged in, or fully logged out)

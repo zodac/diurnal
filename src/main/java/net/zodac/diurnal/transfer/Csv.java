@@ -64,29 +64,33 @@ public final class Csv {
     }
 
     /**
-     * Writes a header row and its records as a CSV document.
+     * Writes a header row and its records as a CSV document, with no leading byte-order mark.
      *
      * <p>
-     * The byte-order mark is the caller's decision because it is the deployment's: see {@link TransferConfig#csvByteOrderMark()} for which
-     * spreadsheet each answer serves. It changes nothing about how the document is read back - {@link #parse(String)} strips a leading mark either
-     * way.
+     * Which of this and {@link #writeWithByteOrderMark(List, List)} an export uses is the deployment's answer to
+     * {@link TransferConfig#csvByteOrderMark()}, and which spreadsheet it serves. The choice changes nothing about how the document is read back -
+     * {@link #parse(String)} strips a leading mark either way.
      *
-     * @param header            the header row
-     * @param rows              the records, in the order they should appear
-     * @param withByteOrderMark whether to lead the document with a UTF-8 byte-order mark
+     * @param header the header row
+     * @param rows   the records, in the order they should appear
      * @return the CSV document
      */
-    public static String write(final List<String> header, final List<List<String>> rows, final boolean withByteOrderMark) {
-        final StringBuilder document = new StringBuilder();
-        if (withByteOrderMark) {
-            document.append(BYTE_ORDER_MARK);
-        }
+    public static String write(final List<String> header, final List<List<String>> rows) {
+        return document(new StringBuilder(), header, rows);
+    }
 
-        appendRecord(document, header);
-        for (final List<String> row : rows) {
-            appendRecord(document, row);
-        }
-        return document.toString();
+    /**
+     * Writes a header row and its records as a CSV document, led by a UTF-8 byte-order mark.
+     *
+     * <p>
+     * The counterpart of {@link #write(List, List)}, and identical to it beyond the mark - see there for who chooses between them.
+     *
+     * @param header the header row
+     * @param rows   the records, in the order they should appear
+     * @return the CSV document, leading with a byte-order mark
+     */
+    public static String writeWithByteOrderMark(final List<String> header, final List<List<String>> rows) {
+        return document(new StringBuilder().append(BYTE_ORDER_MARK), header, rows);
     }
 
     /**
@@ -102,6 +106,14 @@ public final class Csv {
     public static CsvOutcome parse(final String document) {
         final String content = document.isEmpty() || document.charAt(0) != BYTE_ORDER_MARK ? document : document.substring(1);
         return new CsvParser(content).parse();
+    }
+
+    private static String document(final StringBuilder document, final List<String> header, final List<List<String>> rows) {
+        appendRecord(document, header);
+        for (final List<String> row : rows) {
+            appendRecord(document, row);
+        }
+        return document.toString();
     }
 
     private static void appendRecord(final StringBuilder document, final List<String> fields) {

@@ -60,9 +60,7 @@ class TransferInternalResourceIT extends IntegrationTestBase {
         assertThat(panel)
             .as("a missing member is named in the sentence itself, in bold - so the reason must reach the page as markup rather than as a value")
             .contains("The archive does not contain <strong>" + LOGS_FILE + "</strong>.")
-            .contains("The archive does not contain <strong>" + NOTES_FILE + "</strong>.");
-        assertThat(panel)
-            .as("a problem with the archive as a whole belongs to no member, so its row leads with neither a file name nor the dash after one")
+            .contains("The archive does not contain <strong>" + NOTES_FILE + "</strong>.")
             .doesNotContain("&mdash;");
     }
 
@@ -72,19 +70,15 @@ class TransferInternalResourceIT extends IntegrationTestBase {
         // text must arrive from partials/import-reason.html already escaped: escaped there once, and not again here.
         final String panel = importPanel(archiveOf(
             "name,colour\r\nSwimming,#22c55e\r\n",
-            "date,action,count\r\n2026-06-14,<script>alert(1)</script>,3\r\n",
-            "date,content\r\n"));
+            "date,action,count\r\n2026-06-14,<script>alert(1)</script>,3\r\n"
+        ));
 
         assertThat(panel)
             .as("a problem INSIDE a member still leads with that member's name and the line to correct")
-            .contains("<strong>" + LOGS_FILE + "</strong>, line 2");
-        assertThat(panel)
-            .as("a name out of the uploaded file must never reach the page as markup")
+            .contains("<strong>" + LOGS_FILE + "</strong>, line 2")
             .doesNotContain("<script>alert(1)</script>")
             .contains("&lt;script&gt;")
-            .doesNotContain("&amp;lt;");
-        assertThat(panel)
-            .as("the CSV file the sentence names is bolded, the same as a missing member's is")
+            .doesNotContain("&amp;lt;")
             .contains("is defined in <strong>" + ACTIONS_FILE + "</strong>.");
     }
 
@@ -92,8 +86,8 @@ class TransferInternalResourceIT extends IntegrationTestBase {
     void importData_wrongHeader_chipsEachColumnNameButNotTheCommasBetweenThem() {
         final String panel = importPanel(archiveOf(
             "name,color\r\n",
-            "date,action,count\r\n",
-            "date,content\r\n"));
+            "date,action,count\r\n"
+        ));
 
         assertThat(panel)
             .as("a chip marks one column name, so the commas separating them stay plain sentence text - and the chips have to survive as markup")
@@ -107,7 +101,7 @@ class TransferInternalResourceIT extends IntegrationTestBase {
             .extract().body().asString();
     }
 
-    private static byte[] archiveOf(final String actions, final String logs, final String notes) {
-        return TransferArchive.pack(Map.of(ACTIONS_FILE, actions, LOGS_FILE, logs, NOTES_FILE, notes), Instant.now());
+    private static byte[] archiveOf(final String actions, final String logs) {
+        return TransferArchive.pack(Map.of(ACTIONS_FILE, actions, LOGS_FILE, logs, NOTES_FILE, "date,content\r\n"), Instant.now());
     }
 }
