@@ -170,14 +170,17 @@ public class Note extends PanacheEntityBase {
     }
 
     /**
-     * Returns every date the user has written a note on, ascending - the minimal data needed to compute the streak and gap figures. A note's date is
-     * unique per user, so the result is already distinct.
+     * Returns the user's whole note history counted per day, ascending, projected into the same {@link DailyActionTotal} the Stats page already
+     * consumes for an action - the minimal data needed to compute the streak, gap and days-with-multiples figures. At most one note exists per day,
+     * so every total is {@code 1}.
      *
      * @param userId the owning user
-     * @return the dates that have a note, ascending
+     * @param subjectId the id to stamp on each row (the notes subject's fixed id)
+     * @return one {@link DailyActionTotal} per day that has a note, ascending
      */
-    public static List<LocalDate> datesFor(final UUID userId) {
-        return JpqlQuery.of(NoteQueries.NOTE_DATES_JPQL, LocalDate.class)
+    public static List<DailyActionTotal> dailyTotals(final UUID userId, final UUID subjectId) {
+        return JpqlQuery.of(NoteQueries.ALL_DAILY_TOTALS_JPQL, DailyActionTotal.class)
+            .bind(NoteQueries.SUBJECT_ID, subjectId)
             .bind(NoteQueries.USER_ID, userId)
             .resultList();
     }

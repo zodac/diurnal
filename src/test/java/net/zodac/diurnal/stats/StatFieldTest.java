@@ -109,9 +109,11 @@ class StatFieldTest {
             StatField.LAST_PERFORMED,
             StatField.VS_LAST_MONTH,
             StatField.VS_LAST_YEAR,
-            StatField.BEST_MONTH);
+            StatField.BEST_MONTH,
+            StatField.TOTAL_DAYS_WITH_MULTIPLES,
+            StatField.LAST_DAY_WITH_MULTIPLES);
         assertThat(StatField.displayFields(CUSTOM))
-            .as("disabled total-days omitted; the arranged order is otherwise preserved")
+            .as("disabled total-days omitted; the arranged order is otherwise preserved, with the fields it never named appended")
             .extracting(DisplayStat::field)
             .containsExactlyElementsOf(expected);
     }
@@ -156,7 +158,7 @@ class StatFieldTest {
 
         final List<String> expectedKeys = List.of("best-year", "current-streak", "total-days", "longest-streak", "current-gap", "biggest-gap",
             "total-count", "weekly-average", "monthly-average", "weekly-count-average", "monthly-count-average", "first-performed", "last-performed",
-            "vs-last-month", "vs-last-year", "best-month");
+            "vs-last-month", "vs-last-year", "best-month", "total-days-with-multiples", "last-day-with-multiples");
         assertThat(choices)
             .as("every field is represented, in the stored arrangement order")
             .extracting(StatField.Choice::key)

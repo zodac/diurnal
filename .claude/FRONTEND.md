@@ -569,13 +569,13 @@ caption back would pin every stat's wording the first time any one of them was r
 the catalogue label. A blank name means "use the catalogue label", which is how a rename is cleared (the input's placeholder is that
 label). Names go through the shared text-input pipeline (`TextFields.STAT_NAME` - see [`TEXT_INPUT.md`](TEXT_INPUT.md)), so they are
 normalised exactly like every other free-text value in the app, and a name over the catalogue maximum is **rejected on both surfaces** — 422 on the web, 400 on the API — never truncated. The cap is **25**, sized against the catalogue's own
-wording (the longest built-in label, "Average count per month", is 23) so a custom name is never much wordier than the stat beside it
-and every built-in label is itself a legal custom name. **A stat's own built-in label is not a rename**: the editor pre-fills with the
+wording (the longest built-in label, "Total days with multiples", is exactly 25) so a custom name is never wordier than the wordiest stat
+beside it and every built-in label is itself a legal custom name. **A stat's own built-in label is not a rename**: the editor pre-fills with the
 current caption, so saving an un-renamed row untouched submits that label, and storing it would pin the wording against future
 re-labelling — `StatField.encode`/`parse` map it back to "not renamed" on both write and read, and `settings.js` mirrors it so
 the UI does not fire a pointless save. It bounds LENGTH, not rendered width: the
 caption box runs from roughly 129px to 220px across layouts (the tile grid sizes from a minimum width and reflows its column
-count), so 23 characters of an unusually wide mix can still cost a caption line the built-ins do not — the accepted trade for an
+count), so 25 characters of an unusually wide mix can still cost a caption line most built-ins do not — the accepted trade for an
 expressive name.
 What a name may never do is escape its tile, so `.stat-tile dt` carries `break-words` (without it a name with no spaces sits on one
 line and spills out sideways). The Playwright guard in `tests/ui/stats.spec.ts` renders a max-length name at both widths, reading

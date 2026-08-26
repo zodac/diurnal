@@ -56,7 +56,7 @@ class SubjectStatsTest {
         @Nullable final YearMonth bestMonth, final long bestMonthCount,
         final String bestYearLabel, final long bestYearCount) {
         return new SubjectStats(
-            StatSubject.of(new Action()), totalDays, totalCount, first, last,
+            StatSubject.of(new Action()), totalDays, 0, totalCount, first, last, null,
                 span(currentStreak), span(longestStreak), span(longestGap),
                 thisMonth, lastMonth,
                 thisYear, lastYear,
@@ -501,10 +501,10 @@ class SubjectStatsTest {
             .as("total days value")
             .isEqualTo("1");
         assertThat(tile.subCount1())
-            .as("the raw total, for the template to pluralise its translated unit word")
-            .isEqualTo(1L);
+            .as("no raw count travels: every 'Total ...' card's sub-caption is the fixed 'all time' window, which pluralises nothing")
+            .isZero();
         assertThat(tile.subNum())
-            .as("a unit word is not a locale-grouped number")
+            .as("a window phrase is not a locale-grouped number")
             .isFalse();
         assertThat(tile.valueClass())
             .as("numeric tiles use the default ink colour")
@@ -822,5 +822,81 @@ class SubjectStatsTest {
         assertThat(SubjectStatsExtensions.tiles(subjectStats, List.of(), 1, "en-GB"))
             .as("no selected fields → no tiles")
             .isEmpty();
+    }
+
+    // ── days with multiples (lastMultiplesLabel / the two tiles) ─────────────
+
+    // The days-with-multiples figures are independent of every other statistic, so they get their own builder rather
+    // than widening the shared one - only the two components under test vary.
+    private static SubjectStats multiplesStats(final int daysWithMultiples, @Nullable final LocalDate lastDayWithMultiples) {
+        return new SubjectStats(
+            StatSubject.of(new Action()), 4, daysWithMultiples, 9L, TODAY.minusDays(10L), TODAY, lastDayWithMultiples,
+                span(0), span(0), span(0),
+                0, 0, 0, 0,
+                null, 0, "—", 0,
+                TODAY
+        );
+    }
+
+    @Test
+    void lastMultiplesLabel_neverHadOne_returnsEmpty() {
+        assertThat(SubjectStatsExtensions.lastMultiplesLabel(multiplesStats(0, null), Language.ENGLISH_GB))
+            .as("no date is worded when no day ever held more than one - the template supplies the 'Never' word")
+            .isEmpty();
+    }
+
+    @Test
+    void lastMultiplesLabel_isTheFullWidthDate() {
+        assertThat(SubjectStatsExtensions.lastMultiplesLabel(multiplesStats(2, TODAY.minusDays(3L)), Language.ENGLISH_GB))
+            .as("unexpected value")
+            .isEqualTo("12 June 2025");
+    }
+
+    @Test
+    void tiles_totalDaysWithMultiples_carriesThatDayCount() {
+        final StatTile tile = SubjectStatsExtensions
+            .tiles(multiplesStats(3, TODAY), List.of(shown(StatField.TOTAL_DAYS_WITH_MULTIPLES)), 1, "en-GB")
+            .getFirst();
+
+        assertThat(tile.value())
+            .as("the days-with-multiples count is the tile's figure, not the total-day count beside it")
+            .isEqualTo("3");
+        assertThat(tile.subCount1())
+            .as("no raw count travels: the sub-caption is the Total count card's own fixed 'all time', which pluralises nothing")
+            .isZero();
+        assertThat(tile.date())
+            .as("a count is not a date tile")
+            .isFalse();
+    }
+
+    @Test
+    void tiles_lastDayWithMultiples_isDateTileWithElapsedSub() {
+        final StatTile tile = SubjectStatsExtensions
+            .tiles(multiplesStats(2, TODAY.minusDays(3L)), List.of(shown(StatField.LAST_DAY_WITH_MULTIPLES)), 1, "en-GB")
+            .getFirst();
+
+        assertThat(tile.date())
+            .as("last-day-with-multiples renders with the smaller date styling")
+            .isTrue();
+        assertThat(tile.value())
+            .as("value is the last day-with-multiples date at full width")
+            .isEqualTo("12 June 2025");
+        assertThat(tile.subDaysAgo())
+            .as("the raw elapsed day count, measured from the day with multiples rather than the last performed day")
+            .isEqualTo(3);
+        assertThat(tile.durationDays())
+            .as("the raw elapsed breakdown, for the template to compose its translated duration phrase")
+            .isEqualTo(3L);
+    }
+
+    @Test
+    void tiles_lastDayWithMultiples_neverHadOne_hasNoDaysAgo() {
+        final StatTile tile = SubjectStatsExtensions
+            .tiles(multiplesStats(0, null), List.of(shown(StatField.LAST_DAY_WITH_MULTIPLES)), 1, "en-GB")
+            .getFirst();
+
+        assertThat(tile.subDaysAgo())
+            .as("-1 signals 'never had one', even though the subject itself has been performed")
+            .isEqualTo(-1);
     }
 }

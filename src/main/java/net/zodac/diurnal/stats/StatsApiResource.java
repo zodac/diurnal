@@ -187,9 +187,11 @@ public class StatsApiResource {
      * @param name           the action's name
      * @param colour         the action's display colour
      * @param totalDays      the number of distinct days the action was logged
+     * @param daysWithMultiples the number of distinct days the action was logged more than once
      * @param totalCount     the sum of every day's count
      * @param firstPerformed the first logged day, or {@code null} if never logged
      * @param lastPerformed  the most recent logged day, or {@code null} if never logged
+     * @param lastDayWithMultiples the most recent day logged more than once, or {@code null} if there is none
      * @param currentStreak  the current run of consecutive logged days
      * @param longestStreak  the longest run of consecutive logged days
      * @param currentGap     the number of days since the action was last logged
@@ -215,10 +217,14 @@ public class StatsApiResource {
         @Schema(examples = "Morning run", description = "The subject's name.") String name,
         @Schema(examples = "#6366f1", description = "The subject's display colour as a CSS hex value.") String colour,
         @Schema(examples = "42", description = "The number of distinct days the subject has an entry on.") int totalDays,
+        @Schema(examples = "9", description = "The number of distinct days the subject was recorded more than once on. Always 0 for notes, which "
+        + "hold one note per day.") int daysWithMultiples,
         @Schema(examples = "57", description = "The sum of every day's count. For notes this equals totalDays, since a note counts once.")
         long totalCount,
         @Schema(examples = "2026-01-03", description = "The first day with an entry.") @Nullable LocalDate firstPerformed,
         @Schema(examples = "2026-06-15", description = "The most recent day with an entry.") @Nullable LocalDate lastPerformed,
+        @Schema(examples = "2026-06-11", description = "The most recent day the subject was recorded more than once on.")
+        @Nullable LocalDate lastDayWithMultiples,
         @Schema(examples = "5", description = "The current run of consecutive days with an entry.") int currentStreak,
         @Schema(examples = "14", description = "The longest run of consecutive days with an entry.") int longestStreak,
         @Schema(examples = "3", description = "The number of days since the last entry (0 if there is one today, or none ever).") int currentGap,
@@ -245,9 +251,11 @@ public class StatsApiResource {
                 stats.subject().name(),
                 stats.subject().colour(),
                 stats.totalDays(),
+                stats.daysWithMultiples(),
                 stats.totalCount(),
                 stats.firstPerformed(),
                 stats.lastPerformed(),
+                stats.lastDayWithMultiples(),
                 Durations.days(stats.currentStreak()),
                 Durations.days(stats.longestStreak()),
                 SubjectStatsExtensions.currentGap(stats),

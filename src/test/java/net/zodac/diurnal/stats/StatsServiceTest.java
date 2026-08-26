@@ -22,6 +22,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
+import net.zodac.diurnal.log.DailyActionTotal;
 import net.zodac.diurnal.time.DaySpan;
 import net.zodac.diurnal.time.DurationParts;
 import net.zodac.diurnal.time.Durations;
@@ -364,5 +366,39 @@ class StatsServiceTest {
         assertThat(Durations.days(StatsService.longestStreak(dates, TODAY)))
             .as("unexpected value")
             .isEqualTo(3);
+    }
+
+    // ── datesWithMultiples ────────────────────────────────────────────────────
+
+    @Test
+    void datesWithMultiples_empty_returnsEmpty() {
+        assertThat(StatsService.datesWithMultiples(List.of()))
+            .as("a subject with no recorded days has no days with multiples")
+            .isEmpty();
+    }
+
+    @Test
+    void datesWithMultiples_everyDayRecordedOnce_returnsEmpty() {
+        final List<DailyActionTotal> days = List.of(day(TODAY.minusDays(2), 1L), day(TODAY.minusDays(1), 1L), day(TODAY, 1L));
+        assertThat(StatsService.datesWithMultiples(days))
+            .as("a day recorded exactly once does not count as a day with multiples")
+            .isEmpty();
+    }
+
+    @Test
+    void datesWithMultiples_keepsOnlyTheDaysRecordedMoreThanOnce() {
+        final List<DailyActionTotal> days = List.of(
+            day(TODAY.minusDays(3), 2L),
+            day(TODAY.minusDays(2), 1L),
+            day(TODAY.minusDays(1), 9L),
+            day(TODAY, 1L));
+        final List<LocalDate> expected = List.of(TODAY.minusDays(3), TODAY.minusDays(1));
+        assertThat(StatsService.datesWithMultiples(days))
+            .as("only the days recorded more than once are kept, in the order they were read")
+            .containsExactlyElementsOf(expected);
+    }
+
+    private static DailyActionTotal day(final LocalDate date, final long total) {
+        return new DailyActionTotal(UUID.randomUUID(), date, total);
     }
 }

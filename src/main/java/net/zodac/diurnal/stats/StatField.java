@@ -37,9 +37,10 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * Each entry maps a stable {@link #key()} (persisted in {@code users.stats_fields} and posted by the settings form) to its display {@link #label()}.
- * Declaration order is the default display order: the two dates first, then the streak/gap pairs, the totals, the bests, the averages, and finally
- * the period-on-period comparisons. It only applies to users who have never customised their arrangement - a stored arrangement always wins, and a
- * field missing from one is appended at the end. {@link #LAST_PERFORMED} is {@link #mandatory()}: a user may reorder it but never remove it.
+ * Declaration order is the default display order: the two dates first, then the streak/gap pairs, the totals, the multiples pair, the bests, the
+ * averages, and finally the period-on-period comparisons. It only applies to users who have never customised their arrangement - a stored
+ * arrangement always wins, and a field missing from one is appended at the end. {@link #LAST_PERFORMED} is {@link #mandatory()}: a user may reorder
+ * it but never remove it.
  *
  * <p>
  * <strong>A key is permanent; a label is not.</strong> Keys are stored per user, so renaming a stat only ever changes its {@code label} - which is
@@ -107,6 +108,18 @@ public enum StatField {
             "The number of distinct days you have performed this action at least once"),
 
     /**
+     * Number of distinct days the action was performed more than once.
+     */
+    TOTAL_DAYS_WITH_MULTIPLES("total-days-with-multiples", "Total days with multiples", false,
+            "The number of distinct days you have performed this action more than once"),
+
+    /**
+     * Date the action was last performed more than once.
+     */
+    LAST_DAY_WITH_MULTIPLES("last-day-with-multiples", "Last day with multiples", false,
+            "The most recent date on which you performed this action more than once"),
+
+    /**
      * Highest-count month on record.
      */
     BEST_MONTH("best-month", "Best month", false,
@@ -155,9 +168,9 @@ public enum StatField {
             "This year's count compared with last year's");
 
     /**
-     * The longest custom name a user may give a stat. Sized against the catalogue's own wording: the longest built-in label ("Average count per
-     * month") is 23 characters, so 25 leaves a renamed stat no more than a word or so wordier than the stat sitting next to it, and guarantees every
-     * built-in label is itself a legal custom name (a user can always rename one stat to another's wording).
+     * The longest custom name a user may give a stat. Sized against the catalogue's own wording: the longest built-in label ("Total days with
+     * multiples") is exactly 25 characters, so a renamed stat is never wordier than the wordiest stat sitting next to it, and every built-in label is
+     * itself a legal custom name (a user can always rename one stat to another's wording).
      *
      * <p>
      * This bounds a name's LENGTH, not its rendered width, and the two only agree for text of roughly the built-ins' character mix. A caption box

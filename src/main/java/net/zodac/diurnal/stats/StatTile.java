@@ -44,8 +44,9 @@ package net.zodac.diurnal.stats;
  * @param subNum {@code true} when {@code sub} carries locale-groupable number(s)
  * @param valueClass a utility/colour class for the value (e.g. a trend colour), or {@code "text-ink"}
  * @param date {@code true} when {@code value} is a date/label rather than a figure, so it is not locale-grouped
- * @param subCount1 a raw count for the template to compose a translated {@code sub}: the day/record count to pluralise ({@code total-days},
- *     {@code best-month}/{@code best-year}), or the "this" count ({@code vs-last-month}/{@code vs-last-year}) — {@code 0} where unused
+ * @param subCount1 a raw count for the template to compose a translated {@code sub}: the record count to pluralise ({@code best-month}/
+ *     {@code best-year}), or the "this" count ({@code vs-last-month}/{@code vs-last-year}) — {@code 0} where unused, which is every numeric tile
+ *     (their sub-captions are fixed phrases with nothing to pluralise)
  * @param subCount2 the "last" count for {@code vs-last-month}/{@code vs-last-year} — {@code 0} where unused
  * @param subDaysAgo for {@code first-performed}/{@code last-performed}: {@code -1} when never performed, {@code 0} for today, {@code 1} for
  *     yesterday, otherwise the elapsed day count (matching {@code durationYears}/{@code durationMonths}/{@code durationDays}) — {@code 0} where

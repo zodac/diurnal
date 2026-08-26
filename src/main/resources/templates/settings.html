@@ -707,6 +707,9 @@
                             {#is 'first-performed'}{#let defaultLabel=msg:statFieldLabelFirstPerformed description=msg:statFieldDescFirstPerformed}
                                 {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
                             {/let}
+                            {#is 'last-day-with-multiples'}{#let defaultLabel=msg:statFieldLabelLastDayWithMultiples description=msg:statFieldDescLastDayWithMultiples}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
                             {#is 'current-streak'}{#let defaultLabel=msg:statFieldLabelCurrentStreak description=msg:statFieldDescCurrentStreak}
                                 {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
                             {/let}
@@ -723,6 +726,9 @@
                                 {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
                             {/let}
                             {#is 'total-days'}{#let defaultLabel=msg:statFieldLabelTotalDays description=msg:statFieldDescTotalDays}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
+                            {#is 'total-days-with-multiples'}{#let defaultLabel=msg:statFieldLabelTotalDaysWithMultiples description=msg:statFieldDescTotalDaysWithMultiples}
                                 {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
                             {/let}
                             {#is 'best-month'}{#let defaultLabel=msg:statFieldLabelBestMonth description=msg:statFieldDescBestMonth}
