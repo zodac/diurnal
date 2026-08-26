@@ -30,6 +30,34 @@ class NoteSearchTest {
     private static final String ELLIPSIS = "…";
 
     @Test
+    void matchesEverything_isTrueForBlankTerm() {
+        assertThat(NoteSearch.matchesEverything(""))
+            .as("nothing is being searched for, so the listing is a browse and can be paged in the database")
+            .isTrue();
+    }
+
+    @Test
+    void matchesEverything_isTrueForWhitespaceOnlyTerm() {
+        assertThat(NoteSearch.matchesEverything("   "))
+            .as("a box holding only whitespace is still an empty box")
+            .isTrue();
+    }
+
+    @Test
+    void matchesEverything_isFalseForRealTerm() {
+        assertThat(NoteSearch.matchesEverything("5k"))
+            .as("a real term selects a subset, so the whole journal has to be opened to find it")
+            .isFalse();
+    }
+
+    @Test
+    void matchesEverything_agreesWithMatchesOnTheBlankTerm() {
+        assertThat(NoteSearch.matchesEverything("") && NoteSearch.matches("any note at all", ""))
+            .as("the shortcut must keep exactly the notes the match rule keeps, or the two listing paths would disagree")
+            .isTrue();
+    }
+
+    @Test
     void matches_findsSubstringRegardlessOfCase() {
         assertThat(NoteSearch.matches("Ran a 5K before work", "5k"))
             .as("a search should match case-insensitively")

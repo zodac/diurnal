@@ -18,6 +18,8 @@
 package net.zodac.diurnal.note;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
+import io.quarkus.panache.common.Page;
+import io.quarkus.panache.common.Sort;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -114,11 +116,94 @@ public class Note extends PanacheEntityBase {
      * page one. This is the whole journal in one read, which is what a search over sealed content costs: the content lives only in the ciphertext, so
      * there is no predicate the database could filter on and the match has to be made on the opened text.
      *
+     * <p>
+     * <strong>Only a search needs this.</strong> Browsing an unfiltered list does not - see {@link #pageForUser(UUID, int, int)}, which reads the one
+     * page being shown.
+     *
      * @param userId the owning user
      * @return the user's notes, most recent first
      */
     public static List<Note> findByUser(final UUID userId) {
         return list("userId = ?1 order by noteDate desc", userId);
+    }
+
+    /**
+     * Counts the user's notes without reading any of them - the total an unfiltered, paged listing needs to size its pagination.
+     *
+     * <p>
+     * The {@code notes_unique} index leads on {@code user_id}, so this is answered from the index alone and never touches a note's ciphertext.
+     *
+     * @param userId the owning user
+     * @return the number of notes the user holds
+     */
+    public static long countForUser(final UUID userId) {
+        return count("userId = ?1", userId);
+    }
+
+    /**
+     * Counts the user's notes within the inclusive {@code [start, end]} date range, the ranged counterpart of {@link #countForUser(UUID)}.
+     *
+     * @param userId the owning user
+     * @param start  the inclusive start of the date window
+     * @param end    the inclusive end of the date window
+     * @return the number of notes in the range
+     */
+    public static long countForUserAndRange(final UUID userId, final LocalDate start, final LocalDate end) {
+        return count("userId = ?1 and noteDate >= ?2 and noteDate <= ?3", userId, start, end);
+    }
+
+    /**
+     * Returns one page of the user's notes, <strong>latest first</strong> - the same ordering {@link #findByUser(UUID)} produces, restricted to the
+     * page actually being rendered.
+     *
+     * <p>
+     * This is what an <strong>unfiltered</strong> listing reads. A search cannot use it: the match is made on the opened text, so which notes belong
+     * on page one is not known until every note has been opened. With no term there is nothing to match, the stored order is the displayed order, and
+     * the database can do the paging - so only the page's own ciphertext is read and only the page's own notes are decrypted.
+     *
+     * @param userId    the owning user
+     * @param pageIndex the 0-based page index
+     * @param pageSize  the page size
+     * @return the requested page of notes, most recent first
+     */
+    public static List<Note> pageForUser(final UUID userId, final int pageIndex, final int pageSize) {
+        return Note.<Note>find("userId = ?1", Sort.by("noteDate").descending(), userId)
+            .page(Page.of(pageIndex, pageSize))
+            .list();
+    }
+
+    /**
+     * Returns one page of the user's notes, <strong>earliest first</strong> - the ordering the public API publishes, as opposed to the notes page's
+     * newest-first. Paging and reversing {@link #pageForUser(UUID, int, int)} would not do: reversing one page re-orders that page rather than
+     * selecting the other end of the journal.
+     *
+     * @param userId    the owning user
+     * @param pageIndex the 0-based page index
+     * @param pageSize  the page size
+     * @return the requested page of notes, earliest first
+     */
+    public static List<Note> pageForUserEarliestFirst(final UUID userId, final int pageIndex, final int pageSize) {
+        return Note.<Note>find("userId = ?1", Sort.by("noteDate").ascending(), userId)
+            .page(Page.of(pageIndex, pageSize))
+            .list();
+    }
+
+    /**
+     * Returns one page of the user's notes within the inclusive {@code [start, end]} date range, earliest first - the ranged counterpart of
+     * {@link #pageForUserEarliestFirst(UUID, int, int)}.
+     *
+     * @param userId    the owning user
+     * @param start     the inclusive start of the date window
+     * @param end       the inclusive end of the date window
+     * @param pageIndex the 0-based page index
+     * @param pageSize  the page size
+     * @return the requested page of notes, earliest first
+     */
+    public static List<Note> pageForUserAndRange(final UUID userId, final LocalDate start, final LocalDate end, final int pageIndex,
+        final int pageSize) {
+        return Note.<Note>find("userId = ?1 and noteDate >= ?2 and noteDate <= ?3", Sort.by("noteDate").ascending(), userId, start, end)
+            .page(Page.of(pageIndex, pageSize))
+            .list();
     }
 
     /**

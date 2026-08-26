@@ -39,7 +39,6 @@ import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
 import java.time.LocalDate;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import net.zodac.diurnal.http.EntityTags;
@@ -157,9 +156,9 @@ public class NotesInternalResource {
         @QueryParam("page") @DefaultValue("1") final int pageNum) {
 
         final User user = currentUser.get();
-        final List<NoteHit> hits = noteService.search(user, searchTerm, Note.findByUser(user.id));
+        final PaginatedHits hits = noteService.journalPage(user, searchTerm, pageNum, PageSizes.forSection(user, PageSection.NOTES));
         final Locale locale = locale(user);
-        final PaginatedNotes page = NotePages.of(hits, searchTerm.strip(), pageNum, PageSizes.forSection(user, PageSection.NOTES), locale);
+        final PaginatedNotes page = NotePages.of(hits, searchTerm.strip(), locale);
         return Response.ok(notesListTemplate.data("page", page, "extraQuery", NotePages.extraQuery(searchTerm))
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
     }

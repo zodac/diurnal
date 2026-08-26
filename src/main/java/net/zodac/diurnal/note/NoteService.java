@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import net.zodac.diurnal.page.PageWindow;
+import net.zodac.diurnal.page.Pages;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.text.TextValidation;
@@ -57,6 +59,22 @@ import org.jspecify.annotations.Nullable;
  * carries the DATE and the user only, which is all an operator needs to trace a write-request. The same rule binds anything that handles a note: the
  * request logging filter records only method, path and status (never a body), and a rejection message is worded from the field rather than quoting
  * the value (see {@code TEXT_INPUT.md}) - so no path currently leaks one. Keep it that way.
+ *
+ * <p>
+ * <strong>Reading is the other half of this bean, and it is where the encryption is felt.</strong> A note's content exists only as ciphertext, so
+ * there is no index and no {@code WHERE} clause that could match on it - see {@link NoteSearch} for why a per-word blind index was rejected. Matching
+ * therefore means opening notes and scanning them in memory, at one AES pass per note, under a data key resolved once for the whole batch. That cost
+ * is what {@link #journalPage(User, String, int, int)} and {@link #rangePage(User, String, LocalDate, LocalDate, int, int)} split on: <strong>a blank
+ * term is paged in the database</strong> and opens only the page it returns, because with nothing to match the stored order is the displayed order;
+ * <strong>a real term has to open the whole selection</strong>, because which notes belong on page one is unknown until every one of them has been
+ * read. Browsing is the notes page's default state, so that split is the difference between a fixed cost per page view and one that grows with every
+ * note ever written.
+ *
+ * <p>
+ * <strong>Each surface still chooses its own selection and ordering</strong> - the notes page its whole history newest-first, the public API a date
+ * range earliest-first - and only the matching RULE is shared, which is the part that must not differ between them. The two paths agree on that rule
+ * by construction: {@link NoteSearch#matchesEverything(String)}, which decides whether the database may do the paging, is the same blank-term rule
+ * {@link NoteSearch#matches(String, String)} applies to every note.
  *
  * <p>
  * Callers own the transaction (each resource write method is {@code @Transactional}); this bean only assumes one is active.
@@ -128,46 +146,120 @@ public class NoteService {
         return byDate;
     }
 
-    /**
-     * Opens the given notes and keeps the ones matching a search term, in the order they were handed in.
-     *
-     * <p>
-     * <strong>The notes are opened and scanned in memory</strong> — there is no index and no {@code WHERE} clause that could do this, because the
-     * content exists only as ciphertext (see {@link NoteSearch} for why a searchable-encryption index was rejected). The cost is one AES pass per
-     * note, all under a data key resolved once by {@link #readContents(UUID, List)}; the dashboard already opens a three-month window on every load,
-     * so a deliberate, user-initiated search over a whole journal is a larger version of work the hot path already does.
-     *
-     * <p>
-     * A blank term matches every note, which is what makes the notes page a browse view of the whole journal before anything is typed.
-     *
-     * <p>
-     * <strong>The caller chooses which notes and in what order</strong>, exactly as {@link #readContents(UUID, List)} does — the notes page passes
-     * its whole history newest-first, the public API passes a date range earliest-first. Only the matching RULE is shared, which is the part that
-     * must not differ between the two surfaces; the selection and the ordering are each surface's own presentation.
-     *
-     * @param user  the owning user, whose key opens every note
-     * @param query the search term ({@code null} or blank keeps everything)
-     * @param notes the stored notes to search, in the order the caller wants them back
-     * @return the matching notes, in the given order
-     */
-    public List<NoteHit> search(final User user, final @Nullable String query, final List<Note> notes) {
-        final String term = query == null ? "" : query.strip();
+    // Opens the given notes, under a data key resolved once for the whole batch, and keeps the ones the term matches - in the order handed in, which
+    // is each surface's own (see the class Javadoc). Reached only from the paged reads below, and only when there IS a term to match: a blank one is
+    // answered by paging in the database, which never opens more than the page it returns.
+    private List<NoteHit> search(final User user, final String query, final List<Note> notes) {
         final List<NoteHit> hits = readContents(user.id, notes)
             .entrySet()
             .stream()
-            .filter(entry -> NoteSearch.matches(entry.getValue(), term))
+            .filter(entry -> NoteSearch.matches(entry.getValue(), query))
             .map(entry -> new NoteHit(entry.getKey(), entry.getValue()))
             .toList();
 
-        // Nothing was searched for, so there is nothing to report: a blank box is the notes page browsing the whole
-        // journal, which every page load and every clearing of the box does. Logging it would turn plain reading into
-        // a stream of "matched 8 of 8" lines that say only that the user opened the page.
-        if (!term.isEmpty()) {
+        if (!query.isEmpty()) {
             // The COUNT only. Never the note, and never the SEARCH TERM either: a term is drawn from the writing it is
             // meant to find, so logging "user searched for <name>" leaks the note as surely as logging the note would.
             LOGGER.debug("Notes search matched {} of {} note(s) for user {}", hits.size(), notes.size(), user.email);
         }
         return hits;
+    }
+
+    /**
+     * Reads one page of the user's whole journal, newest first - what the notes page and its HTMX list fragment render.
+     *
+     * <p>
+     * <strong>A blank term is paged in the database.</strong> There is then nothing to match, so the stored order is the displayed order and the
+     * page can be selected by the query: only that page's ciphertext is read and only that page's notes are decrypted. This is the notes page's
+     * default state, and it used to read and open the entire journal to render five rows - work that grew with every note ever written, on a page
+     * that shows a fixed handful.
+     *
+     * <p>
+     * <strong>A real term still opens everything</strong>, and must: the content exists only as ciphertext, so there is no predicate the database
+     * could page on and which notes belong on page one is unknown until every note has been opened (see {@link NoteSearch} for why a
+     * searchable-encryption index was rejected). The two paths agree on which notes a term keeps because they share one rule -
+     * {@link NoteSearch#matchesEverything(String)} is the same blank-term rule {@link NoteSearch#matches(String, String)} applies.
+     *
+     * @param user     the owning user, whose key opens every note read
+     * @param query    the search term ({@code null} or blank browses the whole journal)
+     * @param pageNum  the requested 1-based page (clamped into range)
+     * @param pageSize the page size
+     * @return the requested page, most recent first
+     */
+    public PaginatedHits journalPage(final User user, final @Nullable String query, final int pageNum, final int pageSize) {
+        final String term = query == null ? "" : query.strip();
+        if (!NoteSearch.matchesEverything(term)) {
+            return sliced(search(user, term, Note.findByUser(user.id)), pageNum, pageSize);
+        }
+
+        final long totalCount = Note.countForUser(user.id);
+        final PageWindow window = Pages.window(totalCount, pageNum, pageSize);
+        final List<Note> page = Note.pageForUser(user.id, window.currentPage() - 1, pageSize);
+        return new PaginatedHits(opened(user, page), totalCount, window.totalPages(), window.currentPage());
+    }
+
+    /**
+     * Reads one page of the user's notes earliest first, optionally bounded to an inclusive date range - what the public API's notes feed serves.
+     *
+     * <p>
+     * The same split as {@link #journalPage(User, String, int, int)}: a blank term is paged in the database, a real one opens the selection and
+     * matches on the opened text. The ordering differs because the two surfaces publish different contracts, which is each surface's own
+     * presentation; only the matching rule is shared.
+     *
+     * @param user     the owning user, whose key opens every note read
+     * @param query    the search term ({@code null} or blank keeps every note in the selection)
+     * @param start    the inclusive start of the date window, or {@code null} for the whole history
+     * @param end      the inclusive end of the date window, or {@code null} for the whole history
+     * @param pageNum  the requested 1-based page (clamped into range)
+     * @param pageSize the page size
+     * @return the requested page, earliest first
+     */
+    public PaginatedHits rangePage(final User user, final @Nullable String query, final @Nullable LocalDate start, final @Nullable LocalDate end,
+        final int pageNum, final int pageSize) {
+        final String term = query == null ? "" : query.strip();
+        if (start == null || end == null) {
+            return wholeHistoryPage(user, term, pageNum, pageSize);
+        }
+        return rangedPage(user, term, start, end, pageNum, pageSize);
+    }
+
+    private PaginatedHits wholeHistoryPage(final User user, final String term, final int pageNum, final int pageSize) {
+        if (!NoteSearch.matchesEverything(term)) {
+            // The finder is ordered for the notes page (newest first) while this surface publishes earliest-first, so the whole selection is
+            // reversed before matching. A page cannot be reversed the same way - that re-orders the page rather than selecting the other end of
+            // the journal - which is why the paged read below has an ascending finder of its own.
+            return sliced(search(user, term, Note.findByUser(user.id).reversed()), pageNum, pageSize);
+        }
+
+        final long totalCount = Note.countForUser(user.id);
+        final PageWindow window = Pages.window(totalCount, pageNum, pageSize);
+        final List<Note> page = Note.pageForUserEarliestFirst(user.id, window.currentPage() - 1, pageSize);
+        return new PaginatedHits(opened(user, page), totalCount, window.totalPages(), window.currentPage());
+    }
+
+    private PaginatedHits rangedPage(final User user, final String term, final LocalDate start, final LocalDate end, final int pageNum,
+        final int pageSize) {
+        if (!NoteSearch.matchesEverything(term)) {
+            return sliced(search(user, term, Note.findByUserAndRange(user.id, start, end)), pageNum, pageSize);
+        }
+
+        final long totalCount = Note.countForUserAndRange(user.id, start, end);
+        final PageWindow window = Pages.window(totalCount, pageNum, pageSize);
+        final List<Note> page = Note.pageForUserAndRange(user.id, start, end, window.currentPage() - 1, pageSize);
+        return new PaginatedHits(opened(user, page), totalCount, window.totalPages(), window.currentPage());
+    }
+
+    private List<NoteHit> opened(final User user, final List<Note> notes) {
+        return readContents(user.id, notes)
+            .entrySet()
+            .stream()
+            .map(entry -> new NoteHit(entry.getKey(), entry.getValue()))
+            .toList();
+    }
+
+    private static PaginatedHits sliced(final List<NoteHit> hits, final int pageNum, final int pageSize) {
+        final PageWindow window = Pages.window(hits.size(), pageNum, pageSize);
+        return new PaginatedHits(Pages.slice(hits, window), hits.size(), window.totalPages(), window.currentPage());
     }
 
     /**

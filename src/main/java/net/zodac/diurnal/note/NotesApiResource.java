@@ -42,8 +42,6 @@ import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.log.DateRanges;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
-import net.zodac.diurnal.page.PageWindow;
-import net.zodac.diurnal.page.Pages;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
@@ -184,34 +182,31 @@ public class NotesApiResource {
             return EntityTags.withPrivateValidator(notModified, tag).build();
         }
 
-        // One key opens every note, so it is resolved once rather than per note. A note that will not open is
-        // dropped rather than reported: one damaged row must not fail the range for every other day in it.
-        // The unbounded read is reversed because its finder is ordered for the notes page (newest first) while this endpoint's published contract is
-        // earliest-first. A sentinel-dated call to the ranged finder would avoid the flip, but there is no date bound safely outside every real
-        // note_date - LocalDate.MIN/MAX are far outside what the DATE column can even hold.
-        final List<Note> stored = window == null
-            ? Note.findByUser(user.id).reversed()
-            : Note.findByUserAndRange(user.id, window.start(), window.end());
-        final List<NoteDto> all = noteService.search(user, searchTerm, stored)
-            .stream()
-            .map(hit -> new NoteDto(hit.date().toString(), hit.content()))
-            .toList();
-        final PageWindow pageWindow = Pages.window(all.size(), pageNum, PAGE_SIZE);
+        // One key opens every note, so it is resolved once rather than per note. A note that will not open is dropped rather than reported: one
+        // damaged row must not fail the range for every other day in it. With no search term the page is selected by the query, so only the notes
+        // this response carries are read and opened; a term has to open the whole selection to match on the text. See NoteService.rangePage.
+        final PaginatedHits hits = window == null
+            ? noteService.rangePage(user, searchTerm, null, null, pageNum, PAGE_SIZE)
+            : noteService.rangePage(user, searchTerm, window.start(), window.end(), pageNum, PAGE_SIZE);
 
         // Surface input policy, matching every other paginated API endpoint: an out-of-range page is REJECTED rather than clamped, so a page number
         // is never silently answered with some other page. Page 1 of an empty range is legal and returns nothing. Past this guard the requested page
         // is in range, so the clamp the shared window applied for the web surface has left it exactly as asked for.
-        if (pageNum < 1 || pageNum > Math.max(1, pageWindow.totalPages())) {
+        if (pageNum < 1 || pageNum > Math.max(1, hits.totalPages())) {
             return Response.status(Response.Status.BAD_REQUEST)
                 .entity(new ApiErrorResponse("Page " + pageNum + " is out of range"))
                 .build();
         }
 
-        final List<NoteDto> items = Pages.slice(all, pageWindow);
+        final List<NoteDto> items = hits.items()
+            .stream()
+            .map(hit -> new NoteDto(hit.date().toString(), hit.content()))
+            .toList();
         // The COUNT and the window only - never a note's content, and never what was searched for; see NoteService's logging rule.
         LOGGER.debug("Notes API read {} of {} note(s) over {} (page {}) for user {}",
-            items.size(), all.size(), window == null ? "the whole history" : (window.start() + " to " + window.end()), pageNum, user.email);
-        return EntityTags.withPrivateValidator(Response.ok(new NotesPageDto(items, all.size(), pageWindow.totalPages(), pageNum)), tag).build();
+            items.size(), hits.totalCount(), window == null ? "the whole history" : (window.start() + " to " + window.end()), pageNum, user.email);
+        return EntityTags.withPrivateValidator(
+            Response.ok(new NotesPageDto(items, Math.toIntExact(hits.totalCount()), hits.totalPages(), pageNum)), tag).build();
     }
 
     // Surface input policy: the range is optional, but it is a RANGE - half of one is a request the caller did not mean to make, so requireDate
