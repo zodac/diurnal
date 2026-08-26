@@ -20,6 +20,7 @@ package net.zodac.diurnal.stats;
 import static io.restassured.RestAssured.given;
 import static net.zodac.diurnal.http.HttpStatusCodes.OK;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
@@ -81,7 +82,23 @@ class StatsApiResourceIT extends IntegrationTestBase {
                 .body("items[0].longestStreak", equalTo(2))
                 .body("items[0].currentGap", equalTo(0)) // logged today
                 .body("items[0].firstPerformed", equalTo(TODAY.minusDays(1).toString()))
-                .body("items[0].lastPerformed", equalTo(TODAY.toString()));
+                .body("items[0].lastPerformed", equalTo(TODAY.toString()))
+                // Both days were logged more than once, so both count and the most recent is today.
+                .body("items[0].daysWithMultiples", equalTo(2))
+                .body("items[0].lastDayWithMultiples", equalTo(TODAY.toString()));
+    }
+
+    @Test
+    void stats_dayLoggedOnce_isNotADayWithMultiples() {
+        runInTx(() -> {
+            newLog(primaryId, action.id, TODAY, 1);
+            newLog(primaryId, action.id, TODAY.minusDays(1), 4);
+        });
+
+        given().get("/api/v1/stats")
+                .then().statusCode(OK)
+                .body("items[0].daysWithMultiples", equalTo(1))
+                .body("items[0].lastDayWithMultiples", equalTo(TODAY.minusDays(1).toString()));
     }
 
     @Test
@@ -111,8 +128,11 @@ class StatsApiResourceIT extends IntegrationTestBase {
                 .body("items[0].subjectId", equalTo("00000000-0000-0000-0000-000000000000"))
                 .body("items[0].name", equalTo("Notes"))
                 .body("items[0].totalDays", equalTo(2))
-                // One note is one occurrence, so a notes item's total count always equals its total days.
+                // One note is one occurrence, so a notes item's total count always equals its total days - and no day
+                // can ever hold a second note, so a notes item never has a day with multiples.
                 .body("items[0].totalCount", equalTo(2))
+                .body("items[0].daysWithMultiples", equalTo(0))
+                .body("items[0].lastDayWithMultiples", nullValue())
                 .body("items[1].kind", equalTo("action"))
                 .body("items[1].name", equalTo("Running"));
     }

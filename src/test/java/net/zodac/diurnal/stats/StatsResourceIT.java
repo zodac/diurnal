@@ -106,6 +106,22 @@ class StatsResourceIT extends IntegrationTestBase {
     }
 
     @Test
+    void statsPage_daysWithMultiplesTilesRenderTheirCaptions() {
+        runInTx(() -> {
+            final Action action = newAction(primaryId, "Repeater");
+            newLog(primaryId, action.id, TODAY, 2);
+            newLog(primaryId, action.id, TODAY.minusDays(1), 1);
+        });
+
+        // A {#is} arm missing from partials/stat-tile-row.html renders NOTHING at all rather than failing the build
+        // (see TemplateSwitchCoverageTest's own reasoning), so the two new tiles' captions are pinned here.
+        given().get("/stats")
+                .then().statusCode(OK)
+                .body(containsString("Total days with multiples"))
+                .body(containsString("Last day with multiples"));
+    }
+
+    @Test
     void statsPage_renamedStat_rendersUnderTheCustomCaption() {
         runInTx(() -> {
             final Action action = newAction(primaryId, "Renamed");

@@ -122,17 +122,21 @@ public final class SubjectStatsExtensions {
             case LONGEST_STREAK -> durationTile(key, label, labelIsCustom, stats.longestStreak(), false, lang);
             case CURRENT_GAP    -> durationTile(key, label, labelIsCustom, currentGapSpan(stats), true, lang);
             case LONGEST_GAP    -> durationTile(key, label, labelIsCustom, stats.longestGap(), false, lang);
-            case TOTAL_DAYS     -> numeric(key, label, labelIsCustom, Integer.toString(stats.totalDays()), stats.totalDays());
-            case TOTAL_COUNT    -> numeric(key, label, labelIsCustom, Long.toString(stats.totalCount()), 0L);
-            case WEEKLY_DAY_AVERAGE    -> numeric(key, label, labelIsCustom, weeklyDayAverage(stats, decimalPlaces, lang), 0L);
-            case MONTHLY_DAY_AVERAGE   -> numeric(key, label, labelIsCustom, monthlyDayAverage(stats, decimalPlaces, lang), 0L);
-            case WEEKLY_COUNT_AVERAGE  -> numeric(key, label, labelIsCustom, weeklyCountAverage(stats, decimalPlaces, lang), 0L);
-            case MONTHLY_COUNT_AVERAGE -> numeric(key, label, labelIsCustom, monthlyCountAverage(stats, decimalPlaces, lang), 0L);
+            case TOTAL_DAYS     -> numeric(key, label, labelIsCustom, Integer.toString(stats.totalDays()));
+            case TOTAL_DAYS_WITH_MULTIPLES -> numeric(key, label, labelIsCustom, Integer.toString(stats.daysWithMultiples()));
+            case TOTAL_COUNT    -> numeric(key, label, labelIsCustom, Long.toString(stats.totalCount()));
+            case WEEKLY_DAY_AVERAGE    -> numeric(key, label, labelIsCustom, weeklyDayAverage(stats, decimalPlaces, lang));
+            case MONTHLY_DAY_AVERAGE   -> numeric(key, label, labelIsCustom, monthlyDayAverage(stats, decimalPlaces, lang));
+            case WEEKLY_COUNT_AVERAGE  -> numeric(key, label, labelIsCustom, weeklyCountAverage(stats, decimalPlaces, lang));
+            case MONTHLY_COUNT_AVERAGE -> numeric(key, label, labelIsCustom, monthlyCountAverage(stats, decimalPlaces, lang));
             case FIRST_PERFORMED ->
                 sinceTile(key, label, labelIsCustom, firstLabel(stats, lang),
                     stats.firstPerformed() == null ? null : new DaySpan(stats.firstPerformed(), stats.today()));
             case LAST_PERFORMED ->
                 sinceTile(key, label, labelIsCustom, lastLabel(stats, lang), stats.lastPerformed() == null ? null : currentGapSpan(stats));
+            case LAST_DAY_WITH_MULTIPLES ->
+                sinceTile(key, label, labelIsCustom, lastMultiplesLabel(stats, lang),
+                    stats.lastDayWithMultiples() == null ? null : multiplesGapSpan(stats));
             case VS_LAST_MONTH  ->
                 trendTile(key, label, labelIsCustom, monthTrend(stats), monthTrendClass(stats), stats.thisMonthCount(), stats.lastMonthCount());
             case VS_LAST_YEAR   ->
@@ -150,9 +154,10 @@ public final class SubjectStatsExtensions {
         return month == null ? "—" : month.format(lang.localizeNumerals(DateTimeFormatter.ofPattern(lang.monthYearPattern(), lang.locale())));
     }
 
-    private static StatTile numeric(final String key, final String label, final boolean labelIsCustom, final String value,
-        final long subCount1) {
-        return new StatTile(key, label, labelIsCustom, value, "", false, "text-ink", false, subCount1, 0L, 0, 0L, 0L, 0L);
+    // No subCount1: every numeric tile's sub-caption is a fixed phrase ("all time", "days / week"), so there is
+    // no raw count for a template to pluralise. Only recordTile/trendTile still carry one.
+    private static StatTile numeric(final String key, final String label, final boolean labelIsCustom, final String value) {
+        return new StatTile(key, label, labelIsCustom, value, "", false, "text-ink", false, 0L, 0L, 0, 0L, 0L, 0L);
     }
 
     // FIRST_PERFORMED / LAST_PERFORMED: the sub-caption is "Today"/"Yesterday"/"<elapsed> ago", or a dash when
@@ -257,6 +262,19 @@ public final class SubjectStatsExtensions {
     @TemplateExtension
     public static String firstLabel(final SubjectStats stats, final Language lang) {
         return stats.firstPerformed() == null ? "" : stats.firstPerformed().format(dateFmt(lang));
+    }
+
+    /**
+     * The last day-with-multiples date formatted for display at full width ({@code "15 June 2026"}), or {@code ""} if the action was never performed
+     * more than once on a single day - see {@link #lastLabel(SubjectStats, Language)} for why not the word "Never".
+     *
+     * @param stats the statistics to inspect
+     * @param lang the language to word the date in
+     * @return the formatted last day-with-multiples date, or {@code ""}
+     */
+    @TemplateExtension
+    public static String lastMultiplesLabel(final SubjectStats stats, final Language lang) {
+        return stats.lastDayWithMultiples() == null ? "" : stats.lastDayWithMultiples().format(dateFmt(lang));
     }
 
     /**
@@ -372,10 +390,15 @@ public final class SubjectStatsExtensions {
     // reads "1 months", and a short run is never left as a bare number with its unit demoted to the caption.
 
     private static DaySpan currentGapSpan(final SubjectStats stats) {
-        final LocalDate lastPerformed = stats.lastPerformed();
-        return lastPerformed == null
-                ? new DaySpan(stats.today(), stats.today())
-                : new DaySpan(lastPerformed.plusDays(1L), stats.today().plusDays(1L));
+        return gapSpan(stats.lastPerformed(), stats.today());
+    }
+
+    private static DaySpan multiplesGapSpan(final SubjectStats stats) {
+        return gapSpan(stats.lastDayWithMultiples(), stats.today());
+    }
+
+    private static DaySpan gapSpan(final @Nullable LocalDate last, final LocalDate today) {
+        return last == null ? new DaySpan(today, today) : new DaySpan(last.plusDays(1L), today.plusDays(1L));
     }
 
     /**

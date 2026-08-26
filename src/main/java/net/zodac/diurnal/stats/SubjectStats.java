@@ -45,9 +45,13 @@ import org.jspecify.annotations.Nullable;
 public record SubjectStats(
     StatSubject subject,
     int       totalDays,
+    // The days the subject was recorded MORE THAN ONCE, and the most recent of them. A notes subject can have neither (one note per day is the
+    // whole of a day's history), which is not a special case to suppress - it is the honest figure for a subject no day can hold twice.
+    int       daysWithMultiples,
     long      totalCount,
     @Nullable LocalDate firstPerformed,
     @Nullable LocalDate lastPerformed,
+    @Nullable LocalDate lastDayWithMultiples,
     DaySpan   currentStreak,
     DaySpan   longestStreak,
     DaySpan   longestGap,

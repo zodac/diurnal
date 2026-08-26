@@ -1928,6 +1928,38 @@ public interface AppMessages {
     String statFieldDescTotalDays();
 
     /**
+     * The "Total days with multiples" stat's catalogue (default) caption.
+     *
+     * @return the default (English) text
+     */
+    @Message("Total days with multiples")
+    String statFieldLabelTotalDaysWithMultiples();
+
+    /**
+     * The "Total days with multiples" stat's tooltip description.
+     *
+     * @return the default (English) text
+     */
+    @Message("The number of distinct days you have performed this action more than once")
+    String statFieldDescTotalDaysWithMultiples();
+
+    /**
+     * The "Last day with multiples" stat's catalogue (default) caption.
+     *
+     * @return the default (English) text
+     */
+    @Message("Last day with multiples")
+    String statFieldLabelLastDayWithMultiples();
+
+    /**
+     * The "Last day with multiples" stat's tooltip description.
+     *
+     * @return the default (English) text
+     */
+    @Message("The most recent date on which you performed this action more than once")
+    String statFieldDescLastDayWithMultiples();
+
+    /**
      * The "Best month" stat's catalogue (default) caption.
      *
      * @return the default (English) text
@@ -2100,16 +2132,6 @@ public interface AppMessages {
      */
     @Message("count / month")
     String statSubCountPerMonth();
-
-    /**
-     * The "Total unique days" tile's sub-caption, singular-aware on {@code StatTile#subCount1}. One entry with the plural choice embedded (see
-     * {@link #lockoutRetry(long)} for why this replaced an earlier singular/plural method pair selected by the template).
-     *
-     * @param count the day count, never translated
-     * @return the default (English) text
-     */
-    @Message("{#if count == 1}unique day{#else}unique days{/if}")
-    String statSubUniqueDays(long count);
 
     /**
      * The "Best month"/"Best year" tiles' sub-caption, singular-aware on {@code StatTile#subCount1}. One entry with the plural choice embedded

@@ -60,13 +60,16 @@ final class ActionLogQueries {
             WHERE l.userId = :userId""";
 
     /**
-     * JPQL selecting one {@link ActionPerformedDate} per {@code (action, logged-day)} for the given actions, ordered by action then date — the
-     * minimal data needed to compute streaks and gaps.
+     * The same {@link DailyActionTotal} rollup as {@link #DAILY_TOTALS_JPQL} over the given actions' <strong>whole</strong> history — the minimal
+     * data the Stats page needs to compute streaks, gaps and the days-with-multiples figures, which are measured over everything ever logged and so
+     * have no {@code [:from, :to]} to pin them to. Written as its own query rather than calling the ranged one with sentinel dates, so no bound has
+     * to be invented that a real {@code log_date} could one day sit outside.
      */
-    static final String DISTINCT_DATES_JPQL = """
-            SELECT new net.zodac.diurnal.log.ActionPerformedDate(l.actionId, l.logDate)
+    static final String ALL_DAILY_TOTALS_JPQL = """
+            SELECT new net.zodac.diurnal.log.DailyActionTotal(l.actionId, l.logDate, SUM(l.count))
             FROM ActionLog l
             WHERE l.userId = :userId AND l.actionId IN (:actionIds)
+            GROUP BY l.actionId, l.logDate
             ORDER BY l.actionId, l.logDate""";
 
     /**

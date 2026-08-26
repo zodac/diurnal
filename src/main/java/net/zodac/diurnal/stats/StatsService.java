@@ -37,7 +37,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
-import net.zodac.diurnal.log.ActionPerformedDate;
 import net.zodac.diurnal.log.DailyActionTotal;
 import net.zodac.diurnal.log.MonthlyActionTotal;
 import net.zodac.diurnal.note.Note;
@@ -78,7 +77,8 @@ public class StatsService {
      *
      * <p>
      * The per-subject totals, comparative counts and best-month/best-year figures are aggregated in the database (a monthly {@code GROUP BY}); only
-     * the distinct performed dates are read back, and solely to compute the streak/gap figures — so a long history no longer hydrates every log row.
+     * the per-day rollup is read back, and solely to compute the streak/gap and days-with-multiples figures — so a long history no longer hydrates
+     * every log row.
      *
      * @param userId the user whose stats to compute
      * @return the notes subject (when it has any data) followed by every action that has been logged
@@ -89,18 +89,19 @@ public class StatsService {
         final User user = User.findById(userId);
         final LocalDate today = todayFor(user);
 
-        // The note dates double as the existence check, so reading them FIRST means a user who has never written a note pays for this one query and
+        // The note days double as the existence check, so reading them FIRST means a user who has never written a note pays for this one query and
         // nothing else - no monthly rollup, no assembly. That is the common case on the Stats page's and GET /api/v1/stats' hot path.
-        final List<LocalDate> noteDates = Note.datesFor(userId);
+        final List<DailyActionTotal> noteDays = Note.dailyTotals(userId, StatSubject.NOTES_ID);
         final List<SubjectStats> actions = activeActions(userId, today);
-        if (noteDates.isEmpty()) {
+        if (noteDays.isEmpty()) {
             return actions;
         }
 
-        // The notes subject is assembled from exactly the same two inputs an action's is - the dates it happened on, and its monthly rollup - both
-        // projected into the shared MonthlyActionTotal/date shapes by the note queries, so there is no parallel computation to keep in step.
+        // The notes subject is assembled from exactly the same two inputs an action's is - the days it happened on, and its monthly rollup - both
+        // projected into the shared DailyActionTotal/MonthlyActionTotal shapes by the note queries, so there is no parallel computation to keep in
+        // step.
         final List<SubjectStats> subjects = new ArrayList<>(actions.size() + 1);
-        subjects.add(assemble(StatSubject.notes(noteColourFor(user)), Note.monthlyTotals(userId, StatSubject.NOTES_ID), noteDates, today));
+        subjects.add(assemble(StatSubject.notes(noteColourFor(user)), Note.monthlyTotals(userId, StatSubject.NOTES_ID), noteDays, today));
         subjects.addAll(actions);
         return List.copyOf(subjects);
     }
@@ -423,10 +424,10 @@ public class StatsService {
     private static List<SubjectStats> assembleAll(final UUID userId, final List<Action> actions,
         final List<UUID> actionIds, final LocalDate today) {
         final Map<UUID, List<MonthlyActionTotal>> monthly = groupMonthly(ActionLog.monthlyTotalsForActions(userId, actionIds));
-        final Map<UUID, List<LocalDate>> dates = groupDates(ActionLog.distinctDatesForActions(userId, actionIds));
+        final Map<UUID, List<DailyActionTotal>> days = groupDays(ActionLog.dailyTotalsForActions(userId, actionIds));
         return actions.stream()
                 .map(action -> assemble(StatSubject.of(action), monthly.getOrDefault(action.id, List.of()),
-                        dates.getOrDefault(action.id, List.of()), today))
+                        days.getOrDefault(action.id, List.of()), today))
                 .toList();
     }
 
@@ -438,22 +439,29 @@ public class StatsService {
         return byAction;
     }
 
-    private static Map<UUID, List<LocalDate>> groupDates(final List<ActionPerformedDate> rows) {
-        // Rows arrive ordered by (action, date), so each action's list is ascending and distinct.
-        final Map<UUID, List<LocalDate>> byAction = new HashMap<>();
-        for (final ActionPerformedDate row : rows) {
-            byAction.computeIfAbsent(row.actionId(), _ -> new ArrayList<>()).add(row.date());
+    private static Map<UUID, List<DailyActionTotal>> groupDays(final List<DailyActionTotal> rows) {
+        // Rows arrive ordered by (action, date), so each action's list is ascending and holds one entry per day.
+        final Map<UUID, List<DailyActionTotal>> byAction = new HashMap<>();
+        for (final DailyActionTotal row : rows) {
+            byAction.computeIfAbsent(row.actionId(), _ -> new ArrayList<>()).add(row);
         }
         return byAction;
     }
 
     private static SubjectStats assemble(final StatSubject subject, final List<MonthlyActionTotal> monthlyTotals,
-        final List<LocalDate> sortedDates, final LocalDate today) {
-        if (sortedDates.isEmpty()) {
+        final List<DailyActionTotal> sortedDays, final LocalDate today) {
+        if (sortedDays.isEmpty()) {
             final DaySpan noSpan = new DaySpan(today, today);
-            return new SubjectStats(subject, 0, 0L, null, null, noSpan, noSpan, noSpan,
+            return new SubjectStats(subject, 0, 0, 0L, null, null, null, noSpan, noSpan, noSpan,
                     0L, 0L, 0L, 0L, null, 0L, "—", 0L, today);
         }
+
+        // The daily rollup carries the streak/gap dates AND the per-day count, so the two figures that need to know how OFTEN a day was recorded
+        // (the days with multiples) come off the same read as the ones that only need to know THAT it was.
+        final List<LocalDate> sortedDates = sortedDays.stream()
+            .map(DailyActionTotal::date)
+            .toList();
+        final List<LocalDate> multipleDates = datesWithMultiples(sortedDays);
 
         final YearMonth thisMonth = YearMonth.from(today);
         final YearMonth prevMonth = thisMonth.minusMonths(1L);
@@ -476,9 +484,11 @@ public class StatsService {
         return new SubjectStats(
                 subject,
                 sortedDates.size(),
+                multipleDates.size(),
                 totalCount,
                 sortedDates.getFirst(),
                 sortedDates.getLast(),
+                multipleDates.isEmpty() ? null : multipleDates.getLast(),
                 currentStreak(sortedDates, today),
                 longestStreak(sortedDates, today),
                 longestGap(sortedDates, today),
@@ -491,6 +501,18 @@ public class StatsService {
                 bestYear  != null ? String.valueOf(bestYear.getKey()) : "—",
                 bestYear  != null ? bestYear.getValue() : 0L,
                 today);
+    }
+
+    /**
+     * The days on which the subject was recorded MORE than once, ascending - the input to both of the "days with multiples" figures (how many such
+     * days there are, and the most recent of them). A day recorded exactly once does not count, which is the whole of the rule; a notes subject
+     * consequently never has one, since a day holds at most one note.
+     */
+    static List<LocalDate> datesWithMultiples(final List<DailyActionTotal> sortedDays) {
+        return sortedDays.stream()
+            .filter(day -> day.total() > 1L)
+            .map(DailyActionTotal::date)
+            .toList();
     }
 
     // ── Streaks and gaps ──────────────────────────────────────────────────

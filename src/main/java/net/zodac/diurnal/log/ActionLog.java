@@ -134,6 +134,21 @@ public class ActionLog extends PanacheEntityBase {
     }
 
     /**
+     * Returns each of the given actions' whole logged history rolled up per day, ordered by action then date — the minimal data needed to compute
+     * streaks, gaps and the days-with-multiples figures, all of which span everything ever logged. {@code actionIds} must be non-empty.
+     *
+     * @param userId the owning user (constrains the query to the indexed {@code (user_id, …)} prefix)
+     * @param actionIds the actions whose logged days to read
+     * @return one {@link DailyActionTotal} per {@code (action, logged-day)}, ascending within each action
+     */
+    public static List<DailyActionTotal> dailyTotalsForActions(final UUID userId, final Collection<UUID> actionIds) {
+        return JpqlQuery.of(ActionLogQueries.ALL_DAILY_TOTALS_JPQL, DailyActionTotal.class)
+            .bind(ActionLogQueries.USER_ID, userId)
+            .bind(ActionLogQueries.ACTION_IDS, actionIds)
+            .resultList();
+    }
+
+    /**
      * Returns the per-day summed {@code count} for each of the given actions within the inclusive {@code [from, to]} window — the database-side daily
      * aggregation behind the Stats page's month frequency chart. Days with no log entry are simply absent from the result. {@code actionIds} must be
      * non-empty.
@@ -165,21 +180,6 @@ public class ActionLog extends PanacheEntityBase {
         return Set.copyOf(JpqlQuery.of(ActionLogQueries.LOGGED_ACTION_IDS_JPQL, UUID.class)
             .bind(ActionLogQueries.USER_ID, userId)
             .resultList());
-    }
-
-    /**
-     * Returns the distinct performed dates for each of the given actions, ordered by action then date — the minimal data needed to compute streaks
-     * and gaps. {@code actionIds} must be non-empty.
-     *
-     * @param userId the owning user (constrains the query to the indexed {@code (user_id, …)} prefix)
-     * @param actionIds the actions whose performed dates to read
-     * @return one {@link ActionPerformedDate} per {@code (action, logged-day)}, ascending within each action
-     */
-    public static List<ActionPerformedDate> distinctDatesForActions(final UUID userId, final Collection<UUID> actionIds) {
-        return JpqlQuery.of(ActionLogQueries.DISTINCT_DATES_JPQL, ActionPerformedDate.class)
-            .bind(ActionLogQueries.USER_ID, userId)
-            .bind(ActionLogQueries.ACTION_IDS, actionIds)
-            .resultList();
     }
 
     /**

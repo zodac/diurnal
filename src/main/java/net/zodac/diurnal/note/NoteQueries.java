@@ -63,13 +63,15 @@ final class NoteQueries {
             GROUP BY YEAR(n.noteDate), MONTH(n.noteDate)""";
 
     /**
-     * JPQL selecting every date the user has written a note on, ascending - the minimal data needed to compute the streak and gap figures. A note's
-     * date is unique per user, so the dates are already distinct.
+     * The same {@link net.zodac.diurnal.log.DailyActionTotal} rollup as {@link #DAILY_TOTALS_JPQL} over the user's <strong>whole</strong> history -
+     * the minimal data the Stats page needs to compute the streak, gap and days-with-multiples figures, which are measured over every note ever
+     * written and so have no {@code [:from, :to]} to pin them to (the {@link #ALL_VERSION_JPQL} split, for the same reason).
      */
-    static final String NOTE_DATES_JPQL = """
-            SELECT n.noteDate
+    static final String ALL_DAILY_TOTALS_JPQL = """
+            SELECT new net.zodac.diurnal.log.DailyActionTotal(:subjectId, n.noteDate, COUNT(n))
             FROM Note n
             WHERE n.userId = :userId
+            GROUP BY n.noteDate
             ORDER BY n.noteDate""";
 
     /**
