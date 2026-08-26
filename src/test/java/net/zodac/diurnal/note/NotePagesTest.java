@@ -26,8 +26,13 @@ import java.util.stream.IntStream;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link NotePages} — the paging arithmetic and row shape behind the notes page, including the clamping the web surface applies where
- * the public API instead rejects.
+ * Unit tests for {@link NotePages} — the row shape behind the notes page, and the pagination figures it carries through to the footer.
+ *
+ * <p>
+ * The paging arithmetic itself is no longer done here: an unfiltered listing is paged by the database and a search is sliced in
+ * {@link NoteService}, both through {@link net.zodac.diurnal.page.Pages} (whose own tests cover the windowing and the web surface's clamping). What
+ * is left to pin here is that a selected page is rendered faithfully - one row per hit, both forms of the date, the term highlighted - and that the
+ * figures describing the whole result reach the page unchanged.
  */
 class NotePagesTest {
 
@@ -36,7 +41,7 @@ class NotePagesTest {
 
     @Test
     void of_buildsRowPerHitWithBothFormsOfTheDate() {
-        final PaginatedNotes page = NotePages.of(List.of(new NoteHit(DAY, "Ran a 5k")), "", 1, 5, EN_GB);
+        final PaginatedNotes page = NotePages.of(oneHit("Ran a 5k"), "", EN_GB);
 
         assertThat(page.items())
             .as("one hit produces one row")
@@ -51,7 +56,7 @@ class NotePagesTest {
 
     @Test
     void of_highlightsTheSearchTermInEachRow() {
-        final PaginatedNotes page = NotePages.of(List.of(new NoteHit(DAY, "Ran a 5k")), "5k", 1, 5, EN_GB);
+        final PaginatedNotes page = NotePages.of(oneHit("Ran a 5k"), "5k", EN_GB);
 
         assertThat(page.items().getFirst().snippet())
             .as("the row's snippet flags the matched run so the template can mark it")
@@ -59,54 +64,35 @@ class NotePagesTest {
     }
 
     @Test
-    void of_slicesToTheRequestedPageAndCountsTheWhole() {
-        final PaginatedNotes page = NotePages.of(hits(12), "", 2, 5, EN_GB);
+    void of_rendersEveryHitOnThePageInOrder() {
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(5), 12L, 3, 2), "", EN_GB);
 
         assertThat(page.items())
-            .as("page 2 of 12 at 5 per page holds the second five")
+            .as("every hit handed in becomes a row - the page was already selected upstream")
             .hasSize(5);
+        assertThat(page.items().getFirst().date())
+            .as("the caller's ordering survives into the rows")
+            .isEqualTo(DAY.toString());
+    }
+
+    @Test
+    void of_carriesTheWholeResultsFiguresThroughToTheFooter() {
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(5), 12L, 3, 2), "", EN_GB);
+
         assertThat(page.totalCount())
             .as("the count is of every match, not just the page")
             .isEqualTo(12);
         assertThat(page.totalPages())
-            .as("12 matches at 5 per page is 3 pages")
+            .as("the page count is carried through unchanged")
             .isEqualTo(3);
         assertThat(page.currentPage())
-            .as("the requested page is the one returned")
+            .as("the resolved page is carried through unchanged")
             .isEqualTo(2);
-    }
-
-    @Test
-    void of_countsAnExactMultipleAsWholePages() {
-        assertThat(NotePages.of(hits(10), "", 1, 5, EN_GB).totalPages())
-            .as("10 matches at 5 per page is exactly 2 pages, with no empty third")
-            .isEqualTo(2);
-    }
-
-    @Test
-    void of_returnsPartialFinalPage() {
-        assertThat(NotePages.of(hits(12), "", 3, 5, EN_GB).items())
-            .as("the last page holds only the remaining matches")
-            .hasSize(2);
-    }
-
-    @Test
-    void of_clampsPageAboveTheRange() {
-        assertThat(NotePages.of(hits(12), "", 99, 5, EN_GB).currentPage())
-            .as("the web surface clamps an out-of-range page rather than rejecting it, as every other list view does")
-            .isEqualTo(3);
-    }
-
-    @Test
-    void of_clampsPageBelowTheRange() {
-        assertThat(NotePages.of(hits(12), "", 0, 5, EN_GB).currentPage())
-            .as("a page below 1 clamps to the first page")
-            .isEqualTo(1);
     }
 
     @Test
     void of_reportsAnEmptyFirstPageWhenNothingMatched() {
-        final PaginatedNotes page = NotePages.of(List.of(), "nothing", 1, 5, EN_GB);
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(List.of(), 0L, 0, 1), "nothing", EN_GB);
 
         assertThat(page.items())
             .as("no matches means no rows")
@@ -131,6 +117,10 @@ class NotePagesTest {
         assertThat(NotePages.extraQuery("5k run"))
             .as("the term must be URL-encoded so paging keeps a multi-word search intact")
             .isEqualTo("&q=5k+run");
+    }
+
+    private static PaginatedHits oneHit(final String content) {
+        return new PaginatedHits(List.of(new NoteHit(DAY, content)), 1L, 1, 1);
     }
 
     private static List<NoteHit> hits(final int count) {

@@ -240,6 +240,20 @@ Diurnal is configured entirely through environment variables on the `diurnal` co
 | `DB_NAME` | `diurnal_db`   | Database name                     |
 | `DB_USER` | `diurnal_user` | Database user                     |
 
+#### Database tuning
+
+The bundled Compose files start PostgreSQL with a tuned configuration rather than the stock defaults, which are sized for a much smaller machine. The
+values below are the only ones that depend on your machine. The defaults are safe from roughly 1GB of RAM, but on a larger host, you can raise them.
+
+| Variable                  | Default | Description                                                                                |
+|---------------------------|---------|--------------------------------------------------------------------------------------------|
+| `DB_SHARED_BUFFERS`       | `256MB` | PostgreSQL's own page cache. Around 25% of the host's RAM                                  |
+| `DB_EFFECTIVE_CACHE_SIZE` | `768MB` | What the planner assumes is cached overall. Around 50-75% of RAM; reserves nothing         |
+| `DB_WORK_MEM`             | `8MB`   | Per-sort working memory. Applies per sort node, so raise it alongside `DB_MAX_CONNECTIONS` |
+| `DB_MAINTENANCE_WORK_MEM` | `128MB` | Working memory for `VACUUM` and index builds                                               |
+| `DB_MAX_CONNECTIONS`      | `25`    | Not a user limit - Diurnal's pool maxes out at 10. It is what makes `DB_WORK_MEM` safe     |
+| `DB_RANDOM_PAGE_COST`     | `1.1`   | Planner's cost for a random read. `1.1` assumes SSD/NVMe; set to `4` for a spinning disk   |
+
 ### Application
 
 | Variable           | Default | Description                                                                                         |

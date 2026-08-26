@@ -21,21 +21,21 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
-import net.zodac.diurnal.page.PageWindow;
-import net.zodac.diurnal.page.Pages;
 import net.zodac.diurnal.time.DayLabels;
 
 /**
- * Turns the notes a search matched into the page the notes list renders — the slice, and each row's spelled-out day and highlighted snippet.
+ * Turns the notes a search matched into the page the notes list renders — each row's spelled-out day and highlighted snippet.
  *
  * <p>
  * This is presentation, not a business rule: which notes match is {@link NoteService}'s decision, and this only chooses how one page of them reads.
- * It is split out of the resources so the paging arithmetic and the row shape are unit-testable without a container, and so the full-page render and
+ * It is split out of the resources so the row shape is unit-testable without a container, and so the full-page render and
  * the HTMX list fragment cannot drift into producing different pages for the same inputs.
  *
  * <p>
- * Paging is the app's usual fetch-all/filter/slice, and an out-of-range page is <strong>clamped</strong> here rather than rejected - the web-surface
- * policy every other list view follows (the public API rejects instead; see {@code NotesApiResource}).
+ * The page has already been chosen by the time it arrives here - by the database when nothing is being searched for, by filtering the opened journal
+ * when something is (see {@link NoteService#journalPage(net.zodac.diurnal.user.User, String, int, int)}). An out-of-range page was
+ * <strong>clamped</strong> rather than rejected, the web-surface policy every other list view follows (the public API rejects instead; see
+ * {@code NotesApiResource}).
  */
 public final class NotePages {
 
@@ -44,24 +44,20 @@ public final class NotePages {
     }
 
     /**
-     * Slices the matched notes into one page of rows.
+     * Renders an already-selected page of matching notes as its rows.
      *
-     * @param hits     the matching notes, most recent first
-     * @param query    the search term, used to highlight each row's snippet
-     * @param pageNum  the requested 1-based page (clamped into range)
-     * @param pageSize the user's page size
-     * @param locale   the viewing user's locale, for each row's spelled-out day
+     * @param hits   the page's notes and its place in the whole result, most recent first
+     * @param query  the search term, used to highlight each row's snippet
+     * @param locale the viewing user's locale, for each row's spelled-out day
      * @return the requested page
      */
-    public static PaginatedNotes of(final List<NoteHit> hits, final String query, final int pageNum, final int pageSize, final Locale locale) {
-        final PageWindow window = Pages.window(hits.size(), pageNum, pageSize);
-
-        final List<NoteRow> items = Pages.slice(hits, window)
+    public static PaginatedNotes of(final PaginatedHits hits, final String query, final Locale locale) {
+        final List<NoteRow> items = hits.items()
             .stream()
             .map(hit -> new NoteRow(hit.date().toString(), DayLabels.spelledOut(hit.date(), locale), NoteSearch.snippet(hit.content(), query)))
             .toList();
 
-        return new PaginatedNotes(items, hits.size(), window.totalPages(), window.currentPage());
+        return new PaginatedNotes(items, Math.toIntExact(hits.totalCount()), hits.totalPages(), hits.currentPage());
     }
 
     /**

@@ -29,7 +29,6 @@ import jakarta.ws.rs.Path;
 import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
-import java.util.List;
 import java.util.Locale;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.PageSection;
@@ -48,7 +47,9 @@ import net.zodac.diurnal.user.User;
  * <p>
  * The box is <strong>disabled</strong> for an account that has written no note at all. The page is nothing but a view over the journal, so there is
  * nothing a term could match, and an inert box says that up front rather than answering every keystroke with "no matches". Nothing on this page
- * writes a note, so the state is settled once at render time, off the unfiltered list this render has already loaded - it costs no extra query.
+ * writes a note, so the state is settled once at render time. Browsing already knows the answer - the page's own total is the journal's total when
+ * nothing is filtering it - so only a render that IS searching pays a {@code COUNT} for it, and it must: a term that matched nothing has to leave
+ * the box live enough to clear.
  *
  * <p>
  * A result links to {@code /?date=…} rather than expanding in place. The day is the unit the whole application is built around, and the dashboard
@@ -96,17 +97,19 @@ public class NotesWebResource {
         @QueryParam("page") @DefaultValue("1") final int pageNum) {
 
         final User user = currentUser.get();
-        final List<Note> notes = Note.findByUser(user.id);
-        final List<NoteHit> hits = noteService.search(user, searchTerm, notes);
-        final PaginatedNotes page =
-            NotePages.of(hits, searchTerm.strip(), pageNum, PageSizes.forSection(user, PageSection.NOTES), Locale.forLanguageTag(user.language));
+        final PaginatedHits hits = noteService.journalPage(user, searchTerm, pageNum, PageSizes.forSection(user, PageSection.NOTES));
+        final PaginatedNotes page = NotePages.of(hits, searchTerm.strip(), Locale.forLanguageTag(user.language));
+
+        // Whether the account holds ANY note, which is not the same question as whether this page has rows: a search that matched nothing still
+        // leaves the box enabled so the term can be cleared. A blank term makes the two coincide, so only a real search needs the extra count.
+        final boolean searchDisabled = searchTerm.isBlank() ? page.totalCount() == 0 : Note.countForUser(user.id) == 0L;
 
         return notesTemplate
             .data("displayName", user.displayName)
             .data("email", user.email)
             .data("isAdmin", user.isAdmin())
             .data("page", page)
-            .data("searchDisabled", notes.isEmpty())
+            .data("searchDisabled", searchDisabled)
             .data("searchTerm", searchTerm)
             .data("extraQuery", NotePages.extraQuery(searchTerm))
             .data("theme", user.theme)

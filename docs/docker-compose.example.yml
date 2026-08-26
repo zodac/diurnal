@@ -51,6 +51,33 @@ services:
       POSTGRES_USER: diurnal_user
       POSTGRES_PASSWORD: change-me-strong-password   # <-- CHANGE ME (match DB_PASSWORD above)
       PGDATA: /var/lib/postgresql/data/pgdata
+    command:
+      # PostgreSQL tuning
+      - -c
+      - shared_buffers=${DB_SHARED_BUFFERS:-256MB}
+      - -c
+      - effective_cache_size=${DB_EFFECTIVE_CACHE_SIZE:-768MB}
+      - -c
+      - work_mem=${DB_WORK_MEM:-8MB}
+      - -c
+      - maintenance_work_mem=${DB_MAINTENANCE_WORK_MEM:-128MB}
+      # Diurnal's connection pool maxes out at 10; the rest is headroom for psql and backups.
+      - -c
+      - max_connections=${DB_MAX_CONNECTIONS:-25}
+      # 1.1 assumes SSD/NVMe. Set it to 4 if the database lives on a spinning disk.
+      - -c
+      - random_page_cost=${DB_RANDOM_PAGE_COST:-1.1}
+      - -c
+      - checkpoint_timeout=15min
+      - -c
+      - max_wal_size=2GB
+      - -c
+      - min_wal_size=256MB
+      - -c
+      - wal_compression=lz4
+      # Diurnal issues small OLTP queries; JIT compilation is pure latency for them.
+      - -c
+      - jit=off
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U diurnal_user -d diurnal_db" ]
       interval: 30s

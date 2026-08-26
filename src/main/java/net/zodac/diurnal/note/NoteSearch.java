@@ -63,6 +63,22 @@ public final class NoteSearch {
     }
 
     /**
+     * Whether the term keeps every note, so the caller is browsing rather than searching.
+     *
+     * <p>
+     * This is the same rule {@link #matches(String, String)} applies to a blank term, named so a caller can act on it <em>before</em> reading any
+     * notes. It is what lets an unfiltered listing be paged in the database: when nothing is being matched, the stored order is the displayed order,
+     * so the page can be selected by the query rather than by opening the whole journal and slicing the result. The two must agree - a term this
+     * returns {@code true} for is a term {@code matches} accepts every note for - which is why they are stated together here.
+     *
+     * @param query the search term, already stripped
+     * @return {@code true} if every note is kept
+     */
+    public static boolean matchesEverything(final String query) {
+        return query.isBlank();
+    }
+
+    /**
      * Whether a note satisfies the search term, case-insensitively. A blank term matches everything, so an empty search box lists the whole journal
      * rather than nothing.
      *
