@@ -562,7 +562,7 @@ browse view before anything is typed.
 
 | Surface                                        | Selection                                                           | Order          |
 |------------------------------------------------|---------------------------------------------------------------------|----------------|
-| `/notes` + `GET /internal/notes/list?q=&page=` | the whole history (`Note.findByUser`)                               | latest first   |
+| `/notes` + `GET /internal/notes/list?q=&page=` | the whole history (`Note.sealedForUser`)                            | latest first   |
 | `GET /api/v1/notes?q=&start=&end=&page=`       | a date range, or the whole history when **both** bounds are omitted | earliest first |
 
 Both call the **same** `NoteService.search`; the caller supplies the notes and their order, exactly as `readContents`
@@ -646,6 +646,25 @@ note untouched.
 **A range opens its key once, not once per note.** `NoteService.readContents` resolves the owner's data key for the whole
 range; the dashboard warms a three-month window in a single request, and opening per note repeated the row lookup, the
 master-key decode and an AES pass ninety times over to produce the same key.
+
+**Nothing that opens a note loads an entity.** `readContents` takes `SealedNote(noteDate, contentEncrypted)` — a typed
+JPQL `SELECT new …` projection, produced by `Note.sealedForUser` / `sealedForUserAndRange` and their three paged
+siblings (`NoteQueries.ALL_SEALED_JPQL`, `ALL_SEALED_ASCENDING_JPQL`, `RANGE_SEALED_JPQL`). The date and the ciphertext
+are the whole of what opening one needs, nothing on these paths writes a note back, and two of them select the **entire
+journal** — a search, which cannot know which notes match until every one is open, and the export. Managed `Note`
+entities bought a dirty-check snapshot and a persistence-context entry per row for that, and bought nothing.
+
+> **The orderings are the load-bearing part**, not the projection: the journal reads newest-first and every other
+> selection earliest-first, and `readContents` keeps a `LinkedHashMap` precisely so the caller's order survives into the
+> rendered list. Getting one backwards renders the notes page upside-down, or reorders an export's CSV rows — which is
+> why each of the five finders is pinned by its own `NoteIT` case, offset and direction both. The ascending whole-history
+> page is its own query rather than a reversed descending one: reversing a page re-orders that page instead of selecting
+> the other end of the journal.
+>
+> **It was tidiness, not scaling insurance.** Measured at 1,095 notes (three years of daily writing), a full-journal
+> search costs 16-24 ms against 10 ms for the DB-paged browse path that opens nothing but the page it shows, and the
+> figure grows linearly to a projected ~240 ms after thirty years. `Note.findEntry` still returns an entity — a
+> single-day read has nothing to save.
 
 **A note is bound to its owner and its date** through the AEAD associated data (`NoteContent`). The rest of the row stays
 in the clear for the calendar and statistics to read — and an administrator can edit those columns — so binding them into

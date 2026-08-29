@@ -69,6 +69,21 @@ public final class JpqlQuery<R> {
     }
 
     /**
+     * Restricts the query to a single page of rows - the handwritten-query counterpart of Panache's {@code Page.of(pageIndex, pageSize)}, which a
+     * projection cannot use because it does not return entities.
+     *
+     * @param pageIndex the 0-based index of the page to select
+     * @param pageSize  the number of rows the page holds
+     * @return this query, for chaining
+     */
+    @SuppressWarnings("ReturnOfThis")
+    public JpqlQuery<R> page(final int pageIndex, final int pageSize) {
+        query.setFirstResult(pageIndex * pageSize);
+        query.setMaxResults(pageSize);
+        return this;
+    }
+
+    /**
      * Executes the query and returns every row.
      *
      * @return the query's rows, empty when it matched nothing

@@ -70,6 +70,21 @@ class NoteQueriesTest {
         assertParameters(NoteQueries.DAILY_TOTALS_JPQL, List.of(SUBJECT_ID, USER_ID, FROM, TO));
     }
 
+    @Test
+    void allSealedJpql_bindsExpectedParameters() {
+        assertParameters(NoteQueries.ALL_SEALED_JPQL, List.of(USER_ID));
+    }
+
+    @Test
+    void allSealedAscendingJpql_bindsExpectedParameters() {
+        assertParameters(NoteQueries.ALL_SEALED_ASCENDING_JPQL, List.of(USER_ID));
+    }
+
+    @Test
+    void rangeSealedJpql_bindsExpectedParameters() {
+        assertParameters(NoteQueries.RANGE_SEALED_JPQL, List.of(USER_ID, FROM, TO));
+    }
+
     private static void assertParameters(final String query, final List<QueryParameter> expected) {
         assertThat(SqlParameters.names(query))
             .as("the query's named parameters must match exactly the parameters declared for it")

@@ -154,7 +154,7 @@ public class ExportService {
     }
 
     private String notesCsv(final User user, final CsvWriter csvWriter) {
-        final Map<LocalDate, String> contents = noteService.readContents(user.id, Note.findByUser(user.id));
+        final Map<LocalDate, String> contents = noteService.readContents(user.id, Note.sealedForUser(user.id));
 
         final List<List<String>> rows = new ArrayList<>();
         for (final Map.Entry<LocalDate, String> entry : contents.entrySet()) {
