@@ -161,7 +161,8 @@ public class NotesApiResource {
         @QueryParam("end") final @Nullable String end,
         @Parameter(name = "q", in = ParameterIn.QUERY,
         description = "Keep only the notes whose content contains this text, matched case-insensitively as a plain substring (no word "
-        + "boundaries, no stemming). Blank or omitted keeps every note.",
+        + "boundaries, no stemming). Blank or omitted keeps every note. A term that matches nothing may come back with a 'suggestion' - the "
+        + "closest word the notes actually contain - rather than with results.",
         schema = @Schema(type = SchemaType.STRING, examples = "5k"))
         @QueryParam("q") @DefaultValue("") final String searchTerm,
         @Parameter(name = "page", in = ParameterIn.QUERY,
@@ -206,7 +207,7 @@ public class NotesApiResource {
         LOGGER.debug("Notes API read {} of {} note(s) over {} (page {}) for user {}",
             items.size(), hits.totalCount(), window == null ? "the whole history" : (window.start() + " to " + window.end()), pageNum, user.email);
         return EntityTags.withPrivateValidator(
-            Response.ok(new NotesPageDto(items, Math.toIntExact(hits.totalCount()), hits.totalPages(), pageNum)), tag).build();
+            Response.ok(new NotesPageDto(items, Math.toIntExact(hits.totalCount()), hits.totalPages(), pageNum, hits.suggestion())), tag).build();
     }
 
     // Surface input policy: the range is optional, but it is a RANGE - half of one is a request the caller did not mean to make, so requireDate
@@ -230,13 +231,18 @@ public class NotesApiResource {
      * @param totalCount  the total number of notes in the requested range, across all pages
      * @param totalPages  the page count
      * @param currentPage the returned 1-based page (always the requested page - an out-of-range page is rejected, not clamped)
+     * @param suggestion  the closest word in the user's notes to a search term that matched nothing, or {@code null} when there is none
      */
     @Schema(description = "One page of a note range.")
     record NotesPageDto(
         @Schema(description = "The page's notes, earliest first.") List<NoteDto> items,
         @Schema(examples = "45", description = "The total number of notes in the requested range, across all pages.") int totalCount,
         @Schema(examples = "2", description = "The total number of pages.") int totalPages,
-        @Schema(examples = "1", description = "The returned 1-based page (always the requested page; out-of-range is rejected).") int currentPage) {
+        @Schema(examples = "1", description = "The returned 1-based page (always the requested page; out-of-range is rejected).") int currentPage,
+        @Schema(examples = "kaleidoscope", nullable = true,
+        description = "A 'did you mean' word: the closest word the user's own notes contain to a search term that matched nothing. Present ONLY "
+        + "when 'q' was given and matched no note at all, and never alongside results. Searching for this value instead is an ordinary exact "
+        + "search. Null whenever there is nothing to suggest.") @Nullable String suggestion) {
     }
 
     /**

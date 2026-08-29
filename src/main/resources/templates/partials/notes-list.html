@@ -44,7 +44,19 @@
         {/for}
         {#if page.items.isEmpty()}
         <tr id="notes-empty-row">
-            <td colspan="2" class="dt-empty">{#if extraQuery}{msg:noNotesMatchSearch}{#else}{msg:noNotesYetWriteOnDashboard}{/if}</td>
+            <td colspan="2" class="dt-empty">
+                {#if extraQuery}{msg:noNotesMatchSearch}{#else}{msg:noNotesYetWriteOnDashboard}{/if}
+                {! The "did you mean" - present only when a real term matched nothing, so it never appears beside results.
+                     A plain LINK, not an HTMX swap: the suggested term has to reach the address bar and the search box, and a
+                     fragment swap would leave the box holding the term that found nothing, which the pagination links then
+                     keep sending (data-search-source, app.js). The word is the user's own note text and is escaped like any
+                     other value - it is passed as a message PARAMETER and printed without .raw, so Qute escapes the result. !}
+                {#if page.suggestion}
+                <div class="mt-2">
+                    <a id="note-suggestion" href="{page.suggestion.url}" class="link-brand">{msg:noteSearchDidYouMean(page.suggestion.word, page.suggestion.noteCount)}</a>
+                </div>
+                {/if}
+            </td>
         </tr>
         {/if}
     </tbody>

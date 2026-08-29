@@ -577,6 +577,14 @@ already worked. Only the matching rule is shared — selection and ordering are 
 - **The ETag now includes the search term**: two different terms over an unchanged journal are different bodies.
 - The web surface **clamps** an out-of-range page (`NotePages.of`), the API **rejects** it — the split every other list
   pair already has.
+- **Both surfaces answer a term that matched nothing with the same suggested word** — the API as a nullable
+  `suggestion` field on the page envelope (additive, so backward-compatible), the page as a link. See
+  ["Did you mean"](#did-you-mean--the-answer-to-a-search-that-found-nothing);
+  `SurfaceParityIT.noteSearchSuggestion_isTheSameWordOnBothSurfaces` pins that they never name different words.
+- **The notes page costs no count query of its own.** `PaginatedHits` carries `selectionCount` (how many notes the
+  page was drawn from, before the term) beside `totalCount` (how many matched). A search has already selected every
+  note it could match, so "has this account written anything at all" is an answer in hand — it used to be a second
+  `COUNT` on every searched page render.
 - **An account with no notes gets a DISABLED search box**, not a hidden one and not a live one. There is nothing a term
   could match, and a box that answers every keystroke with "no matches" is a worse answer than one saying up front it
   has nothing to do; hiding it would instead shift the layout under the user the moment they wrote their first note.
@@ -586,6 +594,65 @@ already worked. Only the matching rule is shared — selection and ordering are 
   query). The list below stays either way: its empty row is the copy that points at the dashboard, which is why this
   page does not follow the Actions page in hiding its search-and-list section wholesale. Pinned by
   `NotesWebResourceIT`.
+
+#### "Did you mean" — the answer to a search that found nothing
+
+> A mistyped term used to return an empty table and nothing else. The one thing the app knows that the user does not
+> is **which words their journal actually contains**, so an empty result now offers the closest one.
+
+`NoteSearch.suggest(contents, query)` runs **only when a real term matched nothing**, over the notes the search has
+already opened — so it costs one more pass over text that is in hand, on the path where there is nothing to read
+anyway. It splits every note into letter/digit runs, keeps the tokens within a bounded Levenshtein distance of the
+term, and picks **closest, then commonest, then alphabetically** (that last clause is what makes the same journal
+and the same term always answer the same word). The word is offered in the casing it was written in, so a suggested
+proper noun still reads as one.
+
+**A term under 4 characters gets nothing, and only a term of 8+ allows a second edit.** At three characters an edit
+is most of the word, so the nearest token says more about the alphabet than about intent.
+
+**Following it is a plain link to `/notes?q=…`, not an HTMX swap.** The corrected term has to reach the address bar
+*and* the search box; a fragment swap would leave the box holding the term that missed, which the pagination links
+then keep sending (`data-search-source`). A full navigation on the zero-result path costs nothing anyone will notice
+and removes that whole class of bug.
+
+**The suggested word is note content**, lifted out of the user's own writing. It is rendered back only to its author,
+escaped like any other note text (it is passed as a `@Message` *parameter* and printed without `.raw`, so Qute
+escapes the result), and — like the search term — it must **never be logged**. `SecretsStayOutOfLogsTest`'s
+`FORBIDDEN` list carries `suggestion` for exactly that reason. Being a letter/digit run by construction, it can
+never carry markup however the note around it is written.
+
+> **Rejected: making the search itself fuzzy.** Measured on a synthetic journal (1,095 notes ≈ 3 years daily, and
+> 3,650 ≈ 10 years), against the current exact matcher at 5.7 ms / 18.4 ms per search on top of a 5.8 ms / 8.3 ms
+> decrypt floor:
+>
+> | | 3 yrs | 10 yrs | vs exact |
+> |---|---|---|---|
+> | token Levenshtein k≤1 | 3.1 ms | 11.1 ms | 0.6x |
+> | bitap substring k≤1 | 4.3 ms | 16.0 ms | 0.9x |
+> | exact **or** fuzzy (two-pass) | 8.7 ms | 29.7 ms | 1.6x |
+> | trigram set, Jaccard ≥ 0.3 | 44 ms | 143 ms | 7.8x, **281 MB** of churn |
+>
+> **Cost was never the problem — the semantics are.** Word-level fuzzy *loses* the substring behaviour this feature
+> promises (`run` stops finding `running`, because that is four edits), and character-level fuzzy on a short term
+> matches everything: `run` at two edits matched **1,095 notes out of 1,095**. Making it usable would need a minimum
+> term length, a distance that scales with it, and a relevance score — and then ranked results, which collides with
+> the ordering each surface publishes (newest-first / earliest-first) and with `Pages.slice` slicing a date-ordered
+> list. Changing the API's ordering is a MAJOR-version event.
+>
+> **And the work would not be in the matcher.** `NoteSearch.snippet` re-finds the term with a literal `Pattern` to
+> place its ±60-character window; a fuzzy hit fails that `find()` and falls through to `preview()`, so every fuzzy
+> result would render as the head of the note with **nothing highlighted** and no indication of why the row is there.
+> Fixing that means `matches` and `snippet` merging into one call returning match *spans*, through `NoteHit`,
+> `NotePages` and the template. On top of that, every character-level matcher needs a case-folded copy of the note —
+> reintroducing exactly the length-shifting bug the "scan the ORIGINAL text" rule above exists to prevent.
+>
+> A suggestion buys the case users actually hit (a typo returning nothing) and leaves matching, ordering,
+> highlighting and the API contract untouched.
+
+> **Rejected: a spelling dictionary.** It would have to be per-language, would not know the user's own proper nouns
+> and shorthand — which is most of what a journal is made of — and would suggest words the journal does not contain,
+> so following one would land on another empty page. The journal *is* the dictionary, and every word in it is
+> guaranteed to be findable.
 
 #### The dashboard deep link
 
@@ -630,7 +697,18 @@ Envelope encryption, two levels:
 | Master key | `NOTE_ENCRYPTION_KEY`, base64, 32 bytes                                  | **configuration — never the database** |
 
 A data key is minted when the account is created (`NoteKeys.assignTo`, called from `RegistrationService.createUser` and
-`OidcUserProvisioner.provision`) and never changes. `NotesKeyAssignmentTest` fails if any path constructs a `User`
+`OidcUserProvisioner.provision`) and never changes.
+
+> **"No key" and "no notes" are the same state, and that is enforced rather than assumed.** The only accounts without a
+> key row are those predating `V28`, which created `user_notes_keys` without a backfill — and the same migration emptied
+> the notes table, so those accounts provably hold nothing. The write path may therefore mint on demand for them safely.
+> **An account holding notes with no key is not a legacy account, it is data loss**, and nothing in the application can
+> produce it (the row is `PRIMARY KEY … ON DELETE CASCADE`, so removing an account takes its notes with it) — it takes a
+> partial restore or a hand-run delete. `NoteKeys.forUserCreatingIfAbsent` therefore **refuses to mint** in that case and
+> `forUser` logs it, rather than the two of them quietly issuing a fresh key and answering "no notes". Minting is what
+> would make the loss permanent and invisible: the new key is well-formed, unwraps perfectly under the master key — so
+> `opensExistingKeys` passes at startup — and opens not one stored note. The count that decides this runs **only when the
+> key row is already missing**, so no ordinary read or write pays for it. `NotesKeyAssignmentTest` fails if any path constructs a `User`
 without minting one, and `NoteKeysIT` proves the registration path mints a key that actually opens — between them, the
 wiring cannot be deleted silently. The user is not involved at any point: they do not choose it, cannot
 see it, cannot change it, and no part of the interface mentions it.
@@ -694,6 +772,7 @@ boot without a usable one, so the failure is a startup error rather than a disco
 | Missing key at startup            | **Refuse to boot**, naming the variable                | Failing lazily at first use. Rejected: the first sign would be a user unable to open their journal, long after the deployment mistake                                                                                                                                                                                                                                                             |
 | Key rotation                      | **Config-driven**, via `NOTE_ENCRYPTION_PREVIOUS_KEYS` | A button in the admin console. Rejected because it cannot work: the key lives in configuration and the application cannot write its own configuration, so a UI trigger could only re-run what boot already does — with a worse place to put the new key                                                                                                                                           |
 | Existing plaintext notes          | **`V28` empties the table and drops the column**       | Keeping it for compatibility. Rejected: a readable column is a standing invitation, and every path that could write one had gone. There is no key at migration time to seal them with, and inventing one in SQL would mean writing it into the very database this protects                                                                                                                        |
+| An account with notes but no key  | **Refuse to mint**, and log it                         | Silently minting a fresh key, which was the original behaviour. Rejected: it is indistinguishable from the legitimate legacy case only until you look at whether notes exist, and getting it wrong converts a recoverable incident (restore the row) into permanent unreadability with nothing logged. Startup cannot catch it either - `opensExistingKeys` proves the master key opens the DEK, not that the DEK opens the notes |
 | A key that does not open the data | **Refuse to start** (`NoteKeys.opensExistingKeys`)     | Carrying on and returning nothing. Rejected outright: a rotated or mistyped key is well-formed, so it passes the format check, opens nothing, and every note disappears from every screen while the rows sit untouched — and the calendar markers still show, because they are computed from dates. A user would see markers saying they wrote something beside an empty box, with nothing logged |
 
 #### Rotating the key

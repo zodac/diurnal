@@ -30,6 +30,147 @@ class NoteSearchTest {
     private static final String ELLIPSIS = "…";
 
     @Test
+    void suggest_isEmptyForBlankTerm() {
+        assertThat(NoteSearch.suggest(List.of("A day in the garden"), "    "))
+            .as("nothing was searched for, so there is nothing to have meant instead")
+            .isEmpty();
+    }
+
+    @Test
+    void suggest_isEmptyForTermShorterThanTheBound() {
+        assertThat(NoteSearch.suggest(List.of("A yard of rope"), "ard"))
+            .as("at three characters an edit is most of the word, so the closest token says more about the alphabet than about intent")
+            .isEmpty();
+    }
+
+    @Test
+    void suggest_answersTermAtExactlyTheBound() {
+        assertThat(NoteSearch.suggest(List.of("A yard of rope"), "gard"))
+            .as("four characters is the shortest term worth suggesting for")
+            .contains("yard");
+    }
+
+    @Test
+    void suggest_offersTheClosestWordTheJournalHolds() {
+        assertThat(NoteSearch.suggest(List.of("The brass kaleidoscope in the junk shop"), "kaleidoscpoe"))
+            .as("a transposed pair is two edits, which a term this long allows")
+            .contains("kaleidoscope");
+    }
+
+    @Test
+    void suggest_allowsSecondEditOnceTheTermIsLongEnough() {
+        assertThat(NoteSearch.suggest(List.of("Picked the tomatoes"), "tomatuss"))
+            .as("at eight characters two edits is a plausible typo rather than a different word")
+            .contains("tomatoes");
+    }
+
+    @Test
+    void suggest_allowsOnlyOneEditForShorterTerm() {
+        assertThat(NoteSearch.suggest(List.of("Picked the tomatoes"), "tomatus"))
+            .as("one character shorter, and the same two edits are too loose to be a typo")
+            .isEmpty();
+    }
+
+    @Test
+    void suggest_acceptsWordOneCharacterLongerThanTheTerm() {
+        assertThat(NoteSearch.suggest(List.of("Watered the garden"), "gardn"))
+            .as("a dropped character leaves the word one longer than the term, which is the commonest typo there is")
+            .contains("garden");
+    }
+
+    @Test
+    void suggest_ignoresWordTooDifferentInLengthToBeTypo() {
+        assertThat(NoteSearch.suggest(List.of("Watered the garden"), "gard"))
+            .as("two characters apart cannot be reached in one edit, so it is skipped before any distance work")
+            .isEmpty();
+    }
+
+    @Test
+    void suggest_ignoresWordThatOnlyMatchesTheEndOfTheTerm() {
+        // "rain" is one character from the tail of "again", and near enough in length to be considered - but two edits from the word
+        // as a whole. A suggestion has to be close to the WHOLE term, or a search would be answered with a word that merely rhymes.
+        assertThat(NoteSearch.suggest(List.of("Rain all morning"), "again"))
+            .as("a word matching only the end of the term is not a typo of it")
+            .isEmpty();
+    }
+
+    @Test
+    void suggest_isEmptyWhenNothingIsCloseEnough() {
+        assertThat(NoteSearch.suggest(List.of("Cycled into town before the rain"), "kaleidoscope"))
+            .as("a term with nothing like it in the journal gets no suggestion rather than the nearest unrelated word")
+            .isEmpty();
+    }
+
+    @Test
+    void suggest_isEmptyForJournalWithNoNotes() {
+        assertThat(NoteSearch.suggest(List.of(), "garden"))
+            .as("an account with nothing written has no word to offer")
+            .isEmpty();
+    }
+
+    @Test
+    void suggest_neverOffersTheTermItself() {
+        assertThat(NoteSearch.suggest(List.of("Watered the Garden"), "garden"))
+            .as("suggesting the term back would send the user round the same search that just failed")
+            .isEmpty();
+    }
+
+    @Test
+    void suggest_prefersTheCloserWordOverTheCommonerOne() {
+        final List<String> journal = List.of("tomatoes tomatoes tomatoes tomatoes tomatoes", "tomatoss");
+
+        assertThat(NoteSearch.suggest(journal, "tomatuss"))
+            .as("one edit away beats five appearances two edits away - distance decides first")
+            .contains("tomatoss");
+    }
+
+    @Test
+    void suggest_prefersTheCommonerWordAtTheSameDistance() {
+        final List<String> journal = List.of("gardans", "garden garden garden");
+
+        assertThat(NoteSearch.suggest(journal, "gardan"))
+            .as("equally close, the word the journal holds most of is the likelier thing to have been meant")
+            .contains("garden");
+    }
+
+    @Test
+    void suggest_breaksRemainingTieAlphabetically() {
+        final List<String> journal = List.of("garden", "gardans");
+
+        assertThat(NoteSearch.suggest(journal, "gardan"))
+            .as("equally close and equally common, the same journal and term must always answer the same word")
+            .contains("gardans");
+    }
+
+    @Test
+    void suggest_keepsTheWordsOwnCasing() {
+        assertThat(NoteSearch.suggest(List.of("Rain over Kaleidoscope Street"), "kaleidoscpoe"))
+            .as("the word is offered as it was written, so a suggested proper noun still reads as one")
+            .contains("Kaleidoscope");
+    }
+
+    @Test
+    void suggest_readsWordEndingAtTheEndOfNote() {
+        assertThat(NoteSearch.suggest(List.of("Watered the garden"), "gardan"))
+            .as("a note ending mid-word must still offer its last word - there is no trailing separator to close the run")
+            .contains("garden");
+    }
+
+    @Test
+    void suggest_treatsPunctuationAsWordSeparator() {
+        assertThat(NoteSearch.suggest(List.of("Rain, garden, shed."), "gardan"))
+            .as("the comma is not part of the word, or the token would be a character too long to consider")
+            .contains("garden");
+    }
+
+    @Test
+    void suggest_treatsEmojiAsWordSeparator() {
+        assertThat(NoteSearch.suggest(List.of("🌻garden🌻"), "gardan"))
+            .as("notes accept emoji, and one sitting against a word must not be read as part of it")
+            .contains("garden");
+    }
+
+    @Test
     void matchesEverything_isTrueForBlankTerm() {
         assertThat(NoteSearch.matchesEverything(""))
             .as("nothing is being searched for, so the listing is a browse and can be paged in the database")

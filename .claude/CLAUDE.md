@@ -417,7 +417,11 @@ admin IP-lockout history follows the general value (no section of its own).
   in a `note`/`crypto` logging statement, alongside the content and key identifiers. The `/notes` page and
   `GET /api/v1/notes?q=` share that one rule but choose their own selection and ordering (whole history newest-first vs
   a date range earliest-first); snippets are a `List<NoteSnippetPart>`, never marked-up HTML, so Qute still escapes
-  every character. See [`NOTES.md`](NOTES.md).
+  every character. **Matching stays EXACT; a term that matched nothing is answered with a "did you mean"**
+  (`NoteSearch.suggest`) — the closest word the journal itself holds, offered on both surfaces and searched for
+  exactly. Fuzzy matching was measured and rejected on semantics, not cost: word-level fuzz loses the substring rule
+  (`run` stops finding `running`) and character-level fuzz matches every note for a short term. A suggestion is note
+  content, so it is **never logged** either. See [`NOTES.md`](NOTES.md).
 - **Statistics are computed per `StatSubject`, not per action.** A subject is an action or the user's day notes; the
   notes subject carries the fixed nil-UUID `StatSubject.NOTES_ID`, which is what lets every id-keyed path
   (`/internal/stats/chart/{actionId}`, its `compare` parameter, `GET /api/v1/stats/{actionId}/frequency`) stay

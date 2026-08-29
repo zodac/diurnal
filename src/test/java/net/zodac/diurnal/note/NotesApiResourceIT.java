@@ -230,6 +230,50 @@ class NotesApiResourceIT extends IntegrationTestBase {
     }
 
     @Test
+    void listNotes_withUnmatchedSearchTerm_suggestsTheClosestWord() {
+        runInTx(() -> newNote(userId, DAY, "The brass kaleidoscope in the junk shop"));
+
+        given().queryParam("q", "kaleidoscpoe")
+            .get("/api/v1/notes")
+            .then().statusCode(OK)
+            .body("totalCount", org.hamcrest.Matchers.is(0))
+            .body("suggestion", org.hamcrest.Matchers.equalTo("kaleidoscope"));
+    }
+
+    @Test
+    void listNotes_withMatchingSearchTerm_suggestsNothing() {
+        runInTx(() -> newNote(userId, DAY, "The brass kaleidoscope in the junk shop"));
+
+        given().queryParam("q", "kaleidoscope")
+            .get("/api/v1/notes")
+            .then().statusCode(OK)
+            .body("totalCount", org.hamcrest.Matchers.is(1))
+            .body("suggestion", org.hamcrest.Matchers.nullValue());
+    }
+
+    @Test
+    void listNotes_withNothingCloseToTheSearchTerm_suggestsNothing() {
+        runInTx(() -> newNote(userId, DAY, "Cycled into town"));
+
+        given().queryParam("q", "kaleidoscope")
+            .get("/api/v1/notes")
+            .then().statusCode(OK)
+            .body("suggestion", org.hamcrest.Matchers.nullValue());
+    }
+
+    @Test
+    void listNotes_neverSuggestsAWordFromAnotherUsersNotes() {
+        final UUID[] otherId = new UUID[1];
+        runInTx(() -> otherId[0] = newUser("notes-api-suggest-other@lt.test", "Other").id);
+        runInTx(() -> newNote(otherId[0], DAY, "The brass kaleidoscope in the junk shop"));
+
+        given().queryParam("q", "kaleidoscpoe")
+            .get("/api/v1/notes")
+            .then().statusCode(OK)
+            .body("suggestion", org.hamcrest.Matchers.nullValue());
+    }
+
+    @Test
     void listNotes_withBlankSearchTerm_keepsEveryNote() {
         runInTx(() -> newNote(userId, DAY, "Ran a 5k"));
 

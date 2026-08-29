@@ -22,6 +22,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Locale;
 import net.zodac.diurnal.time.DayLabels;
+import org.jspecify.annotations.Nullable;
 
 /**
  * Turns the notes a search matched into the page the notes list renders — each row's spelled-out day and highlighted snippet.
@@ -57,7 +58,26 @@ public final class NotePages {
             .map(hit -> new NoteRow(hit.date().toString(), DayLabels.spelledOut(hit.date(), locale), NoteSearch.snippet(hit.content(), query)))
             .toList();
 
-        return new PaginatedNotes(items, Math.toIntExact(hits.totalCount()), hits.totalPages(), hits.currentPage());
+        return new PaginatedNotes(items, Math.toIntExact(hits.totalCount()), hits.totalPages(), hits.currentPage(), suggestion(hits.suggestion()));
+    }
+
+    /**
+     * Builds the "did you mean" link for a word the search suggested, or {@code null} when it suggested none.
+     *
+     * <p>
+     * The word is encoded rather than interpolated raw: a suggestion is a word out of the user's own journal, in whatever script they write in, so
+     * it reaches the link as {@code %D9%85} rather than as itself. The link carries no page number - a new term starts at page one.
+     *
+     * @param suggestion the suggested word and its match count, or {@code null} when there is none
+     * @return the suggestion, its link and its count, or {@code null} when there is nothing to suggest
+     */
+    @Nullable
+    public static NoteSuggestion suggestion(final @Nullable SuggestedTerm suggestion) {
+        if (suggestion == null) {
+            return null;
+        }
+        final String word = suggestion.word();
+        return new NoteSuggestion(word, "/notes?q=" + URLEncoder.encode(word, StandardCharsets.UTF_8), suggestion.noteCount());
     }
 
     /**

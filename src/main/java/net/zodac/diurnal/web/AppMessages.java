@@ -3476,6 +3476,16 @@ public interface AppMessages {
     String noNotesMatchSearch();
 
     /**
+     * The "did you mean" offered when a note search matched nothing, naming the closest word the user's own notes contain.
+     *
+     * @param suggestion the suggested word, taken from the user's notes
+     * @param count      how many notes searching for that word returns
+     * @return the default (English) text
+     */
+    @Message("Did you mean '{suggestion}' ({#if count == 1}1 note found{#else}{count} notes found{/if})?")
+    String noteSearchDidYouMean(String suggestion, int count);
+
+    /**
      * No notes yet write on dashboard.
      *
      * @return the default (English) text
