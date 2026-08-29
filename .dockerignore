@@ -16,6 +16,11 @@ sandbox/
 
 # Local-only
 .env
+# JVM diagnostic dumps taken from a running deployment. Nothing copies them, but the whole context is
+# sent to the daemon, and a .jfr carries env var VALUES (NOTE_ENCRYPTION_KEY, DB_PASSWORD) in the clear
+# while a heap dump carries decrypted notes - neither belongs anywhere near an image build.
+*.jfr
+*.hprof
 .git/
 .idea/
 .vscode/

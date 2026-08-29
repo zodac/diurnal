@@ -523,3 +523,49 @@ deterministic-time/UTC rules (`FIXED_TODAY`, `freezeInstant`), and the deploymen
 it before adding tests or touching a test tier.** Load-bearing reminder: the Maven build is unit + `*IT`
 (+ linters) ONLY - the E2E, smoke and perf tiers are chained onto the wrapper's `java`/`perf` steps, never wired
 into any `mvn` command; do not re-add them to the pom.
+
+### Deferred work
+
+Changes that were measured, judged not worth doing *yet*, and should be revisited against a trigger rather than
+re-litigated from scratch. Each records what was measured, so the next person starts from evidence.
+
+#### `SealedNote` projection for the bulk-read note paths
+
+`NoteService.readContents(UUID, List<Note>)` takes fully-managed `Note` entities but reads only `userId`,
+`noteDate` and `contentEncrypted` from each. Two of its callers select the **whole journal** — the search branches
+of `journalPage`/`rangePage` (a real term must open every note, since which ones match is unknowable until they
+are read) and `ExportService`, which necessarily opens all of them. Both therefore pay Hibernate entity
+materialisation — a dirty-check snapshot and a persistence-context entry per note — for data they only read.
+
+**The change:** a `SealedNote(LocalDate noteDate, byte[] contentEncrypted)` record plus `SELECT new …` queries, in
+place of `Note.findByUser` / `Note.findByUserAndRange` on those paths, with `readContents` taking the projection.
+This is the `MonthlyActionTotal`/`DailyActionTotal` pattern already used in `ActionLogQueries`.
+
+**The risk, and the reason it is not a mechanical edit:** the two selections order differently — `findByUser` is
+`order by noteDate desc` (journal, newest first) and `findByUserAndRange` is `order by noteDate` (API range,
+earliest first) — and `readContents` uses a `LinkedHashMap` precisely so the caller's ordering survives. Both
+orderings must be replicated per caller and pinned by tests; getting it wrong renders notes reversed, or reorders
+an export's CSV rows. It also touches `ExportService`, so [`TRANSFER.md`](TRANSFER.md) applies.
+
+**Why it is deferred.** Measured on the real image at 1,095 notes (a note every day for three years): a full-journal
+search costs **16-24 ms**, against 10 ms for the DB-paged browse path that does not open the journal. The projection
+saves a single-digit share of that. It is worth doing as tidiness — not loading managed entities on paths that never
+need them — but NOT as scaling insurance, which was the original rationale and does not hold: search and export grow
+linearly and are still fine at a projected ~240 ms after thirty years of daily notes.
+
+**The trigger to revisit:** touching `readContents` or its callers for another reason (fold it in then), or a
+deployment where journal sizes reach a different order of magnitude than a human diary.
+
+**Do NOT re-derive the neighbouring conclusions** — they were measured at the same time, at 30 actions x 3 years
+(32,850 `action_logs` rows):
+
+- **In-memory pagination (`Pages.slice`) is correct as it stands and must not be "fixed".** The lists using it are
+  bounded by the action count (~15-30 rows; the actions list measured 13.3 ms), and the notes page already lets the
+  database page an unfiltered listing. Converting them to `LIMIT`/`OFFSET` would need a `COUNT` plus a page query —
+  two round trips where there is currently one, at ~4 ms each — and so would be measurably SLOWER at these sizes.
+- **The Stats page is the path that actually degrades with time**, not either of the above: 89.8 ms, because
+  streaks, gaps and days-with-multiples are defined over all history, so `ALL_DAILY_TOTALS_JPQL` rolls up every row
+  on each view. `V37`'s `INCLUDE (count)` already made that query index-only, so the remaining cost is transferring
+  and aggregating the rows in Java. It grows roughly 30 ms per year of history. The only real lever left is caching
+  computed stats per user with invalidation on write; that is a large change for 90 ms, so the trigger is a user
+  reporting the page feels slow, not a number in a profile.

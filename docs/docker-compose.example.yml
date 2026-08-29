@@ -22,6 +22,12 @@ services:
     depends_on:
       diurnal-db:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: "2048M"
+          pids: 256
+    memswap_limit: ${APP_MEM_LIMIT:-2g}
     environment:
       # --- Database connection (must match the diurnal-db service below) ---
       DB_HOST: diurnal-db

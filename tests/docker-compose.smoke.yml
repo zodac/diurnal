@@ -23,6 +23,11 @@ services:
       # Overridden by run-smoke.sh via SMOKE_PORT (Maven ${smoke.http.port}).
       - "${SMOKE_PORT:-8082}:8080"
     environment:
+      # No heap setting and no mem_limit ON PURPOSE: that makes this tier the guard for the ENTRYPOINT's
+      # "no container memory limit" fallback, which is otherwise exercised by nothing. It should boot
+      # capped at 2g and log one INFO line saying so. A cgroup memory limit is also unavailable on some
+      # machines and CI runners (a threaded cgroup v2 hierarchy refuses one outright), so setting one
+      # here would trade that coverage for a portability failure indistinguishable from a real one.
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: diurnal_smoke
