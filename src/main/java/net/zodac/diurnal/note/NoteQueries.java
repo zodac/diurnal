@@ -87,6 +87,42 @@ final class NoteQueries {
             ORDER BY n.noteDate""";
 
     /**
+     * JPQL selecting the user's whole journal as {@link SealedNote} projections, <strong>newest first</strong> - the order the notes page lists them
+     * in. Only the date and the ciphertext are read, because opening a note needs nothing else; the owner is the {@code :userId} the caller already
+     * bound, so it is not selected back out of the row.
+     *
+     * <p>
+     * The whole journal is what a SEARCH costs, and only a search: the content exists solely as ciphertext, so which notes match is unknowable until
+     * every one of them has been opened. An unfiltered listing pages in the database instead, through this same text bounded by a page window.
+     */
+    static final String ALL_SEALED_JPQL = """
+            SELECT new net.zodac.diurnal.note.SealedNote(n.noteDate, n.contentEncrypted)
+            FROM Note n
+            WHERE n.userId = :userId
+            ORDER BY n.noteDate DESC""";
+
+    /**
+     * The same projection as {@link #ALL_SEALED_JPQL} ordered <strong>earliest first</strong>, for the public API's unbounded page - which publishes
+     * the opposite order to the notes page. Written as its own query rather than reversing a page of the other: reversing one page re-orders that
+     * page rather than selecting the other end of the journal.
+     */
+    static final String ALL_SEALED_ASCENDING_JPQL = """
+            SELECT new net.zodac.diurnal.note.SealedNote(n.noteDate, n.contentEncrypted)
+            FROM Note n
+            WHERE n.userId = :userId
+            ORDER BY n.noteDate""";
+
+    /**
+     * The same {@link SealedNote} projection within the inclusive {@code [:from, :to]} date range, <strong>earliest first</strong> - the calendar's
+     * notes feed and the public API's ranged page, both of which read a window chronologically.
+     */
+    static final String RANGE_SEALED_JPQL = """
+            SELECT new net.zodac.diurnal.note.SealedNote(n.noteDate, n.contentEncrypted)
+            FROM Note n
+            WHERE n.userId = :userId AND n.noteDate >= :from AND n.noteDate <= :to
+            ORDER BY n.noteDate""";
+
+    /**
      * Native upsert writing a day's note in one statement: it inserts a new row or, on the {@code notes_unique} conflict, overwrites the existing
      * content. Doing the whole read-modify-write in one statement means two concurrent saves of the same day cannot race a find-then-insert into a
      * unique-constraint violation (a 500) — the loser simply overwrites, which is the correct last-write-wins semantic for a single owner editing

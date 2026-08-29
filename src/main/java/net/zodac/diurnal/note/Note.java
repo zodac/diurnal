@@ -18,8 +18,6 @@
 package net.zodac.diurnal.note;
 
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
-import io.quarkus.panache.common.Page;
-import io.quarkus.panache.common.Sort;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -99,16 +97,21 @@ public class Note extends PanacheEntityBase {
     }
 
     /**
-     * Returns the user's notes falling within the inclusive {@code [start, end]} date range, earliest first. Days with no note are simply absent —
-     * the calendar feed reads this to paint its note markers, so the sparse result is exactly the set of days that have one.
+     * Returns the user's notes falling within the inclusive {@code [start, end]} date range, earliest first, as {@link SealedNote} projections. Days
+     * with no note are simply absent — the calendar feed reads this to paint its note markers, so the sparse result is exactly the set of days that
+     * have one.
      *
      * @param userId the owning user
      * @param start the inclusive start of the date window
      * @param end the inclusive end of the date window
      * @return the range's notes, ascending by date
      */
-    public static List<Note> findByUserAndRange(final UUID userId, final LocalDate start, final LocalDate end) {
-        return list("userId = ?1 and noteDate >= ?2 and noteDate <= ?3 order by noteDate", userId, start, end);
+    public static List<SealedNote> sealedForUserAndRange(final UUID userId, final LocalDate start, final LocalDate end) {
+        return JpqlQuery.of(NoteQueries.RANGE_SEALED_JPQL, SealedNote.class)
+            .bind(NoteQueries.USER_ID, userId)
+            .bind(NoteQueries.FROM, start)
+            .bind(NoteQueries.TO, end)
+            .resultList();
     }
 
     /**
@@ -117,14 +120,16 @@ public class Note extends PanacheEntityBase {
      * there is no predicate the database could filter on and the match has to be made on the opened text.
      *
      * <p>
-     * <strong>Only a search needs this.</strong> Browsing an unfiltered list does not - see {@link #pageForUser(UUID, int, int)}, which reads the one
-     * page being shown.
+     * <strong>Only a search needs this.</strong> Browsing an unfiltered list does not - see {@link #sealedPageForUser(UUID, int, int)}, which reads
+     * the one page being shown.
      *
      * @param userId the owning user
      * @return the user's notes, most recent first
      */
-    public static List<Note> findByUser(final UUID userId) {
-        return list("userId = ?1 order by noteDate desc", userId);
+    public static List<SealedNote> sealedForUser(final UUID userId) {
+        return JpqlQuery.of(NoteQueries.ALL_SEALED_JPQL, SealedNote.class)
+            .bind(NoteQueries.USER_ID, userId)
+            .resultList();
     }
 
     /**
@@ -153,8 +158,8 @@ public class Note extends PanacheEntityBase {
     }
 
     /**
-     * Returns one page of the user's notes, <strong>latest first</strong> - the same ordering {@link #findByUser(UUID)} produces, restricted to the
-     * page actually being rendered.
+     * Returns one page of the user's notes, <strong>latest first</strong> - the same ordering {@link #sealedForUser(UUID)} produces, restricted to
+     * the page actually being rendered.
      *
      * <p>
      * This is what an <strong>unfiltered</strong> listing reads. A search cannot use it: the match is made on the opened text, so which notes belong
@@ -166,31 +171,33 @@ public class Note extends PanacheEntityBase {
      * @param pageSize  the page size
      * @return the requested page of notes, most recent first
      */
-    public static List<Note> pageForUser(final UUID userId, final int pageIndex, final int pageSize) {
-        return Note.<Note>find("userId = ?1", Sort.by("noteDate").descending(), userId)
-            .page(Page.of(pageIndex, pageSize))
-            .list();
+    public static List<SealedNote> sealedPageForUser(final UUID userId, final int pageIndex, final int pageSize) {
+        return JpqlQuery.of(NoteQueries.ALL_SEALED_JPQL, SealedNote.class)
+            .bind(NoteQueries.USER_ID, userId)
+            .page(pageIndex, pageSize)
+            .resultList();
     }
 
     /**
      * Returns one page of the user's notes, <strong>earliest first</strong> - the ordering the public API publishes, as opposed to the notes page's
-     * newest-first. Paging and reversing {@link #pageForUser(UUID, int, int)} would not do: reversing one page re-orders that page rather than
-     * selecting the other end of the journal.
+     * newest-first. Paging and reversing {@link #sealedPageForUser(UUID, int, int)} would not do: reversing one page re-orders that page rather than
+     * selecting the other end of the journal, which is why this has an ascending query of its own.
      *
      * @param userId    the owning user
      * @param pageIndex the 0-based page index
      * @param pageSize  the page size
      * @return the requested page of notes, earliest first
      */
-    public static List<Note> pageForUserEarliestFirst(final UUID userId, final int pageIndex, final int pageSize) {
-        return Note.<Note>find("userId = ?1", Sort.by("noteDate").ascending(), userId)
-            .page(Page.of(pageIndex, pageSize))
-            .list();
+    public static List<SealedNote> sealedPageForUserEarliestFirst(final UUID userId, final int pageIndex, final int pageSize) {
+        return JpqlQuery.of(NoteQueries.ALL_SEALED_ASCENDING_JPQL, SealedNote.class)
+            .bind(NoteQueries.USER_ID, userId)
+            .page(pageIndex, pageSize)
+            .resultList();
     }
 
     /**
      * Returns one page of the user's notes within the inclusive {@code [start, end]} date range, earliest first - the ranged counterpart of
-     * {@link #pageForUserEarliestFirst(UUID, int, int)}.
+     * {@link #sealedPageForUserEarliestFirst(UUID, int, int)}.
      *
      * @param userId    the owning user
      * @param start     the inclusive start of the date window
@@ -199,11 +206,14 @@ public class Note extends PanacheEntityBase {
      * @param pageSize  the page size
      * @return the requested page of notes, earliest first
      */
-    public static List<Note> pageForUserAndRange(final UUID userId, final LocalDate start, final LocalDate end, final int pageIndex,
+    public static List<SealedNote> sealedPageForUserAndRange(final UUID userId, final LocalDate start, final LocalDate end, final int pageIndex,
         final int pageSize) {
-        return Note.<Note>find("userId = ?1 and noteDate >= ?2 and noteDate <= ?3", Sort.by("noteDate").ascending(), userId, start, end)
-            .page(Page.of(pageIndex, pageSize))
-            .list();
+        return JpqlQuery.of(NoteQueries.RANGE_SEALED_JPQL, SealedNote.class)
+            .bind(NoteQueries.USER_ID, userId)
+            .bind(NoteQueries.FROM, start)
+            .bind(NoteQueries.TO, end)
+            .page(pageIndex, pageSize)
+            .resultList();
     }
 
     /**

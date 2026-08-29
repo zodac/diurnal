@@ -127,11 +127,17 @@ public class NoteService {
      * A note that will not open is omitted rather than failing the range: one damaged row must not take down a month of calendar. {@code NoteKeys}
      * has already logged the cause when it is the key at fault, which is the case that actually matters.
      *
-     * @param userId the owning user, whose key opens every note in the range
+     * <p>
+     * The input is a {@link SealedNote} projection rather than a managed {@link Note}, because the date and the ciphertext are the whole of what
+     * opening one needs: nothing on this path writes a note back, so a dirty-check snapshot and a persistence-context entry per row would be bought
+     * for nothing - and a search or an export selects the entire journal. The owner comes from {@code userId} rather than from each row, so every
+     * note in a batch is opened under the account the caller named.
+     *
+     * @param userId the owning user, whose key opens every note in the range and whose id is bound into each note's seal
      * @param notes the stored notes, in the order the caller wants them back
      * @return the readable content by date, in the given order
      */
-    public Map<LocalDate, String> readContents(final UUID userId, final List<Note> notes) {
+    public Map<LocalDate, String> readContents(final UUID userId, final List<SealedNote> notes) {
         final Optional<byte[]> dataKey = noteKeys.forUser(userId);
         if (dataKey.isEmpty()) {
             return Map.of();
@@ -139,9 +145,9 @@ public class NoteService {
 
         // A LinkedHashMap so the caller's ordering survives; the feeds render chronologically.
         final Map<LocalDate, String> byDate = new LinkedHashMap<>();
-        for (final Note note : notes) {
-            NoteContent.open(dataKey.get(), note.userId, note.noteDate, note.contentEncrypted)
-                .ifPresent(content -> byDate.put(note.noteDate, content));
+        for (final SealedNote note : notes) {
+            NoteContent.open(dataKey.get(), userId, note.noteDate(), note.contentEncrypted())
+                .ifPresent(content -> byDate.put(note.noteDate(), content));
         }
         return byDate;
     }
@@ -149,7 +155,7 @@ public class NoteService {
     // Opens the given notes, under a data key resolved once for the whole batch, and keeps the ones the term matches - in the order handed in, which
     // is each surface's own (see the class Javadoc). Reached only from the paged reads below, and only when there IS a term to match: a blank one is
     // answered by paging in the database, which never opens more than the page it returns.
-    private List<NoteHit> search(final User user, final String query, final List<Note> notes) {
+    private List<NoteHit> search(final User user, final String query, final List<SealedNote> notes) {
         final List<NoteHit> hits = readContents(user.id, notes)
             .entrySet()
             .stream()
@@ -189,12 +195,12 @@ public class NoteService {
     public PaginatedHits journalPage(final User user, final @Nullable String query, final int pageNum, final int pageSize) {
         final String term = query == null ? "" : query.strip();
         if (!NoteSearch.matchesEverything(term)) {
-            return sliced(search(user, term, Note.findByUser(user.id)), pageNum, pageSize);
+            return sliced(search(user, term, Note.sealedForUser(user.id)), pageNum, pageSize);
         }
 
         final long totalCount = Note.countForUser(user.id);
         final PageWindow window = Pages.window(totalCount, pageNum, pageSize);
-        final List<Note> page = Note.pageForUser(user.id, window.currentPage() - 1, pageSize);
+        final List<SealedNote> page = Note.sealedPageForUser(user.id, window.currentPage() - 1, pageSize);
         return new PaginatedHits(opened(user, page), totalCount, window.totalPages(), window.currentPage());
     }
 
@@ -228,28 +234,28 @@ public class NoteService {
             // The finder is ordered for the notes page (newest first) while this surface publishes earliest-first, so the whole selection is
             // reversed before matching. A page cannot be reversed the same way - that re-orders the page rather than selecting the other end of
             // the journal - which is why the paged read below has an ascending finder of its own.
-            return sliced(search(user, term, Note.findByUser(user.id).reversed()), pageNum, pageSize);
+            return sliced(search(user, term, Note.sealedForUser(user.id).reversed()), pageNum, pageSize);
         }
 
         final long totalCount = Note.countForUser(user.id);
         final PageWindow window = Pages.window(totalCount, pageNum, pageSize);
-        final List<Note> page = Note.pageForUserEarliestFirst(user.id, window.currentPage() - 1, pageSize);
+        final List<SealedNote> page = Note.sealedPageForUserEarliestFirst(user.id, window.currentPage() - 1, pageSize);
         return new PaginatedHits(opened(user, page), totalCount, window.totalPages(), window.currentPage());
     }
 
     private PaginatedHits rangedPage(final User user, final String term, final LocalDate start, final LocalDate end, final int pageNum,
         final int pageSize) {
         if (!NoteSearch.matchesEverything(term)) {
-            return sliced(search(user, term, Note.findByUserAndRange(user.id, start, end)), pageNum, pageSize);
+            return sliced(search(user, term, Note.sealedForUserAndRange(user.id, start, end)), pageNum, pageSize);
         }
 
         final long totalCount = Note.countForUserAndRange(user.id, start, end);
         final PageWindow window = Pages.window(totalCount, pageNum, pageSize);
-        final List<Note> page = Note.pageForUserAndRange(user.id, start, end, window.currentPage() - 1, pageSize);
+        final List<SealedNote> page = Note.sealedPageForUserAndRange(user.id, start, end, window.currentPage() - 1, pageSize);
         return new PaginatedHits(opened(user, page), totalCount, window.totalPages(), window.currentPage());
     }
 
-    private List<NoteHit> opened(final User user, final List<Note> notes) {
+    private List<NoteHit> opened(final User user, final List<SealedNote> notes) {
         return readContents(user.id, notes)
             .entrySet()
             .stream()

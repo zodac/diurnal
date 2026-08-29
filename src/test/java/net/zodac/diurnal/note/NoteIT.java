@@ -142,7 +142,7 @@ class NoteIT extends IntegrationTestBase {
     }
 
     @Test
-    void findByUserAndRange_returnsOnlyTheDaysThatHaveANote_ascending() {
+    void sealedForUserAndRange_returnsOnlyTheDaysThatHaveANote_ascending() {
         runInTx(() -> {
             newNote(owner.id, DAY.minusDays(5), "Five days back");
             newNote(owner.id, DAY, "Today");
@@ -151,12 +151,72 @@ class NoteIT extends IntegrationTestBase {
         });
 
         runInTx(() -> {
-            final List<Note> found = Note.findByUserAndRange(owner.id, DAY.minusDays(5), DAY.plusDays(1));
+            final List<SealedNote> found = Note.sealedForUserAndRange(owner.id, DAY.minusDays(5), DAY.plusDays(1));
             assertThat(found)
                 .as("the range read must be sparse, own-user only, and ascending by date")
-                .extracting(note -> note.noteDate)
+                .extracting(SealedNote::noteDate)
                 .containsExactly(DAY.minusDays(5), DAY);
         });
+    }
+
+    @Test
+    void sealedForUser_returnsTheWholeJournal_latestFirst() {
+        runInTx(() -> {
+            newNote(owner.id, DAY.minusDays(2), "Two days back");
+            newNote(owner.id, DAY, "Today");
+            newNote(owner.id, DAY.minusDays(1), "Yesterday");
+            newNote(other.id, DAY, "Another user's");
+        });
+
+        final List<LocalDate> expected = List.of(DAY, DAY.minusDays(1), DAY.minusDays(2));
+        runInTx(() -> assertThat(Note.sealedForUser(owner.id))
+            .as("the journal read must be own-user only and newest first - the order the notes page lists them in")
+            .extracting(SealedNote::noteDate)
+            .containsExactlyElementsOf(expected));
+    }
+
+    @Test
+    void sealedForUser_carriesTheStoredCiphertext() {
+        runInTx(() -> Note.upsert(owner.id, DAY, sealed("First entry")));
+
+        runInTx(() -> assertThat(Note.sealedForUser(owner.id))
+            .as("the projection must carry the stored bytes unchanged - opening a note is the only thing it exists for")
+            .singleElement()
+            .extracting(SealedNote::contentEncrypted)
+            .isEqualTo(sealed("First entry")));
+    }
+
+    @Test
+    void sealedPageForUser_readsOnlyTheRequestedPage_latestFirst() {
+        runInTx(this::fiveConsecutiveNotes);
+
+        final List<LocalDate> expected = List.of(DAY.minusDays(2), DAY.minusDays(3));
+        runInTx(() -> assertThat(Note.sealedPageForUser(owner.id, 1, 2))
+            .as("the second page of a newest-first journal must be the third and fourth most recent notes")
+            .extracting(SealedNote::noteDate)
+            .containsExactlyElementsOf(expected));
+    }
+
+    @Test
+    void sealedPageForUserEarliestFirst_readsTheOtherEndOfTheJournal() {
+        runInTx(this::fiveConsecutiveNotes);
+
+        final List<LocalDate> expected = List.of(DAY.minusDays(2), DAY.minusDays(1));
+        runInTx(() -> assertThat(Note.sealedPageForUserEarliestFirst(owner.id, 1, 2))
+            .as("the ascending page must select from the earliest end, not reverse the descending page")
+            .extracting(SealedNote::noteDate)
+            .containsExactlyElementsOf(expected));
+    }
+
+    @Test
+    void sealedPageForUserAndRange_readsOnlyTheRequestedPageOfTheWindow() {
+        runInTx(this::fiveConsecutiveNotes);
+
+        final List<LocalDate> expected = List.of(DAY.minusDays(1), DAY);
+        runInTx(() -> assertThat(Note.sealedPageForUserAndRange(owner.id, DAY.minusDays(3), DAY, 1, 2))
+            .as("the window must be paged ascending, so its second page is the last two days in it")
+            .extracting(SealedNote::noteDate)
+            .containsExactlyElementsOf(expected));
     }
 
     @Test
@@ -232,6 +292,14 @@ class NoteIT extends IntegrationTestBase {
         runInTx(() -> assertThat(Note.rangeVersion(owner.id, DAY.minusDays(3), DAY))
             .as("a note outside the window must not affect the window's signature")
             .isEqualTo(new ChangeSignature(0L, null)));
+    }
+
+    private void fiveConsecutiveNotes() {
+        newNote(owner.id, DAY.minusDays(4), "Four days back");
+        newNote(owner.id, DAY.minusDays(3), "Three days back");
+        newNote(owner.id, DAY.minusDays(2), "Two days back");
+        newNote(owner.id, DAY.minusDays(1), "Yesterday");
+        newNote(owner.id, DAY, "Today");
     }
 
     private ChangeSignature rangeVersion() {

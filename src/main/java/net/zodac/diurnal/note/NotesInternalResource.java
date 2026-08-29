@@ -133,7 +133,7 @@ public class NotesInternalResource {
         // One key opens the whole range, so it is resolved once rather than per note; the map keeps the query's date
         // ordering, so the response reads chronologically even though the client indexes it by key.
         final Map<String, String> byDate = new LinkedHashMap<>();
-        noteService.readContents(user.id, Note.findByUserAndRange(user.id, startDate, endDate))
+        noteService.readContents(user.id, Note.sealedForUserAndRange(user.id, startDate, endDate))
             .forEach((date, content) -> byDate.put(date.toString(), content));
         // The COUNT only, never a note's content - see NoteService's logging rule.
         LOGGER.debug("Notes feed served {} note(s) in [{}, {}] for user {}", byDate.size(), startDate, endDate, user.email);

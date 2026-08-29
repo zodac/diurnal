@@ -214,7 +214,9 @@ rather than the browser's `302 /login` challenge, which for a file download is i
   `AdminUserService.delete` already uses to clear an account across package boundaries.
 - **Notes go through `NoteService.replaceAll`**, which is the only thing that can seal them. An importer
   reaching for `Note.upsert` directly would be the one path in the app capable of writing a note in the clear.
-  The data key is resolved once for the whole journal, mirroring `readContents` on the way out.
+  The data key is resolved once for the whole journal, mirroring `readContents` on the way out — which reads its
+  notes as `SealedNote` projections rather than entities, the export being one of the two paths that opens every
+  note an account holds.
 - Actions are inserted **and flushed** before their logs: a log names its action by name, and `ActionLog.setCount`
   is a native statement that cannot see rows still sitting in the persistence context.
 
