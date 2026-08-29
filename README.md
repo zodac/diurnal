@@ -33,6 +33,10 @@
         - [Sessions](#sessions)
     - [Reverse Proxy](#reverse-proxy)
     - [CORS](#cors)
+- [Performance Tuning](#performance-tuning)
+    - [Application Memory](#application-memory)
+    - [Password Hashing Cost](#password-hashing-cost)
+    - [PostgreSQL](#postgresql)
 - [User Settings](#user-settings)
     - [Account](#account)
     - [Preferences](#preferences)
@@ -240,19 +244,7 @@ Diurnal is configured entirely through environment variables on the `diurnal` co
 | `DB_NAME` | `diurnal_db`   | Database name                     |
 | `DB_USER` | `diurnal_user` | Database user                     |
 
-#### Database tuning
-
-The bundled Compose files start PostgreSQL with a tuned configuration rather than the stock defaults, which are sized for a much smaller machine. The
-values below are the only ones that depend on your machine. The defaults are safe from roughly 1GB of RAM, but on a larger host, you can raise them.
-
-| Variable                  | Default | Description                                                                                |
-|---------------------------|---------|--------------------------------------------------------------------------------------------|
-| `DB_SHARED_BUFFERS`       | `256MB` | PostgreSQL's own page cache. Around 25% of the host's RAM                                  |
-| `DB_EFFECTIVE_CACHE_SIZE` | `768MB` | What the planner assumes is cached overall. Around 50-75% of RAM; reserves nothing         |
-| `DB_WORK_MEM`             | `8MB`   | Per-sort working memory. Applies per sort node, so raise it alongside `DB_MAX_CONNECTIONS` |
-| `DB_MAINTENANCE_WORK_MEM` | `128MB` | Working memory for `VACUUM` and index builds                                               |
-| `DB_MAX_CONNECTIONS`      | `25`    | Not a user limit - Diurnal's pool maxes out at 10. It is what makes `DB_WORK_MEM` safe     |
-| `DB_RANDOM_PAGE_COST`     | `1.1`   | Planner's cost for a random read. `1.1` assumes SSD/NVMe; set to `4` for a spinning disk   |
+The Compose files also tune PostgreSQL itself; those knobs live in [Performance Tuning](#performance-tuning).
 
 ### Application
 
@@ -318,14 +310,9 @@ the user settings page.
 
 #### Password Hashing
 
-Passwords are stored as [Argon2id](https://en.wikipedia.org/wiki/Argon2) hashes. The three cost parameters below were chosen so a single hash takes
-roughly **100–500 ms** on my hardware. For resource-constrained hardware, you may need to tune these values.
-
-| Variable                           | Default | Description                                             |
-|------------------------------------|---------|---------------------------------------------------------|
-| `PASSWORD_HASH_ARGON2_ITERATIONS`  | `3`     | Number of passes for hashing                            |
-| `PASSWORD_HASH_ARGON2_MEMORY_KIB`  | `98304` | Memory cost in KiB (96 MiB)                             |
-| `PASSWORD_HASH_ARGON2_PARALLELISM` | `4`     | Number of lanes; cuts latency at the cost of more cores |
+Passwords are stored as [Argon2id](https://en.wikipedia.org/wiki/Argon2) hashes, at OWASP's recommended cost. Because Argon2id is deliberately
+memory-hard, its cost parameters are also the largest single influence on how much memory Diurnal needs - so they are tuned together with the
+container's memory budget in [Performance Tuning](#performance-tuning).
 
 #### OIDC
 
@@ -452,6 +439,47 @@ environment:
 | Variable               | Default | Description                                                                           |
 |------------------------|---------|---------------------------------------------------------------------------------------|
 | `CORS_ALLOWED_ORIGINS` |         | Comma-separated list of origins allowed to call the API from a browser (unset = none) |
+
+## Performance Tuning
+
+Diurnal runs comfortably on a small machine, and the defaults below are sized for a personal deployment of a handful of users. In general, scaling
+should only be needed if there are a large number of concurrent users (total user count doesn't have much of an impact). There is also some tuning
+possible for the password hashing, seen below.
+
+### Application Memory
+
+| Variable             | Default | Description                                          |
+|----------------------|---------|------------------------------------------------------|
+| `APP_MEM_LIMIT`      | `2g`    | Total container memory (the JVM heap is 65% of this) |
+| `WORKER_MAX_THREADS` | `32`    | Concurrent blocking requests                         |
+
+### Password Hashing Cost
+
+Passwords are stored as Argon2id hashes. The three cost parameters below are
+[OWASP's primary recommendation](https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html) and take roughly **54 ms** per
+login on a modern desktop CPU. For resource-constrained hardware, you may need to tune these values.
+
+| Variable                           | Default | Description                                                                      |
+|------------------------------------|---------|----------------------------------------------------------------------------------|
+| `PASSWORD_HASH_ARGON2_ITERATIONS`  | `2`     | Number of passes over that memory                                                |
+| `PASSWORD_HASH_ARGON2_MEMORY_KIB`  | `19456` | Memory cost in KiB (19 MiB). The main defence against GPU/ASIC cracking          |
+| `PASSWORD_HASH_ARGON2_PARALLELISM` | `1`     | Number of lanes; cuts latency at the cost of occupying that many cores per login |
+
+Increasing any value is safe to do at any time (each account is re-hashed on next login).
+
+### PostgreSQL
+
+The bundled Compose files start PostgreSQL with a tuned configuration rather than the stock defaults, which are sized for a much smaller machine. The
+values below are the only ones that depend on your machine. The defaults are safe from roughly 1GB of RAM, but on a larger host, you can raise them.
+
+| Variable                  | Default | Description                                                                                |
+|---------------------------|---------|--------------------------------------------------------------------------------------------|
+| `DB_EFFECTIVE_CACHE_SIZE` | `768MB` | What the planner assumes is cached overall. Around 50-75% of RAM; reserves nothing         |
+| `DB_MAINTENANCE_WORK_MEM` | `128MB` | Working memory for `VACUUM` and index builds                                               |
+| `DB_MAX_CONNECTIONS`      | `25`    | Not a user limit - Diurnal's pool maxes out at 10. It is what makes `DB_WORK_MEM` safe     |
+| `DB_RANDOM_PAGE_COST`     | `1.1`   | Planner's cost for a random read. `1.1` assumes SSD/NVMe; set to `4` for a spinning disk   |
+| `DB_SHARED_BUFFERS`       | `256MB` | PostgreSQL's own page cache. Around 25% of the host's RAM                                  |
+| `DB_WORK_MEM`             | `8MB`   | Per-sort working memory. Applies per sort node, so raise it alongside `DB_MAX_CONNECTIONS` |
 
 ## User Settings
 

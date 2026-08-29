@@ -62,3 +62,11 @@ tests/.e2e-app.pid
 # Per-user Claude Code state (the checked-in .claude docs are CLAUDE.md, APIS.md, CODE_STYLE.md, UI_PATTERNS.md)
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
+
+# JVM diagnostic dumps. A Flight Recorder recording taken from a container carries the
+# jdk.InitialEnvironmentVariable event, which captures env var VALUES verbatim - so a .jfr off a real
+# deployment contains NOTE_ENCRYPTION_KEY and DB_PASSWORD in the clear, and a heap dump additionally
+# holds every decrypted note. Neither may ever be committed. They do not appear as contiguous bytes
+# (JFR chunk-encodes strings), so grepping one for a secret gives a FALSE all-clear.
+*.jfr
+*.hprof

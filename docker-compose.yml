@@ -12,6 +12,12 @@ services:
     container_name: diurnal
     hostname: diurnal
     restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: "2048M"
+          pids: 256
+    memswap_limit: ${APP_MEM_LIMIT:-2g}
     ports:
       - "${APP_PORT:-8080}:8080"
     env_file:

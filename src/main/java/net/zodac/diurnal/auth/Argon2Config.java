@@ -24,42 +24,56 @@ import io.smallrye.config.WithDefault;
  * Typed view over the {@code password.hash.argon2.*} settings that tune the Argon2id password hashing cost.
  *
  * <p>
- * The three cost parameters should be tuned so a single hash takes roughly 100–500 ms on the target production hardware — slow enough to
- * frustrate offline brute-forcing of a leaked hash, fast enough not to hurt legitimate logins. The defaults (96 MiB of
- * memory, 3 iterations, and 4 lanes) exceed the OWASP Argon2id memory guidance and were measured
- * at ~130 ms on the reference host (an 8-core AMD Ryzen 7 5700X): 96 MiB of memory-hardness held to that latency by spreading the work
- * across 4 lanes. Re-measure and adjust on other hardware — raise {@link #memoryKib()} first on a faster or higher-core machine, lower it on a
- * constrained one. Increasing any parameter transparently re-hashes each account on its next successful login (see {@code Passwords.needsRehash}).
+ * The three cost parameters should be tuned so a single hash takes long enough to frustrate offline brute-forcing of a leaked hash, but not so long
+ * that it hurts legitimate logins. The defaults are OWASP's primary Argon2id recommendation (19 MiB, 2 iterations, 1 lane), measured at ~54 ms per
+ * hash on the reference host (an 8-core AMD Ryzen 7 5700X).
+ *
+ * <p>
+ * These parameters size the JVM heap more than anything else in the application, because password4j is a pure-Java implementation: the memory cost
+ * is a {@code long[][]} on the Java heap, not native memory. Two distinct costs follow, both measured rather than derived:
+ *
+ * <p>
+ * The first is <b>retained</b> - a block of {@link #memoryKib()} is held for the life of the process, because password4j caches each
+ * {@code Argon2Function} in a static map that is never evicted. The second is <b>transient</b> - roughly {@code memoryKib x (2 x iterations + 1)}
+ * is allocated per hash, which is 97 MiB at these defaults. A burst of concurrent logins multiplies that second term, and the per-IP lockout
+ * ({@code auth.ip-throttle.max-attempts}) is what bounds the burst.
+ *
+ * <p>
+ * Re-measure and adjust on other hardware - raise {@link #memoryKib()} first on a faster or higher-core machine, lower it on a constrained one.
+ * Changing any parameter transparently re-hashes each account on its next successful login (see {@code Passwords.needsRehash}), but the superseded
+ * parameters are revived by every not-yet-upgraded hash and their retained block then stays cached until the next restart - so a migration
+ * temporarily costs the sum of both, and is worth following with a restart once every account has logged in.
  */
 @ConfigMapping(prefix = "password.hash.argon2")
 public interface Argon2Config {
 
     /**
-     * Memory cost in kibibytes — the size of the memory block Argon2id fills while hashing. This is the dominant defence against GPU/ASIC cracking
-     * and the parameter to raise first when tuning.
+     * Memory cost in kibibytes - the size of the memory block Argon2id fills while hashing. This is the dominant defence against GPU/ASIC cracking,
+     * the parameter to raise first when tuning, and the one that decides the retained and transient heap costs described on the type.
      *
-     * @return the memory cost in KiB, defaulting to {@code 96 MiB}
+     * @return the memory cost in KiB, defaulting to {@code 19 MiB}
      */
-    @WithDefault("98304")
+    @WithDefault("19456")
     int memoryKib();
 
     /**
-     * Number of iterations (time cost) — how many passes Argon2id makes over the memory block. Linearly scales the hashing time for a fixed memory
-     * cost.
+     * Number of iterations (time cost) - how many passes Argon2id makes over the memory block. Linearly scales the hashing time for a fixed memory
+     * cost, and superlinearly scales the transient allocation per hash (see the type's Javadoc).
      *
-     * @return the iteration count, defaulting to {@code 3}
+     * @return the iteration count, defaulting to {@code 2}
      */
-    @WithDefault("3")
+    @WithDefault("2")
     int iterations();
 
     /**
-     * Degree of parallelism — the number of independent lanes Argon2id computes. The total work (and so the security) is fixed by
+     * Degree of parallelism - the number of independent lanes Argon2id computes. The total work (and so the security) is fixed by
      * {@link #memoryKib()} and {@link #iterations()}; parallelism only spreads that work, which password4j runs across real threads (one per lane),
-     * reducing wall-clock roughly linearly on a multi-core host. The default is what lets the 96 MiB memory
-     * cost stay near ~130 ms; each concurrent login consumes that many cores, so lower it (and the memory) on core-constrained hardware.
+     * reducing wall-clock roughly linearly on a multi-core host at no change in allocation. It defaults to a single lane, matching OWASP's
+     * recommendation: each concurrent login otherwise occupies that many cores, and the executor handoff was measurably the second-largest source of
+     * garbage in the application before it was lowered.
      *
-     * @return the parallelism, defaulting to 4
+     * @return the parallelism, defaulting to 1
      */
-    @WithDefault("4")
+    @WithDefault("1")
     int parallelism();
 }

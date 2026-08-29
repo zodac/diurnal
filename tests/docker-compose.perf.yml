@@ -26,6 +26,18 @@ services:
       # Overridden by run-perf.sh via PERF_PORT.
       - "${PERF_PORT:-8083}:8080"
     environment:
+      # Pins the heap so the latency thresholds in load.mjs are measured against a known budget. The
+      # MAXIMUM matches what production's default mem_limit produces (65% of 2g), via the JDK_JAVA_OPTIONS
+      # escape hatch the ENTRYPOINT documents. No mem_limit is set here because a cgroup memory limit is
+      # unavailable on some machines and CI runners (a threaded cgroup v2 hierarchy refuses one outright).
+      #
+      # The INITIAL size is smaller than the maximum, matching the shape start.sh uses when no limit is
+      # set. It buys less than it looks: measured on the real image, fixed-vs-ranged moves post-boot RSS
+      # by ~13 MiB (442 against 429), well inside run-perf.sh's own memory ceiling either way, because
+      # AlwaysPreTouch is off and committed pages are not resident until touched. It is kept because the
+      # maximum is what governs G1's sizing under load, which is what this tier measures, and there is
+      # nothing to gain from committing the rest up front. The smoke tier covers the fallback path.
+      JDK_JAVA_OPTIONS: "-Xms256m -Xmx1330m"
       DB_HOST: db
       DB_PORT: 5432
       DB_NAME: diurnal_perf

@@ -291,16 +291,9 @@ RUN bash scripts/hash-static-assets.sh \
 # and this maven image has no Node toolchain — so skip the POM's `css-build` exec.
 RUN --mount=type=cache,target=/root/.m2 mvn package -DskipTests -Dcss.build.skip=true -q
 
-# ── Stage 8: static busybox (single-binary wget for the healthcheck) ─────────
+# ── Stage 8: static busybox (wget for the healthcheck, sh for the ENTRYPOINT) ─
 # busybox:*-musl is fully statically linked, so the binary runs unchanged on the glibc distroless
 # base. It is the only "shell tool" we add — distroless ships no wget/curl/sh of its own.
-#
-# It stays despite being the one non-distroless addition: at 1.2MB it is ~1% of the image, and every
-# alternative is worse. A JVM-based probe (`java -cp ...`) would cost a JVM boot — hundreds of ms and
-# tens of MB RSS — on every 30s interval, trading 1.2MB of disk for a permanent runtime cost; dropping
-# HEALTHCHECK altogether would break the `up --wait` gating in tests/run-smoke.sh and tests/run-perf.sh
-# and forfeit the readiness gating that /api/v1/status exists to provide; and a hand-rolled static
-# probe binary would save ~1MB in exchange for another toolchain stage.
 FROM busybox:1.37.0-musl AS shell
 
 # ── Stage 9: runtime (distroless, non-root) ──────────────────────────────────
@@ -353,11 +346,8 @@ EXPOSE 8080
 
 # App status lives at /api/v1/status over plain HTTP on 8080 (TLS is terminated at the reverse proxy). It
 # reports 200 only when the database is reachable (readiness-gated), so a non-2xx marks the app unhealthy.
-# Exec-form CMD invokes busybox-wget directly so no shell is required; --spider makes it a HEAD-style
-# probe that exits non-zero on any non-2xx response.
-COPY --from=shell /bin/busybox /bin/wget
-HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
-  CMD ["/bin/wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/api/v1/status"]
+COPY --from=shell /bin/busybox /bin/busybox
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 CMD ["/bin/busybox", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/api/v1/status"]
 
 # Quarkus fast-jar layout: quarkus-run.jar alongside lib/ app/ quarkus/. Deploy the whole directory.
 # Files land root-owned but world-readable, so UID 65532 can read/exec them; the app never writes here
@@ -374,4 +364,5 @@ COPY --from=build /build/target/quarkus-app/quarkus/ ./quarkus/
 COPY --from=build /build/target/quarkus-app/app/ ./app/
 COPY --from=build /build/target/quarkus-app/*.jar ./
 
-ENTRYPOINT ["/opt/jdk/bin/java", "-jar", "quarkus-run.jar"]
+COPY scripts/start.sh ./start.sh
+ENTRYPOINT ["/bin/busybox", "sh", "/app/start.sh"]

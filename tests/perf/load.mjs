@@ -82,10 +82,15 @@ export const options = {
         // constrained box without indicating a real regression. 10% still catches a broadly-broken
         // auth path while absorbing that contention-driven noise.
         "http_req_failed{scenario:login}": ["rate<0.10"],
-        // Argon2id is deliberately memory-hard; a single verify is ~250ms, but on one box under full
-        // concurrent mixed load the p95 climbs well past that. Budget for that contention while still
-        // catching a genuine regression (e.g. a cost-factor mis-config pushing it to multiple seconds).
-        "http_req_duration{scenario:login}": p95(2500),
+        // Argon2id is deliberately memory-hard, so a login costs far more than anything else here. This
+        // budget is DERIVED, not picked: it is ~10x the cost of a single verify, which is the contention
+        // allowance the previous 2500 was built on (its comment assumed ~250ms per verify). The verify
+        // is now ~54ms measured at the configured cost - password.hash.argon2.* defaults to OWASP's
+        // 19 MiB / t=2 / p=1, against a former 96 MiB / t=3 / p=4 - so the same 10x re-bases to ~540.
+        // Observed p95 on the reference box is ~66ms, leaving ~9x headroom; a slower runner scales the
+        // whole file through PERF_P95_TOLERANCE rather than by loosening this. RE-DERIVE this the same
+        // way if the Argon2id cost changes again - do not nudge it until it passes.
+        "http_req_duration{scenario:login}": p95(600),
         "http_req_failed{scenario:actionsList}": ["rate<0.01"],
         "http_req_duration{scenario:actionsList}": p95(400),
         "http_req_failed{scenario:actionCrud}": ["rate<0.01"],
