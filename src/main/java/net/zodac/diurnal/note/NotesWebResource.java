@@ -101,8 +101,9 @@ public class NotesWebResource {
         final PaginatedNotes page = NotePages.of(hits, searchTerm.strip(), Locale.forLanguageTag(user.language));
 
         // Whether the account holds ANY note, which is not the same question as whether this page has rows: a search that matched nothing still
-        // leaves the box enabled so the term can be cleared. A blank term makes the two coincide, so only a real search needs the extra count.
-        final boolean searchDisabled = searchTerm.isBlank() ? page.totalCount() == 0 : Note.countForUser(user.id) == 0L;
+        // leaves the box enabled so the term can be cleared. That is exactly what selectionCount answers - the search has already selected every
+        // note it could have matched - so this costs no query of its own, and reads the same on both branches.
+        final boolean searchDisabled = hits.selectionCount() == 0L;
 
         return notesTemplate
             .data("displayName", user.displayName)

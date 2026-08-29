@@ -248,6 +248,37 @@ class NotesInternalResourceIT extends IntegrationTestBase {
     }
 
     @Test
+    void list_withNoMatches_offersTheClosestWordInTheJournal() {
+        runInTx(() -> newNote(userId, DAY, "The brass kaleidoscope in the junk shop"));
+
+        assertThat(given().queryParam("q", "kaleidoscpoe").get("/internal/notes/list").then().statusCode(OK).extract().asString())
+            .as("a mistyped term must offer the word the journal actually holds, as a link that searches for it")
+            .contains("Did you mean 'kaleidoscope'?")
+            .contains("href=\"/notes?q=kaleidoscope\"");
+    }
+
+    @Test
+    void list_withMatches_offersNoSuggestion() {
+        runInTx(() -> newNote(userId, DAY, "The brass kaleidoscope in the junk shop"));
+
+        assertThat(given().queryParam("q", "kaleidoscope").get("/internal/notes/list").then().statusCode(OK).extract().asString())
+            .as("nothing is suggested beside results the user can already read")
+            .doesNotContain("Did you mean");
+    }
+
+    @Test
+    void list_suggestionIsAPlainWordEvenWhenTheNoteAroundItIsMarkup() {
+        // A suggestion is a letter/digit run out of the user's own note, so it cannot carry markup however the note is written - which is what
+        // keeps a word lifted from a journal safe to put in a link and a sentence.
+        runInTx(() -> newNote(userId, DAY, "Wrote <b>kaleidoscope</b> today"));
+
+        assertThat(given().queryParam("q", "kaleidoscpoe").get("/internal/notes/list").then().statusCode(OK).extract().asString())
+            .as("the tags around the word must not become part of the word suggested, or the link would carry them")
+            .contains("Did you mean 'kaleidoscope'?")
+            .contains("href=\"/notes?q=kaleidoscope\"");
+    }
+
+    @Test
     void list_withNoNotesAtAll_rendersTheEmptyState() {
         assertThat(given().get("/internal/notes/list").then().statusCode(OK).extract().asString())
             .as("an account with no notes must be pointed at where a note is written")

@@ -18,6 +18,7 @@
 package net.zodac.diurnal.note;
 
 import java.util.List;
+import org.jspecify.annotations.Nullable;
 
 /**
  * One page of the notes list, in the shape {@code partials/pagination.html} expects from every list view in the app.
@@ -26,7 +27,8 @@ import java.util.List;
  * @param totalCount  the number of notes matching the search, across all pages
  * @param totalPages  the page count
  * @param currentPage the returned 1-based page (clamped into range, as every web list view does)
+ * @param suggestion  the "did you mean" shown in place of an empty result, or {@code null} when there is nothing to suggest
  */
-public record PaginatedNotes(List<NoteRow> items, int totalCount, int totalPages, int currentPage) {
+public record PaginatedNotes(List<NoteRow> items, int totalCount, int totalPages, int currentPage, @Nullable NoteSuggestion suggestion) {
 
 }

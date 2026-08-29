@@ -18,6 +18,7 @@
 package net.zodac.diurnal;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
 import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
 import static net.zodac.diurnal.http.HttpStatusCodes.CREATED;
@@ -563,8 +564,31 @@ class SurfaceParityIT extends IntegrationTestBase {
     }
 
     @Test
+    void noteSearchSuggestion_isTheSameWordOnBothSurfaces() {
+        // A "did you mean" is the same shared rule as the match itself, so a term that misses must be answered with the SAME word on both
+        // surfaces - the API as a field, the page as a link. They differ only in how it is presented, never in which word it is.
+        runInTx(() -> newNote(primaryId, TODAY, "The brass kaleidoscope in the junk shop"));
+
+        given().queryParam("q", "kaleidoscpoe")
+                .get("/api/v1/notes")
+                .then().statusCode(OK)
+                .body("totalCount", org.hamcrest.Matchers.is(0))
+                .body("suggestion", org.hamcrest.Matchers.equalTo("kaleidoscope"));
+
+        final String html = given().queryParam("q", "kaleidoscpoe")
+            .get("/internal/notes/list")
+            .then().statusCode(OK)
+            .extract().asString();
+
+        assertThat(html)
+            .as("the web surface must offer the same word the API named, as a link that searches for it")
+            .contains("Did you mean 'kaleidoscope'?")
+            .contains("href=\"/notes?q=kaleidoscope\"");
+    }
+
+    @Test
     void unownedAction_rejectedOnBothSurfaces() {
-        final UUID unknown = UUID.randomUUID();
+        final UUID unknown = DUMMY_UUID;
 
         given().contentType(ContentType.JSON)
                 .body("""

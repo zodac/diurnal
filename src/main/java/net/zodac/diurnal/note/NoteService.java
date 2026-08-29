@@ -138,6 +138,12 @@ public class NoteService {
      * @return the readable content by date, in the given order
      */
     public Map<LocalDate, String> readContents(final UUID userId, final List<SealedNote> notes) {
+        // Nothing selected needs no key, which is the common case for a date window the user has not written in - and it keeps an account that
+        // legitimately has no key (one predating V28, so with no notes at all) off the key path entirely.
+        if (notes.isEmpty()) {
+            return Map.of();
+        }
+
         final Optional<byte[]> dataKey = noteKeys.forUser(userId);
         if (dataKey.isEmpty()) {
             return Map.of();
@@ -155,9 +161,9 @@ public class NoteService {
     // Opens the given notes, under a data key resolved once for the whole batch, and keeps the ones the term matches - in the order handed in, which
     // is each surface's own (see the class Javadoc). Reached only from the paged reads below, and only when there IS a term to match: a blank one is
     // answered by paging in the database, which never opens more than the page it returns.
-    private List<NoteHit> search(final User user, final String query, final List<SealedNote> notes) {
-        final List<NoteHit> hits = readContents(user.id, notes)
-            .entrySet()
+    private Matches search(final User user, final String query, final List<SealedNote> notes) {
+        final Map<LocalDate, String> opened = readContents(user.id, notes);
+        final List<NoteHit> hits = opened.entrySet()
             .stream()
             .filter(entry -> NoteSearch.matches(entry.getValue(), query))
             .map(entry -> new NoteHit(entry.getKey(), entry.getValue()))
@@ -168,7 +174,15 @@ public class NoteService {
             // meant to find, so logging "user searched for <name>" leaks the note as surely as logging the note would.
             LOGGER.debug("Notes search matched {} of {} note(s) for user {}", hits.size(), notes.size(), user.email);
         }
-        return hits;
+
+        // Only where the answer would otherwise be an empty page. The journal is already open, so the closest word costs one more pass over text
+        // that is already in hand - and nothing is suggested beside results the user can actually read.
+        // The SELECTED size, not the opened one: a note that will not decrypt is still a note the account holds, and the caller asking "has
+        // anything been written at all" must not be told no because a row is damaged.
+        if (!hits.isEmpty()) {
+            return new Matches(hits, null, notes.size());
+        }
+        return new Matches(hits, NoteSearch.suggest(opened.values(), query).orElse(null), notes.size());
     }
 
     /**
@@ -201,7 +215,7 @@ public class NoteService {
         final long totalCount = Note.countForUser(user.id);
         final PageWindow window = Pages.window(totalCount, pageNum, pageSize);
         final List<SealedNote> page = Note.sealedPageForUser(user.id, window.currentPage() - 1, pageSize);
-        return new PaginatedHits(opened(user, page), totalCount, window.totalPages(), window.currentPage());
+        return new PaginatedHits(opened(user, page), totalCount, totalCount, window.totalPages(), window.currentPage(), null);
     }
 
     /**
@@ -240,7 +254,7 @@ public class NoteService {
         final long totalCount = Note.countForUser(user.id);
         final PageWindow window = Pages.window(totalCount, pageNum, pageSize);
         final List<SealedNote> page = Note.sealedPageForUserEarliestFirst(user.id, window.currentPage() - 1, pageSize);
-        return new PaginatedHits(opened(user, page), totalCount, window.totalPages(), window.currentPage());
+        return new PaginatedHits(opened(user, page), totalCount, totalCount, window.totalPages(), window.currentPage(), null);
     }
 
     private PaginatedHits rangedPage(final User user, final String term, final LocalDate start, final LocalDate end, final int pageNum,
@@ -252,7 +266,7 @@ public class NoteService {
         final long totalCount = Note.countForUserAndRange(user.id, start, end);
         final PageWindow window = Pages.window(totalCount, pageNum, pageSize);
         final List<SealedNote> page = Note.sealedPageForUserAndRange(user.id, start, end, window.currentPage() - 1, pageSize);
-        return new PaginatedHits(opened(user, page), totalCount, window.totalPages(), window.currentPage());
+        return new PaginatedHits(opened(user, page), totalCount, totalCount, window.totalPages(), window.currentPage(), null);
     }
 
     private List<NoteHit> opened(final User user, final List<SealedNote> notes) {
@@ -263,9 +277,15 @@ public class NoteService {
             .toList();
     }
 
-    private static PaginatedHits sliced(final List<NoteHit> hits, final int pageNum, final int pageSize) {
+    private static PaginatedHits sliced(final Matches matches, final int pageNum, final int pageSize) {
+        final List<NoteHit> hits = matches.hits();
         final PageWindow window = Pages.window(hits.size(), pageNum, pageSize);
-        return new PaginatedHits(Pages.slice(hits, window), hits.size(), window.totalPages(), window.currentPage());
+        return new PaginatedHits(Pages.slice(hits, window), hits.size(), matches.selectionCount(), window.totalPages(), window.currentPage(),
+            matches.suggestion());
+    }
+
+    private record Matches(List<NoteHit> hits, @Nullable SuggestedTerm suggestion, int selectionCount) {
+
     }
 
     /**
@@ -297,8 +317,9 @@ public class NoteService {
             return clear(user, day);
         }
 
-        // Minted here if the account somehow has none - an account created before notes were encrypted, or by a path
-        // that predates NoteKeys.assignTo. This is the write path, so it is transactional and can create one.
+        // Minted here if the account has none - an account created before notes were encrypted, which V28 guarantees holds no
+        // notes. This is the write path, so it is transactional and can create one. It REFUSES to mint for an account whose
+        // notes are still stored, since a fresh key would orphan them permanently; see NoteKeys.forUserCreatingIfAbsent.
         final byte[] dataKey = noteKeys.forUserCreatingIfAbsent(user.id)
             .orElseThrow(() -> new IllegalStateException("Unable to open the notes data key - check NOTE_ENCRYPTION_KEY"));
 

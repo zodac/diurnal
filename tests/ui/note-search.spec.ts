@@ -85,6 +85,31 @@ test.describe("Notes page – search", () => {
         await expect(page.locator("#notes-empty-row")).toHaveText("No notes match your search.")
     })
 
+    test("a mistyped search offers the closest word, and following it finds the note", async ({ authenticatedPage: page }) => {
+        // One character off the run-unique token: a single substitution from it, and two from the other note's `${token}x`,
+        // so the closer of the two is the one offered. Following it is a full navigation, which is what puts the corrected
+        // term in the address bar AND in the search box - an HTMX swap would leave the box holding the term that missed.
+        const typo = `${token.slice(0, -1)}z`
+        await page.goto(`/notes?q=${encodeURIComponent(typo)}`)
+
+        const suggestion = page.locator("#note-suggestion")
+        // Both seeded notes carry the token (the second as `${token}x`), and the suggestion is searched as a plain
+        // SUBSTRING - so the offer counts two, which is also what following it lists. That is the plural branch.
+        await expect(suggestion).toHaveText(`Did you mean '${token}' (2 notes found)?`)
+
+        await suggestion.click()
+
+        await expect(page).toHaveURL(`/notes?q=${token}`)
+        await expect(page.locator("#note-search-input")).toHaveValue(token)
+        await expect(page.locator(`#notes-tbody a[href="/?date=${matchDay}"]`)).toBeVisible()
+    })
+
+    test("a search that matched something offers no suggestion", async ({ authenticatedPage: page }) => {
+        await page.goto(`/notes?q=${encodeURIComponent(token)}`)
+
+        await expect(page.locator("#note-suggestion")).toHaveCount(0)
+    })
+
     test("a search in the URL is applied and left in the box on load", async ({ authenticatedPage: page }) => {
         await page.goto(`/notes?q=${encodeURIComponent(`5k ${token}`)}`)
 

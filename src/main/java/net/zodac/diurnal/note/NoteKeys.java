@@ -82,17 +82,38 @@ public class NoteKeys {
      * Opens the user's data key, or reports empty when there is none.
      *
      * <p>
-     * An empty result means the account has no key, which is only possible for one created before this feature existed — and such an account has no
-     * notes either, because writing one mints a key first. A key that exists but does not open is a different matter entirely: that is a mismatched
-     * {@code NOTE_ENCRYPTION_KEY}, and it is logged at {@code error} rather than passed off as "no notes", because the alternative is a user's whole
-     * journal disappearing from the interface with nothing said anywhere.
+     * An empty result means the account has no key, which is only possible for one created before this feature existed: {@code V28} created
+     * {@code user_notes_keys} without backfilling it, and no migration since adds a row. <strong>Such an account provably has no notes</strong> —
+     * the same migration emptied the table — so "no key" and "no notes" are the same state, and every account created since has had a key minted
+     * with it ({@code NotesKeyAssignmentTest} fails any new user-creation path that does not).
+     *
+     * <p>
+     * <strong>An account holding notes with no key is therefore not a legacy account - it is data loss</strong>, and the only thing that can produce
+     * it is something outside this application (a partial restore, a hand-run delete; the row is a {@code PRIMARY KEY ... ON DELETE CASCADE}, so
+     * removing the account takes the notes with it). It is logged here rather than answered with an empty journal, because the alternative is a
+     * user's whole history vanishing from the interface with nothing said anywhere - beside calendar markers that still show, since those are
+     * computed from dates and never touch content. The count costs a query only on the path where the key is already missing.
+     *
+     * <p>
+     * A key that exists but does not open is a different fault - a mismatched {@code NOTE_ENCRYPTION_KEY} - and is logged by {@link #open}.
      *
      * @param userId the owning user
      * @return the data key, or empty when the account has none or it cannot be opened
      */
     Optional<byte[]> forUser(final UUID userId) {
         final UserNotesKey stored = UserNotesKey.findForUser(userId);
-        return stored == null ? Optional.empty() : open(stored);
+        if (stored != null) {
+            return open(stored);
+        }
+
+        final long noteCount = Note.countForUser(userId);
+        if (noteCount > 0L) {
+            // The account by email, never its id, and a COUNT rather than anything from a note. See the class Javadoc.
+            final String email = emailOf(userId);
+            LOGGER.error("Account {} holds {} note(s) but has no notes data key - their journal cannot be read. This is data loss rather than a "
+                + "configuration fault: restore that account's user_notes_keys row from a backup.", email, noteCount);
+        }
+        return Optional.empty();
     }
 
     /**
@@ -104,7 +125,20 @@ public class NoteKeys {
      */
     Optional<byte[]> forUserCreatingIfAbsent(final UUID userId) {
         final UserNotesKey existing = UserNotesKey.findForUser(userId);
-        return open(existing == null ? mint(userId) : existing);
+        if (existing != null) {
+            return open(existing);
+        }
+
+        // Minting is correct for exactly one population - an account predating V28, which that migration guarantees holds no notes (see forUser).
+        // An account that HAS notes and no key is data loss, and minting over it is what turns a recoverable incident (restore the row, every note
+        // opens again) into a permanent one, silently: the new key is well-formed, unwraps perfectly, and opens not one existing note. The count
+        // costs a query only here, where the key is already missing, so no ordinary save pays for it.
+        final long noteCount = Note.countForUser(userId);
+        if (noteCount > 0L) {
+            throw new IllegalStateException("Account " + emailOf(userId) + " holds " + noteCount + " note(s) but has no notes data key - refusing "
+                + "to mint a replacement, which would leave those notes permanently unreadable. Restore that account's user_notes_keys row.");
+        }
+        return open(mint(userId));
     }
 
     /**
@@ -200,7 +234,11 @@ public class NoteKeys {
     }
 
     private static String emailOf(final UserNotesKey stored) {
-        return User.<User>findByIdOptional(stored.userId)
+        return emailOf(stored.userId);
+    }
+
+    private static String emailOf(final UUID owner) {
+        return User.<User>findByIdOptional(owner)
             .map(user -> user.email)
             .orElse("unknown");
     }

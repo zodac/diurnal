@@ -20,11 +20,14 @@ package net.zodac.diurnal.note;
 import static io.restassured.RestAssured.given;
 import static net.zodac.diurnal.http.HttpStatusCodes.CREATED;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import io.quarkus.test.junit.QuarkusTest;
 import io.restassured.http.ContentType;
+import jakarta.inject.Inject;
 import java.util.Base64;
 import java.util.Objects;
+import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.note.crypto.DataKeyEnvelope;
 import net.zodac.diurnal.user.Role;
@@ -37,14 +40,21 @@ import org.junit.jupiter.api.Test;
  *
  * <p>
  * This exists because nothing else covers it. Every other notes test seeds its user through {@code IntegrationTestBase.newUser}, which mints a key
- * itself — so they all exercise a key the TEST created, never the one production code creates. And {@code NoteService.save} mints one on demand if
- * an account somehow lacks it, which masks the absence on the write path too. Between them, deleting {@code NoteKeys.assignTo} from
- * {@code RegistrationService} used to leave the whole suite green.
+ * itself — so they all exercise a key the TEST created, never the one production code creates. And the write path mints one on demand for an
+ * account that has none, which masks the absence there too. Between them, deleting {@code NoteKeys.assignTo} from {@code RegistrationService} used
+ * to leave the whole suite green.
+ *
+ * <p>
+ * It also pins the boundary of that on-demand mint: it is correct only for an account holding NO notes (one predating {@code V28}), and must refuse
+ * for an account whose notes are still there, since minting over them makes their loss permanent and silent.
  */
 @QuarkusTest
 class NoteKeysIT extends IntegrationTestBase {
 
     private static final String NEW_ACCOUNT = "note-keys-it@lt.test";
+
+    @Inject
+    NoteKeys noteKeys;
 
     @Override
     protected void createDbState() {
@@ -70,6 +80,47 @@ class NoteKeysIT extends IntegrationTestBase {
                 .as("the minted key must open under the configured master, or the account's notes would be unreadable from the start")
                 .isPresent();
         });
+    }
+
+    @Test
+    void openingTheKeyOfAnAccountWithNotesButNoKeyRow_refusesRatherThanMintingOver() {
+        // The state this guards cannot be produced by the application - the key row is a PRIMARY KEY ... ON DELETE CASCADE, so removing the account
+        // takes its notes too. It comes from outside: a partial restore, or a hand-run delete. Minting over it would be silent and irreversible.
+        final UUID[] owner = new UUID[1];
+        runInTx(() -> {
+            owner[0] = newUser("note-keys-it-orphan@lt.test", "Orphan").id;
+            newNote(owner[0], FIXED_TODAY, "Written while the key still existed");
+        });
+        runInTx(() -> UserNotesKey.delete("userId = ?1", owner[0]));
+
+        assertThatThrownBy(() -> runInTx(() -> noteKeys.forUserCreatingIfAbsent(owner[0])))
+            .as("an account holding notes with no key is data loss, and minting a replacement would make it permanent")
+            .hasStackTraceContaining("refusing to mint a replacement");
+
+        runInTx(() -> {
+            assertThat(UserNotesKey.findForUser(owner[0]))
+                .as("no replacement key may be minted - the old one is what opens the notes that are still stored")
+                .isNull();
+            assertThat(Note.countForUser(owner[0]))
+                .as("the notes themselves must be left exactly as they were, so restoring the key row recovers them")
+                .isEqualTo(1L);
+        });
+    }
+
+    @Test
+    void openingTheKeyOfAnAccountWithNeitherKeyNorNotes_mintsOne() {
+        // The legitimate keyless account: one created before V28, which emptied the notes table as it added the key table. Nothing to orphan.
+        final UUID[] owner = new UUID[1];
+        runInTx(() -> owner[0] = newUser("note-keys-it-legacy@lt.test", "Legacy").id);
+        runInTx(() -> UserNotesKey.delete("userId = ?1", owner[0]));
+
+        runInTx(() -> assertThat(noteKeys.forUserCreatingIfAbsent(owner[0]))
+            .as("an account with no notes has nothing a fresh key could orphan, so the write path must still mint one")
+            .isPresent());
+
+        runInTx(() -> assertThat(UserNotesKey.findForUser(owner[0]))
+            .as("the minted key must be stored, or the note about to be written could not be read back")
+            .isNotNull());
     }
 
     @Test

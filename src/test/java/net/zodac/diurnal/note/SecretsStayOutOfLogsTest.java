@@ -59,10 +59,12 @@ class SecretsStayOutOfLogsTest {
     private static final Pattern WHITESPACE_RUN = Pattern.compile("\\s+");
 
     // Identifiers that hold a note's content, a search term drawn from one, or a key. Whole-word, so prose in a format
-    // string ("the notes data key") does not trip it and only an actual reference does.
+    // string ("the notes data key") does not trip it and only an actual reference does. `suggestion` is here for the same
+    // reason as the term: a "did you mean" is a word lifted out of the user's own journal, so logging one prints a piece
+    // of a note - and it appears precisely when the search failed, which is when someone is most tempted to log it.
     private static final List<String> FORBIDDEN = List.of(
         "content", "contentEncrypted", "normalised", "plaintext", "noteContent",
-        "query", "searchTerm", "term", "snippet",
+        "query", "searchTerm", "term", "snippet", "suggestion",
         "dataKey", "dekWrapped", "masterKey", "wrappingKey", "retiredKeys");
 
     @Test

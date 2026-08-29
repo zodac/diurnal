@@ -65,7 +65,7 @@ class NotePagesTest {
 
     @Test
     void of_rendersEveryHitOnThePageInOrder() {
-        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(5), 12L, 3, 2), "", EN_GB);
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(5), 12L, 12L, 3, 2, null), "", EN_GB);
 
         assertThat(page.items())
             .as("every hit handed in becomes a row - the page was already selected upstream")
@@ -77,7 +77,7 @@ class NotePagesTest {
 
     @Test
     void of_carriesTheWholeResultsFiguresThroughToTheFooter() {
-        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(5), 12L, 3, 2), "", EN_GB);
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(5), 12L, 12L, 3, 2, null), "", EN_GB);
 
         assertThat(page.totalCount())
             .as("the count is of every match, not just the page")
@@ -92,7 +92,7 @@ class NotePagesTest {
 
     @Test
     void of_reportsAnEmptyFirstPageWhenNothingMatched() {
-        final PaginatedNotes page = NotePages.of(new PaginatedHits(List.of(), 0L, 0, 1), "nothing", EN_GB);
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(List.of(), 0L, 4L, 0, 1, null), "nothing", EN_GB);
 
         assertThat(page.items())
             .as("no matches means no rows")
@@ -103,6 +103,38 @@ class NotePagesTest {
         assertThat(page.currentPage())
             .as("an empty result still reports page 1, so the footer renders")
             .isEqualTo(1);
+    }
+
+    @Test
+    void of_carriesTheSuggestionThroughAsLinkableWord() {
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(List.of(), 0L, 4L, 0, 1, "kaleidoscope"), "kaleidoscpoe", EN_GB);
+
+        assertThat(page.suggestion())
+            .as("an empty result offers the closest word the journal holds, with the link that searches for it")
+            .isEqualTo(new NoteSuggestion("kaleidoscope", "/notes?q=kaleidoscope"));
+    }
+
+    @Test
+    void of_hasNoSuggestionWhenTheSearchFoundSomething() {
+        final PaginatedNotes page = NotePages.of(oneHit("Ran a 5k"), "5k", EN_GB);
+
+        assertThat(page.suggestion())
+            .as("nothing is suggested beside results the user can actually read")
+            .isNull();
+    }
+
+    @Test
+    void suggestion_isNullWhenThereIsNothingToSuggest() {
+        assertThat(NotePages.suggestion(null))
+            .as("no suggested word means no link to build")
+            .isNull();
+    }
+
+    @Test
+    void suggestion_encodesTheWordIntoItsLink() {
+        assertThat(NotePages.suggestion("ملاحظة"))
+            .as("a suggested word is the user's own writing, in whatever script - it must reach the link encoded")
+            .isEqualTo(new NoteSuggestion("ملاحظة", "/notes?q=%D9%85%D9%84%D8%A7%D8%AD%D8%B8%D8%A9"));
     }
 
     @Test
@@ -120,7 +152,7 @@ class NotePagesTest {
     }
 
     private static PaginatedHits oneHit(final String content) {
-        return new PaginatedHits(List.of(new NoteHit(DAY, content)), 1L, 1, 1);
+        return new PaginatedHits(List.of(new NoteHit(DAY, content)), 1L, 1L, 1, 1, null);
     }
 
     private static List<NoteHit> hits(final int count) {

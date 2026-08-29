@@ -18,7 +18,14 @@
 package net.zodac.diurnal.note;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -49,6 +56,11 @@ import java.util.regex.Pattern;
  * place - and it keeps the rule a plain two-argument function that both surfaces can call identically.
  *
  * <p>
+ * <strong>A term that matched nothing gets a suggestion instead of a fuzzy match.</strong> {@link #suggest(Collection, String)} finds the closest
+ * word the journal actually contains and offers it, leaving {@link #matches(String, String)} exact. That split is deliberate - see the class's
+ * "did you mean" Javadoc and {@code NOTES.md} for the measurements behind it.
+ *
+ * <p>
  * Kept free of persistence and request state so every rule here is deterministically unit-testable.
  */
 public final class NoteSearch {
@@ -57,6 +69,16 @@ public final class NoteSearch {
     private static final String ELLIPSIS = "…";
     private static final int CONTEXT_CHARACTERS = 60;
     private static final int PREVIEW_CHARACTERS = 180;
+    private static final int MIN_SUGGESTION_LENGTH = 4;
+    private static final int LONG_TERM_LENGTH = 8;
+    private static final int MAX_EDITS_SHORT = 1;
+    private static final int MAX_EDITS_LONG = 2;
+
+    // Closest first; then the word the journal holds most of, which is the likelier thing to have been meant; then
+    // alphabetically, so the same journal and the same term always suggest the same word.
+    private static final Comparator<Candidate> CLOSEST = Comparator.comparingInt(Candidate::distance)
+        .thenComparing(Comparator.comparingInt(Candidate::count).reversed())
+        .thenComparing(Candidate::word);
 
     private NoteSearch() {
 
@@ -88,6 +110,52 @@ public final class NoteSearch {
      */
     public static boolean matches(final String content, final String query) {
         return query.isBlank() || literal(query).matcher(content).find();
+    }
+
+    /**
+     * The closest word the journal actually contains to a term that matched nothing - the "did you mean" offered beside an empty result.
+     *
+     * <p>
+     * <strong>This does not make the search fuzzy, and deliberately so.</strong> {@link #matches(String, String)} stays an exact substring test, so
+     * every result shown is a real occurrence, the snippet can still find the term to highlight, and the ordering both surfaces publish is untouched.
+     * A suggestion only appears where the alternative is an empty page, and following it re-runs an ordinary exact search. Measured against fuzzy
+     * matching proper: a 1-edit tolerance over the whole journal loses the substring behaviour this app promises ({@code run} stops finding
+     * {@code running}), while a character-level tolerance on a short term matches every note there is - {@code run} at 2 edits matched 1,095 notes
+     * out of 1,095. Both failures are semantic rather than a cost problem; see {@code NOTES.md}.
+     *
+     * <p>
+     * The scan runs over the words the notes are already opened for, so it costs one more pass over text the caller has in hand - and only on the
+     * path where there is nothing to read anyway (measured at 3.3 ms over three years of daily notes, 11.9 ms over ten). Unlike the snippet, it
+     * compares WHOLE tokens rather than positions inside them, so case-folding here is safe where the highlight rules above must avoid it.
+     *
+     * <p>
+     * A term shorter than {@value #MIN_SUGGESTION_LENGTH} characters gets nothing: at that length an edit is a large share of the word, so the
+     * closest token says more about the alphabet than about what was meant. Longer terms allow a second edit, which is where a genuine typo in a
+     * long word sits.
+     *
+     * <p>
+     * The answer carries how many notes the suggested word actually finds, counted with {@link #matches} - the rule the link will run - rather than
+     * from the occurrence count that chose it. See {@link SuggestedTerm}.
+     *
+     * @param contents the opened notes to draw candidate words from
+     * @param query    the search term that matched nothing, already stripped
+     * @return the closest word and what searching for it finds, or empty when the term is too short or nothing is close enough
+     */
+    public static Optional<SuggestedTerm> suggest(final Collection<String> contents, final String query) {
+        if (query.isBlank() || query.length() < MIN_SUGGESTION_LENGTH) {
+            return Optional.empty();
+        }
+
+        final int maxEdits = query.length() >= LONG_TERM_LENGTH ? MAX_EDITS_LONG : MAX_EDITS_SHORT;
+        final String folded = query.toLowerCase(Locale.ROOT);
+        final Map<String, Candidate> candidates = new LinkedHashMap<>();
+        for (final String content : contents) {
+            collect(content, folded, maxEdits, candidates);
+        }
+        return candidates.values()
+            .stream()
+            .min(CLOSEST)
+            .map(candidate -> new SuggestedTerm(candidate.word(), matchCount(contents, candidate.word())));
     }
 
     /**
@@ -156,6 +224,88 @@ public final class NoteSearch {
         return List.copyOf(parts);
     }
 
+    // How many notes the chosen word actually finds, run through the same match rule the suggestion's link will use.
+    private static int matchCount(final Collection<String> contents, final String word) {
+        int found = 0;
+        for (final String content : contents) {
+            if (matches(content, word)) {
+                found++;
+            }
+        }
+        return found;
+    }
+
+    // Every letter/digit run in one note, offered as a candidate. An emoji is neither, so it separates words rather than joining them.
+    private static void collect(final String content, final String folded, final int maxEdits, final Map<String, Candidate> candidates) {
+        final int length = content.length();
+        int start = -1;
+        for (int i = 0; i <= length; i++) {
+            final boolean word = i < length && Character.isLetterOrDigit(content.charAt(i));
+            if (word && start < 0) {
+                start = i;
+            } else if (!word && start >= 0) {
+                consider(content.substring(start, i), folded, maxEdits, candidates);
+                start = -1;
+            }
+        }
+    }
+
+    private static void consider(final String token, final String folded, final int maxEdits, final Map<String, Candidate> candidates) {
+        // A length check before any distance work: an edit changes a word's length by at most one each, so anything further
+        // apart than that cannot come within the bound, and this is the filter that keeps the pass linear in the journal.
+        if (Math.abs(token.length() - folded.length()) > maxEdits) {
+            return;
+        }
+
+        final String key = token.toLowerCase(Locale.ROOT);
+        if (key.equals(folded)) {
+            return;
+        }
+
+        final Candidate seen = candidates.get(key);
+        if (seen != null) {
+            candidates.put(key, new Candidate(seen.word(), seen.distance(), seen.count() + 1));
+            return;
+        }
+
+        final int distance = distance(key, folded, maxEdits);
+        if (distance <= maxEdits) {
+            // The token's own casing is kept, from its first appearance, so a suggested proper noun still reads as one.
+            candidates.put(key, new Candidate(token, distance, 1));
+        }
+    }
+
+    // Levenshtein distance, abandoned as soon as every cell in a row exceeds the bound - anything past that
+    // can only grow. A value above the bound is reported as one past it rather than measured exactly.
+    private static int distance(final String token, final String folded, final int maxEdits) {
+        final int width = folded.length();
+        int[] previous = new int[width + 1];
+        int[] current = new int[width + 1];
+        // The first row is the cost of reaching each prefix of the term from an empty token, which is its own length - and it is what makes this a
+        // WHOLE-WORD distance: a zeroed first row would let the token start matching anywhere in the term, which is substring matching, and would
+        // suggest "rain" for "again". Written with setAll rather than a counted loop on purpose: the loop's bound corrupts only the row's LAST cell,
+        // which the length filter above makes unobservable (so no test could ever fail on it), while this form's failure modes are all observable.
+        Arrays.setAll(previous, j -> j);
+
+        for (int i = 1; i <= token.length(); i++) {
+            current[0] = i;
+            int best = i;
+            for (int j = 1; j <= width; j++) {
+                final int substitution = previous[j - 1] + (token.charAt(i - 1) == folded.charAt(j - 1) ? 0 : 1);
+                current[j] = Math.min(Math.min(current[j - 1] + 1, previous[j] + 1), substitution);
+                best = Math.min(best, current[j]);
+            }
+            if (best > maxEdits) {
+                return maxEdits + 1;
+            }
+
+            final int[] finished = previous;
+            previous = current;
+            current = finished;
+        }
+        return previous[width];
+    }
+
     // The search term as a case-insensitive LITERAL, so a note is searched for the characters typed rather than for a regular expression the user
     // never meant to write - a stray '(' would otherwise be a 500 rather than a search that finds nothing.
     private static Pattern literal(final String query) {
@@ -167,5 +317,9 @@ public final class NoteSearch {
     private static int cut(final String text, final int index) {
         final int clamped = Math.clamp(index, 0, text.length());
         return clamped < text.length() && Character.isLowSurrogate(text.charAt(clamped)) ? (clamped - 1) : clamped;
+    }
+
+    private record Candidate(String word, int distance, int count) {
+
     }
 }
