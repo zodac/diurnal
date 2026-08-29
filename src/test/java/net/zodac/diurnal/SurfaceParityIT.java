@@ -582,7 +582,7 @@ class SurfaceParityIT extends IntegrationTestBase {
 
         assertThat(html)
             .as("the web surface must offer the same word the API named, as a link that searches for it")
-            .contains("Did you mean 'kaleidoscope'?")
+            .contains("Did you mean &#39;kaleidoscope&#39; (1 note found)?")
             .contains("href=\"/notes?q=kaleidoscope\"");
     }
 

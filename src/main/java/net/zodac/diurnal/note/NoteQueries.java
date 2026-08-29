@@ -17,6 +17,9 @@
 
 package net.zodac.diurnal.note;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.UUID;
 import net.zodac.diurnal.persistence.QueryParameter;
 
 /**
@@ -142,14 +145,14 @@ final class NoteQueries {
     // The named parameters the queries above declare, as typed tokens: every binding goes through one of these rather than a bare string, so a
     // misspelled name - or a value of the wrong type for it - is a compile error instead of a failure on first execution. The placeholders inside
     // the query text stay textual (no Java type can reach them), which is what NoteQueriesTest is for.
-    static final QueryParameter USER_ID = QueryParameter.of("userId");
-    static final QueryParameter SUBJECT_ID = QueryParameter.of("subjectId");
-    static final QueryParameter ID = QueryParameter.of("id");
-    static final QueryParameter DATE = QueryParameter.of("date");
-    static final QueryParameter FROM = QueryParameter.of("from");
-    static final QueryParameter TO = QueryParameter.of("to");
-    static final QueryParameter CONTENT_ENCRYPTED = QueryParameter.of("contentEncrypted");
-    static final QueryParameter NOW = QueryParameter.of("now");
+    static final QueryParameter<UUID> USER_ID = QueryParameter.of("userId");
+    static final QueryParameter<UUID> SUBJECT_ID = QueryParameter.of("subjectId");
+    static final QueryParameter<UUID> ID = QueryParameter.of("id");
+    static final QueryParameter<LocalDate> DATE = QueryParameter.of("date");
+    static final QueryParameter<LocalDate> FROM = QueryParameter.of("from");
+    static final QueryParameter<LocalDate> TO = QueryParameter.of("to");
+    static final QueryParameter<byte[]> CONTENT_ENCRYPTED = QueryParameter.of("contentEncrypted");
+    static final QueryParameter<Instant> NOW = QueryParameter.of("now");
 
     private NoteQueries() {
 

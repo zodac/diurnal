@@ -17,12 +17,12 @@
 
 package net.zodac.diurnal.stats;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 import net.zodac.diurnal.log.DailyActionTotal;
 import net.zodac.diurnal.time.DaySpan;
 import net.zodac.diurnal.time.DurationParts;
@@ -399,6 +399,6 @@ class StatsServiceTest {
     }
 
     private static DailyActionTotal day(final LocalDate date, final long total) {
-        return new DailyActionTotal(UUID.randomUUID(), date, total);
+        return new DailyActionTotal(DUMMY_UUID, date, total);
     }
 }

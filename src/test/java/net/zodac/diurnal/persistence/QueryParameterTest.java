@@ -20,7 +20,6 @@ package net.zodac.diurnal.persistence;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -32,7 +31,7 @@ class QueryParameterTest {
 
     @Test
     void of_returnsTheNameWithoutItsColon() {
-        assertThat(QueryParameter.<UUID>of("userId").name())
+        assertThat(QueryParameter.of("userId").name())
             .as("the name is bound as-is; the leading colon belongs to the query text, not to the parameter")
             .isEqualTo("userId");
     }

@@ -17,11 +17,11 @@
 
 package net.zodac.diurnal.auth;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
-import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import org.junit.jupiter.api.Test;
 
@@ -42,7 +42,7 @@ class AccountVanishedMidRequestIT extends IntegrationTestBase {
 
     @Test
     void recordLogin_accountNoLongerExists_returnsInvalidCredentials() {
-        final LoginResult result = authenticationService.recordLogin(UUID.randomUUID());
+        final LoginResult result = authenticationService.recordLogin(DUMMY_UUID);
 
         assertThat(result)
             .as("a verified login whose account vanished before the write must resolve to invalid credentials, not a persisted login")
@@ -51,7 +51,7 @@ class AccountVanishedMidRequestIT extends IntegrationTestBase {
 
     @Test
     void recordLoginWithRehash_accountNoLongerExists_returnsInvalidCredentials() {
-        final LoginResult result = authenticationService.recordLoginWithRehash(UUID.randomUUID(), "irrelevant-hash");
+        final LoginResult result = authenticationService.recordLoginWithRehash(DUMMY_UUID, "irrelevant-hash");
 
         assertThat(result)
             .as("a verified login needing a hash upgrade whose account vanished before the write must resolve to invalid credentials")
@@ -60,7 +60,7 @@ class AccountVanishedMidRequestIT extends IntegrationTestBase {
 
     @Test
     void applyChange_accountNoLongerExists_returnsNotLocalAccount() {
-        final PasswordChangeResult result = passwordChangeService.applyChange(UUID.randomUUID(), "irrelevant-hash", null);
+        final PasswordChangeResult result = passwordChangeService.applyChange(DUMMY_UUID, "irrelevant-hash", null);
 
         assertThat(result)
             .as("a password change whose account vanished before the write must report a non-local account, not persist a hash")
