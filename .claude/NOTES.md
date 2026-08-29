@@ -610,6 +610,14 @@ proper noun still reads as one.
 **A term under 4 characters gets nothing, and only a term of 8+ allows a second edit.** At three characters an edit
 is most of the word, so the nearest token says more about the alphabet than about intent.
 
+**The offer says what it is worth: `Did you mean 'kaleidoscope' (2 notes found)?`.** The count is measured with
+`NoteSearch.matches` — the rule the link itself will run — never from the occurrence count that chose the word. The
+two genuinely differ: a word is picked by counting whole tokens, while searching for it is a plain substring test,
+so suggesting `garden` also finds `gardening`. Deriving it any other way would print a number beside a link that
+then produced a different one. The API publishes the **word only**: a client that follows the suggestion issues an
+ordinary search and is told the count by that response's own `totalCount`, so carrying it there would duplicate a
+number the next call already returns — the page shows it because it has no next call.
+
 **Following it is a plain link to `/notes?q=…`, not an HTMX swap.** The corrected term has to reach the address bar
 *and* the search box; a fragment swap would leave the box holding the term that missed, which the pagination links
 then keep sending (`data-search-source`). A full navigation on the zero-result path costs nothing anyone will notice

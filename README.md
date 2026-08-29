@@ -453,6 +453,11 @@ possible for the password hashing, seen below.
 | `APP_MEM_LIMIT`      | `2g`    | Total container memory (the JVM heap is 65% of this) |
 | `WORKER_MAX_THREADS` | `32`    | Concurrent blocking requests                         |
 
+`APP_MEM_LIMIT` is the knob to use: the heap follows it, so nothing has to be kept in sync by hand. To size the heap directly instead, set
+`JDK_JAVA_OPTIONS` (for example `-Xms256m -Xmx1g`) and the entrypoint will leave that flag alone — per flag, so supplying only an initial size still
+leaves the maximum capped. A container with no memory limit at all is capped to the same heap the default `APP_MEM_LIMIT` produces, because a JVM
+that sizes itself against total host RAM will grow a heap far larger than this application needs and never give it back.
+
 ### Password Hashing Cost
 
 Passwords are stored as Argon2id hashes. The three cost parameters below are

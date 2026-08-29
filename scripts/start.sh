@@ -111,14 +111,51 @@ esac
 #
 # Built as positional parameters so every argument stays quoted; the cap is one argument or none, and
 # an unquoted variable would otherwise pass java an empty string when a limit IS set.
+# A heap size given in JDK_JAVA_OPTIONS WINS over this script's own sizing. The java launcher PREPENDS
+# that variable to the command line, so a flag set below would silently override the operator's - which
+# is exactly what happened to the perf tier: its -Xms256m was replaced by the fallback's 512m, with
+# nothing said, and the container ran with double the initial heap the compose file asked for.
+#
+# Detected PER FLAG rather than wholesale, so supplying only an initial size still leaves the MAXIMUM
+# capped. An unbounded maximum is the runaway this script exists to prevent (see above), and it must not
+# be possible to lose that cap by setting an unrelated heap flag.
+heap_min_set='no'
+heap_max_set='no'
+case "${JDK_JAVA_OPTIONS:-}" in
+    *-Xms*|*InitialRAMPercentage*) heap_min_set='yes' ;;
+    *) heap_min_set='no' ;;
+esac
+case "${JDK_JAVA_OPTIONS:-}" in
+    *-Xmx*|*MaxRAMPercentage*|*-XX:MaxRAM=*) heap_max_set='yes' ;;
+    *) heap_max_set='no' ;;
+esac
+
 set -- -XX:+UseG1GC
 if [ "${unlimited}" = 'yes' ]; then
-    set -- "$@" "-Xms${FALLBACK_HEAP_MIN}" "-Xmx${FALLBACK_HEAP_MAX}"
-    # Said out loud because an under-provisioned heap is otherwise invisible until the app is slow.
-    echo "INFO  [diurnal] no container memory limit detected - capping the JVM heap at ${FALLBACK_HEAP_MAX}." \
-        "Set one (mem_limit in docker-compose.yml) to size the heap from it; see Performance Tuning in README.md"
+    if [ "${heap_min_set}" = 'no' ]; then
+        set -- "$@" "-Xms${FALLBACK_HEAP_MIN}"
+    fi
+    if [ "${heap_max_set}" = 'no' ]; then
+        set -- "$@" "-Xmx${FALLBACK_HEAP_MAX}"
+        # Said out loud because an under-provisioned heap is otherwise invisible until the app is slow.
+        echo "INFO  [diurnal] no container memory limit detected - capping the JVM heap at ${FALLBACK_HEAP_MAX}." \
+            "Set one (mem_limit in docker-compose.yml) to size the heap from it; see Performance Tuning in README.md"
+    fi
 else
-    set -- "$@" "-XX:InitialRAMPercentage=${HEAP_PERCENT}" "-XX:MaxRAMPercentage=${HEAP_PERCENT}"
+    if [ "${heap_min_set}" = 'no' ]; then
+        set -- "$@" "-XX:InitialRAMPercentage=${HEAP_PERCENT}"
+    fi
+    if [ "${heap_max_set}" = 'no' ]; then
+        set -- "$@" "-XX:MaxRAMPercentage=${HEAP_PERCENT}"
+    fi
+fi
+
+# Said out loud for the same reason as the cap above: a heap sized somewhere other than here is worth
+# seeing in the log, because the reasoning in this file no longer fully describes the run. Worded for
+# either flag, since the detection is per flag - supplying only a maximum still leaves the initial size
+# to the branch above.
+if [ "${heap_min_set}" = 'yes' ] || [ "${heap_max_set}" = 'yes' ]; then
+    echo "INFO  [diurnal] heap size supplied via JDK_JAVA_OPTIONS - this entrypoint is not overriding it"
 fi
 set -- "$@" -XX:MaxMetaspaceSize=256m -XX:MaxDirectMemorySize=256m -XX:+ExitOnOutOfMemoryError
 

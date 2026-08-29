@@ -17,9 +17,9 @@
 
 package net.zodac.diurnal.stats;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
-import java.util.UUID;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -36,7 +36,7 @@ class FrequencySubjectExtensionsTest {
 
     @Test
     void seriesForAnAction_keepsTheUsersOwnName() {
-        final FrequencySeries series = new FrequencySeries(UUID.randomUUID(), "Morning run", ACTION_COLOUR, 12L, true);
+        final FrequencySeries series = new FrequencySeries(DUMMY_UUID, "Morning run", ACTION_COLOUR, 12L, true);
 
         assertThat(FrequencySubjectExtensions.actionName(series))
             .as("a legend chip for an action shows the user's own text, which is never translated")
@@ -54,7 +54,7 @@ class FrequencySubjectExtensionsTest {
 
     @Test
     void barForAnAction_keepsTheUsersOwnName() {
-        final FrequencyBar drawnBar = new FrequencyBar(UUID.randomUUID(), "Morning run", ACTION_COLOUR, 3L, 50);
+        final FrequencyBar drawnBar = new FrequencyBar(DUMMY_UUID, "Morning run", ACTION_COLOUR, 3L, 50);
 
         assertThat(FrequencySubjectExtensions.actionName(drawnBar))
             .as("a hover bubble for an action's bar shows the user's own text, which is never translated")

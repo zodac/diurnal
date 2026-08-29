@@ -253,7 +253,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
 
         assertThat(given().queryParam("q", "kaleidoscpoe").get("/internal/notes/list").then().statusCode(OK).extract().asString())
             .as("a mistyped term must offer the word the journal actually holds, as a link that searches for it")
-            .contains("Did you mean 'kaleidoscope'?")
+            .contains("Did you mean &#39;kaleidoscope&#39; (1 note found)?")
             .contains("href=\"/notes?q=kaleidoscope\"");
     }
 
@@ -274,7 +274,7 @@ class NotesInternalResourceIT extends IntegrationTestBase {
 
         assertThat(given().queryParam("q", "kaleidoscpoe").get("/internal/notes/list").then().statusCode(OK).extract().asString())
             .as("the tags around the word must not become part of the word suggested, or the link would carry them")
-            .contains("Did you mean 'kaleidoscope'?")
+            .contains("Did you mean &#39;kaleidoscope&#39; (1 note found)?")
             .contains("href=\"/notes?q=kaleidoscope\"");
     }
 

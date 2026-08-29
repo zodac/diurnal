@@ -326,8 +326,11 @@ and add a unit test. Exceptions: pure-data records, factory methods (`from`/`of`
 > **A query's named parameters MUST be bound through a typed `persistence.QueryParameter` token — NEVER a bare string** (no
 > `.setParameter("userId", …)`). The name inside the quotes compiles whatever is typed, so a slip surfaces only when that query first runs, which for
 > the upserts and row locks means it surfaces in a mutation path rather than in a test. Declare the token beside the query text it belongs to
-> (`ActionLogQueries`/`NoteQueries`, or a `private static final` on the class holding an inline query) and bind it through `JpqlQuery`/`SqlQuery`:
-> a misspelled name — or a value of the wrong type for it — is then a compile error. `QueryBindingsAreTypedTest` fails any source file that goes back
+> (`ActionLogQueries`/`NoteQueries`, or a `private static final` on the class holding an inline query), **typed with the value it takes**
+> (`QueryParameter<UUID>`, `QueryParameter<Collection<UUID>>` — a type argument rather than a `Class` token, since a `Class` cannot express a
+> parameterised type), and bind it through `JpqlQuery`/`SqlQuery`: a misspelled name — or a value of the wrong type for it — is then a compile error.
+> `bind(QueryParameter<T>, T)` is what enforces the second half, so a new token must carry its type argument or it degrades to `Object` and enforces
+> nothing. `QueryBindingsAreTypedTest` fails any source file that goes back
 > to the string form, and the `*QueriesTest` classes pin the other half (the `:name` text inside each query, which no Java type can reach) against the
 > tokens declared for it.
 

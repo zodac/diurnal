@@ -56,7 +56,20 @@ K6_IMAGE="grafana/k6:2.2.0"
 SEED_ACTIONS="${PERF_SEED_ACTIONS:-50}"
 SEED_LOG_DAYS="${PERF_SEED_LOG_DAYS:-90}"
 BOOT_BUDGET_S="${PERF_BOOT_BUDGET_S:-20}"
-RSS_MAX_MB="${PERF_RSS_MAX_MB:-512}"
+# Post-boot RSS ceiling. DERIVED, not picked. Native memory tracking on the real image puts the JVM at
+# ~899MiB COMMITTED once booted - 686MiB of heap plus 213MiB of non-heap (metaspace 78, GC structures 74,
+# code cache 23, symbols 19, classes 13) - of which ~545MiB is actually resident. Three measurements
+# across two machines agreed within 3% (528, 535, 545).
+#
+# The heap dominates because -Xms is only the INITIAL size: G1 expands toward -Xmx during the Quarkus /
+# Flyway / Hibernate startup burst and does not hand it back. This ceiling is therefore a CONSEQUENCE of
+# the -Xmx1330m tests/docker-compose.perf.yml pins to match production, and moves with it - the previous
+# 512 was arithmetically unreachable, since the heap alone commits more than that.
+#
+# 700 leaves ~28% over the observed high-water mark for host variance (GC and JIT thread counts scale
+# with core count) while still catching the step change a jlink or runtime regression would produce.
+# RE-DERIVE it the same way if the pinned heap changes - do not nudge it until it passes.
+RSS_MAX_MB="${PERF_RSS_MAX_MB:-700}"
 
 # Per-run scratch dir for the k6 seed->load handover state file. Created now, removed by cleanup.
 # Deliberately placed INSIDE the project tree (tests/), not the system temp dir plain `mktemp -d`
@@ -135,20 +148,30 @@ if [[ "${ready}" != 1 ]]; then
 fi
 echo "[perf] cold boot to readiness: ${boot_elapsed}s (budget ${BOOT_BUDGET_S}s)"
 
-# Post-boot peak RSS of the app container — jlink/runtime regressions show up here silently. Read the
-# raw byte value from docker stats and convert to MiB. Non-fatal to READ (some engines report 0 briefly).
+# Post-boot RSS of the JVM ITSELF - jlink/runtime regressions show up here silently. Read from
+# /proc/1/status inside the container (the entrypoint `exec`s java, so the JVM is PID 1), NOT from
+# `docker stats`: its MemUsage is the cgroup's memory.current minus INACTIVE file pages, so it still
+# counts ACTIVE page cache. That charges the app for the runtime image, jar and migrations it has just
+# read off disk, and moves with the host's storage driver and cache pressure rather than with anything
+# this tier could regress - which is the opposite of what a footprint guard is for.
 app_cid="$(docker compose -p "${PROJECT}" -f "${COMPOSE_FILE}" ps -q app)"
-mem_bytes="$(docker stats --no-stream --format '{{.MemUsage}}' "${app_cid}" 2>/dev/null | awk '{print $1}' || true)"
-echo "[perf] post-boot memory usage: ${mem_bytes:-unknown} (ceiling ${RSS_MAX_MB}MiB)"
-# Parse "NNNMiB" / "N.NGiB" -> integer MiB for the assertion; skip the check if the format is unexpected.
-rss_mib="$(
-  awk -v v="${mem_bytes}" 'BEGIN{
-    if (v ~ /GiB$/) { sub(/GiB$/,"",v); printf("%d", v*1024) }
-    else if (v ~ /MiB$/) { sub(/MiB$/,"",v); printf("%d", v) }
-    else { print "" }
-  }' 2>/dev/null || true
-)"
-if [[ -n "${rss_mib}" && "${rss_mib}" -gt "${RSS_MAX_MB}" ]]; then
+rss_kib="$(docker exec "${app_cid}" /bin/busybox cat /proc/1/status 2>/dev/null | awk '/^VmRSS:/ {print $2}' || true)"
+
+# A guard that cannot read its subject must SAY SO. This previously skipped silently whenever the value
+# did not parse - and `docker stats` reports "0B" on some engines - so the ceiling went unenforced and
+# the run passed regardless. A check that is absent is worse than one that is merely wrong, because
+# nothing in the output says it did not happen.
+if [[ ! "${rss_kib}" =~ ^[0-9]+$ ]]; then
+  echo "[perf] FAIL: could not read the JVM's RSS from /proc/1/status in the app container"
+  exit 1
+fi
+rss_mib=$((rss_kib / 1024))
+
+# The container total is printed for context only, never asserted: it is the number an operator sees in
+# `docker stats`, and the gap between the two is the page cache described above.
+container_total="$(docker stats --no-stream --format '{{.MemUsage}}' "${app_cid}" 2>/dev/null | awk '{print $1}' || true)"
+echo "[perf] post-boot JVM RSS: ${rss_mib}MiB (ceiling ${RSS_MAX_MB}MiB); container total ${container_total:-unknown}"
+if [[ "${rss_mib}" -gt "${RSS_MAX_MB}" ]]; then
   echo "[perf] FAIL: post-boot RSS ${rss_mib}MiB exceeds ceiling ${RSS_MAX_MB}MiB"
   exit 1
 fi

@@ -207,7 +207,7 @@ public class NotesApiResource {
         LOGGER.debug("Notes API read {} of {} note(s) over {} (page {}) for user {}",
             items.size(), hits.totalCount(), window == null ? "the whole history" : (window.start() + " to " + window.end()), pageNum, user.email);
         return EntityTags.withPrivateValidator(
-            Response.ok(new NotesPageDto(items, Math.toIntExact(hits.totalCount()), hits.totalPages(), pageNum, hits.suggestion())), tag).build();
+            Response.ok(new NotesPageDto(items, Math.toIntExact(hits.totalCount()), hits.totalPages(), pageNum, suggestedWord(hits))), tag).build();
     }
 
     // Surface input policy: the range is optional, but it is a RANGE - half of one is a request the caller did not mean to make, so requireDate
@@ -218,6 +218,14 @@ public class NotesApiResource {
             return null;
         }
         return new DateWindow(DateRanges.requireDate("start", start), DateRanges.requireDate("end", end));
+    }
+
+    // The API publishes the WORD only. A client that follows the suggestion issues an ordinary search and is told the count by that response's own
+    // totalCount, so carrying it here would duplicate a number the next call already returns; the page shows it because it has no next call.
+    @Nullable
+    private static String suggestedWord(final PaginatedHits hits) {
+        final SuggestedTerm suggestion = hits.suggestion();
+        return suggestion == null ? null : suggestion.word();
     }
 
     private record DateWindow(LocalDate start, LocalDate end) {

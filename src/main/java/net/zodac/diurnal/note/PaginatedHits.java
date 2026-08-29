@@ -34,8 +34,8 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * The {@code suggestion} is the "did you mean" word, and is present only when a real term matched <strong>nothing</strong> - it is the answer to an
- * empty result, never an addition to a non-empty one. It is a word lifted from the user's own journal ({@link NoteSearch#suggest}), so it is as
- * private as the notes it came from: it may be rendered back to its author and must never be logged.
+ * empty result, never an addition to a non-empty one. It is a word lifted from the user's own journal ({@link NoteSearch#suggest}) paired with
+ * what searching for it finds, so it is as private as the notes it came from: it may be rendered back to its author and must never be logged.
  *
  * <p>
  * {@code totalCount} is how many notes MATCHED; {@code selectionCount} is how many were considered before the term was applied - the whole journal
@@ -51,6 +51,6 @@ import org.jspecify.annotations.Nullable;
  * @param suggestion     the closest word the journal holds to a term that matched nothing, or {@code null} when there is nothing to suggest
  */
 public record PaginatedHits(List<NoteHit> items, long totalCount, long selectionCount, int totalPages, int currentPage,
-    @Nullable String suggestion) {
+    @Nullable SuggestedTerm suggestion) {
 
 }

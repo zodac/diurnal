@@ -57,14 +57,14 @@ public final class JpqlQuery<R> {
      * Binds a value to one of the query's named parameters.
      *
      * @param parameter the parameter to bind, as declared beside the query text
-     * @param value     the value to bind to it
+     * @param value     the value to bind to it, which must be of the type the parameter declares
      * @param <T>       the type of value the parameter takes
      * @return this query, for chaining
      */
     // Returning `this` is the point: it is what makes a binding chain read like the setParameter chain it replaces, at every call site.
     @SuppressWarnings("ReturnOfThis")
-    public <T> JpqlQuery<R> bind(final QueryParameter parameter, final T value) {
-        query.setParameter(parameter.name(), value);
+    public <T> JpqlQuery<R> bind(final QueryParameter<T> parameter, final T value) {
+        parameter.bindTo(query, value);
         return this;
     }
 

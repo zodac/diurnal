@@ -18,6 +18,7 @@
 package net.zodac.diurnal.web.admin;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
 import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
 import static net.zodac.diurnal.http.HttpStatusCodes.FOUND;
@@ -211,7 +212,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @Test
     @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER_INTERNAL_VALUE, Role.Values.ADMIN_INTERNAL_VALUE})
     void confirmDeleteUser_notFound_returns409() {
-        given().get("/internal/admin/users/81d92e7a-6589-4050-984d-98234bcece64/confirm-delete")
+        given().get("/internal/admin/users/" + DUMMY_UUID + "/confirm-delete")
                 .then().statusCode(CONFLICT);
     }
 
@@ -255,7 +256,7 @@ class AdminWebResourceIT extends IntegrationTestBase {
     @Test
     @TestSecurity(user = "admin@lt.test", roles = {Role.Values.USER_INTERNAL_VALUE, Role.Values.ADMIN_INTERNAL_VALUE})
     void deleteUser_notFound_returns409() {
-        given().post("/internal/admin/users/81d92e7a-6589-4050-984d-98234bcece64/delete")
+        given().post("/internal/admin/users/" + DUMMY_UUID + "/delete")
                 .then().statusCode(CONFLICT)
                 .body(containsString("not found"));
     }

@@ -31,12 +31,20 @@ services:
       # escape hatch the ENTRYPOINT documents. No mem_limit is set here because a cgroup memory limit is
       # unavailable on some machines and CI runners (a threaded cgroup v2 hierarchy refuses one outright).
       #
-      # The INITIAL size is smaller than the maximum, matching the shape start.sh uses when no limit is
-      # set. It buys less than it looks: measured on the real image, fixed-vs-ranged moves post-boot RSS
-      # by ~13 MiB (442 against 429), well inside run-perf.sh's own memory ceiling either way, because
-      # AlwaysPreTouch is off and committed pages are not resident until touched. It is kept because the
-      # maximum is what governs G1's sizing under load, which is what this tier measures, and there is
-      # nothing to gain from committing the rest up front. The smoke tier covers the fallback path.
+      # The MAXIMUM is the one that matters, and it is what production gets (65% of the default 2g
+      # mem_limit): it governs G1's sizing under load, which is what this tier measures.
+      #
+      # The INITIAL size is immaterial to the footprint, and is measured to be so - native memory
+      # tracking on the real image shows the heap committed at 686MiB post-boot whether this says 256m
+      # or start.sh's 512m, because -Xms is only a starting point and G1 expands toward the maximum
+      # during the Quarkus / Flyway / Hibernate startup burst. It is stated anyway so the whole heap
+      # shape reads in one place rather than half here and half in start.sh. Do NOT expect changing it
+      # to move run-perf.sh's RSS reading; that number follows the MAXIMUM. The smoke tier covers the
+      # fallback path, where neither flag is set.
+      #
+      # This ONLY takes effect because start.sh now stands aside when JDK_JAVA_OPTIONS sets a heap flag.
+      # It previously did not: the launcher prepends this variable, so the entrypoint's own -Xms512m won
+      # and the container silently ran at double the initial heap asked for here.
       JDK_JAVA_OPTIONS: "-Xms256m -Xmx1330m"
       DB_HOST: db
       DB_PORT: 5432

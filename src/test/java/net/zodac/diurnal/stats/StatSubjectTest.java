@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.stats;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.UUID;
@@ -32,7 +33,7 @@ class StatSubjectTest {
     @Test
     void of_carriesTheActionsOwnIdentity() {
         final Action action = new Action();
-        action.id = UUID.randomUUID();
+        action.id = DUMMY_UUID;
         action.name = "Morning run";
         action.colour = "#6366f1";
 
@@ -70,7 +71,7 @@ class StatSubjectTest {
     @Test
     void action_isNotRecognisedAsNotes() {
         final Action action = new Action();
-        action.id = UUID.randomUUID();
+        action.id = DUMMY_UUID;
         action.name = "Morning run";
         action.colour = "#6366f1";
 
@@ -86,7 +87,7 @@ class StatSubjectTest {
     @Test
     void actionName_forAnAction_isTheUsersOwnName() {
         final Action action = new Action();
-        action.id = UUID.randomUUID();
+        action.id = DUMMY_UUID;
         action.name = "Morning run";
         action.colour = "#6366f1";
 

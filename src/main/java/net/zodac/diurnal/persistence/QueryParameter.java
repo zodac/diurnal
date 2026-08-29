@@ -17,6 +17,8 @@
 
 package net.zodac.diurnal.persistence;
 
+import jakarta.persistence.Query;
+
 /**
  * One named parameter of a handwritten SQL or JPQL query: the {@code :name} placeholder in the query text, paired with the type of value it takes.
  *
@@ -31,22 +33,44 @@ package net.zodac.diurnal.persistence;
  * {@code *QueriesTest} classes pin that half at unit speed, asserting each query's extracted placeholder set ({@code SqlParameters}) against the
  * parameters declared for it here.
  *
+ * <p>
+ * <strong>The type parameter is the whole point.</strong> A token declares the type its placeholder takes
+ * ({@code QueryParameter<UUID>}, {@code QueryParameter<Collection<UUID>>}), and {@link JpqlQuery#bind} / {@link SqlQuery#bind} accept only a value
+ * of that type - so binding a {@code String} where the query expects a {@code UUID} does not compile, rather than failing when the query first runs.
+ * It is carried as a type argument rather than as a {@code Class} token because a {@code Class} cannot express a parameterised type, and two of the
+ * parameters here bind a {@code Collection<UUID>}.
+ *
  * @param name the parameter's name, without its leading colon
+ * @param <T>  the type of value this parameter takes
  */
-public record QueryParameter(String name) {
+public record QueryParameter<T>(String name) {
 
     /**
      * Creates a {@link QueryParameter} for the named placeholder.
      *
      * @param name the parameter's name, without its leading colon
-     * @param <T>  the type of value the parameter takes
+     * @param <T>  the type of value the parameter takes, taken from the declaration it is assigned to
      * @return the created {@link QueryParameter}
      * @throws IllegalArgumentException if {@code name} is blank
      */
-    public static <T> QueryParameter of(final String name) {
+    public static <T> QueryParameter<T> of(final String name) {
         if (name.isBlank()) {
             throw new IllegalArgumentException("Query parameter name must not be blank");
         }
-        return new QueryParameter(name);
+        return new QueryParameter<>(name);
+    }
+
+    /**
+     * Binds a value to this parameter on a prepared query or statement.
+     *
+     * <p>
+     * The application lives here rather than in each wrapper because it is the one place the parameter's name and its value meet, so neither
+     * {@link JpqlQuery} nor {@link SqlQuery} repeats it - and it is what makes {@code T} load-bearing rather than a tag nothing reads.
+     *
+     * @param query the prepared query or statement to bind on
+     * @param value the value to bind, of the type this parameter declares
+     */
+    void bindTo(final Query query, final T value) {
+        query.setParameter(name, value);
     }
 }

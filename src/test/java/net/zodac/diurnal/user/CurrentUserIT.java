@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.user;
 
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -78,7 +79,7 @@ class CurrentUserIT extends IntegrationTestBase {
     @Test
     void find_returnsEmpty_whenUserIdMatchesNoRow() {
         // A userId is authoritative: when it matches no row the result is empty (no email fallback).
-        final CurrentUser currentUser = currentUserFor(identityWith(UUID.randomUUID(), "ghost@lt.test"));
+        final CurrentUser currentUser = currentUserFor(identityWith(DUMMY_UUID, "ghost@lt.test"));
         runInTx(() -> assertThat(currentUser.find())
             .as("a userId matching no row resolves to empty")
             .isEmpty());

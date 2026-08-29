@@ -18,6 +18,7 @@
 package net.zodac.diurnal.action;
 
 import static io.restassured.RestAssured.given;
+import static net.zodac.diurnal.DummyValues.DUMMY_UUID;
 import static net.zodac.diurnal.http.HttpStatusCodes.BAD_REQUEST;
 import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
 import static net.zodac.diurnal.http.HttpStatusCodes.CREATED;
@@ -512,7 +513,7 @@ class ActionsApiResourceIT extends IntegrationTestBase {
 
     @Test
     void delete_unknownAction_returns404() {
-        given().delete("/api/v1/actions/81d92e7a-6589-4050-984d-98234bcece64")
+        given().delete("/api/v1/actions/" + DUMMY_UUID)
                 .then().statusCode(NOT_FOUND);
     }
 

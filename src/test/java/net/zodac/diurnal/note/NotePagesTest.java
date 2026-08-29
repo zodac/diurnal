@@ -107,11 +107,12 @@ class NotePagesTest {
 
     @Test
     void of_carriesTheSuggestionThroughAsLinkableWord() {
-        final PaginatedNotes page = NotePages.of(new PaginatedHits(List.of(), 0L, 4L, 0, 1, "kaleidoscope"), "kaleidoscpoe", EN_GB);
+        final PaginatedHits hits = new PaginatedHits(List.of(), 0L, 4L, 0, 1, new SuggestedTerm("kaleidoscope", 2));
+        final PaginatedNotes page = NotePages.of(hits, "kaleidoscpoe", EN_GB);
 
         assertThat(page.suggestion())
             .as("an empty result offers the closest word the journal holds, with the link that searches for it")
-            .isEqualTo(new NoteSuggestion("kaleidoscope", "/notes?q=kaleidoscope"));
+            .isEqualTo(new NoteSuggestion("kaleidoscope", "/notes?q=kaleidoscope", 2));
     }
 
     @Test
@@ -132,9 +133,9 @@ class NotePagesTest {
 
     @Test
     void suggestion_encodesTheWordIntoItsLink() {
-        assertThat(NotePages.suggestion("ملاحظة"))
+        assertThat(NotePages.suggestion(new SuggestedTerm("ملاحظة", 1)))
             .as("a suggested word is the user's own writing, in whatever script - it must reach the link encoded")
-            .isEqualTo(new NoteSuggestion("ملاحظة", "/notes?q=%D9%85%D9%84%D8%A7%D8%AD%D8%B8%D8%A9"));
+            .isEqualTo(new NoteSuggestion("ملاحظة", "/notes?q=%D9%85%D9%84%D8%A7%D8%AD%D8%B8%D8%A9", 1));
     }
 
     @Test

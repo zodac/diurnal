@@ -42,7 +42,7 @@ import net.zodac.diurnal.persistence.QueryParameter;
 @Table(name = "actions")
 public class Action extends PanacheEntityBase {
 
-    private static final QueryParameter USER_ID = QueryParameter.of("userId");
+    private static final QueryParameter<UUID> USER_ID = QueryParameter.of("userId");
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
