@@ -54,7 +54,7 @@
 #             (the -trixie tag matches this base's glibc exactly).
 FROM eclipse-temurin:26.0.2_10-jdk AS jdk
 FROM maven:3.9.16-eclipse-temurin-26 AS maven
-FROM node:26.7.0-trixie AS node
+FROM node:26.8.1-trixie AS node
 
 # ── Runtime base ─────────────────────────────────────────────────────────────
 FROM debian:13.5
