@@ -172,7 +172,7 @@ public class NoteService {
         if (!query.isEmpty()) {
             // The COUNT only. Never the note, and never the SEARCH TERM either: a term is drawn from the writing it is
             // meant to find, so logging "user searched for <name>" leaks the note as surely as logging the note would.
-            LOGGER.debug("Notes search matched {} of {} note(s) for user {}", hits.size(), notes.size(), user.email);
+            LOGGER.trace("Notes search matched {} of {} note(s) for user {}", hits.size(), notes.size(), user.email);
         }
 
         // Only where the answer would otherwise be an empty page. The journal is already open, so the closest word costs one more pass over text
