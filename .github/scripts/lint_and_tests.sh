@@ -164,7 +164,7 @@ QODANA_CONFIG_FILE="${OVERRIDES_DIR}/qodana.yaml"
 SONAR_CONFIG_FILE="${OVERRIDES_DIR}/sonar.properties"
 
 ESLINT_BUILD_IMAGE="local/diurnal-eslint:latest"
-ESLINT_NODE_IMAGE="node:26.7.0-alpine"
+ESLINT_NODE_IMAGE="node:26.8.1-alpine"
 
 # Exact pins for the linting toolchain baked into ESLINT_BUILD_IMAGE. Pinned, rather than the floating
 # majors this used to install, because the versions resolve when the IMAGE is built: a developer's image
@@ -172,12 +172,12 @@ ESLINT_NODE_IMAGE="node:26.7.0-alpine"
 # different rule sets - and a new minor release could turn the gate red with no change to this repo. The
 # two @typescript-eslint packages share one pin because they are released in lockstep. All are bumped by
 # .github/scripts/update_dependency_versions.sh, like every other pin in this file.
-ESLINT_VERSION="10.9.0"
+ESLINT_VERSION="10.9.1"
 ESLINT_JS_VERSION="10.0.1"
-TYPESCRIPT_ESLINT_VERSION="8.67.0"
+TYPESCRIPT_ESLINT_VERSION="8.68.0"
 ESLINT_GLOBALS_VERSION="17.11.0"
 TYPESCRIPT_VERSION="7.0.2"
-GRYPE_DOCKER_IMAGE="anchore/grype:v0.117.0"
+GRYPE_DOCKER_IMAGE="anchore/grype:v0.118.0"
 HADOLINT_DOCKER_IMAGE="hadolint/hadolint:v2.15.1-alpine"
 MARKDOWNLINT_DOCKER_IMAGE="davidanson/markdownlint-cli2:v0.23.2"
 SHELLCHECK_DOCKER_IMAGE="koalaman/shellcheck:v0.11.0"
