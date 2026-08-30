@@ -122,7 +122,7 @@ public class NotesInternalResource {
 
         final User user = currentUser.get();
         final LocalDate startDate = DateRanges.requireDate("start", start);
-        final LocalDate endDate   = DateRanges.requireDate("end", end);
+        final LocalDate endDate = DateRanges.requireDate("end", end);
 
         final EntityTag tag = EntityTags.weak(user.id, startDate, endDate, Note.rangeVersion(user.id, startDate, endDate));
         final Response.ResponseBuilder notModified = request.evaluatePreconditions(tag);
@@ -136,7 +136,13 @@ public class NotesInternalResource {
         noteService.readContents(user.id, Note.sealedForUserAndRange(user.id, startDate, endDate))
             .forEach((date, content) -> byDate.put(date.toString(), content));
         // The COUNT only, never a note's content - see NoteService's logging rule.
-        LOGGER.debug("Notes feed served {} note(s) in [{}, {}] for user {}", byDate.size(), startDate, endDate, user.email);
+
+        final int size = byDate.size();
+        if (size == 0) {
+            LOGGER.trace("Notes feed served {} note(s) in [{}, {}] for user {}", size, startDate, endDate, user.email);
+        } else {
+            LOGGER.debug("Notes feed served {} note(s) in [{}, {}] for user {}", size, startDate, endDate, user.email);
+        }
         return EntityTags.withValidator(Response.ok(byDate), tag).build();
     }
 
