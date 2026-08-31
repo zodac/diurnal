@@ -30,7 +30,12 @@ import java.util.UUID;
  * <p>
  * The identity built by session auth (the {@code diurnal_session} cookie or a Bearer token, via {@code UserIdentities}) and by the OIDC flow all
  * carry a {@code userId} attribute, so the account is fetched by primary key; absent that attribute it falls back to the email — the principal name.
- * Within a single request the result is served from Hibernate's first-level cache, so resolving the user more than once issues no extra query.
+ *
+ * <p>
+ * On a read-only endpoint this normally issues no statement at all: session authentication has already loaded the account into the request-scoped
+ * persistence context (see {@code PostgresSessionStore.resolve}), so the by-primary-key lookup here — and every later one in the same request — is
+ * answered from Hibernate's first-level cache. A {@code @Transactional} endpoint runs in its own persistence context, so there the first call does
+ * read the row and the ones after it are the cache hits.
  */
 @ApplicationScoped
 public class CurrentUser {

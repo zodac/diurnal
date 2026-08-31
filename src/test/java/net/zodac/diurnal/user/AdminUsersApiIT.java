@@ -23,6 +23,7 @@ import static net.zodac.diurnal.http.HttpStatusCodes.CONFLICT;
 import static net.zodac.diurnal.http.HttpStatusCodes.FORBIDDEN;
 import static net.zodac.diurnal.http.HttpStatusCodes.NO_CONTENT;
 import static net.zodac.diurnal.http.HttpStatusCodes.OK;
+import static net.zodac.diurnal.http.HttpStatusCodes.UNAUTHORIZED;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -160,6 +161,21 @@ class AdminUsersApiIT extends IntegrationTestBase {
                 .as("the account's logs should be cascade-deleted")
                 .isZero();
         });
+    }
+
+    @Test
+    void deleteUser_revokesEverySessionTheAccountHeld() {
+        final String targetToken = sessionStore.create(regularUser, Session.AUTH_SOURCE_PASSWORD, null, null, SESSION_INSTANT);
+
+        given().header("Authorization", "Bearer " + adminToken())
+                .delete("/api/v1/admin/users/" + regularUser.id)
+                .then().statusCode(NO_CONTENT);
+
+        // The deleted account's token must stop authenticating immediately - AdminUserService revokes the
+        // sessions itself rather than leaving it to the sessions.user_id ON DELETE CASCADE.
+        given().header("Authorization", "Bearer " + targetToken)
+                .get("/api/v1/users/me")
+                .then().statusCode(UNAUTHORIZED);
     }
 
     @Test

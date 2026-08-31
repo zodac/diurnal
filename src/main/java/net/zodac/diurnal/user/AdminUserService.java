@@ -20,9 +20,11 @@ package net.zodac.diurnal.user;
 import io.quarkus.panache.common.Page;
 import io.quarkus.panache.common.Sort;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import java.util.List;
 import java.util.UUID;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.auth.session.SessionStore;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.page.PageWindow;
@@ -44,6 +46,18 @@ import org.jspecify.annotations.Nullable;
 public class AdminUserService {
 
     private static final Logger LOGGER = LogManager.getLogger(AdminUserService.class);
+
+    private final SessionStore sessionStore;
+
+    /**
+     * Injects the session store, used to revoke a deleted account's sessions.
+     *
+     * @param sessionStore the shared server-side session store
+     */
+    @Inject
+    public AdminUserService(final SessionStore sessionStore) {
+        this.sessionStore = sessionStore;
+    }
 
     /**
      * Fetches one page of every account, ordered by creation time (the same paging the admin page renders, driven by the viewing administrator's
@@ -118,6 +132,12 @@ public class AdminUserService {
             LOGGER.warn("Admin {} attempted to delete the last administrator {}", actorEmail, target.email);
             return new AdminUserResult.LastAdmin();
         }
+
+        // The sessions.user_id FK is ON DELETE CASCADE (V20), so the rows would go either way - but revoking
+        // explicitly keeps the security-relevant step visible in the code and in the log, rather than leaving
+        // "a deleted account can no longer authenticate" as a property of the schema that nothing here states.
+        sessionStore.revokeAllForUser(target.id);
+        LOGGER.debug("Revoked all sessions of deleted user {}", target.email);
 
         // Hard-delete in FK order: notes → logs → actions → user. Each step is a single bulk statement
         // (all the account's rows key on its userId), so a big account does not fan out into a per-action
