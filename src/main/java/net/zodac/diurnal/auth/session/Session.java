@@ -109,6 +109,18 @@ public class Session extends PanacheEntityBase {
     }
 
     /**
+     * Slides the session's expiry window forward by rewriting {@link #lastUsedAt}, as a single bulk statement rather than a write through a managed
+     * entity - so the per-request "touch" needs no persistence context of its own (see {@code PostgresSessionStore.resolve}, which does its read
+     * outside any transaction).
+     *
+     * @param tokenHash the SHA-256 hash of the presented token
+     * @param now the instant to record as the session's last use
+     */
+    public static void touchLastUsed(final byte[] tokenHash, final Instant now) {
+        update("lastUsedAt = ?1 where tokenHash = ?2", now, tokenHash);
+    }
+
+    /**
      * Deletes the session identified by the given token hash.
      */
     public static void deleteByTokenHash(final byte[] tokenHash) {

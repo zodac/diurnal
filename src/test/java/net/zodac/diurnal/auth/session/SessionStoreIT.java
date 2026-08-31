@@ -29,8 +29,8 @@ import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 /**
- * Integration tests for {@link PostgresSessionStore}: token resolution, idle expiry and the three revocation modes (single, all, all-but-current)
- * against a real database.
+ * Integration tests for {@link PostgresSessionStore}: token resolution, idle expiry, the coalesced sliding-expiry touch and the three revocation
+ * modes (single, all, all-but-current) against a real database.
  */
 @QuarkusTest
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
@@ -84,6 +84,29 @@ class SessionStoreIT extends IntegrationTestBase {
     }
 
     @Test
+    void resolve_pastTheBumpInterval_slidesTheExpiryWindowForward() {
+        final String token = sessionStore.create(user, Session.AUTH_SOURCE_PASSWORD, null, null, NOW);
+        final Instant later = NOW.plus(Duration.ofMinutes(5L));
+
+        sessionStore.resolve(token, later);
+
+        runInTx(() -> assertThat(storedLastUsed(token))
+            .as("a resolve past the coalescing interval must write the session's new last-used time")
+            .isEqualTo(later));
+    }
+
+    @Test
+    void resolve_insideTheBumpInterval_leavesLastUsedAlone() {
+        final String token = sessionStore.create(user, Session.AUTH_SOURCE_PASSWORD, null, null, NOW);
+
+        sessionStore.resolve(token, NOW.plus(Duration.ofSeconds(30L)));
+
+        runInTx(() -> assertThat(storedLastUsed(token))
+            .as("a resolve inside the coalescing interval must not rewrite last-used")
+            .isEqualTo(NOW));
+    }
+
+    @Test
     void revoke_thenResolve_isEmpty() {
         final String token = sessionStore.create(user, Session.AUTH_SOURCE_PASSWORD, null, null, NOW);
         sessionStore.revoke(token);
@@ -120,5 +143,9 @@ class SessionStoreIT extends IntegrationTestBase {
         assertThat(sessionStore.resolve(other, NOW))
             .as("Every other session must be revoked on password change")
             .isEmpty();
+    }
+
+    private static Instant storedLastUsed(final String rawToken) {
+        return Session.findByTokenHash(SessionTokens.hash(rawToken)).orElseThrow().lastUsedAt;
     }
 }

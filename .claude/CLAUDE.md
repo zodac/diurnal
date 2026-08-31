@@ -590,6 +590,22 @@ at 323,154 `action_logs` rows (one 30-action, 3-year account among 199 lighter o
   `JOIN FETCH s.user`, and re-verified the same way: one statement, zero standalone user lookups. **That DEBUG-log
   run is the way to check this class of bug** — the relation count is low enough that nothing else is at risk today,
   but a second `@ManyToOne` added anywhere would have the same default.
+  **That fix was only half the job, and the same DEBUG-log run found the other half**: the row the `JOIN FETCH`
+  loaded was then thrown away, because `PostgresSessionStore.resolve` was `@Transactional` and so read it into a
+  transaction-scoped persistence context that closes at commit — leaving the resource's first `CurrentUser.get()` to
+  read the identical row again. EVERY authenticated request paid it: `GET /api/v1/users/me` and `GET /settings` were
+  2 statements of which both were auth, `GET /` 4 of which 2, and one dashboard view is 4-8 such requests. Dropping
+  that `@Transactional` moves the read into the REQUEST-scoped persistence context, which outlives authentication, so
+  `CurrentUser` answers from the first-level cache with no statement at all (measured 2 -> 1 and 4 -> 3; `resolve`'s
+  two writes moved to short programmatic transactions carrying one bulk statement each, and
+  `AuthenticationQueryCountIT` pins the account to ONE load per request so re-adding the annotation fails the build).
+  **One statement is the floor without caching the session row itself**, and a token cache was measured against that
+  and REJECTED: it saves only the remaining lookup (0.46 ms locally, 1.24 ms at 4.78M rows) and can reach zero
+  statements only by caching roles and identity state — exactly what `Session`'s "roles are resolved live" design
+  forbids — while its eviction surface includes the invisible `sessions.user_id ON DELETE CASCADE`. Trigger for
+  revisiting: a SECOND application instance, at which point the answer is a Redis `SessionStore` (the interface
+  exists for precisely that), not a cache in front of `CurrentUser`, because an in-JVM cache makes revocation stop
+  working in the very deployment that motivated it.
 - **`users.created_at` was the deferred index whose trigger actually fired** - `V42` adds it. It was correctly not
   worth it at 200 and at 1,000 accounts (1.17 ms); at 50,000 the admin list's first page was 13-15 ms and its last
   page 127 ms, because the page was `Seq Scan` + top-N heapsort over every account. With the index: 0.2 ms and

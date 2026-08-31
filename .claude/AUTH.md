@@ -52,9 +52,25 @@ boundary
 logic is pure in `SessionTokens` (100% PIT). The challenge is path-based (`SessionAuthMechanism.challengeFor`): `/api/*` → `401`, everything else →
 `302 /login`. `SessionSweeper` (`@Scheduled`, `SESSION_CLEANUP_INTERVAL`) prunes absolute-expired rows; idle-expired rows are pruned lazily on
 `resolve`.
-**Revocation = deleting rows:** logout (`revoke`, this device only), password change (`revokeOthersForUser`, all *but* the current), and "Log out from
+**`SessionStore.resolve` is deliberately NOT `@Transactional`, and that is load-bearing for every authenticated request.** A `@Transactional` read
+runs in a transaction-scoped persistence context that closes at commit, so the `User` its `JOIN FETCH` loaded is discarded the moment the method
+returns and the resource's first `CurrentUser.get()` reads the same row a second time — one wasted `users` read on *every* authenticated request.
+Reading with no transaction instead uses the **request-scoped** persistence context, which outlives authentication, so the account is still managed
+when the resource asks and `CurrentUser` answers from the first-level cache with no statement at all (measured: `GET /api/v1/users/me` and
+`GET /settings` 2 statements → 1, `GET /` 4 → 3). The two writes `resolve` may make — the coalesced `last_used_at` touch and the delete of a session
+found expired — therefore open short transactions of their own **programmatically** (`QuarkusTransaction.joiningExisting()`), each a single bulk
+statement keyed on the token hash so neither has to re-read the row. A `@Transactional` endpoint (any write) opens its own persistence context as it
+always did and is unaffected. `AuthenticationQueryCountIT` pins the account to ONE load per request through Hibernate's `Statistics`, so re-adding an
+innocent-looking `@Transactional` fails the build. **The one caller that must supply its own transaction is `OpenApiDocsAuthFilter`** — a Vert.x route
+handler has no CDI request context at all, so with no transaction either, Hibernate throws `ContextNotActiveException`; it wraps its `resolve` in
+`QuarkusTransaction.requiringNew()`.
+
+**Revocation = deleting rows:** logout (`revoke`, this device only), password change (`revokeOthersForUser`, all *but* the current), "Log out from
 everywhere" (`revokeAllForUser`, incl. current — `POST /internal/settings/sessions/revoke-all` from Settings, or its API twin
-`POST /api/v1/auth/revoke`). OIDC folds in: `OidcWebResource.oidcCallback` mints a Diurnal session
+`POST /api/v1/auth/revoke`), and **account deletion** (`AdminUserService.deleteUser` calls `revokeAllForUser` and logs it at `DEBUG` before deleting).
+That last one is redundant against the `sessions.user_id` `ON DELETE CASCADE` in `V20` — deliberately so: it keeps "a deleted account can no longer
+authenticate" stated in the code and visible in the log, rather than being a property of the schema that nothing in Java mentions, and it is the
+prerequisite for any future caching of session lookups (a cascade is invisible to a cache). OIDC folds in: `OidcWebResource.oidcCallback` mints a Diurnal session
 (`auth_source='oidc'`) and sets our cookie, so OIDC users ride the same revocable model (the `q_session` cookie survives only so logout can trigger
 RP-initiated IdP logout).
 

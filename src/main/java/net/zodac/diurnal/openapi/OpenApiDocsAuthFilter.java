@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.openapi;
 
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import io.quarkus.runtime.StartupEvent;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
@@ -41,6 +42,12 @@ import org.jspecify.annotations.Nullable;
  * {@link io.quarkus.security.identity.SecurityIdentity} (a named roles-allowed HTTP policy would not fire), this is enforced as a low-order Vert.x
  * route that runs before the framework handlers: it resolves the request's session token itself via the {@link SessionStore} — mirroring
  * {@link SessionAuthMechanism} — and applies the {@link OpenApiDocsAccess} decision, only calling {@code next()} for an administrator.
+ *
+ * <p>
+ * This is the one caller that has to give {@link SessionStore#resolve(String, java.time.Instant)} a transaction of its own. That method deliberately
+ * reads with none, so a normal request resolves it in the request-scoped persistence context and keeps the loaded account managed for the whole
+ * request — but a Vert.x route handler has no CDI request context at all, and Hibernate needs one or the other ({@code ContextNotActiveException}
+ * otherwise). A transaction here costs nothing worth counting: the docs surface is an admin page, not a per-request path.
  */
 @ApplicationScoped
 public class OpenApiDocsAuthFilter {
@@ -100,6 +107,8 @@ public class OpenApiDocsAuthFilter {
         if (token == null) {
             return null;
         }
-        return sessionStore.resolve(token, clock.now()).orElse(null);
+        return QuarkusTransaction.requiringNew()
+            .call(() -> sessionStore.resolve(token, clock.now()))
+            .orElse(null);
     }
 }

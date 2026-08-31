@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.auth.session;
 
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import jakarta.transaction.Transactional;
@@ -32,6 +33,22 @@ import org.jspecify.annotations.Nullable;
 /**
  * Database-backed {@link SessionStore}: sessions live in the {@code sessions} table, keyed by the SHA-256 hash of the raw token. Suits the
  * single-instance deployment; durable across restarts.
+ *
+ * <p>
+ * {@link #resolve(String, Instant)} is deliberately NOT {@code @Transactional}, and that is load-bearing for every authenticated request in the app.
+ * A {@code @Transactional} read runs in a transaction-scoped persistence context that closes at commit, so the {@link User} its {@code JOIN FETCH}
+ * loaded is discarded the moment the method returns - and the resource's first {@code CurrentUser.get()} then reads that very same row a second time.
+ * Reading without a transaction instead uses the REQUEST-scoped persistence context, which outlives authentication, so the user is still managed when
+ * the resource asks for it and {@code CurrentUser} answers from the first-level cache with no statement at all. Measured against a real database:
+ * {@code GET /api/v1/users/me} and {@code GET /settings} went from two statements to one, and {@code GET /} from four to three. A
+ * {@code @Transactional} endpoint (a write) opens its own persistence context as it always did, so it is unaffected either way.
+ *
+ * <p>
+ * The two writes {@code resolve} may need therefore open short transactions of their own, programmatically rather than by annotation - a
+ * {@code @Transactional} method on this bean would be a self-call and go unintercepted, and the alternative (the {@code self} CDI-proxy pattern
+ * {@code AuthenticationService} uses) buys nothing here, where each write is a single statement rather than a read-modify-write. Both are bulk
+ * statements keyed on the token hash, so neither has to re-read the row it is about to touch, and both JOIN an enclosing transaction where there is
+ * one.
  */
 @ApplicationScoped
 public class PostgresSessionStore implements SessionStore {
@@ -78,9 +95,9 @@ public class PostgresSessionStore implements SessionStore {
     }
 
     @Override
-    @Transactional
     public Optional<User> resolve(final String rawToken, final Instant now) {
-        final Optional<Session> found = Session.findByTokenHash(SessionTokens.hash(rawToken));
+        final byte[] tokenHash = SessionTokens.hash(rawToken);
+        final Optional<Session> found = Session.findByTokenHash(tokenHash);
         if (found.isEmpty()) {
             return Optional.empty();
         }
@@ -90,13 +107,12 @@ public class PostgresSessionStore implements SessionStore {
             // The session existed but has aged out (idle or absolute timeout) - remove it so the request is challenged. This is the
             // "why was I suddenly signed out?" case, uncovered by the login/logout logging in the services above it.
             LOGGER.debug("Session expired (idle/absolute timeout) - removing for user {}", session.user.email);
-            session.delete();
+            QuarkusTransaction.joiningExisting().run(() -> Session.deleteByTokenHash(tokenHash));
             return Optional.empty();
         }
 
         if (SessionTokens.shouldBumpLastUsed(session.lastUsedAt, now, LAST_USED_BUMP_INTERVAL)) {
-            session.lastUsedAt = now;
-            session.persist();
+            QuarkusTransaction.joiningExisting().run(() -> Session.touchLastUsed(tokenHash, now));
         }
         return Optional.of(session.user);
     }

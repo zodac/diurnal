@@ -50,6 +50,12 @@ public interface SessionStore {
      * Resolves a raw token to its owning user if the session exists and is still valid, refreshing the session's last-used time as a side effect.
      * Expired sessions are pruned on encounter.
      *
+     * <p>
+     * A caller must NOT wrap this in a transaction of its own unless it has one for other reasons: the {@link PostgresSessionStore} implementation
+     * deliberately reads in the request-scoped persistence context so the {@link User} it returns is still managed when the request's resource asks
+     * for it, and an enclosing transaction would take that back (see that class's Javadoc). Both writes this may perform own their own short
+     * transactions.
+     *
      * @param rawToken the raw token presented by the client
      * @param now the current instant (from {@code AppClock})
      * @return the owning {@link User}, or empty if the token is unknown or expired
