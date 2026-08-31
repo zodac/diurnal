@@ -210,15 +210,30 @@ rather than the browser's `302 /login` challenge, which for a file download is i
 `ImportService` owns the use case and orchestrates three owners:
 
 - **Actions and logs** are wiped and re-inserted through the entity statics (`ActionLog.deleteByUser`,
-  `Action.delete("userId", …)`, `Action.persist`, `ActionLog.setCount`) — the same statements
+  `Action.delete("userId", …)`, `Action.persist`, `ActionLog.setCounts`) — the same statements
   `AdminUserService.delete` already uses to clear an account across package boundaries.
 - **Notes go through `NoteService.replaceAll`**, which is the only thing that can seal them. An importer
   reaching for `Note.upsert` directly would be the one path in the app capable of writing a note in the clear.
   The data key is resolved once for the whole journal, mirroring `readContents` on the way out — which reads its
   notes as `SealedNote` projections rather than entities, the export being one of the two paths that opens every
   note an account holds.
-- Actions are inserted **and flushed** before their logs: a log names its action by name, and `ActionLog.setCount`
+- Actions are inserted **and flushed** before their logs: a log names its action by name, and `ActionLog.setCounts`
   is a native statement that cannot see rows still sitting in the persistence context.
+
+> **The logs and the notes are each written in ONE statement, not one per row** (`ActionLog.setCounts`,
+> `Note.upsertAll`). An import replaces a whole account at once — a 3-year archive is ~33,000 log entries — and
+> at that size the round trip per row *was* the cost of an import, not the writing. Both send their rows as
+> parallel arrays that PostgreSQL `unnest`s back into rows, which is what keeps each statement's text (and so its
+> `:named`-parameter set) fixed however many rows it carries, and therefore still within reach of the typed
+> `QueryParameter` tokens and the `*QueriesTest` that pins them. Measured on a real connection at ~33,000
+> entries: **3,628 ms as one statement per row against 812 ms as one statement.** The per-row `setCount`/`upsert`
+> remain, and are still what every interactive single-day write uses.
+>
+> Each row keeps the same last-write-wins `ON CONFLICT` arm the single-row form has. A key repeated *within* one
+> call would be refused by the database rather than silently overwritten — unreachable from here, because
+> `ImportParser` has already rejected the archive over `DuplicateLog`/`DuplicateNote`. The seal is unchanged:
+> still per note, still bound to that note's own owner and date. `BulkWriteIT` covers the failure a unit test
+> cannot see — a mis-zipped pair of arrays, where every row lands and each value sits against the wrong day.
 
 ## The UI
 

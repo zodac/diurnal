@@ -58,11 +58,15 @@ final class NoteQueries {
      *
      * <p>
      * The total is a plain {@code COUNT}: one note per day is one occurrence, which is what makes a notes subject's total count equal its total days.
+     *
+     * <p>
+     * Bounded to the {@code [:from, :to]} window it draws, matching the action-side rollup - and, like it, no longer read by the Stats page at all,
+     * which derives a month's total from the daily rollup it has already read.
      */
     static final String MONTHLY_TOTALS_JPQL = """
             SELECT new net.zodac.diurnal.log.MonthlyActionTotal(:subjectId, YEAR(n.noteDate), MONTH(n.noteDate), COUNT(n))
             FROM Note n
-            WHERE n.userId = :userId
+            WHERE n.userId = :userId AND n.noteDate >= :from AND n.noteDate <= :to
             GROUP BY YEAR(n.noteDate), MONTH(n.noteDate)""";
 
     /**
@@ -126,6 +130,18 @@ final class NoteQueries {
             ORDER BY n.noteDate""";
 
     /**
+     * JPQL for the earliest day the user wrote a note - the notes subject's half of the frequency chart's navigation bound.
+     *
+     * <p>
+     * A plain {@code MIN} needs no {@code LATERAL} here, unlike the action-side query it pairs with: there is only ever ONE notes subject per user,
+     * so this is a single range in {@code notes_unique (user_id, note_date)} and PostgreSQL answers it by taking that range's first entry.
+     */
+    static final String EARLIEST_NOTE_DATE_JPQL = """
+            SELECT MIN(n.noteDate)
+            FROM Note n
+            WHERE n.userId = :userId""";
+
+    /**
      * Native upsert writing a day's note in one statement: it inserts a new row or, on the {@code notes_unique} conflict, overwrites the existing
      * content. Doing the whole read-modify-write in one statement means two concurrent saves of the same day cannot race a find-then-insert into a
      * unique-constraint violation (a 500) — the loser simply overwrites, which is the correct last-write-wins semantic for a single owner editing
@@ -142,6 +158,26 @@ final class NoteQueries {
             ON CONFLICT ON CONSTRAINT notes_unique
             DO UPDATE SET content_encrypted = EXCLUDED.content_encrypted, updated_at = :now""";
 
+    /**
+     * Native upsert writing MANY days' notes for one user in a single statement - the bulk arm of {@link #UPSERT_SQL}, used when a data import
+     * replaces an account's whole journal.
+     *
+     * <p>
+     * The rows arrive as two parallel arrays rather than as a generated {@code VALUES} list, which keeps the statement's text - and so its
+     * {@code :named}-parameter set - FIXED however many notes are being written, and therefore within reach of the typed {@link QueryParameter}
+     * tokens and {@code NoteQueriesTest}. {@code unnest} zips the two into rows, and empty arrays are a clean no-op.
+     *
+     * <p>
+     * The id is minted by the database here rather than bound per row, because there is no per-row Java value to bind and nothing ever reads the
+     * column. As with {@link #UPSERT_SQL} the value written is the SEALED form, the only form there is.
+     */
+    static final String UPSERT_MANY_SQL = """
+            INSERT INTO notes (id, user_id, note_date, content_encrypted, created_at, updated_at)
+            SELECT gen_random_uuid(), :userId, entry.note_date, entry.content, :now, :now
+            FROM unnest(CAST(:dateArray AS DATE[]), CAST(:contentArray AS BYTEA[])) AS entry(note_date, content)
+            ON CONFLICT ON CONSTRAINT notes_unique
+            DO UPDATE SET content_encrypted = EXCLUDED.content_encrypted, updated_at = :now""";
+
     // The named parameters the queries above declare, as typed tokens: every binding goes through one of these rather than a bare string, so a
     // misspelled name - or a value of the wrong type for it - is a compile error instead of a failure on first execution. The placeholders inside
     // the query text stay textual (no Java type can reach them), which is what NoteQueriesTest is for.
@@ -153,6 +189,11 @@ final class NoteQueries {
     static final QueryParameter<LocalDate> TO = QueryParameter.of("to");
     static final QueryParameter<byte[]> CONTENT_ENCRYPTED = QueryParameter.of("contentEncrypted");
     static final QueryParameter<Instant> NOW = QueryParameter.of("now");
+
+    // The bulk upsert's two parallel arrays. Typed as Java arrays rather than as a Collection because they are bound straight through to the
+    // PostgreSQL array types the statement casts them to, one JDBC array each, and a Collection would bind as an IN-list instead.
+    static final QueryParameter<LocalDate[]> DATE_ARRAY = QueryParameter.of("dateArray");
+    static final QueryParameter<byte[][]> CONTENT_ARRAY = QueryParameter.of("contentArray");
 
     private NoteQueries() {
 

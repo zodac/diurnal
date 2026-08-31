@@ -18,6 +18,8 @@
 package net.zodac.diurnal.note;
 
 import java.time.LocalDate;
+import java.util.Arrays;
+import java.util.Objects;
 
 /**
  * A stored note as every read path actually uses it: the day it belongs to, and the sealed bytes to open. A typed projection produced by
@@ -43,4 +45,25 @@ import java.time.LocalDate;
  * @param contentEncrypted the note's sealed content, opened by {@link NoteContent#open(byte[], java.util.UUID, LocalDate, byte[])}
  */
 public record SealedNote(LocalDate noteDate, byte[] contentEncrypted) {
+
+    // Hand-written because of the array component: a record's generated equals/hashCode compare a byte[] by IDENTITY, so two projections of the same
+    // stored note would not be equal. Narrowed with a pattern rather than a cast (CODE_STYLE.md), and the hash is written out rather than going
+    // through Objects.hash, whose varargs allocate an array on a method that runs per row.
+    @Override
+    public boolean equals(final Object other) {
+        if (!(other instanceof SealedNote(final LocalDate otherDate, final byte[] otherContent))) {
+            return false;
+        }
+        return Objects.equals(noteDate, otherDate) && Arrays.equals(contentEncrypted, otherContent);
+    }
+
+    @Override
+    public int hashCode() {
+        return (31 * Objects.hashCode(noteDate)) + Arrays.hashCode(contentEncrypted);
+    }
+
+    @Override
+    public String toString() {
+        return "SealedNote{" + "noteDate=" + noteDate + ", contentEncrypted.length=" + contentEncrypted.length + '}';
+    }
 }

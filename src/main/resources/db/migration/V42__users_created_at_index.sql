@@ -1,0 +1,23 @@
+-- Indexes the column the admin user list orders by, so that page stops sorting the whole accounts table on every view.
+--
+-- `AdminUserService.usersPage` asks for `User.findAll(Sort.by("createdAt")).page(...)`, and nothing indexed `users.created_at` - so PostgreSQL read
+-- every account row and top-N sorted them to return 25. That was invisible at the sizes measured before (1.17 ms at 1,000 accounts, which is why this
+-- index was twice looked at and twice deferred), and it is not invisible now. Measured at 50,000 accounts:
+--
+--                                     before        after
+--     first page                    13-15 ms     0.2-0.3 ms
+--     last page (offset 49,000)      127 ms       6.0-6.7 ms
+--
+-- The plan goes from `Seq Scan on users` feeding a top-N heapsort to an `Index Scan` that reads 25 index entries and stops. The cost of the first
+-- page was growing linearly with the number of accounts on the deployment - for a page whose content does not change size at all.
+--
+-- 1,112 kB at that size. `users` is written on registration, on a settings save and on each login (`last_login_at`), so this is not a hot write path.
+--
+-- NOT redundant with `users_email_unique` or `idx_users_oidc`: neither leads with `created_at`, and an index is only useful for an ORDER BY when the
+-- ordering column leads it.
+--
+-- The `SELECT count(*) FROM users` that sizes the same page's pagination is left alone deliberately. It measured 5.8 ms at 50,000 accounts and is an
+-- unfiltered exact count, which PostgreSQL answers by scanning - no index on this table changes that, and the alternatives (an approximate count from
+-- the statistics, or a maintained counter) trade correctness or write cost for a figure that is only a page total. Revisit if a deployment reaches a
+-- size where 5.8 ms per admin page view matters; it grows linearly with the account count.
+CREATE INDEX idx_users_created_at ON users (created_at);

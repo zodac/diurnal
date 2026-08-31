@@ -155,11 +155,11 @@ public class LogsApiResource {
         final Map<UUID, Action> actionMap = Action.mapByUser(userId);
 
         final List<CalendarEventDto> events = ActionLog.findByUserAndRange(userId, startDate, endDate).stream()
-            .filter(log -> actionMap.containsKey(log.actionId))
+            .filter(log -> actionMap.containsKey(log.actionId()))
             .map(log -> {
-                final Action a = Objects.requireNonNull(actionMap.get(log.actionId));
-                final String title = log.count > 1 ? (a.name + " ×" + log.count) : a.name;
-                return new CalendarEventDto(title, log.logDate.toString(), a.colour, a.colour);
+                final Action a = Objects.requireNonNull(actionMap.get(log.actionId()));
+                final String title = log.count() > 1 ? (a.name + " ×" + log.count()) : a.name;
+                return new CalendarEventDto(title, log.date().toString(), a.colour, a.colour);
             })
             .toList();
         return EntityTags.withPrivateValidator(Response.ok(events), tag).build();

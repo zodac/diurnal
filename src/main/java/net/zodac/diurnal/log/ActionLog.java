@@ -20,9 +20,8 @@ package net.zodac.diurnal.log;
 import io.quarkus.hibernate.orm.panache.PanacheEntityBase;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import jakarta.persistence.IdClass;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
@@ -36,26 +35,36 @@ import java.util.stream.Collectors;
 import net.zodac.diurnal.http.ChangeSignature;
 import net.zodac.diurnal.persistence.JpqlQuery;
 import net.zodac.diurnal.persistence.SqlQuery;
+import org.jspecify.annotations.Nullable;
 
 /**
  * A per-day tally of how many times an {@link net.zodac.diurnal.action.Action} was performed.
+ *
+ * <p>
+ * The row is identified by its own natural key - the {@code (user, action, day)} it tallies, carried in an {@link ActionLogId} - and holds no
+ * surrogate id. It is the one table here with no use for one: nothing ever looks a log entry up by id, so the column was 16 bytes of every row plus
+ * a never-read index to maintain on each increment. {@code V39} removed it; see that migration for the measurements.
+ *
+ * <p>
+ * {@link IdClass} rather than an {@code @EmbeddedId} so the three key columns stay flat fields on the entity, which is what lets every query keep
+ * addressing them directly ({@code l.userId}, {@code l.logDate}) instead of through a nested {@code l.id.userId}.
  */
 @Entity
 @Table(name = "action_logs")
+@IdClass(ActionLogId.class)
 public class ActionLog extends PanacheEntityBase {
 
     public static final int MAX_DAILY_COUNT = 999;
 
     @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    public UUID id;
-
     @Column(name = "user_id", nullable = false)
     public UUID userId;
 
+    @Id
     @Column(name = "action_id", nullable = false)
     public UUID actionId;
 
+    @Id
     @Column(name = "log_date", nullable = false)
     public LocalDate logDate;
 
@@ -79,10 +88,24 @@ public class ActionLog extends PanacheEntityBase {
     // ── Queries ───────────────────────────────────────────────────────────
 
     /**
-     * Returns the user's log entries falling within the inclusive {@code [start, end]} date range.
+     * Returns the user's log entries falling within the inclusive {@code [start, end]} date range, as {@link DatedActionCount} projections.
+     *
+     * <p>
+     * Projected rather than hydrated because every caller - both calendar feeds, the dashboard's month back-fill and the day-panel rollup - reduces
+     * each row to its {@code (day, action, count)} immediately and reads none of the other columns. A three-month dashboard warm-up is ~2,700 rows,
+     * so returning entities meant 2,700 managed instances and persistence-context entries for data that is read once and discarded.
+     *
+     * @param userId the owning user
+     * @param start  the inclusive start of the date window
+     * @param end    the inclusive end of the date window
+     * @return the window's entries, in no particular order
      */
-    public static List<ActionLog> findByUserAndRange(final UUID userId, final LocalDate start, final LocalDate end) {
-        return list("userId = ?1 and logDate >= ?2 and logDate <= ?3", userId, start, end);
+    public static List<DatedActionCount> findByUserAndRange(final UUID userId, final LocalDate start, final LocalDate end) {
+        return JpqlQuery.of(ActionLogQueries.RANGE_COUNTS_JPQL, DatedActionCount.class)
+            .bind(ActionLogQueries.USER_ID, userId)
+            .bind(ActionLogQueries.FROM, start)
+            .bind(ActionLogQueries.TO, end)
+            .resultList();
     }
 
     /**
@@ -119,18 +142,47 @@ public class ActionLog extends PanacheEntityBase {
     }
 
     /**
-     * Returns the per-month summed {@code count} for each of the given actions — the database-side monthly aggregation behind the Stats page.
-     * {@code actionIds} must be non-empty.
+     * Returns the per-month summed {@code count} for each of the given actions within the inclusive {@code [from, to]} window — the monthly
+     * aggregation behind the frequency chart's year view. {@code actionIds} must be non-empty.
      *
      * @param userId the owning user (constrains the query to the indexed {@code (user_id, …)} prefix)
      * @param actionIds the actions to aggregate
-     * @return one {@link MonthlyActionTotal} per {@code (action, calendar-month)} that has at least one log entry
+     * @param from the inclusive start of the window
+     * @param to the inclusive end of the window
+     * @return one {@link MonthlyActionTotal} per {@code (action, calendar-month)} in the window that has at least one log entry
      */
-    public static List<MonthlyActionTotal> monthlyTotalsForActions(final UUID userId, final Collection<UUID> actionIds) {
+    public static List<MonthlyActionTotal> monthlyTotalsForActions(final UUID userId, final Collection<UUID> actionIds, final LocalDate from,
+        final LocalDate to) {
         return JpqlQuery.of(ActionLogQueries.MONTHLY_TOTALS_JPQL, MonthlyActionTotal.class)
             .bind(ActionLogQueries.USER_ID, userId)
             .bind(ActionLogQueries.ACTION_IDS, actionIds)
+            .bind(ActionLogQueries.FROM, from)
+            .bind(ActionLogQueries.TO, to)
             .resultList();
+    }
+
+    /**
+     * Returns the earliest day any of the given actions was logged, or {@code null} when none of them has ever been logged — the bound on how far
+     * back the frequency chart may be navigated. {@code actionIds} must be non-empty.
+     *
+     * <p>
+     * Costs one index probe per action rather than a read of their history; see {@code ActionLogQueries.EARLIEST_LOGGED_DATE_SQL} for why it is
+     * written as a {@code LATERAL} and what the obvious alternative costs instead.
+     *
+     * @param userId the owning user
+     * @param actionIds the actions to consider
+     * @return the earliest logged day across those actions, or {@code null} when there is none
+     */
+    @Nullable
+    public static LocalDate earliestLoggedDate(final UUID userId, final Collection<UUID> actionIds) {
+        final Object earliest = SqlQuery.of(ActionLogQueries.EARLIEST_LOGGED_DATE_SQL)
+            .bind(ActionLogQueries.USER_ID, userId)
+            .bind(ActionLogQueries.ACTION_IDS, actionIds)
+            .singleResult();
+        // A native scalar is untyped by construction (see SqlQuery), and MIN over no rows is a legitimate SQL NULL rather than an error. The driver
+        // hands back a java.time.LocalDate for a `date` column, so this is the one cast CODE_STYLE.md still allows - a native projection the type
+        // system cannot describe, where a wrong type would be a programming error rather than a case to handle.
+        return earliest == null ? null : (LocalDate) earliest;
     }
 
     /**
@@ -173,8 +225,13 @@ public class ActionLog extends PanacheEntityBase {
      * Returns the ids of every action the user has ever logged - the eligibility set behind the frequency chart's compare picker, which only offers
      * actions with at least one logged entry.
      *
+     * <p>
+     * Answered by probing each of the user's actions for a log rather than by collecting the distinct ids out of the logs themselves, so the cost is
+     * the action count instead of the whole history; see {@code ActionLogQueries.LOGGED_ACTION_IDS_JPQL} for the measurements and for why the two
+     * cannot return different sets.
+     *
      * @param userId the owning user
-     * @return the distinct logged action ids, in no particular order
+     * @return the logged action ids, in no particular order
      */
     public static Set<UUID> loggedActionIds(final UUID userId) {
         return Set.copyOf(JpqlQuery.of(ActionLogQueries.LOGGED_ACTION_IDS_JPQL, UUID.class)
@@ -224,7 +281,7 @@ public class ActionLog extends PanacheEntityBase {
      *
      * <p>
      * The whole read-modify-write happens inside a single {@code INSERT … ON CONFLICT DO UPDATE}, so two rapid taps on a not-yet-logged action can no
-     * longer both {@code INSERT} and race the loser into an {@code action_logs_unique} unique-constraint violation (a 500). {@code delta} must be at
+     * longer both {@code INSERT} and race the loser into an {@code action_logs_pkey} unique-constraint violation (a 500). {@code delta} must be at
      * least {@code 1}: a zero row would breach the {@code count >= 1} check constraint, so callers treat a non-positive amount as a no-op rather than
      * calling this.
      *
@@ -236,7 +293,6 @@ public class ActionLog extends PanacheEntityBase {
      */
     public static int incrementCount(final UUID userId, final UUID actionId, final LocalDate date, final int delta) {
         SqlQuery.of(ActionLogQueries.INCREMENT_UPSERT_SQL)
-            .bind(ActionLogQueries.ID, UUID.randomUUID())
             .bind(ActionLogQueries.USER_ID, userId)
             .bind(ActionLogQueries.ACTION_ID, actionId)
             .bind(ActionLogQueries.DATE, date)
@@ -255,7 +311,7 @@ public class ActionLog extends PanacheEntityBase {
 
     /**
      * Atomically sets the day's count for an action to {@code count} — inserting the row when it does not yet exist — via a single
-     * {@code INSERT … ON CONFLICT DO UPDATE}, so a concurrent set on a not-yet-logged action cannot race the loser into an {@code action_logs_unique}
+     * {@code INSERT … ON CONFLICT DO UPDATE}, so a concurrent set on a not-yet-logged action cannot race the loser into an {@code action_logs_pkey}
      * violation (a 500). {@code count} must be in {@code [1, MAX_DAILY_COUNT]}; callers delete the row (rather than calling this) when the requested
      * value is zero or below.
      *
@@ -266,11 +322,43 @@ public class ActionLog extends PanacheEntityBase {
      */
     public static void setCount(final UUID userId, final UUID actionId, final LocalDate date, final int count) {
         SqlQuery.of(ActionLogQueries.SET_COUNT_UPSERT_SQL)
-            .bind(ActionLogQueries.ID, UUID.randomUUID())
             .bind(ActionLogQueries.USER_ID, userId)
             .bind(ActionLogQueries.ACTION_ID, actionId)
             .bind(ActionLogQueries.DATE, date)
             .bind(ActionLogQueries.COUNT, count)
+            .bind(ActionLogQueries.NOW, Instant.now())
+            .executeUpdate();
+    }
+
+    /**
+     * Sets many days' counts for one user in a single statement — the bulk arm of {@link #setCount(UUID, UUID, LocalDate, int)}, for the data import,
+     * which writes a whole account's history at once. The three lists are parallel: index {@code i} of each describes one entry. Passing empty lists
+     * is a no-op.
+     *
+     * <p>
+     * The whole set goes in one round trip rather than one per entry. A 3-year archive is ~33,000 entries, which measured 3,628 ms as individual
+     * statements against 812 ms as this one. Each entry follows the same last-write-wins rule {@link #setCount(UUID, UUID, LocalDate, int)} uses;
+     * a key repeated within one call would be rejected by the database rather than silently overwritten, which no caller can reach because
+     * {@code ImportParser} refuses a duplicated {@code (action, day)} before the plan is ever written.
+     *
+     * @param userId the owning user
+     * @param actionIds the action of each entry
+     * @param dates the day of each entry
+     * @param counts the exact count of each entry (each must be in {@code [1, MAX_DAILY_COUNT]})
+     */
+    // Qodana's ZeroLengthArrayInitialization and PMD's OptimizableToArrayCall disagree outright on the `new T[0]` below, and PMD is the one that is
+    // right: an empty prototype lets the JVM allocate the array of the right size itself, which is measurably faster than pre-sizing it here. Qodana
+    // is scoped out of this file in code-quality-config-overrides/qodana.yaml - a @SuppressWarnings naming that inspection does not bind (measured).
+    public static void setCounts(final UUID userId, final List<UUID> actionIds, final List<LocalDate> dates, final List<Integer> counts) {
+        if (actionIds.isEmpty()) {
+            return;
+        }
+
+        SqlQuery.of(ActionLogQueries.SET_COUNTS_BULK_SQL)
+            .bind(ActionLogQueries.USER_ID, userId)
+            .bind(ActionLogQueries.ACTION_ID_ARRAY, actionIds.toArray(new UUID[0]))
+            .bind(ActionLogQueries.DATE_ARRAY, dates.toArray(new LocalDate[0]))
+            .bind(ActionLogQueries.COUNT_ARRAY, counts.stream().map(Integer::shortValue).toArray(Short[]::new))
             .bind(ActionLogQueries.NOW, Instant.now())
             .executeUpdate();
     }

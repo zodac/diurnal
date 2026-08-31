@@ -249,16 +249,20 @@ public class Note extends PanacheEntityBase {
     }
 
     /**
-     * Returns the user's notes rolled up per calendar month, projected into the same {@link MonthlyActionTotal} the Stats page already consumes
-     * for an action - so the notes subject flows through the identical statistics assembly rather than a parallel code path. Each month's total is
-     * the number of days in it that have a note.
+     * Returns the user's notes within the inclusive {@code [from, to]} window rolled up per calendar month, projected into the same
+     * {@link MonthlyActionTotal} an action produces - so the notes subject flows through the identical chart assembly rather than a parallel code
+     * path. Each month's total is the number of days in it that have a note.
      *
      * @param userId the owning user
      * @param subjectId the id to stamp on each row (the notes subject's fixed id)
-     * @return one {@link MonthlyActionTotal} per calendar month that has at least one note
+     * @param from the inclusive start of the window
+     * @param to the inclusive end of the window
+     * @return one {@link MonthlyActionTotal} per calendar month in the window that has at least one note
      */
-    public static List<MonthlyActionTotal> monthlyTotals(final UUID userId, final UUID subjectId) {
+    public static List<MonthlyActionTotal> monthlyTotals(final UUID userId, final UUID subjectId, final LocalDate from, final LocalDate to) {
         return JpqlQuery.of(NoteQueries.MONTHLY_TOTALS_JPQL, MonthlyActionTotal.class)
+            .bind(NoteQueries.FROM, from)
+            .bind(NoteQueries.TO, to)
             .bind(NoteQueries.SUBJECT_ID, subjectId)
             .bind(NoteQueries.USER_ID, userId)
             .resultList();
@@ -319,6 +323,47 @@ public class Note extends PanacheEntityBase {
             .bind(NoteQueries.CONTENT_ENCRYPTED, contentEncrypted)
             .bind(NoteQueries.NOW, Instant.now())
             .executeUpdate();
+    }
+
+    /**
+     * Writes many days' notes for one user in a single statement — the bulk arm of {@link #upsert(UUID, LocalDate, byte[])}, for the data import,
+     * which replaces a whole journal at once. The two lists are parallel: index {@code i} of each describes one note. Passing empty lists is a no-op.
+     *
+     * <p>
+     * Each note follows the same last-write-wins rule the single-day form uses. As there, the values written are the SEALED form and this is reached
+     * only through {@code NoteService}, which is the one thing that can seal them.
+     *
+     * @param userId the owning user
+     * @param dates the day of each note
+     * @param contents the sealed content of each note, in the same order
+     */
+    // See ActionLog.setCounts: Qodana and PMD disagree on the `new T[0]` prototype below, PMD is right, and Qodana is scoped out of this file
+    // in code-quality-config-overrides/qodana.yaml.
+    public static void upsertAll(final UUID userId, final List<LocalDate> dates, final List<byte[]> contents) {
+        if (dates.isEmpty()) {
+            return;
+        }
+
+        SqlQuery.of(NoteQueries.UPSERT_MANY_SQL)
+            .bind(NoteQueries.USER_ID, userId)
+            .bind(NoteQueries.DATE_ARRAY, dates.toArray(new LocalDate[0]))
+            .bind(NoteQueries.CONTENT_ARRAY, contents.toArray(new byte[0][]))
+            .bind(NoteQueries.NOW, Instant.now())
+            .executeUpdate();
+    }
+
+    /**
+     * Returns the earliest day the user wrote a note, or {@code null} when they have none - the notes subject's half of the frequency chart's
+     * navigation bound.
+     *
+     * @param userId the owning user
+     * @return the earliest note date, or {@code null} when the user has no notes
+     */
+    @Nullable
+    public static LocalDate earliestNoteDate(final UUID userId) {
+        return JpqlQuery.of(NoteQueries.EARLIEST_NOTE_DATE_JPQL, LocalDate.class)
+            .bind(NoteQueries.USER_ID, userId)
+            .singleResult();
     }
 
     /**

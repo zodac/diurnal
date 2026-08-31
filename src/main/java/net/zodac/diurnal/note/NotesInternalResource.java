@@ -139,7 +139,7 @@ public class NotesInternalResource {
 
         final int size = byDate.size();
         if (size == 0) {
-            LOGGER.trace("Notes feed served {} note(s) in [{}, {}] for user {}", size, startDate, endDate, user.email);
+            LOGGER.trace("Notes feed served no notes in [{}, {}] for user {}", startDate, endDate, user.email);
         } else {
             LOGGER.debug("Notes feed served {} note(s) in [{}, {}] for user {}", size, startDate, endDate, user.email);
         }

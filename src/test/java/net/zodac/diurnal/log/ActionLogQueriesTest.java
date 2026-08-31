@@ -19,11 +19,13 @@ package net.zodac.diurnal.log;
 
 import static net.zodac.diurnal.log.ActionLogQueries.ACTION_ID;
 import static net.zodac.diurnal.log.ActionLogQueries.ACTION_IDS;
+import static net.zodac.diurnal.log.ActionLogQueries.ACTION_ID_ARRAY;
 import static net.zodac.diurnal.log.ActionLogQueries.COUNT;
+import static net.zodac.diurnal.log.ActionLogQueries.COUNT_ARRAY;
 import static net.zodac.diurnal.log.ActionLogQueries.DATE;
+import static net.zodac.diurnal.log.ActionLogQueries.DATE_ARRAY;
 import static net.zodac.diurnal.log.ActionLogQueries.DELTA;
 import static net.zodac.diurnal.log.ActionLogQueries.FROM;
-import static net.zodac.diurnal.log.ActionLogQueries.ID;
 import static net.zodac.diurnal.log.ActionLogQueries.MAX;
 import static net.zodac.diurnal.log.ActionLogQueries.NEW_COUNT;
 import static net.zodac.diurnal.log.ActionLogQueries.NOW;
@@ -51,12 +53,17 @@ class ActionLogQueriesTest {
 
     @Test
     void monthlyTotalsJpql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.MONTHLY_TOTALS_JPQL, List.of(USER_ID, ACTION_IDS));
+        assertParameters(ActionLogQueries.MONTHLY_TOTALS_JPQL, List.of(USER_ID, ACTION_IDS, FROM, TO));
     }
 
     @Test
     void dailyTotalsJpql_bindsExpectedParameters() {
         assertParameters(ActionLogQueries.DAILY_TOTALS_JPQL, List.of(USER_ID, ACTION_IDS, FROM, TO));
+    }
+
+    @Test
+    void earliestLoggedDateSql_bindsExpectedParameters() {
+        assertParameters(ActionLogQueries.EARLIEST_LOGGED_DATE_SQL, List.of(USER_ID, ACTION_IDS));
     }
 
     @Test
@@ -71,7 +78,7 @@ class ActionLogQueriesTest {
 
     @Test
     void incrementUpsertSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.INCREMENT_UPSERT_SQL, List.of(ID, USER_ID, ACTION_ID, DATE, DELTA, MAX, NOW));
+        assertParameters(ActionLogQueries.INCREMENT_UPSERT_SQL, List.of(USER_ID, ACTION_ID, DATE, DELTA, MAX, NOW));
     }
 
     @Test
@@ -81,7 +88,17 @@ class ActionLogQueriesTest {
 
     @Test
     void setCountUpsertSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.SET_COUNT_UPSERT_SQL, List.of(ID, USER_ID, ACTION_ID, DATE, COUNT, NOW));
+        assertParameters(ActionLogQueries.SET_COUNT_UPSERT_SQL, List.of(USER_ID, ACTION_ID, DATE, COUNT, NOW));
+    }
+
+    @Test
+    void setCountsBulkSql_bindsExpectedParameters() {
+        assertParameters(ActionLogQueries.SET_COUNTS_BULK_SQL, List.of(USER_ID, ACTION_ID_ARRAY, DATE_ARRAY, COUNT_ARRAY, NOW));
+    }
+
+    @Test
+    void rangeCountsJpql_bindsExpectedParameters() {
+        assertParameters(ActionLogQueries.RANGE_COUNTS_JPQL, List.of(USER_ID, FROM, TO));
     }
 
     @Test

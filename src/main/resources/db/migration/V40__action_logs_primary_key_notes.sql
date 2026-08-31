@@ -1,0 +1,25 @@
+-- Corrects two things V39 says about itself. It changes no schema: this file exists ONLY because a migration is immutable once it exists, and that
+-- rule covers a comment exactly as it covers a statement (see CLAUDE.md). Amending V39 in place would have been the smaller diff and the wrong move -
+-- Flyway checksums the bytes, so an edit after the file has run anywhere turns the next startup into a `Migration checksum mismatch`. The correction
+-- goes here, beside the thing it corrects, and V39 stays exactly as it was applied.
+--
+-- FIRST CORRECTION - the size figures. V39's table was measured by building the two shapes side by side, which is not what a deployment does. Running
+-- V38 and V39 over an already-seeded 323,154-row instance - the actual upgrade - gives:
+--
+--                                            heap     indexes    total
+--     before (V37)                           34 MB     47 MB     80 MB
+--     after V38 + V39, plain VACUUM          34 MB     27 MB     61 MB
+--     after a VACUUM FULL                    29 MB     26 MB     54 MB
+--
+-- NOTE THE MIDDLE ROW: the heap does not shrink at first, where V39 implies it does. PostgreSQL's DROP COLUMN only marks the column dropped in the
+-- catalogue - the bytes stay in every tuple already written until that row is next rewritten. So the 16 bytes per row come back gradually as rows are
+-- updated, or all at once under a VACUUM FULL / pg_repack. Neither is done here: a full table rewrite holds an ACCESS EXCLUSIVE lock for its whole
+-- duration, which is a decision for whoever runs the deployment and not one a startup migration should take on its own. The index saving is the
+-- larger half, and it is immediate and needs nothing.
+--
+-- SECOND CORRECTION - the figures above are the NET effect of V38 and V39 together, so they include the (action_id) index V38 adds. V39's own table
+-- attributed all of the change to itself.
+--
+-- The claims V39 makes that are NOT corrected here were each re-verified after the fact against the migrated schema: `action_logs_pkey` carries the
+-- INCLUDE (count) payload and the Stats rollup is still an Index Only Scan with `Heap Fetches: 0`, and the upserts resolve against the renamed
+-- constraint.
