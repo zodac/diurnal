@@ -20,6 +20,7 @@ package net.zodac.diurnal.note;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -363,17 +364,22 @@ public class NoteService {
         final byte[] dataKey = noteKeys.forUserCreatingIfAbsent(user.id)
             .orElseThrow(() -> new IllegalStateException("Unable to open the notes data key - check NOTE_ENCRYPTION_KEY"));
 
-        int written = 0;
+        // Sealed into two parallel lists and written in ONE statement, rather than a statement per day: a replaced journal is the whole of an
+        // account's history at once, where a round trip per note is the dominant cost. The seal itself is unchanged, still per note and still bound
+        // to that note's own owner and date.
+        final List<LocalDate> dates = new ArrayList<>(notes.size());
+        final List<byte[]> sealed = new ArrayList<>(notes.size());
         for (final Map.Entry<LocalDate, String> entry : notes.entrySet()) {
             if (entry.getValue().isEmpty()) {
                 continue;
             }
-            Note.upsert(user.id, entry.getKey(), NoteContent.seal(dataKey, user.id, entry.getKey(), entry.getValue()));
-            written++;
+            dates.add(entry.getKey());
+            sealed.add(NoteContent.seal(dataKey, user.id, entry.getKey(), entry.getValue()));
         }
+        Note.upsertAll(user.id, dates, sealed);
 
         // The COUNT and the user only - never a date's content. See the class Javadoc.
-        LOGGER.info("Notes replaced: {} written for user {}", written, user.email);
+        LOGGER.info("Notes replaced: {} written for user {}", dates.size(), user.email);
     }
 
     /**

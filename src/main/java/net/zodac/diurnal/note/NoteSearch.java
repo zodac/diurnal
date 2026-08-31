@@ -287,7 +287,8 @@ public final class NoteSearch {
         // which the length filter above makes unobservable (so no test could ever fail on it), while this form's failure modes are all observable.
         Arrays.setAll(previous, j -> j);
 
-        for (int i = 1; i <= token.length(); i++) {
+        final int length = token.length();
+        for (int i = 1; i <= length; i++) {
             current[0] = i;
             int best = i;
             for (int j = 1; j <= width; j++) {

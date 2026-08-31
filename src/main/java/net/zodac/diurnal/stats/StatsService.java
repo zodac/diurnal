@@ -38,6 +38,7 @@ import java.util.stream.Stream;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.log.DailyActionTotal;
+import net.zodac.diurnal.log.DatedActionCount;
 import net.zodac.diurnal.log.MonthlyActionTotal;
 import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.time.AppClock;
@@ -101,7 +102,7 @@ public class StatsService {
         // projected into the shared DailyActionTotal/MonthlyActionTotal shapes by the note queries, so there is no parallel computation to keep in
         // step.
         final List<SubjectStats> subjects = new ArrayList<>(actions.size() + 1);
-        subjects.add(assemble(StatSubject.notes(noteColourFor(user)), Note.monthlyTotals(userId, StatSubject.NOTES_ID), noteDays, today));
+        subjects.add(assemble(StatSubject.notes(noteColourFor(user)), noteDays, today));
         subjects.addAll(actions);
         return List.copyOf(subjects);
     }
@@ -153,7 +154,7 @@ public class StatsService {
     public Map<LocalDate, List<SubjectStats>> forMonth(final UUID userId, final YearMonth month, final int limit) {
         final Map<LocalDate, Map<UUID, Integer>> countsByDate = ActionLog.findByUserAndRange(userId, month.atDay(1), month.atEndOfMonth())
             .stream()
-            .collect(Collectors.groupingBy(log -> log.logDate, Collectors.toMap(log -> log.actionId, log -> log.count)));
+            .collect(Collectors.groupingBy(DatedActionCount::date, Collectors.toMap(DatedActionCount::actionId, DatedActionCount::count)));
         return forCounts(userId, countsByDate, limit);
     }
 
@@ -260,15 +261,17 @@ public class StatsService {
 
         final List<StatSubject> charted = chartedSubjects(requested, ownedById, user);
         final boolean notesCharted = requested.size() != actionIds.size();
-        final List<MonthlyActionTotal> monthlyTotals = monthlyRollups(userId, actionIds, notesCharted);
+        final LocalDate windowEnd = FrequencyKeys.end(period, anchor);
 
+        // Each arm reads ONLY the window it draws. The year view used to roll up the subjects' whole history and keep the anchor year's twelve
+        // months out of it, which is a read that grows with every year the account survives to draw a chart that never does.
         final Map<UUID, Map<Integer, Long>> countsByAction = switch (period) {
-            case MONTH -> dailySlots(dailyTotals(userId, actionIds, notesCharted, anchor, FrequencyKeys.end(period, anchor)));
-            case YEAR -> monthlySlots(monthlyTotals, anchor.getYear());
+            case MONTH -> dailySlots(dailyTotals(userId, actionIds, notesCharted, anchor, windowEnd));
+            case YEAR -> monthlySlots(monthlyRollups(userId, actionIds, notesCharted, anchor, windowEnd));
         };
 
         return new FrequencyResult.Charted(
-            FrequencyCharts.build(charted, period, anchor, countsByAction, today, earliestLoggedMonth(monthlyTotals), language));
+            FrequencyCharts.build(charted, period, anchor, countsByAction, today, earliestLoggedMonth(userId, actionIds, notesCharted), language));
     }
 
     /**
@@ -353,13 +356,14 @@ public class StatsService {
     // Both sources project into the SAME monthly rollup record, so the two are simply concatenated and the chart builder never learns that more than
     // one kind of subject exists. Each query is skipped entirely when its side is not charted (the action rollups reject an empty id list, and a
     // notes query would otherwise be a pointless round trip).
-    private static List<MonthlyActionTotal> monthlyRollups(final UUID userId, final List<UUID> actionIds, final boolean notesCharted) {
+    private static List<MonthlyActionTotal> monthlyRollups(final UUID userId, final List<UUID> actionIds, final boolean notesCharted,
+        final LocalDate from, final LocalDate to) {
         final List<MonthlyActionTotal> totals = new ArrayList<>();
         if (!actionIds.isEmpty()) {
-            totals.addAll(ActionLog.monthlyTotalsForActions(userId, actionIds));
+            totals.addAll(ActionLog.monthlyTotalsForActions(userId, actionIds, from, to));
         }
         if (notesCharted) {
-            totals.addAll(Note.monthlyTotals(userId, StatSubject.NOTES_ID));
+            totals.addAll(Note.monthlyTotals(userId, StatSubject.NOTES_ID, from, to));
         }
         return totals;
     }
@@ -393,20 +397,24 @@ public class StatsService {
                 Collectors.toMap(total -> total.date().getDayOfMonth(), DailyActionTotal::total, Long::sum)));
     }
 
-    private static Map<UUID, Map<Integer, Long>> monthlySlots(final List<MonthlyActionTotal> monthlyTotals, final int year) {
+    // No year filter: the rollup is already bounded to the window being drawn, so every row it returns belongs in a slot.
+    private static Map<UUID, Map<Integer, Long>> monthlySlots(final List<MonthlyActionTotal> monthlyTotals) {
         return monthlyTotals.stream()
-            .filter(total -> total.year() == year)
             .collect(Collectors.groupingBy(MonthlyActionTotal::actionId,
                 Collectors.toMap(MonthlyActionTotal::month, MonthlyActionTotal::total, Long::sum)));
     }
 
+    // Month precision is enough: every chart window starts on a month boundary, so the earliest LOGGED month is exactly the earliest window worth
+    // stepping back to. Asked as its own cheap query per charted subject - one index probe each - rather than read off a whole-history rollup, which
+    // is what the month view was paying for despite drawing none of it.
     @Nullable
-    private static LocalDate earliestLoggedMonth(final List<MonthlyActionTotal> monthlyTotals) {
-        // Month precision is enough: every chart window starts on a month boundary, so the earliest LOGGED month is exactly the earliest window
-        // worth stepping back to. Reading it off the monthly rollup avoids a second query purely to bound the navigation.
-        return monthlyTotals.stream()
-            .map(total -> LocalDate.of(total.year(), total.month(), 1))
+    private static LocalDate earliestLoggedMonth(final UUID userId, final List<UUID> actionIds, final boolean notesCharted) {
+        final LocalDate earliestLog = actionIds.isEmpty() ? null : ActionLog.earliestLoggedDate(userId, actionIds);
+        final LocalDate earliestNote = notesCharted ? Note.earliestNoteDate(userId) : null;
+        return Stream.of(earliestLog, earliestNote)
+            .filter(Objects::nonNull)
             .min(LocalDate::compareTo)
+            .map(date -> date.withDayOfMonth(1))
             .orElse(null);
     }
 
@@ -423,20 +431,12 @@ public class StatsService {
 
     private static List<SubjectStats> assembleAll(final UUID userId, final List<Action> actions,
         final List<UUID> actionIds, final LocalDate today) {
-        final Map<UUID, List<MonthlyActionTotal>> monthly = groupMonthly(ActionLog.monthlyTotalsForActions(userId, actionIds));
+        // ONE read of the history, not two. Every figure assemble() produces - including the per-month and per-year totals, which used to be a
+        // second whole-history aggregate - comes off this daily rollup.
         final Map<UUID, List<DailyActionTotal>> days = groupDays(ActionLog.dailyTotalsForActions(userId, actionIds));
         return actions.stream()
-                .map(action -> assemble(StatSubject.of(action), monthly.getOrDefault(action.id, List.of()),
-                        days.getOrDefault(action.id, List.of()), today))
+                .map(action -> assemble(StatSubject.of(action), days.getOrDefault(action.id, List.of()), today))
                 .toList();
-    }
-
-    private static Map<UUID, List<MonthlyActionTotal>> groupMonthly(final List<MonthlyActionTotal> rows) {
-        final Map<UUID, List<MonthlyActionTotal>> byAction = new HashMap<>();
-        for (final MonthlyActionTotal row : rows) {
-            byAction.computeIfAbsent(row.actionId(), _ -> new ArrayList<>()).add(row);
-        }
-        return byAction;
     }
 
     private static Map<UUID, List<DailyActionTotal>> groupDays(final List<DailyActionTotal> rows) {
@@ -448,8 +448,7 @@ public class StatsService {
         return byAction;
     }
 
-    private static SubjectStats assemble(final StatSubject subject, final List<MonthlyActionTotal> monthlyTotals,
-        final List<DailyActionTotal> sortedDays, final LocalDate today) {
+    private static SubjectStats assemble(final StatSubject subject, final List<DailyActionTotal> sortedDays, final LocalDate today) {
         if (sortedDays.isEmpty()) {
             final DaySpan noSpan = new DaySpan(today, today);
             return new SubjectStats(subject, 0, 0, 0L, null, null, null, noSpan, noSpan, noSpan,
@@ -467,13 +466,16 @@ public class StatsService {
         final YearMonth prevMonth = thisMonth.minusMonths(1L);
         final int thisYear = today.getYear();
 
+        // Rolled up HERE from the daily rows rather than read back from the database as a second aggregate over the same history. A
+        // (user, subject, day) is unique, so a month's total is the sum of its days' totals by construction - the two were verified to produce
+        // identical sets - and the daily rows have already been read for the streak, gap and multiples figures above.
         final Map<YearMonth, Long> byMonth = new HashMap<>();
         final Map<Integer, Long> byYear = new HashMap<>();
         long totalCount = 0L;
-        for (final MonthlyActionTotal monthlyTotal : monthlyTotals) {
-            byMonth.merge(YearMonth.of(monthlyTotal.year(), monthlyTotal.month()), monthlyTotal.total(), Long::sum);
-            byYear.merge(monthlyTotal.year(), monthlyTotal.total(), Long::sum);
-            totalCount += monthlyTotal.total();
+        for (final DailyActionTotal day : sortedDays) {
+            byMonth.merge(YearMonth.from(day.date()), day.total(), Long::sum);
+            byYear.merge(day.date().getYear(), day.total(), Long::sum);
+            totalCount += day.total();
         }
 
         final Map.Entry<YearMonth, Long> bestMonth = byMonth.entrySet().stream()

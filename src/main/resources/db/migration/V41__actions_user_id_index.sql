@@ -1,0 +1,25 @@
+-- Lets the Stats page's whole-history rollup sort incrementally instead of sorting - and spilling - all at once.
+--
+-- `ALL_DAILY_TOTALS_JPQL` reads every log a user has ever written, ordered by `(action_id, log_date)`. V37 already made the READ index-only, so at 50
+-- actions x 10 years (182,600 rows) the read was 34 ms of a 144 ms query and the remaining 105 ms was the sort - which by that size no longer fits
+-- `work_mem` and completes on disk (`Sort Method: external merge  Disk: 5728kB`).
+--
+-- The sort is almost entirely avoidable. Each inner index-only scan of `action_logs_pkey` ALREADY yields `(action_id, log_date)` order within its own
+-- action; the rows only arrive globally unsorted because the outer scan of `actions` returns them in physical order. Given an index that can hand the
+-- planner a user's actions in `id` order, the nested loop's output carries `action_id` as a sorted prefix and PostgreSQL switches to an Incremental
+-- Sort - sorting one action's 3,652 rows at a time rather than all 182,600 together, which also puts it back in memory. Measured at that size:
+--
+--                                   plan                        sort         total
+--     before      Sort (external merge, 5,728 kB on disk)       105 ms       144 ms
+--     after       Incremental Sort (presorted key action_id)     53 ms        91 ms
+--
+-- Repeated end-to-end runs: 109/101/107 ms before, 62/56/58 ms after - roughly 1.8x on the slowest page in the application, for 600 kB of index on a
+-- 3 MB table that is written only when someone adds, renames or deletes an action.
+--
+-- It also gives `loggedActionIds` an index-only outer scan, and it is NOT redundant with `actions_user_name_unique (user_id, name)`: that one orders
+-- by name, which says nothing about `id` order, and is what `Action.findByUser` still uses (verified unchanged at 0.33 ms afterwards).
+--
+-- WHY THE ORDER BY IS NOT SIMPLY DROPPED, which would remove the sort outright: `StatsService.groupDays` buckets the rows per action and needs each
+-- bucket in date order, and dropping the clause would leave that resting on the plan happening to emit them that way. A plan change would then
+-- silently corrupt streaks and gaps rather than fail. The ordering stays a stated requirement of the query; this index just makes it cheap.
+CREATE INDEX idx_actions_user_id ON actions (user_id, id);

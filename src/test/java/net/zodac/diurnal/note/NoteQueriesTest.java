@@ -17,8 +17,10 @@
 
 package net.zodac.diurnal.note;
 
+import static net.zodac.diurnal.note.NoteQueries.CONTENT_ARRAY;
 import static net.zodac.diurnal.note.NoteQueries.CONTENT_ENCRYPTED;
 import static net.zodac.diurnal.note.NoteQueries.DATE;
+import static net.zodac.diurnal.note.NoteQueries.DATE_ARRAY;
 import static net.zodac.diurnal.note.NoteQueries.FROM;
 import static net.zodac.diurnal.note.NoteQueries.ID;
 import static net.zodac.diurnal.note.NoteQueries.NOW;
@@ -56,8 +58,18 @@ class NoteQueriesTest {
     }
 
     @Test
+    void upsertManySql_bindsExpectedParameters() {
+        assertParameters(NoteQueries.UPSERT_MANY_SQL, List.of(USER_ID, DATE_ARRAY, CONTENT_ARRAY, NOW));
+    }
+
+    @Test
     void monthlyTotalsJpql_bindsExpectedParameters() {
-        assertParameters(NoteQueries.MONTHLY_TOTALS_JPQL, List.of(SUBJECT_ID, USER_ID));
+        assertParameters(NoteQueries.MONTHLY_TOTALS_JPQL, List.of(SUBJECT_ID, USER_ID, FROM, TO));
+    }
+
+    @Test
+    void earliestNoteDateJpql_bindsExpectedParameters() {
+        assertParameters(NoteQueries.EARLIEST_NOTE_DATE_JPQL, List.of(USER_ID));
     }
 
     @Test

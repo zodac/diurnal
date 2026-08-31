@@ -21,8 +21,10 @@ import io.quarkus.hibernate.orm.panache.Panache;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -175,11 +177,18 @@ public class ImportService {
         // to actually be in the database before a log can reference one.
         Panache.getEntityManager().flush();
 
+        // Gathered into parallel lists and written in ONE statement rather than one per entry: a replaced history is ~33,000 entries for a 3-year
+        // archive, where the round trip per entry, not the write itself, was the cost.
+        final List<UUID> logActionIds = new ArrayList<>(plan.logs().size());
+        final List<LocalDate> logDates = new ArrayList<>(plan.logs().size());
+        final List<Integer> logCounts = new ArrayList<>(plan.logs().size());
         for (final LogDraft draft : plan.logs()) {
             // Never absent: the parser refuses a log whose action is not one of the plan's own, so every name here was just inserted above.
-            final UUID actionId = Objects.requireNonNull(actionIds.get(draft.actionName()), "imported log names an action the plan does not hold");
-            ActionLog.setCount(user.id, actionId, draft.date(), draft.count());
+            logActionIds.add(Objects.requireNonNull(actionIds.get(draft.actionName()), "imported log names an action the plan does not hold"));
+            logDates.add(draft.date());
+            logCounts.add(draft.count());
         }
+        ActionLog.setCounts(user.id, logActionIds, logDates, logCounts);
 
         final Map<LocalDate, String> notes = new LinkedHashMap<>();
         for (final NoteDraft draft : plan.notes()) {

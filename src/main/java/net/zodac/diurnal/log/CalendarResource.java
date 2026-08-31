@@ -107,11 +107,11 @@ public class CalendarResource {
         // Group logs by date (TreeMap keeps dates sorted), collect one dot per action per day.
         final Map<String, List<ActionDotDto>> byDate = new TreeMap<>();
         ActionLog.findByUserAndRange(userId, startDate, endDate).stream()
-            .filter(log -> actionMap.containsKey(log.actionId))
+            .filter(log -> actionMap.containsKey(log.actionId()))
             .forEach(log -> {
-                final Action a = Objects.requireNonNull(actionMap.get(log.actionId));
-                byDate.computeIfAbsent(log.logDate.toString(), _ -> new ArrayList<>())
-                          .add(new ActionDotDto(a.colour, a.name, log.count));
+                final Action a = Objects.requireNonNull(actionMap.get(log.actionId()));
+                byDate.computeIfAbsent(log.date().toString(), _ -> new ArrayList<>())
+                          .add(new ActionDotDto(a.colour, a.name, log.count()));
             });
 
         final List<MinimalCalendarDayDto> days = byDate.entrySet().stream()

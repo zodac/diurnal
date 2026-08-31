@@ -202,7 +202,7 @@ Under `src/main/java/net/zodac/diurnal/`:
 | Package        | Contents                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           |
 |----------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `action`       | `Action` entity + `ActionsWebResource` (the `/actions` page) + `ActionsInternalResource` (`/internal/actions` HTMX fragments/mutations) + `ActionsApiResource` (`/api/v1/actions` public CRUD) + `ActionValidation` (shared rules) + `ActionColours` (the randomise-button colour palette/suggestion rules)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
-| `log`          | `ActionLog` entity + `LogWebResource` (`/internal/logs` day-panel fragments + increment/decrement) + `LogsApiResource` (`/api/v1/logs` public events feed + day read/write) + `CalendarResource` (`/internal/logs/minimal-events` dashboard feed) + `LogGuards`/`DateRanges` (shared rules)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `log`          | `ActionLog` entity (+ `ActionLogId`, its composite key — the table has no surrogate id) + `DatedActionCount` (the ranged read's projection) + `LogWebResource` (`/internal/logs` day-panel fragments + increment/decrement) + `LogsApiResource` (`/api/v1/logs` public events feed + day read/write) + `CalendarResource` (`/internal/logs/minimal-events` dashboard feed) + `LogGuards`/`DateRanges` (shared rules)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `stats`        | `StatsService` + `SubjectStats` (data record, keyed on a `StatSubject` — an action OR the user's notes; `StatSubjectKind`/`StatSubjectExtensions`) + `SubjectStatsExtensions` (template extensions) + `StatField` (Stats-page tile catalogue) + `DisplayStat` (a shown stat + its caption) + `StatTile` (tile view-model) + `StatsSummary` (the dashboard summary card's shared parameter binding) + the frequency-graph family (`FrequencyPeriod`/`FrequencyKeys`/`FrequencyCharts` + the `FrequencyChart`/`FrequencySeries`/`FrequencySlot`/`FrequencyBar` records + their `*Extensions` + the sealed `FrequencyResult`) + `StatsWebResource` (the `/stats` page) + `StatsInternalResource` (`/internal/stats/list` + `/internal/stats/chart/{actionId}`(`/candidates`), plus the dashboard's `/internal/stats/summary/{date}` + `/internal/stats/summary-month/{yyyy-MM}`) + `StatsApiResource` (`GET /api/v1/stats`, `GET /api/v1/stats/{actionId}/frequency`) |
 | `auth`         | **The credentials core only** — `AuthResource` (`/api/v1/auth` register/login/logout/revoke → session token), `AuthenticationService`+`LoginResult`, `RegistrationService`+`RegistrationResult`, `PasswordChangeService`+`PasswordChangeResult`, `Passwords`, `RoleAssigner`, the `LoginRequest`/`RegisterRequest`/`TokenResponse` DTOs and the `LoginAttemptLog`/`RegistrationAttemptLog` projections. Everything else lives in one of the three subpackages below — or left `auth` entirely: the Swagger-docs gate (`OpenApiDocsAccess`/`OpenApiDocsAuthFilter`/`OpenApiDocsPaths`) is now in `openapi` beside `PublicApiFilter`, and `ClientAddress` (read the client IP off a `RoutingContext`) is in `http`                                                                                                                                                                                                                                                   |
 | `auth.session` | The session substrate: `Session` entity + `SessionStore`/`PostgresSessionStore` + `SessionTokens` + `SessionTokenExtractor` + `SessionTokenAuthenticationRequest` + `SessionAuthMechanism` + `SessionIdentityProvider` + `SessionSweeper` + `SessionActivityService` + `RecentActivity`/`UserLastSeen`/`UserIdentities`. **Depends on nothing else in `auth`** — it is a sink, which is what lets the rest of the app import it freely                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
@@ -549,3 +549,80 @@ re-litigated from scratch. Each records what was measured, so the next person st
   and aggregating the rows in Java. It grows roughly 30 ms per year of history. The only real lever left is caching
   computed stats per user with invalidation on write; that is a large change for 90 ms, so the trigger is a user
   reporting the page feels slow, not a number in a profile.
+  **Most of that figure has since been removed** and the remainder re-measured at a deliberately worse size
+  (4.78M rows, 1,000 accounts, a 50-action x 10-year account = 182,600 rows): `V41` turned the query's `ORDER BY`
+  from a disk-spilling sort into an Incremental Sort (~105 ms -> ~59 ms warm), and `LOGGED_ACTION_IDS_JPQL` went from
+  scanning the whole history to probing per action (23.2 ms -> 0.25 ms).
+  **`MONTHLY_TOTALS_JPQL` then left the Stats page altogether**, which is worth recording as a caution: it looked like
+  an irreducible ~84 ms aggregate-over-all-history, and the earlier note here said so. It was not. A month's total is
+  the sum of its days' totals, and `assembleAll` was ALREADY reading the daily rollup over the same rows - so the
+  monthly query was a second whole-history aggregate producing a coarser view of data the caller had in hand.
+  `StatsService.assemble` now derives the per-month and per-year figures in Java and the query is gone from that path
+  (verified identical against the database: 6,050 rows each way, zero differing in either direction). **The lesson is
+  that "no index helps" is not the same as "this cost is inherent"** - the fix was to stop issuing the query.
+  What remains is the single daily rollup (~59 ms), which IS inherent: streaks, gaps and days-with-multiples are
+  defined over all history. Caching stays the only lever for that, on the same trigger as before.
+
+**From the schema review that produced `V38`/`V39`** — measured with `EXPLAIN (ANALYZE, BUFFERS)` on PostgreSQL 18.6
+at 323,154 `action_logs` rows (one 30-action, 3-year account among 199 lighter ones) and 12,182 notes:
+
+- **A GIN index for the notes search is not possible, and would target the wrong 6% if it were.** `content_encrypted`
+  is ciphertext, so a GIN needs either plaintext or deterministic per-word tokens — the frequency-analysis exposure
+  `NOTES.md` already records as rejected. And the database is not the cost: a whole-journal search over 1,096 notes
+  measured **1.6 ms** to read the sealed rows, **3.5 ms** to open them all (AES-256-GCM), **2.0 ms** for the
+  substring match and **~20 ms** for `NoteSearch.suggest`. A search that finds something costs ~7 ms; one that finds
+  nothing costs ~27 ms, nearly all of it the "did you mean". If notes search is ever reported as slow, `suggest` is
+  the thing to look at — not the query, and not an index.
+- **A GIN index for action filtering has nothing to gain either.** That filtering is done in Java over ~30 rows, and
+  `actions_user_name_unique (user_id, name)` already answers every access index-only.
+- **`INCLUDE (updated_at)` on the change-signature (ETag) indexes is not worth it**, though those queries run on
+  every conditional GET: `ActionLog.rangeVersion` measured 0.33 ms, `Note.version` 0.43 ms, `Note.rangeVersion`
+  0.06 ms, `Action.userVersion` 0.05 ms. All already sub-millisecond.
+- **`INCLUDE (action_id, count)` on `idx_action_logs_user_date`** would make the dashboard's three-month warm-up
+  index-only, but measured 0.77 ms -> 0.55 ms for **+11 MB** of index. Rejected on that ratio.
+- **The query layer has no N+1.** `StatsService` (both the day/month summaries and the frequency chart), the admin
+  user list via `SessionActivityService.recentActivityByUser` and both calendar feeds all batch already. The app has
+  essentially no JPA relations, which is what keeps it that way.
+- **The one N+1 that did exist has been fixed**: `Session.user` is the only `@ManyToOne` in the app, so it defaults to
+  `FetchType.EAGER`, and an eager to-one on an HQL root is resolved by a SECOND statement rather than by a join — so
+  `Session.findByTokenHash` cost two round trips on every authenticated request. Confirmed by running `SessionStoreIT`
+  with `org.hibernate.SQL` at `DEBUG` (a `sessions` select followed by a `users where id=?` select), fixed with a
+  `JOIN FETCH s.user`, and re-verified the same way: one statement, zero standalone user lookups. **That DEBUG-log
+  run is the way to check this class of bug** — the relation count is low enough that nothing else is at risk today,
+  but a second `@ManyToOne` added anywhere would have the same default.
+- **`users.created_at` was the deferred index whose trigger actually fired** - `V42` adds it. It was correctly not
+  worth it at 200 and at 1,000 accounts (1.17 ms); at 50,000 the admin list's first page was 13-15 ms and its last
+  page 127 ms, because the page was `Seq Scan` + top-N heapsort over every account. With the index: 0.2 ms and
+  6.5 ms. **The lesson is the deferral note's own advice - re-measure at the size that matters rather than assuming
+  the earlier figure still holds.** `ip_lockouts.ip_address` remains unindexed and remains fine: that table is pruned
+  to a week of lockouts, so it does not grow with usage at all.
+- **`notes` was measured for the same natural-key change `V39` made to `action_logs` and deliberately left alone**:
+  its ~1.5 KB ciphertext payload dominates, and the table came out at 20 MB with or without the surrogate id.
+- **The frequency chart now reads only the window it draws.** Its monthly rollup used to cover the subject's whole
+  history so the caller could keep the anchor year's twelve months out of it, and its navigation bound
+  (`earliestLoggedMonth`) was the minimum of that same rollup - so the MONTH view paid for a whole-history read it
+  drew none of. The rollup is now range-bound (~65 ms -> 1.3 ms for three subjects) and the bound is its own query.
+  **That bound is a `LATERAL` per subject on purpose**: a plain `SELECT MIN(log_date) ... WHERE action_id IN (...)`
+  cannot use the index, because PostgreSQL will not push the `MIN` into each branch of the nested loop and reads
+  every row instead (32.3 ms). Asked once per subject it is one index probe each (0.27 ms), and a chart holds at most
+  `FrequencyCharts.MAX_SERIES` of them. **A denormalised "first logged" column was considered and rejected**: it
+  would save ~0.3 ms, would need maintaining on six write paths, would still need this query to recompute whenever
+  the earliest entry is deleted, would not cover the notes subject, and would fail silently (a stale bound blocks or
+  invents chart navigation rather than erroring).
+- **The notes search is the one path that grows and that NO index can reach**, because the content is ciphertext.
+  Its cost is JVM-side and linear in journal length; measured over sealed 1.5 KB notes (open + match + the
+  `NoteSearch.suggest` miss path):
+  3 years/1,096 notes = 4.3 + 0.9 + 17.0 = **22 ms**; 10 years/3,652 = 8.7 + 3.6 + 54.0 = **66 ms**;
+  20 years/7,300 = 17.2 + 5.5 + 125.0 = **148 ms**; 30 years/11,000 = 29.2 + 11.2 + 178.3 = **219 ms**.
+  The database part is negligible throughout (3.2 ms to read a 10-year journal's 5,350 kB of ciphertext).
+  **`suggest` is 70-80% of it and runs ONLY when a search matched nothing**, so a hit stays cheap (~40 ms even at
+  30 years) and a miss is what degrades. An early exit on the first distance-1 candidate would cut it, but it would
+  change WHICH word is suggested (ties currently break on occurrence count across the whole journal), so that is a
+  behaviour decision rather than a free optimisation - do not take it as a pure perf change. Trigger: a user with a
+  many-year journal reporting that a fruitless search feels slow.
+- **Everything outside the Stats page and that search holds up at 10x the baseline** and needs no further indexing. Measured at
+  4.78M `action_logs` rows / 1,000 accounts / a 10-year account, all sub-2 ms: the dashboard's three-month warm-up
+  (0.33 ms), the frequency chart's month window (1.5 ms), the whole-journal notes read at 3,652 notes (1.06 ms), the
+  session lookup (1.24 ms) and all four ETag signatures. **The admin user list at 1,000 accounts is 1.17 ms**, so the
+  `users.created_at` index noted above is still not warranted - re-measure before adding it rather than assuming the
+  row count alone is the trigger.

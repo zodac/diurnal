@@ -187,7 +187,7 @@ public class LogWebResource {
         final List<Action> all = Action.findByUser(user.id);
         final Map<LocalDate, Map<UUID, Integer>> countsByDate = ActionLog.findByUserAndRange(user.id, start, end)
             .stream()
-            .collect(Collectors.groupingBy(log -> log.logDate, Collectors.toMap(log -> log.actionId, log -> log.count)));
+            .collect(Collectors.groupingBy(DatedActionCount::date, Collectors.toMap(DatedActionCount::actionId, DatedActionCount::count)));
 
         final int dayPageSize = PageSizes.forSection(user, PageSection.DASHBOARD);
         final Locale locale = locale(user);

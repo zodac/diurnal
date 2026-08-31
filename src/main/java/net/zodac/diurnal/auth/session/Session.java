@@ -91,10 +91,21 @@ public class Session extends PanacheEntityBase {
     public String clientIp;
 
     /**
-     * Finds the session whose stored hash matches the given token hash.
+     * Finds the session whose stored hash matches the given token hash, with its owning {@link User} fetched alongside it.
+     *
+     * <p>
+     * The {@code JOIN FETCH} is load-bearing, not decoration. {@link #user} is a {@code @ManyToOne}, which JPA maps eagerly by default, and an eager
+     * to-one on the root of an HQL query is resolved by a SECOND statement rather than by a join - so a plain {@code find("tokenHash", ...)} issued
+     * one select against {@code sessions} and then another against {@code users}. Every authenticated request resolves its identity through here and
+     * every one of them ends in {@link PostgresSessionStore#resolve} returning that user, so the second round trip was paid on all of them and never
+     * saved anything. Verified against a real database by running {@code SessionStoreIT} with {@code org.hibernate.SQL} at {@code DEBUG}: two
+     * statements before, one after.
+     *
+     * @param tokenHash the SHA-256 hash of the presented token
+     * @return the matching session with its owner loaded, or empty when no session has that hash
      */
     public static Optional<Session> findByTokenHash(final byte[] tokenHash) {
-        return find("tokenHash", (Object) tokenHash).firstResultOptional();
+        return Session.<Session>find("FROM Session s JOIN FETCH s.user WHERE s.tokenHash = ?1", (Object) tokenHash).firstResultOptional();
     }
 
     /**

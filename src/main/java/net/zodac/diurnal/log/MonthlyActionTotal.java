@@ -20,10 +20,14 @@ package net.zodac.diurnal.log;
 import java.util.UUID;
 
 /**
- * The database-side monthly aggregation of an action's logs: the summed {@code count} for one action within one calendar month. Produced by
- * {@link ActionLog#monthlyTotalsForActions(UUID, java.util.Collection)} (one instance per {@code (action, calendar-month)} that has at least one log
- * entry) and consumed by the Stats page to build per-action totals and best-month/best-year figures without hydrating every log row. A typed
- * projection in place of the previous positional {@code Object[]} tuple.
+ * The database-side monthly aggregation of a subject's logs: the summed {@code count} for one subject within one calendar month. Produced by
+ * {@link ActionLog#monthlyTotalsForActions(UUID, java.util.Collection, java.time.LocalDate, java.time.LocalDate)} (one instance per
+ * {@code (subject, calendar-month)} in the window that has at least one entry) and consumed by the frequency chart to draw a year as twelve monthly
+ * bars. A typed projection in place of the previous positional {@code Object[]} tuple.
+ *
+ * <p>
+ * The Stats page's per-subject totals and best-month/best-year figures no longer come from here: a month's total is the sum of its days' totals, so
+ * {@code StatsService.assemble} derives them from the daily rollup it has already read rather than aggregating the same history a second time.
  *
  * @param actionId the action the total belongs to
  * @param year the calendar year of the month
