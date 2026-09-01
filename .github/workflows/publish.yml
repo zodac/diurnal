@@ -78,7 +78,7 @@ jobs:
           node-version: '26.8.1'
 
       - name: Setup Maven Action
-        uses: s4u/setup-maven-action@v1.20.0
+        uses: s4u/setup-maven-action@v1.21.0
         with:
           checkout-fetch-depth: 0
           java-distribution: 'temurin'
@@ -217,7 +217,7 @@ jobs:
       # it here (rather than relying on the runner's pre-installed Maven) keeps the toolchain
       # consistent with the `test` job.
       - name: Setup Maven Action
-        uses: s4u/setup-maven-action@v1.20.0
+        uses: s4u/setup-maven-action@v1.21.0
         with:
           checkout-fetch-depth: 0
           java-distribution: 'temurin'

@@ -174,7 +174,7 @@ ESLINT_NODE_IMAGE="node:26.8.1-alpine"
 # .github/scripts/update_dependency_versions.sh, like every other pin in this file.
 ESLINT_VERSION="10.9.1"
 ESLINT_JS_VERSION="10.0.1"
-TYPESCRIPT_ESLINT_VERSION="8.68.0"
+TYPESCRIPT_ESLINT_VERSION="8.69.0"
 ESLINT_GLOBALS_VERSION="17.11.0"
 TYPESCRIPT_VERSION="7.0.2"
 GRYPE_DOCKER_IMAGE="anchore/grype:v0.118.0"
