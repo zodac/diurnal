@@ -1,10 +1,17 @@
 import type { Page } from "@playwright/test"
 import { test, expect } from "../helpers/fixtures"
-import { todayStr, pastDateStr, futureDateStr } from "../helpers/dates"
+import { todayStr, futureDateStr, otherDaysThisMonth } from "../helpers/dates"
 
 // The note box: a day's free-text note, written from the panel under the day logger. The write rules
 // are covered by the ITs; these pin the browser-side behaviour that no server test can see — the caches,
 // the dirty state, the drag handles and their lifetime.
+// The day every spec here switches to when it needs one that is not today. A day of the CURRENT month
+// rather than an offset, so it is drawn beside today's cell whatever the calendar date: these specs click
+// back to today, and two of them assert that return is a client-side cache hit, so none can afford the
+// calendar to be paged to reach it (see otherDaysThisMonth). The marker specs leave a note on this day, so
+// the note-box specs clear it in their beforeEach rather than assuming it is empty.
+const OTHER_DAY = otherDaysThisMonth(1)[0]
+
 test.describe("Dashboard – note box", () => {
     // A unique note per run: the specs share one user and DB, so a fixed string would already be saved
     // on a re-run and the box would (correctly) not be dirty, leaving Save disabled.
@@ -21,7 +28,7 @@ test.describe("Dashboard – note box", () => {
     test.beforeEach(async ({ authenticatedPage: page }) => {
         await page.goto("/")
         await clearNoteOn(page, todayStr())
-        await clearNoteOn(page, pastDateStr(1))
+        await clearNoteOn(page, OTHER_DAY)
     })
 
     test("writing and saving a note keeps it across a date change", async ({ authenticatedPage: page }) => {
@@ -40,7 +47,7 @@ test.describe("Dashboard – note box", () => {
         await expect(page.locator("#note-save")).toBeDisabled()
 
         // Another day is a different note — and coming back reads from the client-side cache.
-        await page.locator(`.d-min-cell[data-date="${pastDateStr(1)}"]`).click()
+        await page.locator(`.d-min-cell[data-date="${OTHER_DAY}"]`).click()
         await expect(page.locator("#note-input")).toHaveValue("")
         await page.locator(`.d-min-cell[data-date="${todayStr()}"]`).click()
         await expect(page.locator("#note-input")).toHaveValue(body)
@@ -71,7 +78,7 @@ test.describe("Dashboard – note box", () => {
         await page.locator("#note-input").fill(body)
 
         // Switching day must not silently drop a half-written note.
-        await page.locator(`.d-min-cell[data-date="${pastDateStr(1)}"]`).click()
+        await page.locator(`.d-min-cell[data-date="${OTHER_DAY}"]`).click()
         await expect(page.locator("#note-input")).toHaveValue("")
         await page.locator(`.d-min-cell[data-date="${todayStr()}"]`).click()
         await expect(page.locator("#note-input")).toHaveValue(body)
@@ -253,7 +260,7 @@ test.describe("Dashboard – note box resize", () => {
         await dragHandle(page, "corner", 100, 90)
         const grown = await panelBox(page)
 
-        await page.locator(`.d-min-cell[data-date="${pastDateStr(1)}"]`).click()
+        await page.locator(`.d-min-cell[data-date="${OTHER_DAY}"]`).click()
         await expect(page.locator("#day-logger-panel")).not.toContainText("Click a day to log actions")
         const afterDateChange = await panelBox(page)
         expect(afterDateChange.width).toBeCloseTo(grown.width, 0)
@@ -373,8 +380,7 @@ test.describe("Dashboard – calendar note markers", () => {
     })
 
     test("a day with a note shows a green number in every calendar style", async ({ authenticatedPage: page }) => {
-        const marked = pastDateStr(4)
-        const plain = pastDateStr(5)
+        const [marked, plain] = otherDaysThisMonth(2)
         await page.goto("/")
         await page.evaluate(async ([withNote, without]: string[]) => {
             await fetch(`/api/v1/notes/${withNote}`, {
@@ -401,7 +407,7 @@ test.describe("Dashboard – calendar note markers", () => {
     })
 
     test("the marker appears on save and goes on clear, without a reload", async ({ authenticatedPage: page }) => {
-        const day = pastDateStr(6)
+        const [day] = otherDaysThisMonth(1)
         await page.goto("/")
         await page.evaluate(async (d: string) => {
             await fetch(`/api/v1/notes/${d}`, { method: "DELETE" })
@@ -461,8 +467,10 @@ test.describe("Dashboard – calendar note markers", () => {
             }
         })
 
-        // Both days are in the visible month, whose notes are already resident.
-        await page.locator(`.d-min-cell[data-date="${pastDateStr(2)}"]`).click()
+        // Both days are in the visible month, whose notes are already resident - which is exactly why this
+        // one takes OTHER_DAY rather than an offset: paging to reach an offset would fetch the month it
+        // landed on, and today's cell would no longer be drawn to click back to.
+        await page.locator(`.d-min-cell[data-date="${OTHER_DAY}"]`).click()
         await expect(page.locator("#day-logger-panel")).not.toContainText("Click a day to log actions")
         await page.locator(`.d-min-cell[data-date="${todayStr()}"]`).click()
         await expect(page.locator("#note-input")).toBeEnabled()
@@ -554,7 +562,7 @@ test.describe("Settings – note colour", () => {
     })
 
     test("the picked colour recolours the calendar marker and the Notes statistics", async ({ authenticatedPage: page }) => {
-        const day = pastDateStr(3)
+        const [day] = otherDaysThisMonth(1)
         await page.goto("/")
         await page.evaluate(async (d: string) => {
             await fetch(`/api/v1/notes/${d}`, {

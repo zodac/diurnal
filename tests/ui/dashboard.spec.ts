@@ -1,19 +1,12 @@
 import type { Page } from "@playwright/test"
 import { test, expect, loginAs, logout } from "../helpers/fixtures"
-import { todayStr, pastDateStr, futureDateStr } from "../helpers/dates"
+import { todayStr, pastDateStr, futureDateStr, otherDaysThisMonth } from "../helpers/dates"
+import { showMonthOf } from "../helpers/calendar"
 
 // Unique action name for this test run — kept live, so no DB unique-constraint collision
 // across repeated runs or across chromium/mobile-chrome sharing the same user+DB.
 // Contains 'DashAction' so toContainText('DashAction') still matches.
 const DASH_NAME = `DashAction${Date.now()}`
-
-// Helper: a date guaranteed to be in the current UTC month (so its cell is a primary cell of the
-// rendered month grid) and different from today. Uses the 1st, or the 2nd when today is the 1st.
-function otherDayThisMonth(): string {
-    const d = new Date()
-    d.setUTCDate(d.getUTCDate() === 1 ? 2 : 1)
-    return d.toISOString().slice(0, 10)
-}
 
 // Reset every logged action on a given date back to zero — deterministically, entirely through the API.
 //
@@ -28,9 +21,10 @@ function otherDayThisMonth(): string {
 // UI timing is involved, so there is no race to lose. The page must already be on a same-origin URL.
 //
 // Any test that asserts a day is EMPTY must reset it here rather than assume it: the specs below share one
-// user and DB (across the chromium/mobile-chrome projects too), and several of them deliberately log on a
-// past date — most notably the 1st of the current month, which IS "yesterday" whenever the suite runs on
-// the 2nd. Resetting makes such a test independent of both the calendar date and the spec order.
+// user (the fixture keys it on spec file AND project, so chromium and mobile-chrome get one each, but every
+// test in this file gets the same one and they run in declaration order), and several of them deliberately
+// log on a past date — most notably the 1st of the current month, which IS "yesterday" whenever the suite
+// runs on the 2nd. Resetting makes such a test independent of both the calendar date and the spec order.
 async function resetLogsOn(page: Page, date: string): Promise<void> {
     await page.evaluate(async (day: string) => {
         // GET /api/v1/logs/{date} returns exactly the actions logged that day, as JSON and unpaginated —
@@ -99,6 +93,7 @@ test.describe("Dashboard", () => {
     test("click a past date loads that day in the day panel", async ({ authenticatedPage: page }) => {
         await page.goto("/")
         const past = pastDateStr(3)
+        await showMonthOf(page, past)
         const cell = page.locator(`.d-min-cell[data-date="${past}"]`)
         await cell.click()
         await expect(page.locator("#day-logger-panel")).toContainText("DashAction")
@@ -115,10 +110,15 @@ test.describe("Dashboard", () => {
         // on the 2nd, which another spec in this file logs on)
         const past = pastDateStr(1)
         await resetLogsOn(page, past)
+        await showMonthOf(page, past)
         await page.locator(`.d-min-cell[data-date="${past}"]`).click()
         await expect(page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")).toHaveValue("0")
 
-        // Click the event on today's cell (clicking anywhere in the cell selects its day) to navigate back
+        // Click the event on today's cell (clicking anywhere in the cell selects its day) to navigate back.
+        // Yesterday is only in the same month view as today for most of a month - on the 1st it is the
+        // previous month's last day, and drawn only if the grid happens to lead with one - so the view is
+        // asked for explicitly in both directions rather than assumed.
+        await showMonthOf(page, todayStr())
         const event = page.locator(".d-full-event").first()
         await event.click()
         await expect(page.locator('#day-logger-panel [id^="log-"]').first().locator("input[name=count]")).toHaveValue("1")
@@ -262,11 +262,14 @@ test.describe("Dashboard", () => {
         // Move the selection to a day with nothing logged: the card empties again...
         const blankDay = pastDateStr(1)
         await resetLogsOn(page, blankDay)
+        await showMonthOf(page, blankDay)
         await page.locator(`.d-min-cell[data-date="${blankDay}"]`).click()
         await expect(page.locator("#day-logger-panel")).toContainText("DashAction") // panel settled
         await expect(summary).not.toContainText("DashAction")
 
-        // ...and comes back on returning to today, which by now is served from the client-side cache.
+        // ...and comes back on returning to today, which by now is served from the client-side cache
+        // (paging back re-renders the grid; it does not evict the month it already holds).
+        await showMonthOf(page, todayStr())
         await page.locator(`.d-min-cell[data-date="${todayStr()}"]`).click()
         await expect(summary).toContainText("DashAction")
     })
@@ -366,6 +369,7 @@ test.describe("Dashboard – Minimal calendar", () => {
     test("clicking a past date loads that day in the day panel", async ({ authenticatedPage: page }) => {
         await page.goto("/")
         const past = pastDateStr(3)
+        await showMonthOf(page, past)
         await page.locator(`.d-min-cell[data-date="${past}"]`).click()
         await expect(page.locator("#day-logger-panel")).not.toContainText("Click a day to log actions")
     })
@@ -373,6 +377,7 @@ test.describe("Dashboard – Minimal calendar", () => {
     test("clicked date receives the selected class", async ({ authenticatedPage: page }) => {
         await page.goto("/")
         const past = pastDateStr(2)
+        await showMonthOf(page, past)
         await page.locator(`.d-min-cell[data-date="${past}"]`).click()
         await expect(page.locator(`.d-min-cell[data-date="${past}"]`)).toHaveClass(/d-min-selected/)
     })
@@ -459,6 +464,7 @@ test.describe("Dashboard – Stacked calendar", () => {
     test("clicking a past date loads that day in the day panel", async ({ authenticatedPage: page }) => {
         await page.goto("/")
         const past = pastDateStr(3)
+        await showMonthOf(page, past)
         await page.locator(`.d-min-cell[data-date="${past}"]`).click()
         await expect(page.locator("#day-logger-panel")).not.toContainText("Click a day to log actions")
     })
@@ -489,7 +495,7 @@ test.describe("Dashboard – Stacked calendar", () => {
     // The chosen day is retained for the current working session (per-tab sessionStorage): it survives
     // in-app navigation but resets when the tab closes or the auth session ends (login-page load clears it).
     test("selected day is retained when navigating away and back within the session", async ({ authenticatedPage: page }) => {
-        const other = otherDayThisMonth()
+        const other = otherDaysThisMonth(1)[0]
 
         await page.goto("/")
         await page.locator(`.d-min-cell[data-date="${other}"]`).click()
@@ -505,7 +511,7 @@ test.describe("Dashboard – Stacked calendar", () => {
     })
 
     test("selected day resets to today after logout and login", async ({ authenticatedPage: page, testUser }) => {
-        const other = otherDayThisMonth()
+        const other = otherDaysThisMonth(1)[0]
 
         await page.goto("/")
         await page.locator(`.d-min-cell[data-date="${other}"]`).click()
