@@ -949,8 +949,14 @@
            <colgroup> proportions win and the snippet truncates inside its share (see .note-snippet). */
         .dt-table-fixed { table-layout: fixed; }
         .dt-table thead tr { border-bottom: 1px solid var(--color-border); }
+        /* `nowrap` puts the headings under the same rule as the values beneath them (see .dt-table): a
+           table here widens and scrolls rather than wrapping. Without it a heading is free to break at
+           a space or a hyphen, and auto layout takes that permission the moment another column wants
+           the room - "Sign-in" split across two lines (at its own hyphen) and made EVERY header row on
+           the page taller, for a column whose values are nowrap and so never needed the space back. */
         .dt-head-cell { padding: .75rem 1rem; text-align: start; font-size: .75rem; line-height: 1rem;
-            font-weight: 500; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .025em; }
+            font-weight: 500; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: .025em;
+            white-space: nowrap; }
         .dt-tbody > tr + tr { border-top: 1px solid var(--color-border-subtle); }
 
         /* Rows + cells */
@@ -966,6 +972,19 @@
         .dt-cell { padding: .75rem 1rem; color: var(--color-text); vertical-align: middle; }
         .dt-cell-muted { color: var(--color-text-muted); white-space: nowrap; }
         .dt-cell-actions { width: 1%; white-space: nowrap; }
+        /* A value that is allowed to be clipped once the table runs out of room. The tables here
+           deliberately widen and scroll rather than truncate, which is the right trade while the page
+           has the width to give; on a phone (or a half-screen desktop window) a 50-character display
+           name instead pushes half the columns off the side, to show in full a string nobody reads
+           letter-by-letter at a glance. So the cap applies BELOW `lg` only, where the scroll is
+           actually happening: above it the string is untouched. The `data-tip-full` marker on the same
+           element (app.js) measures the box live, so the whole value is one hover/long-press away when
+           it is clipped and no tooltip appears at all when it fits.
+           `display: block` is what makes the cap bite - a max-width on an inline span does nothing, and
+           one on the <td> is ignored outright by the table's auto layout. */
+        @media (max-width: 1023px) {
+            .dt-cell-clip { display: block; max-width: 15ch; overflow: hidden; text-overflow: ellipsis; }
+        }
         /* The Actions table's leading colour cell, holding the swatch/picker AND the randomise button.
            `nowrap` is load-bearing, not cosmetic: the table uses auto layout inside an overflow-x-auto
            wrap, so on a narrow viewport the browser squeezes this column below the width of its own

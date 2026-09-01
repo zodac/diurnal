@@ -198,3 +198,81 @@ test.describe("User row edit mode", () => {
         await expect(row).not.toHaveClass(/dt-row-highlight/)
     })
 })
+
+// ── User table layout ─────────────────────────────────────────────────────────
+// Both assertions here are about geometry, so they can only be made by rendering the table at a
+// width where it does not fit: the /admin/users table is eight columns wide, and a half-screen
+// desktop window (or any phone) is where it starts to overflow its wrap.
+//
+// TextFields.DISPLAY_NAME_MAX_LENGTH characters, the worst case the column has to survive - a name
+// this long used to size its own column and push the trailing columns off the side of the screen.
+const MAX_LENGTH_DISPLAY_NAME = "Bartholomew Fitzgerald-Montgomery Wallingford III!"
+
+// The admin's OWN row is the one row guaranteed to be on page 1 (see loginAsAdmin), so the long name
+// goes on that account rather than on a freshly registered one that the suite's other users could
+// push onto a later page. Nothing else asserts this account's display name.
+async function nameTheAdmin(page: Page, displayName: string): Promise<void> {
+    const renamed = await page.request.patch("/api/v1/users/me", { data: { displayName } })
+    if (!renamed.ok()) {
+        throw new Error(`could not set the admin display name: HTTP ${renamed.status()}`)
+    }
+}
+
+test.describe("User table at a width the columns cannot fit", () => {
+    test.use({ viewport: { width: 800, height: 900 } })
+
+    test("the Sign-in heading stays on one line", async ({ page }) => {
+        await loginAsAdmin(page)
+        await page.goto("/admin/users")
+
+        // "Sign-in" is the only heading with an internal break opportunity (its hyphen), and auto table
+        // layout took it the moment another column wanted the room - splitting the word over two lines
+        // and making the whole header row taller. Measured against a heading that has no break
+        // opportunity at all, so this asserts "one line" rather than a pixel height.
+        const headings = page.locator("#admin-users-list .dt-head-cell")
+        const signIn = headings.filter({ hasText: "Sign-in" })
+        const role = headings.filter({ hasText: "Role" })
+        await expect(signIn).toHaveCount(1)
+        expect(await signIn.evaluate((el) => el.clientHeight)).toBe(await role.evaluate((el) => el.clientHeight))
+    })
+
+    test("a max-length display name is clipped, and hovering it reveals the whole name", async ({ page, isMobile }) => {
+        await loginAsAdmin(page)
+        await nameTheAdmin(page, MAX_LENGTH_DISPLAY_NAME)
+        await page.goto("/admin/users")
+
+        const name = page.locator("tr", { hasText: ADMIN.email }).locator(".dt-cell-clip")
+        await expect(name).toHaveText(MAX_LENGTH_DISPLAY_NAME)   // clipped visually only - the full string stays in the DOM
+        expect(await name.evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(true)
+
+        // The reveal is hover-only (app.js gates it on `(hover: hover)`); the long-press path is
+        // covered by truncation-tooltips.spec.ts and needs no second assertion here.
+        if (isMobile === true) {
+            return
+        }
+        await name.hover({ position: { x: 4, y: 4 }, force: true })
+        await expect(page.locator(".app-tooltip-float")).toHaveText(MAX_LENGTH_DISPLAY_NAME)
+    })
+})
+
+test.describe("User table at a width the columns do fit", () => {
+    test.use({ viewport: { width: 1600, height: 900 } })
+
+    test("the same display name is shown in full, with no tooltip", async ({ page }) => {
+        await loginAsAdmin(page)
+        await nameTheAdmin(page, MAX_LENGTH_DISPLAY_NAME)
+        await page.goto("/admin/users")
+
+        // The cap is deliberately not applied here: with the room to show the name there is nothing to
+        // explain, and `data-tip-full` measures the box live, so the bubble must stay shut on hover.
+        // No `scrollWidth` check: without the cap the span is inline, and an inline box reports
+        // clientWidth 0 - so the meaningful assertions are that the cap is not applied and that the
+        // live measurement in app.js consequently finds nothing to reveal.
+        const name = page.locator("tr", { hasText: ADMIN.email }).locator(".dt-cell-clip")
+        await expect(name).toHaveText(MAX_LENGTH_DISPLAY_NAME)
+        expect(await name.evaluate((el) => globalThis.getComputedStyle(el).maxWidth)).toBe("none")
+        await name.hover({ position: { x: 4, y: 4 }, force: true })
+        await page.waitForTimeout(800)
+        await expect(page.locator(".app-tooltip-float")).toHaveCount(0)
+    })
+})

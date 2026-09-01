@@ -123,6 +123,16 @@ Shared editable-row chrome:
 - `.dt-row-highlight` — inset `box-shadow` ring; colour from `--dt-highlight` (`.dt-row-edit` = indigo, `.dt-row-confirm` = red). Edit rows trim cell
   padding to keep the same row height.
 
+**Values widen the table; they do not wrap.** Auto layout + `whitespace-nowrap` value cells + `overflow-x-auto` means a long value
+scrolls rather than wrapping, truncating or crushing its neighbours (`.dt-table-fixed` on the notes list is the one exception).
+`.dt-head-cell` is `white-space: nowrap` for the same reason — a heading with an internal break opportunity (`Sign-in`, at its hyphen)
+was otherwise split over two lines the moment another column wanted the room, making the whole header row taller.
+
+**`.dt-cell-clip` is the one sanctioned truncation** (the admin Users table's display name): below `lg` only — i.e. where the table is
+already overflowing — it caps the value at `15ch` with an ellipsis, so a 50-character name cannot push the trailing columns off a phone.
+Pair it with `data-tip-full` (see "Truncated-text tooltips" below): app.js measures the box live, so the whole string is one hover/long-press
+away when clipped and no bubble appears at all at wider widths.
+
 Cross-table conventions: explicit Save tick required (only exception: Settings → User Preferences); at most one 'armed row' at a time (
 `dtClearArmedRows` disarms others); destructive button left, Cancel right. `partials/pagination.html` exposes `#showing-shown`/`#showing-total` for
 surgical HTMX count updates.
