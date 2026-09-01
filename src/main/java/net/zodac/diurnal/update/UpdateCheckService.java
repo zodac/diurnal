@@ -29,19 +29,24 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 /**
- * Performs a single best-effort "is a newer release available" check at application startup, compares the running version against the latest
- * published GitHub release, logs the outcome, and holds the result for the admin pages' footer. The lookup runs exactly once (at startup) and is
- * never refreshed - so the footer verdict may go stale over a long uptime, which is an accepted trade-off for making no repeated outbound calls. When
- * the check is disabled ({@code app.update-check.enabled=false}) no lookup is made and the footer shows no indicator.
+ * Performs a single best-effort "is a newer release available" check triggered by application startup, compares the running version against the
+ * latest published GitHub release, logs the outcome, and holds the result for the admin pages' footer. The lookup runs exactly once and is never
+ * refreshed - so the footer verdict may go stale over a long uptime, which is an accepted trade-off for making no repeated outbound calls. When the
+ * check is disabled ({@code app.update-check.enabled=false}) no lookup is made and the footer shows no indicator.
+ *
+ * <p>
+ * It is triggered by startup but deliberately does not run ON the startup thread - see {@link #onStartup(StartupEvent)} - so the boot never waits on
+ * an outbound call for a footer decoration.
  *
  * <p>
  * All version decisions are the pure {@link UpdateCheck}; this bean owns only the one-shot {@link LatestReleaseClient} call, the stored result (an
- * {@link AtomicReference} for safe cross-thread publication from the startup thread to request threads) and the logging.
+ * {@link AtomicReference} for safe cross-thread publication from the lookup thread to request threads) and the logging.
  */
 @ApplicationScoped
 public class UpdateCheckService {
 
     private static final Logger LOGGER = LogManager.getLogger(UpdateCheckService.class);
+    private static final String LOOKUP_THREAD_NAME = "diurnal-update-check";
 
     private final UpdateCheckConfig config;
     private final AppConfig appConfig;
@@ -82,7 +87,17 @@ public class UpdateCheckService {
     }
 
     /**
-     * Runs the one-shot update check at application startup, unless it is disabled.
+     * Hands the one-shot update check to a background thread when the application starts, unless it is disabled.
+     *
+     * <p>
+     * The lookup deliberately does NOT run on the startup thread. It is an outbound HTTPS call to GitHub - a DNS lookup, a TLS handshake on a cold
+     * JVM and a round trip, bounded only by {@code app.update-check.timeout} (default 3s) - and running it inline put every bit of that between the
+     * application being built and it being ready to serve. Nothing needs the result to answer a request: {@link #status()} reports "no update" until
+     * the lookup lands, which is exactly what it reports when the lookup fails, and the only thing that changes is an admin-only footer arrow.
+     *
+     * <p>
+     * A virtual thread is used because it is a daemon by nature, so a lookup still in flight can never hold up a shutdown - a fire-and-forget task
+     * whose result nothing waits on must not be able to keep the JVM alive.
      *
      * @param event the fired {@link StartupEvent}
      */
@@ -92,13 +107,13 @@ public class UpdateCheckService {
             LOGGER.debug("Update check is disabled - skipping startup version check");
             return;
         }
-        checkForUpdate();
+        Thread.ofVirtual().name(LOOKUP_THREAD_NAME).start(this::checkForUpdate);
     }
 
     /**
      * Performs the single latest-release lookup: stores the fetched version for the footer and logs the outcome (INFO when a newer version is
-     * available, DEBUG otherwise or when the latest version could not be determined). Package-private so the integration test can drive it directly
-     * with a mocked client.
+     * available, DEBUG otherwise or when the latest version could not be determined). The body of the background task started by
+     * {@link #onStartup(StartupEvent)}, and package-private so a test can drive it directly - and synchronously - with a mocked client.
      */
     void checkForUpdate() {
         final Optional<String> latest = releaseClient.latestReleaseVersion();

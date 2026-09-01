@@ -69,8 +69,9 @@ public class GitHubLatestReleaseClient implements LatestReleaseClient {
 
     private Optional<String> fetchLatestTag(final URI uri) {
         // The releases URL varies per repository, so the client is built with that full URL as its base URI (the interface method carries no path).
-        // A short-lived builder per one-shot startup call mirrors the previous per-call HttpClient; the configured timeout bounds both connect and
-        // read so a slow or hung provider can never stall the boot.
+        // A short-lived builder per one-shot call mirrors the previous per-call HttpClient; the configured timeout bounds both connect and read so a
+        // slow or hung provider cannot leave the lookup running indefinitely. It no longer bounds the BOOT - the lookup is off the startup thread
+        // (see UpdateCheckService#onStartup) - so this timeout is about releasing the thread, not about reaching readiness.
         final long timeoutMillis = updateCheckConfig.timeout().toMillis();
         try {
             final GitHubReleasesApi client = QuarkusRestClientBuilder.newBuilder()

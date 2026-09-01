@@ -500,10 +500,26 @@ admin IP-lockout history follows the general value (no section of its own).
 
 An admin-only "update available" up-arrow in the footer (`partials/footer.html`), gated on `isAdmin && updateAvailable`, linking to the latest
 release; all three signals ride the `{inject:appInfo}` bean (`updateAvailable`/`updateTooltip`/`updateUrl`), so no resource threads footer data.
-The check runs **exactly once at startup and is never refreshed** (`UpdateCheckService.onStartup`): one best-effort `LatestReleaseClient` GitHub
-lookup, result stored in an `AtomicReference`, so `status()` is a pure no-I/O read that may go stale over long uptime (accepted, to make no repeated
-outbound calls). Any failure stores nothing → no indicator. Enabled by default; `APP_UPDATE_CHECK_ENABLED=false` skips it (set in smoke/perf/`test`
-so no CI tier calls GitHub). All version/URL branching is the pure `UpdateCheck` (100% PIT); the HTTP call + startup trigger are thin glue.
+The check runs **exactly once, triggered by startup, and is never refreshed** (`UpdateCheckService.onStartup`): one best-effort
+`LatestReleaseClient` GitHub lookup, result stored in an `AtomicReference`, so `status()` is a pure no-I/O read that may go stale over long uptime
+(accepted, to make no repeated outbound calls). Any failure stores nothing → no indicator. Enabled by default; `APP_UPDATE_CHECK_ENABLED=false`
+skips it (set in smoke/perf/`test` so no CI tier calls GitHub).
+
+> **The lookup is triggered BY startup but must never run ON the startup thread.** It is an outbound HTTPS call — DNS, a TLS handshake on a cold JVM
+> and a round trip, bounded only by `app.update-check.timeout` (default 3s) — and running it inline put all of that between the app being built and
+> being ready to serve, measured at **~0.7s of every boot** for an admin-only footer arrow. `onStartup` hands it to a **virtual thread** (a daemon, so
+> a lookup still in flight cannot hold up a shutdown) and returns; `status()` reports `UNKNOWN` until it lands, which is exactly what it reports when
+> the lookup fails, so nothing downstream has a new state to handle. Note the `System cold start` figure `AppLifecycle` logs would **not** show a
+> regression here — that line is printed by a separate `StartupEvent` observer with no `@Priority` ordering between them, so it can be emitted before
+> this lookup finishes. Measure a boot instead: container start → first `200 /api/v1/status`, which is what the perf tier already times.
+>
+> **There is deliberately no unit test pinning this, and adding one will fail the build.** `UpdateCheckService` is thin glue: after the early returns,
+> its only remaining branch picks *which line to log*, so any unit test reaching `checkForUpdate` makes that branch's mutant covered-but-unkillable
+> and PITest strength drops to 99% against the 100% threshold (there is no log-capture harness in this project, and adding one to kill a log-only
+> mutant is not worth it). A dispatch guard was written, confirmed to catch a re-inlined call, and then removed for exactly this reason — do not
+> re-add it. The feature's behaviour stays covered by `UpdateCheckIndicatorIT`, which PITest excludes.
+
+All version/URL branching is the pure `UpdateCheck` (100% PIT); the HTTP call + startup trigger are thin glue.
 **Deliberately no `/api/v1` twin** (surface policy: admin-console decoration, not a user action or data resource).
 
 ### Database vendor seam
