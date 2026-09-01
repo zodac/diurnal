@@ -23,6 +23,7 @@ import static net.zodac.diurnal.note.NoteQueries.DATE;
 import static net.zodac.diurnal.note.NoteQueries.DATE_ARRAY;
 import static net.zodac.diurnal.note.NoteQueries.FROM;
 import static net.zodac.diurnal.note.NoteQueries.ID;
+import static net.zodac.diurnal.note.NoteQueries.ID_ARRAY;
 import static net.zodac.diurnal.note.NoteQueries.NOW;
 import static net.zodac.diurnal.note.NoteQueries.SUBJECT_ID;
 import static net.zodac.diurnal.note.NoteQueries.TO;
@@ -32,15 +33,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import net.zodac.diurnal.SqlParameters;
 import net.zodac.diurnal.persistence.QueryParameter;
+import net.zodac.diurnal.persistence.postgres.PostgresNoteStatements;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pins each of {@link NoteQueries}' hand-written queries to the exact {@code :named}-parameter set the corresponding {@link Note} method binds.
+ * Pins each of {@link NoteQueries}' hand-written JPQL queries - and each native statement of the shipped {@link PostgresNoteStatements} - to the
+ * exact {@code :named}-parameter set the corresponding {@link Note} method binds. The vendor statements are covered here rather than beside their
+ * own class because the tokens they must honour are declared in {@link NoteQueries}.
  * Because those queries are untyped SQL/JPQL text, a placeholder that no {@link net.zodac.diurnal.persistence.QueryParameter} declares - or a
  * declared parameter that no query holds - is otherwise only caught when the query is first executed against the database. The bindings themselves
  * are compile-checked against those declarations, so this is the half of the pair that Java cannot see: the {@code :name} text inside each query.
  */
 class NoteQueriesTest {
+
+    private static final PostgresNoteStatements POSTGRES = new PostgresNoteStatements();
 
     @Test
     void rangeVersionJpql_bindsExpectedParameters() {
@@ -54,12 +60,12 @@ class NoteQueriesTest {
 
     @Test
     void upsertSql_bindsExpectedParameters() {
-        assertParameters(NoteQueries.UPSERT_SQL, List.of(ID, USER_ID, DATE, CONTENT_ENCRYPTED, NOW));
+        assertParameters(POSTGRES.upsert(), List.of(ID, USER_ID, DATE, CONTENT_ENCRYPTED, NOW));
     }
 
     @Test
     void upsertManySql_bindsExpectedParameters() {
-        assertParameters(NoteQueries.UPSERT_MANY_SQL, List.of(USER_ID, DATE_ARRAY, CONTENT_ARRAY, NOW));
+        assertParameters(POSTGRES.upsertAll(), List.of(USER_ID, ID_ARRAY, DATE_ARRAY, CONTENT_ARRAY, NOW));
     }
 
     @Test

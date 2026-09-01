@@ -27,7 +27,6 @@ import static net.zodac.diurnal.log.ActionLogQueries.DATE_ARRAY;
 import static net.zodac.diurnal.log.ActionLogQueries.DELTA;
 import static net.zodac.diurnal.log.ActionLogQueries.FROM;
 import static net.zodac.diurnal.log.ActionLogQueries.MAX;
-import static net.zodac.diurnal.log.ActionLogQueries.NEW_COUNT;
 import static net.zodac.diurnal.log.ActionLogQueries.NOW;
 import static net.zodac.diurnal.log.ActionLogQueries.TO;
 import static net.zodac.diurnal.log.ActionLogQueries.USER_ID;
@@ -36,15 +35,23 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import net.zodac.diurnal.SqlParameters;
 import net.zodac.diurnal.persistence.QueryParameter;
+import net.zodac.diurnal.persistence.postgres.PostgresLogStatements;
 import org.junit.jupiter.api.Test;
 
 /**
- * Pins each of {@link ActionLogQueries}' hand-written queries to the exact {@code :named}-parameter set the corresponding {@link ActionLog} method
- * binds. Because those queries are untyped SQL/JPQL text, a placeholder that no {@link net.zodac.diurnal.persistence.QueryParameter} declares - or a
+ * Pins each of {@link ActionLogQueries}' hand-written JPQL queries - and each native statement of the shipped
+ * {@link PostgresLogStatements} - to the exact {@code :named}-parameter set the corresponding {@link ActionLog} method binds. The vendor statements
+ * are covered here rather than beside their own class because the tokens they must honour are declared in {@link ActionLogQueries}: a second
+ * implementation is pinned by adding its own cases below, which is what stops it drifting from the shared placeholder contract.
+ *
+ * <p>
+ * Because those queries are untyped SQL/JPQL text, a placeholder that no {@link net.zodac.diurnal.persistence.QueryParameter} declares - or a
  * declared parameter that no query holds - is otherwise only caught when the query is first executed against the database. The bindings themselves
  * are compile-checked against those declarations, so this is the half of the pair that Java cannot see: the {@code :name} text inside each query.
  */
 class ActionLogQueriesTest {
+
+    private static final PostgresLogStatements POSTGRES = new PostgresLogStatements();
 
     @Test
     void rangeVersionJpql_bindsExpectedParameters() {
@@ -63,7 +70,7 @@ class ActionLogQueriesTest {
 
     @Test
     void earliestLoggedDateSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.EARLIEST_LOGGED_DATE_SQL, List.of(USER_ID, ACTION_IDS));
+        assertParameters(POSTGRES.earliestLoggedDate(), List.of(USER_ID, ACTION_IDS));
     }
 
     @Test
@@ -78,22 +85,17 @@ class ActionLogQueriesTest {
 
     @Test
     void incrementUpsertSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.INCREMENT_UPSERT_SQL, List.of(USER_ID, ACTION_ID, DATE, DELTA, MAX, NOW));
+        assertParameters(POSTGRES.incrementUpsert(), List.of(USER_ID, ACTION_ID, DATE, DELTA, MAX, NOW));
     }
 
     @Test
-    void selectCountSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.SELECT_COUNT_SQL, List.of(USER_ID, ACTION_ID, DATE));
+    void assignCountUpsertSql_bindsExpectedParameters() {
+        assertParameters(POSTGRES.assignCountUpsert(), List.of(USER_ID, ACTION_ID, DATE, COUNT, NOW));
     }
 
     @Test
-    void setCountUpsertSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.SET_COUNT_UPSERT_SQL, List.of(USER_ID, ACTION_ID, DATE, COUNT, NOW));
-    }
-
-    @Test
-    void setCountsBulkSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.SET_COUNTS_BULK_SQL, List.of(USER_ID, ACTION_ID_ARRAY, DATE_ARRAY, COUNT_ARRAY, NOW));
+    void assignCountsBulkSql_bindsExpectedParameters() {
+        assertParameters(POSTGRES.assignCountsBulk(), List.of(USER_ID, ACTION_ID_ARRAY, DATE_ARRAY, COUNT_ARRAY, NOW));
     }
 
     @Test
@@ -102,18 +104,8 @@ class ActionLogQueriesTest {
     }
 
     @Test
-    void selectForUpdateSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.SELECT_FOR_UPDATE_SQL, List.of(USER_ID, ACTION_ID, DATE));
-    }
-
-    @Test
-    void deleteEntrySql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.DELETE_ENTRY_SQL, List.of(USER_ID, ACTION_ID, DATE));
-    }
-
-    @Test
-    void decrementUpdateSql_bindsExpectedParameters() {
-        assertParameters(ActionLogQueries.DECREMENT_UPDATE_SQL, List.of(NEW_COUNT, NOW, USER_ID, ACTION_ID, DATE));
+    void entryCountJpql_bindsExpectedParameters() {
+        assertParameters(ActionLogQueries.ENTRY_COUNT_JPQL, List.of(USER_ID, ACTION_ID, DATE));
     }
 
     private static void assertParameters(final String query, final List<QueryParameter<?>> expected) {

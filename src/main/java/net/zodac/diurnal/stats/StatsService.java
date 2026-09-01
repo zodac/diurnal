@@ -41,6 +41,7 @@ import net.zodac.diurnal.log.DailyActionTotal;
 import net.zodac.diurnal.log.DatedActionCount;
 import net.zodac.diurnal.log.MonthlyActionTotal;
 import net.zodac.diurnal.note.Note;
+import net.zodac.diurnal.persistence.LogStatements;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.time.DaySpan;
 import net.zodac.diurnal.time.Durations;
@@ -56,15 +57,18 @@ import org.jspecify.annotations.Nullable;
 public class StatsService {
 
     private final AppClock clock;
+    private final LogStatements statements;
 
     /**
-     * Injects the application clock.
+     * Injects the application clock and the database's native statements.
      *
-     * @param clock the application clock for date-boundary logic
+     * @param clock      the application clock for date-boundary logic
+     * @param statements the native action-log statements for the configured database
      */
     @Inject
-    public StatsService(final AppClock clock) {
+    public StatsService(final AppClock clock, final LogStatements statements) {
         this.clock = clock;
+        this.statements = statements;
     }
 
     /**
@@ -271,7 +275,8 @@ public class StatsService {
         };
 
         return new FrequencyResult.Charted(
-            FrequencyCharts.build(charted, period, anchor, countsByAction, today, earliestLoggedMonth(userId, actionIds, notesCharted), language));
+            FrequencyCharts.build(charted, period, anchor, countsByAction, today,
+                earliestLoggedMonth(statements, userId, actionIds, notesCharted), language));
     }
 
     /**
@@ -408,8 +413,9 @@ public class StatsService {
     // stepping back to. Asked as its own cheap query per charted subject - one index probe each - rather than read off a whole-history rollup, which
     // is what the month view was paying for despite drawing none of it.
     @Nullable
-    private static LocalDate earliestLoggedMonth(final UUID userId, final List<UUID> actionIds, final boolean notesCharted) {
-        final LocalDate earliestLog = actionIds.isEmpty() ? null : ActionLog.earliestLoggedDate(userId, actionIds);
+    private static LocalDate earliestLoggedMonth(final LogStatements statements, final UUID userId, final List<UUID> actionIds,
+        final boolean notesCharted) {
+        final LocalDate earliestLog = actionIds.isEmpty() ? null : ActionLog.earliestLoggedDate(statements, userId, actionIds);
         final LocalDate earliestNote = notesCharted ? Note.earliestNoteDate(userId) : null;
         return Stream.of(earliestLog, earliestNote)
             .filter(Objects::nonNull)

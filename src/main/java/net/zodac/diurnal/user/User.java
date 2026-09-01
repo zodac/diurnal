@@ -94,7 +94,7 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     // paginated list asks for its size.
     @Preference
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "page_sizes", columnDefinition = "jsonb")
+    @Column(name = "page_sizes")
     @Nullable
     public List<PageSizePref> pageSizes;
 
@@ -134,7 +134,7 @@ public class User extends PanacheEntityBase { // NOPMD: TooManyFields - wide JPA
     // StatField.displayFields(...) / choices(...).
     @Preference
     @JdbcTypeCode(SqlTypes.JSON)
-    @Column(name = "stats_fields", columnDefinition = "jsonb")
+    @Column(name = "stats_fields")
     @Nullable
     public List<StatFieldPref> statsFields;
 

@@ -31,6 +31,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.security.TestSecurity;
 import io.restassured.http.ContentType;
+import jakarta.inject.Inject;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.Map;
@@ -38,6 +39,7 @@ import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
+import net.zodac.diurnal.persistence.LogStatements;
 import net.zodac.diurnal.transfer.TransferArchive;
 import net.zodac.diurnal.transfer.TransferFiles;
 import net.zodac.diurnal.user.Role;
@@ -53,6 +55,9 @@ import org.junit.jupiter.api.Test;
 @TestSecurity(user = "parity-it@lt.test", roles = Role.Values.USER_INTERNAL_VALUE)
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class SurfaceParityIT extends IntegrationTestBase {
+
+    @Inject
+    LogStatements statements;
 
     private static final String PRIMARY = "parity-it@lt.test";
 
@@ -226,7 +231,7 @@ class SurfaceParityIT extends IntegrationTestBase {
             .as("the HTMX increment must saturate the count at 999")
             .isEqualTo(999));
 
-        runInTx(() -> ActionLog.setCount(primaryId, action.id, TODAY, 998));
+        runInTx(() -> ActionLog.setCount(statements, primaryId, action.id, TODAY, 998));
         given().contentType(ContentType.JSON)
                 .body("""
                         {"amount":10}
