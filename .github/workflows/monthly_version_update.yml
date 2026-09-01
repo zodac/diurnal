@@ -2,8 +2,8 @@ name: Monthly Dependency and Submodule Update
 
 on:
   schedule:
-    # Runs on the 1st of every month at 03:00 UTC
-    - cron: "0 3 1 * *"
+    # Runs on the 2nd of every month at 03:00 UTC
+    - cron: "0 3 2 * *"
   workflow_dispatch: # allows manual trigger
 
 jobs:

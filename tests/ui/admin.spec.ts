@@ -200,13 +200,22 @@ test.describe("User row edit mode", () => {
 })
 
 // ── User table layout ─────────────────────────────────────────────────────────
-// Both assertions here are about geometry, so they can only be made by rendering the table at a
-// width where it does not fit: the /admin/users table is eight columns wide, and a half-screen
-// desktop window (or any phone) is where it starts to overflow its wrap.
+// Every assertion here is about geometry, so each is made at a stated viewport: the /admin/users
+// table is eight columns wide, and where it sits relative to its wrap is the whole subject.
 //
 // TextFields.DISPLAY_NAME_MAX_LENGTH characters, the worst case the column has to survive - a name
 // this long used to size its own column and push the trailing columns off the side of the screen.
 const MAX_LENGTH_DISPLAY_NAME = "Bartholomew Fitzgerald-Montgomery Wallingford III!"
+
+// The email column's own worst case. It is capped too (.dt-cell-clip-wide), but at a width chosen to
+// show ~42 characters of a lowercase address, so a plausible-looking address is not enough to reach
+// it - this one is deliberately past that. It belongs to its own account rather than to ADMIN, whose
+// email every other test in this file locates rows by.
+const LONG_EMAIL_USER: TestUser = {
+    email: "e2e-admin-an-unusually-long-address-to-clip@long-domain.example.com",
+    password: "test_password123",
+    displayName: "E2E Long Email",
+}
 
 // The admin's OWN row is the one row guaranteed to be on page 1 (see loginAsAdmin), so the long name
 // goes on that account rather than on a freshly registered one that the suite's other users could
@@ -241,7 +250,9 @@ test.describe("User table at a width the columns cannot fit", () => {
         await nameTheAdmin(page, MAX_LENGTH_DISPLAY_NAME)
         await page.goto("/admin/users")
 
-        const name = page.locator("tr", { hasText: ADMIN.email }).locator(".dt-cell-clip")
+        // `:not(.dt-cell-clip-wide)` is the display-name span: both free-text columns in the row now
+        // carry .dt-cell-clip, and only the email takes the wide cap.
+        const name = page.locator("tr", { hasText: ADMIN.email }).locator(".dt-cell-clip:not(.dt-cell-clip-wide)")
         await expect(name).toHaveText(MAX_LENGTH_DISPLAY_NAME)   // clipped visually only - the full string stays in the DOM
         expect(await name.evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(true)
 
@@ -255,24 +266,62 @@ test.describe("User table at a width the columns cannot fit", () => {
     })
 })
 
-test.describe("User table at a width the columns do fit", () => {
-    test.use({ viewport: { width: 1600, height: 900 } })
+// The regression this describe exists for: the display name's cap used to be gated on
+// `@media (max-width: 1023px)`, so a full-screen 1080p browser got no cap at all and a max-length name
+// pushed the table 22px past its wrap - a horizontal scrollbar with nothing else on the row long. The
+// viewport cannot decide this, because the content column is capped too (--page-max-width, 80rem): the
+// wrap is ~1246px on ANY screen this wide or wider, and the six fixed columns want ~740px of it. So
+// the assertions below are made at the widest width the app has, where "there is room" would be the
+// most plausible, and 1080p specifically because that is the width the two caps are sized against.
+test.describe("User table at a full desktop width", () => {
+    test.use({ viewport: { width: 1920, height: 1080 } })
 
-    test("the same display name is shown in full, with no tooltip", async ({ page }) => {
+    test("a max-length display name is still clipped, and keeps to its share of the table", async ({ page, isMobile }) => {
         await loginAsAdmin(page)
         await nameTheAdmin(page, MAX_LENGTH_DISPLAY_NAME)
         await page.goto("/admin/users")
 
-        // The cap is deliberately not applied here: with the room to show the name there is nothing to
-        // explain, and `data-tip-full` measures the box live, so the bubble must stay shut on hover.
-        // No `scrollWidth` check: without the cap the span is inline, and an inline box reports
-        // clientWidth 0 - so the meaningful assertions are that the cap is not applied and that the
-        // live measurement in app.js consequently finds nothing to reveal.
-        const name = page.locator("tr", { hasText: ADMIN.email }).locator(".dt-cell-clip")
-        await expect(name).toHaveText(MAX_LENGTH_DISPLAY_NAME)
-        expect(await name.evaluate((el) => globalThis.getComputedStyle(el).maxWidth)).toBe("none")
+        // `:not(.dt-cell-clip-wide)` is the display-name span: both free-text columns in the row now
+        // carry .dt-cell-clip, and only the email takes the wide cap.
+        const name = page.locator("tr", { hasText: ADMIN.email }).locator(".dt-cell-clip:not(.dt-cell-clip-wide)")
+        await expect(name).toHaveText(MAX_LENGTH_DISPLAY_NAME)   // clipped visually only - the full string stays in the DOM
+        expect(await name.evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(true)
+
+        // The cap is the <colgroup>'s own 14% made enforceable, so the column can never take more of
+        // the table than the proportions already promised it. Asserted as a share rather than in
+        // pixels because the table's total width still moves with the longest EMAIL in the run's
+        // shared database - that column is deliberately uncapped.
+        const share = await name.evaluate((el) => {
+            const cell = el.closest("td")
+            const table = el.closest("table")
+            return cell === null || table === null ? 1 : cell.getBoundingClientRect().width / table.getBoundingClientRect().width
+        })
+        expect(share).toBeLessThanOrEqual(0.15)
+
+        // The reveal is hover-only (app.js gates it on `(hover: hover)`); a name short enough to fit
+        // showing no bubble at all is truncation-tooltips.spec.ts's "a name that fits reveals no
+        // tooltip", so neither needs re-asserting here.
+        if (isMobile === true) {
+            return
+        }
         await name.hover({ position: { x: 4, y: 4 }, force: true })
-        await page.waitForTimeout(800)
-        await expect(page.locator(".app-tooltip-float")).toHaveCount(0)
+        await expect(page.locator(".app-tooltip-float")).toHaveText(MAX_LENGTH_DISPLAY_NAME)
+    })
+
+    test("neither free-text column can scroll the table sideways", async ({ page }) => {
+        await registerUser(LONG_EMAIL_USER)
+        await loginAsAdmin(page)
+        await nameTheAdmin(page, MAX_LENGTH_DISPLAY_NAME)
+        await page.goto("/admin/users")
+
+        // Both free-text values are over their caps, so this row is the table at its widest - and the
+        // six remaining columns hold dates, a badge and the button pair, none of which vary with what
+        // is stored. The overflow assertion is therefore about the table as a whole and does not
+        // depend on which other accounts the shared database happens to be carrying.
+        const longEmail = page.locator("tr", { hasText: LONG_EMAIL_USER.email }).locator(".dt-cell-clip-wide")
+        expect(await longEmail.evaluate((el) => el.scrollWidth > el.clientWidth + 1)).toBe(true)
+
+        const wrap = page.locator("#admin-users-list .overflow-x-auto")
+        expect(await wrap.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0)
     })
 })
