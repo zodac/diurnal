@@ -1,5 +1,5 @@
 import { test, expect, loginAs, logout } from "../helpers/fixtures"
-import { todayStr, pastDateStr } from "../helpers/dates"
+import { todayStr, otherDaysThisMonth } from "../helpers/dates"
 
 // An unsaved note draft outlives a navigation but not the tab, and exactly ONE is carried — the day last
 // edited. Split from notes.spec.ts (which covers the box itself) because it is a lifetime question rather
@@ -12,16 +12,20 @@ test.describe("Dashboard – note draft retention", () => {
         return `Draft body ${Date.now()}`
     }
 
+    // The day the draft is moved to. A day of the CURRENT month rather than an offset: the spec clicks back
+    // to today's cell, and a relative one is not always drawn beside it (see otherDaysThisMonth).
+    const OTHER_DAY = otherDaysThisMonth(1)[0]
+
     test.beforeEach(async ({ authenticatedPage: page }) => {
         await page.goto("/")
         await page.evaluate(async (days: string[]) => {
             await Promise.all(days.map(day => fetch(`/api/v1/notes/${day}`, { method: "DELETE" })))
-        }, [todayStr(), pastDateStr(1)])
+        }, [todayStr(), OTHER_DAY])
     })
 
     test("an unsaved note survives leaving the page, and raises no confirmation popup", async ({ authenticatedPage: page }) => {
         const todayBody = freshNote()
-        const yesterdayBody = `${freshNote()} (yesterday)`
+        const otherDayBody = `${freshNote()} (other day)`
 
         // The box used to raise the browser's beforeunload confirmation instead of retaining the draft.
         // Playwright dismisses dialogs automatically, so one is recorded rather than awaited — the
@@ -30,15 +34,15 @@ test.describe("Dashboard – note draft retention", () => {
         page.on("dialog", d => dialogs.push(d.type()))
 
         await page.locator("#note-input").fill(todayBody)
-        await page.locator(`.d-min-cell[data-date="${pastDateStr(1)}"]`).click()
-        await page.locator("#note-input").fill(yesterdayBody)
+        await page.locator(`.d-min-cell[data-date="${OTHER_DAY}"]`).click()
+        await page.locator("#note-input").fill(otherDayBody)
         await expect(page.locator("#note-status")).toHaveText("Unsaved changes")
 
         // Away and back. Every page is a full load, so the box is rebuilt from nothing — the draft comes
         // back from the tab's own storage, still unsaved and still never sent to the server.
         await page.goto("/actions")
         await page.goto("/")
-        await expect(page.locator("#note-input")).toHaveValue(yesterdayBody)
+        await expect(page.locator("#note-input")).toHaveValue(otherDayBody)
         await expect(page.locator("#note-status")).toHaveText("Unsaved changes")
         await expect(page.locator("#note-save")).toBeEnabled()
 
