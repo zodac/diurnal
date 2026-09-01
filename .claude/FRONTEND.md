@@ -128,10 +128,22 @@ scrolls rather than wrapping, truncating or crushing its neighbours (`.dt-table-
 `.dt-head-cell` is `white-space: nowrap` for the same reason — a heading with an internal break opportunity (`Sign-in`, at its hyphen)
 was otherwise split over two lines the moment another column wanted the room, making the whole header row taller.
 
-**`.dt-cell-clip` is the one sanctioned truncation** (the admin Users table's display name): below `lg` only — i.e. where the table is
-already overflowing — it caps the value at `15ch` with an ellipsis, so a 50-character name cannot push the trailing columns off a phone.
-Pair it with `data-tip-full` (see "Truncated-text tooltips" below): app.js measures the box live, so the whole string is one hover/long-press
-away when clipped and no bubble appears at all at wider widths.
+**`.dt-cell-clip` is the one sanctioned truncation** — the admin Users table's two free-text columns, and nothing else. It caps the
+value with an ellipsis **at every viewport width**: `15ch` by default (the display name) and `34ch` via `.dt-cell-clip-wide` (the
+email), the per-use width riding a `--dt-clip` custom property the same way `.dt-row-highlight` rides `--dt-highlight`. Pair either
+with `data-tip-full` (see "Truncated-text tooltips" below): app.js measures the box live, so the whole string is one hover/long-press
+away when clipped and no bubble appears at all for a value that fits.
+**Neither cap is gated on a breakpoint, and re-adding one would restore the bug they were written for.** The viewport is the one
+measurement that cannot decide this: `--page-max-width` caps the content column at 80rem, so the table's wrap is ~1246px however wide
+the screen is, and the six fixed columns want ~740px of it — a max-length value overflows on a 4K monitor exactly as it does on a
+phone (measured: 1268px of table in a 1246px wrap at 1920×1080, from the display name alone, with a 16-character email beside it).
+**The two numbers are chosen together so that both columns AT their cap still fit that wrap** — measured 1227px against 1246px, so a
+full-screen 1080p browser cannot produce a horizontal scrollbar whatever is stored, up to `EMAIL_MAX_LENGTH` (254) and
+`DISPLAY_NAME_MAX_LENGTH` (50). `15ch` is the display name's own `<colgroup>` share made enforceable (14% of 1246px ≈ 174px, less 2rem
+of cell padding); the email is then given the leftover rather than its own 18%, because it is the account's identity in an admin
+console — and since `ch` is sized on a digit, `34ch` still shows ~42 characters of a lowercase address before an ellipsis appears.
+**Below ~1707px of viewport the wrap is itself narrower than 1227px and the table scrolls again** (measured 61px over at 1600, 181px at
+1440): the caps bound what the values can demand, not what the screen can give.
 
 Cross-table conventions: explicit Save tick required (only exception: Settings → User Preferences); at most one 'armed row' at a time (
 `dtClearArmedRows` disarms others); destructive button left, Cancel right. `partials/pagination.html` exposes `#showing-shown`/`#showing-total` for

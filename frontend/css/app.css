@@ -972,19 +972,31 @@
         .dt-cell { padding: .75rem 1rem; color: var(--color-text); vertical-align: middle; }
         .dt-cell-muted { color: var(--color-text-muted); white-space: nowrap; }
         .dt-cell-actions { width: 1%; white-space: nowrap; }
-        /* A value that is allowed to be clipped once the table runs out of room. The tables here
-           deliberately widen and scroll rather than truncate, which is the right trade while the page
-           has the width to give; on a phone (or a half-screen desktop window) a 50-character display
-           name instead pushes half the columns off the side, to show in full a string nobody reads
-           letter-by-letter at a glance. So the cap applies BELOW `lg` only, where the scroll is
-           actually happening: above it the string is untouched. The `data-tip-full` marker on the same
-           element (app.js) measures the box live, so the whole value is one hover/long-press away when
-           it is clipped and no tooltip appears at all when it fits.
-           `display: block` is what makes the cap bite - a max-width on an inline span does nothing, and
-           one on the <td> is ignored outright by the table's auto layout. */
-        @media (max-width: 1023px) {
-            .dt-cell-clip { display: block; max-width: 15ch; overflow: hidden; text-overflow: ellipsis; }
-        }
+        /* A value that is allowed to be clipped rather than widen its table. Most values here
+           deliberately widen and scroll instead of truncating; the admin Users table's two free-text
+           columns are the exception, and their caps are UNCONDITIONAL.
+           The cap was once gated on `@media (max-width: 1023px)`, i.e. on the viewport, which is the
+           one measurement that cannot decide this: the page column is capped at `--page-max-width`, so
+           the wrap is at most ~1246px however wide the screen is, and the six fixed columns need
+           ~740px of it. A max-length value therefore overflows at EVERY width - a 1080p desktop showed
+           a horizontal scrollbar with nothing else on the row long at all - so there is no viewport at
+           which leaving it uncapped is the right answer.
+           The two caps are set so that BOTH columns at their cap still fit that 1246px wrap (measured
+           1227px at EMAIL_MAX_LENGTH/DISPLAY_NAME_MAX_LENGTH), which is what makes the scrollbar unreachable on a full-screen 1080p browser.
+           Below ~1707px of viewport the wrap itself is narrower than that, and the table scrolls again
+           - the caps bound what the VALUES can demand, not what the screen can give.
+             • 15ch (default) - the display name, which is the <colgroup>'s own 14% made enforceable
+               (~174px, less 2rem of cell padding), so it fills exactly what the proportions promised.
+             • 34ch (.dt-cell-clip-wide) - the email, given the leftover instead of its 18% share
+               because it is the account's identity in an admin console: `ch` is sized on a digit, so
+               the cap still shows ~42 characters of lowercase address before an ellipsis appears.
+           The `data-tip-full` marker on the same element (app.js) measures the box live, so the whole
+           value is one hover/long-press away when it is clipped and no tooltip appears at all when it
+           fits. `display: block` is what makes a cap bite - a max-width on an inline span does nothing,
+           and one on the <td> is ignored outright by the table's auto layout. The per-use width rides
+           a custom property, the same shape `.dt-row-highlight` uses for `--dt-highlight`. */
+        .dt-cell-clip { display: block; max-width: var(--dt-clip, 15ch); overflow: hidden; text-overflow: ellipsis; }
+        .dt-cell-clip-wide { --dt-clip: 34ch; }
         /* The Actions table's leading colour cell, holding the swatch/picker AND the randomise button.
            `nowrap` is load-bearing, not cosmetic: the table uses auto layout inside an overflow-x-auto
            wrap, so on a narrow viewport the browser squeezes this column below the width of its own

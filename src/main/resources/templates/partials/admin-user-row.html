@@ -1,9 +1,12 @@
 <tr id="user-row-{u.id}" class="dt-row">
-    <td class="dt-cell whitespace-nowrap">{u.email}</td>
-    {! The display name is the one value allowed to be cut short: below `lg` it is capped at 15
-         characters (.dt-cell-clip) so a 50-character name cannot push the rest of the row off a
-         narrow screen, and `data-tip-full` (app.js) hands back the whole string on hover/long-press
-         - only while it is actually clipped, so the wide layout is unchanged. !}
+    {! The two free-text columns are the only values in the app allowed to be cut short, and both are
+         cut at EVERY width: the page column is capped, so a max-length value overflows the row on a
+         1080p desktop just as it does on a phone - there is no width at which letting it widen the
+         table is right. The email gets the wide cap (~42 characters of a lowercase address) because it
+         is the account's identity here; the display name is held to the 14% the colgroup allots it
+         below. `data-tip-full` (app.js) hands back the whole string on hover/long-press, and only
+         while it is actually clipped, so an ordinary value shows nothing. !}
+    <td class="dt-cell whitespace-nowrap"><span class="dt-cell-clip dt-cell-clip-wide" data-tip-full>{u.email}</span></td>
     <td class="dt-cell whitespace-nowrap"><span class="dt-cell-clip" data-tip-full>{u.displayName}</span></td>
     <td class="dt-cell">
         <span data-dt-view class="flex items-center gap-2">
