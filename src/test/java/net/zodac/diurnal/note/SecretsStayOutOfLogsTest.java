@@ -49,9 +49,11 @@ class SecretsStayOutOfLogsTest {
     // `transfer` is guarded for the same reason as `note`: an export decrypts every note the account holds and an import carries a whole journal in
     // the clear, so it handles more plaintext at once than any other package in the app. The walk is recursive, so `note` also covers the encryption
     // primitives in `note.crypto` - they were a top-level `crypto` package with its own entry here until they moved under the feature that owns them.
-    private static final List<Path> GUARDED_PACKAGES = List.of(
-        Path.of("src", "main", "java", "net", "zodac", "diurnal", "note"),
-        Path.of("src", "main", "java", "net", "zodac", "diurnal", "transfer"));
+    // `persistence` is guarded because the note upserts moved there when the vendor seam was introduced: the statements that bind :contentEncrypted
+    // now live in `persistence.postgres`, and without this entry a logging call beside them would sit outside the guard that exists to catch it.
+    private static final List<Path> GUARDED_PACKAGES = Stream.of("note", "transfer", "persistence")
+        .map(SecretsStayOutOfLogsTest::sourcePackage)
+        .toList();
 
     // A logging call and everything up to the end of its statement, across line breaks.
     private static final Pattern LOG_STATEMENT = Pattern.compile("LOGGER\\.\\w+\\(.*?\\);", Pattern.DOTALL);
@@ -105,6 +107,10 @@ class SecretsStayOutOfLogsTest {
         return GUARDED_PACKAGES.stream()
             .flatMap(SecretsStayOutOfLogsTest::javaFilesIn)
             .toList();
+    }
+
+    private static Path sourcePackage(final String packageName) {
+        return Path.of("src", "main", "java", "net", "zodac", "diurnal", packageName);
     }
 
     private static Stream<Path> javaFilesIn(final Path directory) {

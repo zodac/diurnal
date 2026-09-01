@@ -34,6 +34,7 @@ import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.note.NoteField;
 import net.zodac.diurnal.note.NoteService;
+import net.zodac.diurnal.persistence.LogStatements;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
@@ -74,19 +75,23 @@ public class ImportService {
     private final NoteService noteService;
     private final NoteField noteField;
     private final AppClock clock;
+    private final LogStatements statements;
 
     /**
-     * Injects the shared notes service, which owns every note write, the configured note field, and the application clock.
+     * Injects the shared notes service, which owns every note write, the configured note field, the application clock, and the database's native
+     * statements.
      *
      * @param noteService the shared notes service
      * @param noteField   the configured day-note field every imported note row is validated against
      * @param clock       the application clock for date-boundary logic
+     * @param statements  the native action-log statements for the configured database
      */
     @Inject
-    public ImportService(final NoteService noteService, final NoteField noteField, final AppClock clock) {
+    public ImportService(final NoteService noteService, final NoteField noteField, final AppClock clock, final LogStatements statements) {
         this.noteService = noteService;
         this.noteField = noteField;
         this.clock = clock;
+        this.statements = statements;
     }
 
     /**
@@ -188,7 +193,7 @@ public class ImportService {
             logDates.add(draft.date());
             logCounts.add(draft.count());
         }
-        ActionLog.setCounts(user.id, logActionIds, logDates, logCounts);
+        ActionLog.setCounts(statements, user.id, logActionIds, logDates, logCounts);
 
         final Map<LocalDate, String> notes = new LinkedHashMap<>();
         for (final NoteDraft draft : plan.notes()) {

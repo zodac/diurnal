@@ -28,6 +28,7 @@ import java.util.Optional;
 import java.util.UUID;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
+import net.zodac.diurnal.persistence.NoteStatements;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.text.TextValidation;
@@ -87,17 +88,20 @@ public class NoteService {
 
     private final NoteKeys noteKeys;
     private final NoteField noteField;
+    private final NoteStatements statements;
 
     /**
-     * Injects the notes key service, which opens the acting user's data key, and the configured note field.
+     * Injects the notes key service, which opens the acting user's data key, the configured note field, and the database's native statements.
      *
-     * @param noteKeys  the shared notes key service
-     * @param noteField the configured day-note field every submission is validated against
+     * @param noteKeys   the shared notes key service
+     * @param noteField  the configured day-note field every submission is validated against
+     * @param statements the native note statements for the configured database
      */
     @Inject
-    public NoteService(final NoteKeys noteKeys, final NoteField noteField) {
+    public NoteService(final NoteKeys noteKeys, final NoteField noteField, final NoteStatements statements) {
         this.noteKeys = noteKeys;
         this.noteField = noteField;
+        this.statements = statements;
     }
 
     /**
@@ -326,7 +330,7 @@ public class NoteService {
 
         // Atomic upsert: a find-then-insert race between two tabs saving the same day would otherwise trip
         // the notes_unique constraint as a 500. What is stored is the SEALED form of the normalised value.
-        Note.upsert(user.id, day, NoteContent.seal(dataKey, user.id, day, normalised));
+        Note.upsert(statements, user.id, day, NoteContent.seal(dataKey, user.id, day, normalised));
         // The DATE and the user only - never the content. See the class Javadoc.
         LOGGER.debug("Note saved for {} by user {}", day, user.email);
         return new NoteResult.Saved(day, normalised);
@@ -376,7 +380,7 @@ public class NoteService {
             dates.add(entry.getKey());
             sealed.add(NoteContent.seal(dataKey, user.id, entry.getKey(), entry.getValue()));
         }
-        Note.upsertAll(user.id, dates, sealed);
+        Note.upsertAll(statements, user.id, dates, sealed);
 
         // The COUNT and the user only - never a date's content. See the class Javadoc.
         LOGGER.info("Notes replaced: {} written for user {}", dates.size(), user.email);

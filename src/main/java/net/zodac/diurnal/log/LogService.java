@@ -22,6 +22,7 @@ import jakarta.inject.Inject;
 import java.time.LocalDate;
 import java.util.UUID;
 import net.zodac.diurnal.action.Action;
+import net.zodac.diurnal.persistence.LogStatements;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
@@ -48,15 +49,18 @@ class LogService {
     private static final Logger LOGGER = LogManager.getLogger(LogService.class);
 
     private final AppClock clock;
+    private final LogStatements statements;
 
     /**
-     * Injects the application clock.
+     * Injects the application clock and the database's native statements.
      *
-     * @param clock the application clock for date-boundary logic
+     * @param clock      the application clock for date-boundary logic
+     * @param statements the native action-log statements for the configured database
      */
     @Inject
-    LogService(final AppClock clock) {
+    LogService(final AppClock clock, final LogStatements statements) {
         this.clock = clock;
+        this.statements = statements;
     }
 
     /**
@@ -86,10 +90,11 @@ class LogService {
      * @return the outcome
      */
     LogResult updateCount(final User user, final LocalDate day, final UUID actionId, final int count) {
-        return guarded(user, day, actionId, action -> applyCount(user, day, actionId, count, action));
+        return guarded(user, day, actionId, action -> applyCount(statements, user, day, actionId, count, action));
     }
 
-    private static LogResult applyCount(final User user, final LocalDate day, final UUID actionId, final int count, final Action action) {
+    private static LogResult applyCount(final LogStatements statements, final User user, final LocalDate day, final UUID actionId,
+        final int count, final Action action) {
         final int newCount = Math.clamp(count, 0, ActionLog.MAX_DAILY_COUNT);
         if (newCount == 0) {
             deleteEntryIfPresent(user, actionId, day);
@@ -98,7 +103,7 @@ class LogService {
         }
         // Atomic upsert: a find-then-insert race on a not-yet-logged action would trip the unique
         // constraint as a 500.
-        ActionLog.setCount(user.id, actionId, day, newCount);
+        ActionLog.setCount(statements, user.id, actionId, day, newCount);
         LOGGER.debug("Log count set: action {} on {} -> {} for user {}", actionId, day, newCount, user.email);
         return new LogResult.Updated(action, newCount);
     }
@@ -119,7 +124,7 @@ class LogService {
             // Atomic: a find-then-write race would lose an update (or trip the unique constraint as a
             // 500) when two clients adjust the same action concurrently.
             final int newCount = increment
-                ? ActionLog.incrementCount(user.id, actionId, day, amount)
+                ? ActionLog.incrementCount(statements, user.id, actionId, day, amount)
                 : ActionLog.decrementCount(user.id, actionId, day, amount);
             LOGGER.debug("Log {} by {}: action {} on {} -> {} for user {}",
                 increment ? "incremented" : "decremented", amount, actionId, day, newCount, user.email);

@@ -20,6 +20,7 @@ package net.zodac.diurnal.note;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
 import java.util.Base64;
 import java.util.List;
 import java.util.Objects;
@@ -27,6 +28,7 @@ import java.util.UUID;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.note.crypto.Aes256Gcm;
 import net.zodac.diurnal.note.crypto.DataKeyEnvelope;
+import net.zodac.diurnal.persistence.NoteStatements;
 import net.zodac.diurnal.stub.StubNotesEncryptionConfig;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
@@ -43,6 +45,9 @@ import org.junit.jupiter.api.Test;
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class NoteKeyRotationIT extends IntegrationTestBase {
 
+    @Inject
+    NoteStatements statements;
+
     // A retired master, standing in for "the key this deployment used before today".
     private static final String RETIRED_KEY = Base64.getEncoder().encodeToString("retired-notes-master-key-32bytes".getBytes(
         java.nio.charset.StandardCharsets.UTF_8));
@@ -57,7 +62,7 @@ class NoteKeyRotationIT extends IntegrationTestBase {
     @Test
     void reconcile_movesAnAccountFromARetiredKeyOntoTheCurrentOne() {
         final byte[] dataKey = rewrapUnderRetiredKey(owner.id);
-        runInTx(() -> Note.upsert(owner.id, FIXED_TODAY, NoteContent.seal(dataKey, owner.id, FIXED_TODAY, "Written under the old key")));
+        runInTx(() -> Note.upsert(statements, owner.id, FIXED_TODAY, NoteContent.seal(dataKey, owner.id, FIXED_TODAY, "Written under the old key")));
 
         final KeyReconciliation outcome = reconcileWith(List.of(RETIRED_KEY));
 

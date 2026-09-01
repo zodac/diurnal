@@ -215,7 +215,7 @@ Under `src/main/java/net/zodac/diurnal/`:
 | `page`         | `Pages` + `PageWindow` - the one place a requested page number is resolved against a total (`window(...)`, clamping into range) and an already-fetched list is sliced into that page (`slice(...)`). Every list view and its API twin goes through it; see the Pagination section below                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | `http`         | The request-level plumbing shared by every surface, owned by no feature: `RollbackOnErrorStatus` + `ErrorStatusRollbackInterceptor` (the rollback-on-4xx binding, applied by resources in six packages), `NotUiFacing` (marks text that reaches an `/api/v1` body or a log but never a page, so it is hardcoded English and never a `msg:` entry - see [`I18N.md`](I18N.md); `NotUiFacingTest` fails if a web/internal surface calls one), `ClientAddress` (the client IP off a `RoutingContext`), `EntityTags`/`ChangeSignature` (conditional-GET support) and `HttpStatus`. **A cross-cutting helper belongs here, not in the feature package that happened to need it first**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `colour`       | `Colours` - the rules every user-chosen colour obeys: the `#rrggbb` format check, the HSL-to-hex conversion, and the lightening that makes a colour readable on a background (the calendar's brand-filled "today" cell). Shared by `action` and `user`                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| `persistence`  | The handwritten-query plumbing every entity shares: `QueryParameter` (a query's `:name` placeholder as a typed token) plus `JpqlQuery`/`SqlQuery`, the two wrappers that prepare a query and bind through those tokens. **Every named parameter in the app is bound this way, never by string** - see the rule below the projections one                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `persistence`  | The handwritten-query plumbing every entity shares: `QueryParameter` (a query's `:name` placeholder as a typed token) plus `JpqlQuery`/`SqlQuery`, the two wrappers that prepare a query and bind through those tokens. **Every named parameter in the app is bound this way, never by string** - see the rule below the projections one. Also the vendor seam: `LogStatements`/`NoteStatements`, the two interfaces holding every statement JPQL cannot express, implemented in `persistence.postgres` - see the Database vendor seam section                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `note.crypto`  | The encryption primitives behind the note seal, all pure statics with no persistence or request state: `Aes256Gcm` (AEAD seal/open, IV-prefixed), `Hkdf` (RFC 5869 over HMAC-SHA-256, for domain separation), `DataKeyEnvelope` (wrap/unwrap a user's data key under the application master key) and `MasterKey` (decode/validate the configured value). A subpackage of `note` because notes are the only thing encrypted; it imports nothing from its parent, so the direction stays one-way                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `transfer`     | The per-user data export/import: `Csv` (RFC 4180 read/write) + `TransferArchive` (ZIP pack/unpack with zip-bomb caps) + `TransferFiles` (the three members and their headers) + `ImportParser`/`ParseOutcome` (the pure parse+validate) + the `ImportPlan`/`ActionDraft`/`LogDraft`/`NoteDraft`/`ImportProblem`/`ImportSummary` records (+ `ImportSummaryExtensions`) + `ExportService` + `ImportService`/`ImportResult` (the single owner of the import) + `TransferApiResource` (`/api/v1/data/*`) + `TransferInternalResource` (`/internal/data/*`). See [`TRANSFER.md`](TRANSFER.md)                                                                                                                                                                                                                                                                                                                                                                           |
 | `update`       | `UpdateCheckService` (admin-only footer "newer version available" check) + `UpdateCheck` (pure version/URL logic) + `UpdateStatus`/`UpdateAvailability` + `LatestReleaseClient`/`GitHubLatestReleaseClient` (the outbound GitHub-release lookup seam)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
@@ -441,8 +441,8 @@ admin IP-lockout history follows the general value (no section of its own).
   `Colours.isInvalidHex`, `ActionLog.MAX_DAILY_COUNT`, `LogGuards.isFuture`) and is **rejected, never coerced** — a
   count of 1500 is refused rather than clamped, because a file of ten thousand rows cannot afford a silent
   correction nobody is watching. **The exported archive holds note content in the CLEAR** (encryption is at rest;
-  an export necessarily opens them), which is why `transfer` joins `note`/`crypto` in
-  `SecretsStayOutOfLogsTest.GUARDED_PACKAGES` and why no rejection message may quote note content. Notes are written
+  an export necessarily opens them), which is why `transfer` joins `note`/`crypto` (and `persistence`, which now holds
+  the note upserts) in `SecretsStayOutOfLogsTest.GUARDED_PACKAGES` and why no rejection message may quote note content. Notes are written
   back only through `NoteService.replaceAll`, the one thing that can seal them. See [`TRANSFER.md`](TRANSFER.md).
 - **All date-boundary "now"/"today" goes through `AppClock`** (`@ApplicationScoped`). Business logic calls `clock.today(clock.zoneFor(user.timezone))`
   / `clock.now()` - there is deliberately NO zero-argument `today()`, since every user-visible date boundary belongs to that user's timezone. Entity
@@ -506,9 +506,66 @@ outbound calls). Any failure stores nothing → no indicator. Enabled by default
 so no CI tier calls GitHub). All version/URL branching is the pure `UpdateCheck` (100% PIT); the HTTP call + startup trigger are thin glue.
 **Deliberately no `/api/v1` twin** (surface policy: admin-console decoration, not a user action or data resource).
 
+### Database vendor seam
+
+**Every SQL statement in the app that JPQL cannot express lives behind `persistence.LogStatements` or
+`persistence.NoteStatements`, implemented by `persistence.postgres.PostgresLogStatements`/`PostgresNoteStatements`.**
+Six statements in total, and that is the floor: the two `action_logs` upserts, its bulk `unnest` write, the
+`CROSS JOIN LATERAL` earliest-logged probe, plus the two `notes` upserts. Three idioms — `ON CONFLICT`, `unnest` over
+parallel arrays, and one `LATERAL` written to force a plan — over the two tables that are written hot. Supporting a
+second database means adding an implementation and a `db/migration/<db-kind>/` directory — not editing an entity.
+
+- **The implementation is chosen by `@IfBuildProperty(name = "quarkus.datasource.db-kind", ...)`**, so the statements
+  and the datasource can never disagree. `@LookupIfProperty` was rejected: it makes a bean reachable *only* by
+  programmatic `Instance<T>` lookup, which contradicts the constructor-injection rule in
+  [`CODE_STYLE.md`](CODE_STYLE.md).
+- **Panache entity statics take the statements as their first parameter** (`ActionLog.setCount(statements, …)`,
+  `Note.upsert(statements, …)`) rather than reaching for the bean. A static method cannot be injected into, and an
+  `Arc.container()` service locator inside an entity would defeat the "build it with `new` + stubs, no CDI container"
+  property the same rule exists to protect. The four callers (`LogService`, `StatsService`, `NoteService`,
+  `ImportService`) inject the interface through their existing `@Inject` constructors.
+- **ONLY genuinely vendor-specific statements live here, and "it sits next to one that is" is not a reason.** Every
+  `*_JPQL` constant stays in `ActionLogQueries`/`NoteQueries` beside its entity: Hibernate already renders those for the
+  configured dialect, so duplicating them per vendor would be a portability *cost*. Four statements were removed from
+  the interface on exactly that test — `selectCount` (now `ActionLogQueries.ENTRY_COUNT_JPQL`) and the decrement's
+  `selectForUpdate`/`deleteEntry`/`decrementUpdate` arms, which were plain ANSI carried along by the locking read
+  beside them. **Before adding a method here, check the ORM cannot say it**: the row lock in particular is
+  `LockModeType.PESSIMISTIC_WRITE` on a `findById`, and Hibernate knows each dialect's locking clause (`FOR UPDATE` on
+  PostgreSQL, `WITH (UPDLOCK, ROWLOCK)` on SQL Server), so a statement for it would have been a vendor spelling the ORM
+  already owns.
+- **The typed `QueryParameter` tokens stay in `ActionLogQueries`/`NoteQueries` and are shared by every
+  implementation** — a placeholder name is part of the contract, not a vendor's choice. Each interface method's Javadoc
+  records the exact set its statement must declare, and `ActionLogQueriesTest`/`NoteQueriesTest` pin the shipped
+  implementation to it (they instantiate the `Postgres*` class directly, no container needed). A second implementation
+  is pinned by adding its own cases there.
+- **`auth.session.PostgresSessionStore` is NOT part of this seam and was deliberately left alone.** Despite the name it
+  contains no PostgreSQL whatsoever — it is plain Panache/JPA and would run unchanged on any database Hibernate
+  supports. Its name is aspirational for the *Redis* swap `SessionStore` exists for. Moving it into
+  `persistence.postgres` would file the one genuinely portable class under "rewrite this per vendor".
+- **`ActionLog.decrementCount` is the one write on `action_logs` that takes NO `statements` parameter**, because it is
+  entirely ORM: a `PESSIMISTIC_WRITE` `findById` through `ActionLogId.of(...)`, then the new count assigned to the
+  loaded entity (dirty checking + `@PreUpdate` stamp `updated_at`) or `entity.delete()`. That also keeps the
+  persistence context in step with the row, where the native form left it stale. **The caveat is that a pessimistic
+  load of an ALREADY-MANAGED instance takes the lock without re-reading the row**, so a caller that hydrated an
+  `ActionLog` for the same key earlier in the transaction would decrement from a stale count; nothing does today
+  (`LogService.adjust`'s guards load `Action` only), and the method's Javadoc says so. `DecrementLockIT` pins the
+  mixed-flush orderings against a real database.
+- **What a second vendor still has to deal with beyond these six statements:** the migrations, which are now
+  essentially the whole of the real work. The two jsonb columns on `User` are no longer on this list — their
+  `columnDefinition = "jsonb"` was DDL-only dead weight (`quarkus.hibernate-orm.schema-management.strategy=none`, so
+  Hibernate generates and validates nothing; Flyway owns the schema) and has been removed, leaving
+  `@JdbcTypeCode(SqlTypes.JSON)` to map per dialect. **Do not put a vendor type name back in a `columnDefinition`** —
+  it buys nothing here and files an entity under "rewrite this per vendor".
+
 ### Database migrations
 
-Flyway scripts in `src/main/resources/db/migration/`, sequential (`V1__`, `V2__`, …).
+Flyway scripts in `src/main/resources/db/migration/postgresql/`, sequential (`V1__`, `V2__`, …). The directory is keyed by
+database vendor: `quarkus.flyway.locations` is `classpath:db/migration/${quarkus.datasource.db-kind}`, so the datasource
+and the migrations can never disagree and a second vendor adds a sibling directory rather than branching inside these.
+Flyway records a script by its name relative to the location root and matches applied migrations on version + checksum,
+**not** on path — verified by pointing the app at a database whose history was written under the old flat
+`db/migration/` path: all 42 migrations validated and the app booted clean, so the move is transparent to existing
+deployments.
 
 > **NEVER modify an existing migration file — not the SQL, not even a comment or a whitespace. This is
 > absolute: it applies to brand-new/uncommitted migrations, to "minor" tweaks, to fixing a typo, and to

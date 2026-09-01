@@ -20,11 +20,13 @@ package net.zodac.diurnal.note;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import io.quarkus.test.junit.QuarkusTest;
+import jakarta.inject.Inject;
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.util.List;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.http.ChangeSignature;
+import net.zodac.diurnal.persistence.NoteStatements;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
@@ -37,6 +39,9 @@ import org.junit.jupiter.api.Test;
 @QuarkusTest
 @SuppressWarnings("NullAway.Init") // fields populated in createDbState(), called from the base @BeforeEach
 class NoteIT extends IntegrationTestBase {
+
+    @Inject
+    NoteStatements statements;
 
     private static final LocalDate DAY = FIXED_TODAY;
 
@@ -58,7 +63,7 @@ class NoteIT extends IntegrationTestBase {
 
     @Test
     void upsert_onADayWithNoNote_insertsIt() {
-        runInTx(() -> Note.upsert(owner.id, DAY, sealed("First entry")));
+        runInTx(() -> Note.upsert(statements, owner.id, DAY, sealed("First entry")));
 
         runInTx(() -> assertThat(Note.findEntry(owner.id, DAY))
             .as("the inserted note must be readable back")
@@ -69,8 +74,8 @@ class NoteIT extends IntegrationTestBase {
 
     @Test
     void upsert_onADayThatAlreadyHasANote_overwritesItWithoutColliding() {
-        runInTx(() -> Note.upsert(owner.id, DAY, sealed("First entry")));
-        runInTx(() -> Note.upsert(owner.id, DAY, sealed("Replaced entry")));
+        runInTx(() -> Note.upsert(statements, owner.id, DAY, sealed("First entry")));
+        runInTx(() -> Note.upsert(statements, owner.id, DAY, sealed("Replaced entry")));
 
         runInTx(() -> {
             assertThat(Note.findEntry(owner.id, DAY))
@@ -86,10 +91,10 @@ class NoteIT extends IntegrationTestBase {
 
     @Test
     void upsert_keepsTheOriginalCreatedAt_butMovesUpdatedAt() {
-        runInTx(() -> Note.upsert(owner.id, DAY, sealed("First entry")));
+        runInTx(() -> Note.upsert(statements, owner.id, DAY, sealed("First entry")));
 
         final Note inserted = readNote();
-        runInTx(() -> Note.upsert(owner.id, DAY, sealed("Replaced entry")));
+        runInTx(() -> Note.upsert(statements, owner.id, DAY, sealed("Replaced entry")));
         final Note updated = readNote();
 
         assertThat(updated.createdAt)
@@ -102,8 +107,8 @@ class NoteIT extends IntegrationTestBase {
 
     @Test
     void upsert_isScopedToItsOwnUser() {
-        runInTx(() -> Note.upsert(owner.id, DAY, sealed("Owner's entry")));
-        runInTx(() -> Note.upsert(other.id, DAY, sealed("Other's entry")));
+        runInTx(() -> Note.upsert(statements, owner.id, DAY, sealed("Owner's entry")));
+        runInTx(() -> Note.upsert(statements, other.id, DAY, sealed("Other's entry")));
 
         runInTx(() -> {
             assertThat(Note.findEntry(owner.id, DAY))
@@ -122,7 +127,7 @@ class NoteIT extends IntegrationTestBase {
     @Test
     void upsert_acceptsAFutureDate() {
         final LocalDate future = DAY.plusMonths(2);
-        runInTx(() -> Note.upsert(owner.id, future, sealed("Written ahead of time")));
+        runInTx(() -> Note.upsert(statements, owner.id, future, sealed("Written ahead of time")));
 
         runInTx(() -> assertThat(Note.findEntry(owner.id, future))
             .as("a note must be writable for a future date, unlike an action log")
@@ -132,7 +137,7 @@ class NoteIT extends IntegrationTestBase {
     @Test
     void upsert_acceptsContentAtTheCatalogueMaximum() {
         final String maximal = "x".repeat(TextFields.NOTE_MAX_LENGTH);
-        runInTx(() -> Note.upsert(owner.id, DAY, sealed(maximal)));
+        runInTx(() -> Note.upsert(statements, owner.id, DAY, sealed(maximal)));
 
         runInTx(() -> assertThat(Note.findEntry(owner.id, DAY))
             .as("a note at the catalogue bound must round-trip whole - sealing expands it, so the stored form is larger than the bound itself")
@@ -177,7 +182,7 @@ class NoteIT extends IntegrationTestBase {
 
     @Test
     void sealedForUser_carriesTheStoredCiphertext() {
-        runInTx(() -> Note.upsert(owner.id, DAY, sealed("First entry")));
+        runInTx(() -> Note.upsert(statements, owner.id, DAY, sealed("First entry")));
 
         runInTx(() -> assertThat(Note.sealedForUser(owner.id))
             .as("the projection must carry the stored bytes unchanged - opening a note is the only thing it exists for")
@@ -265,10 +270,10 @@ class NoteIT extends IntegrationTestBase {
     void rangeVersion_changesOnInsertUpdateAndDelete() {
         final ChangeSignature empty = rangeVersion();
 
-        runInTx(() -> Note.upsert(owner.id, DAY, sealed("First entry")));
+        runInTx(() -> Note.upsert(statements, owner.id, DAY, sealed("First entry")));
         final ChangeSignature afterInsert = rangeVersion();
 
-        runInTx(() -> Note.upsert(owner.id, DAY, sealed("Replaced entry")));
+        runInTx(() -> Note.upsert(statements, owner.id, DAY, sealed("Replaced entry")));
         final ChangeSignature afterUpdate = rangeVersion();
 
         runInTx(() -> Note.deleteEntry(owner.id, DAY));

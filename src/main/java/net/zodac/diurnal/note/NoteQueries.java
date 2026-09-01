@@ -23,10 +23,16 @@ import java.util.UUID;
 import net.zodac.diurnal.persistence.QueryParameter;
 
 /**
- * The handwritten SQL and JPQL queries backing {@link Note}'s static finder and mutation methods, held here as named constants to keep the entity
- * itself readable — the {@code ActionLogQueries} pattern. Each query binds its parameters by name ({@code :name} placeholders), and
- * {@code NoteQueriesTest} pins every constant's parameter surface (via {@code SqlParameters}) to the exact set the corresponding {@link Note} method
- * binds, so a mistyped or orphaned placeholder fails at unit speed rather than only surfacing when the query is first executed against the database.
+ * The handwritten JPQL queries backing {@link Note}'s static finder methods, held here as named constants to keep the entity itself readable — the
+ * {@code ActionLogQueries} pattern — together with the typed {@link QueryParameter} tokens every note query binds through. Each query binds its
+ * parameters by name ({@code :name} placeholders), and {@code NoteQueriesTest} pins every constant's parameter surface (via {@code SqlParameters})
+ * to the exact set the corresponding {@link Note} method binds, so a mistyped or orphaned placeholder fails at unit speed rather than only surfacing
+ * when the query is first executed against the database.
+ *
+ * <p>
+ * These are JPQL only, and deliberately so: Hibernate renders them for whichever dialect is configured, so they are portable as written. The two
+ * note upserts, which JPQL cannot express, are vendor-specific and live behind {@link net.zodac.diurnal.persistence.NoteStatements} instead. The
+ * tokens below serve both, because a placeholder name is part of the contract every implementation of that interface honours.
  */
 final class NoteQueries {
 
@@ -141,46 +147,9 @@ final class NoteQueries {
             FROM Note n
             WHERE n.userId = :userId""";
 
-    /**
-     * Native upsert writing a day's note in one statement: it inserts a new row or, on the {@code notes_unique} conflict, overwrites the existing
-     * content. Doing the whole read-modify-write in one statement means two concurrent saves of the same day cannot race a find-then-insert into a
-     * unique-constraint violation (a 500) — the loser simply overwrites, which is the correct last-write-wins semantic for a single owner editing
-     * their own note from two tabs. {@code created_at} is deliberately left untouched on the update arm, so it keeps recording when the note was
-     * first written.
-     *
-     * <p>
-     * The value written is the SEALED form — the only form there is. There is no plaintext column to keep in step (it was dropped in {@code V29}),
-     * so a note cannot be stored readable by any path.
-     */
-    static final String UPSERT_SQL = """
-            INSERT INTO notes (id, user_id, note_date, content_encrypted, created_at, updated_at)
-            VALUES (:id, :userId, :date, :contentEncrypted, :now, :now)
-            ON CONFLICT ON CONSTRAINT notes_unique
-            DO UPDATE SET content_encrypted = EXCLUDED.content_encrypted, updated_at = :now""";
-
-    /**
-     * Native upsert writing MANY days' notes for one user in a single statement - the bulk arm of {@link #UPSERT_SQL}, used when a data import
-     * replaces an account's whole journal.
-     *
-     * <p>
-     * The rows arrive as two parallel arrays rather than as a generated {@code VALUES} list, which keeps the statement's text - and so its
-     * {@code :named}-parameter set - FIXED however many notes are being written, and therefore within reach of the typed {@link QueryParameter}
-     * tokens and {@code NoteQueriesTest}. {@code unnest} zips the two into rows, and empty arrays are a clean no-op.
-     *
-     * <p>
-     * The id is minted by the database here rather than bound per row, because there is no per-row Java value to bind and nothing ever reads the
-     * column. As with {@link #UPSERT_SQL} the value written is the SEALED form, the only form there is.
-     */
-    static final String UPSERT_MANY_SQL = """
-            INSERT INTO notes (id, user_id, note_date, content_encrypted, created_at, updated_at)
-            SELECT gen_random_uuid(), :userId, entry.note_date, entry.content, :now, :now
-            FROM unnest(CAST(:dateArray AS DATE[]), CAST(:contentArray AS BYTEA[])) AS entry(note_date, content)
-            ON CONFLICT ON CONSTRAINT notes_unique
-            DO UPDATE SET content_encrypted = EXCLUDED.content_encrypted, updated_at = :now""";
-
-    // The named parameters the queries above declare, as typed tokens: every binding goes through one of these rather than a bare string, so a
-    // misspelled name - or a value of the wrong type for it - is a compile error instead of a failure on first execution. The placeholders inside
-    // the query text stay textual (no Java type can reach them), which is what NoteQueriesTest is for.
+    // The named parameters the queries above and every NoteStatements implementation declare, as typed tokens: every binding goes through one of
+    // these rather than a bare string, so a misspelled name - or a value of the wrong type for it - is a compile error instead of a failure on first
+    // execution. The placeholders inside the query text stay textual (no Java type can reach them), which is what NoteQueriesTest is for.
     static final QueryParameter<UUID> USER_ID = QueryParameter.of("userId");
     static final QueryParameter<UUID> SUBJECT_ID = QueryParameter.of("subjectId");
     static final QueryParameter<UUID> ID = QueryParameter.of("id");
@@ -190,8 +159,9 @@ final class NoteQueries {
     static final QueryParameter<byte[]> CONTENT_ENCRYPTED = QueryParameter.of("contentEncrypted");
     static final QueryParameter<Instant> NOW = QueryParameter.of("now");
 
-    // The bulk upsert's two parallel arrays. Typed as Java arrays rather than as a Collection because they are bound straight through to the
-    // PostgreSQL array types the statement casts them to, one JDBC array each, and a Collection would bind as an IN-list instead.
+    // The bulk upsert's three parallel arrays. Typed as Java arrays rather than as a Collection because they are bound straight through to the
+    // array types the statement casts them to, one JDBC array each, and a Collection would bind as an IN-list instead.
+    static final QueryParameter<UUID[]> ID_ARRAY = QueryParameter.of("idArray");
     static final QueryParameter<LocalDate[]> DATE_ARRAY = QueryParameter.of("dateArray");
     static final QueryParameter<byte[][]> CONTENT_ARRAY = QueryParameter.of("contentArray");
 

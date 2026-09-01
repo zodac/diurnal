@@ -22,6 +22,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.IdClass;
+import jakarta.persistence.LockModeType;
 import jakarta.persistence.PreUpdate;
 import jakarta.persistence.Table;
 import java.time.Instant;
@@ -34,6 +35,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import net.zodac.diurnal.http.ChangeSignature;
 import net.zodac.diurnal.persistence.JpqlQuery;
+import net.zodac.diurnal.persistence.LogStatements;
 import net.zodac.diurnal.persistence.SqlQuery;
 import org.jspecify.annotations.Nullable;
 
@@ -166,16 +168,18 @@ public class ActionLog extends PanacheEntityBase {
      * back the frequency chart may be navigated. {@code actionIds} must be non-empty.
      *
      * <p>
-     * Costs one index probe per action rather than a read of their history; see {@code ActionLogQueries.EARLIEST_LOGGED_DATE_SQL} for why it is
+     * Costs one index probe per action rather than a read of their history; see
+     * {@link net.zodac.diurnal.persistence.postgres.PostgresLogStatements#earliestLoggedDate()} for why it is
      * written as a {@code LATERAL} and what the obvious alternative costs instead.
      *
+     * @param statements the database's native statements
      * @param userId the owning user
      * @param actionIds the actions to consider
      * @return the earliest logged day across those actions, or {@code null} when there is none
      */
     @Nullable
-    public static LocalDate earliestLoggedDate(final UUID userId, final Collection<UUID> actionIds) {
-        final Object earliest = SqlQuery.of(ActionLogQueries.EARLIEST_LOGGED_DATE_SQL)
+    public static LocalDate earliestLoggedDate(final LogStatements statements, final UUID userId, final Collection<UUID> actionIds) {
+        final Object earliest = SqlQuery.of(statements.earliestLoggedDate())
             .bind(ActionLogQueries.USER_ID, userId)
             .bind(ActionLogQueries.ACTION_IDS, actionIds)
             .singleResult();
@@ -285,14 +289,16 @@ public class ActionLog extends PanacheEntityBase {
      * least {@code 1}: a zero row would breach the {@code count >= 1} check constraint, so callers treat a non-positive amount as a no-op rather than
      * calling this.
      *
+     * @param statements the database's native statements
      * @param userId the owning user
      * @param actionId the action being logged
      * @param date the day to log against
      * @param delta the amount to add (must be {@code >= 1})
      * @return the resulting count after the increment
      */
-    public static int incrementCount(final UUID userId, final UUID actionId, final LocalDate date, final int delta) {
-        SqlQuery.of(ActionLogQueries.INCREMENT_UPSERT_SQL)
+    public static int incrementCount(final LogStatements statements, final UUID userId, final UUID actionId, final LocalDate date,
+        final int delta) {
+        SqlQuery.of(statements.incrementUpsert())
             .bind(ActionLogQueries.USER_ID, userId)
             .bind(ActionLogQueries.ACTION_ID, actionId)
             .bind(ActionLogQueries.DATE, date)
@@ -301,12 +307,11 @@ public class ActionLog extends PanacheEntityBase {
             .bind(ActionLogQueries.NOW, Instant.now())
             .executeUpdate();
 
-        final Object current = SqlQuery.of(ActionLogQueries.SELECT_COUNT_SQL)
+        return JpqlQuery.of(ActionLogQueries.ENTRY_COUNT_JPQL, Integer.class)
             .bind(ActionLogQueries.USER_ID, userId)
             .bind(ActionLogQueries.ACTION_ID, actionId)
             .bind(ActionLogQueries.DATE, date)
             .singleResult();
-        return ((Number) current).intValue();
     }
 
     /**
@@ -315,13 +320,14 @@ public class ActionLog extends PanacheEntityBase {
      * violation (a 500). {@code count} must be in {@code [1, MAX_DAILY_COUNT]}; callers delete the row (rather than calling this) when the requested
      * value is zero or below.
      *
+     * @param statements the database's native statements
      * @param userId the owning user
      * @param actionId the action being logged
      * @param date the day to log against
      * @param count the exact count to store (must be {@code >= 1})
      */
-    public static void setCount(final UUID userId, final UUID actionId, final LocalDate date, final int count) {
-        SqlQuery.of(ActionLogQueries.SET_COUNT_UPSERT_SQL)
+    public static void setCount(final LogStatements statements, final UUID userId, final UUID actionId, final LocalDate date, final int count) {
+        SqlQuery.of(statements.assignCountUpsert())
             .bind(ActionLogQueries.USER_ID, userId)
             .bind(ActionLogQueries.ACTION_ID, actionId)
             .bind(ActionLogQueries.DATE, date)
@@ -331,16 +337,18 @@ public class ActionLog extends PanacheEntityBase {
     }
 
     /**
-     * Sets many days' counts for one user in a single statement — the bulk arm of {@link #setCount(UUID, UUID, LocalDate, int)}, for the data import,
-     * which writes a whole account's history at once. The three lists are parallel: index {@code i} of each describes one entry. Passing empty lists
-     * is a no-op.
+     * Sets many days' counts for one user in a single statement — the bulk arm of
+     * {@link #setCount(LogStatements, UUID, UUID, LocalDate, int)}, for the data import, which writes a whole account's history at once. The
+     * three lists are parallel: index {@code i} of each describes one entry. Passing empty lists is a no-op.
      *
      * <p>
      * The whole set goes in one round trip rather than one per entry. A 3-year archive is ~33,000 entries, which measured 3,628 ms as individual
-     * statements against 812 ms as this one. Each entry follows the same last-write-wins rule {@link #setCount(UUID, UUID, LocalDate, int)} uses;
+     * statements against 812 ms as this one. Each entry follows the same last-write-wins rule
+     * {@link #setCount(LogStatements, UUID, UUID, LocalDate, int)} uses;
      * a key repeated within one call would be rejected by the database rather than silently overwritten, which no caller can reach because
      * {@code ImportParser} refuses a duplicated {@code (action, day)} before the plan is ever written.
      *
+     * @param statements the database's native statements
      * @param userId the owning user
      * @param actionIds the action of each entry
      * @param dates the day of each entry
@@ -349,12 +357,13 @@ public class ActionLog extends PanacheEntityBase {
     // Qodana's ZeroLengthArrayInitialization and PMD's OptimizableToArrayCall disagree outright on the `new T[0]` below, and PMD is the one that is
     // right: an empty prototype lets the JVM allocate the array of the right size itself, which is measurably faster than pre-sizing it here. Qodana
     // is scoped out of this file in code-quality-config-overrides/qodana.yaml - a @SuppressWarnings naming that inspection does not bind (measured).
-    public static void setCounts(final UUID userId, final List<UUID> actionIds, final List<LocalDate> dates, final List<Integer> counts) {
+    public static void setCounts(final LogStatements statements, final UUID userId, final List<UUID> actionIds, final List<LocalDate> dates,
+        final List<Integer> counts) {
         if (actionIds.isEmpty()) {
             return;
         }
 
-        SqlQuery.of(ActionLogQueries.SET_COUNTS_BULK_SQL)
+        SqlQuery.of(statements.assignCountsBulk())
             .bind(ActionLogQueries.USER_ID, userId)
             .bind(ActionLogQueries.ACTION_ID_ARRAY, actionIds.toArray(new UUID[0]))
             .bind(ActionLogQueries.DATE_ARRAY, dates.toArray(new LocalDate[0]))
@@ -368,14 +377,28 @@ public class ActionLog extends PanacheEntityBase {
      * exist), and returns the resulting count ({@code 0} when the row was removed or was already absent).
      *
      * <p>
-     * The row is locked up front with {@code SELECT ... FOR UPDATE} and the update-or-delete decision is then made while that lock is held. This
-     * serialises against a concurrent {@link #incrementCount} (whose {@code INSERT ... ON CONFLICT DO UPDATE} contends on the same row lock) in every
-     * case, including the boundary where the count is at or below {@code delta}: an increment cannot slip in between the decision and the delete call
-     * to raise the count past the delete threshold and thereby lose the decrement. Under {@code READ COMMITTED} the second writer blocks on the lock
-     * and, once it commits, either re-applies over the fresh value (increment) or observes it here; if this method deletes the row, a blocked
-     * increment re-runs its {@code ON CONFLICT} as a fresh insert. When the row does not exist there is nothing to lock or subtract, so the call is a
-     * no-op returning {@code 0} (a concurrent increment may still create the row — a legitimate {@code +delta} from empty). {@code delta} must be at
-     * least {@code 1}: callers treat a non-positive amount as a no-op rather than calling this.
+     * The row is locked up front with a {@link LockModeType#PESSIMISTIC_WRITE} load and the update-or-delete decision is then made while that lock is
+     * held. This serialises against a concurrent {@link #incrementCount} (whose {@code INSERT ... ON CONFLICT DO UPDATE} contends on the same row
+     * lock) in every case, including the boundary where the count is at or below {@code delta}: an increment cannot slip in between the decision and
+     * the delete to raise the count past the delete threshold and thereby lose the decrement. Under {@code READ COMMITTED} the second writer blocks
+     * on the lock and, once it commits, either re-applies over the fresh value (increment) or observes it here; if this method deletes the row, a
+     * blocked increment re-runs its {@code ON CONFLICT} as a fresh insert. When the row does not exist there is nothing to lock or subtract, so the
+     * call is a no-op returning {@code 0} (a concurrent increment may still create the row - a legitimate {@code +delta} from empty). {@code delta}
+     * must be at least {@code 1}: callers treat a non-positive amount as a no-op rather than calling this.
+     *
+     * <p>
+     * The lock, the decrement and the delete are all expressed through the ORM rather than as native SQL, which is why this method takes no
+     * {@link net.zodac.diurnal.persistence.LogStatements}. Hibernate renders the locking clause for whichever dialect is configured
+     * ({@code SELECT ... FOR UPDATE} on PostgreSQL, {@code WITH (UPDLOCK, ROWLOCK)} on SQL Server), so this is the one part of the write path that
+     * needs no per-vendor spelling. Writing back through the loaded entity - rather than through a bulk update or delete - also keeps the
+     * persistence context in step with the row, where the native form left it stale.
+     *
+     * <p>
+     * <strong>This relies on no caller hydrating an {@link ActionLog} for the same key earlier in the transaction</strong>: a pessimistic load of an
+     * already-managed instance takes the lock but does not re-read the row, so the count decided on would be the stale one. The only caller reaches
+     * here through {@code LogService.adjust}, whose guards load {@code Action} and nothing else. A row written past the persistence context by the
+     * native increment IS seen, because nothing has hydrated it - {@code DecrementLockIT} pins that direction, and the reverse one where an increment
+     * follows a decrement's queued delete inside the same transaction.
      *
      * @param userId the owning user
      * @param actionId the action being logged
@@ -384,37 +407,24 @@ public class ActionLog extends PanacheEntityBase {
      * @return the resulting count after the decrement, or {@code 0} if the row was removed or absent
      */
     public static int decrementCount(final UUID userId, final UUID actionId, final LocalDate date, final int delta) {
-        final List<?> locked = SqlQuery.of(ActionLogQueries.SELECT_FOR_UPDATE_SQL)
-            .bind(ActionLogQueries.USER_ID, userId)
-            .bind(ActionLogQueries.ACTION_ID, actionId)
-            .bind(ActionLogQueries.DATE, date)
-            .resultList();
+        final ActionLog locked = findById(ActionLogId.of(userId, actionId, date), LockModeType.PESSIMISTIC_WRITE);
 
-        if (locked.isEmpty()) {
-            // No row to decrement. A concurrent increment may create one after this — that is a
+        if (locked == null) {
+            // No row to decrement. A concurrent increment may create one after this - that is a
             // legitimate increment from empty, not a decrement we are obliged to apply.
             return 0;
         }
 
-        final int newCount = ((Number) locked.getFirst()).intValue() - delta;
+        final int newCount = locked.count - delta;
 
         if (newCount <= 0) {
-            // We still hold the FOR UPDATE lock, so no increment can raise the count before we delete.
-            SqlQuery.of(ActionLogQueries.DELETE_ENTRY_SQL)
-                .bind(ActionLogQueries.USER_ID, userId)
-                .bind(ActionLogQueries.ACTION_ID, actionId)
-                .bind(ActionLogQueries.DATE, date)
-                .executeUpdate();
+            // We still hold the row lock, so no increment can raise the count before we delete.
+            locked.delete();
             return 0;
         }
 
-        SqlQuery.of(ActionLogQueries.DECREMENT_UPDATE_SQL)
-            .bind(ActionLogQueries.NEW_COUNT, newCount)
-            .bind(ActionLogQueries.USER_ID, userId)
-            .bind(ActionLogQueries.ACTION_ID, actionId)
-            .bind(ActionLogQueries.DATE, date)
-            .bind(ActionLogQueries.NOW, Instant.now())
-            .executeUpdate();
+        // Dirty checking flushes the new count at commit, and @PreUpdate stamps updatedAt with it.
+        locked.count = newCount;
         return newCount;
     }
 }

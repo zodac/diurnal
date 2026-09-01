@@ -30,10 +30,11 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * This is a plain class rather than one of the project's records because the JPA id-class contract requires a {@link Serializable} type with a public
- * no-argument constructor and mutable, provider-populated fields matching the entity's - a shape a record cannot express. It is data only, holds no
- * logic, and is never constructed or read by application code: {@link ActionLog} carries the same three values as ordinary fields, so every query and
- * every caller addresses them there instead. That is also why an {@code @IdClass} is used rather than an {@code @EmbeddedId} - the latter would nest
- * the key, turning every {@code l.userId} in a query into {@code l.id.userId}.
+ * no-argument constructor and mutable, provider-populated fields matching the entity's - a shape a record cannot express. It is data only and holds
+ * no logic. Application code never READS its fields - {@link ActionLog} carries the same three values as ordinary fields, so every query and every
+ * caller addresses them there instead - and builds one only through {@link #of(UUID, UUID, LocalDate)}, for the one operation that must address a row
+ * by its identity rather than by a predicate ({@link ActionLog#decrementCount}'s pessimistic load). That is also why an {@code @IdClass} is used
+ * rather than an {@code @EmbeddedId} - the latter would nest the key, turning every {@code l.userId} in a query into {@code l.id.userId}.
  *
  * <p>
  * <strong>Every suppression on this class is that contract, not an exemption taken for convenience.</strong> The fields cannot be {@code final}
@@ -71,6 +72,22 @@ public class ActionLogId implements Serializable {
      */
     @Nullable
     public LocalDate logDate;
+
+    /**
+     * Builds the identity of one log entry, for a lookup that addresses the row by its key rather than by a predicate.
+     *
+     * @param userId   the owning user
+     * @param actionId the action being tallied
+     * @param logDate  the day being tallied
+     * @return the identity of that entry
+     */
+    static ActionLogId of(final UUID userId, final UUID actionId, final LocalDate logDate) {
+        final ActionLogId id = new ActionLogId();
+        id.userId = userId;
+        id.actionId = actionId;
+        id.logDate = logDate;
+        return id;
+    }
 
     @Override
     public boolean equals(final @Nullable Object other) {

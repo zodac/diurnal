@@ -19,12 +19,12 @@ package net.zodac.diurnal.persistence;
 
 import io.quarkus.hibernate.orm.panache.Panache;
 import jakarta.persistence.Query;
-import java.util.List;
 
 /**
  * One native SQL statement being prepared and run, with the named parameters bound through typed {@link QueryParameter} tokens rather than bare
  * strings. The native counterpart of {@link JpqlQuery}, for the statements that cannot be expressed in JPQL at all - the
- * {@code INSERT ... ON CONFLICT DO UPDATE} upserts and the {@code SELECT ... FOR UPDATE} row locks.
+ * {@code INSERT ... ON CONFLICT DO UPDATE} upserts, the bulk {@code unnest} writes and the {@code LATERAL} earliest-logged probe. The decrement's
+ * row lock is NOT among them: {@code LockModeType.PESSIMISTIC_WRITE} says it portably, so it goes through the ORM instead.
  *
  * <p>
  * Native results are untyped by construction (there is no projection for the database to build), so a caller reads them as {@link Object} and
@@ -80,14 +80,5 @@ public final class SqlQuery {
      */
     public Object singleResult() {
         return query.getSingleResult();
-    }
-
-    /**
-     * Executes the statement and returns every untyped row.
-     *
-     * @return the statement's rows, empty when it matched nothing
-     */
-    public List<?> resultList() {
-        return query.getResultList();
     }
 }

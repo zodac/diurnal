@@ -29,10 +29,12 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 import net.zodac.diurnal.http.ChangeSignature;
 import net.zodac.diurnal.log.DailyActionTotal;
 import net.zodac.diurnal.log.MonthlyActionTotal;
 import net.zodac.diurnal.persistence.JpqlQuery;
+import net.zodac.diurnal.persistence.NoteStatements;
 import net.zodac.diurnal.persistence.SqlQuery;
 import org.jspecify.annotations.Nullable;
 
@@ -311,12 +313,13 @@ public class Note extends PanacheEntityBase {
      * violation (a 500). {@code content} must already be validated and normalised; a blank value would breach the {@code notes_content_not_blank}
      * check, so callers delete the note (rather than calling this) when the submitted note is empty.
      *
+     * @param statements the database's native statements
      * @param userId the owning user
      * @param date the day to write against
      * @param contentEncrypted the sealed note content (the normalised value, encrypted under the owner's data key)
      */
-    public static void upsert(final UUID userId, final LocalDate date, final byte[] contentEncrypted) {
-        SqlQuery.of(NoteQueries.UPSERT_SQL)
+    public static void upsert(final NoteStatements statements, final UUID userId, final LocalDate date, final byte[] contentEncrypted) {
+        SqlQuery.of(statements.upsert())
             .bind(NoteQueries.ID, UUID.randomUUID())
             .bind(NoteQueries.USER_ID, userId)
             .bind(NoteQueries.DATE, date)
@@ -326,26 +329,29 @@ public class Note extends PanacheEntityBase {
     }
 
     /**
-     * Writes many days' notes for one user in a single statement — the bulk arm of {@link #upsert(UUID, LocalDate, byte[])}, for the data import,
+     * Writes many days' notes for one user in a single statement — the bulk arm of
+     * {@link #upsert(NoteStatements, UUID, LocalDate, byte[])}, for the data import,
      * which replaces a whole journal at once. The two lists are parallel: index {@code i} of each describes one note. Passing empty lists is a no-op.
      *
      * <p>
      * Each note follows the same last-write-wins rule the single-day form uses. As there, the values written are the SEALED form and this is reached
      * only through {@code NoteService}, which is the one thing that can seal them.
      *
+     * @param statements the database's native statements
      * @param userId the owning user
      * @param dates the day of each note
      * @param contents the sealed content of each note, in the same order
      */
     // See ActionLog.setCounts: Qodana and PMD disagree on the `new T[0]` prototype below, PMD is right, and Qodana is scoped out of this file
     // in code-quality-config-overrides/qodana.yaml.
-    public static void upsertAll(final UUID userId, final List<LocalDate> dates, final List<byte[]> contents) {
+    public static void upsertAll(final NoteStatements statements, final UUID userId, final List<LocalDate> dates, final List<byte[]> contents) {
         if (dates.isEmpty()) {
             return;
         }
 
-        SqlQuery.of(NoteQueries.UPSERT_MANY_SQL)
+        SqlQuery.of(statements.upsertAll())
             .bind(NoteQueries.USER_ID, userId)
+            .bind(NoteQueries.ID_ARRAY, Stream.generate(UUID::randomUUID).limit(dates.size()).toArray(UUID[]::new))
             .bind(NoteQueries.DATE_ARRAY, dates.toArray(new LocalDate[0]))
             .bind(NoteQueries.CONTENT_ARRAY, contents.toArray(new byte[0][]))
             .bind(NoteQueries.NOW, Instant.now())

@@ -31,11 +31,13 @@ import java.util.stream.Collectors;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.note.NoteService;
+import net.zodac.diurnal.persistence.LogStatements;
 import net.zodac.diurnal.user.User;
 import org.junit.jupiter.api.Test;
 
 /**
- * The bulk write paths — {@link ActionLog#setCounts(UUID, List, List, List)} and {@code NoteService.replaceAll} — against a real database.
+ * The bulk write paths — {@link ActionLog#setCounts(LogStatements, UUID, List, List, List)} and {@code NoteService.replaceAll} — against a real
+ * database.
  *
  * <p>
  * Both send their rows as parallel arrays that PostgreSQL {@code unnest}s back into rows, so the failure this guards is a <strong>mis-zipped</strong>
@@ -49,6 +51,9 @@ import org.junit.jupiter.api.Test;
  */
 @QuarkusTest
 class BulkWriteIT extends IntegrationTestBase {
+
+    @Inject
+    LogStatements statements;
 
     private static final LocalDate FIRST_DAY = LocalDate.of(2026, 3, 1);
     private static final int ENTRY_COUNT = 40;
@@ -82,7 +87,7 @@ class BulkWriteIT extends IntegrationTestBase {
             expected.put(date, Map.of(actionId, count));
         }
 
-        runInTx(() -> ActionLog.setCounts(owner[0], actionIds, dates, counts));
+        runInTx(() -> ActionLog.setCounts(statements, owner[0], actionIds, dates, counts));
 
         runInTx(() -> assertThat(ActionLog.findByUserAndRange(owner[0], FIRST_DAY, FIRST_DAY.plusDays(ENTRY_COUNT))
             .stream()
@@ -102,7 +107,7 @@ class BulkWriteIT extends IntegrationTestBase {
             newLog(owner[0], action[0], FIRST_DAY, 3);
         });
 
-        runInTx(() -> ActionLog.setCounts(owner[0], List.of(action[0]), List.of(FIRST_DAY), List.of(9)));
+        runInTx(() -> ActionLog.setCounts(statements, owner[0], List.of(action[0]), List.of(FIRST_DAY), List.of(9)));
 
         runInTx(() -> assertThat(ActionLog.countsByAction(owner[0], FIRST_DAY))
             .as("the bulk write must take the same last-write-wins arm the single-row upsert does")
@@ -114,7 +119,7 @@ class BulkWriteIT extends IntegrationTestBase {
         final UUID[] owner = new UUID[1];
         runInTx(() -> owner[0] = newUser("bulk-logs-empty-it@lt.test", "Bulk Empty").id);
 
-        runInTx(() -> ActionLog.setCounts(owner[0], List.of(), List.of(), List.of()));
+        runInTx(() -> ActionLog.setCounts(statements, owner[0], List.of(), List.of(), List.of()));
 
         runInTx(() -> assertThat(ActionLog.count("userId = ?1", owner[0]))
             .as("an import replacing a history with nothing must write nothing, not fail on an empty statement")
