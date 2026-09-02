@@ -32,6 +32,15 @@
 
         <!-- This project's own Checkstyle suppressions -->
         <checkstyle-project-suppression-file>${config-overrides-directory}/checkstyle-suppression.xml</checkstyle-project-suppression-file>
+
+        <!-- Where SonarQube reads coverage from. The parent configures report paths for Checkstyle, PMD and
+             SpotBugs but none for coverage, so without this the SonarQube project shows none at all - which
+             is exactly what it showed. Both paths are listed because WHICH of the two coverage plugins ends
+             up holding the data depends on how they interact (see them below): as configured today the
+             jacoco-maven-plugin report carries everything and quarkus-jacoco's own is empty, but if that
+             ever inverts SonarQube unions the pair and the published figure survives either way. Neither
+             path is a Sonar default. -->
+        <sonar.coverage.jacoco.xmlReportPaths>target/site/jacoco/jacoco.xml,target/jacoco-report/jacoco.xml</sonar.coverage.jacoco.xmlReportPaths>
     </properties>
 
     <!--
@@ -43,40 +52,36 @@
         each pin once the Quarkus platform catches up to at least the version named here.
 
         Ordering note: sortpom (sortDependencyManagement=scope,artifactId) sorts these by scope then
-        artifactId - import-scoped BOMs first (jackson-bom, netty-bom), then the compile-scoped
-        postgresql. This block is already in that order and sits before <dependencies> (canonical POM
-        order), so `mvn sortpom:sort` is a no-op and will not reshuffle it or detach this comment. Keep
-        it that way when adding a pin.
+        artifactId - import-scoped BOMs first. This block is already in that order and sits before
+        <dependencies> (canonical POM order), so `mvn sortpom:sort` is a no-op and will not reshuffle
+        it or detach this comment. Keep it that way when adding a pin.
 
-        Grype HIGH findings addressed (all "fixed in" the versions below):
-          - com.fasterxml.jackson  2.22.0 -> 2.22.1: GHSA-r7wm-3cxj-wff9 (jackson-core)
-          - io.netty  4.1.135.Final -> 4.1.136.Final: GHSA-558v-64gr-wgg4 (netty-codec),
-            GHSA-6jqx-86gh-f27w / GHSA-mvh2-crg5-v77c / GHSA-jppx-w49h-x2qq (netty-codec-http),
-            GHSA-q6cq-mhr2-jmr5 (netty-codec-haproxy)
-          - org.postgresql:postgresql 42.7.11 -> 42.7.12: GHSA-j92g-9f8w-j867
-        The netty and jackson BOMs are imported (not per-artifact pins) so every module of each library
-        moves together - a version skew between, say, netty-codec and netty-codec-http fails at runtime.
+        A pin belongs here ONLY while grype still reports the finding against the version the platform
+        currently resolves - re-verify that before keeping one, because BOTH halves of the condition
+        move. The netty and postgresql pins were dropped on exactly that test: Quarkus 3.39.1 had
+        overtaken them, so each had quietly become a DOWNGRADE (netty 4.1.137 -> 4.1.136, which also
+        dragged netty-tcnative 2.0.81 -> 2.0.78 because netty-bom manages it too, and postgresql
+        42.7.13 -> 42.7.12) while still claiming to be remediation. The jackson pin survived, but for
+        DIFFERENT advisories than the ones it was added for - GHSA-r7wm-3cxj-wff9 (jackson-core) no
+        longer covers 2.22.0, and two jackson-databind advisories published since do.
+
+        Grype findings addressed (both "fixed in" 2.22.1; 2.22.2 is the newest patch on the line):
+          - com.fasterxml.jackson  2.22.0 -> 2.22.2: GHSA-5gvw-p9qm-jgwh, GHSA-5jmj-h7xm-6q6v
+            (jackson-databind). Both are MEDIUM, so they sit below the shared config's
+            `fail-on-severity: high` and do NOT fail the gate - this pin keeps the scanned image's
+            report clean rather than keeping the build green, which is why it is easy to lose track of.
+            Check `grype ... zodac/diurnal:latest` output, not just the gate's exit code.
+        The BOM is imported (not a per-artifact pin) so every module of the library moves together -
+        a version skew between, say, jackson-core and jackson-databind fails at runtime.
     -->
     <dependencyManagement>
         <dependencies>
             <dependency>
                 <groupId>com.fasterxml.jackson</groupId>
                 <artifactId>jackson-bom</artifactId>
-                <version>2.22.1</version>
+                <version>2.22.2</version>
                 <type>pom</type>
                 <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>io.netty</groupId>
-                <artifactId>netty-bom</artifactId>
-                <version>4.1.136.Final</version>
-                <type>pom</type>
-                <scope>import</scope>
-            </dependency>
-            <dependency>
-                <groupId>org.postgresql</groupId>
-                <artifactId>postgresql</artifactId>
-                <version>42.7.12</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -197,6 +202,20 @@
             <artifactId>junit-jupiter-params</artifactId>
             <scope>test</scope>
         </dependency>
+        <!-- What makes the ITs count towards coverage at all. Quarkus loads application classes through its
+             own augmented classloader, which the plain JaCoCo -javaagent cannot attribute, so without this
+             extension all 966 ITs contribute NOTHING and the report reads 42.9% with every resource class
+             at 0%. With it, the same report reads 93.3%.
+
+             It generates no report of its own in this configuration: an agent is already attached (see
+             jacoco-maven-plugin in the build below), so it writes into that shared target/jacoco.exec and
+             leaves its own jacoco-quarkus.exec uncreated. That is why the plugin above is also required -
+             it owns the prepare-agent and the report generation; this owns the Quarkus-side attribution. -->
+        <dependency>
+            <groupId>io.quarkus</groupId>
+            <artifactId>quarkus-jacoco</artifactId>
+            <scope>test</scope>
+        </dependency>
         <dependency>
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-junit</artifactId>
@@ -300,6 +319,23 @@
                         </configuration>
                     </execution>
                 </executions>
+            </plugin>
+            <!-- Coverage. The parent already manages this plugin's version, rules and executions
+                 (prepare-agent / report / check) in pluginManagement, so a bare declaration is all that is
+                 needed to activate it - and without one it never ran at all, which is why SonarQube had no
+                 coverage to show.
+
+                 It does NOT measure the ITs by itself: its -javaagent cannot attribute Quarkus's augmented
+                 classloader, and measured on this project it reported 42.9% line coverage with every
+                 @QuarkusTest-covered class at 0% - AdminWebResource, AuthResource, ActionsApiResource and
+                 LogWebResource all 0/N despite the ITs that drive them. The quarkus-jacoco test dependency
+                 is what fixes that, and the two are NOT independent: because this plugin has already
+                 attached an agent, quarkus-jacoco writes into the same target/jacoco.exec instead of its
+                 own file, so the report generated here covers BOTH tiers at 93.3%. Drop either one and the
+                 figure SonarQube publishes silently falls back to 42.9%. -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
             </plugin>
             <plugin>
                 <groupId>com.mycila</groupId>
