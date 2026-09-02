@@ -12,12 +12,8 @@
 #      adjust the right-hand side, not the file names, if they differ.
 #   4. Wire `crowdin upload sources` / `crowdin download` into CI (or run manually) after
 #      scripts/generate-source-messages.sh regenerates the source file below.
-#
-# base_path anchors the repo-root-relative "/..." paths below to the repo root rather than to this file's own
-# directory (CrowdIn CLI's default) - the same class of relative-path problem this directory's README already
-# flags for qodana.yaml's imports:/exclude:, just solved with CrowdIn's own base_path key instead.
 
-"base_path": ".."
+"base_path": "."
 
 "files":
   - "source": "/translations/msg_en-GB.properties"
