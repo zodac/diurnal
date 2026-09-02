@@ -27,9 +27,18 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.Base64;
+import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
@@ -280,5 +289,38 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
         note.noteDate = date;
         note.contentEncrypted = sealNote(userId, date, content);
         note.persist();
+    }
+
+    /**
+     * Runs every task on its own thread, released together via a {@link CyclicBarrier} so they overlap for real rather than merely being submitted
+     * together, then rethrows the first failure (including any RestAssured or AssertJ assertion raised on a worker) once all threads have finished.
+     *
+     * <p>
+     * This is how the database-level races are exercised: the guards they test - the {@code ON CONFLICT} upserts, the {@code PESSIMISTIC_WRITE} row
+     * lock, and the two duplicate-key {@code ConstraintViolationException} handlers - only execute when two transactions genuinely interleave, so
+     * nothing single-threaded can reach them. A barrier makes the overlap likely rather than certain, which is why the assertions built on top of
+     * this pin the GUARANTEE (never a 5xx, exactly one row committed) rather than which of the two code paths happened to win.
+     */
+    protected static void runSimultaneously(final Runnable... tasks) {
+        final int parties = tasks.length;
+        final CyclicBarrier gate = new CyclicBarrier(parties);
+        try (final ExecutorService pool = Executors.newFixedThreadPool(parties)) {
+            final List<Future<?>> futures = new ArrayList<>(parties);
+            for (final Runnable task : tasks) {
+                futures.add(pool.submit(() -> {
+                    gate.await(10, TimeUnit.SECONDS); // all threads leave the gate at once
+                    task.run();
+                    return null;
+                }));
+            }
+            for (final Future<?> future : futures) {
+                future.get(30, TimeUnit.SECONDS); // propagates assertion errors raised on the worker threads
+            }
+        } catch (final ExecutionException | TimeoutException e) {
+            throw new IllegalStateException("Concurrent task failed", e);
+        } catch (final InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Interrupted awaiting concurrent tasks", e);
+        }
     }
 }

@@ -89,9 +89,19 @@ others (`… java,perf`), or via `tests/run-perf.sh <port> <projectRoot>` direct
 - **What it measures:** (1) **cold-boot** latency — container start → first `200 /api/v1/status` with readiness `UP` — plus post-boot RSS, asserted
   against `PERF_BOOT_BUDGET_S` / `PERF_RSS_MAX_MB` (RSS is best-effort: skipped if `docker stats` can't be parsed); (2) **steady-state throughput** —
   one k6 `constant-arrival-rate` scenario per public-API use-case group (`= OpenApiSurfaceIT.PUBLIC_API_CONTRACT`: status, login, actions list, action
-  CRUD, log write, calendar feed, stats), each with its own p95-latency + error-rate **threshold** (a breach makes k6 exit non-zero → the runner and
-  the `perf` step fail); (3) **heavy-data edge cases** — the seed populates a large account (`PERF_SEED_ACTIONS` × `PERF_SEED_LOG_DAYS`) so the list /
-  stats / calendar-feed scenarios exercise real fan-out, not empty-DB best cases.
+  CRUD, log write, calendar feed, stats, notes feed/write, **notes search (hit and miss), data export, stats frequency, admin user list**), each with
+  its own p95-latency + error-rate **threshold** (a breach makes k6 exit non-zero → the runner and
+  the `perf` step fail); (3) **heavy-data edge cases** — the seed populates a large account (`PERF_SEED_ACTIONS` × `PERF_SEED_LOG_DAYS`, plus
+  `PERF_SEED_NOTE_DAYS` notes) so the list / stats / calendar-feed / search / export scenarios exercise real fan-out, not empty-DB best cases.
+
+> **The notes search is split into two scenarios by OUTCOME, not by endpoint, and that is deliberate.** A search that matches costs open+match over the
+> whole journal; one that matches nothing then runs `NoteSearch.suggest` over every word in it, which is 70-80% of a miss's cost and the one path in the
+> app that grows with history and that **no index can reach** (the content is ciphertext, and a per-word blind index was rejected as a
+> frequency-analysis exposure — see [`NOTES.md`](NOTES.md)). A single averaged scenario would hide a regression in either half, so `notesSearchHit` and
+> `notesSearchMiss` each carry their own budget, and each `check`s that it really took the branch it is named for — a HIT term that silently stopped
+> matching would otherwise turn both into the same measurement. **Both terms are keyed to `seed.mjs`'s fixed note prose; change that prose and these
+> must change with it.** Journal length is the variable they exist to measure, so `PERF_SEED_NOTE_DAYS` is the knob to raise when re-deriving their
+> budgets against a many-year journal.
 - **Runs the prod profile** against a live Postgres — **NO frozen clock, NO pre-seeded DB** (like smoke). `seed.mjs` self-seeds (bootstraps the
   first-user admin via the web `/register` form, then seeds via the API) and hands credentials/IDs to `load.mjs` via a base64 `PERFSTATE:…` stdout
   token the runner decodes (k6's `handleSummary` runs in a separate isolate and can't see iteration state, so a file-write handover isn't possible).
@@ -99,7 +109,7 @@ others (`… java,perf`), or via `tests/run-perf.sh <port> <projectRoot>` direct
 - **Isolation:** dedicated compose project (`-p diurnal-perf`), ephemeral tmpfs DB, host port **8083** (!= 8080 prod / 8081 dev+E2E / 8082 smoke), so
   a perf run coexists with everything. An EXIT/INT/TERM/HUP trap always tears the stack down and removes the scratch state dir.
 - **Tuning knobs** (env, all with sensible defaults, forwarded by name into the k6 container by `run-perf.sh`):
-  `PERF_SEED_ACTIONS`, `PERF_SEED_LOG_DAYS`, `PERF_DURATION`, `PERF_RATE`, `PERF_VUS`, `PERF_P95_TOLERANCE`, `PERF_BOOT_BUDGET_S`,
+  `PERF_SEED_ACTIONS`, `PERF_SEED_LOG_DAYS`, `PERF_SEED_NOTE_DAYS`, `PERF_DURATION`, `PERF_RATE`, `PERF_VUS`, `PERF_P95_TOLERANCE`, `PERF_BOOT_BUDGET_S`,
   `PERF_RSS_MAX_MB`, `PERF_DROPPED_MAX`; the per-scenario latency/error budgets live in `load.mjs`'s `options.thresholds` — tune them to the deployment's
   SLOs. `PERF_P95_TOLERANCE` (default `1`) scales **every** p95 latency budget by a single multiplier so the same suite gates both a
   fast dev box and a small shared CI runner without re-numbering each threshold — it scales latency ONLY (error-rate budgets stay

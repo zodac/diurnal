@@ -34,16 +34,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import net.zodac.diurnal.IntegrationTestBase;
 import net.zodac.diurnal.action.Action;
@@ -697,28 +688,4 @@ class LogResourceIT extends IntegrationTestBase {
         return holder.get();
     }
 
-    // Run every task on its own thread, released together via a barrier to maximise real overlap, then
-    // rethrow the first failure (including any RestAssured assertion) once all threads have finished.
-    private static void runSimultaneously(final Runnable... tasks) {
-        final int parties = tasks.length;
-        final CyclicBarrier gate = new CyclicBarrier(parties);
-        try (final ExecutorService pool = Executors.newFixedThreadPool(parties)) {
-            final List<Future<?>> futures = new ArrayList<>(parties);
-            for (final Runnable task : tasks) {
-                futures.add(pool.submit(() -> {
-                    gate.await(10, TimeUnit.SECONDS); // all threads leave the gate at once
-                    task.run();
-                    return null;
-                }));
-            }
-            for (final Future<?> future : futures) {
-                future.get(30, TimeUnit.SECONDS); // propagates assertion errors raised on the worker threads
-            }
-        } catch (final ExecutionException | TimeoutException e) {
-            throw new IllegalStateException("Concurrent task failed", e);
-        } catch (final InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("Interrupted awaiting concurrent tasks", e);
-        }
-    }
 }
