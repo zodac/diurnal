@@ -39,6 +39,14 @@ const VUS = Number(__ENV.PERF_VUS || 20)
 // times a workstation's — this absorbs that fixed environment penalty. It scales latency ONLY: the
 // error-rate budgets stay absolute, so a broken path fails everywhere regardless of the box.
 const P95_TOLERANCE = Number(__ENV.PERF_P95_TOLERANCE || 1)
+
+// Search terms for the two notes-search scenarios, both keyed to seed.mjs's fixed note body.
+// SEARCH_HIT is a word every seeded note contains, so the match path runs over the whole journal;
+// SEARCH_MISS is deliberately absent from it, which is what makes the server fall through to
+// NoteSearch.suggest. Change seed.mjs's prose and these must change with it — a HIT term that stopped
+// matching would quietly turn both scenarios into the same measurement.
+const SEARCH_HIT = "refactor"
+const SEARCH_MISS = "quixotic"
 function p95(ms) {
     return [`p(95)<${Math.round(ms * P95_TOLERANCE)}`]
 }
@@ -65,6 +73,19 @@ export const options = {
         stats: sc("stats", RATE),
         notesFeed: sc("notesFeed", RATE),
         notesWrite: sc("notesWrite", 8),
+        // The search pair is deliberately split by OUTCOME, not by endpoint: a search that matches costs
+        // open+match, while one that matches nothing then runs NoteSearch.suggest over every word in the
+        // journal — measured at 70-80% of a miss's total cost, and the single path in the app that grows
+        // with history and that no index can reach (the content is ciphertext). One scenario averaging the
+        // two would hide a regression in either.
+        notesSearchHit: sc("notesSearchHit", 5),
+        notesSearchMiss: sc("notesSearchMiss", 3),
+        // The heaviest single request the API can be asked for: it opens and decrypts the ENTIRE journal
+        // plus every action and log into a ZIP, and is bounded only by the size of the account. Driven at
+        // 1/s because one call already does more work than a second of any other scenario.
+        dataExport: sc("dataExport", 1),
+        statsFrequency: sc("statsFrequency", 10),
+        adminUsers: sc("adminUsers", RATE),
     },
     thresholds: {
         // The offered load must actually be offered (see DROPPED_MAX), and every check must hold. The
@@ -109,6 +130,31 @@ export const options = {
         "http_req_duration{scenario:notesFeed}": p95(900),
         "http_req_failed{scenario:notesWrite}": ["rate<0.01"],
         "http_req_duration{scenario:notesWrite}": p95(500),
+        // A search that HITS is the notesFeed work over the whole journal rather than a date range, so it
+        // is budgeted a little above it. A search that MISSES additionally runs the "did you mean"
+        // suggestion, whose cost is the journal's whole vocabulary — hence the far wider budget. Both are
+        // ceilings on the SHAPE of the work, not on the seeded size: point the tier at a many-year journal
+        // (PERF_SEED_NOTE_DAYS) and these are the numbers to re-derive first.
+        "http_req_failed{scenario:notesSearchHit}": ["rate<0.02"],
+        "http_req_duration{scenario:notesSearchHit}": p95(1000),
+        "http_req_failed{scenario:notesSearchMiss}": ["rate<0.02"],
+        "http_req_duration{scenario:notesSearchMiss}": p95(2000),
+        // Whole-account export: every note decrypted, every log and action serialised, then zipped. The
+        // budget is the loosest here on purpose — it exists to catch an order-of-magnitude regression (a
+        // per-note key resolution, an N+1 over logs), not to pin a number that legitimately grows with
+        // the account.
+        "http_req_failed{scenario:dataExport}": ["rate<0.01"],
+        "http_req_duration{scenario:dataExport}": p95(5000),
+        // The chart's monthly rollup is range-bound and its navigation bound is a per-subject LATERAL
+        // probe; both were deliberate fixes (~65ms -> 1.3ms, 32.3ms -> 0.27ms) that nothing guarded until
+        // now. A whole-history rollup creeping back is exactly what this budget is set to catch.
+        "http_req_failed{scenario:statsFrequency}": ["rate<0.02"],
+        "http_req_duration{scenario:statsFrequency}": p95(800),
+        // The admin list is the query V42's users.created_at index was added for (13-15ms first page /
+        // 127ms last page at 50k accounts, before it). Index-backed and paginated, so it should stay
+        // cheap; this is the guard on that index still being used.
+        "http_req_failed{scenario:adminUsers}": ["rate<0.01"],
+        "http_req_duration{scenario:adminUsers}": p95(400),
     },
 }
 
@@ -247,4 +293,70 @@ export function notesWrite() {
         { headers: { ...AUTH, "Content-Type": "application/json" }, tags: { name: "notesWrite" } },
     )
     check(res, { "note written 200": r => r.status === 200 })
+}
+
+// GET /api/v1/notes?q= — a search that MATCHES. No date range, so this is the whole journal: the content
+// is ciphertext and cannot be filtered by the database, so every note is read, opened and substring-matched
+// in the JVM. Cost is linear in journal length with no index available, by design (a per-word blind index
+// was rejected as a frequency-analysis exposure), which is why it is measured rather than assumed.
+export function notesSearchHit() {
+    const res = http.get(
+        `${BASE_URL}/api/v1/notes?q=${SEARCH_HIT}`,
+        { headers: AUTH, tags: { name: "notesSearchHit" } },
+    )
+    check(res, {
+        "search 200": r => r.status === 200,
+        // A term that stopped matching would still answer 200 and would silently make this the miss path.
+        "search found something": r => (r.json("totalCount") ?? 0) > 0,
+    })
+}
+
+// GET /api/v1/notes?q= — a search that matches NOTHING, which is the expensive half. Matching stays exact,
+// so a fruitless search is answered with a "did you mean" (NoteSearch.suggest) computed over every word the
+// journal holds; that suggestion is 70-80% of a miss's cost and is the part that degrades with history.
+export function notesSearchMiss() {
+    const res = http.get(
+        `${BASE_URL}/api/v1/notes?q=${SEARCH_MISS}`,
+        { headers: AUTH, tags: { name: "notesSearchMiss" } },
+    )
+    check(res, {
+        "search 200": r => r.status === 200,
+        // Pins that this really is the miss path — if it starts matching, the suggest branch stops running.
+        "search found nothing": r => (r.json("totalCount") ?? 0) === 0,
+    })
+}
+
+// GET /api/v1/data/export — the whole account as a ZIP of CSVs. An export necessarily OPENS every note
+// (the archive holds content in the clear), so this is the only request that decrypts the entire journal
+// in one call, on top of serialising every action and log. Unbounded in account size, and until now the
+// only public endpoint carrying that much work with no load coverage at all.
+export function dataExport() {
+    const res = http.get(`${BASE_URL}/api/v1/data/export`, { headers: AUTH, tags: { name: "dataExport" } })
+    check(res, {
+        "export 200": r => r.status === 200,
+        // A ZIP starts "PK" — cheap proof the archive was actually built, not that a 200 was returned.
+        "export returned an archive": r => r.body.length > 2 && r.body[0] === "P" && r.body[1] === "K",
+    })
+}
+
+// GET /api/v1/stats/{subjectId}/frequency — the frequency chart's monthly rollup for one subject. Reads
+// only the window it draws (a whole-history rollup here was a measured regression), and its navigation
+// bound is a per-subject LATERAL probe rather than a MIN over an IN-list.
+export function statsFrequency() {
+    const res = http.get(
+        `${BASE_URL}/api/v1/stats/${anyActionId()}/frequency?period=month`,
+        { headers: AUTH, tags: { name: "statsFrequency" } },
+    )
+    check(res, { "frequency 200": r => r.status === 200 })
+}
+
+// GET /api/v1/admin/users — the admin console's account list. The seeded account is the deployment's FIRST
+// user and therefore its admin, so the same Bearer token reaches it. Counted-query paginated against the
+// users.created_at index added in V42, which is what this scenario guards.
+export function adminUsers() {
+    const res = http.get(
+        `${BASE_URL}/api/v1/admin/users?page=1`,
+        { headers: AUTH, tags: { name: "adminUsers" } },
+    )
+    check(res, { "admin users 200": r => r.status === 200 })
 }

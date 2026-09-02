@@ -57,17 +57,28 @@ export default defineConfig({
             use: { ...devices["Desktop Chrome"] },
         },
         {
-            // Re-running EVERY spec at a phone viewport doubled the tier for very little signal: the three
+            // Re-running EVERY spec at a phone viewport doubled the tier for very little signal: the
             // specs excluded below assert only behaviour and navigation (no visibility, geometry or scroll
             // assertions at all), so a second pass at a narrower viewport exercises the same code paths.
             // Everything layout-bearing still runs on both — and note that the genuinely mobile-specific
             // behaviour (the hamburger menu) does not depend on this project at all: navbar.spec.ts drives
             // it with its own `test.use({ viewport })` override, so it is covered even under `chromium`.
+            //
+            // cursor.spec.ts and note-drafts.spec.ts meet that same bar and were added later:
+            //  - cursor.spec.ts asserts getComputedStyle(el).cursor on one control per type, which comes
+            //    from a single viewport-independent base rule in app.css — and its two viewport-sensitive
+            //    cases call setViewportSize themselves, overriding this project's device preset outright.
+            //    A hand-cursor assertion on a touch device is signal-free by construction.
+            //  - note-drafts.spec.ts covers sessionStorage draft lifetime across navigation and logout,
+            //    with no visibility, geometry or scroll assertion anywhere in the file.
             // Set PW_MOBILE_ALL=1 to restore the full duplicate pass.
             name: "mobile-chrome",
             use: { ...devices["Galaxy S24"] },
             testIgnore: process.env.PW_MOBILE_ALL === undefined
-                ? ["auth.spec.ts", "stats.spec.ts", "not-found.spec.ts", "i18n.spec.ts"]
+                ? [
+                    "auth.spec.ts", "stats.spec.ts", "not-found.spec.ts", "i18n.spec.ts",
+                    "cursor.spec.ts", "note-drafts.spec.ts",
+                ]
                 : [],
         },
     ],

@@ -55,6 +55,11 @@ K6_IMAGE="grafana/k6:2.2.0"
 # finishes in a couple of minutes; bump them in CI for a heavier sweep.
 SEED_ACTIONS="${PERF_SEED_ACTIONS:-50}"
 SEED_LOG_DAYS="${PERF_SEED_LOG_DAYS:-90}"
+# How many days carry a note. Its own knob rather than following SEED_LOG_DAYS, because journal LENGTH is
+# the variable the notes-search scenarios exist to measure: that search cannot use an index (the content is
+# ciphertext) and its cost is linear in the number of notes, so raising this is how the tier is pointed at
+# a many-year journal. The default matches seed.mjs's own.
+SEED_NOTE_DAYS="${PERF_SEED_NOTE_DAYS:-60}"
 BOOT_BUDGET_S="${PERF_BOOT_BUDGET_S:-20}"
 # Post-boot RSS ceiling. DERIVED, not picked. Native memory tracking on the real image puts the JVM at
 # ~899MiB COMMITTED once booted - 686MiB of heap plus 213MiB of non-heap (metaspace 78, GC structures 74,
@@ -180,12 +185,13 @@ fi
 # The seed prints its handover state as a base64 PERFSTATE:…:ENDPERFSTATE stdout token (k6 can only
 # write files from handleSummary, which can't see iteration state — see seed.mjs). Capture its output,
 # echo it (so a direct run stays informative), then decode the token into the handover file for load.mjs.
-echo "[perf] seeding ${SEED_ACTIONS} actions × ${SEED_LOG_DAYS} days…"
+echo "[perf] seeding ${SEED_ACTIONS} actions × ${SEED_LOG_DAYS} days and ${SEED_NOTE_DAYS} notes…"
 seed_log="$(docker run --rm --network host \
   -v "${BASEDIR}/tests/perf":/scripts:ro \
   -e BASE_URL="http://127.0.0.1:${PORT}" \
   -e SEED_ACTIONS="${SEED_ACTIONS}" \
   -e SEED_LOG_DAYS="${SEED_LOG_DAYS}" \
+  -e SEED_NOTE_DAYS="${SEED_NOTE_DAYS}" \
   "${K6_IMAGE}" run /scripts/seed.mjs 2>&1)" || {
     echo "${seed_log}"
     echo "[perf] FAIL: seed run errored"

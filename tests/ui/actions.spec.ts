@@ -261,8 +261,14 @@ test.describe("Actions page", () => {
         await page.goto("/actions")
         await page.waitForFunction(() => typeof (window as {htmx?: unknown}).htmx !== "undefined")
         await page.fill('input[name="name"]', name)
+        // A successful add makes actions.js draw a fresh suggestion for the NEW-ACTION picker, on the
+        // very same /internal/actions/random-colour URL the edit row uses below — the two requests are
+        // indistinguishable by URL, since neither carries a parameter. Drain it here: left in flight, it
+        // is what the edit row's own waitForResponse matches, so the colour read back belongs to the
+        // wrong picker. Under injected request latency that happened on every single run.
         await Promise.all([
             page.waitForResponse(r => r.url().endsWith("/actions") && r.request().method() === "POST"),
+            page.waitForResponse(r => r.url().endsWith("/internal/actions/random-colour")),
             page.locator('form[hx-post="/internal/actions"] button[type="submit"]').click(),
         ])
 

@@ -56,14 +56,31 @@ test.describe("Stats page", () => {
         // as JSON: scraping it out of the returned HTML fragment (as this did) breaks silently the moment
         // the row markup changes — the regex matches nothing, the `if (match)` skips the logging, and the
         // test goes on to assert against actions that were never logged.
+        // The names are fixed because the assertion needs a known set spanning two pages, so a re-run
+        // against the same database finds them already there. A 409 is therefore expected rather than
+        // fatal — the same tolerance the "CaptionFit" test below applies — and the existing action is
+        // looked up instead. Asserting `created.ok()` outright made a second `npm test` against a live
+        // instance fail on "could not create action 1: HTTP 409".
         for (let i = 1; i <= 11; i++) {
-            const created = await apiCtx.post("/api/v1/actions", {
-                data: { name: `StatsPageAction${i.toString().padStart(2, "0")}`, colour: "#6366f1" },
-            })
-            expect(created.ok(), `could not create action ${i}: HTTP ${created.status()}`).toBe(true)
-            const { id } = await created.json()
+            const name = `StatsPageAction${i.toString().padStart(2, "0")}`
+            const created = await apiCtx.post("/api/v1/actions", { data: { name, colour: "#6366f1" } })
+            let id: string
+            if (created.status() === 409) {
+                id = await findActionIdByName(apiCtx, name)
+            } else {
+                expect(created.ok(), `could not create action ${i}: HTTP ${created.status()}`).toBe(true)
+                id = (await created.json()).id as string
+            }
             await apiCtx.put(`/api/v1/logs/${today}/${id}`, { data: { count: 1 } })
         }
+
+        // The Stats list paginates on the user's page-size preference, and the frequency-graph test below
+        // widens that preference to 100 and leaves it there. Every test here shares one user, so on a
+        // re-run against the same database the widened value is already in force, every subject fits on a
+        // single page, and there is no "Next" to click — the test then failed on a missing link rather
+        // than on anything it is about. Pin the size this test needs instead of depending on the default
+        // still being in force.
+        await apiCtx.patch("/internal/settings", { form: { pageSize: "5" } })
 
         await page.goto("/stats")
         await expect(page.locator("body")).toContainText("Next")

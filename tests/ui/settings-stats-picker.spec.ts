@@ -70,6 +70,21 @@ test.describe("Settings page - stats picker", () => {
         // editor to fire a PATCH just for being opened and closed. It must not: an unchanged commit is a
         // no-op, for an un-renamed stat (pre-filled with its built-in name) and a renamed one alike.
         await page.goto("/settings")
+
+        // The stat this test renames, restored to its built-in name first. These specs share a user and
+        // database, so a previous run — or a previous failure part-way through this very test — can leave
+        // it already renamed, and re-committing a name a stat ALREADY holds is a deliberate no-op that
+        // fires no PATCH. The waitForSave below would then wait for a save that is never coming, and the
+        // test died on the 30s timeout rather than on anything it asserts. Done BEFORE the counter is
+        // attached, so the PATCH that restoring may itself fire is not counted.
+        const renamed = page.locator("#stats-fields-list li[data-key='best-year']")
+        if ((await renamed.locator(".stats-field-caption").textContent())?.trim() !== "Best year") {
+            await renamed.locator(".stats-field-rename-btn").dispatchEvent("click")
+            await renamed.locator(".stats-field-input").fill("")
+            await waitForSave(page, renamed.locator(".stats-field-save-btn").click())
+            await expect(renamed.locator(".stats-field-caption")).toHaveText("Best year")
+        }
+
         let saves = 0
         page.on("request", (r) => {
             if (new URL(r.url()).pathname === "/internal/settings" && r.method() === "PATCH") { saves++ }
@@ -92,8 +107,7 @@ test.describe("Settings page - stats picker", () => {
         await page.waitForTimeout(300)
         expect(saves, "an unchanged rename must not PATCH").toBe(0)
 
-        // Now a REAL rename saves exactly once...
-        const renamed = page.locator("#stats-fields-list li[data-key='best-year']")
+        // Now a REAL rename saves exactly once... (`renamed` is the row restored to its built-in name above)
         await renamed.locator(".stats-field-rename-btn").dispatchEvent("click")
         await renamed.locator(".stats-field-input").fill("Top year")
         await waitForSave(page, renamed.locator(".stats-field-save-btn").click())
