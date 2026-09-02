@@ -1,6 +1,6 @@
 networks:
-  diurnal:
-    name: diurnal
+  diurnal-network:
+    name: diurnal-network
     driver: bridge
 
 services:
@@ -11,65 +11,51 @@ services:
       dockerfile: Dockerfile
     container_name: diurnal
     hostname: diurnal
-    restart: unless-stopped
-    deploy:
-      resources:
-        limits:
-          memory: "2048M"
-          pids: 256
-    memswap_limit: ${APP_MEM_LIMIT:-2g}
-    ports:
-      - "${APP_PORT:-8080}:8080"
-    env_file:
-      - .env
-    environment:
-      DB_HOST: diurnal-db
-      DB_PORT: 5432
-      DB_NAME: ${DB_NAME:-diurnal_db}
-      DB_USER: ${DB_USER:-diurnal_user}
-      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
-      # Notes are encrypted at rest; this is the only thing that opens them, and it deliberately does
-      # NOT live in the database. LOSING IT LOSES EVERY NOTE. Generate: openssl rand -base64 32
-      NOTE_ENCRYPTION_KEY: ${NOTE_ENCRYPTION_KEY:?NOTE_ENCRYPTION_KEY must be set}
-      # Only set while rotating the key above; the next start moves every account onto the new one.
-      NOTE_ENCRYPTION_PREVIOUS_KEYS: ${NOTE_ENCRYPTION_PREVIOUS_KEYS:-}
-      # Longest note a user may save, in characters (1-100,000). Bounds no column - notes are stored
-      # encrypted in an unbounded one - so it sizes the responses the app builds, not the storage.
-      # Lowering it keeps notes already written above it; they just cannot be re-saved unedited.
-      NOTE_MAX_LENGTH: ${NOTE_MAX_LENGTH:-10000}
-      MAX_UPLOAD_SIZE: ${MAX_UPLOAD_SIZE:-100M}
-      TZ: ${TZ:-UTC}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      EXPORT_CSV_BOM: "false"
-      # DB query tracing. Independent of LOG_LEVEL (which only covers net.zodac.diurnal): set to TRACE
-      # to log every SQL statement + bound parameters the app issues to Postgres. Leave at WARN (off)
-      # in production — it is verbose and can surface parameter values in the logs.
-      DB_LOG_LEVEL: ${DB_LOG_LEVEL:-WARN}
-      # This stack runs behind Traefik, which sets/strips X-Forwarded-*, so trust those headers
-      # (needed for https:// OIDC redirect URIs and Secure cookies). Disabled by default in
-      # application.properties — only safe because a trusted proxy fronts the app here.
-      TRUST_X_FORWARDED_HEADERS: ${TRUST_X_FORWARDED_HEADERS:-true}
-      PASSWORD_AUTH_ENABLED: ${PASSWORD_AUTH_ENABLED:-true}
-      ENABLE_REGISTRATION: ${ENABLE_REGISTRATION:-true}
-      # Sessions are server-side (the sessions table); tune the lifetimes if desired (ISO-8601):
-      SESSION_IDLE_TIMEOUT: ${SESSION_IDLE_TIMEOUT:-P30D}
-      SESSION_ABSOLUTE_LIFETIME: ${SESSION_ABSOLUTE_LIFETIME:-P90D}
-      # OIDC
-      OIDC_ENABLED: ${OIDC_ENABLED:-false}
-      OIDC_ISSUER_URL: ${OIDC_ISSUER_URL:-}
-      OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-diurnal}
-      OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
-      OIDC_PROVIDER_NAME: ${OIDC_PROVIDER_NAME:-your identity provider}
-      OIDC_AUTO_REDIRECT: ${OIDC_AUTO_REDIRECT:-false}
-      OIDC_VERIFY_ON_STARTUP: ${OIDC_VERIFY_ON_STARTUP:-true}
-      OIDC_ADMIN_GROUP: ${OIDC_ADMIN_GROUP:-diurnal-admins}
-      OIDC_USER_GROUP: ${OIDC_USER_GROUP:-diurnal-users}
-      OIDC_LOGOUT_URL: ${OIDC_LOGOUT_URL}
-    networks:
-      - diurnal
+    cap_drop:
+      - ALL
     depends_on:
       diurnal-db:
         condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          memory: "2G"
+          pids: "256"
+    memswap_limit: "2G"
+    env_file:
+      - .env
+    environment:
+      # Database configuration
+      DB_HOST: "diurnal-db"
+      DB_PORT: "5432"
+      DB_NAME: "diurnal_db"
+      DB_USER: "diurnal_user"
+      DB_PASSWORD: "change-me-strong-password"
+      # Application configuration
+      DB_LOG_LEVEL: "WARN"
+      EXPORT_CSV_BOM: "false"
+      LOG_LEVEL: "DEBUG"
+      MAX_UPLOAD_SIZE: "100M"
+      NOTE_ENCRYPTION_KEY: "${NOTE_ENCRYPTION_KEY:?NOTE_ENCRYPTION_KEY must be set}"  # Generate using `openssl rand -base64 32`
+      NOTE_ENCRYPTION_PREVIOUS_KEYS: ""
+      NOTE_MAX_LENGTH: "10000"
+      TZ: "Pacific/Auckland"
+      # Authentication config
+      ENABLE_REGISTRATION: "true"
+      OIDC_ENABLED: "true"
+      OIDC_ISSUER_URL: "https://auth.${DOMAIN_NAME}"
+      OIDC_CLIENT_ID: "${OIDC_CLIENT_ID:-diurnal}"
+      OIDC_CLIENT_SECRET: "${OIDC_CLIENT_SECRET:-}"
+      OIDC_PROVIDER_NAME: "Authelia"
+      OIDC_AUTO_REDIRECT: "false"
+      OIDC_VERIFY_ON_STARTUP: "true"
+      OIDC_ADMIN_GROUP: "diurnal_admins"
+      OIDC_USER_GROUP: "diurnal_users"
+      OIDC_LOGOUT_URL: ""
+      PASSWORD_AUTH_ENABLED: "true"
+      SESSION_IDLE_TIMEOUT: "P30D"
+      SESSION_ABSOLUTE_LIFETIME: "P90D"
+      TRUST_X_FORWARDED_HEADERS: "true"
     labels:
       # Reverse proxy config
       traefik.enable: "true"
@@ -78,57 +64,69 @@ services:
       traefik.http.routers.diurnal.tls: "true"
       traefik.http.routers.diurnal.middlewares: "no-forward-auth@file"
       traefik.http.services.diurnal.loadbalancer.server.port: "8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    networks:
+      - diurnal-network
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges=true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    user: "65532:65532"  # nonroot user
 
   diurnal-db:
     image: postgres:18.6-alpine
     container_name: diurnal-db
     hostname: diurnal-db
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      TZ: ${TZ:-UTC}
-      POSTGRES_DB: ${DB_NAME:-diurnal_db}
-      POSTGRES_USER: ${DB_USER:-diurnal_user}
-      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
-      PGDATA: /var/lib/postgresql/data/pgdata
     command:
-      - -c
-      - shared_buffers=${DB_SHARED_BUFFERS:-256MB}
-      - -c
-      - effective_cache_size=${DB_EFFECTIVE_CACHE_SIZE:-768MB}
-      - -c
-      - work_mem=${DB_WORK_MEM:-8MB}
-      - -c
-      - maintenance_work_mem=${DB_MAINTENANCE_WORK_MEM:-128MB}
-      # Diurnal's connection pool maxes out at 10; the rest is headroom for psql and backups.
-      - -c
-      - max_connections=${DB_MAX_CONNECTIONS:-25}
-      # 1.1 assumes SSD/NVMe. Set it to 4 if the database lives on a spinning disk.
-      - -c
-      - random_page_cost=${DB_RANDOM_PAGE_COST:-1.1}
-      - -c
-      - checkpoint_timeout=15min
-      - -c
-      - max_wal_size=2GB
-      - -c
-      - min_wal_size=256MB
-      - -c
-      - wal_compression=lz4
-      # Diurnal issues small OLTP queries; JIT compilation is pure latency for them.
-      - -c
-      - jit=off
-    volumes:
-      - diurnal-db_data:/var/lib/postgresql/
+      - -ccheckpoint_timeout=15min
+      - -ceffective_cache_size=768MB
+      - -cjit=off
+      - -cmaintenance_work_mem=128MB
+      - -cmax_connections=25
+      - -cmax_wal_size=2GB
+      - -cmin_wal_size=256MB
+      - -crandom_page_cost=1.1
+      - -cshared_buffers=256MB
+      - -cwal_compression=lz4
+      - -cwork_mem=8MB
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_DB: "diurnal_db"
+      POSTGRES_PASSWORD: "change-me-strong-password"
+      POSTGRES_USER: "diurnal_user"
+      TZ: "Pacific/Auckland"
+    expose:
+      - "5432"
     healthcheck:
-      test: [ "CMD-SHELL", "pg_isready -U ${DB_USER:-diurnal_user} -d ${DB_NAME:-diurnal_db}" ]
+      test: [ "CMD-SHELL", "pg_isready -U diurnal_user -d diurnal_db" ]
       interval: 30s
       timeout: 5s
       retries: 5
       start_period: 5s
       start_interval: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
-      - diurnal
+      - diurnal-network
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges=true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+      - /var/run/postgresql:uid=999,gid=999,mode=775  # Giving access to startup root execution
+    user: "999:999"  # postgres user
+    volumes:
+      - diurnal-db_data:/var/lib/postgresql/
 
 volumes:
   diurnal-db_data:

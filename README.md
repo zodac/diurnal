@@ -205,8 +205,7 @@ openssl rand -base64 32
 > the only thing that can read your notes, it is deliberately not stored in the database, and **there is no recovery if it
 > is lost** - every note becomes permanently unreadable. Treat it exactly as you treat `DB_PASSWORD`.
 
-Every setting is documented in [Environment Variables](#environment-variables) below;
-[`.env.example`](docs/.env.example) shows the same options in `.env` form.
+Every setting is documented in [Environment Variables](#environment-variables) below.
 
 **3. Start the application:**
 

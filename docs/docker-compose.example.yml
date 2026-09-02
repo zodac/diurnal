@@ -1,16 +1,6 @@
-# Example Docker Compose file for running Diurnal.
-#
-# Quick start:
-#   1. Copy this file to `docker-compose.yml`
-#   2. Set DB_PASSWORD below (use a long, random value)
-#   3. Run: docker compose up -d
-#   4. Open http://localhost:8080 and register the first account (it becomes the administrator)
-#
-# See the README for the full list of environment variables.
-
 networks:
-  diurnal:
-    name: diurnal
+  diurnal-network:
+    name: diurnal-network
     driver: bridge
 
 services:
@@ -19,71 +9,91 @@ services:
     image: zodac/diurnal:latest
     container_name: diurnal
     hostname: diurnal
+    cap_drop:
+      - ALL
     depends_on:
       diurnal-db:
         condition: service_healthy
     deploy:
       resources:
         limits:
-          memory: "2048M"
-          pids: 256
-    memswap_limit: ${APP_MEM_LIMIT:-2g}
+          memory: "2G"
+          pids: "256"
+    memswap_limit: "2G"
+    env_file:
+      - .env
     environment:
-      # --- Database connection (must match the diurnal-db service below) ---
-      DB_HOST: diurnal-db
-      DB_PORT: 5432
-      DB_NAME: diurnal_db
-      DB_USER: diurnal_user
-      DB_PASSWORD: change-me-strong-password        # <-- CHANGE ME
-      TZ: UTC
-      LOG_LEVEL: INFO
+      # Database configuration
+      DB_HOST: "diurnal-db"
+      DB_PORT: "5432"
+      DB_NAME: "diurnal_db"
+      DB_USER: "diurnal_user"
+      DB_PASSWORD: "change-me-strong-password"  # <--- TODO: Change this
+      # Application configuration
+      DB_LOG_LEVEL: "WARN"
+      EXPORT_CSV_BOM: "false"
+      LOG_LEVEL: "DEBUG"
+      MAX_UPLOAD_SIZE: "100M"
+      NOTE_ENCRYPTION_KEY: "change-me-strong-password"  # <--- TODO: Change this, generate using `openssl rand -base64 32`
+      NOTE_ENCRYPTION_PREVIOUS_KEYS: ""
+      NOTE_MAX_LENGTH: "10000"
+      TZ: "Pacific/Auckland"
+      # Authentication config
       ENABLE_REGISTRATION: "true"
-      # Trust X-Forwarded-* from your reverse proxy (needed for https:// OIDC redirects and Secure
-      # cookies). Only keep this "true" if a trusted proxy fronts the app; set "false" if exposed directly.
+      OIDC_ENABLED: "false"
+      OIDC_ISSUER_URL: "https://auth.example.com"
+      OIDC_CLIENT_ID: "diurnal"
+      OIDC_CLIENT_SECRET: "diurnalClientSecret"  # <--- TODO: Change this
+      OIDC_PROVIDER_NAME: "Authelia"
+      OIDC_AUTO_REDIRECT: "false"
+      OIDC_VERIFY_ON_STARTUP: "true"
+      OIDC_ADMIN_GROUP: "diurnal_admins"
+      OIDC_USER_GROUP: "diurnal_users"
+      OIDC_LOGOUT_URL: "https://auth.example.com/logout"
+      PASSWORD_AUTH_ENABLED: "true"
+      SESSION_IDLE_TIMEOUT: "P30D"
+      SESSION_ABSOLUTE_LIFETIME: "P90D"
       TRUST_X_FORWARDED_HEADERS: "true"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
-      - diurnal
+      - diurnal-network
     ports:
       - "8080:8080"
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges=true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+    user: "65532:65532"  # nonroot user
 
   diurnal-db:
     image: postgres:18.6-alpine
     container_name: diurnal-db
     hostname: diurnal-db
-    environment:
-      TZ: UTC
-      POSTGRES_DB: diurnal_db
-      POSTGRES_USER: diurnal_user
-      POSTGRES_PASSWORD: change-me-strong-password   # <-- CHANGE ME (match DB_PASSWORD above)
-      PGDATA: /var/lib/postgresql/data/pgdata
     command:
-      # PostgreSQL tuning
-      - -c
-      - shared_buffers=${DB_SHARED_BUFFERS:-256MB}
-      - -c
-      - effective_cache_size=${DB_EFFECTIVE_CACHE_SIZE:-768MB}
-      - -c
-      - work_mem=${DB_WORK_MEM:-8MB}
-      - -c
-      - maintenance_work_mem=${DB_MAINTENANCE_WORK_MEM:-128MB}
-      # Diurnal's connection pool maxes out at 10; the rest is headroom for psql and backups.
-      - -c
-      - max_connections=${DB_MAX_CONNECTIONS:-25}
-      # 1.1 assumes SSD/NVMe. Set it to 4 if the database lives on a spinning disk.
-      - -c
-      - random_page_cost=${DB_RANDOM_PAGE_COST:-1.1}
-      - -c
-      - checkpoint_timeout=15min
-      - -c
-      - max_wal_size=2GB
-      - -c
-      - min_wal_size=256MB
-      - -c
-      - wal_compression=lz4
-      # Diurnal issues small OLTP queries; JIT compilation is pure latency for them.
-      - -c
-      - jit=off
+      - -ccheckpoint_timeout=15min
+      - -ceffective_cache_size=768MB
+      - -cjit=off
+      - -cmaintenance_work_mem=128MB
+      - -cmax_connections=25  # Diurnal's connection pool maxes out at 10, the rest is headroom for psql and backups
+      - -cmax_wal_size=2GB
+      - -cmin_wal_size=256MB
+      - -crandom_page_cost=1.1  # 1.1 assumes SSD/NVMe, set it to 4 if the database lives on a spinning disk
+      - -cshared_buffers=256MB
+      - -cwal_compression=lz4
+      - -cwork_mem=8MB
+    environment:
+      PGDATA: /var/lib/postgresql/data/pgdata
+      POSTGRES_DB: "diurnal_db"
+      POSTGRES_PASSWORD: "change-me-strong-password"  # <--- TODO: Change this
+      POSTGRES_USER: "diurnal_user"
+      TZ: "UTC"
+    expose:
+      - "5432"
     healthcheck:
       test: [ "CMD-SHELL", "pg_isready -U diurnal_user -d diurnal_db" ]
       interval: 30s
@@ -91,9 +101,20 @@ services:
       retries: 5
       start_period: 5s
       start_interval: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     networks:
-      - diurnal
+      - diurnal-network
     restart: unless-stopped
+    security_opt:
+      - no-new-privileges=true
+    tmpfs:
+      - /tmp:size=64m,noexec,nosuid,nodev
+      - /var/run/postgresql:uid=999,gid=999,mode=775
+    user: "999:999"  # postgres user
     volumes:
       - diurnal-db_data:/var/lib/postgresql/
 
