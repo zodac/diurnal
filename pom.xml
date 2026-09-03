@@ -341,16 +341,18 @@
                 <groupId>com.mycila</groupId>
                 <artifactId>license-maven-plugin</artifactId>
             </plugin>
+            <!-- Bare declaration: the parent manages the config and BOTH executions (`default` over the
+                 sources at 'validate', `pom` over pom.xml at 'prepare-package'), so this only activates
+                 them. Deliberately NOT re-bound the way the four linters below are - they sit at
+                 'install' in the parent and must move to 'prepare-package' to run before the IT/E2E
+                 tiers, whereas checkstyle is ALREADY at the first phase of the build. This used to
+                 carry the same "Re-bound from phase 'install'" comment as the others, copied when the
+                 parent was adopted; it was never true for checkstyle (every parent-pom this project has
+                 used binds it at 'validate'), and the override only pushed the cheapest linter behind
+                 compile, test-compile and the unit tests. Do not re-add it. -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
-                <!-- Re-bound from phase 'install' -> 'prepare-package' so lints execute before IT/e2e -->
-                <executions>
-                    <execution>
-                        <id>default</id>
-                        <phase>prepare-package</phase>
-                    </execution>
-                </executions>
             </plugin>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -359,7 +361,14 @@
                     <execution>
                         <id>default</id>
                         <configuration>
-                            <ignoredUsedUndeclaredDependencies>
+                            <!-- combine.children="append" on both lists, because the default merge is
+                                 REPLACE: without it this child list silently discards the parent's own
+                                 entries (today `org.checkerframework:dataflow-nullaway::`, a NullAway
+                                 false positive). That loss is invisible - the analysis just stops
+                                 ignoring something - and it is inert only because `ignoreNonCompile` is
+                                 true in the parent, so the next entry the parent adds would be dropped
+                                 with no signal at all. -->
+                            <ignoredUsedUndeclaredDependencies combine.children="append">
                                 <!-- Declared `quarkus` extensions are "unused" in the code, while their transitive APIs are "used undeclared" -->
                                 <ignoredUsedUndeclaredDependency>io.quarkus*:*</ignoredUsedUndeclaredDependency>
                                 <ignoredUsedUndeclaredDependency>io.smallrye*:*</ignoredUsedUndeclaredDependency>
@@ -367,7 +376,7 @@
                                 <ignoredUsedUndeclaredDependency>jakarta.*:*</ignoredUsedUndeclaredDependency>
                                 <ignoredUsedUndeclaredDependency>org.eclipse.microprofile.*:*</ignoredUsedUndeclaredDependency>
                             </ignoredUsedUndeclaredDependencies>
-                            <ignoredUnusedDeclaredDependencies>
+                            <ignoredUnusedDeclaredDependencies combine.children="append">
                                 <ignoredUnusedDeclaredDependency>io.quarkus:quarkus-*</ignoredUnusedDeclaredDependency>
                             </ignoredUnusedDeclaredDependencies>
                         </configuration>
