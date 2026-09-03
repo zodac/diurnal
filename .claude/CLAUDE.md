@@ -59,7 +59,7 @@ npm --prefix frontend install    # one-time (required for `mvn` to build the CSS
 npm --prefix frontend run css    # or: npm --prefix frontend run css:watch
 
 # Start dev PostgreSQL (required before quarkus:dev)
-docker compose -f docker-compose.dev.yml up -d diurnal-db-dev
+docker compose -p diurnal-dev -f docker-compose.dev.yml up -d diurnal-db-dev
 
 # Run in dev mode (hot reload, Swagger UI at /api, port 8081)
 # ALWAYS stop when done: pkill -f "quarkus:dev"
@@ -164,7 +164,7 @@ run automatically. Data is ephemeral (
 wiped on container recreate).
 
 > **Tear down the dev environment when finished.** Use `scripts/dev-up.sh` / `scripts/dev-teardown.sh`. Manual: `pkill -f "quarkus:dev"`, then
-`docker compose -f docker-compose.dev.yml down`. The `-Dall` run manages the test DB automatically in `pre/post-integration-test`.
+`docker compose -p diurnal-dev -f docker-compose.dev.yml down`. The `-Dall` run manages the test DB automatically in `pre/post-integration-test`.
 
 Config layers: `application.properties` (base/prod), `application-dev.properties` (port 8081, DEBUG), `application-test.properties` (UTC). Both
 profile files must stay in `src/main/resources` — the E2E jar runs with `-Dquarkus.profile=test` and only reads bundled config.

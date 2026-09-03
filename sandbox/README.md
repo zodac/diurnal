@@ -148,7 +148,7 @@ project with a stray lockfile on its first open.
 
 Scripted `run <cmd>` invocations skip setup (no TTY) so they stay fast. After
 setup, everything works normally: `mvn clean install -Dall`, `scripts/dev-up.sh`,
-`docker compose -f docker-compose.dev.yml up -d diurnal-db-dev`, etc.
+`docker compose -p diurnal-dev -f docker-compose.dev.yml up -d diurnal-db-dev`, etc.
 
 ## Reusing this sandbox in another project
 

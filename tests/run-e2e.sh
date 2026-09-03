@@ -33,6 +33,10 @@ BASEDIR="$3"
 # below stays absolute, so it is unaffected by this cd.)
 cd "${BASEDIR}"
 COMPOSE_FILE="docker-compose.dev.yml"
+# The dev DB's compose project. Namespaced rather than relying on a global container_name, so this tier
+# cannot remove a database another build (or a `quarkus:dev` session) is using. Must match pom.xml,
+# scripts/dev-up.sh and scripts/dev-teardown.sh.
+DB_PROJECT="diurnal-dev"
 APP_PID=""
 
 # Records the running jar's PID so a LATER run can reap it if this one is killed outright (SIGKILL, a
@@ -43,7 +47,7 @@ PID_FILE="${BASEDIR}/tests/.e2e-app.pid"
 cleanup() {
   if [[ -n "${APP_PID}" ]]; then kill -9 "${APP_PID}" 2>/dev/null || true; fi
   rm -f "${PID_FILE}"
-  docker compose -f "${COMPOSE_FILE}" rm -sf diurnal-db-dev >/dev/null 2>&1 || true
+  docker compose -p "${DB_PROJECT}" -f "${COMPOSE_FILE}" rm -sf diurnal-db-dev >/dev/null 2>&1 || true
 }
 # EXIT alone is not enough: a SIGINT (Ctrl-C), a SIGTERM (CI cancelling the job, or the java step's own
 # stop_tier signalling this tier because a sibling failed first) or a SIGHUP would skip an EXIT-only trap
@@ -87,7 +91,7 @@ fi
 (cd "${BASEDIR}/tests" && npx playwright install chromium)
 
 # Bring up the DB and block until its healthcheck passes.
-docker compose -f "${COMPOSE_FILE}" up -d --wait diurnal-db-dev
+docker compose -p "${DB_PROJECT}" -f "${COMPOSE_FILE}" up -d --wait diurnal-db-dev
 
 # The -D pins outrank the repo-root .env (which Quarkus also reads at runtime, at a HIGHER priority
 # than the bundled %test profile): a deployer flipping PASSWORD_AUTH_ENABLED/ENABLE_REGISTRATION there

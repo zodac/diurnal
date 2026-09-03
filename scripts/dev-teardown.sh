@@ -108,7 +108,7 @@ for pid in $(port_listener_pids); do
 done
 
 echo "→ Removing the dev database container (diurnal-db-dev)…"
-docker compose -f docker-compose.dev.yml rm -sf diurnal-db-dev >/dev/null 2>&1 || true
+docker compose -p diurnal-dev -f docker-compose.dev.yml rm -sf diurnal-db-dev >/dev/null 2>&1 || true
 
 echo "→ Removing any leftover deployment-smoke stack (diurnal-smoke)…"
 # Namespaced project, so this only ever touches the smoke app + DB — never the prod `diurnal` stack.
