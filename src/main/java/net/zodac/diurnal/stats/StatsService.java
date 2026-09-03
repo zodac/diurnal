@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.stats;
 
+import io.quarkus.narayana.jta.QuarkusTransaction;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.LocalDate;
@@ -42,6 +43,7 @@ import net.zodac.diurnal.log.DatedActionCount;
 import net.zodac.diurnal.log.MonthlyActionTotal;
 import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.persistence.LogStatements;
+import net.zodac.diurnal.stats.cache.SubjectStatsCache;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.time.DaySpan;
 import net.zodac.diurnal.time.Durations;
@@ -94,6 +96,61 @@ public class StatsService {
         final User user = User.findById(userId);
         final LocalDate today = todayFor(user);
 
+        final List<SubjectStats> cached = fromCache(userId, user, today);
+        if (!cached.isEmpty()) {
+            return cached;
+        }
+
+        final List<SubjectStats> computed = computeAllSubjects(userId, user, today);
+        // A read path that writes, deliberately. The endpoints calling this carry no @Transactional - a page render holding a connection open is
+        // what that rule exists to prevent - so the cache write opens its own short transaction (joining one if a caller already has it open, the
+        // shape PostgresSessionStore uses for the same reason). A failure to store costs the next reader a recompute and nothing else.
+        final List<SubjectStatsCache> rows = computed.stream().map(stats -> SubjectStatsCaching.from(userId, stats)).toList();
+        try {
+            QuarkusTransaction.joiningExisting().run(() -> SubjectStatsCache.store(userId, rows));
+        } catch (final RuntimeException e) { // NOPMD: AvoidCatchingGenericException/EmptyCatchBlock - see below
+            // Best-effort by design, and deliberately silent. Two first-of-the-day reads for the same user race here: each deletes rows the other
+            // cannot see yet and then inserts the same (user, subject) keys, so the loser trips the primary key. The figures it failed to store are
+            // exactly the ones the winner did store, so there is nothing to recover and nothing an operator could act on - and a cache write must
+            // never turn a GET into a 500. The next reader either hits the winner's rows or recomputes.
+        }
+        return computed;
+    }
+
+    // The cached figures for a user, EMPTY when they must be recomputed. A stored-but-empty result is indistinguishable from a miss and is
+    // therefore treated as one, which is deliberate: the only user it affects is one with no actions and no notes, for whom recomputing is two
+    // trivial queries over no rows, and the alternative would be a tombstone row keyed on a subject that does not exist.
+    //
+    // The subjects themselves are rebuilt live rather than read back, because nothing about a name or a colour is stored (see SubjectStatsCache);
+    // that is what keeps a rename, a recolour and the note-colour preference off the invalidation surface. Rebuilding here also reproduces
+    // computeAllSubjects' ordering exactly - notes first, then the actions name-ascending - since a cached row whose subject no longer resolves is
+    // simply skipped.
+    private static List<SubjectStats> fromCache(final UUID userId, final @Nullable User user, final LocalDate today) {
+        final List<SubjectStatsCache> rows = SubjectStatsCache.findFresh(userId, today);
+        if (rows.isEmpty()) {
+            return List.of();
+        }
+
+        final Map<UUID, SubjectStatsCache> bySubject = new HashMap<>(rows.size());
+        for (final SubjectStatsCache row : rows) {
+            bySubject.put(row.subjectId, row);
+        }
+
+        final List<SubjectStats> subjects = new ArrayList<>(rows.size());
+        final SubjectStatsCache notesRow = bySubject.get(StatSubject.NOTES_ID);
+        if (notesRow != null) {
+            subjects.add(SubjectStatsCaching.toStats(notesRow, StatSubject.notes(noteColourFor(user))));
+        }
+        for (final Action action : Action.findByUser(userId)) {   // name-ascending
+            final SubjectStatsCache row = bySubject.get(action.id);
+            if (row != null) {
+                subjects.add(SubjectStatsCaching.toStats(row, StatSubject.of(action)));
+            }
+        }
+        return List.copyOf(subjects);
+    }
+
+    private static List<SubjectStats> computeAllSubjects(final UUID userId, final @Nullable User user, final LocalDate today) {
         // The note days double as the existence check, so reading them FIRST means a user who has never written a note pays for this one query and
         // nothing else - no monthly rollup, no assembly. That is the common case on the Stats page's and GET /api/v1/stats' hot path.
         final List<DailyActionTotal> noteDays = Note.dailyTotals(userId, StatSubject.NOTES_ID);

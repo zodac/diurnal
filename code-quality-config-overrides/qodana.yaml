@@ -23,15 +23,16 @@ profile:
       ignore: [ 'src/main/java/net/zodac/diurnal/config/**', 'src/main/java/net/zodac/diurnal/crypto/**',
                 'src/main/java/net/zodac/diurnal/note/**', 'src/main/java/net/zodac/diurnal/transfer/**' ]
 
-    # The JPA id-class contract, not a style choice: `ActionLogId` mirrors the entity's composite key, and the provider builds it through a
-    # no-argument constructor and then populates the fields - so they cannot be final, and the key they hold IS what equality means for the row.
+    # The JPA id-class contract, not a style choice: `ActionLogId` and `SubjectStatsCacheId` mirror their entity's composite key, and the provider
+    # builds each through a no-argument constructor and then populates the fields - so they cannot be final, and the key they hold IS what equality
+    # means for the row.
     # Scoped to that one file rather than switched off, so an ordinary mutable-field equals() anywhere else is still reported. NB: neither of these
     # honours a `@SuppressWarnings` naming the inspection id, at class or method scope (measured) - this ignore is the only thing that silences them.
     - inspection: EqualsUsesNonFinalVariable
-      ignore: [ 'src/main/java/net/zodac/diurnal/log/ActionLogId.java' ]
+      ignore: [ 'src/main/java/net/zodac/diurnal/log/ActionLogId.java', 'src/main/java/net/zodac/diurnal/stats/cache/SubjectStatsCacheId.java' ]
 
     - inspection: HashCodeUsesNonFinalVariable
-      ignore: [ 'src/main/java/net/zodac/diurnal/log/ActionLogId.java' ]
+      ignore: [ 'src/main/java/net/zodac/diurnal/log/ActionLogId.java', 'src/main/java/net/zodac/diurnal/stats/cache/SubjectStatsCacheId.java' ]
 
     # Directly contradicts PMD's OptimizableToArrayCall, which flags the pre-sized `new T[n]` this one asks for. PMD is the one that is right: an
     # empty prototype lets the JVM allocate the array itself, which is measurably faster. Scoped to the two bulk-write methods that pass an array

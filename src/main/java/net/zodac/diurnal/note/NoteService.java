@@ -29,6 +29,7 @@ import java.util.UUID;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
 import net.zodac.diurnal.persistence.NoteStatements;
+import net.zodac.diurnal.stats.cache.SubjectStatsCache;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.text.TextValidation;
@@ -331,6 +332,7 @@ public class NoteService {
         // Atomic upsert: a find-then-insert race between two tabs saving the same day would otherwise trip
         // the notes_unique constraint as a 500. What is stored is the SEALED form of the normalised value.
         Note.upsert(statements, user.id, day, NoteContent.seal(dataKey, user.id, day, normalised));
+        SubjectStatsCache.invalidate(user.id);
         // The DATE and the user only - never the content. See the class Javadoc.
         LOGGER.debug("Note saved for {} by user {}", day, user.email);
         return new NoteResult.Saved(day, normalised);
@@ -360,6 +362,7 @@ public class NoteService {
      */
     public void replaceAll(final User user, final Map<LocalDate, String> notes) {
         Note.deleteByUser(user.id);
+        SubjectStatsCache.invalidate(user.id);
         if (notes.isEmpty()) {
             LOGGER.info("Notes replaced with an empty journal for user {}", user.email);
             return;
@@ -397,6 +400,7 @@ public class NoteService {
         // INFO only when a note was actually removed, matching LogService's own delete: a destructive write is
         // worth an operator's attention, but clearing a day that had nothing is not an event at all.
         if (Note.deleteEntry(user.id, day)) {
+            SubjectStatsCache.invalidate(user.id);
             LOGGER.info("Note deleted for {} by user {}", day, user.email);
         } else {
             LOGGER.debug("Note clear for {} by user {} removed nothing", day, user.email);

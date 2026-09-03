@@ -46,6 +46,7 @@ import net.zodac.diurnal.note.NoteContent;
 import net.zodac.diurnal.note.UserNotesKey;
 import net.zodac.diurnal.note.crypto.Aes256Gcm;
 import net.zodac.diurnal.note.crypto.DataKeyEnvelope;
+import net.zodac.diurnal.stats.cache.SubjectStatsCache;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
@@ -104,6 +105,7 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
         freezeDate(FIXED_TODAY);
         tx.begin();
         try {
+            SubjectStatsCache.deleteAll();
             Note.deleteAll();
             UserNotesKey.deleteAll();
             ActionLog.deleteAll();

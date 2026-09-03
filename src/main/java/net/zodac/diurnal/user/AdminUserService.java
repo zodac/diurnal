@@ -29,6 +29,7 @@ import net.zodac.diurnal.log.ActionLog;
 import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
+import net.zodac.diurnal.stats.cache.SubjectStatsCache;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -139,9 +140,10 @@ public class AdminUserService {
         sessionStore.revokeAllForUser(target.id);
         LOGGER.debug("Revoked all sessions of deleted user {}", target.email);
 
-        // Hard-delete in FK order: notes → logs → actions → user. Each step is a single bulk statement
+        // Hard-delete in FK order: cached stats → notes → logs → actions → user. Each step is a single bulk statement
         // (all the account's rows key on its userId), so a big account does not fan out into a per-action
         // delete. Notes reference only the user, so they can go first with the logs.
+        SubjectStatsCache.invalidate(target.id);
         Note.deleteByUser(target.id);
         ActionLog.deleteByUser(target.id);
         Action.delete("userId", target.id);
