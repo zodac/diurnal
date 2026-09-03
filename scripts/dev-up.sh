@@ -28,7 +28,7 @@ if curl -sf "http://localhost:${PORT}/login" >/dev/null 2>&1; then
 fi
 
 echo "→ Starting dev database (diurnal-db-dev)…"
-docker compose -f docker-compose.dev.yml up -d diurnal-db-dev
+docker compose -p diurnal-dev -f docker-compose.dev.yml up -d diurnal-db-dev
 
 # Dummy-IdP OIDC config, only when OIDC_PREVIEW=1 (see the header). These -D system properties are
 # forwarded by quarkus:dev to the running app exactly like -Dquarkus.http.port below.

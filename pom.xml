@@ -550,6 +550,12 @@
                                     <executable>docker</executable>
                                     <arguments>
                                         <argument>compose</argument>
+                                        <!-- Namespaced so this DB belongs to a compose PROJECT rather than to a globally-named container: two
+                                             concurrent builds, or a developer's `quarkus:dev` session, would otherwise all manage the same
+                                             `diurnal-db-dev` container and the `rm -sf` below would remove it out from under whoever else was
+                                             using it. Must stay in step with scripts/dev-up.sh, scripts/dev-teardown.sh and tests/run-e2e.sh. -->
+                                        <argument>-p</argument>
+                                        <argument>diurnal-dev</argument>
                                         <argument>-f</argument>
                                         <argument>${project.basedir}/docker-compose.dev.yml</argument>
                                         <argument>up</argument>
@@ -571,6 +577,8 @@
                                     <executable>docker</executable>
                                     <arguments>
                                         <argument>compose</argument>
+                                        <argument>-p</argument>
+                                        <argument>diurnal-dev</argument>
                                         <argument>-f</argument>
                                         <argument>${project.basedir}/docker-compose.dev.yml</argument>
                                         <argument>rm</argument>

@@ -1,7 +1,9 @@
 # Isolated full-stack smoke environment — builds and runs the REAL production image (Dockerfile) so
 # the deployment-smoke suite can exercise the packaged distroless / jlink / non-root runtime, which
 # no other test tier covers (unit + IT + E2E all run on a full JDK). Brought up by tests/run-smoke.sh,
-# which is wired into `mvn clean install -Dall` via the `e2e-then-smoke` exec in pom.xml.
+# which is chained onto the `java` step of .github/scripts/lint_and_tests.sh - NOT onto any `mvn` command.
+# The smoke tier was deliberately removed from the pom (see CLAUDE.md: the Maven build is unit + *IT +
+# linters only); do not re-add it, and do not read this file as evidence that `mvn` brings the stack up.
 #
 # Deliberately self-contained and namespaced so it NEVER collides with a running production stack
 # (docker-compose.yml): a distinct compose project (`-p diurnal-smoke`, set by run-smoke.sh), no
