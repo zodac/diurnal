@@ -23,6 +23,7 @@ import java.time.LocalDate;
 import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.persistence.LogStatements;
+import net.zodac.diurnal.stats.cache.SubjectStatsCache;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
@@ -104,6 +105,7 @@ class LogService {
         // Atomic upsert: a find-then-insert race on a not-yet-logged action would trip the unique
         // constraint as a 500.
         ActionLog.setCount(statements, user.id, actionId, day, newCount);
+        SubjectStatsCache.invalidate(user.id);
         LOGGER.debug("Log count set: action {} on {} -> {} for user {}", actionId, day, newCount, user.email);
         return new LogResult.Updated(action, newCount);
     }
@@ -120,16 +122,7 @@ class LogService {
      * @return the outcome
      */
     LogResult adjust(final User user, final LocalDate day, final UUID actionId, final int amount, final boolean increment) {
-        return guarded(user, day, actionId, action -> {
-            // Atomic: a find-then-write race would lose an update (or trip the unique constraint as a
-            // 500) when two clients adjust the same action concurrently.
-            final int newCount = increment
-                ? ActionLog.incrementCount(statements, user.id, actionId, day, amount)
-                : ActionLog.decrementCount(user.id, actionId, day, amount);
-            LOGGER.debug("Log {} by {}: action {} on {} -> {} for user {}",
-                increment ? "incremented" : "decremented", amount, actionId, day, newCount, user.email);
-            return new LogResult.Updated(action, newCount);
-        });
+        return guarded(user, day, actionId, action -> applyAdjustment(statements, user, day, actionId, amount, increment, action));
     }
 
     /**
@@ -150,6 +143,19 @@ class LogService {
 
     // Applies the shared guard sequence (future date first, then ownership — both surfaces report in
     // this order) and only then runs the operation with the resolved owned action.
+    private static LogResult applyAdjustment(final LogStatements statements, final User user, final LocalDate day, final UUID actionId,
+        final int amount, final boolean increment, final Action action) {
+        // Atomic: a find-then-write race would lose an update (or trip the unique constraint as a
+        // 500) when two clients adjust the same action concurrently.
+        final int newCount = increment
+            ? ActionLog.incrementCount(statements, user.id, actionId, day, amount)
+            : ActionLog.decrementCount(user.id, actionId, day, amount);
+        SubjectStatsCache.invalidate(user.id);
+        LOGGER.debug("Log {} by {}: action {} on {} -> {} for user {}",
+            increment ? "incremented" : "decremented", amount, actionId, day, newCount, user.email);
+        return new LogResult.Updated(action, newCount);
+    }
+
     private LogResult guarded(final User user, final LocalDate day, final UUID actionId, final java.util.function.Function<Action, LogResult> op) {
         if (LogGuards.isFuture(day, user, clock)) {
             return new LogResult.FutureDate();
@@ -165,6 +171,7 @@ class LogService {
         final ActionLog entry = ActionLog.findEntry(user.id, actionId, day);
         if (entry != null) {
             entry.delete();
+            SubjectStatsCache.invalidate(user.id);
         }
     }
 }

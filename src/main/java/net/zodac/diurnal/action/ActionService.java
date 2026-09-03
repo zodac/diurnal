@@ -24,6 +24,7 @@ import java.util.Collection;
 import java.util.SplittableRandom;
 import java.util.UUID;
 import net.zodac.diurnal.log.ActionLog;
+import net.zodac.diurnal.stats.cache.SubjectStatsCache;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.text.TextOutcome;
 import net.zodac.diurnal.text.TextValidation;
@@ -159,6 +160,9 @@ class ActionService {
         }
         // Remove the action's logged entries first, then the action itself.
         ActionLog.deleteByAction(action.userId, action.id);
+        // The action's own figures go with it, and every other subject's are unaffected - but the cache is keyed per user, so the whole set is
+        // dropped and the next Stats read rebuilds it. A rename or a recolour needs no such call: neither is stored.
+        SubjectStatsCache.invalidate(action.userId);
         action.delete();
         LOGGER.info("Action deleted: {} for user {}", action.id, user.email);
         return new ActionResult.Success(action);

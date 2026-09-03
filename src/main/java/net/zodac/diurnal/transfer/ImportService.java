@@ -35,6 +35,7 @@ import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.note.NoteField;
 import net.zodac.diurnal.note.NoteService;
 import net.zodac.diurnal.persistence.LogStatements;
+import net.zodac.diurnal.stats.cache.SubjectStatsCache;
 import net.zodac.diurnal.text.TextOutcomeExtensions;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.User;
@@ -194,6 +195,7 @@ public class ImportService {
             logCounts.add(draft.count());
         }
         ActionLog.setCounts(statements, user.id, logActionIds, logDates, logCounts);
+        SubjectStatsCache.invalidate(user.id);
 
         final Map<LocalDate, String> notes = new LinkedHashMap<>();
         for (final NoteDraft draft : plan.notes()) {
