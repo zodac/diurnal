@@ -69,7 +69,7 @@ public final class EntityTags {
      *
      * @return the {@code private, no-cache} cache-control directive
      */
-    public static CacheControl privateNoCache() {
+    static CacheControl privateNoCache() {
         final CacheControl cacheControl = new CacheControl();
         cacheControl.setPrivate(true);
         cacheControl.setNoCache(true);

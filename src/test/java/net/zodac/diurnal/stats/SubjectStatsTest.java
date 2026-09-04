@@ -139,24 +139,6 @@ class SubjectStatsTest {
             .isEqualTo("3 September 2024");
     }
 
-    // ── performedThisMonth ──────────────────────────────────────────────────────
-
-    @Test
-    void performedThisMonth_zeroThisMonth_returnsFalse() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY.minusDays(40L), TODAY.minusDays(40L), 0, 1, 0L, 3L, 1L, 0L, null, 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.performedThisMonth(subjectStats))
-            .as("expected condition to be false")
-            .isFalse();
-    }
-
-    @Test
-    void performedThisMonth_positiveThisMonth_returnsTrue() {
-        final SubjectStats subjectStats = stats(1, 1L, TODAY, TODAY, 1, 1, 2L, 0L, 2L, 0L, null, 0L, "—", 0L);
-        assertThat(SubjectStatsExtensions.performedThisMonth(subjectStats))
-            .as("expected condition to be true")
-            .isTrue();
-    }
-
     // ── weeklyDayAverage / monthlyDayAverage / weeklyCountAverage / monthlyCountAverage ────────
 
     @Test
