@@ -120,7 +120,7 @@ public final class UserSettings {
     /**
      * Whether the given page size is within the accepted range ({@link #MIN_PAGE_SIZE}–{@link #MAX_PAGE_SIZE}).
      */
-    public static boolean isValidPageSize(final int value) {
+    static boolean isValidPageSize(final int value) {
         return value >= MIN_PAGE_SIZE && value <= MAX_PAGE_SIZE;
     }
 
@@ -149,7 +149,7 @@ public final class UserSettings {
     /**
      * Whether the given decimal-place count is within the accepted range ({@link #MIN_DECIMAL_PLACES}–{@link #MAX_DECIMAL_PLACES}).
      */
-    public static boolean isValidDecimalPlaces(final int value) {
+    static boolean isValidDecimalPlaces(final int value) {
         return value >= MIN_DECIMAL_PLACES && value <= MAX_DECIMAL_PLACES;
     }
 

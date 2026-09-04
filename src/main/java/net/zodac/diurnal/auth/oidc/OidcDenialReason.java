@@ -17,9 +17,6 @@
 
 package net.zodac.diurnal.auth.oidc;
 
-import java.util.Optional;
-import org.jspecify.annotations.Nullable;
-
 /**
  * The reason an OIDC login was refused by {@link OidcLoginPolicy}. Each reason carries a stable {@link #code()} (persisted in the short-lived
  * {@code diurnal_oidc_error} cookie so the login page can show a specific banner after the error redirect) and the user-facing {@link #message}
@@ -110,20 +107,5 @@ public enum OidcDenialReason {
      */
     public String message(final String providerName) {
         return template.replace("{provider}", providerName);
-    }
-
-    /**
-     * Resolves a cookie value back to its {@link OidcDenialReason}.
-     *
-     * @param code the cookie value, possibly {@code null} or unrecognised
-     * @return the matching reason, or {@link Optional#empty()} when the code is unknown
-     */
-    public static Optional<OidcDenialReason> fromCode(final @Nullable String code) {
-        for (final OidcDenialReason reason : values()) {
-            if (reason.code.equals(code)) {
-                return Optional.of(reason);
-            }
-        }
-        return Optional.empty();
     }
 }

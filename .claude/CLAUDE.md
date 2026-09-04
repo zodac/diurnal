@@ -59,6 +59,12 @@ These bind before any other document is read, and several are enforced by a `Pre
 > `.github/scripts/lint_and_tests.sh shellcheck` and fixing everything it reports — including `info`-level notes
 > like `SC2312` — is mandatory.** Everything else about the gate is in the `gate` skill.
 
+> **NEVER end a turn with a question written as prose — ask it with the `AskUserQuestion` tool.** The usual shape
+> is the end-of-task "investigate further, leave it as is, or apply the fix I described?"; trailing text there does
+> not prompt for an answer, so the decision is silently dropped. Put the recommended course first, labelled
+> "(Recommended)", and give the real alternatives as their own options. Do everything that does not depend on the
+> answer first — the question is the last thing in the turn, never a substitute for finishing the work.
+
 ## Where to look
 
 **Skills (`.claude/skills/`, loaded on demand — invoke the matching one BEFORE starting that kind of work).** Each

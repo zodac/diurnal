@@ -150,7 +150,7 @@ public final class Aes256Gcm {
      * @param count how many bytes to generate
      * @return the random bytes
      */
-    public static byte[] randomBytes(final int count) {
+    static byte[] randomBytes(final int count) {
         final byte[] bytes = new byte[count];
         RANDOM.nextBytes(bytes);
         return bytes;

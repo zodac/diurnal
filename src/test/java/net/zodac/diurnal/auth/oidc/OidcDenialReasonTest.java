@@ -22,32 +22,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import org.junit.jupiter.api.Test;
 
 /**
- * Unit tests for {@link OidcDenialReason}: the cookie-code round trip and the provider-name substitution in the user-facing messages.
+ * Unit tests for {@link OidcDenialReason}: the provider-name substitution in the user-facing messages.
  */
 class OidcDenialReasonTest {
-
-    @Test
-    void fromCode_everyReasonRoundTrips() {
-        for (final OidcDenialReason reason : OidcDenialReason.values()) {
-            assertThat(OidcDenialReason.fromCode(reason.code()))
-                .as("Every reason's code must resolve back to the reason itself")
-                .contains(reason);
-        }
-    }
-
-    @Test
-    void fromCode_unknownCode_isEmpty() {
-        assertThat(OidcDenialReason.fromCode("no-such-code"))
-            .as("An unrecognised cookie value must not resolve to a reason")
-            .isEmpty();
-    }
-
-    @Test
-    void fromCode_null_isEmpty() {
-        assertThat(OidcDenialReason.fromCode(null))
-            .as("An absent cookie must not resolve to a reason")
-            .isEmpty();
-    }
 
     @Test
     void message_accountExists_substitutesProviderName() {

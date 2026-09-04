@@ -68,16 +68,6 @@ public final class SubjectStatsExtensions {
         return stats.totalDays() > 0;
     }
 
-    /**
-     * Whether this action was performed at least once in the current month.
-     *
-     * @param stats the statistics to inspect
-     * @return {@code true} if the action was performed this month
-     */
-    public static boolean performedThisMonth(final SubjectStats stats) {
-        return stats.thisMonthCount() > 0L;
-    }
-
     // ── Stats-page tiles (user-configurable display) ──────────────────────
 
     /**
