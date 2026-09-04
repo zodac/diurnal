@@ -46,7 +46,7 @@
         <span class="presence group relative inline-flex" data-elapsed-seconds="{u.secondsSinceLastRequest}" aria-label="{msg:active}">
             <span class="presence-dot presence-dot-active" aria-hidden="true"></span>
             <span aria-hidden="true" class="app-tooltip w-max bottom-full mb-1.5 start-1/2 app-tooltip-center">
-                <span data-activity-label>{msg:lastSeenPrefix} <span data-activity-clock>0:00</span> {msg:agoSuffix}</span>
+                <span data-activity-label>{msg:lastSeenActivity('<span data-activity-clock>0:00</span>').raw}</span>
             </span>
         </span>
         {#else}

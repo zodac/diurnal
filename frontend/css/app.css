@@ -836,8 +836,11 @@
   }
   /* Small uppercase label (settings read-only fields). */
   .field-label-caps { @apply block text-xs font-medium text-ink-muted uppercase tracking-wide mb-1 font-display; }
-  /* Muted helper / caption text. */
+  /* Muted helper / caption text. A word a helper sentence emphasises is brightened out of the muted colour
+     rather than only bolded - the <strong> is part of the WORDING (AppMessages#importHelp), so which word it
+     falls on is the translation's choice and no class can be put on it from the template. */
   .help-text { @apply text-xs text-ink-muted; }
+  .help-text strong { @apply text-ink; }
 
   /* Numeric preference control: one-click preset pills + a compact −/+ stepper. Every interaction is
      a discrete commit that saves instantly, matching the auto-save model of the other preference

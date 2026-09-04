@@ -848,14 +848,16 @@ public interface AppMessages {
     String setupWelcomeSubtitle();
 
     /**
-     * The setup page's introductory sentence, shown after the static "Diurnal" wordmark span (the brand name is
-     * not translated, so it stays as static template markup rather than part of this message).
+     * The setup page's introductory sentence. The brand name is not translated, so it arrives as the styled wordmark markup {@code setup.html}
+     * composes and this entry is rendered {@code .raw} - see {@link #lastSeenActivity(String)}, which carries its own element the same way, for why
+     * the name is a PLACEHOLDER rather than a span the template writes ahead of a "sentence remainder" entry.
      *
+     * @param appName the placeholder the page replaces with the wordmark markup
      * @return the default (English) text
      */
-    @Message("helps you track the habits and actions you care about. Log what you do each day, build streaks, and review your progress on the "
-        + "dashboard calendar and the stats pages.")
-    String setupIntro();
+    @Message("{appName} helps you track the habits and actions you care about. Log what you do each day, build streaks, and review your progress "
+        + "on the dashboard calendar and the stats pages.")
+    String setupIntro(String appName);
 
     /**
      * The setup page's call-to-action button.
@@ -976,13 +978,15 @@ public interface AppMessages {
     String identityProviderLabel();
 
     /**
-     * The prefix of the "Connected to {@code <provider link>}." sentence — the provider's name stays a clickable
-     * link in the template, so only the surrounding text is a bundle entry.
+     * The Settings "Connected to {@code <provider link>}." sentence. The provider's name is a link to the identity provider itself, composed by
+     * {@link MessageMarkup#brandLink(String, String)} and substituted in whole, so this entry is rendered {@code .raw} - the name does not sit at
+     * the end of the sentence in every language, and the closing full stop is part of the wording rather than of the template.
      *
+     * @param provider the placeholder the page replaces with the linked provider name
      * @return the default (English) text
      */
-    @Message("Connected to")
-    String connectedToPrefix();
+    @Message("Connected to {provider}.")
+    String connectedToProvider(String provider);
 
     /**
      * The OIDC connect button's caption, naming the identity provider.
@@ -1422,29 +1426,15 @@ public interface AppMessages {
     String importLabel();
 
     /**
-     * The prefix of the import help sentence, before the bold "replaces" (kept as static {@code <strong>} markup
-     * in the template, so only the surrounding text is a bundle entry).
+     * The import help sentence, whose warning word is emphasised. The {@code <strong>} is part of the WORDING rather than of the template, exactly
+     * as the bolded file name in {@link #importMissingMember(String)} is: which word carries the warning is a property of the language, and the
+     * three-entry split this replaced forced every translation to put it third-of-five and to accept a space on either side of it (which reads as a
+     * stray gap in a language that does not space its words). Rendered {@code .raw}, and safe to be - it embeds no value at all.
      *
      * @return the default (English) text
      */
-    @Message("Restores an exported archive. This")
-    String importHelpPrefix();
-
-    /**
-     * Import help emphasis.
-     *
-     * @return the default (English) text
-     */
-    @Message("replaces")
-    String importHelpEmphasis();
-
-    /**
-     * Import help suffix.
-     *
-     * @return the default (English) text
-     */
-    @Message("everything for your user.")
-    String importHelpSuffix();
+    @Message("Restores an exported archive. This <strong>replaces</strong> everything for your user.")
+    String importHelp();
 
     /**
      * Choose export archive to import.
@@ -2649,21 +2639,17 @@ public interface AppMessages {
     // ── Admin users list ──────────────────────────────────────────────────────
 
     /**
-     * The prefix of the "Last seen {@code <live clock>} ago" activity tooltip — the clock itself is a
-     * JS-ticked span, so only the surrounding text is a bundle entry.
+     * The admin activity tooltip, whose elapsed time is a LIVE clock ticking up in its own {@code <span>} that {@code app.js} rewrites each second.
+     * The clock travels as a placeholder for the same reason {@link #lockoutRetryCountdown(String)}'s does: it does not sit in the same place in
+     * every language. The "prefix plus clock plus suffix" split this replaced could not be worded correctly at all in Arabic or Spanish, where the
+     * word for "ago" is a PREPOSITION standing before the duration - both had to fold it into the prefix and leave the suffix empty, which reads to
+     * a translation platform as an untranslated string and invites exactly the "0:00 ago"/"hace 0:00 atras" doubling that twice came back.
      *
+     * @param clock the placeholder the page replaces with the live clock element
      * @return the default (English) text
      */
-    @Message("Last seen")
-    String lastSeenPrefix();
-
-    /**
-     * Ago suffix.
-     *
-     * @return the default (English) text
-     */
-    @Message("ago")
-    String agoSuffix();
+    @Message("Last seen {clock} ago")
+    String lastSeenActivity(String clock);
 
     /**
      * Inactive.
@@ -3496,20 +3482,17 @@ public interface AppMessages {
     // ── Pagination ────────────────────────────────────────────────────────────
 
     /**
-     * Showing label.
+     * The list footer's "Showing {@code <shown>} of {@code <total>}" count. Both numbers arrive as the {@code .js-digits} spans
+     * {@link MessageMarkup#countSpan(Object, String)} composes, keeping the ids {@code actions.js} rewrites surgically after an add or a delete, so
+     * this entry is rendered {@code .raw}. Worded as one sentence because "of" is not a word every language puts between two numerals - Japanese
+     * renders the pair as a bare {@code 3/20}, which the two-entry split could only approximate by translating "of" to a slash.
      *
+     * @param shown the placeholder the page replaces with the shown-count element
+     * @param total the placeholder the page replaces with the total-count element
      * @return the default (English) text
      */
-    @Message("Showing")
-    String showingLabel();
-
-    /**
-     * Of label.
-     *
-     * @return the default (English) text
-     */
-    @Message("of")
-    String ofLabel();
+    @Message("Showing {shown} of {total}")
+    String showingOfTotal(String shown, String total);
 
     /**
      * Previous.

@@ -271,10 +271,12 @@
                             {#if isOidcUser}
                             <div class="settings-field flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg">
                                 {! The provider name links to the IdP itself (OIDC_ISSUER_URL), brand-coloured
-                                     via link-brand — the same resting colour the Connect button had. !}
-                                <p class="text-sm text-ink-muted">{msg:connectedToPrefix}
-                                    <a href="{oidcIssuerUrl}" target="_blank" rel="noopener noreferrer"
-                                       class="link-brand">{oidcProviderName}</a>.</p>
+                                     via link-brand — the same resting colour the Connect button had. The whole
+                                     anchor is substituted INTO the sentence (web/MessageMarkup), rather than the
+                                     sentence being split around it: the name does not come last in every
+                                     language, and the full stop belongs to the wording. Hence `.raw` — and hence
+                                     the escaping MessageMarkup does on the way in. !}
+                                <p class="text-sm text-ink-muted">{msg:connectedToProvider(oidcIssuerUrl.brandLink(oidcProviderName)).raw}</p>
                             </div>
 
                             {#else}
@@ -541,7 +543,7 @@
                         <div class="pt-4 border-t border-line">
                             <p class="text-sm font-medium text-ink">{msg:importLabel}</p>
                             <p class="help-text mt-0.5">
-                                {msg:importHelpPrefix} <strong class="text-ink">{msg:importHelpEmphasis}</strong> {msg:importHelpSuffix}
+                                {msg:importHelp.raw}
                             </p>
                             {! The native file input's OWN button text ("Choose File"/"No file chosen") is
                                  drawn from the browser's UI locale, not this page's `lang` - no HTML/CSS
