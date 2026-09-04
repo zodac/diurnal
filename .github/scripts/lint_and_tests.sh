@@ -151,22 +151,8 @@ SCRIPT_DIR="$(cd -- "${SCRIPT_DIR}" > /dev/null 2>&1 && pwd)"
 SCRIPT_NAME="$(basename -- "${SCRIPT_SOURCE}")"
 SCRIPT_PATH="${SCRIPT_DIR}/${SCRIPT_NAME}"
 
-# ── Whole-gate mutex ──────────────────────────────────────────────────────────
-# Two concurrent runs of this script share nearly everything that matters: the test database, target/,
-# .qodana/results, and the fixed compose project names of the smoke and perf tiers. The failure modes are
-# real but deeply misleading - one run's `mvn clean` deleting target/ under another run's failsafe fork
-# surfaces as "TestEngine with ID 'junit-jupiter' encountered a critical issue during test discovery", and
-# a tier's cleanup trap firing late reaps the stack a newer run has just brought up. Neither mentions
-# concurrency anywhere in its output, so both get investigated as product bugs.
-#
-# The lock lives in the REPO rather than /tmp or $XDG_RUNTIME_DIR, deliberately: the checkout is the one
-# thing every caller genuinely shares. A run on the host and a run inside a container bind-mounting the
-# same checkout must exclude each other, and they only see the same lock if it sits on the shared
-# filesystem. It is NOT under target/, which `mvn clean` removes mid-run. flock releases it when the fd
-# closes - including on SIGKILL - so a killed run can never leave it held.
+# Repository root, derived from this script's own location so the gate works from any working directory.
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/../.." > /dev/null 2>&1 && pwd)"
-GATE_LOCK_FILE="${REPO_ROOT}/.gate.lock"
-GATE_LOCK_FD=""
 
 # Host port the dev/IT/E2E database publishes. Overridable only so a machine already committed to 5432
 # can still run the gate; the compose file and Quarkus config read it independently of this.
@@ -949,44 +935,6 @@ assert_dev_db_port_free() {
     echo "   Usual causes: a local PostgreSQL service, a production 'docker compose up' stack, or a dev DB"
     echo "   started before this project namespaced its own (${DEV_DB_PROJECT})."
     echo "   Stop it with ${YELLOW}scripts/dev-teardown.sh${RESET}, or re-run with ${YELLOW}DEV_DB_PORT${RESET} set to a free port."
-    return 1
-}
-
-# ── Preflight: is another gate run already in progress? ──────────────────────
-# See the GATE_LOCK_FILE comment for why this exists and why the lock sits in the repo. Non-blocking on
-# purpose: a second run is virtually always a mistake (a forgotten background run, an IDE hook, a
-# container and a host run over one checkout), and waiting would hide that behind an unexplained stall.
-acquire_gate_lock() {
-    if ! command -v flock > /dev/null 2>&1; then
-        echo "⚠️  'flock' not found - running WITHOUT the whole-gate mutex. Concurrent runs will corrupt each other."
-        return 0
-    fi
-
-    # Opened for APPEND on purpose. `>` truncates the moment the fd is opened - BEFORE flock is attempted -
-    # so a refused run would wipe the holder line it is about to read back and print below, and every
-    # collision would report an unidentified holder. Nothing is ever written through this fd (the holder line
-    # goes through a second one), so append mode costs nothing and the file never grows.
-    if ! exec {GATE_LOCK_FD}>> "${GATE_LOCK_FILE}"; then
-        echo "⚠️  Could not open ${GATE_LOCK_FILE} - running WITHOUT the whole-gate mutex."
-        return 0
-    fi
-
-    if flock -n "${GATE_LOCK_FD}"; then
-        # Assigned on its own line so the substitution's exit status isn't masked (SC2312), as elsewhere here.
-        local started=""
-        started="$(date -Is 2>/dev/null || true)"
-        # Truncates through a second fd; the locked one stays open for the life of the run.
-        printf 'pid=%s started=%s cwd=%s\n' "$$" "${started:-unknown}" "${PWD}" > "${GATE_LOCK_FILE}"
-        return 0
-    fi
-
-    local holder=""
-    holder="$(cat "${GATE_LOCK_FILE}" 2>/dev/null || true)"
-    echo "❌ Another gate run is already in progress - refusing to start a second one."
-    [[ -n "${holder}" ]] && echo "   Holder: ${holder}"
-    echo "   Two runs share the test database, target/, .qodana/results and the smoke/perf compose projects,"
-    echo "   so running both corrupts each other in ways that report as unrelated product failures."
-    echo "   Wait for it to finish, or stop it and remove ${YELLOW}${GATE_LOCK_FILE}${RESET} if it is stale."
     return 1
 }
 
@@ -2535,12 +2483,6 @@ else
     selected_list=""
     selected_list="$(selection_invocation)"
     echo "Running steps: ${selected_list}"
-fi
-
-# Serialise whole-gate runs before a single step touches a shared resource. Deliberately after the step
-# selection above, so a typo or a `--help`-style rejection never has to take the lock to be told it is wrong.
-if ! acquire_gate_lock; then
-    exit 1
 fi
 
 # Execute steps, timing each one. `date +%s%N` (nanoseconds since epoch) fits a 64-bit shell integer,
