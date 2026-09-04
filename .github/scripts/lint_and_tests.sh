@@ -962,7 +962,11 @@ acquire_gate_lock() {
         return 0
     fi
 
-    if ! exec {GATE_LOCK_FD}> "${GATE_LOCK_FILE}"; then
+    # Opened for APPEND on purpose. `>` truncates the moment the fd is opened - BEFORE flock is attempted -
+    # so a refused run would wipe the holder line it is about to read back and print below, and every
+    # collision would report an unidentified holder. Nothing is ever written through this fd (the holder line
+    # goes through a second one), so append mode costs nothing and the file never grows.
+    if ! exec {GATE_LOCK_FD}>> "${GATE_LOCK_FILE}"; then
         echo "⚠️  Could not open ${GATE_LOCK_FILE} - running WITHOUT the whole-gate mutex."
         return 0
     fi

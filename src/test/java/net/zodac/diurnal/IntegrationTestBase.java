@@ -48,6 +48,7 @@ import net.zodac.diurnal.note.crypto.Aes256Gcm;
 import net.zodac.diurnal.note.crypto.DataKeyEnvelope;
 import net.zodac.diurnal.stats.cache.SubjectStatsCache;
 import net.zodac.diurnal.time.AppClock;
+import net.zodac.diurnal.time.AppClocks;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
 import org.apache.logging.log4j.LogManager;
@@ -121,20 +122,20 @@ public abstract class IntegrationTestBase { // NOPMD: AbstractClassWithoutAbstra
 
     @AfterEach
     void restoreClock() {
-        clock.useSystemClock();
+        AppClocks.restore(clock);
     }
 
     private void freezeDate(final LocalDate date) {
         // Pin the zone to the "UTC" region (id "UTC"), matching application-test.properties and
         // production, rather than ZoneOffset.UTC (id "Z") — same instant, but a representative zone id.
-        clock.useFixedClock(Clock.fixed(date.atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneId.of("UTC")));
+        AppClocks.freeze(clock, Clock.fixed(date.atStartOfDay(ZoneOffset.UTC).toInstant(), ZoneId.of("UTC")));
     }
 
     /**
      * Freeze {@link AppClock} to an exact instant in {@code zone} — for midnight-boundary / non-UTC tests.
      */
     protected void freezeInstant(final java.time.Instant instant, final ZoneId zone) {
-        clock.useFixedClock(Clock.fixed(instant, zone));
+        AppClocks.freeze(clock, Clock.fixed(instant, zone));
     }
 
     /**
