@@ -90,4 +90,27 @@ else
   skip "Playwright browser"
 fi
 
+# ── 4. Claude Code PreToolUse guards — prove they work BEFORE the session ────
+# The project's guards (.claude/hooks/) are the only thing standing between an agent and an edit to an
+# applied Flyway migration or a hand-authored release artefact, and they fail SILENTLY: an unregistered,
+# non-executable or jq-less hook simply never blocks anything, and nothing in the session says so. The
+# gate's own `shellcheck:hooks` tier tests their LOGIC before a commit; this is the other half, run before
+# any work happens, in the environment that will actually run them.
+#
+# Guarded like every other step here, so a project without the guards reports "not applicable" rather
+# than failing - this script is meant to be copy-pasted.
+GUARD_TESTS=".claude/hooks/tests/run-hook-tests.sh"
+if [[ ! -x "${GUARD_TESTS}" ]]; then
+  none "Claude Code hook guards"
+elif ! command -v jq >/dev/null 2>&1; then
+  warn "jq is missing - the PreToolUse guards cannot parse a hook payload and will NOT block anything"
+elif guard_output="$("${GUARD_TESTS}" 2>&1)"; then
+  # Last line only (the "All N cases passed" summary), via parameter expansion rather than `| tail -1`, so
+  # there is no pipeline whose exit status would be masked inside the message.
+  skip "Claude Code hook guards (${guard_output##*$'\n'})"
+else
+  warn "the PreToolUse guards are NOT behaving as expected - they may not be protecting this session:"
+  printf '%s\n' "${guard_output}" >&2
+fi
+
 step "ready."

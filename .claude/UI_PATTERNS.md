@@ -1,5 +1,16 @@
 # UI Patterns & Conventions
 
+> **This file is ~37 KB. Read only the section you need** - `grep -n '^#' .claude/UI_PATTERNS.md` for its
+> line range, then read that range rather than the whole file.
+>
+> - **1. Extraction rules** — When to extract a Qute partial, When to extract a component class, Icons
+> - **2. `id` attribute conventions**
+> - **3. Page scaffolding** — The Settings page's card layout
+> - **4. Colour & style tokens**
+> - **5. Rejected consolidations**
+> - **6. Known keep-in-sync pairs (deliberate duplication — do NOT merge, but update together)**
+> - **7. RTL & logical properties (see I18N.md's "Right-to-left support")**
+
 Rules for templates (`src/main/resources/templates/`), the CSS source (`frontend/css/app.css`) and
 front-end markup in general. Complements `CODE_STYLE.md` (Java) and the architecture notes in
 `CLAUDE.md`. Read this before writing or editing any template or CSS.
@@ -104,11 +115,16 @@ decorative (`aria-hidden`) — the host control carries the accessible name. The
   Renaming one is a coordinated change: grep `templates/`, `META-INF/resources/js/`,
   `src/main/java/`, and `tests/` before touching it, and update all in the same commit.
 
+> **Renaming a `data-*` attribute means renaming its camelCase `dataset` property too.** `data-chart-action` ->
+> `data-chart-subject` left `stats.js` reading `dataset.chartAction`, and the frequency graph silently stopped
+> opening - a text search for the attribute string finds nothing wrong, because the JS never spells it that way.
+> Grep for both forms.
+
 ## 3. Page scaffolding
 
 - `layout.html` owns `<html>/<head>/<body>`; pages provide only `{#body}`.
-- Every page's outer wrapper is the page shell (`min-h-viewport flex flex-col`, extracted as a
-  component class once approved — see §5), with `<main>` as the `flex-1` region and
+- Every page's outer wrapper is the page shell (`.page-shell` — `min-h-viewport flex flex-col`),
+  with `<main>` as the `flex-1` region and
   `partials/footer` last, so the footer sticks to the viewport bottom on short pages.
 - Standard app pages: `partials/navbar` + `<main class="page-container px-4 py-8">` + an `<h2>`
   page title + optional muted subtitle.
@@ -116,6 +132,24 @@ decorative (`aria-hidden`) — the host control carries the accessible name. The
   max-w-sm p-8` inside a centring `<main>` — reuse the shared shell rather than re-rolling it.
 - Page-specific JS is a separate committed `/js/{page}.js` file wired via `data-*` attributes —
   never inline `<script>` logic or `on*=`/`hx-on=` attributes (CSP; see CLAUDE.md).
+
+### The Settings page's card layout
+
+The Settings page is the one page whose card placement follows a stated rule rather than taste, and **that rule is
+written in full in a comment at the top of `settings.html` (above the two-column wrapper) — read it before adding,
+moving or reordering a card.** In summary:
+
+- It is **two flex columns, not a grid**, so each column packs its cards flush from the top independently. A grid
+  would stretch the short left-hand cards to match the tall Appearance card.
+- **Which column a card belongs to follows one rule**: it goes wherever the first free space is. Cards are not
+  grouped by theme, and moving a control between cards relocates it twice over for anyone who already knew where
+  it was.
+- **The mobile order is deliberate and is not source order.** Both column wrappers are `contents lg:flex…`, so
+  below `lg` their boxes disappear and every card becomes a direct flex item of the outer container; `order-last`
+  then drops the Preferences → Data → Notes → Statistics group past Appearance. At `lg` the columns reassemble.
+- **The LEFT/RIGHT column assignment is frozen LTR** (the wrapper pins `dir`), while each card's own content still
+  follows the page direction — so labels, values and mirrored controls inside a card read correctly under RTL and
+  only the column assignment stays put. See §7.
 
 ## 4. Colour & style tokens
 
@@ -149,18 +183,7 @@ decorative (`aria-hidden`) — the host control carries the accessible name. The
   response). A bonus: Qute does not parse `{` inside `{! … !}`, so prose like `{date}` is safe
   there. As of 2026-07-13 no template contains an HTML comment; keep it that way.
 
-## 5. Review outcomes (2026-07-13 UI review)
-
-Everything from the 2026-07-13 review has been **applied**:
-
-- the shared partials (`centered-card`, `error-page`, `card-wordmark`, `num-pref-row`, `card-header`, `search-input`, `stat-tile-compact`,
-  `account-links`, `confirm-actions`, `colour-picker`, `tooltip-text`, the named `icon` catalogue)
-- the component classes/tokens (`--color-canvas` body base rule, `.page-shell`, `.page-title`, `.page-subtitle`, `.link-brand`, `.empty-note`,
-  `.icon-chip*`, `.inline-num-input`, `.day-item-btn`, tokenised `.field-label`/`.nav-link`/hamburger)
-- the landmark ids (`stats-summary`, `{page}-main`, `settings-*` cards, `site-header`/`site-footer`, the `day-panel` → `day-logger-panel` rename)
-- the shared Java `HtmxResponses.conflictBanner(...)`
-- the JS consolidation (`Diurnal.bannerHtml`/`requiredFilled`/`postForm` the merged AJAX-form scaffolding, `flashStatus`, `swapField`, the
-  `beforeSwap`/`HX-Retarget` 409 mechanism everywhere).
+## 5. Rejected consolidations
 
 Two candidates were examined and **deliberately rejected** — do not re-propose them without new
 evidence:
@@ -232,15 +255,15 @@ left|...` in `frontend/css/app.css` before landing.
 - **A directional GLYPH (an SVG icon or a Unicode character encoding a real forward/back meaning — chevrons,
   arrows, «/‹/›/») does NOT mirror on its own** just because its container does. Two patterns, chosen by what the
   glyph already is:
-  - An SVG via `partials/icon.html`: give the component class (or an inline `cls=`) an
+    - An SVG via `partials/icon.html`: give the component class (or an inline `cls=`) an
     `rtl:scale-x-[-1]` — see `.chart-nav-glyph` in `app.css` (a dedicated class, fixed in the CSS) vs the
     settings.html preview-modal chevrons (no dedicated class, fixed inline at the call site). **Not every
     chevron is directional** — `settings.html`'s disclosure-toggle chevron rotates 90° on expand and encodes no
     forward/back meaning, so it stays unmirrored; check what a glyph MEANS before mirroring it.
-  - A literal Unicode character (no SVG involved): wrap it and transform the wrapper. A horizontally-flipped «
+    - A literal Unicode character (no SVG involved): wrap it and transform the wrapper. A horizontally-flipped «
     renders as a correct-looking » (and the reverse), so `rtl:scale-x-[-1]` mirrors these exactly like an SVG icon
     would, with no `{#if}`-based character-swapping needed.
-  - **Exception, by explicit product decision, not oversight**: `partials/calendar-toolbar.html`'s `.cal-chevron`
+    - **Exception, by explicit product decision, not oversight**: `partials/calendar-toolbar.html`'s `.cal-chevron`
     glyphs (the Dashboard's «/‹/›/» navigation) are deliberately left UNMIRRORED — the button each sits in still
     moves to the opposite visual edge under `dir="rtl"` like every other toolbar element, but the character itself
     stays static in every language (reversed from this class's original auto-mirrored behaviour). Don't treat this as
@@ -272,19 +295,19 @@ left|...` in `frontend/css/app.css` before landing.
   (`ar-SA`) uses Eastern Arabic-Indic digits (`١٢٣`), which is a separate, orthogonal axis from direction. A
   number the server or client renders as a bare `String`/`Number#toString()` always stays Latin-digit — it needs
   an explicit localization pass:
-  - Client-side text already tagged `.js-num` (app.js) is grouped AND digit-localized together via
+    - Client-side text already tagged `.js-num` (app.js) is grouped AND digit-localized together via
     `Number#toLocaleString(Diurnal.lang)` — for figures where both apply (stats counts/averages).
-  - A calendar day number or year must localize digits WITHOUT ever grouping (a year must never render "٢،٠٢٦" —
+    - A calendar day number or year must localize digits WITHOUT ever grouping (a year must never render "٢،٠٢٦" —
     years aren't grouped in any language) — use `Diurnal.localizeDigits(text)` (a glyph-for-glyph regex
     transcode built from `Intl.NumberFormat`, no grouping applied), or tag the element `.js-digits` and let the
     matching `Diurnal.localizeDigitsIn(root)` walker (app.js, same shape as `.js-num`'s `formatNumbers`) do it
     declaratively on page load / after an HTMX swap. See `dashboard.js`'s `setCalTitle` and day-cell rendering,
     and `.js-digits` on the footer year/version and the Settings preset pills.
-  - **A decorative label for a bound value (a preset pill) localizes its own TEXT via `.js-digits` while its
+    - **A decorative label for a bound value (a preset pill) localizes its own TEXT via `.js-digits` while its
     `data-value` attribute (what JS reads to write the real input) is left untouched.** `.js-digits`/`.js-num`
     only ever rewrite text nodes, never attributes — an `href` or `data-*` value is never touched even inside a
     localized element (see the footer version link).
-  - **An EDITABLE numeric field can also display this language's own digit glyphs, but only if it is
+    - **An EDITABLE numeric field can also display this language's own digit glyphs, but only if it is
     `type="text" inputmode="numeric"`, not `type="number"`** — a number input's `.value` is spec-constrained to
     a plain ASCII "valid floating-point number" string and cannot hold e.g. Eastern Arabic-Indic digits at all.
     The Settings numeric steppers (`partials/num-pref-row.html`, `.num-pref-value`) use this shape: JS
@@ -297,7 +320,7 @@ left|...` in `frontend/css/app.css` before landing.
     (`partials/day-action-item.html`) uses the GENERIC version of this same shape, `.js-num-input` (app.js) —
     reach for `wireNumericPref` only when a field also needs preset pills/a stepper/clamping; a bare editable
     count needs nothing beyond `.js-num-input`.
-  - **`DateTimeFormatter#withLocale(locale)` does NOT switch numbering systems the way `NumberFormat` does** —
+    - **`DateTimeFormatter#withLocale(locale)` does NOT switch numbering systems the way `NumberFormat` does** —
     a weekday/month NAME localizes, but a day-of-month/year NUMBER stays plain ASCII unless the formatter is
     ALSO given `.withDecimalStyle(DecimalStyle.of(locale))`. Every Java-side date formatter that renders a
     number (not just a name) needs this chained — use `Language#localizeNumerals(DateTimeFormatter)` rather
@@ -305,7 +328,7 @@ left|...` in `frontend/css/app.css` before landing.
     purpose (a wire key/id round-tripping through a URL, e.g. `FrequencyKeys`' month/year key) must NOT get
     this — keep the KEY formatter and the DISPLAY LABEL formatter separate rather than sharing one, even when
     they'd otherwise produce identical ASCII output for `en-GB`.
-  - **A "plain `fetch()` + `innerHTML`" swap bypasses htmx's own swap mechanism entirely, so `htmx:afterSwap`
+    - **A "plain `fetch()` + `innerHTML`" swap bypasses htmx's own swap mechanism entirely, so `htmx:afterSwap`
     never fires — none of `.js-num`/`.js-digits`/`.js-num-input`/`Diurnal.fitFigures`'s declarative passes run
     on it.** This is a RECURRING shape in this codebase (the dashboard's day panel and stats-summary card,
     the stats page's frequency-chart modal) — each caller must call every relevant `Diurnal.*In(root)` pass by
@@ -313,14 +336,14 @@ left|...` in `frontend/css/app.css` before landing.
     `stats.js`'s chart `load()`). A newly-added localization pass is easy to wire into the DECLARATIVE
     `htmx:afterSwap` path and then forget for these three manual call sites — grep `\.innerHTML\s*=` across
     `META-INF/resources/js/` when adding one, and check each hit.
-  - **A localized digit run needs bidi ISOLATION, not just an inherited `dir`** — a number is always written
+    - **A localized digit run needs bidi ISOLATION, not just an inherited `dir`** — a number is always written
     left-to-right internally regardless of the surrounding language, but a plain inherited `dir` (`unicode-bidi:
     embed`, the browser default for the `dir` attribute) still lets the Unicode Bidi Algorithm consider
     neighbouring characters at the run's boundary; this showed up for real as a version string's leading "v"
     reordering to the trailing edge next to Arabic-Indic digits. `.js-num`/`.js-digits`/`.js-num-input` all
     carry `unicode-bidi: isolate` in `app.css` for this reason (matching what `<bdi>` gives HTML content
     natively) — a future digit-bearing marker class should too.
-  - **A PHRASE that mixes translatable WORDS with an embedded number needs a DIFFERENT fix again — `.js-phrase`
+    - **A PHRASE that mixes translatable WORDS with an embedded number needs a DIFFERENT fix again — `.js-phrase`
     (`unicode-bidi: plaintext`), not `.js-digits`' `isolate`.** `isolate` only protects a number from its
     surroundings; it does nothing about the WORDS around it reordering against each other and against the
     number. Confirmed for real: "Page 1 of 2" rendered
@@ -338,7 +361,7 @@ left|...` in `frontend/css/app.css` before landing.
     most success/error messages app-wide. Reserve `.js-digits` alone for content that is ONLY EVER digits with
     no surrounding words (a version number, a bare count in an input); use `.js-phrase` (alongside `.js-digits`
     if it also needs digit-glyph transcoding) for anything a translator's sentence could wrap around.
-  - **`.textContent`/`.innerText` extraction cannot catch a bidi reordering bug — it reads LOGICAL DOM order,
+    - **`.textContent`/`.innerText` extraction cannot catch a bidi reordering bug — it reads LOGICAL DOM order,
     not the VISUAL rendering the Unicode Bidi Algorithm actually produces.** Every `.js-phrase` bug above was
     invisible to the `.innerText` dumps used throughout this whole effort's verification (the DOM order was
     always correct — "Page 1 of 2", digits in the right place — only the on-screen RENDERING was reversed).
@@ -361,14 +384,14 @@ left|...` in `frontend/css/app.css` before landing.
   (RTL text alignment, mirrored controls within a card, the calendar's own internal day-grid, `.js-phrase`
   phrases, digit glyphs) — this is content mirroring, same as everywhere else in the app, just inside a frame
   that no longer moves.
-  - **The mechanism**: `dir="ltr"` on the STRUCTURAL container (the flex/grid row that must stay physically
+    - **The mechanism**: `dir="ltr"` on the STRUCTURAL container (the flex/grid row that must stay physically
     ordered) freezes its own item placement, then EVERY grid/flex item inside it re-asserts the page's REAL
     direction via `dir="{language:dir(language)}"` (the same `Language#dir()`/`LanguageExtensions` bridge
     `layout.html` uses for `<html dir>`) — so a re-asserted item's own content behaves exactly as if nothing
     were pinned, while its OUTER position never moves. Never rely on inheritance alone once a `dir="ltr"` is
     pinned upstream — anything that should still localize needs its own explicit re-assertion, or it silently
     inherits the frozen `ltr` too.
-  - **A pinned region can still have INTERNAL pieces that must stop mirroring as a consequence** — found for
+    - **A pinned region can still have INTERNAL pieces that must stop mirroring as a consequence** — found for
     real with the dashboard's note-panel resize handle: `.note-resize-right`/`-corner`'s CSS used a LOGICAL
     property (`inset-inline-end`) from when the panel itself still moved sides under RTL; once the panel's
     OUTER position was pinned but its OWN `dir` was still re-asserted to the real direction, the handle would
@@ -379,10 +402,10 @@ left|...` in `frontend/css/app.css` before landing.
     form. **Check every internal `inset-inline-*`/logical-property/`[dir="rtl"]` rule inside a region before
     pinning it** — anything reasoned about "moves with `dir`" during the original auto-mirroring design needs re-deriving once its
     container stops moving.
-  - Verified with real-browser screenshots (not just DOM text — see the bidi lesson above) comparing `en-GB`
+    - Verified with real-browser screenshots (not just DOM text — see the bidi lesson above) comparing `en-GB`
     and `ar-SA` side by side: navbar, Settings' cards and the dashboard's four panels are pixel-identical in
     position between the two, with only their internal content differing.
-  - **A `dir="ltr"` pin, once anything inside it uses a COMPETING `ltr:`/`rtl:` Tailwind pair (one rule per
+    - **A `dir="ltr"` pin, once anything inside it uses a COMPETING `ltr:`/`rtl:` Tailwind pair (one rule per
     direction — a centering transform, a toggle-switch thumb), breaks that pair in a way that's easy to miss
     because it looks like nothing should be wrong.** Tailwind compiles `ltr:`/`rtl:` to
     `:where(:dir(X),[dir=X],[dir=X] *)` — the `[dir=X] *` clause matches ANY ancestor with that literal

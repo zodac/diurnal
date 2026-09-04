@@ -1,11 +1,22 @@
 # Testing Tiers & Conventions
 
+> **This file is ~20 KB. Read only the section you need** - `grep -n '^#' .claude/TESTING.md` for its
+> line range, then read that range rather than the whole file.
+>
+> - **Testing conventions**
+> - **Deployment-smoke tier (`tests/smoke/`)**
+> - **Performance/load tier (`tests/perf/`)**
+> - **Config permutations: the `@QuarkusTestProfile` matrix**
+> - **Reading state in a test: use the API, never the markup**
+> - **Preflight: port 8081**
+> - **The linters see NEW files, not just committed ones**
+
 > The test pyramid (unit / `*IT` / E2E / deployment-smoke / performance-load), the integration-test base and
 > deterministic-time rules. Extracted from `CLAUDE.md`; read before adding tests or touching a test tier.
 > Reminder: the Maven build is unit + `*IT` (+ linters) ONLY - the E2E, smoke and perf tiers are chained onto the
 > wrapper's `java`/`perf` steps, never wired into any `mvn` command.
 
-### Testing conventions
+## Testing conventions
 
 **A helper only tests call belongs in `src/test`, however production-shaped it looks.** `SqlParameters` (the `:name`-placeholder extractor that
 `ActionLogQueriesTest`/`NoteQueriesTest` use to pin each handwritten query's parameter surface) sat in `net.zodac.diurnal.log` and shipped in the
@@ -39,19 +50,22 @@ English default (`AppMessagesIT`), guarded at the unit tier by `AppMessageCovera
 exactly the full key set) — so there is nothing further for the E2E tier to assert there. Translated strings running 15-30% longer than their
 English source (commonly Spanish) is a real risk for fixed-width UI, but not one an automated assertion catches well; it was instead swept
 manually with real screenshots per language at both a desktop and a 390px mobile viewport (`Settings > Appearance`, the Settings "Action stats"
-picker, the Actions table, the dashboard calendar toolbar) — see [`I18N.md`](I18N.md)'s "Test coverage" section for what that pass found and why the one place text
+picker, the Actions table, the dashboard calendar toolbar) — see [`I18N.md`](I18N.md)'s "Test coverage" section for what that pass found and why the
+one place text
 truncates (the Settings stats-picker row caption on mobile) is a pre-existing, tooltip-mitigated design already present in English, not a
 translation-specific regression.
 
 **Tier hygiene (`run-e2e.sh` / `run-smoke.sh` / `run-perf.sh`):** each runner owns its own resources and cleans up in BOTH directions. On the way out,
-an `EXIT` + `INT`/`TERM`/`HUP` trap tears the stack down on success, on failure and on interruption (the signal traps matter: the `java` step signals a
+an `EXIT` + `INT`/`TERM`/`HUP` trap tears the stack down on success, on failure and on interruption (the signal traps matter: the `java` step signals
+a
 tier when a sibling fails first, and an `EXIT`-only trap would be skipped). On the way IN, each runner also sweeps what a run killed *outright* left
-behind — where no trap can fire: the E2E runner reaps the app JVM recorded in `tests/.e2e-app.pid` (gitignored, deliberately not under `target/`, which
+behind — where no trap can fire: the E2E runner reaps the app JVM recorded in `tests/.e2e-app.pid` (gitignored, deliberately not under `target/`,
+which
 `mvn clean` wipes before the tier starts), smoke and perf remove any container still labelled with their compose project, and perf drops stale
 `.perf-state.*` scratch dirs. The E2E runner then **refuses to run** if its port is still served by something it did not start (typically a
 `quarkus:dev` instance, which also uses 8081) rather than silently testing an unknown app — override with `E2E_HTTP_PORT`.
 
-### Deployment-smoke tier (`tests/smoke/`)
+## Deployment-smoke tier (`tests/smoke/`)
 
 The test pyramid has a fourth tier on top of unit / `*IT` / E2E: **deployment-smoke**, the only tier that runs the **actual production Docker image
 ** (distroless, jlink custom JRE, non-root UID 65532) rather than a full JDK. It exists because that runtime is now a real source of bugs none of the
@@ -72,11 +86,12 @@ desync.
   HEALTHCHECK drives `up --wait`, so a boot failure fails the step before Playwright starts. In the wrapper's auto-detect mode any app-code or
   Dockerfile/runtime change selects `java`; run the whole JVM gate explicitly with `.github/scripts/lint_and_tests.sh java`.
 
-### Performance/load tier (`tests/perf/`)
+## Performance/load tier (`tests/perf/`)
 
 The fifth tier: a k6 load suite that — like the smoke tier — runs against the **real production Docker image** (not the fast-jar), because the jlink
 JRE's startup, JIT warm-up and memory profile are what actually ship. It exists to catch performance regressions (an N+1 query, an unindexed scan, a
-jlink/heap bloat, a slow cold boot) that no functional tier can see. It is a standalone `lint_and_tests.sh` step (**not** part of any `mvn` command and
+jlink/heap bloat, a slow cold boot) that no functional tier can see. It is a standalone `lint_and_tests.sh` step (**not** part of any `mvn` command
+and
 **not** chained onto the `java` gate — a perf regression must not fail the functional build, and vice versa), but it **is auto-detected on the SAME
 file set as `java`** (any `src/`, `frontend/`, `pom.xml`, Dockerfile or java-config change — the things that plausibly move performance), **plus** the
 perf suite's own files (`tests/perf/**`, `tests/run-perf.sh`, `tests/docker-compose.perf.yml`). It keys off `java`'s final detection outcome, so the
@@ -94,14 +109,18 @@ others (`… java,perf`), or via `tests/run-perf.sh <port> <projectRoot>` direct
   the `perf` step fail); (3) **heavy-data edge cases** — the seed populates a large account (`PERF_SEED_ACTIONS` × `PERF_SEED_LOG_DAYS`, plus
   `PERF_SEED_NOTE_DAYS` notes) so the list / stats / calendar-feed / search / export scenarios exercise real fan-out, not empty-DB best cases.
 
-> **The notes search is split into two scenarios by OUTCOME, not by endpoint, and that is deliberate.** A search that matches costs open+match over the
-> whole journal; one that matches nothing then runs `NoteSearch.suggest` over every word in it, which is 70-80% of a miss's cost and the one path in the
+> **The notes search is split into two scenarios by OUTCOME, not by endpoint, and that is deliberate.** A search that matches costs open+match over
+> the
+> whole journal; one that matches nothing then runs `NoteSearch.suggest` over every word in it, which is 70-80% of a miss's cost and the one path in
+> the
 > app that grows with history and that **no index can reach** (the content is ciphertext, and a per-word blind index was rejected as a
-> frequency-analysis exposure — see [`NOTES.md`](NOTES.md)). A single averaged scenario would hide a regression in either half, so `notesSearchHit` and
+> frequency-analysis exposure — see [`NOTES.md`](NOTES.md)). A single averaged scenario would hide a regression in either half, so `notesSearchHit`
+> and
 > `notesSearchMiss` each carry their own budget, and each `check`s that it really took the branch it is named for — a HIT term that silently stopped
 > matching would otherwise turn both into the same measurement. **Both terms are keyed to `seed.mjs`'s fixed note prose; change that prose and these
 > must change with it.** Journal length is the variable they exist to measure, so `PERF_SEED_NOTE_DAYS` is the knob to raise when re-deriving their
 > budgets against a many-year journal.
+
 - **Runs the prod profile** against a live Postgres — **NO frozen clock, NO pre-seeded DB** (like smoke). `seed.mjs` self-seeds (bootstraps the
   first-user admin via the web `/register` form, then seeds via the API) and hands credentials/IDs to `load.mjs` via a base64 `PERFSTATE:…` stdout
   token the runner decodes (k6's `handleSummary` runs in a separate isolate and can't see iteration state, so a file-write handover isn't possible).
@@ -109,13 +128,48 @@ others (`… java,perf`), or via `tests/run-perf.sh <port> <projectRoot>` direct
 - **Isolation:** dedicated compose project (`-p diurnal-perf`), ephemeral tmpfs DB, host port **8083** (!= 8080 prod / 8081 dev+E2E / 8082 smoke), so
   a perf run coexists with everything. An EXIT/INT/TERM/HUP trap always tears the stack down and removes the scratch state dir.
 - **Tuning knobs** (env, all with sensible defaults, forwarded by name into the k6 container by `run-perf.sh`):
-  `PERF_SEED_ACTIONS`, `PERF_SEED_LOG_DAYS`, `PERF_SEED_NOTE_DAYS`, `PERF_DURATION`, `PERF_RATE`, `PERF_VUS`, `PERF_P95_TOLERANCE`, `PERF_BOOT_BUDGET_S`,
-  `PERF_RSS_MAX_MB`, `PERF_DROPPED_MAX`; the per-scenario latency/error budgets live in `load.mjs`'s `options.thresholds` — tune them to the deployment's
+  `PERF_SEED_ACTIONS`, `PERF_SEED_LOG_DAYS`, `PERF_SEED_NOTE_DAYS`, `PERF_DURATION`, `PERF_RATE`, `PERF_VUS`, `PERF_P95_TOLERANCE`,
+  `PERF_BOOT_BUDGET_S`,
+  `PERF_RSS_MAX_MB`, `PERF_DROPPED_MAX`; the per-scenario latency/error budgets live in `load.mjs`'s `options.thresholds` — tune them to the
+  deployment's
   SLOs. `PERF_P95_TOLERANCE` (default `1`) scales **every** p95 latency budget by a single multiplier so the same suite gates both a
   fast dev box and a small shared CI runner without re-numbering each threshold — it scales latency ONLY (error-rate budgets stay
   absolute). `publish.yml` sets a lighter `PERF_RATE`/`PERF_VUS` + a `PERF_P95_TOLERANCE` on the gate step because `ubuntu-latest` is a
   2-vCPU box co-running the app, Postgres and k6, so the dev-workstation load-shape collapses into queueing (seconds of pure queue
   time). The k6 image is pinned (`grafana/k6`), matching the containerised-tool pattern of the lint steps (no host k6 install needed).
+
+## Config permutations: the `@QuarkusTestProfile` matrix
+
+Most tests run on the plain `test` profile. A test that needs the app configured **differently** gets a profile,
+and there are nine. **Check this table before writing a tenth** — the combination you need probably exists, and
+`@QuarkusTest` pays a full application restart per distinct profile, so a duplicate costs build time on every run.
+
+The `test` profile's own baseline is: OIDC **off**, password auth **on**, registration **on**, IP throttle
+**off** (`application-test.properties` turns the throttle off; production defaults it on). Every profile below is
+a delta on that.
+
+| Profile                       | Overrides                                                       | Exists for                                     | Used by                                                             |
+|-------------------------------|-----------------------------------------------------------------|------------------------------------------------|---------------------------------------------------------------------|
+| `PasswordOnlyAuthProfile`     | OIDC off, `password.auth.enabled=true`                          | The password-only deployment shape             | `PasswordOnlyAuthIT`                                                |
+| `OidcEnabledProfile`          | OIDC on, discovery off, the five explicit endpoint paths        | Both mechanisms live at once (linking)         | `AccountLinkIT`                                                     |
+| `OidcOnlyAuthProfile`         | The above **plus** `password.auth.enabled=false`                | The OIDC-only deployment shape                 | `OidcEmailAdoptionIT`, `OidcOnlySetupIT`                            |
+| `OidcAutoRedirectProfile`     | The `OidcEnabledProfile` set **plus** `oidc.auto.redirect=true` | Skipping the login page straight to the IdP    | `OidcAutoRedirectIT`                                                |
+| `RegistrationDisabledProfile` | `registration.enabled=false`                                    | Register returning 404, and the first-run path | `AuthRegistrationDisabledIT`, `FirstRunRegistrationDisabledIT`      |
+| `IpThrottleProfile`           | Throttle on, `max-attempts=5`, `lockout-duration=PT15M`         | Lockout behaviour with a small, fast window    | `IpThrottleIT`, `AdminIpLockoutsApiIT`, `AdminIpLockoutsInternalIT` |
+| `CorsEnabledProfile`          | `quarkus.http.cors.origins` set to one allowed origin           | CORS headers, which are off by default here    | `CorsEnabledIT`                                                     |
+| `NoteMaxLengthProfile`        | `notes.max-length`                                              | The one per-deployment `TextFields` bound      | `NoteMaxLengthIT`                                                   |
+| `CsvBomDisabledProfile`       | `transfer.csv-bom=false`                                        | Export without the UTF-8 BOM                   | `CsvBomDisabledIT`                                                  |
+
+**Auth is where this matrix actually bites**, because it is the only area whose behaviour is a product of four
+independent switches — password auth, OIDC, registration and throttling — rather than one. A rule that holds in
+the default shape may not hold when password auth is off (the first-user path, password *management* staying
+available, the OIDC email-adoption rules), which is why those three deployment shapes each have a profile of
+their own rather than being asserted against the default.
+
+**The three OIDC profiles repeat the same seven discovery-disabled overrides**, differing by exactly one entry
+each. They set `discovery-enabled=false` and spell out the five endpoint paths so that no test ever reaches for a
+real identity provider. If a fourth is ever needed, factor that shared block out rather than copying it a fourth
+time.
 
 ## Reading state in a test: use the API, never the markup
 

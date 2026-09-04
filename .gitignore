@@ -59,7 +59,10 @@ tests/.e2e-app.pid
 # fresh (see code-quality-config-overrides/qodana.yaml).
 .qodana/
 
-# Per-user Claude Code state (the checked-in .claude docs are CLAUDE.md, APIS.md, CODE_STYLE.md, UI_PATTERNS.md)
+# Per-user Claude Code state. Everything else under .claude/ is checked in: the reference docs (CLAUDE.md,
+# CODE_STYLE.md, DATABASE.md, UI_PATTERNS.md, FRONTEND.md, ...), settings.json, skills/, hooks/ (with their
+# tests), agents/ and commands/. settings.json in particular MUST be committed - it is what registers the
+# hooks, which do nothing without it. Directory-scoped CLAUDE.md files (frontend/, tests/) are checked in too.
 .claude/settings.local.json
 .claude/scheduled_tasks.lock
 

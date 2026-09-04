@@ -1,48 +1,59 @@
 # OIDC / Local Account Management — Review & Decisions
 
-> Status: **implemented** (2026-07-17). This document records the review findings, the decisions taken, and what shipped — including the
-> `q_session` revocation guard (investigated, proposed, approved and applied the same day). Update as decisions are made.
+> **This file is ~14 KB. Read only the section you need** - `grep -n '^#' .claude/OIDC.md` for its
+> line range, then read that range rather than the whole file.
+>
+> - **Decisions taken (2026-07-17)**
+> - **Decisions taken (2026-07-18)**
+> - **The implementation** — Policy core (`auth.oidc` package, pure + 100% PIT), Settings Connect (one-way conversion) + email adoption, Interop, Tests
+> - **The `q_session` revocation gap and its guard**
+> - **Deliberately not done**
+> - **External references (search by name — no URLs per project comment policy)**
+
+> The OIDC sign-in flow, its policy core and the `q_session` revocation guard are all in place. This document is the record of the
+> decisions behind them, with the alternatives that were rejected. **Read it before touching `auth.oidc`, the login flow or account
+> linking**, and add to it when a decision here is revisited.
 
 ## Decisions taken (2026-07-17)
 
-1. **Email-based auto-linking is removed outright** (not gated behind an env var — deliberately backwards-incompatible). OIDC accounts resolve by
-   the immutable `iss`+`sub` pair ONLY. An OIDC login whose email matches an unlinked local account is refused with a banner directing the user to
-   sign in locally and use Settings → Connect. This kills the Grafana-CVE-2023-3128-class takeover (email claims are attacker-influenceable at many
-   IdPs). Flag for `RELEASE_NOTES.md` as a breaking behaviour change (hand-authored — do not edit it yourself).
-2. **`email_verified` is enforced for provisioning**: a token with `email_verified: false` can never create an account. An absent claim is treated
-   as acceptable (many IdPs don't emit it). Linking ignores email entirely (the user proves control of both sides).
-3. **Group sync can never demote the last administrator**: the login is denied (matching `AdminUserService`'s safeguard) with a neutral
-   "access level could not be updated … contact the application owner" banner — deliberately NOT explaining the last-admin detail to the user; a
-   detailed `WARN` (`the IdP groups would demote the last remaining administrator …`) goes to the server log for debugging.
-4. ~~Explicit Connect/Disconnect UX; hybrid accounts as a legitimate steady state~~ — **superseded 2026-07-18 by decisions 6–7.**
-5. **`q_session` fix**: investigate first, propose before changing — see below (applied).
+- **1. Email-based auto-linking is removed outright** (not gated behind an env var — deliberately backwards-incompatible). OIDC accounts resolve by
+  the immutable `iss`+`sub` pair ONLY. An OIDC login whose email matches an unlinked local account is refused with a banner directing the user to
+  sign in locally and use Settings → Connect. This kills the Grafana-CVE-2023-3128-class takeover (email claims are attacker-influenceable at many
+  IdPs). Flag for `RELEASE_NOTES.md` as a breaking behaviour change (hand-authored — do not edit it yourself).
+- **2. `email_verified` is enforced for provisioning**: a token with `email_verified: false` can never create an account. An absent claim is treated
+  as acceptable (many IdPs don't emit it). Linking ignores email entirely (the user proves control of both sides).
+- **3. Group sync can never demote the last administrator**: the login is denied (matching `AdminUserService`'s safeguard) with a neutral
+  "access level could not be updated … contact the application owner" banner — deliberately NOT explaining the last-admin detail to the user; a
+  detailed `WARN` (`the IdP groups would demote the last remaining administrator …`) goes to the server log for debugging.
+- ~~4. Explicit Connect/Disconnect UX; hybrid accounts as a legitimate steady state~~ — **superseded 2026-07-18 by decisions 6–7.**
+- **5. `q_session` fix**: investigate first, propose before changing — see below (applied).
 
 ## Decisions taken (2026-07-18)
 
-6. **Connecting is a ONE-WAY conversion to OIDC-only sign-in.** `AccountLinkService.link` removes the password in the same step; there is no
-   disconnect, no standalone "remove password", and no hybrid password+OIDC state (migration `V22` normalised pre-existing linked rows). The
-   Settings Connect confirm warns "Your password will be removed". Rationale: two permanently-live credentials double the account's attack surface
-   and make the login rules ambiguous; the IdP is the stronger authority once trusted. The `DELETE /api/v1/users/me/oidc|password` endpoints were
-   removed from the public contract before ever shipping in a release.
-7. **`PASSWORD_AUTH_ENABLED=false` enables email ADOPTION** (the migration path): an OIDC login whose **verified** email matches an unlinked local
-   account adopts it (`OidcLoginDecision.AdoptByEmail` — identity attached, password removed) instead of refusing, because Settings → Connect
-   cannot exist without a password login. This is safe precisely because the IdP is then the deployment's sole authentication authority — an email
-   match there grants nothing an IdP login doesn't already grant; `email_verified: false` still never adopts, and the last-admin guard applies.
-   With password auth enabled, the collision refusal stands unchanged (that is the genuinely dangerous case).
-8. **The initial account is ALWAYS created locally — even in a pure-OIDC deployment** (`PASSWORD_AUTH_ENABLED=false`): the first-run setup flow
-   (`/welcome` + `/register`) now ignores `PASSWORD_AUTH_ENABLED` exactly as it already ignored `ENABLE_REGISTRATION`, and OIDC never provisions
-   user number one. That first administrator is the sysops **break-glass credential** (its password becomes usable by re-enabling password auth).
-   The setup page's content is deliberately IDENTICAL in both auth modes — the deployer configured `PASSWORD_AUTH_ENABLED` and owns that context
-   (an explanatory note was added and then removed on request, 2026-07-18). **Converting that account later is allowed** — an adoption/connect of
-   the deployment's only administrator proceeds so long as the account REMAINS an administrator afterwards (the IdP asserts admin via the
-   configured group, or no group mapping leaves the role untouched); admin continuity through the IdP is what matters, not password retention.
-   (A stricter `LAST_PASSWORD_ADMIN` guard was added and removed the same day after field feedback — the deployer keeps a password-capable backup
-   only by giving the break-glass admin a dedicated email the IdP never presents.) The only refusals protecting admin continuity are
-   `ROLE_SYNC_REFUSED` (a conversion/login that would demote the last administrator) and `NOT_IN_GROUP`. The break-glass admin can also CHANGE its
-   password while password login is off — password management keys on holding a password, not on `PASSWORD_AUTH_ENABLED` (`PasswordChangeService` +
-   the Settings `canChangePassword` gate, 2026-07-19).
+- **6. Connecting is a ONE-WAY conversion to OIDC-only sign-in.** `AccountLinkService.link` removes the password in the same step; there is no
+  disconnect, no standalone "remove password", and no hybrid password+OIDC state (migration `V22` normalised pre-existing linked rows). The
+  Settings Connect confirm warns "Your password will be removed". Rationale: two permanently-live credentials double the account's attack surface
+  and make the login rules ambiguous; the IdP is the stronger authority once trusted. The `DELETE /api/v1/users/me/oidc|password` endpoints were
+  removed from the public contract before ever shipping in a release.
+- **7. `PASSWORD_AUTH_ENABLED=false` enables email ADOPTION** (the migration path): an OIDC login whose **verified** email matches an unlinked local
+  account adopts it (`OidcLoginDecision.AdoptByEmail` — identity attached, password removed) instead of refusing, because Settings → Connect
+  cannot exist without a password login. This is safe precisely because the IdP is then the deployment's sole authentication authority — an email
+  match there grants nothing an IdP login doesn't already grant; `email_verified: false` still never adopts, and the last-admin guard applies.
+  With password auth enabled, the collision refusal stands unchanged (that is the genuinely dangerous case).
+- **8. The initial account is ALWAYS created locally — even in a pure-OIDC deployment** (`PASSWORD_AUTH_ENABLED=false`): the first-run setup flow
+  (`/welcome` + `/register`) now ignores `PASSWORD_AUTH_ENABLED` exactly as it already ignored `ENABLE_REGISTRATION`, and OIDC never provisions
+  user number one. That first administrator is the sysops **break-glass credential** (its password becomes usable by re-enabling password auth).
+  The setup page's content is deliberately IDENTICAL in both auth modes — the deployer configured `PASSWORD_AUTH_ENABLED` and owns that context
+  (an explanatory note was added and then removed on request, 2026-07-18). **Converting that account later is allowed** — an adoption/connect of
+  the deployment's only administrator proceeds so long as the account REMAINS an administrator afterwards (the IdP asserts admin via the
+  configured group, or no group mapping leaves the role untouched); admin continuity through the IdP is what matters, not password retention.
+  (A stricter `LAST_PASSWORD_ADMIN` guard was added and removed the same day after field feedback — the deployer keeps a password-capable backup
+  only by giving the break-glass admin a dedicated email the IdP never presents.) The only refusals protecting admin continuity are
+  `ROLE_SYNC_REFUSED` (a conversion/login that would demote the last administrator) and `NOT_IN_GROUP`. The break-glass admin can also CHANGE its
+  password while password login is off — password management keys on holding a password, not on `PASSWORD_AUTH_ENABLED` (`PasswordChangeService` +
+  the Settings `canChangePassword` gate, 2026-07-19).
 
-## What shipped
+## The implementation
 
 ### Policy core (`auth.oidc` package, pure + 100% PIT)
 
@@ -97,7 +108,7 @@ Unit (100% PIT on the pure classes): `OidcLoginPolicyTest` (incl. the adoption b
 `AccountLinkIT` (the connect trigger, the one-way conversion, Settings link-state rendering — under `OidcEnabledProfile`), `OidcEmailAdoptionIT`
 (the password-auth-disabled adoption path — under `OidcOnlyAuthProfile`), `FirstUserCreationBlockedIT` (updated signature).
 
-## The `q_session` revocation gap (confirmed, fix APPLIED)
+## The `q_session` revocation gap and its guard
 
 **Confirmed by code-reading.** Protected pages are deliberately not pinned to one auth mechanism (`application.properties`, the `ui` permission),
 so a request carrying ONLY a valid `q_session` cookie (no `diurnal_session`) authenticates via the Quarkus OIDC code mechanism +

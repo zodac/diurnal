@@ -1,11 +1,35 @@
 # Front-end: Build, Assets, CSS & Calendar
 
+> **This file is ~72 KB. Read only the section you need** - `grep -n '^#' .claude/FRONTEND.md` for its
+> line range, then read that range rather than the whole file.
+>
+> - **CSS build & colour tokens**
+> - **Served front-end scripts (content-hashed, `immutable`)**
+> - **Shared data-table styling (`.dt-*`)**
+> - **Dashboard calendar (hand-rolled, no library)**
+> - **Dashboard layout & the note box**
+> - **The notes page (`/notes`)**
+> - **Calendar note markers & the split month cache**
+> - **Dashboard stats summary (follows the selected day)**
+> - **Typography & Font setting**
+> - **Brand assets**
+> - **Settings preview thumbnails** — Each preview is TWO files: the tile and the lightbox image
+> - **Static-asset caching**
+> - **Dynamic responses: pages are `no-store`, `/internal/` fragments are `no-cache`**
+> - **Templates, HTMX partials & the Qute `{` gotcha**
+> - **User-configurable Stats-page tiles (`StatField`)**
+> - **Stats-page frequency graph (`partials/stats-chart.html` + `stats.js`)**
+> - **Responsive figure fitting (`data-fit` → `Diurnal.fitFigures`)**
+> - **Truncated-text tooltips (`data-tip-full`)**
+> - **Expired sessions on the dashboard (`requireSession`)**
+> - **Calendar feeds (LogsApiResource / CalendarResource)**
+
 > The Tailwind build pipeline, colour tokens/component classes, content-hashed served scripts, shared data-table
 > styling, static-asset caching, settings preview thumbnails, brand assets, the Font/typography setting and the
 > hand-rolled dashboard-calendar engine. Extracted from `CLAUDE.md`; read before editing CSS, `frontend/`, any
 > `/js/*.js`, a data-table or the calendar. Complements [`UI_PATTERNS.md`](UI_PATTERNS.md) (template/markup rules).
 
-### CSS build & colour tokens
+## CSS build & colour tokens
 
 Tailwind is compiled (not CDN). `frontend/css/app.css` (the committed source) is built into `src/main/resources/META-INF/resources/css/app.css` (the
 served output). **Rebuild with `npm --prefix frontend run css` after any class change in templates or Java** or the class will be purged.
@@ -23,6 +47,14 @@ Colour tokens: `app.css` defines `--color-*` CSS variables (`:root` + `.dark`). 
 **The brand colour is generated — never hand-edit it.** The `--color-brand*` family lives in `@generated:brand` regions of `app.css`, computed by
 `scripts/generate-brand.py` from the `fill` of `assets/wordmark.svg` (the single source of truth). To rebrand: change the `fill`, then
 `npm --prefix frontend run brand`. Base colour: `#6366f1`, constant across light and dark.
+
+**A new action's colour is pre-randomised, never the neutral grey.** The `/actions` new-action picker renders with
+`ActionService.suggestColour(...)` already selected (`ActionsWebResource`), and `actions.js` re-draws it after every successful add - the colour just
+used is in use from then on, so a reset alone would hand the next action its twin. An **absent** colour on create takes that same suggestion in
+`ActionService.create`, so `POST /api/v1/actions` with no `colour` behaves like the form. `#64748b` (`ActionValidation.DEFAULT_COLOUR`, a neutral
+slate deliberately *not* the brand indigo above - a brand-coloured dot would vanish into the full calendar's brand-filled "today" cell) is no longer
+what anything is created in: it survives as the `Action.colour` column default, the edit form's `@DefaultValue` fallback, and a colour the suggester
+keeps its distance from. A malformed colour is **rejected** on both surfaces, never silently corrected.
 
 Every accent must resolve to the brand: `.btn-primary`, active nav links, log increment `+`, focus rings, calendar "today" fill, Edit button, edit-row
 highlight. Route new accented elements through `bg-brand`/`text-brand`/`border-brand`/`ring-brand-ring`/`text-on-brand` — **never a literal `indigo-*`
@@ -42,7 +74,7 @@ on every uncached navigation. It is kept un-layered on purpose: exactly as it wa
 sheet), so it still wins over Tailwind's layered utilities — which is why the defensive `[data-dt-view].hidden` /
 `[data-dt-edit].hidden` re-assertions are retained. Every colour is a `var(--color-*)` token, so no `.dark` twins are needed.
 
-### Served front-end scripts (content-hashed, `immutable`)
+## Served front-end scripts (content-hashed, `immutable`)
 
 Nine scripts are served from `META-INF/resources/js/` and referenced from the templates via
 `{inject:appInfo.*}`, all sharing one cache-busting pattern: served un-hashed in dev (`no-store`), and at image-build
@@ -106,7 +138,7 @@ hosts (they also drag/toggle) in its own script, so the global handler skips `#s
 hover tooltip** — use this component so styling + the touch long-press stay consistent; edge buttons pass `align="left"`/`"right"` so
 the bubble can't push the page sideways.
 
-### Shared data-table styling (`.dt-*`)
+## Shared data-table styling (`.dt-*`)
 
 All tables (Actions, Users, future) share `.dt-*` classes in a `<style>` block in `layout.html` (every colour is `var(--color-*)`). Wrap in
 `.dt-table`, use `.dt-row`/`.dt-cell`, include `partials/pagination` for the footer.
@@ -149,7 +181,7 @@ Cross-table conventions: explicit Save tick required (only exception: Settings �
 `dtClearArmedRows` disarms others); destructive button left, Cancel right. `partials/pagination.html` exposes `#showing-shown`/`#showing-total` for
 surgical HTMX count updates.
 
-### Dashboard calendar (hand-rolled, no library)
+## Dashboard calendar (hand-rolled, no library)
 
 All three calendar styles (`full`/`minimal`/`stacked`, the `CalendarView` enum, default `full`) are drawn by **one** vanilla-JS engine,
 `buildGridCalendar()` in `dashboard.html` — a shared 7×6 / 42-cell month grid with its own month cache, LRU eviction and idle prefetch (
@@ -162,16 +194,18 @@ CSS-scoped. The shared chrome (toolbar, jump picker, day-panel load, the verb-ga
 `currentView`/`goToMonth`/`setHighlight`/`refresh`). **When the dashboard calendar appearance changes, regenerate the settings previews** (see below).
 
 **Which day the grid starts on is the user's "Week starts on" preference** (`user/WeekStart`, `NULL` = follow their language's CLDR convention — see
-[`I18N.md`](I18N.md)). The server resolves it **once** per dashboard render: the column header's words come from `DayLabels.weekdayAbbreviations(locale,
+[`I18N.md`](I18N.md)). The server resolves it **once** per dashboard render: the column header's words come from
+`DayLabels.weekdayAbbreviations(locale,
 firstDay)` (rotated, not just worded), and the very same day rides `#dashboard-main`'s `data-week-start` as a browser `Date#getDay()` index, which
-`renderGrid` subtracts to size the leading run of previous-month cells. **Never re-derive the first day in JS** — one resolution feeding both halves is
+`renderGrid` subtracts to size the leading run of previous-month cells. **Never re-derive the first day in JS** — one resolution feeding both halves
+is
 what stops the header and the cells from drifting a column apart.
 
-### Dashboard layout & the note box
+## Dashboard layout & the note box
 
 The dashboard's four panels live in **ONE grid**, placed explicitly into a 2x2 arrangement at `lg`+:
 
-```
+```text
 row 1:  calendar (cols 1-2)        |  day logger (col 3)
 row 2:  stats summary (cols 1-2)   |  note box    (col 3)
 ```
@@ -212,7 +246,7 @@ family lives un-layered at the bottom of `app.css` beside `.d-*` and `.chart-*`.
   journal entry never carries across a logout. **No `beforeunload` prompt** — an earlier version raised the browser's
   confirmation on every in-app click and was replaced by retaining the work; the status line is the whole of the signal.
 
-### The notes page (`/notes`)
+## The notes page (`/notes`)
 
 The browse-and-search view over every note: `partials/search-input.html` (with the new `placeholder=`/`value=` params)
 over `partials/notes-list.html` in `#note-list`, swapped by `GET /internal/notes/list?q=&page=` on the shared 300ms
@@ -232,7 +266,7 @@ marker. No page-specific JavaScript at all — it is the standard list-page shap
   then **consumes it with `history.replaceState`** — left in the address bar it would out-rank the session's own
   selection on every reload. The same ISO-date format guard applies, since the value reaches fetch URLs.
 
-### Calendar note markers & the split month cache
+## Calendar note markers & the split month cache
 
 A day with a note gets a **coloured day number** (`.d-note-day` on the shared `.d-min-cell`, so one rule covers all
 three styles), painted with **`--note-colour`** — an inline custom property `dashboard.html` sets on `#calendar-wrap`
@@ -259,7 +293,7 @@ Two radii mean a month can hold one side without the other, so `fetchAndRender`'
 `Promise.all`s whatever is missing, giving one repaint rather than a flicker per side. Selecting a day whose month is
 resident costs **no request at all** — which is why the note box needs no per-day endpoint.
 
-### Dashboard stats summary (follows the selected day)
+## Dashboard stats summary (follows the selected day)
 
 The card under the calendar (`partials/stats-summary.html`, hosted by the stable `#stats-summary` wrapper, gated on the
 `showStatsSummary` preference) summarises **the selected day**: that day's three most-logged actions, each row carrying the user's
@@ -270,7 +304,8 @@ It is cached client-side exactly like the day panel — literally so: both are i
 `createFragmentCache(dayUrl, monthUrl)` factory, which is the only place that eviction, in-flight de-duplication and the
 idle back-fill are implemented, so a change to any of them applies to both. `dashboard.js` fetches the selected day from
 `/internal/stats/summary/{date}`, then one idle `/internal/stats/summary-month/{yyyy-MM}` request back-fills the rest of
-the month, capped at 12 resident months (LRU). The server-rendered card the page ships for its initial day is **seeded into the cache** off `#stats-summary`'s
+the month, capped at 12 resident months (LRU). The server-rendered card the page ships for its initial day is **seeded into the cache** off
+`#stats-summary`'s
 `data-summary-date`, so opening the dashboard on today costs no summary request. Because the swap is a plain `fetch` +
 `innerHTML` (no HTMX event), it re-runs `Diurnal.formatNumbers()` and `Diurnal.fitFigures()` by hand.
 
@@ -279,7 +314,7 @@ numbers shown on *every* day — dropping just the edited date would leave the r
 whole summary cache and reloads only the visible card; the month back-fill re-arms on the next day the user selects, so a run of
 increments never fires a bulk fetch per tap.
 
-### Typography & Font setting
+## Typography & Font setting
 
 Webfonts served as `woff2` from `src/main/resources/META-INF/resources/fonts/`, with `@font-face` blocks in `app.css`: the **Nova** superfamily —
 **Nova Flat** (body/UI) and **Nova Round** (display/headings) — plus **OpenDyslexic** (an SIL-OFL accessibility face; Regular/Bold each with an
@@ -289,7 +324,8 @@ italic, used as both body and display face). Master files live outside `src/` in
 **Noto Sans Arabic / Noto Sans JP are a fourth, different kind of font in this file: a script-coverage FALLBACK, not a `Font` setting option.**
 Nova/Standard/OpenDyslexic are all Latin-only, so under an Arabic or Japanese `language` (or an Arabic/Japanese day NOTE typed by an
 English-language account — notes are free text, independent of the UI language) nothing in the `Font` picker can render that script at all. Per
-[`I18N.md`](I18N.md)'s "Fonts" section, both are appended to the END of every `--font-body`/`--font-display` stack (`:root`, `.font-nova`, `.font-dyslexic`)
+[`I18N.md`](I18N.md)'s "Fonts" section, both are appended to the END of every `--font-body`/`--font-display` stack (`:root`, `.font-nova`,
+`.font-dyslexic`)
 rather than becoming a 4th `Font` option or being gated behind `language` — `unicode-range` already makes fetching conditional on a character
 actually needing the font, so this works identically regardless of the account's own language. Master files live in `assets/NotoSansArabic/` and
 `assets/NotoSansJP/` (each with its own `OFL.txt`), **subsetted** (unlike Nova/OpenDyslexic's masters, kept as-shipped) from the upstream variable
@@ -299,14 +335,16 @@ Neither script offers a real italic in this family, so there is no oblique `@fon
 
 Font family is indirect via `--font-body`/`--font-display` CSS variables. The **Font setting** is the `Font` enum (`nova`|`standard`|`dyslexic`,
 default `nova`; column `users.font` is `VARCHAR(16)`, no CHECK, migration V13, so new values need no migration) — the single source of truth for the
-picker, each constant carrying its value + label + preview metadata (see the picker-enum note below). `SettingsWebResource.updateFont` coerces the submitted
+picker, each constant carrying its value + label + preview metadata (see the picker-enum note below). `SettingsWebResource.updateFont` coerces the
+submitted
 value via `Font.from(raw).value()`. `layout.html` renders the class on `<html>` server-side
 (`{#if font == 'dyslexic'}font-dyslexic{#else if font != 'standard'}font-nova{/if}`), no FOUC, and preloads that theme's primary face; `standard`
 renders no class (system sans). The settings picker toggles the same classes live (`settings.js`). **`font` must be passed to every full-page
 template** (mirror `theme` 1:1; HTMX day-panel partials need neither).
 
 **Settings preview-tile pickers (Theme / Font / Calendar style) are enum-driven.** Each is a Java enum (`Theme`, `Font`, `CalendarView`) implementing
-`PreviewOption` (`value`/`label`/`title`/`alt`/`previewImage`), following the `StatField` "single source of truth" pattern. `SettingsWebResource` passes
+`PreviewOption` (`value`/`label`/`title`/`alt`/`previewImage`), following the `StatField` "single source of truth" pattern. `SettingsWebResource`
+passes
 `X.values()` to `settings.html`, which **loops** the constants into `partials/preview-option.html` (no hardcoded parallel tiles), and each
 submitted value is validated via `X.isValid(raw)` (an unrecognised value is REJECTED — 422 on the web, 400 on the API — never silently coerced;
 unit-tested to 100% PIT). The DB columns stay `String` (not `@Enumerated`); templates compare raw values, so a legacy/unknown stored value simply
@@ -322,16 +360,18 @@ owns — and the rest followed rather than leave the page with two kinds of drop
 The list **caps at five rows and scrolls** (`--combo-row-h`), which is what keeps the 15-zone timezone list inside its card. That scrollbar is the
 app's ONE scrollbar (the `html` block at the top of `app.css`), not a second style: `scrollbar-color` inherits from it, and `scrollbar-width: thin` is
 repeated on `.combo-list` only because that property — alone among `scrollbar-*` — does not inherit. `scrollbar-gutter: stable` is the one genuine
-addition, and it is layout, not theming: the panel is `width: max-content`, so a scrollbar appearing later would eat it from the labels. A touch device
+addition, and it is layout, not theming: the panel is `width: max-content`, so a scrollbar appearing later would eat it from the labels. A touch
+device
 overlays its scrollbars and honours neither, which is the platform norm. **Headless Chromium paints no scrollbar at all**, in either headless mode, so
-verify this through computed `scrollbar-color`/`scrollbar-width` (as `settings.spec.ts` does, against the page's own) or in a real browser — never from
+verify this through computed `scrollbar-color`/`scrollbar-width` (as `settings.spec.ts` does, against the page's own) or in a real browser — never
+from
 a screenshot.
 
 Only the language row passes `search=true`; every other row differs in nothing, and a row without the box keeps its keyboard usable through
 type-ahead (letters jump to the first matching option, exactly as a native `<select>` does — selection, not filtering). Full detail on the language
 row, and why its second name is English rather than the viewer's language, is in [`I18N.md`](I18N.md)'s "The Settings language picker".
 
-### Brand assets
+## Brand assets
 
 No logo/icon mark — purely typographic. **`assets/wordmark.svg` is the single source of truth** (outside `src/`, not packaged by Maven).
 Everything under `src/main/resources/META-INF/resources/img/` is generated output.
@@ -357,7 +397,7 @@ Two traps if `_compact_path` is ever edited: a repeated command letter may only 
 absolute `T` is a different command, and eliding it silently rewrites the curve), and a separator may only be dropped before a leading `.` when the
 preceding number already contains one (`121.5.5` reads as two numbers, `62.5` as one). Both were live bugs caught by rendering, not by reading.
 
-### Settings preview thumbnails
+## Settings preview thumbnails
 
 Theme, Calendar style, and Font pickers show real dashboard screenshots (via `partials/preview-option.html`). WebP files in
 `src/main/resources/META-INF/resources/img/settings/`, one viewport set (web).
@@ -397,11 +437,13 @@ Theme, Calendar style, and Font pickers show real dashboard screenshots (via `pa
 Loading: `data-src` instead of `src` (no fetches until JS assigns). Two-phase load: visible images immediately, then `requestIdleCallback` for the
 rest.
 
-#### Each preview is TWO files: the tile and the lightbox image
+### Each preview is TWO files: the tile and the lightbox image
 
 **`img/settings/<base>.webp` is the picker tile; `img/settings/full/<base>.webp` is the lightbox image** — same base name, two files, two hashed-name
-maps (`AssetsConfig.settingsImages` / `settingsFullImages`, `AppInfo.settingsImage` / `settingsFullImage`). `preview-thumb.html` carries the small one as
-`data-src` and the big one as `data-full`; `settings.js`'s `previewSrcFor` reads **`data-full`**, so the full-size bytes are fetched only when a reader
+maps (`AssetsConfig.settingsImages` / `settingsFullImages`, `AppInfo.settingsImage` / `settingsFullImage`). `preview-thumb.html` carries the small one
+as
+`data-src` and the big one as `data-full`; `settings.js`'s `previewSrcFor` reads **`data-full`**, so the full-size bytes are fetched only when a
+reader
 actually opens a preview. They were one shared file (the tile CSS-cropped the full-size image); the tile paints at ~185 CSS px and the lightbox panel
 is `max-w-5xl` = 1024, so a single 3456px file made every Settings page view pay ~393 kB to draw a row of thumbnails. Split, that page load is ~97 kB,
 and even a reader who opens *every* picker still transfers less than before.
@@ -449,7 +491,7 @@ carry a per-file config key like the fixed CSS/JS names, the map is the indirect
 same trick — `AssetsConfig.hashedImages()` / `AppInfo.image('wordmark.svg')`). See "Static-asset caching" below for how the served
 URLs are cached.
 
-### Static-asset caching
+## Static-asset caching
 
 Two `quarkus.http.filter` rules cover every served static asset (`application.properties`; both overridden to `no-store` in dev):
 
@@ -469,7 +511,7 @@ The two regexes are provably disjoint (`/img/*.svg`+`/img/settings/` vs `/img/*.
 hyphenated-key binding). **To hash a new asset:** add a `bake` line to `scripts/hash-static-assets.sh` + wire its `AppInfo`
 reference; to add one that can't be hashed, ensure it falls under an `app-static` alternative.
 
-### Dynamic responses: pages are `no-store`, `/internal/` fragments are `no-cache`
+## Dynamic responses: pages are `no-store`, `/internal/` fragments are `no-cache`
 
 **A page route must never be `no-cache` — it is `no-store`, and the difference is a user-visible bug, not proxy tuning.**
 `no-cache` still lets the browser **store** the response and only obliges it to revalidate; a **history navigation
@@ -506,6 +548,7 @@ scripts/dev-teardown.sh
 ```
 
 > **`app` vs `documentation` are NOT the same set and are refreshed on different cadences.**
+>
 > - **`app`** → the **8** Settings preview thumbnails in `img/settings/` (Theme/Calendar/Font pickers, listed above).
 >   These are **uncommitted build artifacts** — you rarely run this by hand; the Docker build's `screenshots` stage runs
 >   `generate-screenshots.cjs app` for you (see the note under "Settings preview thumbnails"), so every image has current
@@ -531,7 +574,7 @@ scripts/dev-teardown.sh
 > first steps back a month and selects its last day (`showSeededMonth`), and the frequency-graph shot steps its window
 > back to the same month and throws if it cannot reach it. Nothing relies on a default view.
 
-### Templates, HTMX partials & the Qute `{` gotcha
+## Templates, HTMX partials & the Qute `{` gotcha
 
 Qute templates in `src/main/resources/templates/` are full-page layouts or partials in `templates/partials/`. Full `@GET` returns a
 `TemplateInstance`; HTMX endpoints return `Response.ok(partial.data(...)).build()`. Error responses use `HX-Retarget`/`HX-Reswap` to redirect the swap
@@ -544,7 +587,7 @@ into the error element.
 `{ foo`), use a different placeholder (`<date>`, `:date`), or wrap the whole region in a Qute comment `{! … !}` (which is NOT parsed — that's why
 `d-cal-{view}` survives inside one). Only `{` + whitespace or `{!` is safe; everything else is an expression.
 
-### User-configurable Stats-page tiles (`StatField`)
+## User-configurable Stats-page tiles (`StatField`)
 
 The Stats page (`partials/stats-cards.html`) renders one card per **`StatSubject`** — each of the user's actions, plus their day
 notes pinned first — and within a card one tile per **enabled** stat, in the user's chosen order and under the user's
@@ -590,7 +633,8 @@ summary strip and the picker row). The row's hidden `statsLabel` holds the **cus
 caption back would pin every stat's wording the first time any one of them was renamed, so an un-renamed stat would stop tracking
 the catalogue label. A blank name means "use the catalogue label", which is how a rename is cleared (the input's placeholder is that
 label). Names go through the shared text-input pipeline (`TextFields.STAT_NAME` - see [`TEXT_INPUT.md`](TEXT_INPUT.md)), so they are
-normalised exactly like every other free-text value in the app, and a name over the catalogue maximum is **rejected on both surfaces** — 422 on the web, 400 on the API — never truncated. The cap is **25**, sized against the catalogue's own
+normalised exactly like every other free-text value in the app, and a name over the catalogue maximum is **rejected on both surfaces** — 422 on the
+web, 400 on the API — never truncated. The cap is **25**, sized against the catalogue's own
 wording (the longest built-in label, "Total days with multiples", is exactly 25) so a custom name is never wordier than the wordiest stat
 beside it and every built-in label is itself a legal custom name. **A stat's own built-in label is not a rename**: the editor pre-fills with the
 current caption, so saving an un-renamed row untouched submits that label, and storing it would pin the wording against future
@@ -628,7 +672,7 @@ breakdown and those dates exact and stable rather than shifting as "today" moves
 > A tile's `sub` is always `data-fit` (it may hold a date range, which the fitting ladder shortens); `subNum` says only whether it
 > also carries locale-groupable **numbers**. A date must never be grouped — "1 August 2026" would render as "1 August 2,026".
 
-### Stats-page frequency graph (`partials/stats-chart.html` + `stats.js`)
+## Stats-page frequency graph (`partials/stats-chart.html` + `stats.js`)
 
 Each Stats card's header carries a chart button (`[data-chart-action]`) opening a page-level dialog
 (`#stats-chart-modal`, one instance in `stats.html`, outside `#stats-list` so paginating the cards never destroys
@@ -682,7 +726,7 @@ compare picker's search box arrives inside the fragment and would otherwise neve
   swatches the same cards render). Two actions sharing a colour are told apart by the legend chips and the hover
   bubble's names.
 
-### Responsive figure fitting (`data-fit` → `Diurnal.fitFigures`)
+## Responsive figure fitting (`data-fit` → `Diurnal.fitFigures`)
 
 Server-rendered figures always carry their **fullest** form — the month spelled out (`15 June 2026`), a 4-digit year, an exact
 count — because only the browser knows whether it fits: the tile width depends on the viewport, the locale's grouping separators
@@ -702,7 +746,7 @@ the window restores the full text. `Diurnal.MONTHS_FULL`/`MONTHS_ABBR` and this 
 month — the calendar toolbar's own title fitting (`setCalTitle`/`fitCalTitle` in `dashboard.js`) reads the same tables; it keeps its
 own measurement because it fits against the **toolbar's** overflow, not the title's own box.
 
-### Truncated-text tooltips (`data-tip-full`)
+## Truncated-text tooltips (`data-tip-full`)
 
 The other half of the fitting story: where `data-fit` **shortens** a figure so it fits, a plain `truncate` **clips** a
 string the app cannot shorten (a user's action name, note, display name, uploaded filename). The full string is still in
@@ -734,7 +778,7 @@ long-press can skip it) or on long-press, and only **while the element is genuin
   (`data-tip-full="name ×N"`) rather than being measured — in a tight cell it hides the event name outright, so the row
   has nothing left to measure. See `.claude/UI_PATTERNS.md` §4 for when to mark a new element.
 
-### Expired sessions on the dashboard (`requireSession`)
+## Expired sessions on the dashboard (`requireSession`)
 
 **Every `fetch` in `dashboard.js` runs its response through `requireSession(resp)` before touching the body.** An
 expired session arrives in TWO shapes, because the namespaces challenge differently: `/api/v1/*` answers a **401** (no
@@ -747,7 +791,7 @@ error into their own retry `.catch`, so nothing ever loaded and no error surface
 the entire login page into the day panel or the summary card. Do not add a `fetch` here without it —
 `tests/ui/auth.spec.ts` pins the behaviour.
 
-### Calendar feeds (LogsApiResource / CalendarResource)
+## Calendar feeds (LogsApiResource / CalendarResource)
 
 `GET /api/v1/logs/events` (`LogsApiResource`) returns `CalendarEventDto` JSON (one event per logged action, title carries the `×N` multiplier). It is
 the **public logged-events API** — authenticates both the session cookie and a Bearer session token — and is also the feed the dashboard's `full`

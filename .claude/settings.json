@@ -1,0 +1,83 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-protected-paths.sh"
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-git-branch.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-protected-paths.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-command-conventions.sh"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "allow": [
+      "Bash(.github/scripts/lint_and_tests.sh *)",
+      "Bash(bash -n .github/scripts/lint_and_tests.sh)",
+      "Bash(bc)",
+      "Bash(break)",
+      "Bash(cat *)",
+      "Bash(chmod +x *)",
+      "Bash(curl *)",
+      "Bash(docker --version)",
+      "Bash(docker compose *)",
+      "Bash(docker exec *)",
+      "Bash(docker info *)",
+      "Bash(docker run *)",
+      "Bash(find *)",
+      "Bash(git submodule *)",
+      "Bash(grep *)",
+      "Bash(jar *)",
+      "Bash(java *)",
+      "Bash(javap *)",
+      "Bash(jobs -l)",
+      "Bash(jps)",
+      "Bash(mkdir *)",
+      "Bash(mvn *)",
+      "Bash(netstat *)",
+      "Bash(node *)",
+      "Bash(nohup .github/scripts/lint_and_tests.sh *)",
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(openssl *)",
+      "Bash(ps *)",
+      "Bash(python3 -)",
+      "Bash(python3 -m json.tool)",
+      "Bash(sed *)",
+      "Bash(typos *)",
+      "Bash(unzip *)",
+      "Bash(xargs ls*)",
+      "Read(//tmp/**)",
+      "WebFetch",
+      "WebSearch"
+    ],
+    "deny": [
+      "Read(./.env)",
+      "Read(./**/.env)",
+      "Read(./**/.env.*)",
+      "Read(./**/*.jks)",
+      "Read(./**/*.key)",
+      "Read(./**/*.p12)",
+      "Read(./**/*.pem)"
+    ]
+  }
+}
