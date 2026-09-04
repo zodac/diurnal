@@ -73,7 +73,3 @@ tests/.e2e-app.pid
 # (JFR chunk-encodes strings), so grepping one for a secret gives a FALSE all-clear.
 *.jfr
 *.hprof
-
-# Whole-gate mutex (.github/scripts/lint_and_tests.sh). Held for the life of a run and released by the
-# kernel when the fd closes, so it is never committed and never needs cleaning up by hand.
-.gate.lock
