@@ -1,0 +1,72 @@
+name: Crowdin Upload CI
+
+# Pushes the repo's translated bundles BACK to Crowdin, which the GitHub integration alone cannot do
+# correctly: a translation whose text is identical to the source string is silently discarded on import
+# unless the upload asks for it, and that option (`--import-eq-suggestions`) is a per-upload flag rather
+# than a project setting the integration can be told about. en-US is 390-of-402 identical to the en-GB
+# source - only the twelve `colour`->`color`/`authorised`->`authorized` entries actually differ - so
+# without this every sync leaves it reading as hundreds of untranslated strings, and an export configured
+# to skip untranslated strings would drop those keys from the file outright (which
+# AppMessageCoverageTest#everyBundleKey_isTranslatedWithNoOrphans then fails the Crowdin PR on).
+#
+# Direction is deliberately one-way: this job ONLY uploads. Sources are still owned by the GitHub
+# integration (hence upload_sources: false - the action defaults it to TRUE, and letting both push the
+# source file risks a duplicate of it in the project), and downloads/PRs remain the integration's job too.
+#
+# The path filter is what makes re-uploading safe rather than destructive. An upload REPLACES whatever
+# Crowdin holds for those strings, so it must never run while Crowdin is ahead of the repo. These files
+# change in exactly two situations - a Crowdin download PR merging (after which the two are identical, so
+# the upload is a no-op except for the equal-to-source strings Crowdin dropped, which is the entire point)
+# and a hand edit in this repo (which is the one case where the repo IS the newer side).
+on:
+  push:
+    branches: [ master ]
+    paths:
+      - '.github/workflows/crowdin_upload.yml'
+      - 'crowdin.yml'
+      - 'src/main/resources/messages/**'
+  workflow_dispatch:
+    inputs:
+      dryrun:
+        description: 'List the files that would be managed, without uploading anything'
+        type: boolean
+        default: false
+
+jobs:
+  upload:
+    name: Upload Translations to Crowdin
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      # No submodules: this job runs no part of the quality gate, only the Crowdin CLI over the bundles.
+      - name: Checkout repository
+        uses: actions/checkout@v7.0.1
+
+      # crowdin.yml at the repo root supplies base_path/source/translation and the languages_mapping.
+      #
+      # auto_approve_imported is deliberately FALSE: "translated" and "approved" are separate states, and
+      # only the former is what the untranslated count above measures. Marking a string approved is a
+      # review having happened, which an automated upload is not. Set it true ONLY if the project has
+      # Settings -> Export -> "export only approved translations" enabled, where unapproved never ships.
+      #
+      # If the GitHub integration is configured to sync into a Crowdin VERSION BRANCH (it names one after
+      # the repo branch when branch mapping is on), this needs `crowdin_branch_name: master` to match, or
+      # it uploads against the project root and silently matches nothing. Check the integration's own
+      # settings before trusting the first green run - and use the workflow_dispatch dryrun input, which
+      # prints the file list the CLI resolved without writing anything.
+      - name: Upload translations to Crowdin
+        uses: crowdin/github-action@v3.0.2
+        with:
+          config: 'crowdin.yml'
+          upload_sources: false
+          upload_translations: true
+          import_eq_suggestions: true
+          auto_approve_imported: false
+          download_translations: false
+          dryrun_action: ${{ inputs.dryrun || false }}
+        env:
+          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
+          CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}

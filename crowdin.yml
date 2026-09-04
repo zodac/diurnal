@@ -1,17 +1,17 @@
-# Starter CrowdIn CLI configuration for the web.AppMessages bundle .claude/I18N.md's "Translation tooling"
-# section - NOT yet wired to a live CrowdIn project. Lives here rather than at the repo root, alongside
-# qodana.yaml/.grype.yaml/sonar.properties, per this directory's own README - "found" only because
-# lint_and_tests.sh (or, for this file, a hand-run `crowdin` CLI) is told the exact path; nothing here is
-# discovered by convention. Before this does anything:
-#   1. Create the CrowdIn project and note its identifier.
-#   2. Set the CROWDIN_PROJECT_ID / CROWDIN_PERSONAL_TOKEN environment variables (or add a
-#      "project_id"/"api_token" pair here - NEVER commit a real token).
-#   3. Confirm the target locale codes CrowdIn assigns for this project actually match the four keys under
-#      languages_mapping below (CrowdIn's default code for a language does not always match the region-qualified
-#      BCP 47 tag this app stores as Language.value() - e.g. CrowdIn's default Japanese code is "ja", not "ja-JP") -
-#      adjust the right-hand side, not the file names, if they differ.
-#   4. Wire `crowdin upload sources` / `crowdin download` into CI (or run manually) after
-#      scripts/generate-source-messages.sh regenerates the source file below.
+# CrowdIn CLI configuration for the web.AppMessages bundle - see .claude/I18N.md's "Translation tooling"
+# section. Read by .github/workflows/crowdin_upload.yml, which is the ONLY thing that uses it: sources and
+# downloads are owned by the CrowdIn GitHub integration (configured in CrowdIn's own UI, not here), and
+# that workflow exists solely because the integration cannot import a translation whose text equals the
+# source string. Nothing discovers this file by convention - the workflow names it explicitly.
+#
+# CROWDIN_PROJECT_ID / CROWDIN_PERSONAL_TOKEN come from repository secrets; never add a real token here.
+#
+# The languages_mapping keys below are the codes CROWDIN assigns, and they are NOT always the
+# region-qualified BCP 47 tag this app stores as Language.value() - CrowdIn's default Japanese code is
+# "ja", not "ja-JP". If an upload reports a language it cannot match, fix the LEFT-hand side to whatever
+# the project actually uses; the right-hand side is the file name and follows Language.value().
+#
+# The source file is generated - run scripts/generate-source-messages.sh after any @Message wording change.
 
 "base_path": "."
 
