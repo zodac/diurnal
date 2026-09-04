@@ -68,6 +68,18 @@ class AppMessageCoverageTest {
     // The two import refusals whose `{header}` arrives as already-composed markup rather than as plain text.
     private static final List<String> CHIPPED_HEADER_KEYS = List.of("importEmptyFile", "importWrongHeader");
 
+    // One `key=value` line of a bundle file, read from the RAW text rather than through Properties, which would
+    // already have unescaped the very corruption the escaping guard below exists to catch.
+    private static final Pattern BUNDLE_ENTRY = Pattern.compile("^(?<key>[A-Za-z0-9_.-]+)=(?<value>.*)$", Pattern.MULTILINE);
+
+    // Java-properties/MessageFormat escaping a translation platform applies on export and Qute does not understand:
+    // `\#`, `\=`, `\:`, and a single quote doubled to `''`.
+    private static final Pattern PLATFORM_ESCAPE = Pattern.compile("\\\\[#=:]|''");
+
+    // A Qute section boundary - `{#if`/`{#let` opens one, `{/if}`/`{/}` closes it. `{#else}` is a PART of the section
+    // already open rather than a new one, so it must not count as either.
+    private static final Pattern SECTION_BOUNDARY = Pattern.compile("\\{#(?!else\\b)[A-Za-z]\\w*|\\{/");
+
     /**
      * The locales every test below runs against: each offered {@link Language} except the default, whose content is the {@code @Message} annotations
      * themselves rather than a file. Derived from the enum so a newly offered language is covered without a second list to remember.
@@ -136,6 +148,69 @@ class AppMessageCoverageTest {
     private static void collectInto(final Set<String> names, final Matcher matcher) {
         while (matcher.find()) {
             names.add(matcher.group("name"));
+        }
+    }
+
+    @ParameterizedTest
+    @MethodSource("translatedLocales")
+    void noTranslation_carriesTheEscapingATranslationPlatformExportsWith(final String locale) {
+        // A localized bundle value is a QUTE TEMPLATE, not a MessageFormat pattern, so the escaping a translation
+        // platform applies on export is corruption rather than convention: CrowdIn's properties exporter writes `{#if`
+        // as `{\#if`, `==` as `\=\=`, `:` as `\:`, and doubles a single quote to `''` in any value holding a
+        // placeholder. Qute then reads the escaped `{#if` as literal text, leaving its `{/if}` unopened - which fails
+        // the whole build in the Quarkus augmentation step, as an `analyzeTemplates` stack trace naming only the first
+        // template it happened to reach. This catches every affected key at once, by name, in milliseconds instead.
+        final List<String> escaped = new ArrayList<>();
+        final Matcher entries = BUNDLE_ENTRY.matcher(rawTextIn(locale));
+
+        while (entries.find()) {
+            final Matcher escape = PLATFORM_ESCAPE.matcher(entries.group("value"));
+            if (escape.find()) {
+                escaped.add(entries.group("key") + " carries '" + escape.group() + '\'');
+            }
+        }
+
+        assertThat(escaped)
+            .as("msg_%s.properties holds properties-file escaping Qute does not understand - turn the exporter's quote/special-character escaping off",
+                locale)
+            .isEmpty();
+    }
+
+    @ParameterizedTest
+    @MethodSource("translatedLocales")
+    void everyTranslation_closesTheQuteSectionsItOpens(final String locale) {
+        // The structural half of the same failure, and the half that survives an exporter being fixed: a translator
+        // editing a plural entry by hand can drop or duplicate an `{#if}`/`{/if}` just as easily, and an unbalanced
+        // one is again a build-time failure in a Quarkus build step rather than a test with a key name in it.
+        final List<String> unbalanced = new ArrayList<>();
+        final Matcher entries = BUNDLE_ENTRY.matcher(rawTextIn(locale));
+
+        while (entries.find()) {
+            int depth = 0;
+            boolean closedTooEarly = false;
+            final Matcher boundaries = SECTION_BOUNDARY.matcher(entries.group("value"));
+
+            while (boundaries.find()) {
+                depth += boundaries.group().startsWith("{/") ? -1 : 1;
+                closedTooEarly |= depth < 0;
+            }
+
+            if (depth != 0 || closedTooEarly) {
+                unbalanced.add(entries.group("key"));
+            }
+        }
+
+        assertThat(unbalanced)
+            .as("every msg_%s.properties value must close each Qute section it opens", locale)
+            .isEmpty();
+    }
+
+    private static String rawTextIn(final String locale) {
+        final String resource = "messages/msg_" + locale + ".properties";
+        try (final InputStream in = Thread.currentThread().getContextClassLoader().getResourceAsStream(resource)) {
+            return new String(Objects.requireNonNull(in, resource + " is missing from the classpath").readAllBytes(), StandardCharsets.UTF_8);
+        } catch (final IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
