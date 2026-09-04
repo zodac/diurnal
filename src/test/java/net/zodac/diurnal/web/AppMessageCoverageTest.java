@@ -153,7 +153,7 @@ class AppMessageCoverageTest {
 
     @ParameterizedTest
     @MethodSource("translatedLocales")
-    void noTranslation_carriesTheEscapingATranslationPlatformExportsWith(final String locale) {
+    void noTranslation_carriesTranslationPlatformEscaping(final String locale) {
         // A localized bundle value is a QUTE TEMPLATE, not a MessageFormat pattern, so the escaping a translation
         // platform applies on export is corruption rather than convention: CrowdIn's properties exporter writes `{#if`
         // as `{\#if`, `==` as `\=\=`, `:` as `\:`, and doubles a single quote to `''` in any value holding a
@@ -171,8 +171,7 @@ class AppMessageCoverageTest {
         }
 
         assertThat(escaped)
-            .as("msg_%s.properties holds properties-file escaping Qute does not understand - turn the exporter's quote/special-character escaping off",
-                locale)
+            .as("msg_%s.properties holds properties-file escaping Qute cannot read - turn the exporter's escaping off", locale)
             .isEmpty();
     }
 
@@ -192,7 +191,9 @@ class AppMessageCoverageTest {
 
             while (boundaries.find()) {
                 depth += boundaries.group().startsWith("{/") ? -1 : 1;
-                closedTooEarly |= depth < 0;
+                if (depth < 0) {
+                    closedTooEarly = true;
+                }
             }
 
             if (depth != 0 || closedTooEarly) {

@@ -19,7 +19,12 @@
                  list embedded in a page that shouldn't jump (the dashboard day panel)
 
   The "Showing" counter exposes #showing-shown / #showing-total so surgical (HTMX 204)
-  row removals can keep the count in sync without re-rendering the whole list. Both spans, and the
+  row removals can keep the count in sync without re-rendering the whole list. Both spans are composed by
+  web/MessageMarkup and substituted INTO one `showingOfTotal` entry (hence `.raw`), rather than the sentence
+  being split into a "Showing" and an "of" the template sets around them - "of" is not a word every language
+  puts between two numerals, and Japanese writes the pair as a bare 3/20. It is a PLAIN @TemplateExtension
+  (base object + args) rather than a namespaced one on purpose: a `ns:method(...)` call does not resolve when
+  nested inside a message parameter, and 500s the page at render time. Both spans, and the
   "Page X of Y" span, carry `.js-digits` (app.js) so their digits show this language's own glyphs
   (e.g. Eastern Arabic-Indic under Arabic) - no `.js-num` grouping here (a page number is never
   grouped). A caller that surgically rewrites #showing-shown/#showing-total's textContent (actions.js
@@ -51,7 +56,7 @@
 {#let searchSource=searchSource.or('') scrollTop=scrollTop.or(true)}
 {#if alwaysShow || page.totalPages > 1}
 <div class="dt-pagination{#if borderless} dt-pagination--borderless{/if}">
-    <p class="js-phrase">{msg:showingLabel} <span id="showing-shown" class="js-digits">{page.items.size}</span> {msg:ofLabel} <span id="showing-total" class="js-digits">{page.totalCount}</span></p>
+    <p class="js-phrase">{msg:showingOfTotal(page.items.size.countSpan('showing-shown'), page.totalCount.countSpan('showing-total')).raw}</p>
     {#if page.totalPages > 1}
     <div class="flex gap-2">
         {#if page.currentPage > 1}
