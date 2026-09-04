@@ -40,18 +40,6 @@ profile:
     - inspection: ZeroLengthArrayInitialization
       ignore: [ 'src/main/java/net/zodac/diurnal/log/ActionLog.java', 'src/main/java/net/zodac/diurnal/note/Note.java' ]
 
-    # TODO: Re-enable and investigate these when i18n is implemented
-    - inspection: CallToSuspiciousStringMethod
-      enabled: false
-    - inspection: DuplicateStringLiteralInspection
-      enabled: false
-    - inspection: HardCodedStringLiteral
-      enabled: false
-    - inspection: MagicCharacter
-      enabled: false
-    - inspection: StringConcatenation
-      enabled: false
-
 # File to exclude from analysis
 exclude:
   - name: All

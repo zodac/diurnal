@@ -1,6 +1,6 @@
 # Testing Tiers & Conventions
 
-> **This file is ~20 KB. Read only the section you need** - `grep -n '^#' .claude/TESTING.md` for its
+> **This file is ~21 KB. Read only the section you need** - `grep -n '^#' .claude/TESTING.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Testing conventions**
@@ -31,8 +31,11 @@ login does not trigger a re-hash).
 
 **Deterministic time:** `IntegrationTestBase` freezes `AppClock` in `@BeforeEach` to `FIXED_TODAY = 2026-06-15`, restoring in `@AfterEach`. Use
 `freezeInstant(Instant, ZoneId)` for boundary cases (`freezeDate` is the base class's own, and is private — nothing outside it calls it, and the
-Qodana gate reports any member that could be narrower). Unit tests pass a fixed `today` directly. Surefire/failsafe pin
-`-Duser.timezone=UTC`. E2E specs use UTC date APIs (`setUTCDate`/`getUTCDate`/`toISOString`) and `timezoneId: 'UTC'` in Playwright.
+Qodana gate reports any member that could be narrower). `AppClock`'s two mutators are **package-private**, so both routes go through
+`net.zodac.diurnal.time.AppClocks` — a test-tree relay that exists only because `IntegrationTestBase` sits in `net.zodac.diurnal` and so cannot
+reach them itself; that is what stops a production caller from moving "today" for every user in the deployment. Unit tests pass a fixed `today`
+directly. Surefire/failsafe pin `-Duser.timezone=UTC`. E2E specs use UTC date APIs (`setUTCDate`/`getUTCDate`/`toISOString`) and `timezoneId: 'UTC'`
+in Playwright.
 
 **Deterministic language:** `playwright.config.ts` pins `locale: "en-GB"` (the app default — `Language.DEFAULT`/`quarkus.default-locale`), which
 Playwright turns into the `Accept-Language` header every logged-out page render negotiates against (`Language.fromAcceptLanguageHeader`).
