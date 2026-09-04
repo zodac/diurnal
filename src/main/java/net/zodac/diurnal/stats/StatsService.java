@@ -108,7 +108,7 @@ public class StatsService {
         final List<SubjectStatsCache> rows = computed.stream().map(stats -> SubjectStatsCaching.from(userId, stats)).toList();
         try {
             QuarkusTransaction.joiningExisting().run(() -> SubjectStatsCache.store(userId, rows));
-        } catch (final RuntimeException e) { // NOPMD: AvoidCatchingGenericException/EmptyCatchBlock - see below
+        } catch (final RuntimeException _) { // NOPMD: AvoidCatchingGenericException/EmptyCatchBlock - see below
             // Best-effort by design, and deliberately silent. Two first-of-the-day reads for the same user race here: each deletes rows the other
             // cannot see yet and then inserts the same (user, subject) keys, so the loser trips the primary key. The figures it failed to store are
             // exactly the ones the winner did store, so there is nothing to recover and nothing an operator could act on - and a cache write must
@@ -123,7 +123,7 @@ public class StatsService {
     //
     // The subjects themselves are rebuilt live rather than read back, because nothing about a name or a colour is stored (see SubjectStatsCache);
     // that is what keeps a rename, a recolour and the note-colour preference off the invalidation surface. Rebuilding here also reproduces
-    // computeAllSubjects' ordering exactly - notes first, then the actions name-ascending - since a cached row whose subject no longer resolves is
+    // the computeAllSubjects ordering exactly - notes first, then the actions name-ascending - since a cached row whose subject no longer resolves is
     // simply skipped.
     private static List<SubjectStats> fromCache(final UUID userId, final @Nullable User user, final LocalDate today) {
         final List<SubjectStatsCache> rows = SubjectStatsCache.findFresh(userId, today);
@@ -131,7 +131,7 @@ public class StatsService {
             return List.of();
         }
 
-        final Map<UUID, SubjectStatsCache> bySubject = new HashMap<>(rows.size());
+        final Map<UUID, SubjectStatsCache> bySubject = HashMap.newHashMap(rows.size());
         for (final SubjectStatsCache row : rows) {
             bySubject.put(row.subjectId, row);
         }

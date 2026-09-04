@@ -1,10 +1,18 @@
 # Authentication & Security
 
+> **This file is ~24 KB. Read only the section you need** - `grep -n '^#' .claude/AUTH.md` for its
+> line range, then read that range rather than the whole file.
+>
+> - **Package layout (`auth` and its four subpackages)**
+> - **Authentication** — The two surfaces, one token, The session read path, Revocation, OpenAPI docs gating, Auth throttling and the lockout console,
+>   Resolving the current user, OIDC sign-in
+> - **Security headers / CSP**
+
 > Auth architecture, per-IP throttling, OIDC sign-in policies and the security-headers/CSP filter for Diurnal.
 > Extracted from `CLAUDE.md`; read before touching anything under `auth/`, the `web/` login/OIDC flows, session
 > handling, or `SecurityHeadersFilter`/CSP. The OIDC review/decision log lives in [`OIDC.md`](OIDC.md).
 
-### Package layout (`auth` and its four subpackages)
+## Package layout (`auth` and its four subpackages)
 
 `auth` holds the **credentials core only** (`AuthResource`, `AuthenticationService`, `RegistrationService`, `PasswordChangeService`, `Passwords`,
 `RoleAssigner` + their request/result types). Three subpackages carry the rest, and the dependency direction is **one-way and enforced by what
@@ -34,7 +42,12 @@ the client IP off a `RoutingContext`" helper used by `web` and `user` as much as
 `auth.oidc` and `openapi`) and `OidcUserProvisioner.linkOrCreate` (needed by the first-run bootstrap guard, which spans the OIDC and API-registration
 paths and so lives in the parent package). Neither is a supported surface; do not treat them as extension points.
 
-### Authentication
+## Authentication
+
+**The login page is driven by query params**: `?error` means a failed login, `?registered=true` a successful registration. `?error=oidc` is the
+OIDC variant, whose specific reason rides the `diurnal_oidc_error` cookie (see below).
+
+### The two surfaces, one token
 
 - **Web UI (`/*`)** — server-side session; opaque token in the `diurnal_session` cookie (`HttpOnly`/`SameSite=strict`/`Secure`), set by
   `AuthWebResource.doLogin`; unauthenticated → `/login`. `@RolesAllowed("user")` at the method level.
@@ -52,6 +65,9 @@ boundary
 logic is pure in `SessionTokens` (100% PIT). The challenge is path-based (`SessionAuthMechanism.challengeFor`): `/api/*` → `401`, everything else →
 `302 /login`. `SessionSweeper` (`@Scheduled`, `SESSION_CLEANUP_INTERVAL`) prunes absolute-expired rows; idle-expired rows are pruned lazily on
 `resolve`.
+
+### The session read path
+
 **`SessionStore.resolve` is deliberately NOT `@Transactional`, and that is load-bearing for every authenticated request.** A `@Transactional` read
 runs in a transaction-scoped persistence context that closes at commit, so the `User` its `JOIN FETCH` loaded is discarded the moment the method
 returns and the resource's first `CurrentUser.get()` reads the same row a second time — one wasted `users` read on *every* authenticated request.
@@ -65,17 +81,22 @@ innocent-looking `@Transactional` fails the build. **The one caller that must su
 handler has no CDI request context at all, so with no transaction either, Hibernate throws `ContextNotActiveException`; it wraps its `resolve` in
 `QuarkusTransaction.requiringNew()`.
 
+### Revocation
+
 **Revocation = deleting rows:** logout (`revoke`, this device only), password change (`revokeOthersForUser`, all *but* the current), "Log out from
 everywhere" (`revokeAllForUser`, incl. current — `POST /internal/settings/sessions/revoke-all` from Settings, or its API twin
 `POST /api/v1/auth/revoke`), and **account deletion** (`AdminUserService.deleteUser` calls `revokeAllForUser` and logs it at `DEBUG` before deleting).
 That last one is redundant against the `sessions.user_id` `ON DELETE CASCADE` in `V20` — deliberately so: it keeps "a deleted account can no longer
 authenticate" stated in the code and visible in the log, rather than being a property of the schema that nothing in Java mentions, and it is the
-prerequisite for any future caching of session lookups (a cascade is invisible to a cache). OIDC folds in: `OidcWebResource.oidcCallback` mints a Diurnal session
+prerequisite for any future caching of session lookups (a cascade is invisible to a cache). OIDC folds in: `OidcWebResource.oidcCallback` mints a
+Diurnal session
 (`auth_source='oidc'`) and sets our cookie, so OIDC users ride the same revocable model (the `q_session` cookie survives only so logout can trigger
 RP-initiated IdP logout).
 
 `quarkus.http.auth.proactive=false` keeps auth lazy so `SessionAuthMechanism` can abstain (no token → let the OIDC code mechanism try) and, as the
 top-priority mechanism, issue the right challenge.
+
+### OpenAPI docs gating
 
 **OpenAPI docs are admin-gated** — the Swagger UI shell (`/api`) and the generated OpenAPI document (`/q/openapi`) are served in every profile and sit
 on `permit` paths, so without a gate they leak the whole API surface to anonymous callers. Because `proactive=false` leaves those framework-served
@@ -84,6 +105,8 @@ paths with no resolved identity (a named roles-allowed HTTP policy wouldn't fire
 request's session token itself via `SessionStore` — reusing `SessionTokenExtractor`, shared with `SessionAuthMechanism` — and applies the pure
 `OpenApiDocsAccess.decide`: admin → `next()`, anonymous → `302 /login`, authenticated non-admin → `403`. The branching is unit-tested (100% PIT); the
 Vert.x glue is NO_COVERAGE like the rest of the auth mechanism.
+
+### Auth throttling and the lockout console
 
 **Auth throttling (one global per-IP lockout)** — `AttemptThrottle` is a plain, key-agnostic fixed-window throttle (config
 snapshot + a `ConcurrentHashMap`; counters **decay** after a quiet window so shared keys don't accumulate). `IpThrottle`
@@ -127,7 +150,8 @@ freeze/advance the clock; keep the branching in `AttemptThrottle`/`IpThrottle` (
 migration), most recent first — active, expired and manually-unlocked alike — paginated by the viewer's page-size preference, with an **Unlock**
 button on the active rows only; the whole section (heading included) is omitted when there are no lockouts to show. The live in-memory
 `AttemptThrottle` snapshot (`IpThrottle.currentLockouts`) is no longer surfaced as its own table — it is exposed only via the public API's
-`GET /api/v1/admin/ip-lockouts`. The history persists even after a lockout expires or is manually cleared. The history is **durable** (survives restart, unlike the in-memory enforcement it logs); a row is written the moment a lockout trips (via
+`GET /api/v1/admin/ip-lockouts`. The history persists even after a lockout expires or is manually cleared. The history is **durable** (survives
+restart, unlike the in-memory enforcement it logs); a row is written the moment a lockout trips (via
 `IpLockoutService.recordFailure`, which both `AuthenticationService` and `RegistrationService` now call in place of `IpThrottle.recordFailure` — it
 records the in-memory failure and, on the tripping failure, persists the history row in its own short `self`-invoked transaction, the hashing-service
 pattern). Each persisted lockout also prunes rows older than `IpLockout.HISTORY_RETENTION` (7 days), so the table stays bounded with no sweeper. A
@@ -135,6 +159,8 @@ manual unlock (`IpLockoutService.unlock`) clears the in-memory entry **and** sta
 displayed status (`ACTIVE`/`EXPIRED`/`UNLOCKED`) is derived by the pure `IpLockoutStatus` enum. Both surfaces are thin over the one service — the web
 UI's HTMX endpoints (`/internal/admin/ip-lockouts/*`, `AdminIpLockoutsInternalResource`) and the public REST twins (`GET /api/v1/admin/ip-lockouts`,
 `GET …/history`, `DELETE …/{ip}`, `AdminIpLockoutsApiResource`, in `OpenApiSurfaceIT.PUBLIC_API_CONTRACT`).
+
+### Resolving the current user
 
 > **Resolve the current user via `SecurityIdentity.getPrincipal().getName()` (the email) → `User.findByEmail(...)`, or the `userId` attribute →
 `User.findByIdOptional`** (see `CurrentUser`). The session identity (`UserIdentities.of`) sets the email principal plus `userId`/`displayName`
@@ -147,6 +173,8 @@ password in the same step (`AccountLinkService.link`; migration `V22` normalised
 `(oidc_issuer, oidc_subject) WHERE oidc_subject IS NOT NULL`. OIDC is disabled by default (`OIDC_ENABLED=false`); `OIDC_SCOPES` (default
 `email,profile,groups` — set `email,profile` for providers like Google that reject the non-standard `groups` scope) and `OIDC_PKCE_ENABLED`
 (default `true`) tune the handshake.
+
+### OIDC sign-in
 
 **OIDC sign-in is decided by pure policies (100% PIT), with `OidcUserProvisioner` as glue** (see `.claude/OIDC.md` for the full review/decisions):
 
@@ -177,7 +205,7 @@ password in the same step (`AccountLinkService.link`; migration `V22` normalised
   account stays IdP-managed. Two permanently-live credentials would double the attack surface; a stray linked-with-password row (only possible by
   hand-editing the DB) still renders defensively.
 
-### Security headers / CSP
+## Security headers / CSP
 
 `SecurityHeadersFilter` (a top-priority Vert.x route, `order(Integer.MIN_VALUE)`) adds a full set of security headers to
 every response: `Content-Security-Policy`, `X-Content-Type-Options: nosniff`, `Referrer-Policy:

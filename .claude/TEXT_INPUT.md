@@ -1,5 +1,19 @@
 # Text Input Validation
 
+> **This file is ~36 KB. Read only the section you need** - `grep -n '^#' .claude/TEXT_INPUT.md` for its
+> line range, then read that range rather than the whole file.
+>
+> - **Why**
+> - **Design** — `TextField` - the spec, `Normalisation`, `TextRule` - the per-field override seam, `TextOutcome` - the result, `TextValidation` - the
+>   single entry point, `TextFields` - the catalogue
+> - **What is accepted, cleaned and rejected** — Case folding and normalisation can LENGTHEN a value, What the DATABASE supports (measured, not
+>   assumed)
+> - **Room for internationalisation** — `dir="auto"` on user-content elements — partially done, The rest of the i18n/l10n work
+> - **Flow** — Validate once, then treat the value as settled
+> - **Templates**
+> - **Adding a new text input**
+> - **Deliberately out of scope**
+
 > Every user-submitted free-text value - action name, display name, stat name, password, email, note - is validated by
 > ONE shared pipeline in `net.zodac.diurnal.text`, with per-field overrides for the parts that legitimately differ
 > (length, normalisation, extra rules). Read this before adding a text input, changing a length bound, or adding a
@@ -91,27 +105,28 @@ Two rules are shared by every cleaned field (and by every multi-line one, with t
 newline-tolerant form - see `MULTILINE` above; and deliberately by NO secret - see below):
 
 - **`NO_INVISIBLE_CHARACTERS`** rejects three families:
-  - any code point of category `Cf`, `Cs`, `Co` or `Cc` - the zero-width characters (ZWSP, ZWNJ, BOM, soft hyphen,
+    - any code point of category `Cf`, `Cs`, `Co` or `Cc` - the zero-width characters (ZWSP, ZWNJ, BOM, soft hyphen,
     word joiner, invisible times), the bidirectional overrides/isolates/marks, the interlinear annotations, the tag
     characters, unpaired surrogates and the private-use area;
-  - the explicit `BLANK_CHARACTERS` - code points that are **letters or marks** by category, and so slip past the
+    - the explicit `BLANK_CHARACTERS` - code points that are **letters or marks** by category, and so slip past the
     check above, but render as nothing: the hangul fillers (U+115F, U+1160, U+3164, U+FFA0), the Khmer inherent
     vowels (U+17B4, U+17B5) and the blank braille pattern (U+2800). These are the characters behind the "blank
     name" trick on every chat platform, and a name made only of them passed every check before they were named;
-  - the Unicode **noncharacters** (U+FDD0-U+FDEF and the last two code points of every plane), which are
-    permanently reserved and can never become assigned - so rejecting them costs no future emoji. The reason is that **two different values must never render
+    - the Unicode **noncharacters** (U+FDD0-U+FDEF and the last two code points of every plane), which are
+    permanently reserved and can never become assigned - so rejecting them costs no future emoji. The reason is that **two different values must never
+    render
   identically**: `ad<ZWSP>min` stores as a different name from `admin` but is indistinguishable on screen, so it
   defeats the duplicate-name check; a bidirectional override goes further and reverses the text after it. Unpaired
   surrogates are in the set for a second reason - PgJDBC silently rewrites one to a single byte, so the value stored
   would not be the value validated.
-  - **The two zero-width JOINERS (U+200D and U+200C) are the deliberate exception**, and are accepted ONLY between
+    - **The two zero-width JOINERS (U+200D and U+200C) are the deliberate exception**, and are accepted ONLY between
     two other characters (neither a space nor itself invisible) - a leading, trailing, doubled or space-adjacent
     joiner is still invisible padding and still rejected. U+200D binds the parts of a multi-person emoji; U+200C
     is **mandatory orthography in Persian, Urdu and Pashto** (the everyday word `پیاده‌روی` is misspelled without
     it), which the first version of this rule rejected outright. The residual cost is knowingly accepted: a joiner
     between two Latin letters is invisible, so `ad<ZWNJ>min` renders like `admin` - already reachable through
     homoglyphs, and not worth refusing to store someone's own language over.
-  - **Unassigned code points are deliberately NOT rejected**: the JDK's Unicode tables lag new emoji releases, so
+    - **Unassigned code points are deliberately NOT rejected**: the JDK's Unicode tables lag new emoji releases, so
     rejecting them would reject emoji that a current browser renders perfectly.
 - **`NO_STACKED_MARKS`** rejects a run of more than `MAX_CONSECUTIVE_MARKS` (4) consecutive non-spacing/enclosing
   marks - the "zalgo" pattern, which renders as a column of glyphs that overflows the row it is shown in. Four
@@ -143,7 +158,7 @@ branch. `TextOutcomeExtensions.message(failure)` generates the wording from the 
 
 `TextValidation.check(TextField, @Nullable String)` runs a fixed pipeline, identical for every field:
 
-```
+```text
 null -> normalise (per policy) -> empty -> length (code points) -> extra rules
 ```
 
@@ -286,7 +301,7 @@ rejection messages this note originally called for.
 
 ## Flow
 
-```
+```text
 form / JSON body
       |
       v
@@ -362,62 +377,7 @@ check in `layout.html`. Only the length bounds are published: the client evaluat
 4. Point the template's `maxlength` at the catalogue.
 5. If the field has a column, give it `@Column(length = …)` matching the catalogue max (a guard test enforces this).
 
----
-
-## Implementation status
-
-All steps below are **done**; the full `lint_and_tests.sh java` gate (unit + `*IT` + linters + PITest, then E2E and
-deployment-smoke) is green.
-
-1. This document, plus the `CLAUDE.md` deep-reference pointer.
-2. The `text` package: `Normalisation`, `TextRule`/`TextRules`, `TextField` + `TextFieldExtensions`, `TextOutcome` +
-   `TextOutcomeExtensions`, `TextConstraint`, `TextValidation`, `TextFields`.
-3. Unit tests to the 100% PIT bar: `TextValidationTest` (parameterised over the whole catalogue - null, blank,
-   whitespace-only, `min-1`/`min`/`max`/`max+1` code points, control character, astral-plane character),
-   `TextFieldTest`, `TextFieldExtensionsTest`, `TextOutcomeExtensionsTest`, plus the explicit
-   "`PASSWORD` is never normalised" case - the one place centralising could have broken existing logins.
-4. Callers migrated:
-   - `ActionService` create/update -> `TextFields.ACTION_NAME`; `ActionValidation` now holds only the colour rule.
-   - `ProfileService.updateDisplayName` -> `TextFields.DISPLAY_NAME`; `UserSettings.isInvalidDisplayName` and
-     `DISPLAY_NAME_RANGE_MESSAGE` deleted.
-   - `StatField.sanitiseLabel`/`isValidLabel` delegate to `TextFields.STAT_NAME`; `MAX_LABEL_LENGTH` is now an
-     alias of the catalogue bound (its Javadoc carries the tile-rendering reasoning, which is stats-specific).
-   - `RegistrationService` dropped its duplicated display-name, email and password checks.
-   - `PasswordChangeService` -> `TextFields.PASSWORD`; `PasswordConstraints` deleted outright.
-   - `OidcUserProvisioner` -> the new pure `auth/OidcDisplayName`, which coerces the IdP `name` claim through
-     `DISPLAY_NAME` (claim -> email local part -> email) instead of storing it raw.
-5. Templates: `maxlength="255"` on the settings display-name field (a real bug - the browser accepted 155
-   characters the server rejected) and the two hard-coded action-name `100`s now come from the catalogue.
-6. `V24__narrow_display_name.sql` narrows `users.display_name` to `varchar(100)`, with
-   `@Column(length = TextFields.DISPLAY_NAME_MAX_LENGTH)` on the entity and `TextFieldsSchemaIT` pinning every
-   bound to its column width in both directions.
-7. `V25__display_name_max_50.sql` tightens the display name again, from 100 to **50**, sized so the name always
-   fits the desktop navbar (which renders it in full beside the nav links, untruncated). Unlike the 255 -> 100 step,
-   this one CAN find rows that no longer fit, so the migration cuts them to 50 characters before narrowing the
-   column - see the data note below.
-8. The shared content policy: `TextRules.NO_INVISIBLE_CHARACTERS` and `TextRules.NO_STACKED_MARKS` on every cleaned
-   field, Unicode-aware normalisation, `ActionResult.InvalidName` so an action name's content rejection can be
-   worded on both surfaces (it previously fell through to the "too long" banner), the stat-name rejection worded from
-   the pipeline rather than always as a length failure, and code-point counting in the two client-side evaluators.
-   Covered by `NaughtyStringsTest`, `TextRulesTest`, two `SurfaceParityIT` cases and two `actions.spec.ts` E2E cases.
-9. **`Normalisation.MULTILINE` + `TextFields.NOTE`** (2026-08-05), added for the per-date notes feature - see
-   [`NOTES.md`](NOTES.md). The first multi-line input in the app: `TextField.multiline(...)`,
-   `TextRules.NO_INVISIBLE_CHARACTERS_ALLOWING_NEWLINE` (the original rule parameterised, not copied), the
-   `NOTE_MAX_LENGTH` bound of 10,000 pinned to `notes.content` by `TextFieldsSchemaIT`, and coverage in
-   `TextFieldExtensionsTest` (the normalisation pass, step by step and in order), `TextRulesTest` (the exemption is
-   exactly one code point wide) and `NaughtyStringsTest` (a note rejects every invisible character the other fields
-   reject).
-   > **Both halves of that bound sentence have since changed** and are kept only as history: `V28` dropped
-   > `notes.content` (so `TextFieldsSchemaIT` now asserts the column's ABSENCE, there being no width to pin a sealed
-   > `bytea` against), and 10,000 became the DEFAULT of a per-deployment `NOTE_MAX_LENGTH` rather than the bound
-   > itself - which is precisely what the missing column made possible. See item 10.
-10. **A per-deployment note bound + a counter preference** (2026-08-14/15). `NOTE_MAX_LENGTH` (`config/NotesConfig`
-    -> `note/NoteField`, range-checked at startup) makes `TextFields.NOTE` the only catalogue entry whose maximum is
-    not a compile-time constant, and `User.showNoteCounter` decides whether the note box shows its counter at all.
-    Both are documented in full - including what happens to notes already stored above a lowered bound - in
-    [`NOTES.md`](NOTES.md).
-
-### Deliberately out of scope
+## Deliberately out of scope
 
 - **Existing stored values are NOT normalised retroactively.** Normalisation applies on next write only; there is
   no data-fixing migration for it. The 255 -> 100 column narrowing needed none either: no row could exceed 100,

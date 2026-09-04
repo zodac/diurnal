@@ -66,7 +66,9 @@
 #                    - perf        k6 load/performance suite against the real prod image
 #                                  (tests/run-perf.sh). Auto-detected on the SAME file set as `java`
 #                                  (app/runtime/deps changes) plus the perf suite's own files.
-#                    - shellcheck  Lint shell scripts (*.sh) with shellcheck
+#                    - shellcheck  The shell-script gate, in two tiers: shellcheck over every *.sh file,
+#                                  then the behaviour tests for the Claude Code PreToolUse guards in
+#                                  .claude/hooks/. Both are seconds; neither needs a database
 #                    - typescript  Lint TypeScript files with eslint
 #
 #                  Substeps (see STEP_SUBSTEPS):
@@ -256,6 +258,7 @@ VALID_STEPS=("docker" "java" "javascript" "markdown" "perf" "shellcheck" "typesc
 declare -A STEP_SUBSTEPS=(
     [docker]="hadolint grype"
     [java]="mvn e2e smoke qodana"
+    [shellcheck]="lint hooks"
 )
 
 # The substeps actually selected for a step, space-separated. An ABSENT entry means "all of them", which
@@ -1411,6 +1414,10 @@ run_markdown() {
     # .qodana is excluded like target/ and node_modules: the scan's cache holds a downloaded JBR SDK whose
     # legal/ dir ships hundreds of third-party .md files. markdownlint globs the tree itself and does not
     # read .gitignore, so ignoring them in git is not enough - without this the step fails after any scan.
+    #
+    # .claude/ is deliberately NOT excluded: the agent reference docs and skills are the largest body of
+    # Markdown in the repo and were the only part of it nothing checked, so they drifted (over-long lines,
+    # inconsistent list markers) with no signal. They are ordinary documentation and are linted as such.
     echo "Running Markdown lint using [${MARKDOWNLINT_DOCKER_IMAGE}]"
     docker pull "${MARKDOWNLINT_DOCKER_IMAGE}" >/dev/null
     if output=$(docker run --rm \
@@ -1419,7 +1426,7 @@ run_markdown() {
         "${MARKDOWNLINT_DOCKER_IMAGE}" \
         --config code-quality-config/markdown/.markdownlint.json \
         "**/*.md" "!code-quality-config/**" "!**/node_modules/**" "!**/target/**" \
-        "!.claude/**" "!RELEASE_NOTES.md" "!tests/playwright-report/**" "!tests/test-results/**" \
+        "!RELEASE_NOTES.md" "!tests/playwright-report/**" "!tests/test-results/**" \
         "!.qodana/**" 2>&1); then
         [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
         local done_in
@@ -1430,6 +1437,31 @@ run_markdown() {
         local done_in
         done_in="$(step_time)"
         echo "❌ Markdown lint failed after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v markdown'${RESET} for the full output"
+        overall_exit_code=1
+    fi
+
+    check_doc_size_headers
+}
+
+# Each .claude reference doc opens with "This file is ~N KB. Read only the section you need", which exists so a
+# reader knows to grep for a section rather than read 90 KB of it. That number is the whole point of the header
+# and it drifts on every edit, silently, which is exactly the failure a linter should catch rather than a person.
+check_doc_size_headers() {
+    local doc stated actual drifted=()
+
+    for doc in "${REPO_ROOT}"/.claude/*.md; do
+        stated="$(sed -n 's/.*This file is ~\([0-9]\+\) KB\..*/\1/p' "${doc}" | head -1)"
+        [[ -z "${stated}" ]] && continue
+
+        actual="$(( ( $(wc -c < "${doc}") + 512 ) / 1024 ))"
+        if [[ "${stated}" != "${actual}" ]]; then
+            drifted+=("$(basename "${doc}"): header says ~${stated} KB, file is ${actual} KB")
+        fi
+    done
+
+    if [[ "${#drifted[@]}" -gt 0 ]]; then
+        printf '%s\n' "${drifted[@]}"
+        echo "❌ Stale doc size headers: update the '~N KB' figure in each file above"
         overall_exit_code=1
     fi
 }
@@ -1859,20 +1891,17 @@ qodana_failure_hint() {
     echo "   No baseline exists by design: fix the finding, or disable its inspection in ${YELLOW}${QODANA_PROFILE_FILE#"${PWD}/"}${RESET}."
 }
 
-run_shellcheck() {
-    echo
-    echo "Running shell script lint using [${SHELLCHECK_DOCKER_IMAGE}]"
-    # Lint every tracked *.sh file, plus any new one that is not gitignored (see the --others note in
-    # run_javascript: a bare "git ls-files" skips a brand-new script entirely). Excludes the code-quality-config
-    # submodule (its files belong to that repo) and any node_modules/target build output.
+# Tier 1: shellcheck over every tracked *.sh file, plus any new one that is not gitignored (see the
+# --others note in run_javascript: a bare "git ls-files" skips a brand-new script entirely). Excludes the
+# code-quality-config submodule (its files belong to that repo) and any node_modules/target build output.
+run_shellcheck_lint() {
     local files=()
     mapfile -t files < <(git ls-files --cached --others --exclude-standard '*.sh' | sort -u || true)
-    local done_in
     if [[ "${#files[@]}" -eq 0 ]]; then
-        done_in="$(step_time)"
-        echo "✅ Shell script lint passed (no shell scripts found), finished in ${GREEN}${done_in}${RESET}"
-        return
+        echo "No shell scripts found"
+        return 0
     fi
+
     docker pull "${SHELLCHECK_DOCKER_IMAGE}" >/dev/null
     # Unlike the other linters, shellcheck has no `--config` flag: it auto-discovers a `.shellcheckrc`
     # by walking up from each checked file. Overlay the submodule's shared config so every file picks
@@ -1880,20 +1909,88 @@ run_shellcheck() {
     # (/app/.shellcheckrc). shellcheck walks up from /app/repo/<file> and finds it. Crucially, the
     # overlay's mount point (/app/.shellcheckrc) then lives in a container-internal dir, NOT inside a
     # host bind mount, so Docker no longer creates a stray empty .shellcheckrc in the host repo root.
-    if output=$(docker run --rm \
+    docker run --rm \
         -v "${PWD}":/app/repo \
         -v "${PWD}/code-quality-config/shellscript/.shellcheckrc":/app/.shellcheckrc:ro \
         -w /app/repo \
         "${SHELLCHECK_DOCKER_IMAGE}" \
-        "${files[@]}" 2>&1); then
-        [[ "${VERBOSE}" == true && -n "${output}" ]] && echo "${output}"
-        done_in="$(step_time)"
-        echo "✅ Shell script lint passed, finished in ${GREEN}${done_in}${RESET}"
-    else
-        echo "${output}"
-        done_in="$(step_time)"
-        echo "❌ Shell script lint failed after ${RED}${done_in}${RESET}: re-run ${YELLOW}'${SCRIPT_PATH} -v shellcheck'${RESET} for the full output"
+        "${files[@]}" 2>&1
+}
+
+# Tier 2: the behaviour tests for the Claude Code PreToolUse guards. It rides the shellcheck step rather
+# than standing alone because its subject matter IS shell scripts, and because the auto-detection that
+# brings it in (a *.sh change) is the same one shellcheck already uses.
+#
+# It tests the guards' LOGIC by invoking them directly, so it cannot see whether .claude/settings.json
+# actually registers them - that wiring is verified at session start by sandbox/setup.sh instead. What it
+# is here for is the commit-time job: a guard whose regex silently stops matching does not error, it just
+# stops guarding, and nothing else in the repo would notice.
+run_shellcheck_hooks() {
+    local tests="${REPO_ROOT}/.claude/hooks/tests/run-hook-tests.sh"
+    if [[ ! -x "${tests}" ]]; then
+        echo "No hook guard tests found"
+        return 0
+    fi
+    "${tests}" 2>&1
+}
+
+run_shellcheck() {
+    # Which of the two tiers this invocation covers. Both unless it was narrowed to a substep.
+    local run_lint=false run_guards=false
+    runs_substep shellcheck lint && run_lint=true
+    runs_substep shellcheck hooks && run_guards=true
+
+    local invocation tier_list=""
+    invocation="$(step_invocation shellcheck)"
+    [[ "${run_lint}" == true ]] && tier_list+=" + shellcheck"
+    [[ "${run_guards}" == true ]] && tier_list+=" + hook guard tests"
+    tier_list="${tier_list# + }"
+
+    echo
+    echo "Running the shell-script gate [${invocation}]: ${tier_list}"
+
+    TIMED_SUBSTEPS=()
+
+    # Sequential, not parallel like the docker/java gates: both tiers are seconds, so the machinery to
+    # overlap them would cost more to read than it could ever save.
+    local failed=false output start_ns rc
+
+    if [[ "${run_lint}" == true ]]; then
+        substep "shellcheck  (every *.sh, via ${SHELLCHECK_DOCKER_IMAGE})"
+        start_ns="$(date +%s%N)"
+        rc=0
+        output="$(run_shellcheck_lint)" || rc=$?
+        record_substep_time "shellcheck" "${start_ns}" "${rc}"
+        if [[ "${rc}" -ne 0 ]]; then
+            echo "${output}"
+            failed=true
+        elif [[ "${VERBOSE}" == true && -n "${output}" ]]; then
+            echo "${output}"
+        fi
+    fi
+
+    if [[ "${run_guards}" == true ]]; then
+        substep "hook guard tests  (.claude/hooks/tests/run-hook-tests.sh)"
+        start_ns="$(date +%s%N)"
+        rc=0
+        output="$(run_shellcheck_hooks)" || rc=$?
+        record_substep_time "hooks" "${start_ns}" "${rc}"
+        if [[ "${rc}" -ne 0 ]]; then
+            echo "${output}"
+            failed=true
+        elif [[ "${VERBOSE}" == true && -n "${output}" ]]; then
+            echo "${output}"
+        fi
+    fi
+
+    local done_in breakdown
+    done_in="$(step_time)"
+    breakdown="$(substep_breakdown)"
+    if [[ "${failed}" == true ]]; then
+        echo "❌ Shell-script gate [${invocation}] failed after ${RED}${done_in}${RESET}${breakdown}: re-run ${YELLOW}'${SCRIPT_PATH} -v ${invocation}'${RESET} for the full output"
         overall_exit_code=1
+    else
+        echo "✅ Shell-script gate [${invocation}] passed (${tier_list}), finished in ${GREEN}${done_in}${RESET}${breakdown}"
     fi
 }
 
@@ -2114,7 +2211,8 @@ detect_changed_steps() {
     # Dockerfile itself: a docker-compose or hadolint-config edit needs the lint alone, and a dependency
     # bump the scan alone - so merging them into one trigger would make every hadolint-only change pay for
     # a multi-stage image build and a CVE scan, which is minutes for nothing.
-    local run_hadolint=false run_grype=false run_java=false run_javascript=false run_markdown=false run_shellcheck=false run_typescript=false
+    local run_hadolint=false run_grype=false run_guard_tests=false run_java=false run_javascript=false run_markdown=false \
+        run_shellcheck=false run_typescript=false
     local run_perf=false
     local java_changed_files=()
     # Perf's own inputs (the k6 scripts, the runner, the perf compose stack). A change to any of these
@@ -2158,6 +2256,12 @@ detect_changed_steps() {
         [[ "${file}" =~ ^tests/.*\.ts$ || "${file}" =~ ^tests/tsconfig\.json$ || "${file}" =~ ^tests/package(-lock)?\.json$ || "${file}" =~ ^code-quality-config/typescript/ ]] && run_typescript=true
         [[ "${file}" =~ \.md$ || "${file}" =~ ^code-quality-config/markdown/ ]] && run_markdown=true
         [[ "${file}" =~ \.sh$ || "${file}" =~ ^code-quality-config/shellscript/ ]] && run_shellcheck=true
+        # The `shellcheck` step's second tier. The guards read the real tree (an existing migration, the
+        # project root), so a migration landing or a protected path moving can break them without any hook
+        # file being touched. A guard's own *.sh edit sets run_shellcheck above as well, which is what makes
+        # that case run BOTH tiers.
+        [[ "${file}" =~ ^\.claude/hooks/ || "${file}" =~ ^src/main/resources/db/migration/ \
+           || "${file}" == "VERSION" || "${file}" == "RELEASE_NOTES.md" ]] && run_guard_tests=true
         # The perf suite's own inputs — its k6 scripts (tests/perf/), the runner, and its compose stack.
         [[ "${file}" =~ ^tests/perf/ || "${file}" == "tests/run-perf.sh" || "${file}" == "tests/docker-compose.perf.yml" ]] && perf_own_files=true
         # A submodule bump is reported as the BARE gitlink path, with no trailing slash, so not one of
@@ -2167,6 +2271,7 @@ detect_changed_steps() {
         if [[ "${file}" == "code-quality-config" ]]; then
             run_hadolint=true
             run_grype=true
+            run_guard_tests=true
             run_java=true
             run_javascript=true
             run_markdown=true
@@ -2279,7 +2384,15 @@ detect_changed_steps() {
     [[ "${run_javascript}" == true ]] && echo "javascript"
     [[ "${run_markdown}"   == true ]] && echo "markdown"
     [[ "${run_perf}"       == true ]] && echo "perf"
-    [[ "${run_shellcheck}" == true ]] && echo "shellcheck"
+    # `shellcheck` is emitted SCOPED unless both its tiers were triggered, exactly as `docker` is above:
+    # a change to an unrelated *.sh needs no guard tests, and a new migration needs no lint.
+    if [[ "${run_shellcheck}" == true && "${run_guard_tests}" == true ]]; then
+        echo "shellcheck"
+    elif [[ "${run_shellcheck}" == true ]]; then
+        echo "shellcheck:lint"
+    elif [[ "${run_guard_tests}" == true ]]; then
+        echo "shellcheck:hooks"
+    fi
     [[ "${run_typescript}" == true ]] && echo "typescript"
 }
 

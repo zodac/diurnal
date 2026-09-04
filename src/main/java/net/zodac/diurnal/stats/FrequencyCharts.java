@@ -29,7 +29,7 @@ import net.zodac.diurnal.user.Language;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Assembles a {@link FrequencyChart} from already-aggregated windows of counts — all of the chart's branching (bar heights, empty slots, which
+ * Assembles a {@link FrequencyChart} from already-aggregated windows of counts — all the chart's branching (bar heights, empty slots, which
  * navigation steps are offered) in one pure, database-free place, so it is unit-tested rather than only exercised through a rendered page.
  *
  * <p>

@@ -1,5 +1,19 @@
 # Data Export & Import
 
+> **This file is ~19 KB. Read only the section you need** - `grep -n '^#' .claude/TRANSFER.md` for its
+> line range, then read that range rather than the whole file.
+>
+> - **Why**
+> - **The format** — The details that make it "editable"
+> - **Design decisions, with the alternatives that were rejected** — Replace, not merge, All or nothing, A stateless two-step preview, Reject, never
+>   coerce, A complete archive only, Hand-rolled CSV, One parser object, not an accumulator parameter
+> - **Privacy**
+> - **Untrusted input**
+> - **Surfaces**
+> - **Where the writes happen**
+> - **The UI**
+> - **Tests**
+
 > A user can download everything they have tracked as an editable archive, and put one back. Read this before
 > touching `net.zodac.diurnal.transfer`, the Settings "Data" card, or `NoteService.replaceAll`.
 
@@ -255,6 +269,6 @@ bytes the preview was computed from.
 | `ImportParserTest`               | every validation rule, the future-note/future-log asymmetry, the problem cap, and that content is never quoted |
 | `ImportSummaryExtensionsTest`    | the preview's wording, and that every figure pluralises                                                        |
 | `TransferApiResourceIT`          | export shape, export→import→export identity, replace, rollback on refusal, cross-account isolation             |
-| `TransferInternalResourceIT`     | the Settings panel's refusal rows: bold file names, a chip per header column name, single-escaped upload text   |
+| `TransferInternalResourceIT`     | the Settings panel's refusal rows: bold file names, a chip per header column name, single-escaped upload text  |
 | `SurfaceParityIT`                | the same archive through both surfaces leaves the same database state                                          |
 | `tests/ui/data-transfer.spec.ts` | the card end to end: export downloads, preview, confirm, cancel, and a refusal shown in place                  |

@@ -42,8 +42,8 @@ import org.jspecify.annotations.Nullable;
  *
  * <p>
  * <strong>A cached row is only valid for the day it was computed on.</strong> The figures depend on the user's "today" as much as on their entries -
- * the current streak walks back from it, the longest gap carries an open run up to it, and the this/last month and year counts are keyed off it - so
- * {@link #computedForDate} is stored and every read checks it. A mismatch is a miss, not a correction: the figures are recomputed and the rows
+ * the current streak walks back from it, the longest gap carries an open run before it, and the 'this'/'last' month and year counts are keyed off it
+ * - so {@link #computedForDate} is stored and every read checks it. A mismatch is a miss, not a correction: the figures are recomputed and the rows
  * overwritten. A stale row therefore costs time rather than correctness, which is the property that matters for a cache nobody is watching.
  *
  * <p>
@@ -158,11 +158,11 @@ public class SubjectStatsCache extends PanacheEntityBase { // NOPMD: TooManyFiel
 
     /**
      * Removes every cached row belonging to a user, in one statement. Called from each path that writes a log entry or a note, so the next Stats read
-     * recomputes rather than serving figures the write has just invalidated.
+     * recomputes rather than serving figures the write request has just invalidated.
      *
      * <p>
-     * Deliberately a delete rather than a recompute: the write path pays one indexed statement, and the cost of rebuilding is paid lazily by whoever
-     * next opens the Stats page rather than by every increment on the dashboard.
+     * Deliberately a delete request rather than a recompute: the write path pays one indexed statement, and the cost of rebuilding is paid lazily by
+     * whoever next opens the Stats page rather than by every increment on the dashboard.
      *
      * @param userId the owning user whose cached rows to remove
      */
@@ -174,9 +174,9 @@ public class SubjectStatsCache extends PanacheEntityBase { // NOPMD: TooManyFiel
      * Replaces the user's cached rows with the given set, as one delete followed by the fresh rows.
      *
      * <p>
-     * The delete is flushed before the inserts so the statements reach the database in that order - Hibernate is otherwise free to order an insert
-     * ahead of a pending delete, which the {@code (user, subject)} primary key would reject. The flush goes through the entity manager rather than
-     * the inherited Panache static, which cannot be re-qualified from inside the entity itself.
+     * The delete request is flushed before the inserts so the statements reach the database in that order - Hibernate is otherwise free to order an
+     * insert ahead of a pending delete, which the {@code (user, subject)} primary key would reject. The flush goes through the entity manager rather
+     * than the inherited Panache static, which cannot be re-qualified from inside the entity itself.
      *
      * @param userId the owning user
      * @param rows the freshly computed rows to store

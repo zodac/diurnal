@@ -1,9 +1,24 @@
 # CODE_STYLE.md
 
+> **This file is ~41 KB. Read only the section you need** - `grep -n '^#' .claude/CODE_STYLE.md` for its
+> line range, then read that range rather than the whole file.
+>
+> - **Java** — Format with the IDE formatter (Checkstyle-aligned), Javadoc must use the multi-line form, Block comments and Javadoc fill the line
+>   width, Paragraph tags (`<p>`) sit on their own line, No HTML entities in Javadoc, No comments on private members, Private constructors carry no
+>   comment, Private records keep a blank line between the braces, Validation lives in the static factory, never in the constructor, Data records hold
+>   data; derived logic lives in a `<Type>Extensions` class, Dependency injection is constructor-based — NEVER field injection, Annotated fields are
+>   separated by a blank line, Repeat a repeatable annotation — never wrap it in its container, Nullability annotations on a field or method sit on
+>   their own line, Enum constants are separated by a blank line, Narrow a type with `instanceof final`, never a cast, An unread pattern binding is
+>   `_`, never a placeholder name, Validate a value ONCE per request, then treat it as settled, Suppress PMD rules with a `NOPMD:` line comment, never
+>   `@SuppressWarnings`, AssertJ assertions must be fluent-chained across multiple lines, Multi-argument terminal assertions use an extracted `List`,
+>   Configuration is read through typed `@ConfigMapping`, never scattered property lookups, Panache statics are called on the entity, NEVER on
+>   `PanacheEntityBase`, A request DTO's constraints are `@Schema` attributes, NEVER Jakarta Bean Validation, A constant regex is a `static final
+>   Pattern`, never `String.matches`/`replaceAll`
+
 Project-specific conventions **on top of** the inherited linter suite (Checkstyle / PMD / SpotBugs / Javadoc / NullAway). Every rule here is *
 *mandatory**. Re-read before a task; keep it in sync when conventions change.
 
----
+----
 
 ## Java
 
@@ -195,7 +210,7 @@ buried in an initialiser that every path through the type is forced to run.
 
 The rule keeps a rejected value from ever reaching a half-built object, and — specifically for the project's records — it keeps validation
 **testable**: PITest cannot hot-swap mutants into a record class, so a branch written in a compact constructor is invisible to the mutation gate and
-would sit permanently untested behind the 100% threshold (the same reason derived logic lives in a `<Type>Extensions` class; see `CLAUDE.md`).
+would sit permanently untested behind the 100% threshold (the same reason derived logic lives in a `<Type>Extensions` class - see below).
 A record therefore has **no compact constructor at all** — there are none anywhere in this repo, and adding one is the smell.
 
 ❌ **Wrong** — the check is in the constructor, so it is unnamed, undocumented and unmutatable:
@@ -235,6 +250,23 @@ public record TextField(String label, int minLength, int maxLength) {
 > normal shape for a bean. That is construction-time derivation, not validation; a bean that must *reject* its configuration does so at startup in
 > `AppLifecycle`, which is where every configuration guard already lives.
 
+### Data records hold data; derived logic lives in a `<Type>Extensions` class
+
+**A record holds data only.** Derived logic goes in a `<Type>Extensions` final class with a private constructor, whose methods take the record as
+their first parameter. A template-facing method is annotated `@io.quarkus.qute.TemplateExtension`, so Qute still resolves `{x.foo}` against the
+record unchanged.
+
+**This split is mandatory, not stylistic.** PITest refuses to hot-swap a mutant into a record class - it fails with
+`class redefinition failed: attempted to change the Record attribute` - so logic left on a record is silently untested behind the 100% mutation gate.
+Diagnose a suspected case with `-Dverbose=true`.
+
+**When a record grows branching instance logic called by a template** (the tell is a `@SuppressWarnings("unused")` creeping onto it), move it to a
+`<Type>Extensions` class and add a unit test. Exceptions: pure-data records, factory methods (`from`/`of`), and static validators/sanitisers.
+
+Two query rules follow from this split, both enforced by guard tests: a multi-column projection MUST be a typed record via `SELECT new <fqcn>(…)`
+rather than an `Object[]` tuple, and a query's named parameters MUST be bound through a typed `persistence.QueryParameter` token rather than a bare
+string. Both are stated in full, with their reasoning, in [`DATABASE.md`](DATABASE.md).
+
 ### Dependency injection is constructor-based — NEVER field injection
 
 **Every CDI dependency is injected through a single `@Inject`-annotated constructor that assigns `private final` fields. `@Inject` on a field is
@@ -252,7 +284,8 @@ Rules:
   self` in the constructor and calls `self.get().method(...)`. The lazy `Instance` avoids the construction-time self-cycle that a direct
   `Foo self` constructor parameter would create.
 - **Request-scoped JAX-RS context is a method parameter, never an injected field**: `@Context RoutingContext`/`Request`/… go on the endpoint method
-  signature (threaded into private helpers as needed). A resource bean is effectively a singleton, so it cannot constructor-inject a per-request value.
+  signature (threaded into private helpers as needed). A resource bean is effectively a singleton, so it cannot constructor-inject a per-request
+  value.
 - Test doubles for injected collaborators live in the shared `net.zodac.diurnal.stub` test package (`StubAppConfig`, `StubOidcConfig`, …) and are
   passed to the constructor — reuse them rather than re-declaring an anonymous/nested stub per test.
 
@@ -315,7 +348,8 @@ public String authSource;
 
 **A `@Repeatable` annotation is written out once per instance, directly on the declaration. Never wrap the instances in the container annotation's
 array form.** Java has allowed the repeated form since 8; the container (`@APIResponses({…})`, and any other `@Xs({@X, @X})` a library defines) is the
-pre-8 fallback, and using it costs a wrapper line, a closing `})`, an extra level of indentation on every entry, a comma between entries, and an import
+pre-8 fallback, and using it costs a wrapper line, a closing `})`, an extra level of indentation on every entry, a comma between entries, and an
+import
 of a type the code never otherwise names. The repeated form reads as a list of independent facts about the method, which is what it is: entries can be
 reordered, added or deleted a whole line at a time, so a one-response diff touches one line rather than repunctuating its neighbour.
 
@@ -540,7 +574,7 @@ createUser(acceptedValue(emailOutcome).toLowerCase(Locale.ROOT), acceptedValue(d
 
 When a PMD rule fires on code that is deliberately the way it is, suppress it with a **line comment** in the exact form:
 
-```
+```java
 // NOPMD: <RuleName> - <one-line reason>
 ```
 
@@ -638,7 +672,8 @@ line-wrap and method-call-child agree at `+4`). The same swap applies to any oth
 `containsExactlyInAnyOrder` → `containsExactlyInAnyOrderElementsOf`, and so on.
 
 > **More generally:** any *multi-line arguments on a chained method call* hit this same strict-`Indentation` wall (e.g.
-`.collect(Collectors.groupingBy(a, b))` split across lines). Fix it by collapsing the call onto one line when it fits within 150 chars, or by extracting the inner call/arguments to a local variable at statement level.
+`.collect(Collectors.groupingBy(a, b))` split across lines). Fix it by collapsing the call onto one line when it fits within 150 chars, or by
+extracting the inner call/arguments to a local variable at statement level.
 
 ### Configuration is read through typed `@ConfigMapping`, never scattered property lookups
 
