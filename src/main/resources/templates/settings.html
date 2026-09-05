@@ -733,6 +733,9 @@
                             {#is 'total-days-with-multiples'}{#let defaultLabel=msg:statFieldLabelTotalDaysWithMultiples description=msg:statFieldDescTotalDaysWithMultiples}
                                 {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
                             {/let}
+                            {#is 'most-in-a-day'}{#let defaultLabel=msg:statFieldLabelMostInSingleDay description=msg:statFieldDescMostInSingleDay}
+                                {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
+                            {/let}
                             {#is 'best-month'}{#let defaultLabel=msg:statFieldLabelBestMonth description=msg:statFieldDescBestMonth}
                                 {#include partials/stats-field-row choice=choice defaultLabel=defaultLabel description=description /}
                             {/let}

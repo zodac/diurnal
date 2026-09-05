@@ -64,6 +64,15 @@
             {#let label=msg:statFieldLabelTotalDaysWithMultiples sub=msg:statSubAllTime}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
         {/if}
 
+    {! most-in-a-day leads with the COUNT and carries the record's date as its sub-caption, so the sub needs no
+       translated phrase around it - it is already a date formatted in the viewer's own language. !}
+    {#is 'most-in-a-day'}
+        {#if tile.labelIsCustom}
+            {#let label=tile.label}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=tile.sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {#else}
+            {#let label=msg:statFieldLabelMostInSingleDay}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=tile.sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}
+        {/if}
+
     {#is 'best-month'}
         {#if tile.labelIsCustom}
             {#let label=tile.label sub=msg:statSubTimes(tile.subCount1)}{#include partials/stat-tile-dispatch compact=compact label=label value=tile.value sub=sub subNum=tile.subNum valueClass=tile.valueClass date=tile.date /}{/let}

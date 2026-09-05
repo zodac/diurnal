@@ -515,7 +515,7 @@ public class StatsService {
         if (sortedDays.isEmpty()) {
             final DaySpan noSpan = new DaySpan(today, today);
             return new SubjectStats(subject, 0, 0, 0L, null, null, null, noSpan, noSpan, noSpan,
-                    0L, 0L, 0L, 0L, null, 0L, "—", 0L, today);
+                    0L, 0L, 0L, 0L, null, 0L, null, 0L, "—", 0L, today);
         }
 
         // The daily rollup carries the streak/gap dates AND the per-day count, so the two figures that need to know how OFTEN a day was recorded
@@ -541,6 +541,11 @@ public class StatsService {
             totalCount += day.total();
         }
 
+        // The rows are ascending by date and Stream.max keeps the FIRST of two equal elements, so a count reached on several days reports the
+        // earliest of them - a record is dated to when it was set, not to when it was most recently equalled.
+        final DailyActionTotal bestDay = sortedDays.stream()
+            .max(Comparator.comparingLong(DailyActionTotal::total)).orElseThrow();
+
         final Map.Entry<YearMonth, Long> bestMonth = byMonth.entrySet().stream()
             .max(Map.Entry.comparingByValue()).orElse(null);
         final Map.Entry<Integer, Long> bestYear = byYear.entrySet().stream()
@@ -561,6 +566,8 @@ public class StatsService {
                 byMonth.getOrDefault(prevMonth, 0L),
                 byYear.getOrDefault(thisYear, 0L),
                 byYear.getOrDefault(thisYear - 1, 0L),
+                bestDay.date(),
+                bestDay.total(),
                 bestMonth != null ? bestMonth.getKey() : null,
                 bestMonth != null ? bestMonth.getValue() : 0L,
                 bestYear  != null ? String.valueOf(bestYear.getKey()) : "—",

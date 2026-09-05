@@ -233,7 +233,8 @@ monthly)`, so notes plug straight in with no new aggregation.
 - **Count semantics:** one note is a count of 1, so `totalCount == totalDays` and the count averages equal the day
   averages. For the same reason a notes day can never hold multiples, so "Total days with multiples" is always `0`
   and "Last day with multiples" always reads "Never". The tiles render honestly rather than being hidden, because the
-  stat picker is a single global preference.
+  stat picker is a single global preference. For the same reason "Most in a single day" always reads `1` for notes,
+  dated to the user's FIRST note day (every day ties at one, and a tie reports the earliest).
 - **Frequency graph:** `FrequencyCharts.ChartedAction` was DELETED rather than renamed — it was structurally
   `StatSubject` minus the kind, so the chart builder now takes `StatSubject` directly. The "a comparison must have been
   logged at least once" rule becomes "must have at least one note" for the notes subject; the graph's OWN subject stays

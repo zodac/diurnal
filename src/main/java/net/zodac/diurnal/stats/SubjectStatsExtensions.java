@@ -131,10 +131,19 @@ public final class SubjectStatsExtensions {
                 trendTile(key, label, labelIsCustom, monthTrend(stats), monthTrendClass(stats), stats.thisMonthCount(), stats.lastMonthCount());
             case VS_LAST_YEAR   ->
                 trendTile(key, label, labelIsCustom, yearTrend(stats), yearTrendClass(stats), stats.thisYearCount(), stats.lastYearCount());
+            // The single-day high score is the one that leads with the COUNT, because that is what its caption asks ("Most in a single day");
+            // the date it was set on is the secondary caption. The two calendar-period bests below read the other way round.
+            case MOST_IN_A_DAY  -> peakTile(key, label, labelIsCustom, stats.bestDayCount(), bestDayLabel(stats.bestDay(), lang));
             // The high scores lead with WHEN the record was set; the count itself is the secondary caption.
             case BEST_MONTH     -> recordTile(key, label, labelIsCustom, bestMonthLabel(stats.bestMonth(), lang), stats.bestMonthCount());
             case BEST_YEAR      -> recordTile(key, label, labelIsCustom, stats.bestYearLabel(), stats.bestYearCount());
         };
+    }
+
+    // "" rather than a dash when the subject has never been recorded: this is a SUB-caption, which every other tile
+    // leaves empty when it has nothing to say, and the tile's own value already reports the zero.
+    private static String bestDayLabel(final @Nullable LocalDate day, final Language lang) {
+        return day == null ? "" : day.format(dateFmt(lang));
     }
 
     // The one place SubjectStats.bestMonth() (a raw YearMonth, never a pre-formatted word - see that field's own
@@ -167,6 +176,12 @@ public final class SubjectStatsExtensions {
         final DurationParts elapsed = daysAgo >= 2 ? Durations.breakdown(span) : new DurationParts(0L, 0L, 0L);
         return new StatTile(key, label, labelIsCustom, value, "", true, "text-ink", true, 0L, 0L, daysAgo,
             elapsed.years(), elapsed.months(), elapsed.days());
+    }
+
+    // A figure with a bare DATE beneath it: the sub needs no translation and no count to pluralise, so it travels as text the way the duration
+    // tiles' own date range does, rather than as a subCount the template composes a phrase around.
+    private static StatTile peakTile(final String key, final String label, final boolean labelIsCustom, final long value, final String sub) {
+        return new StatTile(key, label, labelIsCustom, Long.toString(value), sub, false, "text-ink", false, 0L, 0L, 0, 0L, 0L, 0L);
     }
 
     private static StatTile recordTile(final String key, final String label, final boolean labelIsCustom, final String value,

@@ -1950,6 +1950,22 @@ public interface AppMessages {
     String statFieldDescLastDayWithMultiples();
 
     /**
+     * The "Most in a single day" stat's catalogue (default) caption.
+     *
+     * @return the default (English) text
+     */
+    @Message("Most in a single day")
+    String statFieldLabelMostInSingleDay();
+
+    /**
+     * The "Most in a single day" stat's tooltip description.
+     *
+     * @return the default (English) text
+     */
+    @Message("The highest number of times you performed this action on a single day")
+    String statFieldDescMostInSingleDay();
+
+    /**
      * The "Best month" stat's catalogue (default) caption.
      *
      * @return the default (English) text
