@@ -4,7 +4,11 @@
 # that workflow exists solely because the integration cannot import a translation whose text equals the
 # source string. Nothing discovers this file by convention - the workflow names it explicitly.
 #
-# CROWDIN_PROJECT_ID / CROWDIN_PERSONAL_TOKEN come from repository secrets; never add a real token here.
+# The two *_env lines below are what wire the credentials in, and they are REQUIRED rather than decorative:
+# because the workflow passes this file with `--config`, the CLI takes its credentials from here and does NOT
+# fall back to the ambient environment, so omitting them authenticates with nothing and fails as
+# "Couldn't authorize. Check your 'api_token'" - identical to the error for a genuinely bad token.
+# They name the ORGANISATION secrets (zodac, scoped to public repos); never put a real token in this file.
 #
 # The languages_mapping keys below are the codes CROWDIN assigns, and they are NOT always the
 # region-qualified BCP 47 tag this app stores as Language.value() - CrowdIn's default Japanese code is
@@ -13,7 +17,16 @@
 #
 # The source file is generated - run scripts/generate-source-messages.sh after any @Message wording change.
 
+"project_id_env": "CROWDIN_PROJECT_ID"
+"api_token_env": "CROWDIN_PERSONAL_TOKEN"
+
 "base_path": "."
+
+# The project holds the file at `master > translations > msg_en-GB.properties`, mirroring this repo's own
+# layout, because the GitHub integration preserves the directory structure when it syncs. The CLI does NOT
+# do that by default - it flattens, and would look for `msg_en-GB.properties` at the branch root, match
+# nothing, and exit 0. `master` itself is a VERSION BRANCH, named in the workflow as crowdin_branch_name.
+"preserve_hierarchy": true
 
 "files":
   - "source": "/translations/msg_en-GB.properties"
