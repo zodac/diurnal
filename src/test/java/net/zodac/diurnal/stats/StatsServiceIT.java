@@ -248,6 +248,12 @@ class StatsServiceIT extends IntegrationTestBase {
         assertThat(stats.lastYearCount())
             .as("last year (2025) = 10+1")
             .isEqualTo(11L);
+        assertThat(stats.bestDay())
+            .as("busiest single day is the 31st of December 2025")
+            .isEqualTo(LocalDate.of(2025, 12, 31));
+        assertThat(stats.bestDayCount())
+            .as("busiest single day's count")
+            .isEqualTo(10L);
         assertThat(stats.bestMonth())
             .as("best month is Dec 2025")
             .isEqualTo(YearMonth.of(2025, 12));
@@ -266,5 +272,25 @@ class StatsServiceIT extends IntegrationTestBase {
         assertThat(stats.currentStreak().start())
             .as("the current run starts today")
             .isEqualTo(TODAY);
+    }
+
+    @Test
+    void forAllSubjects_busiestDayTiedAcrossDays_reportsTheEarliestOfThem() {
+        // A record is dated to when it was SET, not to when it was most recently equalled, so an equal count on a
+        // later day must not move the figure forward.
+        runInTx(() -> {
+            final Action action = newAction(userId, "Tied");
+            newLog(userId, action.id, LocalDate.of(2026, 3, 4), 5);
+            newLog(userId, action.id, LocalDate.of(2026, 4, 4), 5);
+            newLog(userId, action.id, LocalDate.of(2026, 5, 4), 2);
+        });
+
+        final SubjectStats stats = statsService.forAllSubjects(userId).getFirst();
+        assertThat(stats.bestDay())
+            .as("the earliest day holding the joint-highest count")
+            .isEqualTo(LocalDate.of(2026, 3, 4));
+        assertThat(stats.bestDayCount())
+            .as("unexpected value")
+            .isEqualTo(5L);
     }
 }

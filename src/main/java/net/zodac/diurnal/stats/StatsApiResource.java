@@ -201,6 +201,8 @@ public class StatsApiResource {
      * @param thisYearCount  the total count this calendar year
      * @param kind           what the statistics are about ({@code action} or {@code notes})
      * @param lastYearCount  the total count last calendar year
+     * @param bestDay        the busiest single day, or {@code null} if never logged
+     * @param bestDayCount   the highest single-day count
      * @param bestMonthLabel the label of the highest-count month (e.g. {@code June 2026})
      * @param bestMonthCount the highest single-month count
      * @param bestYearLabel  the label of the highest-count year (e.g. {@code 2026})
@@ -233,6 +235,10 @@ public class StatsApiResource {
         @Schema(examples = "18", description = "The total count last calendar month.") long lastMonthCount,
         @Schema(examples = "57", description = "The total count this calendar year.") long thisYearCount,
         @Schema(examples = "203", description = "The total count last calendar year.") long lastYearCount,
+        @Schema(examples = "2026-06-15", description = "The busiest single day: the earliest day carrying the highest count, so a record is dated "
+        + "to when it was first set rather than to when it was last equalled.") @Nullable LocalDate bestDay,
+        @Schema(examples = "7", description = "The highest count recorded on any single day. Always 1 for notes, which hold one note per day.")
+        long bestDayCount,
         @Schema(examples = "June 2026", description = "The label of the highest-count month.") String bestMonthLabel,
         @Schema(examples = "21", description = "The highest single-month count.") long bestMonthCount,
         @Schema(examples = "2026", description = "The label of the highest-count year.") String bestYearLabel,
@@ -264,6 +270,8 @@ public class StatsApiResource {
                 stats.lastMonthCount(),
                 stats.thisYearCount(),
                 stats.lastYearCount(),
+                stats.bestDay(),
+                stats.bestDayCount(),
                 bestMonthLabel(stats.bestMonth()),
                 stats.bestMonthCount(),
                 stats.bestYearLabel(),

@@ -55,7 +55,10 @@ import org.jspecify.annotations.Nullable;
  * <p>
  * <strong>Adding a new stat:</strong> any newly-computed statistic that should be user-visible on the Stats page MUST be registered here as a new
  * constant AND given a tile mapping in {@link SubjectStatsExtensions#tiles(SubjectStats, List, int, String)} — otherwise it will never appear in
- * the picker or on the page.
+ * the picker or on the page. Two template arms are needed on top of that, keyed on the new {@link #key()}: one in
+ * {@code partials/stat-tile-row.html} for the tile's own translated caption, and one in {@code settings.html} for its picker row. A Qute
+ * {@code {#switch}} with no matching arm renders NOTHING and fails no build, so a missing arm ships a silently blank stat — pin both with a
+ * rendering assertion, the way {@code StatsResourceIT} does.
  */
 public enum StatField {
 
@@ -118,6 +121,12 @@ public enum StatField {
      */
     LAST_DAY_WITH_MULTIPLES("last-day-with-multiples", "Last day with multiples", false,
             "The most recent date on which you performed this action more than once"),
+
+    /**
+     * Highest count recorded on any single day.
+     */
+    MOST_IN_A_DAY("most-in-a-day", "Most in a single day", false,
+            "The highest number of times you performed this action on a single day"),
 
     /**
      * Highest-count month on record.

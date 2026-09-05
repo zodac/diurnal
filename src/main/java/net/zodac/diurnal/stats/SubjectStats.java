@@ -64,6 +64,11 @@ public record SubjectStats(
     long      thisYearCount,
     long      lastYearCount,
     // High scores
+    // The single busiest day and its count. The date is the EARLIEST day holding that count, so a record reports when it was first SET rather
+    // than when it was last equalled; a notes subject consequently reports its first-ever note day at a count of one, which is the honest figure
+    // for a subject no day can hold twice.
+    @Nullable LocalDate bestDay,
+    long      bestDayCount,
     // bestMonth is the raw month, not a pre-formatted label: "June 2026" is a WORD (the month name), and a plain
     // Java call can never be locale-aware (see AppMessages' own class Javadoc) - each surface formats it itself
     // (the API in English, the web template via SubjectStatsExtensions, per the viewing user's language).
