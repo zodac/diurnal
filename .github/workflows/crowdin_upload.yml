@@ -45,6 +45,32 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7.0.1
 
+      # A secret that never reached the runner is indistinguishable, at the CLI, from a wrong one: both come
+      # back as "Couldn't authorize. Check your 'api_token'". An ORGANISATION secret silently resolves to the
+      # empty string whenever its repository access policy excludes this repo - which "Private repositories"
+      # does, since zodac/diurnal is public - so the failure looks like a bad token and is not one. Report
+      # which of the two it actually is. Lengths only: the values themselves are masked in the log anyway,
+      # and a length is what catches a truncated or newline-padded paste.
+      - name: Verify the Crowdin credentials reached the runner
+        env:
+          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
+          CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
+        run: |
+          missing=0
+          if [ -z "${CROWDIN_PROJECT_ID}" ]; then
+            echo "::error::CROWDIN_PROJECT_ID is empty - the secret is unset, or an organisation secret whose repository access policy excludes this public repo"
+            missing=1
+          else
+            echo "CROWDIN_PROJECT_ID: ${#CROWDIN_PROJECT_ID} characters"
+          fi
+          if [ -z "${CROWDIN_PERSONAL_TOKEN}" ]; then
+            echo "::error::CROWDIN_PERSONAL_TOKEN is empty - the secret is unset, or an organisation secret whose repository access policy excludes this public repo"
+            missing=1
+          else
+            echo "CROWDIN_PERSONAL_TOKEN: ${#CROWDIN_PERSONAL_TOKEN} characters"
+          fi
+          exit "${missing}"
+
       # crowdin.yml at the repo root supplies base_path/source/translation and the languages_mapping.
       #
       # auto_approve_imported is deliberately FALSE: "translated" and "approved" are separate states, and
@@ -52,15 +78,21 @@ jobs:
       # review having happened, which an automated upload is not. Set it true ONLY if the project has
       # Settings -> Export -> "export only approved translations" enabled, where unapproved never ships.
       #
-      # If the GitHub integration is configured to sync into a Crowdin VERSION BRANCH (it names one after
-      # the repo branch when branch mapping is on), this needs `crowdin_branch_name: master` to match, or
-      # it uploads against the project root and silently matches nothing. Check the integration's own
-      # settings before trusting the first green run - and use the workflow_dispatch dryrun input, which
-      # prints the file list the CLI resolved without writing anything.
+      # The integration scans `master` and raises its PRs from `l10n_master`. Those two names are NOT
+      # interchangeable here: `l10n_master` exists only on the GitHub side, as the branch the integration
+      # commits downloaded files onto, and Crowdin holds no branch by that name - never name it below.
+      #
+      # What matters is whether the project holds a VERSION BRANCH called `master` (the integration creates
+      # one per scanned repo branch when branch mapping is on) or keeps the files at the project root. If a
+      # branch exists, this step needs `crowdin_branch_name: master`; without it the upload runs against the
+      # root, matches nothing, and REPORTS SUCCESS. The CrowdIn project's Sources tab settles it: a branch
+      # selector above the file list means a branch exists. The workflow_dispatch dryrun input prints the
+      # file list the CLI actually resolved, which is the run to trust rather than the first green one.
       - name: Upload translations to Crowdin
         uses: crowdin/github-action@v3.0.2
         with:
           config: 'crowdin.yml'
+          crowdin_branch_name: master
           upload_sources: false
           upload_translations: true
           import_eq_suggestions: true
