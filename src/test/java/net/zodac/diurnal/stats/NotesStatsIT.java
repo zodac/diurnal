@@ -170,6 +170,12 @@ class NotesStatsIT extends IntegrationTestBase {
         assertThat(notes.bestMonthCount())
             .as("the best month is the one with two")
             .isEqualTo(2L);
+        assertThat(notes.bestDayCount())
+            .as("a day holds at most one note, so the busiest day is always one - the honest figure, not a suppressed case")
+            .isEqualTo(1L);
+        assertThat(notes.bestDay())
+            .as("the earliest note day, since every day ties at one")
+            .isEqualTo(TODAY.minusMonths(1));
     }
 
     @Test

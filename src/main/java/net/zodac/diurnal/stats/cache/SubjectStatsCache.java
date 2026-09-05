@@ -125,6 +125,14 @@ public class SubjectStatsCache extends PanacheEntityBase { // NOPMD: TooManyFiel
     @Column(name = "last_year_count", nullable = false)
     public long lastYearCount;
 
+    // The busiest single day, and its count. Null exactly when best_month is - the same "no history at all" case.
+    @Column(name = "best_day")
+    @Nullable
+    public LocalDate bestDay;
+
+    @Column(name = "best_day_count", nullable = false)
+    public long bestDayCount;
+
     // The best month as its first day: PostgreSQL has no year-month type, so the mapping converts. Null exactly when best_year is.
     @Column(name = "best_month")
     @Nullable

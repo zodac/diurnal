@@ -60,6 +60,7 @@ class SubjectStatsTest {
                 span(currentStreak), span(longestStreak), span(longestGap),
                 thisMonth, lastMonth,
                 thisYear, lastYear,
+                null, 0L,
                 bestMonth, bestMonthCount,
                 bestYearLabel, bestYearCount,
                 TODAY
@@ -797,6 +798,55 @@ class SubjectStatsTest {
             .isTrue();
     }
 
+    // ── most in a single day ────────────────────────────────────────────────
+
+    // The busiest-day figures are independent of every other statistic, so they get their own builder rather than
+    // widening the shared one - only the two components under test vary.
+    private static SubjectStats peakStats(@Nullable final LocalDate bestDay, final long bestDayCount) {
+        return new SubjectStats(
+            StatSubject.of(new Action()), 4, 0, 9L, TODAY.minusDays(10L), TODAY, null,
+                span(0), span(0), span(0),
+                0L, 0L, 0L, 0L,
+                bestDay, bestDayCount,
+                null, 0L, "—", 0L,
+                TODAY
+        );
+    }
+
+    @Test
+    void tiles_mostInSingleDay_leadsWithTheCountAndSubsTheDate() {
+        final StatTile tile = SubjectStatsExtensions
+            .tiles(peakStats(LocalDate.of(2025, 6, 11), 7L), List.of(shown(StatField.MOST_IN_A_DAY)), 1, "en-GB")
+            .getFirst();
+
+        assertThat(tile.value())
+            .as("the count is the headline, which is what the 'Most in a single day' caption asks for")
+            .isEqualTo("7");
+        assertThat(tile.sub())
+            .as("the date the record was set travels as already-formatted text, needing no translated phrase around it")
+            .isEqualTo("11 June 2025");
+        assertThat(tile.date())
+            .as("the value is a figure, so it is locale-grouped rather than styled as a date")
+            .isFalse();
+        assertThat(tile.subNum())
+            .as("the sub is a date already formatted in the viewer's language, not a groupable number")
+            .isFalse();
+    }
+
+    @Test
+    void tiles_mostInSingleDay_neverRecorded_hasNoDateBeneathItsZero() {
+        final StatTile tile = SubjectStatsExtensions
+            .tiles(peakStats(null, 0L), List.of(shown(StatField.MOST_IN_A_DAY)), 1, "en-GB")
+            .getFirst();
+
+        assertThat(tile.value())
+            .as("a subject with no history reports zero, the way every other numeric tile does")
+            .isEqualTo("0");
+        assertThat(tile.sub())
+            .as("there is no date to word, and a sub-caption says nothing rather than a dash")
+            .isEmpty();
+    }
+
     @Test
     void tiles_emptyFieldList_rendersNoTiles() {
         final SubjectStats subjectStats = stats(2, 7, TODAY, TODAY, 0, 0, 0, 0, 0, 0, null, 0, "—", 0);
@@ -815,6 +865,7 @@ class SubjectStatsTest {
             StatSubject.of(new Action()), 4, daysWithMultiples, 9L, TODAY.minusDays(10L), TODAY, lastDayWithMultiples,
                 span(0), span(0), span(0),
                 0, 0, 0, 0,
+                null, 0L,
                 null, 0, "—", 0,
                 TODAY
         );
