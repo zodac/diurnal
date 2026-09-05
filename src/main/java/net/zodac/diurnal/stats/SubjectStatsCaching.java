@@ -54,6 +54,7 @@ final class SubjectStatsCaching {
      * @param stats the computed statistics
      * @return the row to persist
      */
+    @SuppressWarnings("OverlyLongMethod")  // A flat column-by-column mapper - its length is the width of the cache table, not complexity
     static SubjectStatsCache from(final UUID userId, final SubjectStats stats) {
         final SubjectStatsCache row = new SubjectStatsCache();
         row.userId = userId;
@@ -77,6 +78,7 @@ final class SubjectStatsCaching {
         row.lastYearCount = stats.lastYearCount();
         row.bestDay = stats.bestDay();
         row.bestDayCount = stats.bestDayCount();
+
         // Both stay at their column default of null when the subject has no history; a subject with no best month has no best year either.
         final YearMonth bestMonth = stats.bestMonth();
         if (bestMonth != null) {
