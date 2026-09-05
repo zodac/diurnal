@@ -3,17 +3,17 @@ name: Translations CI
 # The only workflow triggered by `pull_request` rather than by a push to master, and deliberately so: the
 # translated bundles arrive as a CrowdIn-authored PR from the `l10n_master` branch, so a check that runs after
 # the merge reports a break that is already on master (which is exactly how the escaped-`{\#if` corruption in
-# PR #2 reached a Docker build). Scoped by path rather than by `github.head_ref == 'l10n_master'`, so that a
-# hand edit to a bundle in any other PR is held to the same guards - every CrowdIn PR touches these paths and
-# nothing else, so the narrower branch condition would buy nothing.
+# PR #2 reached a Docker build).
+#
+# Deliberately UNFILTERED - no `paths:`, and no `github.head_ref == 'l10n_master'` condition - because this is a
+# REQUIRED status check on master. Branch protection has no concept of a path filter: a required check that a
+# filter skips never reports at all, so GitHub holds the PR at "Expected - waiting for status to be reported"
+# and it can never merge. An always-reporting check is the only kind that can safely be required, and the job is
+# a single unit-test class (see below), so running it on every PR costs little. Do NOT re-add a `paths:` filter
+# here without first dropping the required-check rule on master.
 on:
   pull_request:
     branches: [ master ]
-    paths:
-      - '.github/workflows/translations.yml'
-      - 'src/main/resources/messages/**'
-      - 'translations/**'
-      - 'src/test/java/net/zodac/diurnal/web/AppMessageCoverageTest.java'
   workflow_dispatch: # allows manual trigger
 
 jobs:
