@@ -71,6 +71,30 @@ jobs:
           fi
           exit "${missing}"
 
+      # "Couldn't authorize. Check your 'api_token'" is the CLI's answer to several unrelated causes, so ask
+      # the API directly and report the status code instead. Two probes, because they fail apart:
+      #   /user       401 -> the token is rejected outright: expired, mistyped, or issued by an ENTERPRISE
+      #                      account, which authenticates against its own organisation-specific API host
+      #                      rather than the public one (the action's `base_url` input, and `api_url` here)
+      #               403 -> the token is valid but lacks a scope (Projects needs at least Read)
+      #   /projects   404 -> the token is fine but the project id belongs to a different account
+      # Only status codes and error bodies are printed; the token travels in a header and is never echoed.
+      - name: Diagnose the Crowdin credentials against the API
+        env:
+          CROWDIN_PROJECT_ID: ${{ secrets.CROWDIN_PROJECT_ID }}
+          CROWDIN_PERSONAL_TOKEN: ${{ secrets.CROWDIN_PERSONAL_TOKEN }}
+        run: |
+          api='https://api.crowdin.com/api/v2'
+          user_code="$(curl -s -o /tmp/crowdin-user.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${CROWDIN_PERSONAL_TOKEN}" "${api}/user")"
+          echo "GET /user -> ${user_code}"
+          [ "${user_code}" = "200" ] || head -c 400 /tmp/crowdin-user.json
+
+          project_code="$(curl -s -o /tmp/crowdin-project.json -w '%{http_code}' \
+            -H "Authorization: Bearer ${CROWDIN_PERSONAL_TOKEN}" "${api}/projects/${CROWDIN_PROJECT_ID}")"
+          echo "GET /projects/<id> -> ${project_code}"
+          [ "${project_code}" = "200" ] || head -c 400 /tmp/crowdin-project.json
+
       # crowdin.yml at the repo root supplies base_path/source/translation and the languages_mapping.
       #
       # auto_approve_imported is deliberately FALSE: "translated" and "approved" are separate states, and
