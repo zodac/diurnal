@@ -54,6 +54,8 @@ class SubjectStatsCachingTest {
             22L,
             33L,
             44L,
+            LocalDate.of(2025, 4, 9),
+            8L,
             YearMonth.of(2025, 4),
             55L,
             "2025",
@@ -64,7 +66,7 @@ class SubjectStatsCachingTest {
     private static SubjectStats empty() {
         final DaySpan noSpan = new DaySpan(TODAY, TODAY);
         return new SubjectStats(StatSubject.notes("#22c55e"), 0, 0, 0L, null, null, null, noSpan, noSpan, noSpan,
-            0L, 0L, 0L, 0L, null, 0L, SubjectStatsCaching.NO_BEST_YEAR, 0L, TODAY);
+            0L, 0L, 0L, 0L, null, 0L, null, 0L, SubjectStatsCaching.NO_BEST_YEAR, 0L, TODAY);
     }
 
     @Test
@@ -118,6 +120,9 @@ class SubjectStatsCachingTest {
         assertThat(row.bestMonth)
             .as("the best month is stored as its first day, PostgreSQL having no year-month type")
             .isEqualTo(LocalDate.of(2025, 4, 1));
+        assertThat(row.bestDay)
+            .as("the busiest day is stored as the date itself")
+            .isEqualTo(LocalDate.of(2025, 4, 9));
     }
 
     @Test
@@ -130,6 +135,12 @@ class SubjectStatsCachingTest {
         assertThat(row.bestMonth)
             .as("an absent best month is null")
             .isNull();
+        assertThat(row.bestDay)
+            .as("an absent busiest day is null, and its count stays at zero")
+            .isNull();
+        assertThat(row.bestDayCount)
+            .as("unexpected value")
+            .isZero();
     }
 
     @Test

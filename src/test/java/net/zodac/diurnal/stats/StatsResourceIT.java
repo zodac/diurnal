@@ -122,6 +122,26 @@ class StatsResourceIT extends IntegrationTestBase {
     }
 
     @Test
+    void statsPage_mostInSingleDayTileRendersItsCaptionAndItsDate() {
+        runInTx(() -> {
+            final Action action = newAction(primaryId, "Peaker");
+            newLog(primaryId, action.id, TODAY.minusDays(4), 1);
+            newLog(primaryId, action.id, TODAY.minusDays(2), 6);
+            newLog(primaryId, action.id, TODAY, 1);
+        });
+
+        // A {#is} arm missing from partials/stat-tile-row.html renders NOTHING at all rather than failing the build
+        // (see TemplateSwitchCoverageTest's own reasoning), so this tile's caption is pinned here - and with it the
+        // date sub-caption, which is the half no other tile kind carries beneath a plain figure.
+        given().get("/stats")
+                .then().statusCode(OK)
+                .body(containsString("Most in a single day"))
+                // The busiest day is deliberately neither the first nor the last logged one, so this date can only
+                // have come from this tile's own sub-caption.
+                .body(containsString("13 June 2026"));
+    }
+
+    @Test
     void statsPage_renamedStat_rendersUnderTheCustomCaption() {
         runInTx(() -> {
             final Action action = newAction(primaryId, "Renamed");

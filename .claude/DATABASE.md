@@ -121,6 +121,7 @@ already been answered is not re-litigated from scratch:
 | `V41`     | `actions.user_id`: turned the Stats rollup's disk-spilling sort into an Incremental Sort (~105 ms → ~59 ms)  |
 | `V42`     | `users.created_at`: deferred twice at 1,000 accounts, warranted at 50,000 (127 ms → 6.5 ms on the last page) |
 | `V43`     | `subject_stats_cache`: why `computed_for_date` is a column and not part of the key; why no second index      |
+| `V44`     | `subject_stats_cache.best_day`: why a cache gaining a column is EMPTIED rather than back-filled              |
 
 ## Writing a query
 
