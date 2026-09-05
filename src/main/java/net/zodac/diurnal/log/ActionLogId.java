@@ -57,18 +57,24 @@ public class ActionLogId implements Serializable {
 
     /**
      * The owning user, mirroring {@link ActionLog#userId}. Null only between the provider constructing this and populating it.
+     *
+     * @serial the owning user
      */
     @Nullable
     public UUID userId;
 
     /**
      * The action being tallied, mirroring {@link ActionLog#actionId}. Null only between the provider constructing this and populating it.
+     *
+     * @serial the action being tallied
      */
     @Nullable
     public UUID actionId;
 
     /**
      * The day being tallied, mirroring {@link ActionLog#logDate}. Null only between the provider constructing this and populating it.
+     *
+     * @serial the day being tallied
      */
     @Nullable
     public LocalDate logDate;

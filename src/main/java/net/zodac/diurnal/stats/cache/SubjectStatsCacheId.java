@@ -59,6 +59,8 @@ public class SubjectStatsCacheId implements Serializable {
 
     /**
      * The owning user, mirroring {@link SubjectStatsCache#userId}. Null only between the provider constructing this and populating it.
+     *
+     * @serial the owning user
      */
     @Nullable
     public UUID userId;
@@ -66,6 +68,8 @@ public class SubjectStatsCacheId implements Serializable {
     /**
      * The subject the figures are about, mirroring {@link SubjectStatsCache#subjectId}. Null only between the provider constructing this and
      * populating it.
+     *
+     * @serial the subject the figures are about
      */
     @Nullable
     public UUID subjectId;
