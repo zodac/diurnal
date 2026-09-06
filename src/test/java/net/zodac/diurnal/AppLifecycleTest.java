@@ -20,6 +20,7 @@ package net.zodac.diurnal;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
 import net.zodac.diurnal.note.NoteKeys;
 import net.zodac.diurnal.stub.StubNotesConfig;
 import net.zodac.diurnal.stub.StubNotesEncryptionConfig;
@@ -40,6 +41,7 @@ import org.junit.jupiter.api.Test;
 class AppLifecycleTest {
 
     private static final String VALID_NOTES_KEY = "ZGl1cm5hbC10ZXN0LW5vdGVzLWtleS0zMi1ieXRlcyE=";
+    private static final String VALID_RETIRED_KEY = "ZGl1cm5hbC10ZXN0LXJldGlyZWQta2V5LTMyYnl0ZXM=";
 
     // ── Both auth mechanisms disabled → refuse to start ──────────────────────────────────────────
 
@@ -152,6 +154,37 @@ class AppLifecycleTest {
             .as("past the ceiling the dashboard's three-month warm-up and an export member stop being things the server can carry")
             .isInstanceOf(IllegalStateException.class)
             .hasMessageContaining("NOTE_MAX_LENGTH must be between");
+    }
+
+    @Test
+    void validateNotesEncryptionKey_withAnUnusableRetiredKey_failsFast() {
+        // A rotation entry is validated for the same reason the current key is: a typo in NOTE_ENCRYPTION_PREVIOUS_KEYS would otherwise be
+        // indistinguishable from "no previous key was configured", and the boot would fail naming a key mismatch instead of the malformed value.
+        assertThatThrownBy(() -> lifecycleWithRetiredKeys(List.of("not-base64!")).validateNotesEncryptionKey())
+            .as("a malformed retired key must be reported as such, rather than left to look like a key mismatch")
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("NOTE_ENCRYPTION_PREVIOUS_KEYS holds an unusable entry");
+    }
+
+    @Test
+    void validateNotesEncryptionKey_withOneBlankRetiredKey_passes() {
+        // An env var listing an empty entry ("key-one,,key-two", or a trailing comma) names no key at all and is skipped rather than refused.
+        assertThatCode(() -> lifecycleWithRetiredKeys(List.of("  ", VALID_RETIRED_KEY)).validateNotesEncryptionKey())
+            .as("a blank rotation entry is no key at all, and must not fail the boot")
+            .doesNotThrowAnyException();
+    }
+
+    @Test
+    void validateNotesEncryptionKey_withUsableRetiredKeys_passes() {
+        assertThatCode(() -> lifecycleWithRetiredKeys(List.of(VALID_RETIRED_KEY)).validateNotesEncryptionKey())
+            .as("a well-formed retired key is what a rotation is configured with, and must boot")
+            .doesNotThrowAnyException();
+    }
+
+    private static AppLifecycle lifecycleWithRetiredKeys(final List<String> retiredKeys) {
+        final StubNotesEncryptionConfig encryptionConfig = new StubNotesEncryptionConfig(VALID_NOTES_KEY, retiredKeys);
+        return new AppLifecycle(new StubPasswordAuthConfig(true, true), new StubQuarkusOidcConfig(false, "", true, "/oauth2/callback/oidc"),
+            StubOidcConfig.inert(), encryptionConfig, new StubNotesConfig(TextFields.NOTE_MAX_LENGTH), new NoteKeys(encryptionConfig));
     }
 
     private static AppLifecycle lifecycle(final boolean passwordEnabled, final boolean oidcEnabled, final String issuerUrl) {

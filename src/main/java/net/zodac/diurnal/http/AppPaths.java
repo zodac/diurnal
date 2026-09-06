@@ -125,7 +125,7 @@ public class AppPaths {
         if (path.isEmpty()) {
             return "";
         }
-        return path.startsWith(ROOT) ? path : ROOT + path;
+        return path.startsWith(ROOT) ? path : (ROOT + path);
     }
 
     /**

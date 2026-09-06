@@ -5,7 +5,7 @@ name: Crowdin Upload CI
 # unless the upload asks for it, and that option (`--import-eq-suggestions`) is a per-upload flag rather
 # than a project setting the integration can be told about. en-US is 390-of-402 identical to the en-GB
 # source - only the twelve `colour`->`color`/`authorised`->`authorized` entries actually differ - so
-# without this every sync leaves it reading as hundreds of untranslated strings, and an export configured
+# without this every sync leaves it as hundreds of untranslated strings, and an export configured
 # to skip untranslated strings would drop those keys from the file outright (which
 # AppMessageCoverageTest#everyBundleKey_isTranslatedWithNoOrphans then fails the Crowdin PR on).
 #
@@ -28,7 +28,7 @@ on:
   workflow_dispatch:
     inputs:
       dryrun:
-        description: 'List the files that would be managed, without uploading anything'
+        description: 'Dry Run: List the files that would be managed, without uploading anything'
         type: boolean
         default: false
 

@@ -276,7 +276,19 @@ public class AppLifecycle {
         }
     }
 
-    private void verifyOidcDiscovery() {
+    /**
+     * Probes the identity provider's discovery endpoint and fails fast when it does not answer as a healthy provider. Every decision the probe makes
+     * lives in {@link OidcDiscovery}; this method owns only the HTTP call and the retry around it.
+     *
+     * <p>
+     * Package-private for the same reason {@link #validateAuthConfig()} and {@link #validateNotesEncryptionKey()} are: the guard has to be
+     * exercisable against a real endpoint without booting the application, which a probe that fails the boot cannot be.
+     *
+     * @throws IllegalStateException if the probe should run and the provider is unreachable, answers with a non-{@code 200} status, or returns
+     *                               something that is not a discovery document
+     */
+    @SuppressWarnings("WeakerAccess") // package-private is the widest this may be; see the Javadoc above for why it is not private
+    void verifyOidcDiscovery() {
         if (!OidcDiscovery.shouldVerify(quarkusOidcConfig.tenantEnabled(), oidcConfig.verifyOnStartup(), quarkusOidcConfig.discoveryEnabled())) {
             return;
         }
