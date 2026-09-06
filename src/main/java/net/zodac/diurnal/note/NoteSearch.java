@@ -73,6 +73,7 @@ public final class NoteSearch {
     private static final int LONG_TERM_LENGTH = 8;
     private static final int MAX_EDITS_SHORT = 1;
     private static final int MAX_EDITS_LONG = 2;
+    private static final int ZERO_WIDTH_JOINER = 0x200D;
 
     // Closest first; then the word the journal holds most of, which is the likelier thing to have been meant; then
     // alphabetically, so the same journal and the same term always suggest the same word.
@@ -235,10 +236,11 @@ public final class NoteSearch {
         return found;
     }
 
-    // Every letter/digit run in one note, offered as a candidate. An emoji is neither, so it separates words rather than joining them.
+    // Every letter/digit run in one note, offered as a candidate. An emoji is neither, so it separates words rather than joining them; a combining
+    // mark IS kept, as part of the run it follows - see isCombiningMark below.
     //
-    // The length check is applied HERE, to the run's own bounds, rather than to the token inside consider(): an edit changes a word's length by at
-    // most one each, so anything further apart than that cannot come within the bound, and this is the filter that keeps the pass linear in the
+    // The length check is applied in offer(), to the run's own bounds, rather than to the token inside consider(): an edit changes a word's length
+    // by at most one each, so anything further apart than that cannot come within the bound, and this is the filter that keeps the pass linear in the
     // journal. Testing it before the substring is taken is what keeps it from allocating a String for every word the journal holds, the vast
     // majority of which are then discarded unread. Measured over 250-word notes at 1,096 / 3,652 / 11,000 notes: 10-13% off suggest() for a
     // five-character term, 15-20% for a ten-character one (a term of at least LONG_TERM_LENGTH allows a second edit, so more tokens reach the
@@ -248,18 +250,37 @@ public final class NoteSearch {
     // consider() for tidiness.
     private static void collect(final String content, final String folded, final int maxEdits, final Map<String, Candidate> candidates) {
         final int length = content.length();
-        final int width = folded.length();
         int start = -1;
-        for (int i = 0; i <= length; i++) {
-            final boolean word = i < length && Character.isLetterOrDigit(content.charAt(i));
-            if (word && start < 0) {
-                start = i;
-            } else if (!word && start >= 0) {
-                if (Math.abs((i - start) - width) <= maxEdits) {
-                    consider(content.substring(start, i), folded, maxEdits, candidates);
-                }
+        int index = 0;
+        while (index < length) {
+            final int codePoint = content.codePointAt(index);
+            if (Character.isLetterOrDigit(codePoint)) {
+                start = start < 0 ? index : start;
+            } else if (start >= 0 && !isCombiningMark(codePoint)) {
+                offer(content, start, index, folded, maxEdits, candidates);
                 start = -1;
             }
+            index += Character.charCount(codePoint);
+        }
+        if (start >= 0) {
+            offer(content, start, length, folded, maxEdits, candidates);
+        }
+    }
+
+    // Iterated by CODE POINT, and a combining mark EXTENDS the run it follows rather than ending it. Character.isLetterOrDigit(char) answers false
+    // for either half of a surrogate pair and for every mark (category Mn/Mc/Me), so the char-at-a-time form this replaced cut a word in two at each
+    // of them: a vocalised Arabic word, Devanagari or Thai with its matras, Hebrew with niqqud, and any word holding a supplementary-plane letter
+    // were all tokenised into fragments, and the fragments are what "did you mean" then measured its edit distance against. A mark never STARTS a
+    // run, so a stray one between two words is still a separator rather than a one-character word.
+    private static boolean isCombiningMark(final int codePoint) {
+        final int type = Character.getType(codePoint);
+        return type == Character.NON_SPACING_MARK || type == Character.COMBINING_SPACING_MARK || type == Character.ENCLOSING_MARK;
+    }
+
+    private static void offer(final String content, final int start, final int end, final String folded, final int maxEdits,
+        final Map<String, Candidate> candidates) {
+        if (Math.abs((end - start) - folded.length()) <= maxEdits) {
+            consider(content.substring(start, end), folded, maxEdits, candidates);
         }
     }
 
@@ -320,11 +341,33 @@ public final class NoteSearch {
         return Pattern.compile(Pattern.quote(query), Pattern.CASE_INSENSITIVE | Pattern.UNICODE_CASE);
     }
 
-    // Clamps a window edge into the text, and nudges it off the second half of a surrogate pair so a cut never splits an astral character (an emoji,
-    // which notes accept) into two unpaired halves that render as replacement characters.
+    // Clamps a window edge into the text, then walks it back off anything that only exists as part of the character before it, so a snippet edge
+    // never lands mid-character: the second half of a surrogate pair (an astral emoji, which notes accept, would otherwise split into two unpaired
+    // halves and render as replacement characters), a combining mark or variation selector (which would be left orphaned onto the ellipsis, or onto
+    // whatever the browser puts next), or the interior of an emoji ZWJ sequence (which would render as the separate people it joins rather than as
+    // the one glyph typed).
     private static int cut(final String text, final int index) {
-        final int clamped = Math.clamp(index, 0, text.length());
-        return clamped < text.length() && Character.isLowSurrogate(text.charAt(clamped)) ? (clamped - 1) : clamped;
+        int clamped = Math.clamp(index, 0, text.length());
+        if (clamped >= text.length()) {
+            return clamped;
+        }
+        if (Character.isLowSurrogate(text.charAt(clamped))) {
+            clamped--;
+        }
+        while (clamped > 0 && continuesPreviousCharacter(text, clamped)) {
+            clamped -= Character.charCount(text.codePointBefore(clamped));
+        }
+        return clamped;
+    }
+
+    // A variation selector (U+FE00-FE0F) needs no arm of its own: Unicode gives the whole block category Mn, so
+    // isCombiningMark already answers true for it. The ZERO-WIDTH JOINER does need one - it is Cf, not a mark - and
+    // is tested on BOTH sides, since a cut can land either on the joiner or on the emoji it joins to the one before.
+    private static boolean continuesPreviousCharacter(final String text, final int index) {
+        final int codePoint = text.codePointAt(index);
+        return isCombiningMark(codePoint)
+            || codePoint == ZERO_WIDTH_JOINER
+            || text.codePointBefore(index) == ZERO_WIDTH_JOINER;
     }
 
     private record Candidate(String word, int distance, int count) {

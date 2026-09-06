@@ -170,7 +170,8 @@ final class FrequencyCharts {
     private static String shortLabel(final FrequencyPeriod period, final LocalDate anchor, final int slot, final Language language) {
         return switch (period) {
             case MONTH -> String.valueOf(slot);
-            case YEAR -> anchor.withMonth(slot).getMonth().getDisplayName(TextStyle.SHORT, language.locale());
+            // SHORT_STANDALONE: an axis label is a month named on its own, not one inside a date - see DayLabels#weekdayAbbreviations.
+            case YEAR -> anchor.withMonth(slot).getMonth().getDisplayName(TextStyle.SHORT_STANDALONE, language.locale());
         };
     }
 

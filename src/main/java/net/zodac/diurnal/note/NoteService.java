@@ -213,7 +213,7 @@ public class NoteService {
      * @return the requested page, most recent first
      */
     public PaginatedHits journalPage(final User user, final @Nullable String query, final int pageNum, final int pageSize) {
-        final String term = query == null ? "" : query.strip();
+        final String term = TextValidation.searchTerm(query);
         if (!NoteSearch.matchesEverything(term)) {
             return sliced(search(user, term, Note.sealedForUser(user.id)), pageNum, pageSize);
         }
@@ -242,7 +242,7 @@ public class NoteService {
      */
     public PaginatedHits rangePage(final User user, final @Nullable String query, final @Nullable LocalDate start, final @Nullable LocalDate end,
         final int pageNum, final int pageSize) {
-        final String term = query == null ? "" : query.strip();
+        final String term = TextValidation.searchTerm(query);
         if (start == null || end == null) {
             return wholeHistoryPage(user, term, pageNum, pageSize);
         }

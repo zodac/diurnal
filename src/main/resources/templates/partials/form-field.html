@@ -9,7 +9,11 @@
      id, name, label   — text (required)
      required          — boolean, whether the field is mandatory (required)
      autocomplete      — autocomplete token, or "" for none (required)
-     maxlength         — max length, or "" for none (required)
+     maxLength         — the field's bound in CODE POINTS, or "" for none (required). Emitted as
+                         `data-max-length`, never as the HTML `maxlength` attribute: that one counts
+                         UTF-16 units, so it silently halves the allowed length for astral text (an
+                         emoji in a display name). The server owns the bound; this is the DECLARED
+                         value, for anything that wants to read it.
      type              — input type (optional, default "text")
      value             — pre-filled value (optional, default "") !}
 <div>
@@ -17,7 +21,12 @@
     <input id="{id}" name="{name}" type="{type ?: 'text'}"
            {#if required}required{/if}
            {#if autocomplete}autocomplete="{autocomplete}"{/if}
-           {#if maxlength}maxlength="{maxlength}"{/if}
+           {#if maxLength}data-max-length="{maxLength}"{/if}
+           {! dir="auto": a display name is arbitrary user text that may read in either direction whatever
+                the page's language is, and an editable control wants the browser's own per-field detection
+                (caret placement and arrow-key navigation included), not the CSS-only isolation a read-only
+                <bdi> gives. Resolves to ltr for an empty field, and for a password field by definition. !}
+           dir="auto"
            value="{value ?: ''}"
            data-field-label="{label}"
            class="form-input w-full">

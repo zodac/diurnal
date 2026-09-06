@@ -39,7 +39,12 @@
                        name="name"
                        placeholder="{msg:actionNamePlaceholder}"
                        required
-                       maxlength="{inject:textFields.actionName.maxLength}"
+                       {! No `maxlength`, for the reason dashboard.html's note textarea spells out: the attribute counts UTF-16
+                            units while every bound in this app is a CODE POINT count (TextFieldExtensions#length), so a name of
+                            emoji would be cut off at half its allowed length with no explanation. The server rejects an over-long
+                            name through partials/text-failure-message.html, in the viewer's own language. !}
+                       data-max-length="{inject:textFields.actionName.maxLength}"
+                       dir="auto"
                        class="form-input flex-1 min-w-0">
                 <button type="submit" class="btn-primary shrink-0">
                     {msg:add}

@@ -39,6 +39,13 @@
   nothing for the surrounding WORDS' own order. See app.css's own comment on `.js-phrase` for why this
   needs no revisit once Phase 5 replaces "Showing"/"of"/"Page" with real Arabic wording.
 
+  The prev/next ARROWS are wrapped in `.dt-page-arrow` (app.css), which mirrors them under `dir="rtl"`.
+  Unlike the calendar toolbar's `«‹›»` — deliberately static glyphs, a product decision recorded on
+  `.cal-chevron` — these are direction-of-travel indicators, and `←`/`→` (U+2190/U+2192) are NOT in
+  Unicode's Bidi_Mirrored set, so the bidi algorithm moves each one to the correct SIDE of the link
+  under RTL while leaving it pointing the wrong WAY. They are `aria-hidden`: the adjacent word is the
+  accessible name, and a screen reader announcing "left arrow previous" is noise.
+
   `alwaysShow=true` (Actions, Admin — real `.dt-table`s in a rounded `overflow-hidden` card)
   keeps the footer rendered even on a single page, for two reasons: it stops the last table
   row sitting on the card's rounded bottom corner (where the edit/confirm highlight ring would
@@ -65,7 +72,7 @@
            {#if searchSource}data-search-source="{searchSource}"
            {/if}hx-target="{target}"
            hx-swap="innerHTML{#if scrollTop} show:window:top{/if}"
-           class="dt-page-link">← {msg:previous}</a>
+           class="dt-page-link"><span class="dt-page-arrow" aria-hidden="true">←</span> {msg:previous}</a>
         {/if}
         <span class="js-digits js-phrase">{msg:pageOfTotal(page.currentPage, page.totalPages)}</span>
         {#if page.currentPage < page.totalPages}
@@ -74,7 +81,7 @@
            {#if searchSource}data-search-source="{searchSource}"
            {/if}hx-target="{target}"
            hx-swap="innerHTML{#if scrollTop} show:window:top{/if}"
-           class="dt-page-link">{msg:next} →</a>
+           class="dt-page-link">{msg:next} <span class="dt-page-arrow" aria-hidden="true">→</span></a>
         {/if}
     </div>
     {/if}

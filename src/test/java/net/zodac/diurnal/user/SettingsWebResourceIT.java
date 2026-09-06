@@ -66,7 +66,7 @@ class SettingsWebResourceIT extends IntegrationTestBase {
         // in English - its English name too. `data-search` is what the filter box actually matches on, so it is
         // asserted rather than the rendered label: a language reachable in the list but not in the search would be
         // the failure this exists to catch.
-        for (final Language language : Language.values()) {
+        for (final Language language : Language.pickerOrder()) {
             final String expected = "data-value=\"" + language.value() + "\" data-search=\"" + language.searchText() + '"';
             response.body(containsString(expected));
         }

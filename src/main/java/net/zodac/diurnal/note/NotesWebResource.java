@@ -30,6 +30,7 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import java.util.Locale;
+import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
@@ -98,7 +99,7 @@ public class NotesWebResource {
 
         final User user = currentUser.get();
         final PaginatedHits hits = noteService.journalPage(user, searchTerm, pageNum, PageSizes.forSection(user, PageSection.NOTES));
-        final PaginatedNotes page = NotePages.of(hits, searchTerm.strip(), Locale.forLanguageTag(user.language));
+        final PaginatedNotes page = NotePages.of(hits, TextValidation.searchTerm(searchTerm), Locale.forLanguageTag(user.language));
 
         // Whether the account holds ANY note, which is not the same question as whether this page has rows: a search that matched nothing still
         // leaves the box enabled so the term can be cleared. That is exactly what selectionCount answers - the search has already selected every

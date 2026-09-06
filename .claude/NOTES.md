@@ -154,7 +154,8 @@ public static TextField note(final int maxLength) {
 > into a success.
 
 `TextField.multiline(...)` is a new factory pairing `MULTILINE` normalisation with the newline-tolerant rule set.
-`NOTE` is added to `TextFields.all()`. The textarea's `maxlength` comes from
+`NOTE` is added to `TextFields.all()`. The textarea carries no `maxlength` at all (nor does any other free-text
+input - see [`TEXT_INPUT.md`](TEXT_INPUT.md)); the bound reaches the counter as `data-note-max` from
 `{inject:textFields.note.maxLength}`. Rejection is **422 on the web / 400 on the API, never truncated**.
 
 ### Endpoints
@@ -302,8 +303,9 @@ the resize dimensions durable with no re-application.
 
 - **Textarea** with `overflow-y: auto`, so text longer than the default scrolls (requirement 8), and deliberately with
   **no `maxlength`** — the attribute counts UTF-16 units, so it would cut an emoji-heavy note off at half the bound with
-  no explanation. The counter below the box measures code points exactly as the server does, and Save is what refuses
-  (see [`TEXT_INPUT.md`](TEXT_INPUT.md)).
+  no explanation. The counter below the box measures code points exactly as the server does, and Save is what refuses.
+  This was the FIRST field to drop the attribute; every other free-text input has since followed (see
+  [`TEXT_INPUT.md`](TEXT_INPUT.md)).
 - **Explicit Save, Undo and Clear**, not autosave — the house convention is an explicit Save everywhere except
   Settings > User Preferences. Submitted via `fetch`, **not** htmx, because a note can legitimately answer 422 (too
   long, invisible characters) and htmx unsuppressably `console.error`s every 4xx.

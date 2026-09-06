@@ -71,8 +71,11 @@ public final class DayLabels {
      * @return the seven abbreviated weekday names, {@code firstDay} first
      */
     public static List<String> weekdayAbbreviations(final Locale locale, final DayOfWeek firstDay) {
+        // SHORT_STANDALONE, not SHORT: these head a column, they are not part of a date. Many languages inflect a weekday or month name by
+        // CONTEXT, and CLDR carries the two forms separately - the plain style is the one that belongs INSIDE a formatted date. German is the
+        // case here ("Mo." formatting vs "Mo" standalone); see WeekStart#dayName for the one where the difference is a whole grammatical case.
         return IntStream.range(0, DayOfWeek.values().length)
-            .mapToObj(offset -> firstDay.plus(offset).getDisplayName(TextStyle.SHORT, locale))
+            .mapToObj(offset -> firstDay.plus(offset).getDisplayName(TextStyle.SHORT_STANDALONE, locale))
             .toList();
     }
 }

@@ -57,13 +57,13 @@
             {#include partials/banner variant='error' message=message /}
             {/for}
         </div>
-        {#include partials/form-field id="email" name="email" label=msg:fieldEmail type="email" required=true autocomplete="email" maxlength=inject:textFields.email.maxLength value=email /}
-        {#include partials/form-field id="displayName" name="displayName" label=msg:fieldDisplayName type="text" required=true autocomplete="name" maxlength=inject:textFields.displayName.maxLength value=displayName /}
+        {#include partials/form-field id="email" name="email" label=msg:fieldEmail type="email" required=true autocomplete="email" maxLength=inject:textFields.email.maxLength value=email /}
+        {#include partials/form-field id="displayName" name="displayName" label=msg:fieldDisplayName type="text" required=true autocomplete="name" maxLength=inject:textFields.displayName.maxLength value=displayName /}
         <div class="relative">
-            {#include partials/form-field id="password" name="password" label=msg:fieldPassword type="password" required=true autocomplete="new-password" maxlength=inject:textFields.password.maxLength value="" /}
+            {#include partials/form-field id="password" name="password" label=msg:fieldPassword type="password" required=true autocomplete="new-password" maxLength=inject:textFields.password.maxLength value="" /}
             {#include partials/password-constraints for="password" /}
         </div>
-        {#include partials/form-field id="confirmPassword" name="confirmPassword" label=msg:fieldConfirmPassword type="password" required=true autocomplete="new-password" maxlength=inject:textFields.password.maxLength value="" /}
+        {#include partials/form-field id="confirmPassword" name="confirmPassword" label=msg:fieldConfirmPassword type="password" required=true autocomplete="new-password" maxLength=inject:textFields.password.maxLength value="" /}
         <button type="submit" class="btn-primary w-full">
             {msg:createAccount}
         </button>

@@ -44,6 +44,8 @@ import net.zodac.diurnal.log.MonthlyActionTotal;
 import net.zodac.diurnal.note.Note;
 import net.zodac.diurnal.persistence.LogStatements;
 import net.zodac.diurnal.stats.cache.SubjectStatsCache;
+import net.zodac.diurnal.text.TextOrdering;
+import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.time.DaySpan;
 import net.zodac.diurnal.time.Durations;
@@ -98,7 +100,7 @@ public class StatsService {
 
         final List<SubjectStats> cached = fromCache(userId, user, today);
         if (!cached.isEmpty()) {
-            return cached;
+            return ordered(cached, user);
         }
 
         final List<SubjectStats> computed = computeAllSubjects(userId, user, today);
@@ -114,7 +116,24 @@ public class StatsService {
             // exactly the ones the winner did store, so there is nothing to recover and nothing an operator could act on - and a cache write must
             // never turn a GET into a 500. The next reader either hits the winner's rows or recomputes.
         }
-        return computed;
+        return ordered(computed, user);
+    }
+
+    // The Stats page's card order, applied at the ONE point both the cached and the computed path return through. Neither built it in the right
+    // order on its own: both walked Action.findByUser, whose `order by name asc` is the DATABASE's collation, and the deployed PostgreSQL image is
+    // musl-based - so despite reporting en_US.utf8 it sorts by code point, putting every uppercase name before every lowercase one and every
+    // accented or non-Latin name after every plain-ASCII one. That also made this page disagree with the /actions page about the same two names,
+    // which is the same fault LogWebResource#paginate documents for the day panel. Notes stay pinned first, as computeAllSubjects arranges them.
+    private static List<SubjectStats> ordered(final List<SubjectStats> subjects, final @Nullable User user) {
+        final Comparator<String> byName = TextOrdering.byName(localeFor(user));
+        return subjects.stream()
+            .sorted(Comparator.comparing((final SubjectStats stats) -> !StatSubject.NOTES_ID.equals(stats.subject().id()))
+            .thenComparing(stats -> stats.subject().name(), byName))
+            .toList();
+    }
+
+    private static Locale localeFor(final @Nullable User user) {
+        return Language.fromValue(user == null ? null : user.language).locale();
     }
 
     // The cached figures for a user, EMPTY when they must be recomputed. A stored-but-empty result is indistinguishable from a miss and is
@@ -220,22 +239,30 @@ public class StatsService {
     }
 
     // Picks each date's top `limit` actions from its pre-fetched counts, then aggregates the UNION of those actions once. The daily counts only rank
-    // the actions; every returned figure still spans the action's full history. Ties keep the name-ascending order Action.findByUser returns them in
-    // (the sort is stable), which is how the day panel orders the same actions.
+    // the actions; every returned figure still spans the action's full history.
+    //
+    // The tie-break is EXPLICIT and COLLATED, matching LogWebResource#paginate, which orders the same actions on the same screen. It used to be
+    // implicit - a stable sort over Action.findByUser's `order by name asc`, which is the DATABASE's code-point ordering - and that is still a text
+    // ordering, just an unstated one. It also decides more than the order here: the `.limit(limit)` below means the loser of a tie is dropped from
+    // the day's summary entirely, so code-point order pushed every accented or non-Latin name out of the top N in favour of a plain-ASCII one.
     private Map<LocalDate, List<SubjectStats>> forCounts(final UUID userId, final Map<LocalDate, Map<UUID, Integer>> countsByDate, final int limit) {
         final boolean noneLogged = countsByDate.values().stream().allMatch(Map::isEmpty);
         if (noneLogged) {
             return Map.of();
         }
 
-        final List<Action> all = Action.findByUser(userId);   // name-ascending
+        final User user = User.findById(userId);
+        final Comparator<String> byName = TextOrdering.byName(localeFor(user));
+
+        final List<Action> all = Action.findByUser(userId);
         final Map<LocalDate, List<Action>> topByDate = new LinkedHashMap<>();
         final Set<UUID> unionIds = new LinkedHashSet<>();
         for (final Map.Entry<LocalDate, Map<UUID, Integer>> entry : countsByDate.entrySet()) {
             final Map<UUID, Integer> counts = entry.getValue();
             final List<Action> top = all.stream()
                 .filter(action -> counts.getOrDefault(action.id, 0) > 0)
-                .sorted(Comparator.comparingInt((Action action) -> counts.getOrDefault(action.id, 0)).reversed())
+                .sorted(Comparator.comparingInt((Action action) -> counts.getOrDefault(action.id, 0)).reversed()
+                .thenComparing(action -> action.name, byName))
                 .limit(limit)
                 .toList();
             if (!top.isEmpty()) {
@@ -247,7 +274,7 @@ public class StatsService {
             return Map.of();
         }
 
-        final LocalDate today = todayFor(User.findById(userId));
+        final LocalDate today = todayFor(user);
         final List<Action> unionActions = all.stream()
             .filter(action -> unionIds.contains(action.id))
             .toList();
@@ -349,19 +376,24 @@ public class StatsService {
     public List<StatSubject> compareCandidates(final UUID userId, final List<UUID> charted, final @Nullable String query) {
         final Set<UUID> logged = ActionLog.loggedActionIds(userId);
         final Set<UUID> excluded = Set.copyOf(charted);
-        final String term = query == null ? "" : query.strip().toLowerCase(Locale.ENGLISH);
+        // Locale.ROOT (not ENGLISH) matches every other case fold in the app, and NFC-composed so a decomposed term still finds the stored name -
+        // see ActionsInternalResource#getActions.
+        final String term = TextValidation.searchTerm(query).toLowerCase(Locale.ROOT);
 
-        final List<StatSubject> actions = Action.findByUser(userId).stream()   // name-ascending
+        // Collated rather than left in Action.findByUser's database order - see #ordered for what that order actually is.
+        final Comparator<String> byName = TextOrdering.byName(localeFor(User.findById(userId)));
+        final List<StatSubject> actions = Action.findByUser(userId).stream()
             .filter(action -> logged.contains(action.id))
             .filter(action -> !excluded.contains(action.id))
-            .filter(action -> term.isEmpty() || action.name.toLowerCase(Locale.ENGLISH).contains(term))
+            .filter(action -> term.isEmpty() || action.name.toLowerCase(Locale.ROOT).contains(term))
             .map(StatSubject::of)
+            .sorted(Comparator.comparing(StatSubject::name, byName))
             .toList();
 
         final StatSubject notes = StatSubject.notes(noteColourFor(User.findById(userId)));
         final boolean offersNotes = !excluded.contains(StatSubject.NOTES_ID)
             && Note.count("userId = ?1", userId) > 0L
-            && (term.isEmpty() || notes.name().toLowerCase(Locale.ENGLISH).contains(term));
+            && (term.isEmpty() || notes.name().toLowerCase(Locale.ROOT).contains(term));
 
         // Notes are pinned ahead of the actions, exactly as forAllSubjects pins them on the Stats page.
         final List<StatSubject> candidates = new ArrayList<>(actions.size() + 1);

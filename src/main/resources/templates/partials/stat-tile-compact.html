@@ -19,7 +19,7 @@
   its own comment for why `.js-phrase` is separate from (and needed in addition to) `.js-digits`.
 !}
 <div>
-    <dt class="help-text text-[0.65rem] sm:text-xs">{label}</dt>
+    <dt class="help-text text-[0.65rem] sm:text-xs" dir="auto">{label}</dt>
     <dd data-fit class="text-xs sm:text-sm font-semibold js-digits js-phrase {valueClass ?: 'text-ink'}{#if !date} js-num{/if}">{value}</dd>
     {#if sub}<dd data-fit class="help-text text-[0.65rem] sm:text-xs js-digits js-phrase{#if subNum} js-num{/if}">{sub}</dd>{/if}
 </div>

@@ -1,6 +1,6 @@
 # Text Input Validation
 
-> **This file is ~36 KB. Read only the section you need** - `grep -n '^#' .claude/TEXT_INPUT.md` for its
+> **This file is ~37 KB. Read only the section you need** - `grep -n '^#' .claude/TEXT_INPUT.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **Why**
@@ -8,7 +8,7 @@
 >   single entry point, `TextFields` - the catalogue
 > - **What is accepted, cleaned and rejected** — Case folding and normalisation can LENGTHEN a value, What the DATABASE supports (measured, not
 >   assumed)
-> - **Room for internationalisation** — `dir="auto"` on user-content elements — partially done, The rest of the i18n/l10n work
+> - **Room for internationalisation** — `dir="auto"` / `<bdi>` on user-content elements — done, The rest of the i18n/l10n work
 > - **Flow** — Validate once, then treat the value as settled
 > - **Templates**
 > - **Adding a new text input**
@@ -271,7 +271,7 @@ Two rules are the only places a locale could rub, and both are a one-line change
   reaches six marks on one letter (dagesh + two vowel points + meteg + two cantillation marks). Modern Arabic,
   Hebrew, Thai and Devanagari never exceed four. Raise the constant if a script needs more.
 
-### `dir="auto"` on user-content elements — partially done
+### `dir="auto"` / `<bdi>` on user-content elements — done
 
 This is the other half of the bidi decision above: that rule rejects the characters a user would otherwise paste
 in to fix a name's direction, on the grounds that the RENDERER should be deciding direction instead, not literal
@@ -279,16 +279,24 @@ control characters embedded in the text. `dir="auto"` (the browser deriving dire
 strong character) is that renderer-side half. It is about user DATA, not the interface locale, so it is correct
 regardless of the UI's own language, and a no-op for any value whose first strong character is already LTR.
 
-**Currently applied to exactly one element**: the note-writing `<textarea>` (`#note-input`, `dashboard.html`) —
-the one case that's also *editable*, where the browser's own mechanism additionally gets caret placement and
-arrow-key navigation right, which no CSS technique can. **Not applied** to the other read-only leaf elements a
-user's own free text renders into — the name cell in `partials/action-row.html`, the day-panel rows
-(`partials/day-action-item.html`, `partials/day-action-item-confirm-delete.html`), `partials/admin-user-row.html`,
-the navbar display name, or the stat captions in `stats.html`/`partials/stats-summary.html` — this was planned
-alongside the note-box work but never carried out; see [`I18N.md`](I18N.md)'s "Known limitations" for the current
-status. The one thing to get right if it's picked up: **granularity** — it must go on the leaf element holding
-ONLY the user's value, never a row/card wrapper that also holds buttons and labels, or an RTL value would flip the
-surrounding chrome too, the spoofing-adjacent behaviour the bidi rule above exists to prevent.
+**Two forms, chosen by whether the element is editable.** An *editable* control gets `dir="auto"` — the browser's
+own mechanism additionally gets caret placement and arrow-key navigation right, which no CSS technique can. That
+is the note-writing `<textarea>` (`#note-input`, `dashboard.html`), the action-name inputs, the display-name
+input, the stat-rename input, and `partials/form-field.html`'s shared input. A *read-only* render gets the same `dir="auto"`
+on whichever element holds only the value — the HTML UA stylesheet gives any element with a `dir` attribute
+`unicode-bidi: isolate`, so that is `<bdi>` by another name, without the extra node: the name cell in
+`partials/action-row.html`, the day-panel rows (`partials/day-action-item.html`,
+`partials/day-action-item-confirm-delete.html`), `partials/admin-user-row.html`, the Settings display-name row,
+`partials/stats-cards.html`'s subject title, and both stat-tile partials' captions. A literal `<bdi>` is used only
+where the value shares its element with something else: the navbar display name (`partials/account-links.html`,
+beside a tooltip) and each bar's name in `partials/frequency-slot-tooltip.html`.
+
+**Granularity is the thing to keep right**: it goes on the leaf element holding ONLY the user's value, never a
+row/card wrapper that also holds buttons and labels, or an RTL value would flip the surrounding chrome too — the
+spoofing-adjacent behaviour the bidi rule above exists to prevent. The tooltip is the worked example of the
+opposite failure: its lines carry `.js-phrase` (`unicode-bidi: plaintext`, direction from the first STRONG
+character), so before the `<bdi>` a Latin action name at the head of the line chose the direction for the
+translated words after it. See [`I18N.md`](I18N.md)'s "Right-to-left support".
 
 ### The rest of the i18n/l10n work
 
@@ -346,23 +354,28 @@ Surface policy is untouched by this: `TextValidation` reports what is wrong, and
 
 ## Templates
 
-`web/TextFieldCatalogue` is a `@Named("textFields")` bean exposing the catalogue to Qute, so a `maxlength`
-attribute derives from the same constant as the server check:
-`maxlength="{inject:textFields.actionName.maxLength}"`. Where a page already threads data in (the register and
+`web/TextFieldCatalogue` is a `@Named("textFields")` bean exposing the catalogue to Qute, so a field's published
+bound derives from the same constant as the server check:
+`data-max-length="{inject:textFields.actionName.maxLength}"`. Where a page already threads data in (the register and
 settings pages), the value is passed as page data sourced from the same constants.
 
 The client-side evaluators of those rows (`app.js`, `settings.js`) count **code points** (`Array.from(value).length`),
 matching `TextFieldExtensions.length`; `value.length` would count an emoji twice and contradict the answer the server
-is about to give. The `maxlength` ATTRIBUTE cannot be made code-point-aware (the browser counts UTF-16 units), so it
-stops an all-emoji value at half the bound - it is only ever stricter than the server, never laxer, and the server
-stays authoritative.
+is about to give.
 
-> **The note field deliberately carries NO `maxlength`.** It is the one input where the UTF-16-vs-code-point mismatch
-> above actually bites: against a 10,000-character bound the attribute would stop an emoji-heavy note at five thousand,
-> silently and with no explanation. The note box counts code points itself (`Array.from(value).length`), shows the
-> figure, lets the user overrun, and refuses to SAVE while over — which is both accurate and explicable, where a
-> silent cut-off is neither. This is also what makes a LOWERED `NOTE_MAX_LENGTH` safe for notes already written above
-> it: the box loads such a note in full and reports how far over it is, where a `maxlength` would have cut it on sight.
+> **NO free-text input carries the HTML `maxlength` attribute** — it is published as `data-max-length` instead.
+> `maxlength` cannot be made code-point-aware (the browser counts UTF-16 units), so on any field that accepts emoji
+> it silently stops a value at half the bound, with no message and nothing in the DOM to explain it. "Stricter than
+> the server, never laxer" is not a defence when the user cannot tell it happened. The rule was written for the note
+> field first, where a 10,000-character bound cut an emoji-heavy note at five thousand, and the shorter fields were
+> brought into line afterwards for the same reason at a smaller scale. The server's rejection — rendered through
+> `partials/text-failure-message.html`, in the viewer's own language — is what enforces the bound, and the note box
+> additionally counts code points itself, shows the figure, and refuses to SAVE while over. This is also what makes a
+> LOWERED `NOTE_MAX_LENGTH` safe for notes already written above it: the box loads such a note in full and reports how
+> far over it is, where a `maxlength` would have cut it on sight.
+>
+> The two `inputmode="numeric"` fields (the day-panel count, the calendar's year jump) keep their `maxlength`: a
+> digit is one UTF-16 unit in every numbering system the app renders.
 
 `TextFieldExtensions.constraints(field)` replaces the deleted `PasswordConstraints.all()` and works for any field,
 driving both the requirements tooltip (`partials/password-constraints.html`) and its live client-side red/green
@@ -374,7 +387,7 @@ check in `layout.html`. Only the length bounds are published: the client evaluat
 1. Add a `TextField` constant to `TextFields`.
 2. Call `TextValidation.check` from the owning `*Service` and map the outcome onto that domain's sealed result.
 3. Store `Valid.value()`, never the raw submission.
-4. Point the template's `maxlength` at the catalogue.
+4. Point the template's `data-max-length` at the catalogue - never the HTML `maxlength` (see above).
 5. If the field has a column, give it `@Column(length = …)` matching the catalogue max (a guard test enforces this).
 
 ## Deliberately out of scope

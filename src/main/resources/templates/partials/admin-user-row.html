@@ -7,7 +7,7 @@
          below. `data-tip-full` (app.js) hands back the whole string on hover/long-press, and only
          while it is actually clipped, so an ordinary value shows nothing. !}
     <td class="dt-cell whitespace-nowrap"><span class="dt-cell-clip dt-cell-clip-wide" data-tip-full>{u.email}</span></td>
-    <td class="dt-cell whitespace-nowrap"><span class="dt-cell-clip" data-tip-full>{u.displayName}</span></td>
+    <td class="dt-cell whitespace-nowrap"><span class="dt-cell-clip" dir="auto" data-tip-full>{u.displayName}</span></td>
     <td class="dt-cell">
         <span data-dt-view class="flex items-center gap-2">
             <span class="dt-badge dt-badge-{u.role}">{#switch u.role}{#is 'admin'}{msg:roleAdmin}{#else}{msg:roleUser}{/switch}</span>

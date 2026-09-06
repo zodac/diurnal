@@ -98,9 +98,11 @@
                     <span id="note-status" class="help-text" aria-live="polite"></span>
                 </div>
 
-                {! No `maxlength`, deliberately — unlike every other input in the app. The attribute counts
-                     UTF-16 units, so against a 10,000-character bound it would cut a note of emoji off at
-                     five thousand with no explanation. The counter below measures CODE POINTS instead,
+                {! No `maxlength`, deliberately — as for every other free-text input in the app (the rule was
+                     first written here, and the other fields have since been brought into line; only the two
+                     numeric fields, whose digits are one UTF-16 unit each, still carry one). The attribute
+                     counts UTF-16 units, so against a 10,000-character bound it would cut a note of emoji off
+                     at five thousand with no explanation. The counter below measures CODE POINTS instead,
                      exactly as the server does, and over-typing is allowed so the user can see how far over
                      they are and edit back down; Save is what refuses. !}
                 <label for="note-input" class="sr-only">{msg:noteForSelectedDay}</label>

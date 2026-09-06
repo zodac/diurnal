@@ -38,6 +38,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
+import java.time.format.FormatStyle;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -49,6 +50,7 @@ import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.AdminUserResult;
 import net.zodac.diurnal.user.AdminUserService;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.Language;
 import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
@@ -228,7 +230,7 @@ public class AdminUsersInternalResource {
     // the full-page render (AdminWebResource).
     private PaginatedUsers pageRows(final AdminUserService.UsersPage page) {
         final List<UUID> ids = page.users().stream().map(u -> u.id).toList();
-        return toRows(page, actorZone(), sessionActivityService.recentActivityByUser(ids, clock.now()));
+        return toRows(page, actorZone(), actorLanguage(), sessionActivityService.recentActivityByUser(ids, clock.now()));
     }
 
     // The first page of the list, as re-rendered after a mutation, sized by the viewing administrator's own
@@ -240,7 +242,7 @@ public class AdminUsersInternalResource {
     // A single row (post-mutation re-render / cancel restore), with its own recently-active presence resolved.
     private UserRow singleRow(final User u) {
         final ZoneId zone = actorZone();
-        return UserRow.of(u, formatter(zone), zone.getId(), sessionActivityService.recentActivityForUser(u.id, clock.now()));
+        return UserRow.of(u, formatter(zone, actorLanguage()), zone.getId(), sessionActivityService.recentActivityForUser(u.id, clock.now()));
     }
 
     /**
@@ -252,8 +254,9 @@ public class AdminUsersInternalResource {
      * @param activity each listed user's resolved recent-activity presence, keyed by user id (a missing entry is treated as inactive)
      * @return the page as rendered user rows
      */
-    static PaginatedUsers toRows(final AdminUserService.UsersPage page, final ZoneId zone, final Map<UUID, RecentActivity> activity) {
-        final DateTimeFormatter fmt = formatter(zone);
+    static PaginatedUsers toRows(final AdminUserService.UsersPage page, final ZoneId zone, final Language language,
+        final Map<UUID, RecentActivity> activity) {
+        final DateTimeFormatter fmt = formatter(zone, language);
         final String zoneLabel = zone.getId();
         final List<UserRow> items = page.users().stream()
             .map(u -> UserRow.of(u, fmt, zoneLabel, activity.getOrDefault(u.id, RecentActivity.INACTIVE)))
@@ -261,12 +264,22 @@ public class AdminUsersInternalResource {
         return new PaginatedUsers(items, page.totalCount(), page.totalPages(), page.currentPage());
     }
 
-    private static DateTimeFormatter formatter(final ZoneId zone) {
-        return DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm", Locale.ROOT).withZone(zone);
+    // Localised for the viewing administrator, like every other date the app renders: a fixed "yyyy-MM-dd HH:mm" in Locale.ROOT pinned the field
+    // order, forced 24-hour regardless of the language's own hour cycle, and emitted ASCII digits on a page whose every other number was in the
+    // language's own glyphs. MEDIUM (not SHORT) for the date, because SHORT abbreviates the year to two digits and "9/5/26" reads as two different
+    // days in en-GB and en-US - an admin comparing this against a log needs it unambiguous.
+    private static DateTimeFormatter formatter(final ZoneId zone, final Language language) {
+        return language.localizeNumerals(DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)
+            .withLocale(language.locale())
+            .withZone(zone));
     }
 
     private String messageBanner(final String key, final Locale locale) {
         return adminMessagesTemplate.data("key", key).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale).render();
+    }
+
+    private Language actorLanguage() {
+        return Language.fromValue(currentUser.get().language);
     }
 
     private static Locale locale(final User user) {

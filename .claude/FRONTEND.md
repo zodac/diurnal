@@ -1,6 +1,6 @@
 # Front-end: Build, Assets, CSS & Calendar
 
-> **This file is ~72 KB. Read only the section you need** - `grep -n '^#' .claude/FRONTEND.md` for its
+> **This file is ~73 KB. Read only the section you need** - `grep -n '^#' .claude/FRONTEND.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **CSS build & colour tokens**
@@ -182,6 +182,13 @@ Cross-table conventions: explicit Save tick required (only exception: Settings �
 surgical HTMX count updates.
 
 ## Dashboard calendar (hand-rolled, no library)
+
+> **The grid is GREGORIAN, and only Gregorian.** It is built from JS `Date` (`new Date(y, m, 1).getDay()`,
+> `monthEnd`), which is proleptic Gregorian and cannot iterate another calendar — `Intl` can format one but not
+> walk one. A YEAR-RELABELLING calendar (Thai Buddhist, Minguo, Japanese era) shares ISO's month boundaries, so it
+> needs no change HERE beyond a `calendar` option on the `Intl` calls and the year shown in the toolbar and its
+> jump input; an Islamic or Hebrew one would mean rebuilding this engine, and is deliberately not supported. The
+> tiers, and what each costs, are in [`I18N.md`](I18N.md)'s "Calendar systems".
 
 All three calendar styles (`full`/`minimal`/`stacked`, the `CalendarView` enum, default `full`) are drawn by **one** vanilla-JS engine,
 `buildGridCalendar()` in `dashboard.html` — a shared 7×6 / 42-cell month grid with its own month cache, LRU eviction and idle prefetch (
@@ -645,7 +652,8 @@ count), so 25 characters of an unusually wide mix can still cost a caption line 
 expressive name.
 What a name may never do is escape its tile, so `.stat-tile dt` carries `break-words` (without it a name with no spaces sits on one
 line and spills out sideways). The Playwright guard in `tests/ui/stats.spec.ts` renders a max-length name at both widths, reading
-the cap from the rename input's own `maxlength`: built-in-style wording must be no deeper than the built-ins, and even the
+the cap from the rename input's own `data-max-length` (never an HTML `maxlength` - see [`TEXT_INPUT.md`](TEXT_INPUT.md)): built-in-style
+wording must be no deeper than the built-ins, and even the
 widest-glyph worst case must not overflow. Committing a rename writes the hidden input and
 dispatches `change` on it, so it saves through the picker's single PATCH; the editor's own input carries no `name` and its native
 change is swallowed, so an abandoned edit never saves.

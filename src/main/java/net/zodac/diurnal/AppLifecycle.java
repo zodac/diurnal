@@ -43,6 +43,8 @@ import net.zodac.diurnal.note.NotesConfig;
 import net.zodac.diurnal.note.NotesEncryptionConfig;
 import net.zodac.diurnal.note.crypto.MasterKey;
 import net.zodac.diurnal.text.TextFields;
+import net.zodac.diurnal.time.Calendars;
+import net.zodac.diurnal.user.Language;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
@@ -98,6 +100,7 @@ public class AppLifecycle {
         validateNoteMaxLength();
         validateNotesEncryptionKey();
         verifyNotesEncryptionKeyOpensExistingData();
+        verifyOfferedLanguageCalendars();
         verifyOidcDiscovery();
 
         // Wall-clock time from JVM launch to now, read from the RuntimeMXBean whose start timestamp is
@@ -122,6 +125,17 @@ public class AppLifecycle {
             }
         }
         LOGGER.info("=================================================");
+    }
+
+    // Announces any offered language whose own calendar cannot be rendered, so the downgrade to Gregorian is not silent. LOGS rather than throwing,
+    // unlike every other check here: a wrong calendar is a degraded rendering rather than an unusable deployment, so refusing to boot over it would
+    // be out of proportion. The decision itself, and the reasoning, are in Calendars#unsupportedCalendar and .claude/I18N.md's "Calendar systems".
+    private static void verifyOfferedLanguageCalendars() {
+        for (final Language language : Language.values()) {
+            Calendars.unsupportedCalendar(language.value())
+                .ifPresent(calendar -> LOGGER.error("Language '{}' expects the '{}' calendar, which is not supported - its dates will render in the "
+                + "'{}' calendar instead. See .claude/I18N.md 'Calendar systems'", language.value(), calendar, Calendars.GREGORIAN));
+        }
     }
 
     /**
