@@ -109,7 +109,9 @@ test.describe("Stats page", () => {
         await apiCtx.put(`/api/v1/logs/${today}/${actionId}`, { data: { count: 1 } })
 
         await page.goto("/settings")
-        const maxLength = Number(await page.locator("#stats-fields-list .stats-field-input").first().getAttribute("maxlength"))
+        // `data-max-length`, not the HTML `maxlength` attribute - the inputs deliberately carry no `maxlength`,
+        // which counts UTF-16 units while every bound in the app is a code-point count (see form-field.html).
+        const maxLength = Number(await page.locator("#stats-fields-list .stats-field-input").first().getAttribute("data-max-length"))
         expect(maxLength).toBeGreaterThan(0)
 
         // Ordinary wording of the built-ins' character mix, versus the widest-glyph worst case.

@@ -1,6 +1,6 @@
 # UI Patterns & Conventions
 
-> **This file is ~37 KB. Read only the section you need** - `grep -n '^#' .claude/UI_PATTERNS.md` for its
+> **This file is ~39 KB. Read only the section you need** - `grep -n '^#' .claude/UI_PATTERNS.md` for its
 > line range, then read that range rather than the whole file.
 >
 > - **1. Extraction rules** — When to extract a Qute partial, When to extract a component class, Icons
@@ -263,11 +263,18 @@ left|...` in `frontend/css/app.css` before landing.
     - A literal Unicode character (no SVG involved): wrap it and transform the wrapper. A horizontally-flipped «
     renders as a correct-looking » (and the reverse), so `rtl:scale-x-[-1]` mirrors these exactly like an SVG icon
     would, with no `{#if}`-based character-swapping needed.
+    - **Whether a character mirrors ITSELF is a Unicode property, and it differs between glyphs that look
+    interchangeable.** `«‹›»` (U+00AB/2039/203A/00BB) carry `Bidi_Mirrored=Yes`, so the bidi algorithm turns them
+    round on its own; `←`/`→` (U+2190/2192) carry `Bidi_Mirrored=No` and do not, so under RTL they are moved to
+    the correct SIDE while still pointing the wrong WAY. `partials/pagination.html`'s prev/next arrows are the
+    live case: they are wrapped in `.dt-page-arrow`, mirrored by a native `:dir(rtl)` rule in `app.css`, and
+    marked `aria-hidden` (the adjacent word is the accessible name). Check the property, don't infer it from the
+    shape.
     - **Exception, by explicit product decision, not oversight**: `partials/calendar-toolbar.html`'s `.cal-chevron`
     glyphs (the Dashboard's «/‹/›/» navigation) are deliberately left UNMIRRORED — the button each sits in still
     moves to the opposite visual edge under `dir="rtl"` like every other toolbar element, but the character itself
     stays static in every language (reversed from this class's original auto-mirrored behaviour). Don't treat this as
-    the template to copy for a new directional glyph; the two bullets above are still the default.
+    the template to copy for a new directional glyph; the bullets above are still the default.
 - **A `transform`/`cursor` value has no logical form** — unlike `left`/`margin`/`border`, CSS offers no
   direction-relative keyword for `scaleX()`'s sign or a diagonal-resize cursor (`nwse-resize` vs `nesw-resize`).
   These need an explicit `[dir="rtl"] .foo { ... }` override (or Tailwind's `rtl:` variant) rather than a logical
@@ -361,6 +368,16 @@ left|...` in `frontend/css/app.css` before landing.
     most success/error messages app-wide. Reserve `.js-digits` alone for content that is ONLY EVER digits with
     no surrounding words (a version number, a bare count in an input); use `.js-phrase` (alongside `.js-digits`
     if it also needs digit-glyph transcoding) for anything a translator's sentence could wrap around.
+    - **A `.js-phrase` line that STARTS with the user's own text needs a `<bdi>` around that text.** `plaintext`
+    resolves from the first STRONG character, so where the line is shaped `{user's action name}: {translated
+    phrase}` — `partials/frequency-slot-tooltip.html`'s per-bar rows — a Latin name under an Arabic UI chose the
+    direction for the translated half after it. `<bdi>` (`unicode-bidi: isolate` + `dir="auto"`) makes the name a
+    neutral object to the line, so it lays out on its own terms and stops voting on the line's direction.
+    For a user-supplied name that is the ONLY thing in its element, put `dir="auto"` on that element instead —
+    the UA stylesheet gives any `dir`-carrying element `unicode-bidi: isolate`, so it is the same thing without
+    an extra node, and it does not break a `:text-is()` selector the way a wrapping `<bdi>` does. An EDITABLE
+    field takes `dir="auto"` too (the browser's own mechanism also gets caret placement and arrow-key navigation
+    right). See `TEXT_INPUT.md` for the full list.
     - **`.textContent`/`.innerText` extraction cannot catch a bidi reordering bug — it reads LOGICAL DOM order,
     not the VISUAL rendering the Unicode Bidi Algorithm actually produces.** Every `.js-phrase` bug above was
     invisible to the `.innerText` dumps used throughout this whole effort's verification (the DOM order was

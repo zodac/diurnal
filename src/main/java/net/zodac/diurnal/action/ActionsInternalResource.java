@@ -34,7 +34,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.text.Collator;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -42,7 +41,9 @@ import java.util.UUID;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
+import net.zodac.diurnal.text.TextOrdering;
 import net.zodac.diurnal.text.TextOutcome;
+import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
@@ -271,11 +272,13 @@ public class ActionsInternalResource {
         // sort, not locale-aware): user-typed action names are free text in any script, and plain String.compareTo
         // (uppercase-before-lowercase, ordinal for accented/non-Latin characters) mis-sorts them for the viewing
         // user's own language - the same reasoning LogsApiResource's day-events endpoint already applies.
-        final Collator collator = Collator.getInstance(locale);
+        // NFC-composed before comparing, not merely lower-cased: every stored name is composed on the way in (TextValidation), so a term typed or
+        // pasted in decomposed form is a different code-point sequence from the identical-looking name it should find, and matches nothing.
+        final String term = TextValidation.searchTerm(searchTerm).toLowerCase(Locale.ROOT);
+        final Comparator<String> byName = TextOrdering.byName(locale);
         final var filtered = all.stream()
-            .filter(a -> searchTerm == null || searchTerm.isBlank()
-            || a.name.toLowerCase(Locale.ROOT).contains(searchTerm.toLowerCase(Locale.ROOT)))
-            .sorted(Comparator.comparing((final Action a) -> a.name, collator::compare))
+            .filter(a -> term.isEmpty() || a.name.toLowerCase(Locale.ROOT).contains(term))
+            .sorted(Comparator.comparing((final Action a) -> a.name, byName))
             .toList();
 
         final PageWindow window = Pages.window(filtered.size(), pageNum, pageSize);

@@ -46,12 +46,6 @@ import org.jspecify.annotations.Nullable;
  */
 public final class SubjectStatsExtensions {
 
-    // Dates render at FULL width (the month spelled out); the front-end shortens "June" -> "Jun" -> and the
-    // year to two digits only when the rendered label does not fit its tile - see Diurnal.fitFigures in app.js.
-    // Built per-call from the caller's Language rather than held as a static constant, since the pattern/locale
-    // now varies by viewer - see dateFmt/dateFmtNoYear below.
-    private static final String RANGE_SEPARATOR = " – ";
-
     private SubjectStatsExtensions() {
 
     }
@@ -222,7 +216,8 @@ public final class SubjectStatsExtensions {
         }
 
         final LocalDate lastDay = span.endExclusive().minusDays(1L);
-        return lastDay.equals(span.start()) ? start : (start + RANGE_SEPARATOR + lastDay.format(dateFmt));
+        // The separator is the LANGUAGE's, not a fixed en dash: Japanese writes a date range with a wave dash - see Language#dateRangeSeparator.
+        return lastDay.equals(span.start()) ? start : (start + lang.dateRangeSeparator() + lastDay.format(dateFmt));
     }
 
     // The full-width date shape ("15 June 2026" / "June 15, 2026") - FormatStyle.LONG matches the field ORDER (not

@@ -91,7 +91,7 @@
                             {! Read mode !}
                             <div id="display-name-view"
                                  class="settings-field flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg hover:bg-surface-muted">
-                                <p id="display-name-text" class="text-sm text-ink truncate" data-tip-full>{displayName}</p>
+                                <p id="display-name-text" class="text-sm text-ink truncate" dir="auto" data-tip-full>{displayName}</p>
                                 <div class="dt-actions settings-field-actions">
                                     <button type="button"
                                             id="display-name-edit-btn"
@@ -119,7 +119,9 @@
                                            name="displayName"
                                            value="{displayName}"
                                            required
-                                           maxlength="{inject:textFields.displayName.maxLength}"
+                                           {! `data-max-length`, never `maxlength` - see actions.html's new-action input. !}
+                                           data-max-length="{inject:textFields.displayName.maxLength}"
+                                           dir="auto"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <div class="dt-actions">
                                         <button type="submit"
@@ -185,7 +187,8 @@
                                            name="currentPassword"
                                            autocomplete="current-password"
                                            placeholder="{msg:currentPasswordPlaceholder}"
-                                           maxlength="{inject:textFields.password.maxLength}"
+                                           {! `data-max-length`, never `maxlength` - see actions.html's new-action input. !}
+                                           data-max-length="{inject:textFields.password.maxLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" data-reveal-target="currentPassword"
                                             aria-label="{msg:showPassword}" class="settings-eye">
@@ -207,7 +210,8 @@
                                            id="newPassword"
                                            autocomplete="new-password"
                                            placeholder="{msg:newPasswordPlaceholder}"
-                                           maxlength="{inject:textFields.password.maxLength}"
+                                           {! `data-max-length`, never `maxlength` - see actions.html's new-action input. !}
+                                           data-max-length="{inject:textFields.password.maxLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" data-reveal-target="newPassword"
                                             aria-label="{msg:showPassword}" class="settings-eye">
@@ -242,7 +246,8 @@
                                            name="confirmPassword"
                                            autocomplete="new-password"
                                            placeholder="{msg:reenterNewPasswordPlaceholder}"
-                                           maxlength="{inject:textFields.password.maxLength}"
+                                           {! `data-max-length`, never `maxlength` - see actions.html's new-action input. !}
+                                           data-max-length="{inject:textFields.password.maxLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" data-reveal-target="confirmPassword"
                                             aria-label="{msg:showPassword}" class="settings-eye">

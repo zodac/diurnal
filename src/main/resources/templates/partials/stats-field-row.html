@@ -87,7 +87,9 @@
     <input type="text" class="stats-field-input dt-text-input hidden flex-1 min-w-0 select-text cursor-text"
            value="{#if choice.customLabel != ''}{choice.customLabel}{#else}{defaultLabel}{/if}"
            placeholder="{defaultLabel}"
-           maxlength="{inject:textFields.statName.maxLength}"
+           {! `data-max-length`, never `maxlength` - see actions.html's new-action input. !}
+           data-max-length="{inject:textFields.statName.maxLength}"
+           dir="auto"
            aria-label="{msg:customNameForStat(defaultLabel)}">
 
     {! One actions slot for both modes: Rename (read) and Save (edit) render in the

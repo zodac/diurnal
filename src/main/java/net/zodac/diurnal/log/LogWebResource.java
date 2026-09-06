@@ -36,7 +36,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-import java.text.Collator;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeParseException;
@@ -52,6 +51,8 @@ import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.page.PageWindow;
 import net.zodac.diurnal.page.Pages;
+import net.zodac.diurnal.text.TextOrdering;
+import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.time.DayLabels;
 import net.zodac.diurnal.user.CurrentUser;
@@ -120,7 +121,7 @@ public class LogWebResource {
         final Locale locale = locale(user);
         final var page = future
             ? null
-            : getActions(user.id, date, 1, "", PageSizes.forSection(user, PageSection.DASHBOARD), Collator.getInstance(locale));
+            : getActions(user.id, date, 1, "", PageSizes.forSection(user, PageSection.DASHBOARD), TextOrdering.byName(locale));
 
         return dayPanelTemplate
             .data("date", date)
@@ -143,7 +144,7 @@ public class LogWebResource {
         final User user = currentUser.get();
         final Locale locale = locale(user);
         final var page = getActions(user.id, date, pageNum, searchTerm, PageSizes.forSection(user, PageSection.DASHBOARD),
-            Collator.getInstance(locale));
+            TextOrdering.byName(locale));
         return dayActionsListTemplate.data("date", date, "page", page).setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale);
     }
 
@@ -191,12 +192,13 @@ public class LogWebResource {
 
         final int dayPageSize = PageSizes.forSection(user, PageSection.DASHBOARD);
         final Locale locale = locale(user);
-        // One collator for the whole month's back-fill, not one per day - it is stateful to build and identical for every panel here.
-        final Collator collator = Collator.getInstance(locale);
+        // One comparator for the whole month's back-fill, not one per day - the collator inside it is stateful to build and identical for every
+        // panel here.
+        final Comparator<String> byName = TextOrdering.byName(locale);
         final Map<String, String> panels = new LinkedHashMap<>();
         for (LocalDate date = start; !date.isAfter(end); date = date.plusDays(1L)) {
             final boolean future = LogGuards.isFuture(date, user, clock);
-            final var page = future ? null : paginate(all, countsByDate.getOrDefault(date, Map.of()), 1, "", dayPageSize, collator);
+            final var page = future ? null : paginate(all, countsByDate.getOrDefault(date, Map.of()), 1, "", dayPageSize, byName);
             panels.put(date.toString(), dayPanelTemplate
                 .data("date", date)
                 .data("dateLabel", DayLabels.spelledOut(date, locale))
@@ -215,26 +217,27 @@ public class LogWebResource {
     }
 
     private static PaginatedDayActions getActions(final UUID userId, final LocalDate date, final int pageNum, final String searchTerm,
-        final int pageSize, final Collator collator) {
-        return paginate(Action.findByUser(userId), ActionLog.countsByAction(userId, date), pageNum, searchTerm, pageSize, collator);
+        final int pageSize, final Comparator<String> byName) {
+        return paginate(Action.findByUser(userId), ActionLog.countsByAction(userId, date), pageNum, searchTerm, pageSize, byName);
     }
 
     // Pages a day's actions purely in memory, given a pre-fetched action list and that day's counts.
     // Shared by the single-day fetch (which queries both per call) and the whole-month back-fill (which
     // queries the list and the month's counts ONCE, then pages every day from these without more queries).
     private static PaginatedDayActions paginate(final List<Action> all, final Map<UUID, Integer> counts,
-        final int pageNum, final String searchTerm, final int pageSize, final Collator collator) {
+        final int pageNum, final String searchTerm, final int pageSize, final Comparator<String> byName) {
         // Highest count first, then the viewer's own alphabet. The tie-break is COLLATED rather than left to the
         // DB's `order by name asc`: that is code-point order, which puts every accented or non-Latin name after
         // every plain-ASCII one, and would have this panel and the /actions page (which already collates, see
         // ActionsInternalResource#getActions) order the same two names differently on the same screen.
         final Comparator<DayActionStatus> byCountThenName = Comparator.comparingInt(DayActionStatus::count)
             .reversed()
-            .thenComparing(status -> status.action().name, collator::compare);
+            .thenComparing(status -> status.action().name, byName);
 
+        // NFC-composed before comparing, matching ActionsInternalResource#getActions - see its own comment for why lower-casing alone is not enough.
+        final String term = TextValidation.searchTerm(searchTerm).toLowerCase(Locale.ROOT);
         final var filtered = all.stream()
-            .filter(a -> searchTerm == null || searchTerm.isBlank()
-            || a.name.toLowerCase(Locale.ROOT).contains(searchTerm.toLowerCase(Locale.ROOT)))
+            .filter(a -> term.isEmpty() || a.name.toLowerCase(Locale.ROOT).contains(term))
             .map(a -> new DayActionStatus(a, counts.getOrDefault(a.id, 0)))
             .sorted(byCountThenName)
             .toList();

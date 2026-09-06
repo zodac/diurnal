@@ -46,6 +46,7 @@ import net.zodac.diurnal.http.HttpStatus;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.log.DateRanges;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.text.TextValidation;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
@@ -164,7 +165,7 @@ public class NotesInternalResource {
         final User user = currentUser.get();
         final PaginatedHits hits = noteService.journalPage(user, searchTerm, pageNum, PageSizes.forSection(user, PageSection.NOTES));
         final Locale locale = locale(user);
-        final PaginatedNotes page = NotePages.of(hits, searchTerm.strip(), locale);
+        final PaginatedNotes page = NotePages.of(hits, TextValidation.searchTerm(searchTerm), locale);
         return Response.ok(notesListTemplate.data("page", page, "extraQuery", NotePages.extraQuery(searchTerm))
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
     }

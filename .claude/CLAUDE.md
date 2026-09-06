@@ -302,6 +302,13 @@ document it needs, not so the rule can be applied from this page.
 - **Text worded in Java is either UI text or `@NotUiFacing`, never both.** A rejection is worded twice: hardcoded
   English for the `/api/v1` body, and a whole translated sentence in `partials/text-failure-message.html` for the
   page. A `*WebResource`/`*InternalResource` must render the partial. → [`I18N.md`](I18N.md)
+- **Every date renders in the GREGORIAN calendar today, and the app's DAY is the civil midnight-to-midnight one.**
+  A YEAR-RELABELLING calendar (Thai Buddhist, Minguo, Japanese era) is INTENDED to be supported as and when a
+  language wanting one is offered; Islamic and Hebrew are NOT, since they repartition the month — though a
+  language can still be offered with Gregorian dates, as Arabic is. The `/api/v1` contract and the CSV export stay
+  ISO-8601 regardless, but the database is not a passive store here: it buckets months itself
+  (`YEAR(...)`/`MONTH(...)`), and a Hebrew or Islamic day begins at SUNSET, which a `DATE` column plus an IANA zone
+  cannot express. → [`I18N.md`](I18N.md)
 - **All date-boundary "now"/"today" goes through `AppClock`** — `clock.today(clock.zoneFor(user.timezone))`. There
   is deliberately NO zero-argument `today()`, since every user-visible date boundary belongs to that user's
   timezone. Entity audit stamps use `Instant.now()` directly. `app.timezone` (default `UTC`) feeds it and must

@@ -157,9 +157,28 @@ class LanguageTest {
 
     @Test
     void pickerOrder_holdsEveryOfferedLanguage() {
+        // Stated as "every constant that is not developer-only" rather than "every constant", so the guard keeps its teeth: a newly added REAL
+        // language still cannot be left out of the dropdown. Only Language#developerOnly buys an exemption, and the test below pins who has it.
         assertThat(Language.pickerOrder())
             .as("expected the picker to offer every language, so a new constant cannot be left out of the dropdown")
-            .containsExactlyInAnyOrderElementsOf(Arrays.asList(Language.values()));
+            .containsExactlyInAnyOrderElementsOf(Arrays.stream(Language.values()).filter(language -> !language.developerOnly()).toList());
+    }
+
+    @Test
+    void developerOnly_isThePseudolocaleAndNothingElse() {
+        assertThat(Arrays.stream(Language.values()).filter(Language::developerOnly).toList())
+            .as("the pseudolocale is the only entry that may hide from the picker - anything else here is a real language a user cannot reach")
+            .containsExactly(Language.PSEUDO);
+    }
+
+    @Test
+    void pseudo_isStorableDespiteBeingHiddenFromThePicker() {
+        assertThat(Language.isValid("en-XA"))
+            .as("reaching the pseudolocale deliberately is the point; it is only the DROPDOWN it stays out of")
+            .isTrue();
+        assertThat(Language.fromValue("en-XA"))
+            .as("a stored en-XA must resolve rather than falling back to the default")
+            .isEqualTo(Language.PSEUDO);
     }
 
     // ── locale ──────────────────────────────────────────────────────────────
@@ -178,6 +197,25 @@ class LanguageTest {
     // nothing in src/main states what a language's date shape actually IS. These four tests are that statement: the first pair pins the resolved
     // pattern and the second pins what it renders, so a CLDR revision arriving with a JDK upgrade fails the build here rather than quietly
     // reshaping every date on the Stats page. A deliberate CLDR change is then a one-line update with a visible diff.
+
+    @Test
+    void dateRangeSeparator_isJapanesesWaveDashAndAnEnDashEverywhereElse() {
+        assertThat(Language.ENGLISH_GB.dateRangeSeparator())
+            .as("unexpected separator")
+            .isEqualTo(" – ");
+        assertThat(Language.ENGLISH_US.dateRangeSeparator())
+            .as("unexpected separator")
+            .isEqualTo(" – ");
+        assertThat(Language.SPANISH.dateRangeSeparator())
+            .as("unexpected separator")
+            .isEqualTo(" – ");
+        assertThat(Language.ARABIC.dateRangeSeparator())
+            .as("an en dash is direction-neutral punctuation, so Arabic needs nothing of its own here")
+            .isEqualTo(" – ");
+        assertThat(Language.JAPANESE.dateRangeSeparator())
+            .as("Japanese writes a date range with a wave dash, and with no spaces around it")
+            .isEqualTo("〜");
+    }
 
     @Test
     void dayMonthPattern_dropsTheYearAndTakesEachLanguagesOwnFieldOrder() {

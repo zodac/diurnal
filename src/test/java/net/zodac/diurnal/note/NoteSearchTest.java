@@ -23,6 +23,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 
 /**
  * Unit tests for {@link NoteSearch} — what counts as a match, and the shape of the snippet shown beside a result.
@@ -30,6 +32,7 @@ import org.junit.jupiter.api.Test;
 class NoteSearchTest {
 
     private static final String ELLIPSIS = "…";
+    private static final int PREVIEW_LENGTH = 180;
 
     @Test
     void suggest_countsTheNotesTheSuggestedWordActuallyFinds() {
@@ -420,6 +423,24 @@ class NoteSearchTest {
         assertThat(previewed.codePoints().allMatch(codePoint -> codePoint == "🏃".codePointAt(0)))
             .as("every code point in the preview must still be the whole emoji, with no unpaired surrogate")
             .isTrue();
+    }
+
+    // Both ends of the variation-selector range: 0xFE00 is the first, 0xFE0F (the emoji-presentation selector, the one
+    // real text actually carries) the last. A selector exists only as part of the character before it, so a cut landing
+    // on one has to walk back off BOTH - leaving it behind orphans a modifier onto the ellipsis. Unicode gives the whole
+    // block category Mn, so NoteSearch handles it as an ordinary combining mark; this pins that it stays handled.
+    @ParameterizedTest
+    @ValueSource(ints = {0xFE00, 0xFE0F})
+    void snippet_neverCutsTheVariationSelectorOffItsCharacter(final int selector) {
+        // Laid out so the 180-character preview cut lands exactly ON the selector: 179 plain characters, then the
+        // heart it modifies at 179, then the selector itself at 180.
+        final String content = "x".repeat(PREVIEW_LENGTH - 1) + "❤" + Character.toString(selector) + "y".repeat(50);
+
+        final String previewed = NoteSearch.snippet(content, "").getFirst().text();
+
+        assertThat(previewed)
+            .as("the cut must walk back off a variation selector, taking the character it modifies with it")
+            .isEqualTo("x".repeat(PREVIEW_LENGTH - 1));
     }
 
     // Every case below is about WHICH word is offered; the count it comes with is covered on its own, so the assertions read through this.

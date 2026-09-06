@@ -35,7 +35,6 @@ import jakarta.ws.rs.core.EntityTag;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Request;
 import jakarta.ws.rs.core.Response;
-import java.text.Collator;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
@@ -47,6 +46,7 @@ import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.http.EntityTags;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.openapi.ApiErrorResponse;
+import net.zodac.diurnal.text.TextOrdering;
 import net.zodac.diurnal.user.CurrentUser;
 import net.zodac.diurnal.user.Role;
 import net.zodac.diurnal.user.User;
@@ -209,10 +209,10 @@ public class LogsApiResource {
         // Collated rather than code-point order: user-typed action names are free text in any script, and plain
         // String.compareTo (uppercase-before-lowercase, ordinal for accented/non-Latin characters) mis-sorts them
         // for the viewing user's own language.
-        final Collator collator = Collator.getInstance(Locale.forLanguageTag(user.language));
+        final Comparator<String> byName = TextOrdering.byName(Locale.forLanguageTag(user.language));
         final List<DayLogEntryDto> entries = Action.findByUserAndIds(user.id, counts.keySet()).stream()
             .map(a -> new DayLogEntryDto(a.id, a.name, a.colour, Objects.requireNonNull(counts.get(a.id))))
-            .sorted(Comparator.comparing(DayLogEntryDto::name, collator::compare))
+            .sorted(Comparator.comparing(DayLogEntryDto::name, byName))
             .toList();
         return EntityTags.withPrivateValidator(Response.ok(entries), tag).build();
     }
