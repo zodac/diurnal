@@ -32,30 +32,20 @@ services:
       DB_USER: "diurnal_user"
       DB_PASSWORD: "change-me-strong-password"
       # Application configuration
-      DB_LOG_LEVEL: "WARN"
       EXPORT_CSV_BOM: "false"
       LOG_LEVEL: "DEBUG"
-      MAX_UPLOAD_SIZE: "100M"
-      NOTE_ENCRYPTION_KEY: "${NOTE_ENCRYPTION_KEY:?NOTE_ENCRYPTION_KEY must be set}"  # Generate using `openssl rand -base64 32`
-      NOTE_ENCRYPTION_PREVIOUS_KEYS: ""
-      NOTE_MAX_LENGTH: "10000"
+      NOTE_ENCRYPTION_KEY: "${NOTE_ENCRYPTION_KEY:?NOTE_ENCRYPTION_KEY must be set}"
       TZ: "Pacific/Auckland"
       # Authentication config
       ENABLE_REGISTRATION: "true"
-      OIDC_ENABLED: "true"
-      OIDC_ISSUER_URL: "https://auth.${DOMAIN_NAME}"
+      PASSWORD_AUTH_ENABLED: "true"
+      # OIDC config
+      OIDC_AUTO_REDIRECT: "false"
       OIDC_CLIENT_ID: "${OIDC_CLIENT_ID:-diurnal}"
       OIDC_CLIENT_SECRET: "${OIDC_CLIENT_SECRET:-}"
+      OIDC_ENABLED: "true"
+      OIDC_ISSUER_URL: "https://auth.${DOMAIN_NAME}"
       OIDC_PROVIDER_NAME: "Authelia"
-      OIDC_AUTO_REDIRECT: "false"
-      OIDC_VERIFY_ON_STARTUP: "true"
-      OIDC_ADMIN_GROUP: "diurnal_admins"
-      OIDC_USER_GROUP: "diurnal_users"
-      OIDC_LOGOUT_URL: ""
-      PASSWORD_AUTH_ENABLED: "true"
-      SESSION_IDLE_TIMEOUT: "P30D"
-      SESSION_ABSOLUTE_LIFETIME: "P90D"
-      TRUST_X_FORWARDED_HEADERS: "true"
     labels:
       # Reverse proxy config
       traefik.enable: "true"
