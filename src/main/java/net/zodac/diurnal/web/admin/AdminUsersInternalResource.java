@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.UUID;
 import net.zodac.diurnal.auth.session.RecentActivity;
 import net.zodac.diurnal.auth.session.SessionActivityService;
+import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.AdminUserResult;
@@ -79,6 +80,7 @@ public class AdminUsersInternalResource {
     private final CurrentUser currentUser;
     private final AdminUserService adminUserService;
     private final SessionActivityService sessionActivityService;
+    private final AppPaths appPaths;
     private final AppClock clock;
 
     /**
@@ -94,6 +96,7 @@ public class AdminUsersInternalResource {
      * @param adminUserService the shared admin-user-mutation service
      * @param sessionActivityService the recently-active presence service
      * @param clock the application clock for date-boundary logic
+     * @param appPaths the single builder of every application URL, for the row's delete/restore endpoints
      */
     @Inject
     public AdminUsersInternalResource(@Location("partials/admin-users-list") final Template adminUsersListTemplate,
@@ -101,7 +104,7 @@ public class AdminUsersInternalResource {
         @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
         @Location("partials/admin-messages") final Template adminMessagesTemplate, final SecurityIdentity identity,
         final CurrentUser currentUser, final AdminUserService adminUserService, final SessionActivityService sessionActivityService,
-        final AppClock clock) {
+        final AppClock clock, final AppPaths appPaths) {
         this.adminUsersListTemplate = adminUsersListTemplate;
         this.adminUserRowTemplate = adminUserRowTemplate;
         this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
@@ -111,6 +114,7 @@ public class AdminUsersInternalResource {
         this.adminUserService = adminUserService;
         this.sessionActivityService = sessionActivityService;
         this.clock = clock;
+        this.appPaths = appPaths;
     }
 
     /**
@@ -169,10 +173,10 @@ public class AdminUsersInternalResource {
                 .data("swatchColour", null)
                 .data("label", target.email)
                 .data("prompt", messageBanner("deleteUserPrompt", locale))
-                .data("deleteUrl", "/internal/admin/users/" + id + "/delete")
+                .data("deleteUrl", appPaths.internalAdminUserDelete(id))
                 .data("deleteTarget", "#admin-users-list")
                 .data("deleteSwap", "innerHTML")
-                .data("restoreUrl", "/internal/admin/users/" + id)
+                .data("restoreUrl", appPaths.internalAdminUser(id))
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
     }
 

@@ -176,8 +176,8 @@
      inline block that used to sit here into /js/dashboard.js so it rides the content-hashed `immutable`
      cache instead of being re-parsed on every dashboard load. Served as dashboard.<hash>.js in prod
      (baked into AppInfo.jsDashboardFile), dashboard.js in dev; runs after the shared /js/app.js. !}
-<script src="/js/{inject:appInfo.jsNoteFile}"></script>
-<script src="/js/{inject:appInfo.jsDashboardFile}"></script>
+<script src="{inject:appInfo.jsNoteUrl}"></script>
+<script src="{inject:appInfo.jsDashboardUrl}"></script>
 {/body}
 
 {/include}

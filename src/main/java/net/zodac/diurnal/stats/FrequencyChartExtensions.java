@@ -59,21 +59,34 @@ public final class FrequencyChartExtensions {
     }
 
     /**
-     * The URL the compare picker's search box queries for candidate actions: the primary action's candidates endpoint, already carrying every
-     * currently-charted comparison so the picker cannot offer an action that is already on the graph. Built here rather than in the template because
-     * a nested expression inside a Qute {@code {#include}} string parameter is not interpolated - it would render the literal braces.
+     * The charted subject the compare picker hangs off: the first series, which is always the subject the chart was opened for.
      *
      * @param chart the chart
-     * @return the candidates endpoint URL for the current selection
+     * @return the primary subject's id
      */
     @TemplateExtension
-    public static String candidatesUrl(final FrequencyChart chart) {
-        final UUID primaryId = chart.series().getFirst().subjectId();
+    public static UUID primarySubjectId(final FrequencyChart chart) {
+        return chart.series().getFirst().subjectId();
+    }
+
+    /**
+     * The query the compare picker's candidates URL carries: every currently-charted comparison, so the picker cannot offer an action that is
+     * already on the graph. Empty when nothing is being compared yet.
+     *
+     * <p>
+     * Worded here rather than in the template because a nested expression inside a Qute {@code {#include}} string parameter is not interpolated - it
+     * would render the literal braces. The URL itself is assembled by {@code AppPaths}, which owns every path in the application; this contributes
+     * only the query.
+     *
+     * @param chart the chart
+     * @return the {@code "?compare=…&compare=…"} query, or an empty string when nothing is being compared
+     */
+    @TemplateExtension
+    public static String candidatesQuery(final FrequencyChart chart) {
         final String compared = chart.series().stream()
             .skip(1L)
             .map(series -> "compare=" + series.subjectId())
             .collect(Collectors.joining("&"));
-        final String base = "/internal/stats/chart/" + primaryId + "/candidates";
-        return compared.isEmpty() ? base : (base + '?' + compared);
+        return compared.isEmpty() ? "" : ("?" + compared);
     }
 }

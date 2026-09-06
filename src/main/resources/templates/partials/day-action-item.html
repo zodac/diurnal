@@ -8,7 +8,7 @@
     <div class="flex items-center gap-0.5 shrink-0">
         {! Decrement: hidden (not just disabled) at 0, since there is nothing to decrement.
              `invisible` keeps the cell's width so the count stays put. !}
-        <button hx-post="/internal/logs/{date}/{action.id}/decrement"
+        <button hx-post="{inject:paths.internalLogDecrement(date, action.id)}"
                 hx-vals='{"amount": 1}'
                 hx-target="#log-{date}-{action.id}"
                 hx-swap="innerHTML"
@@ -24,7 +24,7 @@
         <input type="text" inputmode="numeric" maxlength="3"
                name="count"
                value="{count}"
-               hx-post="/internal/logs/{date}/{action.id}/set"
+               hx-post="{inject:paths.internalLogSet(date, action.id)}"
                hx-trigger="change"
                hx-target="#log-{date}-{action.id}"
                hx-swap="innerHTML"
@@ -40,7 +40,7 @@
              UTILITY, and the utilities layer outranks the components layer whatever the specificity,
              so it would otherwise hold through the hover and paint the glyph brand-on-brand -
              invisible - the moment the button filled. !}
-        <button hx-post="/internal/logs/{date}/{action.id}/increment"
+        <button hx-post="{inject:paths.internalLogIncrement(date, action.id)}"
                 hx-vals='{"amount": 1}'
                 hx-target="#log-{date}-{action.id}"
                 hx-swap="innerHTML"
@@ -53,7 +53,7 @@
              confirm state's Cancel, keeping Cancel in exactly the same position on swap.
              Always rendered; invisible (not just opacity-0) when there is no log to erase. !}
         <div class="dt-actions ms-[0.2rem]">
-            <button hx-get="/internal/logs/{date}/{action.id}/confirm-delete"
+            <button hx-get="{inject:paths.internalLogConfirmDelete(date, action.id)}"
                     hx-target="#log-{date}-{action.id}"
                     hx-swap="innerHTML"
                     aria-label="{msg:eraseThisActionsEntries}"

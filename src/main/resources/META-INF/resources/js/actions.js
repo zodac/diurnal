@@ -39,7 +39,7 @@ document.getElementById('new-action-form').addEventListener('htmx:afterRequest',
         // over the blank field that was just cleared.
         window.Diurnal.syncSubmitLock(this)
         const picker = this.querySelector('input[type="color"]')
-        if (picker) {window.Diurnal.suggestColourInto(picker, '/internal/actions/random-colour', true)}
+        if (picker) {window.Diurnal.suggestColourInto(picker, window.Diurnal.url('/internal/actions/random-colour'), true)}
         const er = document.getElementById('actions-empty-row')
         if (er) {er.remove()}
         const sh = document.getElementById('showing-shown')

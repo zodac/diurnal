@@ -22,6 +22,7 @@ import jakarta.inject.Inject;
 import jakarta.inject.Named;
 import net.zodac.diurnal.config.AppConfig;
 import net.zodac.diurnal.config.ApplicationVersion;
+import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.update.UpdateCheck;
 import net.zodac.diurnal.update.UpdateCheckService;
 import org.jspecify.annotations.Nullable;
@@ -46,6 +47,7 @@ public class AppInfo {
     private final AppConfig appConfig;
     private final AssetsConfig assetsConfig;
     private final UpdateCheckService updateCheckService;
+    private final AppPaths appPaths;
 
     /**
      * Injects the version accessor, the {@code app.*} settings and the one-shot startup update check that drive the footer metadata.
@@ -54,14 +56,16 @@ public class AppInfo {
      * @param appConfig the application-wide {@code app.*} settings (repository URL, build timestamp)
      * @param assetsConfig the served-asset filenames and image manifests
      * @param updateCheckService the one-shot startup update check, read (no I/O) to drive the footer's admin-only "update available" indicator
+     * @param appPaths the single builder of every application URL, which turns a served asset's filename into the URL a template links to
      */
     @Inject
     public AppInfo(final ApplicationVersion applicationVersion, final AppConfig appConfig, final AssetsConfig assetsConfig,
-        final UpdateCheckService updateCheckService) {
+        final UpdateCheckService updateCheckService, final AppPaths appPaths) {
         this.applicationVersion = applicationVersion;
         this.appConfig = appConfig;
         this.assetsConfig = assetsConfig;
         this.updateCheckService = updateCheckService;
+        this.appPaths = appPaths;
     }
 
     /**
@@ -149,90 +153,88 @@ public class AppInfo {
     }
 
     /**
-     * The content-hashed filename of a settings preview thumbnail (e.g. {@code page-nova-full-dark} →
-     * {@code page-nova-full-dark.9f3a1c2b4d5e.webp}), referenced by {@code partials/preview-thumb.html} as {@code /img/settings/{...}} so each deploy
-     * busts client and reverse-proxy caches only when that image's bytes change — the same per-file cache-busting the {@code /css/} and {@code /js/}
-     * assets get. The map is baked in at image-build time ({@link AssetsConfig#settingsImages()}); un-hashed dev/{@code mvn package} runs have no
-     * entry, so this falls back to the plain {@code <base>.webp} name (served {@code no-store} in dev).
+     * The URL of a settings preview thumbnail, under its content-hashed filename (e.g. {@code page-nova-full-dark} →
+     * {@code page-nova-full-dark.9f3a1c2b4d5e.webp}), linked by {@code partials/preview-thumb.html} so each deploy busts client and reverse-proxy
+     * caches only when that image's bytes change — the same per-file cache-busting the stylesheet and the scripts get. The map is baked in at
+     * image-build time ({@link AssetsConfig#settingsImages()}); un-hashed dev/{@code mvn package} runs have no entry, so this falls back to the
+     * plain {@code <base>.webp} name (served {@code no-store} in dev). The URL itself comes from {@link AppPaths}, so it carries the deployment's
+     * base path.
      *
      * @param base the preview image base name, without extension (e.g. {@code page-nova-full-dark})
-     * @return the served thumbnail filename under {@code /img/settings/}
+     * @return the thumbnail URL
      */
-    public String settingsImage(final String base) {
-        return assetsConfig.settingsImages().getOrDefault(base, base + ".webp");
+    public String settingsImageUrl(final String base) {
+        return appPaths.settingsImage(assetsConfig.settingsImages().getOrDefault(base, base + ".webp"));
     }
 
     /**
-     * The content-hashed filename of a settings preview's full-size lightbox image, the counterpart of {@link #settingsImage(String)} under the same
-     * base name, referenced by {@code partials/preview-thumb.html} as {@code /img/settings/full/{...}} and carried to the lightbox by
-     * {@code settings.js}. Held as its own file so the picker's tiles - which paint at roughly a fifth of the lightbox's width - are not made to
-     * carry the full-size bytes on every Settings page view; this one is requested only when a preview is opened. The map is baked in at image-build
-     * time ({@link AssetsConfig#settingsFullImages()}); un-hashed dev/{@code mvn package} runs have no entry, so this falls back to the plain
-     * {@code <base>.webp} name.
+     * The URL of a settings preview's full-size lightbox image, the counterpart of {@link #settingsImageUrl(String)} under the same base name,
+     * linked by {@code partials/preview-thumb.html} and carried to the lightbox by {@code settings.js}. Held as its own file so the picker's tiles -
+     * which paint at roughly a fifth of the lightbox's width - are not made to carry the full-size bytes on every Settings page view; this one is
+     * requested only when a preview is opened. The map is baked in at image-build time ({@link AssetsConfig#settingsFullImages()}); un-hashed
+     * dev/{@code mvn package} runs have no entry, so this falls back to the plain {@code <base>.webp} name.
      *
      * @param base the preview image base name, without extension (e.g. {@code page-nova-full-dark})
-     * @return the served full-size filename under {@code /img/settings/full/}
+     * @return the full-size image URL
      */
-    public String settingsFullImage(final String base) {
-        return assetsConfig.settingsFullImages().getOrDefault(base, base + ".webp");
+    public String settingsFullImageUrl(final String base) {
+        return appPaths.settingsFullImage(assetsConfig.settingsFullImages().getOrDefault(base, base + ".webp"));
     }
 
     /**
-     * The content-hashed filename of a top-level {@code /img/} vector mark (e.g. {@code wordmark.svg} → {@code wordmark.9f3a1c2b4d5e.svg}),
-     * referenced by the templates as {@code /img/{...}} so each deploy busts caches only when the mark's bytes change — the same per-file
-     * cache-busting the {@code /css/} and {@code /js/} assets get. The map ({@link AssetsConfig#hashedImages()}) is keyed by the base name (the part
-     * before the first dot), so this looks up that base; un-hashed dev/{@code mvn package} runs have no entry and fall back to the passed filename
-     * verbatim (served
-     * {@code no-store} in dev).
+     * The URL of a top-level vector mark, under its content-hashed filename (e.g. {@code wordmark.svg} → {@code wordmark.9f3a1c2b4d5e.svg}), linked
+     * by the templates so each deploy busts caches only when the mark's bytes change — the same per-file cache-busting the stylesheet and the scripts
+     * get. The map ({@link AssetsConfig#hashedImages()}) is keyed by the base name (the part before the first dot), so this looks up that base;
+     * un-hashed dev/{@code mvn package} runs have no entry and fall back to the passed filename verbatim (served {@code no-store} in dev).
      *
      * @param filename the mark's un-hashed filename, with extension (e.g. {@code wordmark.svg})
-     * @return the served filename under {@code /img/}
+     * @return the image URL
      */
-    public String image(final String filename) {
+    public String imageUrl(final String filename) {
         // split (limit 2) keeps this branch-free: a dot-less name is its own base, with no indexOf conditional to leave a boundary mutant behind
         // the 100% PIT gate.
         final String base = filename.split("\\.", 2)[0];
-        return assetsConfig.hashedImages().getOrDefault(base, filename);
+        return appPaths.img(assetsConfig.hashedImages().getOrDefault(base, filename));
     }
 
     /**
-     * The content-hashed compiled stylesheet filename (e.g. {@code app.9f3a1c2b4d5e.css}), referenced by {@code layout.html} as
-     * {@code /css/{cssFile}} so each deploy busts client and reverse-proxy caches without serving a stale stylesheet.
+     * The URL of the compiled stylesheet, under its content-hashed filename (e.g. {@code app.9f3a1c2b4d5e.css}), linked by {@code layout.html} so
+     * each deploy busts client and reverse-proxy caches without serving a stale stylesheet.
      *
-     * @return the stylesheet filename served under {@code /css/}
+     * @return the stylesheet URL
      */
-    public String getCssFile() {
-        return assetsConfig.cssFile();
+    public String getCssUrl() {
+        return appPaths.css(assetsConfig.cssFile());
     }
 
     /**
-     * The content-hashed self-hosted htmx filename (e.g. {@code htmx.9f3a1c2b4d5e.min.js}), referenced by {@code layout.html} as {@code /js/{jsFile}}
+     * The content-hashed self-hosted htmx filename (e.g. {@code htmx.9f3a1c2b4d5e.min.js}), linked by {@code layout.html}
      * so each deploy busts client and reverse-proxy caches without serving a stale script.
      *
-     * @return the script filename served under {@code /js/}
+     * @return the script URL
      */
-    public String getJsFile() {
-        return assetsConfig.jsFile();
+    public String getJsUrl() {
+        return appPaths.js(assetsConfig.jsFile());
     }
 
     /**
      * The content-hashed shared application script filename (e.g. {@code app.9f3a1c2b4d5e.js}), referenced by {@code layout.html} as
      * {@code /js/{jsAppFile}} so each deploy busts client and reverse-proxy caches without serving a stale script.
      *
-     * @return the shared-script filename served under {@code /js/}
+     * @return the shared-script URL
      */
-    public String getJsAppFile() {
-        return assetsConfig.jsAppFile();
+    public String getJsAppUrl() {
+        return appPaths.js(assetsConfig.jsAppFile());
     }
 
     /**
      * The content-hashed dashboard calendar script filename (e.g. {@code dashboard.9f3a1c2b4d5e.js}), referenced by {@code dashboard.html} as
      * {@code /js/{jsDashboardFile}} so each deploy busts client and reverse-proxy caches without serving a stale script.
      *
-     * @return the dashboard-script filename served under {@code /js/}
+     * @return the dashboard-script URL
      */
-    public String getJsDashboardFile() {
-        return assetsConfig.jsDashboardFile();
+    public String getJsDashboardUrl() {
+        return appPaths.js(assetsConfig.jsDashboardFile());
     }
 
     /**
@@ -240,59 +242,59 @@ public class AppInfo {
      * {@code /js/{jsNoteFile}} so each deploy busts client and reverse-proxy caches without serving a stale script. Loaded BEFORE the dashboard
      * script, which reads the module it publishes.
      *
-     * @return the note-script filename served under {@code /js/}
+     * @return the note-script URL
      */
-    public String getJsNoteFile() {
-        return assetsConfig.jsNoteFile();
+    public String getJsNoteUrl() {
+        return appPaths.js(assetsConfig.jsNoteFile());
     }
 
     /**
      * The content-hashed actions-page script filename (e.g. {@code actions.9f3a1c2b4d5e.js}), referenced by {@code actions.html} as
      * {@code /js/{jsActionsFile}} so each deploy busts client and reverse-proxy caches without serving a stale script.
      *
-     * @return the actions-script filename served under {@code /js/}
+     * @return the actions-script URL
      */
-    public String getJsActionsFile() {
-        return assetsConfig.jsActionsFile();
+    public String getJsActionsUrl() {
+        return appPaths.js(assetsConfig.jsActionsFile());
     }
 
     /**
      * The content-hashed admin users-page script filename (e.g. {@code admin-users.9f3a1c2b4d5e.js}), referenced by {@code admin-users.html} as
      * {@code /js/{jsAdminFile}} so each deploy busts client and reverse-proxy caches without serving a stale script.
      *
-     * @return the admin users-script filename served under {@code /js/}
+     * @return the admin users-script URL
      */
-    public String getJsAdminFile() {
-        return assetsConfig.jsAdminFile();
+    public String getJsAdminUrl() {
+        return appPaths.js(assetsConfig.jsAdminFile());
     }
 
     /**
-     * The content-hashed admin API-docs page script filename (e.g. {@code admin-api-docs.9f3a1c2b4d5e.js}), referenced by {@code admin-api-docs.html}
-     * as {@code /js/{jsApiDocsFile}} so each deploy busts client and reverse-proxy caches without serving a stale script.
+     * The content-hashed admin API-docs page script filename (e.g. {@code admin-api-docs.9f3a1c2b4d5e.js}), linked by {@code admin-api-docs.html}
+     * so each deploy busts client and reverse-proxy caches without serving a stale script.
      *
-     * @return the API-docs-script filename served under {@code /js/}
+     * @return the API-docs-script URL
      */
-    public String getJsApiDocsFile() {
-        return assetsConfig.jsApiDocsFile();
+    public String getJsApiDocsUrl() {
+        return appPaths.js(assetsConfig.jsApiDocsFile());
     }
 
     /**
      * The content-hashed settings-page script filename (e.g. {@code settings.9f3a1c2b4d5e.js}), referenced by {@code settings.html} as
      * {@code /js/{jsSettingsFile}} so each deploy busts client and reverse-proxy caches without serving a stale script.
      *
-     * @return the settings-script filename served under {@code /js/}
+     * @return the settings-script URL
      */
-    public String getJsSettingsFile() {
-        return assetsConfig.jsSettingsFile();
+    public String getJsSettingsUrl() {
+        return appPaths.js(assetsConfig.jsSettingsFile());
     }
 
     /**
      * The content-hashed stats-page script filename (e.g. {@code stats.9f3a1c2b4d5e.js}), referenced by {@code stats.html} as
      * {@code /js/{jsStatsFile}} so each deploy busts client and reverse-proxy caches without serving a stale script.
      *
-     * @return the stats-script filename served under {@code /js/}
+     * @return the stats-script URL
      */
-    public String getJsStatsFile() {
-        return assetsConfig.jsStatsFile();
+    public String getJsStatsUrl() {
+        return appPaths.js(assetsConfig.jsStatsFile());
     }
 }

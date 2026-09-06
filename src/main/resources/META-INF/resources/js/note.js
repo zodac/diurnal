@@ -302,7 +302,7 @@ window.Diurnal = window.Diurnal || {};
             // JSON, not a form body: a note runs to thousands of characters and Quarkus caps a form
             // attribute at 2KB (413, before the request reaches the resource). fetch rather than htmx
             // keeps an expected 422 off the console. See NotesInternalResource.
-            fetch(`/internal/notes/${  dateStr}`, {
+            fetch(window.Diurnal.url(`/internal/notes/${  dateStr}`), {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ content: content })

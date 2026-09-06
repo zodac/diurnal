@@ -28,7 +28,7 @@
         {#for row in page.items}
         <tr class="note-row">
             <td class="dt-cell dt-text-inset whitespace-nowrap">
-                <a href="/?date={row.date}" class="note-row-link">{row.dayLabel}</a>
+                <a href="{inject:paths.dashboardForDate(row.date)}" class="note-row-link">{row.dayLabel}</a>
             </td>
             {! js-phrase (unicode-bidi: plaintext, app.css): the note's OWN text is arbitrary user
                  content, which may be written in either direction regardless of the viewer's own
@@ -63,4 +63,4 @@
 </table>
 </div>
 
-{#include partials/pagination page=page pageUrl="/notes" listUrl="/internal/notes/list" target="#note-list" extraQuery=extraQuery alwaysShow=true borderless=false /}
+{#include partials/pagination page=page pageUrl=inject:paths.notes listUrl=inject:paths.internalNotesList target="#note-list" extraQuery=extraQuery alwaysShow=true borderless=false /}

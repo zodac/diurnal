@@ -44,6 +44,7 @@ import net.zodac.diurnal.auth.lockout.IpLockout;
 import net.zodac.diurnal.auth.lockout.IpLockoutService;
 import net.zodac.diurnal.auth.lockout.IpThrottleConfig;
 import net.zodac.diurnal.auth.lockout.IpUnlockResult;
+import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.CurrentUser;
@@ -77,6 +78,7 @@ public class AdminIpLockoutsInternalResource {
     private final CurrentUser currentUser;
     private final IpLockoutService ipLockoutService;
     private final IpThrottleConfig ipThrottleConfig;
+    private final AppPaths appPaths;
     private final AppClock clock;
 
     /**
@@ -92,13 +94,15 @@ public class AdminIpLockoutsInternalResource {
      * @param ipLockoutService             the shared per-IP lockout service
      * @param ipThrottleConfig             the per-IP throttle settings (whether the feature is enabled)
      * @param clock                        the application clock for date-boundary logic
+     * @param appPaths the single builder of every application URL, for the row's unlock/restore endpoints
      */
     @Inject
     public AdminIpLockoutsInternalResource(@Location("partials/admin-ip-lockouts-table") final Template adminIpLockoutsTableTemplate,
         @Location("partials/admin-ip-lockout-row") final Template adminIpLockoutRowTemplate,
         @Location("partials/dt-confirm-delete-row") final Template confirmDeleteRowTemplate,
         @Location("partials/admin-messages") final Template adminMessagesTemplate, final SecurityIdentity identity,
-        final CurrentUser currentUser, final IpLockoutService ipLockoutService, final IpThrottleConfig ipThrottleConfig, final AppClock clock) {
+        final CurrentUser currentUser, final IpLockoutService ipLockoutService, final IpThrottleConfig ipThrottleConfig, final AppClock clock,
+        final AppPaths appPaths) {
         this.adminIpLockoutsTableTemplate = adminIpLockoutsTableTemplate;
         this.adminIpLockoutRowTemplate = adminIpLockoutRowTemplate;
         this.confirmDeleteRowTemplate = confirmDeleteRowTemplate;
@@ -108,6 +112,7 @@ public class AdminIpLockoutsInternalResource {
         this.ipLockoutService = ipLockoutService;
         this.ipThrottleConfig = ipThrottleConfig;
         this.clock = clock;
+        this.appPaths = appPaths;
     }
 
     /**
@@ -160,10 +165,10 @@ public class AdminIpLockoutsInternalResource {
                 .data("label", lockout.ipAddress)
                 .data("prompt", messageBanner("unlockPrompt", locale))
                 .data("confirmLabel", messageBanner("unlockLabel", locale))
-                .data("deleteUrl", "/internal/admin/ip-lockouts/" + lockout.ipAddress + "/unlock")
+                .data("deleteUrl", appPaths.internalIpLockoutUnlock(lockout.ipAddress))
                 .data("deleteTarget", "#ip-lockouts-table")
                 .data("deleteSwap", "innerHTML")
-                .data("restoreUrl", "/internal/admin/ip-lockouts/" + id + "/row")
+                .data("restoreUrl", appPaths.internalIpLockoutRow(id))
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, locale)).build();
     }
 

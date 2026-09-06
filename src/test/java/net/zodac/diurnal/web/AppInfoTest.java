@@ -20,8 +20,10 @@ package net.zodac.diurnal.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Map;
+import java.util.Optional;
 import net.zodac.diurnal.config.AppConfig;
 import net.zodac.diurnal.config.ApplicationVersion;
+import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.stub.StubAppConfig;
 import net.zodac.diurnal.stub.StubApplicationVersion;
 import net.zodac.diurnal.stub.StubAssetsConfig;
@@ -63,13 +65,14 @@ class AppInfoTest {
         final String jsFile, final String jsAppFile, final String jsDashboardFile,
         final String jsActionsFile, final String jsAdminFile, final String jsApiDocsFile,
         final String jsSettingsFile, final String jsStatsFile) {
-        return appInfo(new StubAppConfig(repositoryUrl, buildTimestamp),
+        return appInfo(new StubAppConfig(repositoryUrl, buildTimestamp, Optional.empty()),
             new StubAssetsConfig(cssFile, jsFile, jsAppFile, jsDashboardFile, "note.js", jsActionsFile, jsAdminFile, jsApiDocsFile, jsSettingsFile,
                 jsStatsFile, SETTINGS_IMAGES, SETTINGS_FULL_IMAGES, HASHED_IMAGES));
     }
 
     private static AppInfo appInfo(final AppConfig appConfig, final AssetsConfig assetsConfig) {
-        return new AppInfo(StubApplicationVersion.of("dev"), appConfig, assetsConfig, StubUpdateCheckService.of(NO_UPDATE));
+        return new AppInfo(StubApplicationVersion.of("dev"), appConfig, assetsConfig, StubUpdateCheckService.of(NO_UPDATE),
+            new AppPaths(appConfig));
     }
 
     @Test
@@ -77,7 +80,7 @@ class AppInfoTest {
         // getVersion() is a thin delegate over ApplicationVersion.release() (the packaged-VERSION
         // resolution itself is tested in ApplicationVersionTest); assert the value passes straight through.
         final AppInfo appInfo = new AppInfo(StubApplicationVersion.of("1.2.3"), EMPTY_APP_CONFIG, EMPTY_ASSETS_CONFIG,
-            StubUpdateCheckService.of(NO_UPDATE));
+            StubUpdateCheckService.of(NO_UPDATE), new AppPaths(EMPTY_APP_CONFIG));
         assertThat(appInfo.getVersion())
             .as("getVersion() should return exactly what ApplicationVersion resolves")
             .isEqualTo("1.2.3");
@@ -100,161 +103,162 @@ class AppInfoTest {
     }
 
     @Test
-    void cssFile_returnsInjectedHashedFilename() {
+    void cssUrl_returnsInjectedHashedFilename() {
         final AppInfo appInfo = appInfoWith("", "", "app.9f3a1c2b4d5e.css");
-        assertThat(appInfo.getCssFile())
+        assertThat(appInfo.getCssUrl())
             .as("hashed stylesheet filename should be returned verbatim")
-            .isEqualTo("app.9f3a1c2b4d5e.css");
+            .isEqualTo("/css/app.9f3a1c2b4d5e.css");
     }
 
     @Test
-    void jsFile_returnsInjectedHashedFilename() {
+    void jsUrl_returnsInjectedHashedFilename() {
         final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.9f3a1c2b4d5e.min.js");
-        assertThat(appInfo.getJsFile())
+        assertThat(appInfo.getJsUrl())
             .as("hashed script filename should be returned verbatim")
-            .isEqualTo("htmx.9f3a1c2b4d5e.min.js");
+            .isEqualTo("/js/htmx.9f3a1c2b4d5e.min.js");
     }
 
     @Test
-    void jsAppFile_returnsInjectedHashedFilename() {
+    void jsAppUrl_returnsInjectedHashedFilename() {
         final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.9f3a1c2b4d5e.js", "dashboard.js");
-        assertThat(appInfo.getJsAppFile())
+        assertThat(appInfo.getJsAppUrl())
             .as("hashed shared-script filename should be returned verbatim")
-            .isEqualTo("app.9f3a1c2b4d5e.js");
+            .isEqualTo("/js/app.9f3a1c2b4d5e.js");
     }
 
     @Test
-    void jsDashboardFile_returnsInjectedHashedFilename() {
+    void jsDashboardUrl_returnsInjectedHashedFilename() {
         final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.9f3a1c2b4d5e.js");
-        assertThat(appInfo.getJsDashboardFile())
+        assertThat(appInfo.getJsDashboardUrl())
             .as("hashed dashboard-script filename should be returned verbatim")
-            .isEqualTo("dashboard.9f3a1c2b4d5e.js");
+            .isEqualTo("/js/dashboard.9f3a1c2b4d5e.js");
     }
 
     @Test
-    void jsNoteFile_returnsInjectedHashedFilename() {
+    void jsNoteUrl_returnsInjectedHashedFilename() {
         // Built from the stub directly: the appInfoWith(...) overloads pin the note filename, so it is the one
         // hashed script no overload can vary.
-        final AppInfo appInfo = appInfo(new StubAppConfig("", ""), new StubAssetsConfig("app.css", "htmx.min.js", "app.js", "dashboard.js",
+        final AppInfo appInfo = appInfo(new StubAppConfig("", "", Optional.empty()),
+            new StubAssetsConfig("app.css", "htmx.min.js", "app.js", "dashboard.js",
             "note.9f3a1c2b4d5e.js", "actions.js", "admin-users.js", "admin-api-docs.js", "settings.js", "stats.js",
             SETTINGS_IMAGES, SETTINGS_FULL_IMAGES, HASHED_IMAGES));
-        assertThat(appInfo.getJsNoteFile())
+        assertThat(appInfo.getJsNoteUrl())
             .as("hashed note-script filename should be returned verbatim")
-            .isEqualTo("note.9f3a1c2b4d5e.js");
+            .isEqualTo("/js/note.9f3a1c2b4d5e.js");
     }
 
     @Test
-    void jsActionsFile_returnsInjectedHashedFilename() {
+    void jsActionsUrl_returnsInjectedHashedFilename() {
         final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
             "actions.9f3a1c2b4d5e.js", "admin-users.js", "admin-api-docs.js", "settings.js", "stats.js");
-        assertThat(appInfo.getJsActionsFile())
+        assertThat(appInfo.getJsActionsUrl())
             .as("hashed actions-script filename should be returned verbatim")
-            .isEqualTo("actions.9f3a1c2b4d5e.js");
+            .isEqualTo("/js/actions.9f3a1c2b4d5e.js");
     }
 
     @Test
-    void jsAdminFile_returnsInjectedHashedFilename() {
+    void jsAdminUrl_returnsInjectedHashedFilename() {
         final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
             "actions.js", "admin-users.9f3a1c2b4d5e.js", "admin-api-docs.js", "settings.js", "stats.js");
-        assertThat(appInfo.getJsAdminFile())
+        assertThat(appInfo.getJsAdminUrl())
             .as("hashed admin users-script filename should be returned verbatim")
-            .isEqualTo("admin-users.9f3a1c2b4d5e.js");
+            .isEqualTo("/js/admin-users.9f3a1c2b4d5e.js");
     }
 
     @Test
-    void jsApiDocsFile_returnsInjectedHashedFilename() {
+    void jsApiDocsUrl_returnsInjectedHashedFilename() {
         final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
             "actions.js", "admin-users.js", "admin-api-docs.9f3a1c2b4d5e.js", "settings.js", "stats.js");
-        assertThat(appInfo.getJsApiDocsFile())
+        assertThat(appInfo.getJsApiDocsUrl())
             .as("hashed API-docs-script filename should be returned verbatim")
-            .isEqualTo("admin-api-docs.9f3a1c2b4d5e.js");
+            .isEqualTo("/js/admin-api-docs.9f3a1c2b4d5e.js");
     }
 
     @Test
-    void jsStatsFile_returnsInjectedHashedFilename() {
+    void jsStatsUrl_returnsInjectedHashedFilename() {
         final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
             "actions.js", "admin-users.js", "admin-api-docs.js", "settings.js", "stats.9f3a1c2b4d5e.js");
-        assertThat(appInfo.getJsStatsFile())
+        assertThat(appInfo.getJsStatsUrl())
             .as("hashed stats-script filename should be returned verbatim")
-            .isEqualTo("stats.9f3a1c2b4d5e.js");
+            .isEqualTo("/js/stats.9f3a1c2b4d5e.js");
     }
 
     @Test
-    void jsSettingsFile_returnsInjectedHashedFilename() {
+    void jsSettingsUrl_returnsInjectedHashedFilename() {
         final AppInfo appInfo = appInfoWith("", "", "app.css", "htmx.min.js", "app.js", "dashboard.js",
             "actions.js", "admin-users.js", "admin-api-docs.js", "settings.9f3a1c2b4d5e.js", "stats.js");
-        assertThat(appInfo.getJsSettingsFile())
+        assertThat(appInfo.getJsSettingsUrl())
             .as("hashed settings-script filename should be returned verbatim")
-            .isEqualTo("settings.9f3a1c2b4d5e.js");
+            .isEqualTo("/js/settings.9f3a1c2b4d5e.js");
     }
 
     @Test
-    void settingsImage_knownBase_returnsHashedFilename() {
+    void settingsImageUrl_knownBase_returnsHashedUrl() {
         // When the base name is present in the build-time map (image-hashed Docker build), the hashed
         // filename is returned so the template emits the immutable, cache-busted URL.
         final AppInfo appInfo = appInfoWith("", "", "app.css");
-        assertThat(appInfo.settingsImage("page-nova-full-dark"))
+        assertThat(appInfo.settingsImageUrl("page-nova-full-dark"))
             .as("a hashed base name should resolve to its content-hashed filename")
-            .isEqualTo("page-nova-full-dark.9f3a1c2b4d5e.webp");
+            .isEqualTo("/img/settings/page-nova-full-dark.9f3a1c2b4d5e.webp");
     }
 
     @Test
-    void settingsImage_unknownBase_fallsBackToUnhashedName() {
+    void settingsImageUrl_unknownBase_fallsBackToUnhashedUrl() {
         // Un-packaged dev / mvn package runs have an empty map, so any base falls back to <base>.webp —
         // the un-hashed on-disk filename.
         final AppInfo appInfo = appInfoWith("", "", "app.css");
-        assertThat(appInfo.settingsImage("cal-nova-minimal-dark"))
+        assertThat(appInfo.settingsImageUrl("cal-nova-minimal-dark"))
             .as("an unmapped base name should fall back to the un-hashed <base>.webp filename")
-            .isEqualTo("cal-nova-minimal-dark.webp");
+            .isEqualTo("/img/settings/cal-nova-minimal-dark.webp");
     }
 
     @Test
-    void settingsFullImage_knownBase_returnsHashedFilename() {
+    void settingsFullImageUrl_knownBase_returnsHashedUrl() {
         // The lightbox image is a SEPARATE file from the tile thumbnail under the same base name, so the
         // full-size map is consulted - not the thumbnail one - and resolves to its own hash.
         final AppInfo appInfo = appInfoWith("", "", "app.css");
-        assertThat(appInfo.settingsFullImage("page-nova-full-dark"))
+        assertThat(appInfo.settingsFullImageUrl("page-nova-full-dark"))
             .as("a hashed base name should resolve to the full-size map's content-hashed filename")
-            .isEqualTo("page-nova-full-dark.0011aabbccdd.webp");
+            .isEqualTo("/img/settings/full/page-nova-full-dark.0011aabbccdd.webp");
     }
 
     @Test
-    void settingsFullImage_unknownBase_fallsBackToUnhashedName() {
+    void settingsFullImageUrl_unknownBase_fallsBackToUnhashedUrl() {
         // Un-packaged dev / mvn package runs have an empty map, so any base falls back to <base>.webp,
         // which under /img/settings/full/ is the un-hashed on-disk filename.
         final AppInfo appInfo = appInfoWith("", "", "app.css");
-        assertThat(appInfo.settingsFullImage("cal-nova-minimal-dark"))
+        assertThat(appInfo.settingsFullImageUrl("cal-nova-minimal-dark"))
             .as("an unmapped base name should fall back to the un-hashed <base>.webp filename")
-            .isEqualTo("cal-nova-minimal-dark.webp");
+            .isEqualTo("/img/settings/full/cal-nova-minimal-dark.webp");
     }
 
     @Test
-    void image_knownMark_returnsHashedFilename() {
+    void imageUrl_knownMark_returnsHashedUrl() {
         // The passed filename's base (part before the first dot) is looked up in the build-time map; a hit
         // returns the content-hashed filename so the template emits the immutable, cache-busted URL.
         final AppInfo appInfo = appInfoWith("", "", "app.css");
-        assertThat(appInfo.image("wordmark.svg"))
+        assertThat(appInfo.imageUrl("wordmark.svg"))
             .as("a hashed mark should resolve via its base name to the content-hashed filename")
-            .isEqualTo("wordmark.9f3a1c2b4d5e.svg");
+            .isEqualTo("/img/wordmark.9f3a1c2b4d5e.svg");
     }
 
     @Test
-    void image_unknownMark_fallsBackToPassedFilename() {
+    void imageUrl_unknownMark_fallsBackToPassedFilenameUrl() {
         // Un-packaged dev / mvn package runs have an empty map, so the passed filename is returned verbatim
         // (the un-hashed on-disk name).
         final AppInfo appInfo = appInfoWith("", "", "app.css");
-        assertThat(appInfo.image("favicon.svg"))
+        assertThat(appInfo.imageUrl("favicon.svg"))
             .as("an unmapped mark should fall back to the passed (un-hashed) filename")
-            .isEqualTo("favicon.svg");
+            .isEqualTo("/img/favicon.svg");
     }
 
     @Test
-    void image_filenameWithoutExtension_looksUpWholeNameAndFallsBack() {
+    void imageUrl_filenameWithoutExtension_looksUpWholeNameAndFallsBack() {
         // Defensive: a name with no dot is its own base and, when unmapped, is returned unchanged.
         final AppInfo appInfo = appInfoWith("", "", "app.css");
-        assertThat(appInfo.image("wordmark-readme"))
+        assertThat(appInfo.imageUrl("wordmark-readme"))
             .as("an extensionless, unmapped name should be returned verbatim")
-            .isEqualTo("wordmark-readme");
+            .isEqualTo("/img/wordmark-readme");
     }
 
     @Test
@@ -339,6 +343,7 @@ class AppInfoTest {
     }
 
     private static AppInfo appInfoWithUpdate(final UpdateStatus status) {
-        return new AppInfo(StubApplicationVersion.of("dev"), EMPTY_APP_CONFIG, EMPTY_ASSETS_CONFIG, StubUpdateCheckService.of(status));
+        return new AppInfo(StubApplicationVersion.of("dev"), EMPTY_APP_CONFIG, EMPTY_ASSETS_CONFIG, StubUpdateCheckService.of(status),
+            new AppPaths(EMPTY_APP_CONFIG));
     }
 }

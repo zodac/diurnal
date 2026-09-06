@@ -227,7 +227,7 @@ Under `src/main/java/net/zodac/diurnal/`. **This is the map; the class-by-class 
 | `web`          | The app shell only: dashboard route, `AppInfo`, error pages, request logging, assets config                               |
 | `web.admin`    | The admin console - a leaf nothing else in `web` references                                                               |
 | `page`         | `Pages` + `PageWindow` - the one place a page number is resolved against a total and sliced                               |
-| `http`         | Request-level plumbing owned by no feature: rollback-on-4xx, `NotUiFacing`, client address, ETags                         |
+| `http`         | Request-level plumbing owned by no feature: rollback-on-4xx, `NotUiFacing`, client address, ETags, `AppPaths`             |
 | `colour`       | `Colours` - the rules every user-chosen colour obeys. Shared by `action` and `user`                                       |
 | `persistence`  | Typed query binding (`QueryParameter`/`JpqlQuery`/`SqlQuery`) and the vendor seam. See [`DATABASE.md`](DATABASE.md)       |
 | `stats.cache`  | The Stats page's cached figures, one row per `(user, subject)`. **A sink**, which is what lets every writer invalidate it |
@@ -321,6 +321,11 @@ document it needs, not so the rule can be applied from this page.
 - **`password.auth.enabled=false`** disables register (404, except during first-run setup) and skips
   `PasswordIdentityProvider`; `AppLifecycle` enforces at least one auth mechanism at startup. Password MANAGEMENT
   stays available regardless, keyed on holding a password rather than on the flag. → [`AUTH.md`](AUTH.md)
+- **Every URL the app EMITS is built by `http/AppPaths`, never written out at the call site** - a template takes it from
+  `{inject:paths...}`, a script from `Diurnal.url(path)`, Java from the injected bean. That is what lets `BASE_PATH` mount the app under a URL prefix
+  at runtime: the app always ROUTES at the root (`@Path`, auth permission paths and header-filter regexes never carry the prefix, and the reverse
+  proxy strips it), and only the URLs handed back to the browser carry it. `AppPathsAreCentralisedTest` fails a hardcoded path in a template or a
+  script. The one exception is the OIDC `redirect_uri`, which Quarkus builds from `X-Forwarded-Prefix`. → [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - **HTMX partials**: a full `@GET` returns a `TemplateInstance`, an HTMX endpoint returns
   `Response.ok(partial.data(...)).build()`, errors use `HX-Retarget`/`HX-Reswap`. Watch the Qute `{`-parsing gotcha
   — a bare `{word` is read as an expression even inside a JS/HTML comment. → [`FRONTEND.md`](FRONTEND.md), `ui` skill

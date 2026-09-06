@@ -200,8 +200,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // so a cached swap is indistinguishable from a network one. Invalidation is per-date: a log mutation
     // changes only the day it was made on.
     const dayPanelCache = createFragmentCache(
-        function (d) { return `/internal/logs/day/${d}` },
-        function (ym) { return `/internal/logs/month/${ym}` },
+        function (d) { return window.Diurnal.url(`/internal/logs/day/${d}`) },
+        function (ym) { return window.Diurnal.url(`/internal/logs/month/${ym}`) },
     )
 
     // Swap a day's cached/loaded HTML into the panel and wire its HTMX attributes (htmx.process, since
@@ -250,8 +250,8 @@ document.addEventListener('DOMContentLoaded', function () {
     // so a log mutation clears the whole cache.
     const statsHost  = document.getElementById('stats-summary') // absent when the summary is off in Settings
     const statsCache = createFragmentCache(
-        function (d) { return `/internal/stats/summary/${d}` },
-        function (ym) { return `/internal/stats/summary-month/${ym}` },
+        function (d) { return window.Diurnal.url(`/internal/stats/summary/${d}`) },
+        function (ym) { return window.Diurnal.url(`/internal/stats/summary-month/${ym}`) },
     )
 
     // Swap a day's card into the host. The figures are server-rendered as bare digits in their fullest
@@ -470,7 +470,9 @@ document.addEventListener('DOMContentLoaded', function () {
         function monthKey(y, m) { return `${y  }-${  pad2(m + 1)}` }
 
         function feedEndpoint() {
-            return (calendarView === 'full') ? '/api/v1/logs/events' : '/internal/logs/minimal-events'
+            return (calendarView === 'full')
+                ? window.Diurnal.url('/api/v1/logs/events')
+                : window.Diurnal.url('/internal/logs/minimal-events')
         }
 
         // The full view reads the public /api/v1 feed, whose anonymous challenge is a plain 401 (no
@@ -637,7 +639,7 @@ document.addEventListener('DOMContentLoaded', function () {
 
             const pendingKeys = pending.map(function (ym) { return monthKey(ym[0], ym[1]) })
 
-            const p = fetch(`/internal/notes?start=${  start  }&end=${  end}`)
+            const p = fetch(window.Diurnal.url(`/internal/notes?start=${  start  }&end=${  end}`))
                 .then(feedJson)
                 .then(function (byDate) {
                     noteBox.mergeMonths(byDate, pendingKeys, force)
