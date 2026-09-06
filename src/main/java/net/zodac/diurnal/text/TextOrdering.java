@@ -69,9 +69,12 @@ public final class TextOrdering {
     }
 
     private static int compare(final Collator collator, final String left, final String right) {
+        final int leftLength = left.length();
+        final int rightLength = right.length();
         int leftAt = 0;
         int rightAt = 0;
-        while (leftAt < left.length() && rightAt < right.length()) {
+
+        while (leftAt < leftLength && rightAt < rightLength) {
             final int leftEnd = runEnd(left, leftAt);
             final int rightEnd = runEnd(right, rightAt);
             final String leftRun = left.substring(leftAt, leftEnd);
@@ -97,13 +100,15 @@ public final class TextOrdering {
     private static int compareAsNumbers(final String left, final String right) {
         final String leftDigits = withoutLeadingZeros(left);
         final String rightDigits = withoutLeadingZeros(right);
-        if (leftDigits.length() != rightDigits.length()) {
-            return Integer.compare(leftDigits.length(), rightDigits.length());
+        final int leftDigitsLength = leftDigits.length();
+
+        if (leftDigitsLength != rightDigits.length()) {
+            return Integer.compare(leftDigitsLength, rightDigits.length());
         }
 
         // Digit by digit rather than by parsing: a name can hold more digits than any numeric type carries, and a value is read with Character#digit
         // so a run written in another script's digits compares by what it MEANS rather than by its code points.
-        for (int i = 0; i < leftDigits.length(); i++) {
+        for (int i = 0; i < leftDigitsLength; i++) {
             final int difference = Character.digit(leftDigits.charAt(i), RADIX) - Character.digit(rightDigits.charAt(i), RADIX);
             if (difference != 0) {
                 return difference;
@@ -118,8 +123,9 @@ public final class TextOrdering {
     // An all-zero run yields the empty string, deliberately: it has no significant digits, and a length of zero already sorts it below every run
     // that has one. Keeping a token "0" would need arithmetic here for no behavioural difference.
     private static String withoutLeadingZeros(final String digits) {
+        final int digitsLength = digits.length();
         int firstSignificant = 0;
-        while (firstSignificant < digits.length() && Character.digit(digits.charAt(firstSignificant), RADIX) == 0) {
+        while (firstSignificant < digitsLength && Character.digit(digits.charAt(firstSignificant), RADIX) == 0) {
             firstSignificant++;
         }
         return digits.substring(firstSignificant);
