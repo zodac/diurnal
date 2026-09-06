@@ -1,8 +1,10 @@
 # CrowdIn CLI configuration for the web.AppMessages bundle - see .claude/I18N.md's "Translation tooling"
-# section. Read by .github/workflows/crowdin_upload.yml, which is the ONLY thing that uses it: sources and
-# downloads are owned by the CrowdIn GitHub integration (configured in CrowdIn's own UI, not here), and
-# that workflow exists solely because the integration cannot import a translation whose text equals the
-# source string. Nothing discovers this file by convention - the workflow names it explicitly.
+# section. Read by .github/workflows/crowdin_upload.yml, which is the ONLY thing that uses it: downloads
+# are owned by the CrowdIn GitHub integration (configured in CrowdIn's own UI, not here), while that
+# workflow pushes BOTH the source file and the translations. It exists because the integration cannot
+# import a translation whose text equals the source string, and it carries the source alongside them so
+# that a reworded string and its translations reach CrowdIn in one ordered upload - see that workflow's
+# header. Nothing discovers this file by convention - the workflow names it explicitly.
 #
 # The two *_env lines below are what wire the credentials in, and they are REQUIRED rather than decorative:
 # because the workflow passes this file with `--config`, the CLI takes its credentials from here and does NOT
