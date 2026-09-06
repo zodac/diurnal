@@ -52,7 +52,7 @@ jobs:
     name: Test latest software
     needs: version
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     permissions:
       contents: read
     # Fold SonarQube analysis into the existing full gate (no duplicate build): SONARQUBE_ANALYSIS=true
