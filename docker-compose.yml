@@ -46,6 +46,8 @@ services:
       OIDC_ENABLED: "true"
       OIDC_ISSUER_URL: "https://auth.${DOMAIN_NAME}"
       OIDC_PROVIDER_NAME: "Authelia"
+      # Reverse proxy configuration
+      TRUST_X_FORWARDED_HEADERS: "true"
     labels:
       # Reverse proxy config
       traefik.enable: "true"

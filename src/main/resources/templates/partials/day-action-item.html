@@ -13,7 +13,7 @@
                 hx-target="#log-{date}-{action.id}"
                 hx-swap="innerHTML"
                 aria-label="{msg:decrease}"
-                class="day-item-btn text-ink-muted {#if count == 0}invisible{/if}">
+                class="day-item-btn text-ink-muted hover:text-on-brand {#if count == 0}invisible{/if}">
             −
         </button>
 
@@ -33,13 +33,19 @@
 
         {! Increment: hidden (not just disabled) at the daily cap ({log:maxDailyCount}, mirroring
              ActionLog.MAX_DAILY_COUNT), since it can go no higher. `invisible` keeps the cell's
-             width so the count stays put. !}
+             width so the count stays put.
+
+             `hover:text-on-brand` is repeated here, and on the decrement above, even though
+             `.day-item-btn` already carries it: a resting colour written at the call site is a
+             UTILITY, and the utilities layer outranks the components layer whatever the specificity,
+             so it would otherwise hold through the hover and paint the glyph brand-on-brand -
+             invisible - the moment the button filled. !}
         <button hx-post="/internal/logs/{date}/{action.id}/increment"
                 hx-vals='{"amount": 1}'
                 hx-target="#log-{date}-{action.id}"
                 hx-swap="innerHTML"
                 aria-label="{msg:increase}"
-                class="day-item-btn text-brand {#if count >= log:maxDailyCount}invisible{/if}">
+                class="day-item-btn text-brand hover:text-on-brand {#if count >= log:maxDailyCount}invisible{/if}">
             +
         </button>
 

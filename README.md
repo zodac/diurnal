@@ -177,10 +177,10 @@ Right-to-left languages, like Arabic, mirror the layout to match:
 
 #### Contributing a Translation
 
-Diurnal's translations are managed on **Crowdin**: **<https://crowdin.com/project/diurnal>**
+Diurnal's translations are managed on [Crowdin](https://crowdin.com/project/diurnal>).
 
-Every piece of text in the app is translated there rather than in this repository, so no Java or Git is needed to help - sign in, pick a language, and
-suggest or review wording. Approved translations are synced back here as a pull request and ship with the next release.
+Every piece of UI-facing text in the app is translated there rather than in this repository - sign in, pick a language, and suggest or review wording.
+Approved translations are synced back here as a pull request and ship with the next release.
 
 If the language you want isn't listed yet, ask for it on Crowdin or open an issue, and it can be added to the project.
 
@@ -296,8 +296,7 @@ the user settings page.
 
 #### Password Hashing
 
-Passwords are stored as [Argon2id](https://en.wikipedia.org/wiki/Argon2) hashes, at OWASP's recommended cost. Because Argon2id is deliberately
-memory-hard, its cost parameters are also the largest single influence on how much memory Diurnal needs - so they are tuned together with the
+Passwords are stored as [Argon2id](https://en.wikipedia.org/wiki/Argon2) hashes, at OWASP's recommended cost. They are tuned together with the
 container's memory budget in [Performance Tuning](#performance-tuning).
 
 #### OIDC
@@ -411,7 +410,7 @@ certificate, any HTTP→HTTPS redirect, and the `Strict-Transport-Security` (HST
 | Variable                    | Default | Description                                                                           |
 |-----------------------------|---------|---------------------------------------------------------------------------------------|
 | `CORS_ALLOWED_ORIGINS`      |         | Comma-separated list of origins allowed to call the API from a browser (unset = none) |
-| `TRUST_X_FORWARDED_HEADERS` | `true`  | Trust `X-Forwarded-*` headers from the reverse proxy                                  |
+| `TRUST_X_FORWARDED_HEADERS` | `false` | Trust `X-Forwarded-*` headers from the reverse proxy                                  |
 
 ## Performance Tuning
 
