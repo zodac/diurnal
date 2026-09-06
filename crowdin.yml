@@ -34,6 +34,21 @@
   - "source": "/translations/msg_en-GB.properties"
     "translation": "/src/main/resources/messages/msg_%locale%.properties"
     "type": "properties"
+
+    # Both of these default ON for a .properties file, and both produce corruption rather than escaping here,
+    # because a translated value is a QUTE TEMPLATE and not a MessageFormat pattern - see .claude/I18N.md's
+    # "Platform escaping" guard, which is the backstop that catches them.
+    #   escape_special_characters (default 1) backslash-escapes `=`, `:`, `!` and `#`, which turns every `{#if`
+    #     into `{\#if` and every `==` into `\=\=`. Qute then reads the section tag as literal text and its
+    #     `{/if}` as unopened, failing the build in `analyzeTemplates`.
+    #   escape_quotes (default 3) doubles a single quote to `''` in any value holding a placeholder, so
+    #     `An action named '{name}'` comes back with `''` around the name.
+    # These are FILE settings held by CrowdIn, not merely CLI switches, so the value here is only asserted when
+    # something uploads the source through this config. The GitHub integration's export reads whatever the
+    # project holds, so ALSO confirm it in the UI (Sources > the file > settings) rather than trusting this file
+    # alone - it is the export, not the upload, that writes the bundles the repo has to live with.
+    "escape_special_characters": 0
+    "escape_quotes": 0
     "languages_mapping":
       "locale":
         "es-ES": "es-ES"
