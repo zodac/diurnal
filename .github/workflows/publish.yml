@@ -11,6 +11,7 @@ on:
       - 'frontend/**' # the npm manifest, Tailwind config and CSS source all feed the image's stylesheet
       - 'src/**'
       - '!src/test/**' # test code never reaches the published image (packaged with -DskipTests)
+      - 'translations/**' # Not an image input - only so a source-export-only commit reaches the `translations` job
       - 'VERSION'
   workflow_dispatch: # allows manual trigger
 
@@ -47,10 +48,28 @@ jobs:
             echo "::notice::Version ${version} is a pre-release (< 1.0.0); the GitHub release will still be created, but the Docker image will not be pushed."
           fi
 
+  translations:
+    name: Check translation bundles
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Setup Maven Action
+        uses: s4u/setup-maven-action@v1.21.0
+        with:
+          java-distribution: 'temurin'
+          java-version: '26'
+          maven-version: '3.9.16'
+
+      - name: Check message bundles with AppMessageCoverageTest
+        run: mvn test -Dtests -Dtest=AppMessageCoverageTest -Dcss.build.skip=true
+
   # Full CI gate (lints + unit + IT + E2E + deployment-smoke) before anything is released or published.
   test:
     name: Test latest software
-    needs: version
+    needs: [ version, translations ]
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
