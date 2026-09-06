@@ -43,6 +43,9 @@ services:
       OIDC_ISSUER_URL: "https://auth.example.com"
       OIDC_LOGOUT_URL: "https://auth.example.com/logout"
       OIDC_PROVIDER_NAME: "Authelia"
+      # Reverse proxy config
+      # Set to "true" ONLY when this container sits behind a TLS-terminating reverse proxy (Traefik, nginx, Caddy) that sets X-Forwarded-*
+      TRUST_X_FORWARDED_HEADERS: "false"
     logging:
       driver: json-file
       options:

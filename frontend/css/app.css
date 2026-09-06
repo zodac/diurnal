@@ -902,7 +902,9 @@
            hover:border-brand focus:border-brand focus:outline-hidden;
   }
 
-  /* Day-panel +/− log button. Resting text colour stays at the call site (muted − vs brand +). */
+  /* Day-panel +/− log button. Resting text colour stays at the call site (muted − vs brand +), and so
+     must the hover colour: a call-site `text-*` is a utility, and the utilities layer beats this one
+     outright, so the `hover:text-on-brand` below is overridden wherever a resting colour is set. */
   .day-item-btn {
     @apply w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
            hover:bg-brand hover:text-on-brand active:bg-brand-strong;
