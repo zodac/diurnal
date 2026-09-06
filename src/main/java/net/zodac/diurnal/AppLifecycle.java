@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal;
 
+import io.quarkus.runtime.ShutdownEvent;
 import io.quarkus.runtime.StartupEvent;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
@@ -31,7 +32,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import net.zodac.diurnal.auth.PasswordAuthConfig;
 import net.zodac.diurnal.auth.oidc.OidcConfig;
@@ -44,13 +44,14 @@ import net.zodac.diurnal.note.NotesEncryptionConfig;
 import net.zodac.diurnal.note.crypto.MasterKey;
 import net.zodac.diurnal.text.TextFields;
 import net.zodac.diurnal.time.Calendars;
+import net.zodac.diurnal.time.ElapsedTime;
 import net.zodac.diurnal.user.Language;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Validates the authentication configuration at startup and logs the resolved auth setup.
+ * Validates the authentication configuration at startup and logs the resolved auth setup, and announces the shutdown at the other end.
  */
 @ApplicationScoped
 public class AppLifecycle {
@@ -109,8 +110,7 @@ public class AppLifecycle {
         // any time before the JVM process was exec'd (container scheduling, image pull); that is not
         // observable from within the process. Quarkus additionally logs its own "started in X.XXXs"
         // line (the io.quarkus logger), which is measured from Quarkus bootstrap rather than JVM launch.
-        final double coldStartSeconds = ManagementFactory.getRuntimeMXBean().getUptime() / 1000.0;
-        LOGGER.debug("System cold start: {}s (JVM launch -> ready)", String.format(Locale.ROOT, "%.3f", coldStartSeconds));
+        LOGGER.debug("System cold start: {} (JVM launch -> ready)", ElapsedTime.format(uptime()));
 
         LOGGER.info("=================================================");
         LOGGER.info("  Diurnal started");
@@ -125,6 +125,31 @@ public class AppLifecycle {
             }
         }
         LOGGER.info("=================================================");
+    }
+
+    /**
+     * Announces the shutdown, so a stopped container leaves a reason in the log rather than a log that simply ends.
+     *
+     * <p>
+     * Without this, a {@code CTRL+C} or a {@code docker compose down} prints nothing at all: the JVM is PID 1 in the container (see
+     * {@code scripts/start.sh}) and is signalled directly, but nothing in the application says so, leaving a clean stop indistinguishable in the
+     * log from a crash, an OOM kill or a lost container. The uptime is logged beside it because the pair - a stop, and how long the run lasted -
+     * is what tells an operator whether a restart loop is happening.
+     *
+     * <p>
+     * This is the last application code to run: Quarkus fires the shutdown event before it closes the logging backend, so these lines are flushed.
+     */
+    @SuppressWarnings("unused") // CDI shutdown observer - invoked by Quarkus, not called directly
+    void onStop(@Observes final ShutdownEvent ev) {
+        LOGGER.info("=================================================");
+        LOGGER.info("  Diurnal stopped");
+        // The same RuntimeMXBean measurement as the cold-start figure, so the two are read from the same instant (JVM launch).
+        LOGGER.info("  Uptime        : {}", ElapsedTime.format(uptime()));
+        LOGGER.info("=================================================");
+    }
+
+    private static Duration uptime() {
+        return Duration.ofMillis(ManagementFactory.getRuntimeMXBean().getUptime());
     }
 
     // Announces any offered language whose own calendar cannot be rendered, so the downgrade to Gregorian is not silent. LOGS rather than throwing,
