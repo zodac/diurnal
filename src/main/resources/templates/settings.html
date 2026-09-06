@@ -91,7 +91,7 @@
                             {! Read mode !}
                             <div id="display-name-view"
                                  class="settings-field flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg hover:bg-surface-muted">
-                                <p id="display-name-text" class="text-sm text-ink truncate" data-tip-full>{displayName}</p>
+                                <p id="display-name-text" class="text-sm text-ink truncate" dir="auto" data-tip-full>{displayName}</p>
                                 <div class="dt-actions settings-field-actions">
                                     <button type="button"
                                             id="display-name-edit-btn"
@@ -111,7 +111,7 @@
                                  endpoint — kept intact by wrapping the prefs area in a <div>. !}
                             <form id="account-form"
                                   class="hidden"
-                                  hx-patch="/internal/settings"
+                                  hx-patch="{inject:paths.internalSettings}"
                                   hx-swap="none">
                                 <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
                                     <input type="text"
@@ -119,7 +119,9 @@
                                            name="displayName"
                                            value="{displayName}"
                                            required
-                                           maxlength="{inject:textFields.displayName.maxLength}"
+                                           {! `data-max-length`, never `maxlength` - see actions.html's new-action input. !}
+                                           data-max-length="{inject:textFields.displayName.maxLength}"
+                                           dir="auto"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <div class="dt-actions">
                                         <button type="submit"
@@ -178,14 +180,15 @@
                                  the 422 off the console while still surfacing the inline error (mirrors the
                                  login/register cards, which fetch for the same reason). !}
                             <form id="password-current-form" class="hidden" method="post"
-                                  action="/internal/settings/password/verify">
+                                  action="{inject:paths.internalSettingsPasswordVerify}">
                                 <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
                                     <input type="password"
                                            id="currentPassword"
                                            name="currentPassword"
                                            autocomplete="current-password"
                                            placeholder="{msg:currentPasswordPlaceholder}"
-                                           maxlength="{inject:textFields.password.maxLength}"
+                                           {! `data-max-length`, never `maxlength` - see actions.html's new-action input. !}
+                                           data-max-length="{inject:textFields.password.maxLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" data-reveal-target="currentPassword"
                                             aria-label="{msg:showPassword}" class="settings-eye">
@@ -207,7 +210,8 @@
                                            id="newPassword"
                                            autocomplete="new-password"
                                            placeholder="{msg:newPasswordPlaceholder}"
-                                           maxlength="{inject:textFields.password.maxLength}"
+                                           {! `data-max-length`, never `maxlength` - see actions.html's new-action input. !}
+                                           data-max-length="{inject:textFields.password.maxLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" data-reveal-target="newPassword"
                                             aria-label="{msg:showPassword}" class="settings-eye">
@@ -233,7 +237,7 @@
                                  surfaces inline without htmx's console error. The two are told apart by the
                                  X-Password-Error header, never by the body — that is translated text. !}
                             <form id="password-confirm-form" class="hidden" method="post"
-                                  action="/internal/settings/password">
+                                  action="{inject:paths.internalSettingsPassword}">
                                 <input type="hidden" id="pendingCurrent" name="currentPassword">
                                 <input type="hidden" id="pendingPassword" name="newPassword">
                                 <div class="settings-field settings-field-edit flex items-center gap-2 px-2 -mx-2 rounded-lg">
@@ -242,7 +246,8 @@
                                            name="confirmPassword"
                                            autocomplete="new-password"
                                            placeholder="{msg:reenterNewPasswordPlaceholder}"
-                                           maxlength="{inject:textFields.password.maxLength}"
+                                           {! `data-max-length`, never `maxlength` - see actions.html's new-action input. !}
+                                           data-max-length="{inject:textFields.password.maxLength}"
                                            class="dt-text-input flex-1 min-w-0 h-7">
                                     <button type="button" data-reveal-target="confirmPassword"
                                             aria-label="{msg:showPassword}" class="settings-eye">
@@ -293,7 +298,7 @@
                             </div>
 
                             <form id="oidc-connect-confirm"
-                                  method="post" action="/internal/settings/oidc/connect"
+                                  method="post" action="{inject:paths.internalSettingsOidcConnect}"
                                   class="hidden settings-field settings-field-confirm flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg">
                                 <span class="text-sm text-ink-muted">{msg:connectConfirm(oidcProviderName)}</span>
                                 <div class="dt-actions">
@@ -327,7 +332,7 @@
 
                             {! Confirm (hidden until armed): destructive action left, Cancel right. !}
                             <form id="logout-all-confirm"
-                                  method="post" action="/internal/settings/sessions/revoke-all"
+                                  method="post" action="{inject:paths.internalSettingsSessionsRevokeAll}"
                                   class="hidden settings-field settings-field-confirm flex items-center justify-between gap-3 px-2 -mx-2 rounded-lg">
                                 <span class="text-sm text-ink-muted">{msg:logOutConfirm}</span>
                                 <div class="dt-actions">
@@ -348,7 +353,7 @@
                     {! Timezone. Long enough that the list scrolls (see partials/combo-field); each option's
                          "City, Country" wording is resolved template-side by partials/timezone-option, which is
                          included TWICE - once per row and once for the closed button - so the two cannot drift. !}
-                    {#include partials/combo-field id="timezone" label=msg:timezoneLabel value=timezone endpoint="/internal/settings" border=true}
+                    {#include partials/combo-field id="timezone" label=msg:timezoneLabel value=timezone endpoint=inject:paths.internalSettings border=true}
                         {#selected}
                         {#for choice in timezoneChoices}{#if choice.selected}{#include partials/timezone-option value=choice.value offsetParen=choice.offsetParen /}{/if}{/for}
                         {/selected}
@@ -377,7 +382,7 @@
                          settings.js reloads the page once THIS field's PATCH succeeds (it reads #language and
                          listens for its htmx:afterRequest) - `<html lang>`/`dir` and every server-formatted date on
                          the page are resolved at render time, so nothing else would show the change. !}
-                    {#include partials/combo-field id="language" label=msg:languageLabel value=language endpoint="/internal/settings" border=true
+                    {#include partials/combo-field id="language" label=msg:languageLabel value=language endpoint=inject:paths.internalSettings border=true
                         search=true searchLabel=msg:languageSearchPlaceholder noMatchesText=msg:languageSearchNoMatches}
                         {#selected}{#include partials/language-option-label option=selectedLanguage /}{/selected}
                         {#options}
@@ -395,7 +400,7 @@
                          currently resolves to, so the choice being made is visible before it is made. Each day option's own
                          WORD is CLDR data (WeekStart.dayName), not a bundle entry — only the "Automatic (…)" wrapper around it
                          is translated. !}
-                    {#include partials/combo-field id="weekStart" label=msg:weekStartLabel value=weekStart endpoint="/internal/settings" border=true}
+                    {#include partials/combo-field id="weekStart" label=msg:weekStartLabel value=weekStart endpoint=inject:paths.internalSettings border=true}
                         {#selected}
                         {#if weekStartIsAutomatic}{msg:weekStartAutomatic(automaticWeekStartDay)}{#else}{#for choice in weekStartChoices}{#if choice.selected}{choice.dayName}{/if}{/for}{/if}
                         {/selected}
@@ -430,7 +435,7 @@
                                     <input type="checkbox" id="showStatsSummary" name="showStatsSummary" value="true"
                                            class="sr-only peer"
                                            {#if showStatsSummary}checked{/if}
-                                           hx-patch="/internal/settings" hx-trigger="change" hx-swap="none"
+                                           hx-patch="{inject:paths.internalSettings}" hx-trigger="change" hx-swap="none"
                                            hx-include="#stats-summary-row">
                                     <span class="toggle-thumb block w-11 h-6 rounded-full bg-surface-muted border border-line transition-colors
                                                  peer-checked:bg-brand peer-checked:border-brand
@@ -449,12 +454,12 @@
                          its three pills already span the whole accepted range. !}
                     {#include partials/num-pref-row rowId='decimal-places-row' id='decimalPlaces' label=msg:decimalPlacesLabel
                         help=msg:decimalPlacesHelp
-                        endpoint='/internal/settings' min=0 max=2 value=decimalPlaces options=decimalPlacesOptions
+                        endpoint=inject:paths.internalSettings min=0 max=2 value=decimalPlaces options=decimalPlacesOptions
                         stepper=false minusLabel='' plusLabel='' border=true /}
 
                     {#include partials/num-pref-row rowId='page-size-row' id='pageSize' label=msg:itemsPerPageLabel
                         help=msg:itemsPerPageHelp
-                        endpoint='/internal/settings' min=1 max=100 value=pageSize options=pageSizeOptions
+                        endpoint=inject:paths.internalSettings min=1 max=100 value=pageSize options=pageSizeOptions
                         stepper=true minusLabel=msg:fewerItemsPerPage plusLabel=msg:moreItemsPerPage border=false /}
 
                     {! Per-section overrides: a disclosure holding one row per paginated list (the admin-only
@@ -477,7 +482,7 @@
                         </button>
 
                         <div id="page-size-sections-panel" class="hidden"
-                             hx-patch="/internal/settings" hx-trigger="save" hx-swap="none"
+                             hx-patch="{inject:paths.internalSettings}" hx-trigger="save" hx-swap="none"
                              hx-include="#page-size-sections-panel">
                             {! Each row's NAME is resolved here, template-side, by switching on the section's stable
                                  key - PageSection deliberately carries no display label, since a Java-side
@@ -533,7 +538,7 @@
                             </div>
                             {! shrink-0 + whitespace-nowrap keep the label on one line; the help text
                                  beside it carries min-w-0 so IT absorbs the width instead. !}
-                            <a id="data-export-link" href="/api/v1/data/export" download
+                            <a id="data-export-link" href="{inject:paths.apiDataExport}" download
                                class="btn-primary text-xs px-3 py-1.5 shrink-0 whitespace-nowrap">{msg:exportUserData}</a>
                         </div>
 
@@ -587,11 +592,11 @@
                          fill the card width (no max-w-md) so the right column's freed space is used. !}
                     <div class="space-y-6">
                         {#include partials/preview-picker optionsId="theme-options" label=msg:themeLabel group="theme"
-                            endpoint="/internal/settings" options=themeOptions current=theme border=true /}
+                            endpoint=inject:paths.internalSettings options=themeOptions current=theme border=true /}
                         {#include partials/preview-picker optionsId="calendar-options" label=msg:calendarStyleLabel group="calendarView"
-                            endpoint="/internal/settings" options=calendarViewOptions current=calendarView border=true /}
+                            endpoint=inject:paths.internalSettings options=calendarViewOptions current=calendarView border=true /}
                         {#include partials/preview-picker optionsId="font-options" label=msg:fontLabel group="font"
-                            endpoint="/internal/settings" options=fontOptions current=font border=true /}
+                            endpoint=inject:paths.internalSettings options=fontOptions current=font border=true /}
                     </div>
                 </div>
 
@@ -626,7 +631,7 @@
                         </div>
                         <div class="ms-4 flex items-center gap-3 shrink-0">
                             {#include partials/colour-picker id='noteColour' name='noteColour' value=noteColour
-                                endpoint='/internal/settings' wrapperCls='shrink-0' inputCls='colour-picker-input' /}
+                                endpoint=inject:paths.internalSettings wrapperCls='shrink-0' inputCls='colour-picker-input' /}
                             {#include partials/random-colour-button wrapperCls='shrink-0' iconCls='w-4 h-4' align='right'
                                 btnCls='colour-picker-btn' /}
                             {! Revert to the built-in colour. The default itself is server-rendered onto the
@@ -666,7 +671,7 @@
                                     <input type="checkbox" id="showNoteCounter" name="showNoteCounter" value="true"
                                            class="sr-only peer"
                                            {#if showNoteCounter}checked{/if}
-                                           hx-patch="/internal/settings" hx-trigger="change" hx-swap="none"
+                                           hx-patch="{inject:paths.internalSettings}" hx-trigger="change" hx-swap="none"
                                            hx-include="#note-counter-row">
                                     <span class="toggle-thumb block w-11 h-6 rounded-full bg-surface-muted border border-line transition-colors
                                                  peer-checked:bg-brand peer-checked:border-brand
@@ -699,7 +704,7 @@
                          only its checkbox state changes. A committed rename writes the row's hidden
                          `statsLabel` and fires the same `change`, so it saves through this one path. !}
                     <ul id="stats-fields-list" class="space-y-1"
-                        hx-patch="/internal/settings" hx-trigger="change, reorder"
+                        hx-patch="{inject:paths.internalSettings}" hx-trigger="change, reorder"
                         hx-include="#stats-fields-list" hx-swap="none">
                         {#for choice in statsFieldChoices}
                         {#switch choice.key}
@@ -822,7 +827,7 @@
              layout.html's `{#insert body}`, so it actually runs BEFORE that layout's own trailing
              /js/app.js (the next <script> once this insertion closes) - see settings.js's own header
              comment for what that means for any code in it that calls a window.Diurnal.* helper. !}
-        <script src="/js/{inject:appInfo.jsSettingsFile}"></script>
+        <script src="{inject:appInfo.jsSettingsUrl}"></script>
     </main>
 
     {#include partials/footer /}

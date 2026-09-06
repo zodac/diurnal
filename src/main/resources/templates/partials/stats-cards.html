@@ -16,7 +16,7 @@
         {#let subjectName=s.subject.actionName.or(msg:statSubjectNotes)}
         <div class="flex items-center gap-2">
             <span class="swatch swatch-md" style="background-color: {s.subject.colour}"></span>
-            <h3 class="card-title truncate min-w-0" data-tip-full>{subjectName}</h3>
+            <h3 class="card-title truncate min-w-0" dir="auto" data-tip-full>{subjectName}</h3>
             <button type="button" class="chart-open-btn group relative" data-chart-subject="{s.subject.id}"
                     data-chart-name="{subjectName}" aria-label="{msg:showFrequencyGraphFor(subjectName)}">
                 {#include partials/icon name='chart-bar' cls='chart-open-glyph' /}
@@ -42,4 +42,4 @@
 {! Shared pagination control. Stats is a grid of standalone cards (not a clipped .dt-table)
      with no editable rows, so alwaysShow=false: no footer on a single page, just the Previous/
      Next controls once it spills onto more than one page. !}
-{#include partials/pagination page=page pageUrl="/stats" listUrl="/internal/stats/list" target="#stats-list" extraQuery="" alwaysShow=false borderless=true /}
+{#include partials/pagination page=page pageUrl=inject:paths.stats listUrl=inject:paths.internalStatsList target="#stats-list" extraQuery="" alwaysShow=false borderless=true /}

@@ -34,14 +34,14 @@
     <td class="dt-cell font-medium whitespace-nowrap">
         {! The read text carries the edit input's own border+padding as an inset (.dt-text-inset, matched
              on the column header), so the name does not shift sideways when the row enters edit. !}
-        <span data-dt-view class="dt-text-inset">{action.name}</span>
+        <span data-dt-view dir="auto" class="dt-text-inset">{action.name}</span>
         <form data-dt-edit id="action-form-{action.id}" class="hidden"
-              hx-post="/internal/actions/{action.id}"
+              hx-post="{inject:paths.internalAction(action.id)}"
               hx-target="#action-{action.id}"
               hx-swap="outerHTML">
-            <input type="text" name="name" value="{action.name}" required maxlength="{inject:textFields.actionName.maxLength}"
+            <input type="text" name="name" value="{action.name}" required data-max-length="{inject:textFields.actionName.maxLength}" dir="auto"
                    class="dt-text-input w-full">
         </form>
     </td>
-    {#include partials/dt-row-actions id=action.id rowPrefix="action" formPrefix="action-form" confirmBase="/internal/actions" /}
+    {#include partials/dt-row-actions id=action.id rowPrefix="action" formPrefix="action-form" confirmBase=inject:paths.internalActions /}
 </tr>

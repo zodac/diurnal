@@ -51,6 +51,7 @@ import net.zodac.diurnal.auth.oidc.QuarkusOidcConfig;
 import net.zodac.diurnal.auth.session.Session;
 import net.zodac.diurnal.auth.session.SessionCookies;
 import net.zodac.diurnal.auth.session.SessionStore;
+import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.http.ClientAddress;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.Font;
@@ -98,6 +99,7 @@ public class AuthWebResource {
     private final PasswordAuthConfig passwordAuthConfig;
     private final RegistrationConfig registrationConfig;
     private final IpThrottleConfig ipThrottleConfig;
+    private final AppPaths appPaths;
 
     /**
      * Injects the page templates, the shared authentication and registration services, the session store and cookie builder, and every config view
@@ -119,6 +121,7 @@ public class AuthWebResource {
      * @param passwordAuthConfig the password-auth settings
      * @param registrationConfig the registration settings
      * @param ipThrottleConfig the per-IP throttle settings
+     * @param appPaths the single builder of every application URL, for every redirect and cookie path this resource emits
      */
     // Constructor injection is what CODE_STYLE.md mandates, and it explicitly keeps the parameter-count limits off, so the collaborator count here
     // is the convention rather than a smell.
@@ -132,7 +135,7 @@ public class AuthWebResource {
         final AuthenticationService authenticationService,
         final RegistrationService registrationService, final SessionStore sessionStore, final SessionCookies sessionCookies,
         final QuarkusOidcConfig quarkusOidcConfig, final OidcConfig oidcConfig, final PasswordAuthConfig passwordAuthConfig,
-        final RegistrationConfig registrationConfig, final IpThrottleConfig ipThrottleConfig) {
+        final RegistrationConfig registrationConfig, final IpThrottleConfig ipThrottleConfig, final AppPaths appPaths) {
         this.loginTemplate = loginTemplate;
         this.registerTemplate = registerTemplate;
         this.setupTemplate = setupTemplate;
@@ -149,6 +152,7 @@ public class AuthWebResource {
         this.passwordAuthConfig = passwordAuthConfig;
         this.registrationConfig = registrationConfig;
         this.ipThrottleConfig = ipThrottleConfig;
+        this.appPaths = appPaths;
     }
 
     // ── Login ──────────────────────────────────────────────────────────────
@@ -172,12 +176,12 @@ public class AuthWebResource {
         // During initial config the local registration is always usable (both ENABLE_REGISTRATION and
         // PASSWORD_AUTH_ENABLED are ignored until a user exists).
         if (setupRequired()) {
-            return Response.seeOther(URI.create("/welcome")).build();
+            return Response.seeOther(URI.create(appPaths.getWelcome())).build();
         }
         // Auto-redirect to OIDC flow when configured, but not when there is an error or
         // success message to show (e.g. after registration or a failed OIDC attempt).
         if (quarkusOidcConfig.tenantEnabled() && oidcConfig.autoRedirect() && error == null && !registered) {
-            return Response.seeOther(URI.create("/oidc-login")).build();
+            return Response.seeOther(URI.create(appPaths.getOidcLogin())).build();
         }
         // error is null when absent, "" when present with no value (?error), or a string value.
         // Quarkus form auth redirects to /login?error (no value) on failure — treat key presence as truthy.
@@ -187,7 +191,7 @@ public class AuthWebResource {
         // query params to the redirect_uri. Quarkus then forwards everything to the error-path,
         // producing a double-? URL like /login?error=oidc?error=access_denied&... — redirect to clean.
         if (error != null && error.startsWith("oidc") && !"oidc".equals(error)) {
-            return Response.seeOther(URI.create("/login?error=oidc")).build();
+            return Response.seeOther(URI.create(appPaths.getLoginWithOidcError())).build();
         }
         final boolean showOidcError = "oidc".equals(error);
         // The lockout cookie (set by doLogin on the failed form POST) marks this as a
@@ -223,16 +227,18 @@ public class AuthWebResource {
             // starts a fresh code flow instead of retrying the same failed session.
             builder.cookie(SessionCookies.clearedOidc());
             // Also drop any stale Settings connect-intent marker so a later ordinary login is not misread as a link attempt.
-            builder.cookie(new NewCookie.Builder(OidcUserProvisioner.LINK_COOKIE).value("").path("/").maxAge(0).httpOnly(true).build());
+            builder.cookie(new NewCookie.Builder(OidcUserProvisioner.LINK_COOKIE)
+                .value("").path(appPaths.getCookiePath()).maxAge(0).httpOnly(true).build());
             if (oidcErrorCookie != null) {
                 // One-shot: the reason banner is rendered now, so a later reload shows the generic text.
-                builder.cookie(new NewCookie.Builder(OidcUserProvisioner.ERROR_COOKIE).value("").path("/").maxAge(0).httpOnly(true).build());
+                builder.cookie(new NewCookie.Builder(OidcUserProvisioner.ERROR_COOKIE)
+                    .value("").path(appPaths.getCookiePath()).maxAge(0).httpOnly(true).build());
             }
         }
         if (showLocked) {
             // One-shot: clear it so a later reload of the login page shows the normal form.
             builder.cookie(new NewCookie.Builder(LOCKOUT_COOKIE)
-                .value("").path("/").maxAge(0).build());
+                .value("").path(appPaths.getCookiePath()).maxAge(0).build());
             // The login form posts via fetch (data-ajax-submit) and never renders this HTML, so app.js
             // reads the seconds left from this header and runs a live countdown in the banner.
             builder.header(LOCKOUT_RETRY_AFTER_HEADER, Math.max(1L, lockoutRemaining.toSeconds()));
@@ -277,20 +283,20 @@ public class AuthWebResource {
             case final LoginResult.Success success -> {
                 final String token = sessionStore.create(
                     success.user(), Session.AUTH_SOURCE_PASSWORD, SessionCookies.userAgent(routingContext), clientIp, now);
-                yield Response.seeOther(URI.create("/")).cookie(sessionCookies.issued(token, routingContext)).build();
+                yield Response.seeOther(appPaths.dashboardUri()).cookie(sessionCookies.issued(token, routingContext)).build();
             }
-            case final LoginResult.LockedOut locked -> Response.seeOther(URI.create("/login"))
+            case final LoginResult.LockedOut locked -> Response.seeOther(appPaths.loginUri())
                     .cookie(lockoutCookie(locked.remaining()))
                     .build();
-            case final LoginResult.InvalidCredentials _ -> Response.seeOther(URI.create("/login?error=true")).build();
+            case final LoginResult.InvalidCredentials _ -> Response.seeOther(URI.create(appPaths.getLoginWithError())).build();
         };
     }
 
-    private static NewCookie lockoutCookie(final Duration remaining) {
+    private NewCookie lockoutCookie(final Duration remaining) {
         final long seconds = Math.max(1L, remaining.toSeconds());
         return new NewCookie.Builder(LOCKOUT_COOKIE)
                 .value(Long.toString(seconds))
-                .path("/")
+                .path(appPaths.getCookiePath())
                 .httpOnly(true)
                 .maxAge(LOCKOUT_COOKIE_MAX_AGE_SECONDS)
                 .build();
@@ -310,7 +316,7 @@ public class AuthWebResource {
     @Produces(MediaType.TEXT_HTML)
     public Response welcomePage(@HeaderParam("Accept-Language") final String acceptLanguage) {
         if (!setupRequired()) {
-            return Response.seeOther(URI.create("/login")).build();
+            return Response.seeOther(appPaths.loginUri()).build();
         }
         final Language language = Language.fromAcceptLanguageHeader(acceptLanguage);
         return Response.ok(setupTemplate
@@ -383,7 +389,7 @@ public class AuthWebResource {
             case final RegistrationResult.Success success -> {
                 final String token = sessionStore.create(
                     success.user(), Session.AUTH_SOURCE_PASSWORD, SessionCookies.userAgent(routingContext), ClientAddress.of(routingContext), now);
-                yield Response.seeOther(URI.create("/")).cookie(sessionCookies.issued(token, routingContext)).build();
+                yield Response.seeOther(appPaths.dashboardUri()).cookie(sessionCookies.issued(token, routingContext)).build();
             }
             case final RegistrationResult.LockedOut locked ->
                 // The form posts via fetch (data-ajax-errors), so app.js reads the exact seconds from this
@@ -478,7 +484,7 @@ public class AuthWebResource {
         final boolean hasOidcSession = oidcSession != null && !oidcSession.isBlank();
         final URI target = (hasOidcSession ? oidcConfig.logoutUrl().filter(url -> !url.isBlank()) : Optional.<String>empty())
             .map(URI::create)
-            .orElse(URI.create("/login"));
+            .orElse(appPaths.loginUri());
         sessionUser.ifPresentOrElse(
             user -> LOGGER.debug("Logout: revoking session for name={} email={} role={}, redirecting to {}",
             user.displayName, user.email, user.role, target),

@@ -23,6 +23,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
 import java.util.stream.IntStream;
+import net.zodac.diurnal.http.AppPaths;
+import net.zodac.diurnal.stub.StubAppConfig;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -38,10 +40,11 @@ class NotePagesTest {
 
     private static final LocalDate DAY = LocalDate.of(2026, 6, 15);
     private static final Locale EN_GB = Locale.forLanguageTag("en-GB");
+    private static final AppPaths PATHS = new AppPaths(StubAppConfig.empty());
 
     @Test
     void of_buildsRowPerHitWithBothFormsOfTheDate() {
-        final PaginatedNotes page = NotePages.of(oneHit("Ran a 5k"), "", EN_GB);
+        final PaginatedNotes page = NotePages.of(oneHit("Ran a 5k"), "", EN_GB, PATHS);
 
         assertThat(page.items())
             .as("one hit produces one row")
@@ -56,7 +59,7 @@ class NotePagesTest {
 
     @Test
     void of_highlightsTheSearchTermInEachRow() {
-        final PaginatedNotes page = NotePages.of(oneHit("Ran a 5k"), "5k", EN_GB);
+        final PaginatedNotes page = NotePages.of(oneHit("Ran a 5k"), "5k", EN_GB, PATHS);
 
         assertThat(page.items().getFirst().snippet())
             .as("the row's snippet flags the matched run so the template can mark it")
@@ -65,7 +68,7 @@ class NotePagesTest {
 
     @Test
     void of_rendersEveryHitOnThePageInOrder() {
-        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(5), 12L, 12L, 3, 2, null), "", EN_GB);
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(5), 12L, 12L, 3, 2, null), "", EN_GB, PATHS);
 
         assertThat(page.items())
             .as("every hit handed in becomes a row - the page was already selected upstream")
@@ -77,7 +80,7 @@ class NotePagesTest {
 
     @Test
     void of_carriesTheWholeResultsFiguresThroughToTheFooter() {
-        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(5), 12L, 12L, 3, 2, null), "", EN_GB);
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(hits(5), 12L, 12L, 3, 2, null), "", EN_GB, PATHS);
 
         assertThat(page.totalCount())
             .as("the count is of every match, not just the page")
@@ -92,7 +95,7 @@ class NotePagesTest {
 
     @Test
     void of_reportsAnEmptyFirstPageWhenNothingMatched() {
-        final PaginatedNotes page = NotePages.of(new PaginatedHits(List.of(), 0L, 4L, 0, 1, null), "nothing", EN_GB);
+        final PaginatedNotes page = NotePages.of(new PaginatedHits(List.of(), 0L, 4L, 0, 1, null), "nothing", EN_GB, PATHS);
 
         assertThat(page.items())
             .as("no matches means no rows")
@@ -108,7 +111,7 @@ class NotePagesTest {
     @Test
     void of_carriesTheSuggestionThroughAsLinkableWord() {
         final PaginatedHits hits = new PaginatedHits(List.of(), 0L, 4L, 0, 1, new SuggestedTerm("kaleidoscope", 2));
-        final PaginatedNotes page = NotePages.of(hits, "kaleidoscpoe", EN_GB);
+        final PaginatedNotes page = NotePages.of(hits, "kaleidoscpoe", EN_GB, PATHS);
 
         assertThat(page.suggestion())
             .as("an empty result offers the closest word the journal holds, with the link that searches for it")
@@ -117,7 +120,7 @@ class NotePagesTest {
 
     @Test
     void of_hasNoSuggestionWhenTheSearchFoundSomething() {
-        final PaginatedNotes page = NotePages.of(oneHit("Ran a 5k"), "5k", EN_GB);
+        final PaginatedNotes page = NotePages.of(oneHit("Ran a 5k"), "5k", EN_GB, PATHS);
 
         assertThat(page.suggestion())
             .as("nothing is suggested beside results the user can actually read")
@@ -126,14 +129,14 @@ class NotePagesTest {
 
     @Test
     void suggestion_isNullWhenThereIsNothingToSuggest() {
-        assertThat(NotePages.suggestion(null))
+        assertThat(NotePages.suggestion(null, PATHS))
             .as("no suggested word means no link to build")
             .isNull();
     }
 
     @Test
     void suggestion_encodesTheWordIntoItsLink() {
-        assertThat(NotePages.suggestion(new SuggestedTerm("ملاحظة", 1)))
+        assertThat(NotePages.suggestion(new SuggestedTerm("ملاحظة", 1), PATHS))
             .as("a suggested word is the user's own writing, in whatever script - it must reach the link encoded")
             .isEqualTo(new NoteSuggestion("ملاحظة", "/notes?q=%D9%85%D9%84%D8%A7%D8%AD%D8%B8%D8%A9", 1));
     }

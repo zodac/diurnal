@@ -41,6 +41,10 @@ duplication.
 
 ## 2. Rules you will otherwise trip
 
+- **A URL comes from `paths`, never a literal.** Every `href`/`action`/`hx-*`/`src` in a template is
+  `{inject:paths...}` (or `{inject:appInfo.*Url}` for a served asset); every path a script builds is wrapped in
+  `Diurnal.url(...)`. A hardcoded path works at the origin root and breaks under `BASE_PATH`;
+  `AppPathsAreCentralisedTest` is what catches it.
 - **Colour comes from a token, never a literal.** Every colour is a `var(--color-*)`. A user-chosen colour goes
   through `colour/Colours` and renders exactly as picked in both themes; the one derived shade in the app is the
   calendar's note marker, and it is derived because it is a legibility floor.

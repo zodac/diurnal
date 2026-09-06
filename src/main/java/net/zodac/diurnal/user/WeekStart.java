@@ -117,7 +117,10 @@ public enum WeekStart {
      * @return the day's full CLDR name
      */
     public String dayName(final Locale locale) {
-        return dayOfWeek.getDisplayName(TextStyle.FULL, locale);
+        // FULL_STANDALONE, not FULL. The plain style is the form a weekday takes INSIDE a formatted date, which in an inflected language is not
+        // the name of the day: Finnish's is the essive "maanantaina" ("on Monday"), so this picker read "Week starts on: on Monday" rather than
+        // "Monday". Latvian differs in capitalisation. Identical in every language offered today, which is why it never showed.
+        return dayOfWeek.getDisplayName(TextStyle.FULL_STANDALONE, locale);
     }
 
     /**

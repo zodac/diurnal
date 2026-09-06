@@ -12,7 +12,7 @@
     imgBase - image base name without extension, e.g. "page-nova-full-dark"
 !}
 <span class="preview-thumb">
-    <img data-src="/img/settings/{inject:appInfo.settingsImage(imgBase)}"
-         data-full="/img/settings/full/{inject:appInfo.settingsFullImage(imgBase)}"
+    <img data-src="{inject:appInfo.settingsImageUrl(imgBase)}"
+         data-full="{inject:appInfo.settingsFullImageUrl(imgBase)}"
          alt="{alt}" class="preview-img">
 </span>

@@ -17,6 +17,19 @@
 // (settings.js, dashboard.js).
 window.Diurnal = window.Diurnal || {}
 
+// The deployment's base path, and the scripts' counterpart to AppPaths on the server: every URL a
+// script builds goes through Diurnal.url() so it carries the prefix a sub-path deployment is mounted
+// under (BASE_PATH, e.g. '/diurnal'). Empty for a deployment at the origin root, which is the default,
+// so url('/login') is then just '/login'. The value is written onto <body data-base-path> by
+// layout.html.
+//
+// The app itself always ROUTES at the root (the proxy strips the prefix before forwarding), so this
+// applies ONLY to a URL the browser resolves: a fetch target, a location assignment, and a comparison
+// against window.location.pathname, which carries the prefix the browser sees.
+window.Diurnal.url = function (path) {
+    return (document.body.dataset.basePath || '') + path
+}
+
 // The resolved app language (not the browser's own locale - see the comment on
 // formatNumber below for why that distinction matters), read off <html lang> - every page
 // already renders it there (layout.html), from the same User.language/Accept-Language
@@ -71,8 +84,8 @@ window.Diurnal.requiredFilled = function (form) {
 // the page sitting there, silently never loading), and an HTML caller swaps the entire login page into
 // whatever element it was filling. Run every response through this before touching its body.
 window.Diurnal.requireSession = function (resp) {
-    if (resp.status === 401 || (resp.redirected && new URL(resp.url).pathname === '/login')) {
-        window.location.assign('/login')
+    if (resp.status === 401 || (resp.redirected && new URL(resp.url).pathname === window.Diurnal.url('/login'))) {
+        window.location.assign(window.Diurnal.url('/login'))
         throw new Error('session expired')
     }
     return resp
@@ -483,7 +496,7 @@ document.addEventListener('click', function (e) {
 
         window.Diurnal.postForm(form).then(function (resp) {
             const dest = new URL(resp.url, window.location.origin)
-            if (dest.pathname === '/login') {
+            if (dest.pathname === window.Diurnal.url('/login')) {
                 // A lockout carries the seconds left in X-Lockout-Retry-After; otherwise it's a bad login.
                 const retryAfter = retryAfterOf(resp)
                 if (retryAfter > 0) {
@@ -713,8 +726,16 @@ document.addEventListener('click', function (e) {
     // parameter back to Latin right before it leaves the browser, the same htmx:configRequest shape
     // settings.js uses for its own numeric fields (see that file for why getAll/delete/append, not a
     // direct assignment, is required here).
+    //
+    // The names are READ FROM THE DOM rather than listed here. A hardcoded ['count'] covered the one
+    // `.js-num-input` that posts today, and silently sent this language's own digit glyphs for any
+    // second one ever added - a failure that needs a non-Latin-digit language to see at all, so it
+    // would have shipped. The query is a handful of elements and runs only on a request that htmx is
+    // already building.
     document.body.addEventListener('htmx:configRequest', function (e) {
-        ['count'].forEach(function (name) {
+        const names = new Set()
+        document.querySelectorAll('.js-num-input[name]').forEach(function (field) { names.add(field.getAttribute('name')) })
+        names.forEach(function (name) {
             const values = e.detail.parameters.getAll(name)
             if (values.length === 0) { return }
             e.detail.parameters.delete(name)
@@ -744,33 +765,67 @@ document.addEventListener('click', function (e) {
     const DEFAULT_DECIMALS = 1
     const OVERFLOW_TOLERANCE = 1 // px; scrollWidth rounds up, so ignore a sub-pixel "overflow"
 
-    // Full/abbreviated month names in the resolved app language (Diurnal.lang), not a hardcoded
-    // English array — Intl.DateTimeFormat draws on the SAME CLDR data java.time uses server-side
-    // (user/Language#monthYearPattern, time/DayLabels), so shortenMonths below abbreviates whatever
-    // month name the server actually rendered. A fixed UTC noon avoids any host-timezone date
+    // Month names in the resolved app language (Diurnal.lang), not a hardcoded English array —
+    // Intl.DateTimeFormat draws on the SAME CLDR data java.time uses server-side
+    // (user/Language#monthYearPattern, time/DayLabels). A fixed UTC noon avoids any host-timezone date
     // arithmetic shifting which calendar month is formatted.
+    //
+    // There are TWO sets, because many languages inflect a month name by CONTEXT and CLDR carries both
+    // forms. Asking for `month` ALONE yields the STANDALONE form; asking for it as part of a full date
+    // yields the FORMATTING form, which is a different word:
+    //     ru  standalone "сентябрь"   in-date "сентября"
+    //     pl  standalone "wrzesień"   in-date "września"
+    //     uk  standalone "вересень"   in-date "вересня"
+    //     hr  standalone "rujan"      in-date "rujna"
+    //     fi  standalone "syyskuu"    in-date "syyskuuta"
+    // Which one is right depends on the caller: the calendar toolbar title and the month-picker grid
+    // (dashboard.js) name a month on its own and want STANDALONE, while shortenMonths below rewrites a
+    // name sitting inside an already-rendered date and wants IN-DATE. Built from one array each way, so
+    // neither caller has to know. Identical arrays for any language that does not inflect (en/es/ar/ja/de).
     const monthNames = function (style) {
         const fmt = new Intl.DateTimeFormat(window.Diurnal.lang, { month: style, timeZone: 'UTC' })
         return Array.from({ length: 12 }, function (_, month) {
             return fmt.format(new Date(Date.UTC(2000, month, 1, 12)))
         })
     }
+    // formatToParts, not format: the month has to be requested BESIDE a day and a year to get its in-date
+    // form, and the surrounding date then has to be discarded to leave the name on its own.
+    const monthNamesInDate = function (style) {
+        const fmt = new Intl.DateTimeFormat(window.Diurnal.lang, { day: 'numeric', month: style, year: 'numeric', timeZone: 'UTC' })
+        return Array.from({ length: 12 }, function (_, month) {
+            const part = fmt.formatToParts(new Date(Date.UTC(2000, month, 1, 12))).find(function (p) { return p.type === 'month' })
+            return part ? part.value : monthNames(style)[month]
+        })
+    }
     window.Diurnal.MONTHS_FULL = monthNames('long')
     window.Diurnal.MONTHS_ABBR = monthNames('short')
+    const MONTHS_FULL_IN_DATE = monthNamesInDate('long')
+    const MONTHS_ABBR_IN_DATE = monthNamesInDate('short')
 
     // A bare `\b` is an ASCII word boundary (built on \w, which never matches an Arabic - or any
     // non-Latin - letter), so it silently matches NOTHING around a non-Latin month name: confirmed,
     // "20 أغسطس 2026".replace(/\bأغسطس\b/g, ...) is a no-op, meaning the abbreviation step below would
     // never fire for Arabic. The Unicode-aware equivalent - negative lookaround on \p{L}/\p{N} (needs
     // the `u` flag) - works identically across every script.
-    const MONTH_PATTERNS = window.Diurnal.MONTHS_FULL.map(function (month) {
+    //
+    // Built from the IN-DATE names for the same reason: matching on the standalone form found nothing in
+    // "15 сентября 2026", so the whole month step of the ladder silently did nothing in every inflecting
+    // language - no error, no wrong text, just a tile that dropped straight to shortening its year.
+    //
+    // Skipped entirely where the language's own abbreviation is NUMERIC rather than a shorter name - Finnish
+    // abbreviates "syyskuuta" to "9", so rewriting it produced "15. 9 2026": shorter, but not a well-formed date
+    // in any language, since the separators around it belong to the spelled-out form. Better to leave the month
+    // alone and let the ladder move on to its next step than to emit that.
+    const MONTH_PATTERNS = MONTHS_FULL_IN_DATE.map(function (month, i) {
+        if (!(/\p{L}/u).test(MONTHS_ABBR_IN_DATE[i])) { return null }
         return new RegExp(`(?<![\\p{L}\\p{N}])${  month  }(?![\\p{L}\\p{N}])`, 'gu')
     })
 
-    // "15 June 2026" → "15 Jun 2026". Whole words only, so "1 month, 2 days" is untouched.
+    // "15 June 2026" → "15 Jun 2026". Whole words only, so "1 month, 2 days" is untouched. Both sides are
+    // the IN-DATE form, so the result is the same string a `MMM` pattern would have rendered server-side.
     window.Diurnal.shortenMonths = function (text) {
         return MONTH_PATTERNS.reduce(function (acc, pattern, i) {
-            return acc.replace(pattern, window.Diurnal.MONTHS_ABBR[i])
+            return pattern === null ? acc : acc.replace(pattern, MONTHS_ABBR_IN_DATE[i])
         }, text)
     }
     // "15 Jun 2026" → "15 Jun 26". Only a bare 19xx/20xx reads as a year, so a count never matches.
@@ -796,13 +851,29 @@ document.addEventListener('click', function (e) {
         return steps
     }
 
-    // Rewrite the ungrouped text's figures, replacing any of 10,000 or more with its "10.0k" form (at
-    // the viewer's decimal-place preference) and locale-grouping the rest exactly as formatNumbers did.
+    // The compact form of a figure, in the viewer's own language. This used to be `formatNumber(v / 1000) + 'k'`
+    // — a locale-formatted number with a hardcoded LATIN letter welded onto it, which is wrong in exactly the
+    // languages the rest of this file is careful about: Japanese groups by 万 at precisely this threshold ("1万",
+    // not "10.0k"), Arabic writes "١٠ آلاف", and under `dir="rtl"` a trailing `k` is a stray LTR character in an
+    // otherwise Arabic-Indic figure. `notation: 'compact'` reads the same CLDR data Intl.DateTimeFormat does
+    // above, so a newly offered language needs no entry here.
+    function compactNumber(value, decimals) {
+        return new Intl.NumberFormat(window.Diurnal.lang, {
+            notation: 'compact',
+            minimumFractionDigits: decimals,
+            maximumFractionDigits: decimals
+        }).format(value)
+    }
+
+    // Rewrite the ungrouped text's figures, replacing any of 10,000 or more with its compact form (at the
+    // viewer's decimal-place preference) and locale-grouping the rest exactly as formatNumbers did. The
+    // threshold stays an explicit check rather than being left to `notation: 'compact'` for everything: compact
+    // would also rewrite 1,500 as "1.5K", which would move the abbreviation ladder's steps.
     function abbreviateCounts(raw, decimals) {
         return raw.replace(/\d+(?:\.\d+)?/g, function (match) {
             const value = Number(match)
             if (value >= COUNT_ABBR_THRESHOLD) {
-                return `${  window.Diurnal.formatNumber(value / 1000, decimals)  }k`
+                return compactNumber(value, decimals)
             }
             const dot = match.indexOf('.')
             return window.Diurnal.formatNumber(value, dot === -1 ? 0 : match.length - dot - 1)
@@ -1249,7 +1320,7 @@ document.addEventListener('click', function (e) {
 // leaking across logins — which for a journal entry is a privacy matter, not just tidiness.
 // Guarded to the login page only (path check, not a data-page marker — avoids threading a new param
 // through every full-page template).
-if (window.location.pathname === '/login') {
+if (window.location.pathname === window.Diurnal.url('/login')) {
     try {
         sessionStorage.removeItem('diurnal.selectedDate')
         sessionStorage.removeItem('diurnal.noteDraft')

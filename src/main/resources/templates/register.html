@@ -16,7 +16,7 @@
     {#include partials/banner variant='error' cls='mb-4'
         message=msg:registrationDisabledBanner /}
     <p class="mt-4 text-center text-sm text-ink-muted">
-        <a href="/login" class="link-brand">{msg:backToSignIn}</a>
+        <a href="{inject:paths.login}" class="link-brand">{msg:backToSignIn}</a>
     </p>
     {#else}
 
@@ -29,7 +29,7 @@
        data-disable-until-complete keeps the submit button disabled until every required field is
        non-blank AND confirmPassword matches password (a UX hint — the banner + server validation
        remain the real backstops). !}
-    <form method="post" action="/register" novalidate data-validate data-ajax-errors data-disable-until-complete class="space-y-4">
+    <form method="post" action="{inject:paths.register}" novalidate data-validate data-ajax-errors data-disable-until-complete class="space-y-4">
         <div data-form-errors class="space-y-2"
              {#if missingFields.size == 0 && errors.size == 0 && !duplicateEmail && lockoutSeconds == 0}hidden{/if}>
             {#if missingFields.size > 0}
@@ -57,13 +57,13 @@
             {#include partials/banner variant='error' message=message /}
             {/for}
         </div>
-        {#include partials/form-field id="email" name="email" label=msg:fieldEmail type="email" required=true autocomplete="email" maxlength=inject:textFields.email.maxLength value=email /}
-        {#include partials/form-field id="displayName" name="displayName" label=msg:fieldDisplayName type="text" required=true autocomplete="name" maxlength=inject:textFields.displayName.maxLength value=displayName /}
+        {#include partials/form-field id="email" name="email" label=msg:fieldEmail type="email" required=true autocomplete="email" maxLength=inject:textFields.email.maxLength value=email /}
+        {#include partials/form-field id="displayName" name="displayName" label=msg:fieldDisplayName type="text" required=true autocomplete="name" maxLength=inject:textFields.displayName.maxLength value=displayName /}
         <div class="relative">
-            {#include partials/form-field id="password" name="password" label=msg:fieldPassword type="password" required=true autocomplete="new-password" maxlength=inject:textFields.password.maxLength value="" /}
+            {#include partials/form-field id="password" name="password" label=msg:fieldPassword type="password" required=true autocomplete="new-password" maxLength=inject:textFields.password.maxLength value="" /}
             {#include partials/password-constraints for="password" /}
         </div>
-        {#include partials/form-field id="confirmPassword" name="confirmPassword" label=msg:fieldConfirmPassword type="password" required=true autocomplete="new-password" maxlength=inject:textFields.password.maxLength value="" /}
+        {#include partials/form-field id="confirmPassword" name="confirmPassword" label=msg:fieldConfirmPassword type="password" required=true autocomplete="new-password" maxLength=inject:textFields.password.maxLength value="" /}
         <button type="submit" class="btn-primary w-full">
             {msg:createAccount}
         </button>
@@ -72,7 +72,7 @@
     {#if !setup}
     <p class="mt-4 text-center text-sm text-ink-muted">
         {msg:alreadyRegisteredPrompt}
-        <a href="/login" class="link-brand">{msg:signIn}</a>
+        <a href="{inject:paths.login}" class="link-brand">{msg:signIn}</a>
     </p>
     {/if}
     {/if}

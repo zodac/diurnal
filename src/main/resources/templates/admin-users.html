@@ -35,7 +35,7 @@
      here into /js/admin-users.js so it rides the content-hashed `immutable` cache instead of being
      re-parsed on every page load. Served as admin-users.<hash>.js in prod (baked into
      AppInfo.jsAdminFile), admin-users.js in dev; runs after the shared /js/app.js. !}
-<script src="/js/{inject:appInfo.jsAdminFile}"></script>
+<script src="{inject:appInfo.jsAdminUrl}"></script>
 
 {/body}
 

@@ -902,7 +902,9 @@
            hover:border-brand focus:border-brand focus:outline-hidden;
   }
 
-  /* Day-panel +/− log button. Resting text colour stays at the call site (muted − vs brand +). */
+  /* Day-panel +/− log button. Resting text colour stays at the call site (muted − vs brand +), and so
+     must the hover colour: a call-site `text-*` is a utility, and the utilities layer beats this one
+     outright, so the `hover:text-on-brand` below is overridden wherever a resting colour is set. */
   .day-item-btn {
     @apply w-7 h-7 flex items-center justify-center rounded text-lg font-medium transition-colors
            hover:bg-brand hover:text-on-brand active:bg-brand-strong;
@@ -1279,6 +1281,14 @@
         .dt-pagination--borderless { border-top: 0; }
         .dt-page-link { color: var(--color-brand); transition: color .15s; }
         .dt-page-link:hover { color: var(--color-brand-strong); }
+        /* The prev/next arrow glyphs (partials/pagination.html). `←`/`→` carry Bidi_Mirrored=No, so the
+           bidi algorithm places each one on the correct side of an RTL link but never turns it round -
+           these point the way the link TRAVELS, so they are mirrored here. Native `:dir()`, not Tailwind's
+           `rtl:` variant: that compiles to `[dir=rtl] *`, which matches on ANY ancestor rather than the
+           nearest, and a competing pair then resolves by source order (see the `.js-phrase` note below).
+           Deliberately NOT applied to the calendar toolbar's `«‹›»`, which stay static - see `.cal-chevron`. */
+        .dt-page-arrow { display: inline-block; }
+        .dt-page-arrow:dir(rtl) { transform: scaleX(-1); }
 
         /* Inline message banners — shared by login/register pages and HTMX error responses
            (e.g. the admin user-management guards). Use `.banner` plus one variant modifier so

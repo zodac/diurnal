@@ -7,14 +7,14 @@
          below. `data-tip-full` (app.js) hands back the whole string on hover/long-press, and only
          while it is actually clipped, so an ordinary value shows nothing. !}
     <td class="dt-cell whitespace-nowrap"><span class="dt-cell-clip dt-cell-clip-wide" data-tip-full>{u.email}</span></td>
-    <td class="dt-cell whitespace-nowrap"><span class="dt-cell-clip" data-tip-full>{u.displayName}</span></td>
+    <td class="dt-cell whitespace-nowrap"><span class="dt-cell-clip" dir="auto" data-tip-full>{u.displayName}</span></td>
     <td class="dt-cell">
         <span data-dt-view class="flex items-center gap-2">
             <span class="dt-badge dt-badge-{u.role}">{#switch u.role}{#is 'admin'}{msg:roleAdmin}{#else}{msg:roleUser}{/switch}</span>
         </span>
         <span data-dt-edit class="hidden flex items-center gap-2">
             <form id="user-form-{u.id}"
-                  hx-post="/internal/admin/users/{u.id}/role"
+                  hx-post="{inject:paths.internalAdminUserRole(u.id)}"
                   hx-target="#user-row-{u.id}"
                   hx-swap="outerHTML">
                 <select name="role" class="dt-select">
@@ -56,5 +56,5 @@
         </span>
         {/if}
     </td>
-    {#include partials/dt-row-actions id=u.id rowPrefix="user-row" formPrefix="user-form" confirmBase="/internal/admin/users" /}
+    {#include partials/dt-row-actions id=u.id rowPrefix="user-row" formPrefix="user-form" confirmBase=inject:paths.internalAdminUsers /}
 </tr>

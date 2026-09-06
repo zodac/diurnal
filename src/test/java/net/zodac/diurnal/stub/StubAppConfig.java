@@ -17,6 +17,7 @@
 
 package net.zodac.diurnal.stub;
 
+import java.util.Optional;
 import net.zodac.diurnal.config.AppConfig;
 
 /**
@@ -26,8 +27,9 @@ import net.zodac.diurnal.config.AppConfig;
  *
  * @param repositoryUrl the source repository base URL
  * @param buildTimestamp the ISO-8601 build timestamp (its leading four digits are the build year)
+ * @param basePath the URL prefix the deployment is mounted under, or empty for the origin root
  */
-public record StubAppConfig(String repositoryUrl, String buildTimestamp) implements AppConfig {
+public record StubAppConfig(String repositoryUrl, String buildTimestamp, Optional<String> basePath) implements AppConfig {
 
     /**
      * A stub with blank strings, for tests that do not care about any {@code app.*} value.
@@ -35,7 +37,17 @@ public record StubAppConfig(String repositoryUrl, String buildTimestamp) impleme
      * @return an inert {@link StubAppConfig}
      */
     public static StubAppConfig empty() {
-        return new StubAppConfig("", "");
+        return new StubAppConfig("", "", Optional.empty());
+    }
+
+    /**
+     * A stub carrying only a base path, for a test exercising a sub-path deployment.
+     *
+     * @param basePath the URL prefix the deployment is mounted under
+     * @return a {@link StubAppConfig} with that base path and nothing else
+     */
+    public static StubAppConfig withBasePath(final String basePath) {
+        return new StubAppConfig("", "", Optional.of(basePath));
     }
 
     @Override

@@ -36,6 +36,7 @@ import java.util.Optional;
 import net.zodac.diurnal.auth.session.Session;
 import net.zodac.diurnal.auth.session.SessionCookies;
 import net.zodac.diurnal.auth.session.SessionStore;
+import net.zodac.diurnal.http.AppPaths;
 import net.zodac.diurnal.http.ClientAddress;
 import net.zodac.diurnal.http.RollbackOnErrorStatus;
 import net.zodac.diurnal.time.AppClock;
@@ -76,6 +77,7 @@ public class OidcWebResource {
     private final SessionStore sessionStore;
     private final SessionCookies sessionCookies;
     private final QuarkusOidcConfig quarkusOidcConfig;
+    private final AppPaths appPaths;
 
     /**
      * Injects the current-request identity accessors, the session store and cookie builder, and the framework-owned OIDC keys.
@@ -86,16 +88,18 @@ public class OidcWebResource {
      * @param sessionStore the session store used to mint the OIDC session
      * @param sessionCookies the shared session-cookie builder
      * @param quarkusOidcConfig the framework-owned {@code quarkus.oidc.*} keys (tenant-enabled)
+     * @param appPaths the single builder of every application URL, for the redirects and cookie paths this resource emits
      */
     @Inject
     public OidcWebResource(final SecurityIdentity identity, final CurrentUser currentUser, final AppClock clock, final SessionStore sessionStore,
-        final SessionCookies sessionCookies, final QuarkusOidcConfig quarkusOidcConfig) {
+        final SessionCookies sessionCookies, final QuarkusOidcConfig quarkusOidcConfig, final AppPaths appPaths) {
         this.identity = identity;
         this.currentUser = currentUser;
         this.clock = clock;
         this.sessionStore = sessionStore;
         this.sessionCookies = sessionCookies;
         this.quarkusOidcConfig = quarkusOidcConfig;
+        this.appPaths = appPaths;
     }
 
     /**
@@ -108,7 +112,7 @@ public class OidcWebResource {
         // Unauthenticated requests never reach here — the oidc-trigger permission policy
         // intercepts them first and issues the OIDC Authorization Code challenge.
         // Authenticated users (e.g. navigating from browser history) are forwarded home.
-        return Response.seeOther(URI.create("/")).build();
+        return Response.seeOther(appPaths.dashboardUri()).build();
     }
 
     /**
@@ -136,7 +140,7 @@ public class OidcWebResource {
         // only so logout can still trigger RP-initiated IdP logout.
         final Optional<User> found = identity.isAnonymous() ? Optional.empty() : currentUser.find();
         if (found.isEmpty()) {
-            return Response.seeOther(URI.create("/")).build();
+            return Response.seeOther(appPaths.dashboardUri()).build();
         }
 
         final User user = found.get();
@@ -149,12 +153,12 @@ public class OidcWebResource {
             // A Settings "Connect" round trip: the link itself was applied during authentication by OidcUserProvisioner and OidcLinkPolicy.
             // Clear the one-shot intent marker and land back on Settings with a success banner instead of the dashboard.
             final NewCookie clearIntent =
-                new NewCookie.Builder(OidcUserProvisioner.LINK_COOKIE).value("").path("/").maxAge(0).httpOnly(true).build();
-            return Response.seeOther(URI.create("/settings?msg=" + MSG_OIDC_CONNECTED))
+                new NewCookie.Builder(OidcUserProvisioner.LINK_COOKIE).value("").path(appPaths.getCookiePath()).maxAge(0).httpOnly(true).build();
+            return Response.seeOther(URI.create(appPaths.settingsWithMessage(MSG_OIDC_CONNECTED)))
                 .cookie(sessionCookies.issued(token, routingContext), clearIntent)
                 .build();
         }
-        return Response.seeOther(URI.create("/")).cookie(sessionCookies.issued(token, routingContext)).build();
+        return Response.seeOther(appPaths.dashboardUri()).cookie(sessionCookies.issued(token, routingContext)).build();
     }
 
     // ── Identity-provider connection (Settings → Account) ──────────────────
@@ -179,10 +183,10 @@ public class OidcWebResource {
         }
         final NewCookie intent = new NewCookie.Builder(OidcUserProvisioner.LINK_COOKIE)
             .value("1")
-            .path("/")
+            .path(appPaths.getCookiePath())
             .maxAge(LINK_INTENT_COOKIE_MAX_AGE_SECONDS)
             .httpOnly(true)
             .build();
-        return Response.seeOther(URI.create("/oidc-login")).cookie(intent).build();
+        return Response.seeOther(URI.create(appPaths.getOidcLogin())).cookie(intent).build();
     }
 }

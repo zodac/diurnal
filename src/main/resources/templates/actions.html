@@ -25,7 +25,7 @@
                  the fallback with scripting off. /js/actions.js re-locks the button after each add,
                  since form.reset() fires no input event. !}
             <form id="new-action-form"
-                  hx-post="/internal/actions"
+                  hx-post="{inject:paths.internalActions}"
                   hx-target="#actions-tbody"
                   hx-swap="afterbegin"
                   data-disable-until-complete
@@ -39,7 +39,12 @@
                        name="name"
                        placeholder="{msg:actionNamePlaceholder}"
                        required
-                       maxlength="{inject:textFields.actionName.maxLength}"
+                       {! No `maxlength`, for the reason dashboard.html's note textarea spells out: the attribute counts UTF-16
+                            units while every bound in this app is a CODE POINT count (TextFieldExtensions#length), so a name of
+                            emoji would be cut off at half its allowed length with no explanation. The server rejects an over-long
+                            name through partials/text-failure-message.html, in the viewer's own language. !}
+                       data-max-length="{inject:textFields.actionName.maxLength}"
+                       dir="auto"
                        class="form-input flex-1 min-w-0">
                 <button type="submit" class="btn-primary shrink-0">
                     {msg:add}
@@ -56,7 +61,7 @@
              none — that case still shows the (empty) table. !}
         <div id="actions-section" data-total="{page.totalCount}" class="{#if page.totalCount == 0}hidden{/if}">
             {! Search bar !}
-            {#include partials/search-input id="search-input" url="/internal/actions/list?page=1" target="#action-list" placeholder=msg:searchActionsPlaceholder /}
+            {#include partials/search-input id="search-input" url=inject:paths.internalActionsListFirstPage target="#action-list" placeholder=msg:searchActionsPlaceholder /}
 
             {! Action list !}
             <div class="card overflow-hidden">
@@ -74,7 +79,7 @@
      block that used to sit here into /js/actions.js so it rides the content-hashed `immutable`
      cache instead of being parsed again on every page load. Served as actions.<hash>.js in prod
      (baked into AppInfo.jsActionsFile), actions.js in dev; runs after the shared /js/app.js. !}
-<script src="/js/{inject:appInfo.jsActionsFile}"></script>
+<script src="{inject:appInfo.jsActionsUrl}"></script>
 
 {/body}
 

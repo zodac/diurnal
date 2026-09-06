@@ -40,6 +40,7 @@ import net.zodac.diurnal.auth.session.SessionActivityService;
 import net.zodac.diurnal.time.AppClock;
 import net.zodac.diurnal.user.AdminUserService;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.Language;
 import net.zodac.diurnal.user.PageSection;
 import net.zodac.diurnal.user.PageSizes;
 import net.zodac.diurnal.user.Role;
@@ -103,6 +104,7 @@ public class AdminWebResource {
         final User actor = currentUser.get();
         final AdminUserService.UsersPage page = adminUserService.usersPage(pageNum, PageSizes.forSection(actor, PageSection.USERS));
         final ZoneId zone = clock.zoneFor(actor.timezone);
+        final Language language = Language.fromValue(actor.language);
         final Instant now = clock.now();
         final List<UUID> ids = page.users().stream().map(u -> u.id).toList();
         final boolean lockoutEnabled = ipThrottleConfig.enabled();
@@ -114,10 +116,10 @@ public class AdminWebResource {
                 .data("language", actor.language)
                 .setAttribute(MessageBundles.ATTRIBUTE_LOCALE, Locale.forLanguageTag(actor.language))
                 .data("isAdmin", true)
-                .data("page", AdminUsersInternalResource.toRows(page, zone, sessionActivityService.recentActivityByUser(ids, now)))
+                .data("page", AdminUsersInternalResource.toRows(page, zone, language, sessionActivityService.recentActivityByUser(ids, now)))
                 .data("ipThrottleEnabled", lockoutEnabled)
                 .data("lockoutsHistory", lockoutEnabled
-                    ? AdminIpLockoutsInternalResource.toHistory(ipLockoutService.history(1, actor.pageSize, now), zone, now)
+                    ? AdminIpLockoutsInternalResource.toHistory(ipLockoutService.history(1, actor.pageSize, now), zone, language, now)
                     : new AdminIpLockoutsInternalResource.PaginatedIpLockouts(List.of(), 0L, 0, 1));
     }
 

@@ -20,6 +20,7 @@ package net.zodac.diurnal.config;
 import io.smallrye.config.ConfigMapping;
 import io.smallrye.config.WithDefault;
 import io.smallrye.config.WithName;
+import java.util.Optional;
 
 /**
  * Typed view over the application's own {@code app.*} settings — the metadata and runtime behaviour that belong to the deployment as a whole
@@ -43,6 +44,27 @@ public interface AppConfig {    /**
      */
     @WithDefault("UTC")
     String timezone();
+
+    /**
+     * The URL prefix this deployment is reached at, when it is mounted somewhere other than the origin root (e.g. {@code /diurnal} for
+     * {@code https://diurnal.example.com/diurnal}). Empty - the default - means the origin root.
+     *
+     * <p>
+     * The application always ROUTES at the root; this key only tells it what prefix to put on the URLs it EMITS, and the reverse proxy is expected
+     * to strip that same prefix before forwarding. Read through {@code net.zodac.diurnal.http.AppPaths}, which normalises it and is the single
+     * place any application URL is built - never read this key directly.
+     *
+     * <p>
+     * Typed {@link Optional} rather than a plain {@link String} because the default IS the empty value: {@code app.base-path=${BASE_PATH:}} leaves
+     * the property defined-but-empty for every deployment that does not set it, and SmallRye's built-in converter reads an empty string as
+     * {@code null} - which a non-optional mapping method rejects at startup with {@code SRCFG00040}, failing the container's boot rather than
+     * defaulting.
+     *
+     * @return the configured base path, or empty when the deployment sits at the origin root
+     */
+    @WithName("base-path")
+    @WithDefault("")
+    Optional<String> basePath();
 
     /**
      * Whether the deployment sits behind a trusted reverse proxy, so a request's {@code X-Forwarded-*} headers may be believed. Driven by the same

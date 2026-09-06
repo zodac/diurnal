@@ -18,6 +18,7 @@
     - [Statistics and Streaks](#statistics-and-streaks)
     - [Themes and Fonts](#themes-and-fonts)
     - [Languages](#languages)
+        - [Contributing a Translation](#contributing-a-translation)
 - [Deployment](#deployment)
 - [Environment Variables](#environment-variables)
     - [Required](#required)
@@ -32,7 +33,6 @@
         - [Login Throttling](#login-throttling)
         - [Sessions](#sessions)
     - [Reverse Proxy](#reverse-proxy)
-    - [CORS](#cors)
 - [Performance Tuning](#performance-tuning)
     - [Application Memory](#application-memory)
     - [Password Hashing Cost](#password-hashing-cost)
@@ -136,8 +136,8 @@ Every action gets a full set of statistics, including
 
 These can be enabled/disabled or re-ordered in user settings (see [Statistics](#statistics) below).
 
-Your **notes** are treated as a subject in their own right: they get the same set of tiles as an action (streaks, gaps, totals, averages, and so on),
-shown first on the page.
+Your [notes](#notes) are treated as a subject in their own right: they get the same set of tiles as an action (streaks, gaps, totals, averages, and so
+on), shown first on the page.
 
 Each subject also has a **frequency graph**, opened from the chart icon on its card: a bar per day over a month, or a bar per month over a year, with
 the exact figures on hover. Up to three subjects can be charted together with **Compare to...**, all scaled against a single peak so they read against
@@ -175,12 +175,21 @@ Right-to-left languages, like Arabic, mirror the layout to match:
 </p>
 <!-- markdownlint-enable MD033 -->
 
+#### Contributing a Translation
+
+Diurnal's translations are managed on [Crowdin](https://crowdin.com/project/diurnal>).
+
+Every piece of UI-facing text in the app is translated there rather than in this repository - sign in, pick a language, and suggest or review wording.
+Approved translations are synced back here as a pull request and ship with the next release.
+
+If the language you want isn't listed yet, ask for it on Crowdin or open an issue, and it can be added to the project.
+
 ## Deployment
 
 Diurnal is distributed as a Docker image ([`zodac/diurnal`](https://hub.docker.com/r/zodac/diurnal)) and is intended to be run with Docker Compose
-alongside a PostgreSQL container.
+alongside a PostgreSQL container. Quick start is below:
 
-**1. Get the Docker Compose file:**
+**1. Configure the Docker Compose file:**
 
 Download [`docker-compose.example.yml`](docs/docker-compose.example.yml) from this repository and save it as `docker-compose.yml`:
 
@@ -188,40 +197,18 @@ Download [`docker-compose.example.yml`](docs/docker-compose.example.yml) from th
 curl -o docker-compose.yml https://raw.githubusercontent.com/zodac/diurnal/master/docs/docker-compose.example.yml
 ```
 
-**2. Set your secrets:**
+Edit `docker-compose.yml` and update the values marked as **TODO**. Other settings are documented in [Environment Variables](#environment-variables)
+below.
 
-Edit `docker-compose.yml` and set the two required values:
-
-- `DB_PASSWORD`: a strong PostgreSQL password (set it in **both** the `diurnal` and `diurnal-db` services)
-- `NOTE_ENCRYPTION_KEY`: the key your notes are encrypted with (see [Note Configuration](#note-configuration))
-
-A quick way to generate either:
-
-```bash
-openssl rand -base64 32
-```
-
-> **Back `NOTE_ENCRYPTION_KEY` up somewhere other than the database, and make sure it survives a container rebuild.** It is
-> the only thing that can read your notes, it is deliberately not stored in the database, and **there is no recovery if it
-> is lost** - every note becomes permanently unreadable. Treat it exactly as you treat `DB_PASSWORD`.
-
-Every setting is documented in [Environment Variables](#environment-variables) below.
-
-**3. Start the application:**
+**2. Start the application:**
 
 ```bash
 docker compose up -d
 ```
 
-Diurnal will be available at **<http://localhost:8080>**. The database schema is created automatically on first start.
-
-To publish it on a different host port, edit the `ports:` mapping in your `docker-compose.yml`. For example, you can set `"9000:8080"` to reach it on
-port `9000`. The container always listens on `8080` internally, so only the left-hand side changes.
-
-**4. Create your account:**
-
-Open the app and **register**. The first account created becomes the **administrator**. Even if using `OIDC_ENABLED`, this account is created locally.
-It may later be linked to your OIDC provider, though I would suggest keeping it as a super-user in case of any IdP issues.
+Diurnal will be available at **<http://localhost:8080>** and will walk you through creating the initial admin account. This first account becomes the
+**administrator**. Even if using `OIDC_ENABLED`, this account is created locally. It may later be linked to your OIDC provider, though I would suggest
+keeping it as a super-user in case of any IdP issues.
 
 ## Environment Variables
 
@@ -247,13 +234,15 @@ The Compose files also tune PostgreSQL itself; those knobs live in [Performance 
 
 ### Application
 
-| Variable           | Default | Description                                                                                         |
-|--------------------|---------|-----------------------------------------------------------------------------------------------------|
-| `DB_LOG_LEVEL`     | `WARN`  | Set to `TRACE` to log every SQL statement + bound parameters (verbose; may expose parameter values) |
-| `EXPORT_CSV_BOM`   | `true`  | Lead each exported CSV with a UTF-8 byte-order mark (Excel-friendly); `false` for plain UTF-8       |
-| `LOG_LEVEL`        | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                    |
-| `MAX_UPLOAD_SIZE`  | `100M`  | Largest request body accepted, in binary units (`100M`, `512K`, `1G`), also for import/export       |
-| `TZ`               | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                                        |
+| Variable                   | Default | Description                                                                                                 |
+|----------------------------|---------|-------------------------------------------------------------------------------------------------------------|
+| `APP_UPDATE_CHECK_ENABLED` | `true`  | Check GitHub once at startup for a newer release                                                            |
+| `APP_UPDATE_CHECK_TIMEOUT` | `PT3S`  | How long that one lookup may take before it is abandoned                                                    |
+| `DB_LOG_LEVEL`             | `WARN`  | Set to `TRACE` to log every SQL statement + bound parameters (verbose; may expose parameter values)         |
+| `EXPORT_CSV_BOM`           | `true`  | Lead each exported CSV with a UTF-8 byte-order mark (Excel-friendly); `false` for plain UTF-8 (LibreOffice) |
+| `LOG_LEVEL`                | `INFO`  | One of `TRACE`, `DEBUG`, `INFO`, `WARN`, `ERROR`, `FATAL`, `OFF`                                            |
+| `MAX_UPLOAD_SIZE`          | `100M`  | Largest request body accepted, in binary units (`100M`, `512K`, `1G`), also for import/export               |
+| `TZ`                       | `UTC`   | IANA timezone (e.g. `Europe/London`) used for day boundaries                                                |
 
 ### Note Configuration
 
@@ -299,9 +288,9 @@ Shown with both sign-in methods enabled.
 
 | Variable                       | Default | Description                                                                                                  |
 |--------------------------------|---------|--------------------------------------------------------------------------------------------------------------|
+| `ENABLE_REGISTRATION`          | `true`  | Set to `false` to close the `/register` page                                                                 |
 | `PASSWORD_AUTH_ENABLED`        | `true`  | Set to `false` to disable password login entirely (requires OIDC to be enabled)                              |
 | `PASSWORD_AUTH_UNIFORM_TIMING` | `true`  | Keep login response time constant whether or not the email exists, so accounts can't be enumerated by timing |
-| `ENABLE_REGISTRATION`          | `true`  | Set to `false` to close the `/register` page                                                                 |
 
 Please note that if `PASSWORD_AUTH_ENABLED` is changed to **false**, previously password-only accounts will be converted to OIDC accounts upon login.
 If both `PASSWORD_AUTH_ENABLED` and `OIDC_ENABLED` are **true**, this auto-conversion is not done. Users must explicitly link to an OIDC account in
@@ -309,28 +298,29 @@ the user settings page.
 
 #### Password Hashing
 
-Passwords are stored as [Argon2id](https://en.wikipedia.org/wiki/Argon2) hashes, at OWASP's recommended cost. Because Argon2id is deliberately
-memory-hard, its cost parameters are also the largest single influence on how much memory Diurnal needs - so they are tuned together with the
+Passwords are stored as [Argon2id](https://en.wikipedia.org/wiki/Argon2) hashes, at OWASP's recommended cost. They are tuned together with the
 container's memory budget in [Performance Tuning](#performance-tuning).
 
 #### OIDC
 
 OIDC is disabled by default. When enabled, users can sign in through your identity provider alongside (or instead of) password login. Register
-`{your-base-url}/oauth2/callback/oidc` as the redirect URI with your IdP.
+`{your-base-url}/oauth2/callback/oidc` as the redirect URI with your IdP (including any `BASE_PATH` prefix, e.g.
+`https://example.com/diurnal/oauth2/callback/oidc`).
 
-| Variable             | Default                  | Description                                                           |
-|----------------------|--------------------------|-----------------------------------------------------------------------|
-| `OIDC_ADMIN_GROUP`   |                          | IdP group whose members are granted the `Administrator` role          |
-| `OIDC_AUTO_REDIRECT` | `false`                  | If `true`, `/login` redirects straight to the provider                |
-| `OIDC_CLIENT_ID`     | `diurnal`                | Client ID registered with the provider                                |
-| `OIDC_CLIENT_SECRET` |                          | Client secret for the registered client                               |
-| `OIDC_ENABLED`       | `false`                  | Set to `true` to activate OIDC                                        |
-| `OIDC_ISSUER_URL`    |                          | Base URL of the OIDC provider (e.g. `https://auth.example.com`)       |
-| `OIDC_LOGOUT_URL`    |                          | OIDC users are redirected here after logging out                      |
-| `OIDC_PKCE_ENABLED`  | `true`                   | PKCE on the code flow; disable only if the provider rejects it        |
-| `OIDC_PROVIDER_NAME` | `your identity provider` | Name shown on the login button ("Log in with your identity provider") |
-| `OIDC_SCOPES`        | `email,profile,groups`   | Extra scopes requested with `openid` (use `email,profile` for Google) |
-| `OIDC_USER_GROUP`    |                          | IdP group whose members are granted the `User` role                   |
+| Variable                 | Default                  | Description                                                           |
+|--------------------------|--------------------------|-----------------------------------------------------------------------|
+| `OIDC_ADMIN_GROUP`       |                          | IdP group whose members are granted the `Administrator` role          |
+| `OIDC_AUTO_REDIRECT`     | `false`                  | If `true`, `/login` redirects straight to the provider                |
+| `OIDC_CLIENT_ID`         | `diurnal`                | Client ID registered with the provider                                |
+| `OIDC_CLIENT_SECRET`     |                          | Client secret for the registered client                               |
+| `OIDC_ENABLED`           | `false`                  | Set to `true` to activate OIDC                                        |
+| `OIDC_ISSUER_URL`        |                          | Base URL of the OIDC provider (e.g. `https://auth.example.com`)       |
+| `OIDC_LOGOUT_URL`        |                          | OIDC users are redirected here after logging out                      |
+| `OIDC_PKCE_ENABLED`      | `true`                   | PKCE on the code flow; disable only if the provider rejects it        |
+| `OIDC_PROVIDER_NAME`     | `your identity provider` | Name shown on the login button ("Log in with your identity provider") |
+| `OIDC_SCOPES`            | `email,groups,profile`   | Extra scopes requested with `openid` (use `email,profile` for Google) |
+| `OIDC_USER_GROUP`        |                          | IdP group whose members are granted the `User` role                   |
+| `OIDC_VERIFY_ON_STARTUP` | `true`                   | Probe the IdP at startup and refuse to boot if it is unreachable      |
 
 <!-- markdownlint-disable MD033 -- collapsible example: intentional <strong> inside <summary> -->
 <details>
@@ -397,8 +387,8 @@ Durations are [ISO-8601](https://en.wikipedia.org/wiki/ISO_8601#Durations) (e.g.
 | Variable                            | Default | Description                                  |
 |-------------------------------------|---------|----------------------------------------------|
 | `AUTH_IP_THROTTLE_ENABLED`          | `true`  | Set to `false` to disable throttling         |
-| `AUTH_IP_THROTTLE_MAX_ATTEMPTS`     | `15`    | Failures from one IP before it is locked out |
 | `AUTH_IP_THROTTLE_LOCKOUT_DURATION` | `PT15M` | How long an IP stays locked                  |
+| `AUTH_IP_THROTTLE_MAX_ATTEMPTS`     | `15`    | Failures from one IP before it is locked out |
 
 #### Sessions
 
@@ -412,32 +402,20 @@ A session ends at whichever comes first: `SESSION_IDLE_TIMEOUT` since it was las
 
 | Variable                    | Default | Description                                                       |
 |-----------------------------|---------|-------------------------------------------------------------------|
-| `SESSION_IDLE_TIMEOUT`      | `P30D`  | Sliding idle timeout; a session dies this long after its last use |
 | `SESSION_ABSOLUTE_LIFETIME` | `P90D`  | Hard cap on a session's age regardless of activity                |
 | `SESSION_CLEANUP_INTERVAL`  | `PT1H`  | How often expired sessions are swept from the database            |
+| `SESSION_IDLE_TIMEOUT`      | `P30D`  | Sliding idle timeout; a session dies this long after its last use |
 
 ### Reverse Proxy
 
 Diurnal serves plaintext HTTP and is designed to run behind a TLS-terminating reverse proxy. The proxy should handle everything TLS-related: the
 certificate, any HTTP→HTTPS redirect, and the `Strict-Transport-Security` (HSTS) header.
 
-| Variable                    | Default | Description                                          |
-|-----------------------------|---------|------------------------------------------------------|
-| `TRUST_X_FORWARDED_HEADERS` | `true`  | Trust `X-Forwarded-*` headers from the reverse proxy |
-
-### CORS
-
-By default, only same-origin browsers can call Diurnal, so any third-party web app running in a **browser** on another origin is blocked by CORS. To
-let a web app from `https://myapp.example.com` call your Diurnal instance, for example, set this on the `diurnal` container:
-
-```yaml
-environment:
-  CORS_ALLOWED_ORIGINS: "https://myapp.example.com"
-```
-
-| Variable               | Default | Description                                                                           |
-|------------------------|---------|---------------------------------------------------------------------------------------|
-| `CORS_ALLOWED_ORIGINS` |         | Comma-separated list of origins allowed to call the API from a browser (unset = none) |
+| Variable                    | Default | Description                                                                           |
+|-----------------------------|---------|---------------------------------------------------------------------------------------|
+| `BASE_PATH`                 |         | URL prefix the app is served under (if unset the application is served at `/`)        |
+| `CORS_ALLOWED_ORIGINS`      |         | Comma-separated list of origins allowed to call the API from a browser (unset = none) |
+| `TRUST_X_FORWARDED_HEADERS` | `false` | Trust `X-Forwarded-*` headers from the reverse proxy                                  |
 
 ## Performance Tuning
 
@@ -447,15 +425,11 @@ possible for the password hashing, seen below.
 
 ### Application Memory
 
-| Variable             | Default | Description                                          |
-|----------------------|---------|------------------------------------------------------|
-| `APP_MEM_LIMIT`      | `2g`    | Total container memory (the JVM heap is 65% of this) |
-| `WORKER_MAX_THREADS` | `32`    | Concurrent blocking requests                         |
-
-`APP_MEM_LIMIT` is the knob to use: the heap follows it, so nothing has to be kept in sync by hand. To size the heap directly instead, set
-`JDK_JAVA_OPTIONS` (for example `-Xms256m -Xmx1g`) and the entrypoint will leave that flag alone — per flag, so supplying only an initial size still
-leaves the maximum capped. A container with no memory limit at all is capped to the same heap the default `APP_MEM_LIMIT` produces, because a JVM
-that sizes itself against total host RAM will grow a heap far larger than this application needs and never give it back.
+| Variable             | Default | Description                                                                                                     |
+|----------------------|---------|-----------------------------------------------------------------------------------------------------------------|
+| `APP_MEM_LIMIT`      | `2g`    | Total container memory (the JVM heap is 65% of this)                                                            |
+| `JDK_JAVA_OPTIONS`   |         | Standard JDK variable; a heap flag (for example `-Xms256m -Xmx1g`) replaces the docker ENTRYPOINT configuration |
+| `WORKER_MAX_THREADS` | `32`    | Concurrent blocking requests                                                                                    |
 
 ### Password Hashing Cost
 
@@ -552,10 +526,10 @@ Limits are counted in **characters as a reader counts them**, not bytes: an acce
 |----------------|-------------------------------------------------------------------------|
 | Action name    | 1-100 characters                                                        |
 | Display name   | 2-50 characters                                                         |
-| Statistic name | Up to 25 characters (leave it blank to restore the built-in name)       |
-| Note           | Up to 10,000 characters by default* (leave it blank to remove the note) |
 | Email          | 3-254 characters, and must contain an `@`                               |
+| Note           | Up to 10,000 characters by default* (leave it blank to remove the note) |
 | Password       | 1-128 characters                                                        |
+| Statistic name | Up to 25 characters (leave it blank to restore the built-in name)       |
 
 \* The note limit is the only one here a deployment can change ([`NOTE_MAX_LENGTH`](#note-configuration)); every other limit is fixed. Lowering it
 leaves notes you have already written untouched - see [Note Configuration](#note-configuration).

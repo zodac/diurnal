@@ -39,7 +39,9 @@ import java.util.TreeMap;
 import java.util.UUID;
 import net.zodac.diurnal.action.Action;
 import net.zodac.diurnal.http.EntityTags;
+import net.zodac.diurnal.text.TextOrdering;
 import net.zodac.diurnal.user.CurrentUser;
+import net.zodac.diurnal.user.Language;
 import net.zodac.diurnal.user.Role;
 
 /**
@@ -114,11 +116,15 @@ public class CalendarResource {
                           .add(new ActionDotDto(a.colour, a.name, log.count()));
             });
 
+        // The name tie-break is COLLATED, matching LogsApiResource's day-events feed and LogWebResource's day panel, which order the same actions
+        // for the same user. Plain String.compareTo is code-point order, which sorts every accented or non-Latin name after every plain-ASCII one -
+        // and because the `.limit(MAX_DOTS_PER_DAY)` below cuts the list, that decided which dots a day SHOWS, not merely the order they sat in.
+        final Comparator<String> byName = TextOrdering.byName(Language.fromValue(currentUser.get().language).locale());
         final List<MinimalCalendarDayDto> days = byDate.entrySet().stream()
             .map(e -> {
                 final List<ActionDotDto> sorted = e.getValue().stream()
                     .sorted(Comparator.comparingInt(ActionDotDto::count).reversed()
-                    .thenComparing(ActionDotDto::name))
+                    .thenComparing(ActionDotDto::name, byName))
                     .limit(MAX_DOTS_PER_DAY)
                     .toList();
                 return new MinimalCalendarDayDto(e.getKey(), sorted);

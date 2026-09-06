@@ -510,19 +510,25 @@ public interface AppMessages {
     /**
      * The password-requirements tooltip's "at least N characters" row.
      *
+     * <p>
+     * Pluralised inside the value: {@code TextFields.PASSWORD}'s minimum is {@code 1} today, so the singular branch is the one this actually renders.
+     *
      * @param count the minimum, never translated
      * @return the default (English) text
      */
-    @Message("At least {count} characters")
+    @Message("At least {#if count == 1}1 character{#else}{count} characters{/if}")
     String atLeastCharacters(int count);
 
     /**
      * The password-requirements tooltip's "at most N characters" row.
      *
+     * <p>
+     * Pluralised inside the value, for the same reason {@link #atLeastCharacters(int)} is - the two rows are worded as a pair.
+     *
      * @param count the maximum, never translated
      * @return the default (English) text
      */
-    @Message("At most {count} characters")
+    @Message("At most {#if count == 1}1 character{#else}{count} characters{/if}")
     String atMostCharacters(int count);
 
     // ── Password-change rejections (partials/password-rejection.html) ────────
@@ -815,7 +821,7 @@ public interface AppMessages {
      * @param max the deployment's configured maximum, never translated
      * @return the default (English) text
      */
-    @Message("Note must be at most {max} characters.")
+    @Message("Note must be at most {#if max == 1}1 character{#else}{max} characters{/if}.")
     String noteLength(int max);
 
     /**

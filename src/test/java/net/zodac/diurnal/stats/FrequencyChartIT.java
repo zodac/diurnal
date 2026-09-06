@@ -324,8 +324,10 @@ class FrequencyChartIT extends IntegrationTestBase {
                 .then().statusCode(OK)
                 .body(containsString("data-chart-shown-compare=\"" + second.id + "\""))
                 .body(containsString("Stop comparing Yoga"))
-                .body(containsString("Running: 4 times"))
-                .body(containsString("Yoga: 1 time"));
+                // Each bar's NAME is bidi-isolated in its own <bdi> - it is the user's own text, and on this line it
+                // would otherwise pick the direction for the translated "N times" beside it (see I18N.md's "RTL").
+                .body(containsString("<bdi>Running</bdi>: 4 times"))
+                .body(containsString("<bdi>Yoga</bdi>: 1 time"));
     }
 
     @Test
